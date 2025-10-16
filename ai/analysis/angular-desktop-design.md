@@ -80,7 +80,8 @@ This document outlines the technical design for the Holokai Desktop application,
 │  │  - AuthService (OAuth flow orchestration)      │     │
 │  │  - MokuAPIClient (thread/message persistence)  │     │
 │  │  - SecureStorageService (credentials)          │     │
-│  │  - LoggingService (electron-log)               │     │
+│  │  - ApplicationLoggingService (electron-log)    │     │
+│  │  - AuditLoggingService (Moku API)              │     │
 │  └────────────────────────────────────────────────┘     │
 │                                                           │
 │  ┌────────────────────────────────────────────────┐     │
@@ -346,9 +347,18 @@ NgRx Signals provides lightweight, reactive state management with fine-grained r
 
 ## 6. Authentication & Authorization
 
-### 6.1 OAuth 2.0 Flow with PKCE
+### 6.1 Authentication Using Moku API SSO
 
-The application implements OAuth 2.0 with PKCE (Proof Key for Code Exchange) for enhanced security. This prevents authorization code interception attacks.
+The desktop application delegates all authentication to the existing Moku web SSO system, allowing users to sign in using Microsoft, Google, or standard OAuth2.0 accounts through the familiar web interface. The desktop app receives authentication tokens via a secure callback mechanism using custom protocol handling.
+
+**Key Benefits:**
+- Single source of truth for all authentication logic in Moku web
+- Consistent user experience across web and desktop platforms
+- Enhanced security with server-side OAuth handling
+- Automatic support for future SSO providers without desktop app updates
+- Centralized session management and audit logging
+- Uses system browser with visible SSL indicators for user trust
+- No embedded browser security concerns
 
 #### 6.1.1 Flow Overview
 
@@ -498,9 +508,23 @@ Coordinates between IPC handlers and MokuAPIClient. Adds logging and error trans
 - syncMessage(threadId, message) - Syncs message, doesn't throw on failure to allow offline operation
 
 **Logging:**
-All operations logged with electron-log including timestamps, thread IDs, and error details.
+The application implements two distinct logging systems:
 
-**Dependencies:** MokuAPIClient, SecureStorageService, electron-log
+1. **Application Logging** (electron-log):
+   - Focuses on operational health and diagnostics
+   - Captures system events, errors, and performance metrics
+   - Logs include timestamps, thread IDs, error details, and stack traces
+   - Written to local log files for debugging and troubleshooting
+   - Used for monitoring application stability and identifying technical issues
+
+2. **Audit Logging** (Moku API):
+   - Focuses on user and model interactions, content, and security
+   - Tracks authentication events, user actions, and data access
+   - Records chat messages, model selections, and API interactions
+   - Captures security-relevant events for compliance and analysis
+   - Stored centrally in Moku API for historical record and audit trails
+
+**Dependencies:** MokuAPIClient, SecureStorageService, ApplicationLoggingService, AuditLoggingService
 
 ---
 
@@ -785,7 +809,8 @@ holokai-desktop/
 │   │   ├── ModelService.ts
 │   │   ├── SecureStorageService.ts
 │   │   ├── MokuAPIClient.ts
-│   │   └── LoggingService.ts
+│   │   ├── ApplicationLoggingService.ts
+│   │   └── AuditLoggingService.ts
 │   │
 │   ├── ipc/                      # IPC handlers
 │   │   ├── handlers.ts
