@@ -19,7 +19,9 @@ Service classes are stored in `electron/services/` (e.g., `AuthService.ts`, `Thr
 
 ## File Naming
 
-Use **PascalCase** for component files: `ThreadList.vue`, `LoginScreen.svelte`.
+Use **PascalCase** for component files: `ThreadListComponent` in `thread-list.component.ts`, `LoginScreen.svelte`.
+
+Use **kebab-case** for Angular component file names: `thread-list.component.ts`, `model-selector.component.ts`.
 
 Use **PascalCase** for class files: `AuthService.ts`, `MokuAPIClient.ts`.
 
@@ -127,11 +129,13 @@ The renderer process should only receive confirmation of authentication status, 
 
 ## Testing
 
-Unit tests are stored in `tests/unit/` mirroring the source structure: `tests/unit/stores/auth.spec.ts`.
+Unit tests are stored in `tests/unit/` mirroring the source structure: `tests/unit/stores/auth.store.spec.ts`.
 
-Component tests use the framework's testing library: `@testing-library/svelte` or `@vue/test-utils`.
+Component tests use the framework's testing library: `@testing-library/svelte` or `@angular/core/testing` with Jasmine/Karma.
 
-Mock IPC calls in component tests using `vi.stubGlobal('window', { electron: { ... } })`.
+For Angular, use `TestBed` to configure testing modules and mock dependencies via providers array.
+
+Mock IPC calls in component tests: Svelte uses `vi.stubGlobal('window', { electron: { ... } })`, Angular uses Jasmine spies on `window.electron` methods.
 
 Integration tests for IPC handlers are stored in `tests/integration/ipc/`.
 
@@ -157,13 +161,15 @@ Never make API calls directly from UI components; always use service classes.
 
 ## State Management
 
-Use the framework's built-in state solution: Svelte stores or Pinia (Vue).
+Use the framework's built-in state solution: Svelte stores or NgRx Signals (Angular).
 
-Store files should be named by domain: `authStore.ts`, `threadsStore.ts`, `modelsStore.ts`.
+Store files should be named by domain: `auth.store.ts`, `threads.store.ts`, `models.store.ts`.
+
+For Angular, use NgRx Signals with `signalStore()` for lightweight reactive state management.
 
 Keep stores focused on a single domain/feature for better maintainability.
 
-Avoid storing derived data in stores; use computed/derived values instead.
+Avoid storing derived data in stores; use computed signals or derived values instead.
 
 ---
 
@@ -206,3 +212,85 @@ Components should only handle presentation and user interaction.
 Service classes should be framework-agnostic and testable without UI.
 
 Use dependency injection for services to enable easy testing and mocking.
+
+---
+
+## Angular-Specific Guidelines
+
+### Component Structure
+
+Use standalone components with `@Component({ standalone: true })` decorator.
+
+Import dependencies directly in the component's `imports` array, not through NgModules.
+
+Use `OnPush` change detection strategy for all components: `changeDetection: ChangeDetectionStrategy.OnPush`.
+
+Implement lifecycle hooks as needed: `OnInit`, `OnDestroy`, `AfterViewInit`.
+
+Use signals for reactive state within components: `signal()`, `computed()`, `effect()`.
+
+### Template Syntax
+
+Use Angular's template syntax: `*ngIf`, `*ngFor`, `[property]`, `(event)`, `[(ngModel)]`.
+
+Prefer structural directives over programmatic DOM manipulation.
+
+Use Angular pipes for data transformation in templates: `| date`, `| async`, `| json`.
+
+Avoid complex logic in templates; move to component methods or computed signals.
+
+### Dependency Injection
+
+Inject services via constructor: `constructor(private authStore: AuthStore)`.
+
+Mark services with `@Injectable({ providedIn: 'root' })` for singleton instances.
+
+Use `inject()` function in standalone components if preferred over constructor injection.
+
+### NgRx Signals Usage
+
+Create stores using `signalStore()` from `@ngrx/signals`.
+
+Define state with `withState()`, computed values with `withComputed()`, and methods with `withMethods()`.
+
+Access store values using signal notation: `authStore.user()`, `threadsStore.activeThread()`.
+
+Update state immutably within store methods.
+
+### PrimeNG Integration
+
+Import PrimeNG components individually to reduce bundle size: `import { ButtonModule } from 'primeng/button'`.
+
+Use PrimeNG components consistently: `p-button`, `p-dropdown`, `p-dialog`, `p-table`.
+
+Apply custom styles via `styleClass` attribute or component CSS.
+
+Reference PrimeNG documentation for component APIs and event handlers.
+
+### Routing (if applicable)
+
+Define routes in `app.routes.ts` using the new functional router configuration.
+
+Use `RouterLink` directive for navigation: `<a routerLink="/threads">Threads</a>`.
+
+Implement route guards using functional guards: `canActivateFn`, `canDeactivateFn`.
+
+### Performance
+
+Use `trackBy` functions with `*ngFor` to optimize rendering: `*ngFor="let thread of threads; trackBy: trackById"`.
+
+Implement virtual scrolling for long lists using `@angular/cdk/scrolling`.
+
+Lazy load feature modules or components when they're not immediately needed.
+
+Use Angular's built-in `async` pipe to automatically manage subscriptions.
+
+### Type Safety
+
+Define interfaces for all data structures in `src/app/shared/types/`.
+
+Use strict TypeScript configuration: `"strict": true` in `tsconfig.json`.
+
+Avoid `any` type; use proper types or `unknown` with type guards.
+
+Leverage Angular's typed forms for form validation and type safety.
