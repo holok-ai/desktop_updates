@@ -1,0 +1,65 @@
+{
+  "name": "holokai-desktop-svelte",
+  "version": "1.0.0",
+  "description": "Holokai Desktop - Reference Electron + Svelte application demonstrating architecture patterns",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm run dev\" \"npm run electron:watch\" -n \"VITE,ELECTRON\" -c \"blue,green\"",
+    "electron:watch": "concurrently \"npm run build:electron\" \"nodemon --watch dist-electron --delay 1000ms --exec electron .\" -n \"TSC,APP\" -c \"yellow,magenta\"",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "build:prod": "npm run build && npm run build:electron",
+    "package": "npm run build:prod && electron-builder",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "keywords": [
+    "electron",
+    "svelte",
+    "typescript",
+    "ipc",
+    "context-bridge"
+  ],
+  "author": "Holokai",
+  "license": "MIT",
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "@tsconfig/svelte": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0",
+    "nodemon": "^3.0.0",
+    "svelte": "^4.2.0",
+    "svelte-check": "^3.6.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.holokai.desktop.svelte",
+    "productName": "Holokai Desktop (Svelte)",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-electron/
+release/
+.svelte-kit/
+build/
+.DS_Store
+*.log
+.env
+.env.local
+package-lock.json
