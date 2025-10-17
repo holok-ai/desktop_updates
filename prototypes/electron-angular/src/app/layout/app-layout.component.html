@@ -1,0 +1,26 @@
+<div class="app-layout">
+  <!-- Desktop navbar: visible on larger screens -->
+  <div class="navbar-desktop">
+    <app-navbar></app-navbar>
+  </div>
+
+  <!-- Mobile overlay navbar: only when toggled -->
+  <div class="navbar-mobile-overlay" [class.visible]="mobileNavVisible" (click)="closeMobileNav()">
+    <div class="navbar-mobile-content" (click)="$event.stopPropagation()">
+      <app-navbar (closeMobile)="closeMobileNav()"></app-navbar>
+    </div>
+  </div>
+
+  <!-- Main content area -->
+  <div class="content-wrapper">
+    <!-- Header (visible on mobile, hidden on desktop) -->
+    <div class="header-mobile">
+      <app-header (menuToggle)="onMenuToggle($event)"></app-header>
+    </div>
+
+    <!-- Page content -->
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

@@ -1,0 +1,359 @@
+/**
+ * Global Styles - Holokai Desktop Dark Theme
+ * 
+ * This file contains global styles matching the moku\web dark theme.
+ */
+
+/* Import Poppins font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Import PrimeNG light theme - main content is light */
+@import 'primeng/resources/themes/lara-light-blue/theme.css';
+@import 'primeng/resources/primeng.css';
+@import 'primeicons/primeicons.css';
+
+/* Holokai Design Tokens - matching moku\web */
+:root {
+  /* Typography - Poppins font family */
+  --font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Holokai Colors - from moku\web tokens.css */
+  --color-primary-darker: #091320;
+  --color-primary-dark: #0D1D30;
+  --color-primary: #0F2239;
+  --color-primary-light: #153051;
+  --color-secondary-dark: #2D85AD;
+  --color-secondary: #2D85AD;
+  --color-secondary-light: #5DAFD5;
+  --color-text-light: #F2F1EC;
+  --color-text-dark: #1B1B1B;
+  --color-base-dark: #666666;
+  --color-base-light: #A3A3A3;
+  --color-cream: #F2F1EC;
+  
+  /* Holokai legacy color variables */
+  --hc-dark: var(--color-primary-darker);
+  --hc-dark-hover: var(--color-primary-dark);
+  --hc-light: var(--color-text-light);
+  --hc-blue-dark: var(--color-secondary-dark);
+  --hc-blue-dark-secondary: #216382;
+  --hc-blue-dark-secondary-hover: rgba(51, 102, 126, 0.44);
+  --hc-cream: var(--color-cream);
+  --hc-navy: var(--color-primary);
+  
+  /* Override PrimeNG theme variables with Holokai colors */
+  --text-color: var(--color-text-dark);
+  --text-color-secondary: var(--color-base-dark);
+  --surface-ground: var(--hc-cream);
+  --surface-section: var(--hc-cream);
+  --surface-card: #ffffff;
+  --surface-overlay: #ffffff;
+  --surface-border: #e5e7eb;
+  --surface-hover: #f3f4f6;
+  --primary-color: var(--color-secondary-dark);
+  --primary-color-text: #ffffff;
+}
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-family);
+  background-color: var(--hc-cream);
+  color: var(--color-text-dark);
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styles - light theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--hc-cream);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-base-dark);
+}
+
+/* Utility classes */
+.w-full {
+  width: 100%;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* PrimeNG overrides for light theme with Holokai colors */
+.p-component {
+  font-family: var(--font-family);
+}
+
+/* Card styling - light theme */
+.p-card {
+  background: #ffffff;
+  color: var(--color-text-dark);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.p-card-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  color: var(--color-text-dark);
+}
+
+.p-card-body {
+  padding: 0;
+}
+
+.p-card-content {
+  padding: 1.5rem;
+  color: var(--color-text-dark);
+}
+
+/* Button adjustments - using Holokai colors, smaller and non-bold */
+.p-button {
+  font-weight: 400;
+  font-size: 0.8125rem;
+  background: var(--color-secondary-dark);
+  border-color: var(--color-secondary-dark);
+  color: #ffffff;
+}
+
+.p-button:hover:not(:disabled) {
+  background: var(--color-secondary-light);
+  border-color: var(--color-secondary-light);
+}
+
+.p-button.p-button-outlined {
+  background: transparent;
+  border-color: var(--color-secondary-dark);
+  color: var(--color-secondary-dark);
+}
+
+.p-button.p-button-outlined:hover:not(:disabled) {
+  background: rgba(45, 133, 173, 0.04);
+  border-color: var(--color-secondary-light);
+  color: var(--color-secondary-light);
+}
+
+/* Text buttons - transparent background for icon buttons in grids */
+.p-button.p-button-text {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--color-secondary-dark);
+}
+
+.p-button.p-button-text:hover:not(:disabled) {
+  background: rgba(45, 133, 173, 0.08) !important;
+  border-color: transparent !important;
+  color: var(--color-secondary-dark);
+}
+
+.p-button.p-button-text:active:not(:disabled) {
+  background: rgba(45, 133, 173, 0.12) !important;
+  border-color: transparent !important;
+}
+
+/* Text button variants for different severities */
+.p-button.p-button-text.p-button-danger {
+  color: #D83933;
+}
+
+.p-button.p-button-text.p-button-danger:hover:not(:disabled) {
+  background: rgba(216, 57, 51, 0.08) !important;
+  color: #D83933;
+}
+
+.p-button.p-button-text.p-button-success {
+  color: #22C55E;
+}
+
+.p-button.p-button-text.p-button-success:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.08) !important;
+  color: #22C55E;
+}
+
+.p-button.p-button-text.p-button-warning {
+  color: #F59E0B;
+}
+
+.p-button.p-button-text.p-button-warning:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.08) !important;
+  color: #F59E0B;
+}
+
+.p-button.p-button-text.p-button-info {
+  color: #2F68BF;
+}
+
+.p-button.p-button-text.p-button-info:hover:not(:disabled) {
+  background: rgba(47, 104, 191, 0.08) !important;
+  color: #2F68BF;
+}
+
+.p-button.p-button-text.p-button-secondary {
+  color: var(--color-secondary-dark);
+}
+
+.p-button.p-button-text.p-button-secondary:hover:not(:disabled) {
+  background: rgba(45, 133, 173, 0.08) !important;
+  color: var(--color-secondary-dark);
+}
+
+/* Table styling - light theme */
+.p-datatable {
+  background: #ffffff;
+  color: var(--color-text-dark);
+}
+
+.p-datatable .p-datatable-header {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: var(--color-text-dark);
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: var(--color-text-dark);
+}
+
+.p-datatable .p-datatable-tbody > tr {
+  background: #ffffff;
+  color: var(--color-text-dark);
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+  background: #f9fafb;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  border-color: #e5e7eb;
+}
+
+/* Dialog adjustments - light theme */
+.p-dialog {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.p-dialog-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  color: var(--color-text-dark);
+}
+
+.p-dialog-content {
+  background: #ffffff;
+  color: var(--color-text-dark);
+}
+
+.p-dialog-footer {
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Input fields - light theme */
+.p-inputtext {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: var(--color-text-dark);
+}
+
+.p-inputtext:enabled:focus {
+  border-color: var(--color-secondary-dark);
+  box-shadow: 0 0 0 0.2rem rgba(45, 133, 173, 0.25);
+}
+
+.p-inputtextarea {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: var(--color-text-dark);
+}
+
+.p-inputtextarea:enabled:focus {
+  border-color: var(--color-secondary-dark);
+  box-shadow: 0 0 0 0.2rem rgba(45, 133, 173, 0.25);
+}
+
+/* Dropdown - light theme */
+.p-dropdown {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: var(--color-text-dark);
+}
+
+.p-dropdown:not(.p-disabled):hover {
+  border-color: var(--color-secondary-dark);
+}
+
+.p-dropdown-panel {
+  background: #ffffff;
+  border-color: #d1d5db;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item {
+  color: var(--color-text-dark);
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item.p-highlight {
+  background: var(--color-secondary-dark);
+  color: #ffffff;
+}
+
+/* Toast positioning and styling */
+.p-toast {
+  z-index: 10000;
+}
+
+.p-toast-message {
+  background: #ffffff;
+  border: solid #e5e7eb;
+  border-width: 0 0 0 6px;
+  color: var(--color-text-dark);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* RouterLink styling for PrimeNG buttons */
+a.p-button {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+/* Tooltip - dark theme */
+.p-tooltip {
+  background: var(--color-primary);
+  color: var(--color-text-light);
+}
+
+.p-tooltip .p-tooltip-arrow {
+  border-top-color: var(--color-primary);
+}

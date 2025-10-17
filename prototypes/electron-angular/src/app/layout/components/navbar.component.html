@@ -1,0 +1,88 @@
+<nav class="app-navbar" [class.collapsed]="isCollapsed">
+  <!-- Logo and collapse button -->
+  <div class="navbar-header">
+    <button 
+      pButton 
+      type="button" 
+      [icon]="isCollapsed ? 'pi pi-chevron-right' : 'pi pi-chevron-left'" 
+      class="p-button-text p-button-plain collapse-button desktop-only"
+      (click)="toggleCollapse()"
+      [pTooltip]="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+      tooltipPosition="right"
+      aria-label="Toggle sidebar">
+    </button>
+    
+    <button 
+      pButton 
+      type="button" 
+      icon="pi pi-times" 
+      class="p-button-text p-button-plain close-button mobile-only"
+      (click)="onMobileClose()"
+      aria-label="Close menu">
+    </button>
+  </div>
+
+  <!-- Navigation items -->
+  <div class="nav-content">
+    <div class="nav-items">
+      @for (item of navigationItems; track item.route) {
+        <a
+          [routerLink]="[item.route]"
+          routerLinkActive="active"
+          class="nav-item"
+          [class.collapsed]="isCollapsed"
+          [pTooltip]="isCollapsed ? item.label : ''"
+          tooltipPosition="right"
+          pRipple
+          (click)="onNavigationClick(item); onMobileClose()">
+          <i [class]="item.icon + ' nav-icon'"></i>
+          @if (!isCollapsed) {
+            <span class="nav-label">{{ item.label }}</span>
+          }
+        </a>
+      }
+    </div>
+  </div>
+
+  <!-- User info section at bottom -->
+  @if (currentUser) {
+    <div class="user-section" [class.collapsed]="isCollapsed">
+      <div class="user-info-header" (click)="toggleUserMenu()" [class.expanded]="userMenuExpanded">
+        <p-avatar 
+          [image]="currentUser.picture" 
+          [label]="currentUser.name.charAt(0)" 
+          size="normal" 
+          shape="circle"
+          [style]="{backgroundColor: '#667eea', color: '#ffffff'}">
+        </p-avatar>
+        @if (!isCollapsed) {
+          <div class="user-details">
+            <div class="user-name">> {{ currentUser.name }}</div>
+            <div class="user-email">{{ currentUser.email }}</div>
+          </div>
+          <i class="pi pi-chevron-right chevron-icon" [class.expanded]="userMenuExpanded"></i>
+        }
+      </div>
+      
+      @if (!isCollapsed && userMenuExpanded) {
+        <div class="user-actions">
+          <button 
+            class="user-action-item"
+            (click)="toggleDarkMode(); $event.stopPropagation()"
+            pRipple>
+            <i class="pi pi-moon"></i>
+            <span>Dark Mode</span>
+          </button>
+          
+          <button 
+            class="user-action-item"
+            (click)="onLogout(); $event.stopPropagation()"
+            pRipple>
+            <i class="pi pi-sign-out"></i>
+            <span>Logout</span>
+          </button>
+        </div>
+      }
+    </div>
+  }
+</nav>

@@ -1,0 +1,79 @@
+{
+  "name": "holokai-desktop",
+  "version": "1.0.0",
+  "description": "Holokai Desktop - Reference Electron + Angular application demonstrating architecture patterns",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "electron": "npm run build:electron && electron .",
+    "electron:serve": "ng serve",
+    "electron:dev": "concurrently \"npm run watch\" \"npm run electron:watch\" -n \"ANGULAR,ELECTRON\" -c \"blue,green\"",
+    "electron:watch": "concurrently \"tsc -p tsconfig.electron.json --watch\" \"nodemon --watch dist-electron --delay 1000ms --exec electron .\" -n \"TSC,APP\" -c \"yellow,magenta\"",
+    "electron:start": "ng serve & npm run electron:wait",
+    "electron:wait": "wait-on http://localhost:4300 && npm run build:electron && electron .",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:prod": "npm run build && npm run build:electron",
+    "package": "npm run build:prod && electron-builder"
+  },
+  "keywords": [
+    "electron",
+    "angular",
+    "typescript",
+    "ipc",
+    "context-bridge"
+  ],
+  "author": "Holokai",
+  "license": "MIT",
+  "dependencies": {
+    "@angular/animations": "^18.0.0",
+    "@angular/common": "^18.0.0",
+    "@angular/compiler": "^18.0.0",
+    "@angular/core": "^18.0.0",
+    "@angular/forms": "^18.0.0",
+    "@angular/platform-browser": "^18.0.0",
+    "@angular/platform-browser-dynamic": "^18.0.0",
+    "@angular/router": "^18.0.0",
+    "electron-log": "^5.4.3",
+    "electron-store": "^8.1.0",
+    "primeicons": "^7.0.0",
+    "primeng": "^17.18.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.14.3"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^18.0.0",
+    "@angular/cli": "^18.0.0",
+    "@angular/compiler-cli": "^18.0.0",
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0",
+    "nodemon": "^3.0.0",
+    "typescript": "~5.4.0",
+    "wait-on": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.holokai.desktop",
+    "productName": "Holokai Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

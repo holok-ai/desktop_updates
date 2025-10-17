@@ -1,0 +1,118 @@
+<div class="home-page">
+  @if (currentUser) {
+    <div class="user-welcome">
+      <p-avatar 
+        [image]="currentUser.picture" 
+        [label]="currentUser.name.charAt(0)" 
+        size="xlarge" 
+        shape="circle">
+      </p-avatar>
+      <div class="welcome-text">
+        <h1 class="page-title">Welcome back, {{ currentUser.name }}!</h1>
+        <p class="user-info">
+          <i class="pi pi-envelope"></i>
+          {{ currentUser.email }}
+          <span class="provider-badge">{{ currentUser.provider }}</span>
+        </p>
+      </div>
+      <p-button 
+        label="Logout" 
+        icon="pi pi-sign-out" 
+        (onClick)="onLogout()"
+        styleClass="p-button-outlined p-button-sm">
+      </p-button>
+    </div>
+  } @else {
+    <h1 class="page-title">Welcome to Holokai Desktop</h1>
+  }
+  
+  <p-card class="info-card">
+    <ng-template pTemplate="header">
+      <div class="card-header">
+        <i class="pi pi-info-circle"></i>
+        <h2>Architecture Overview</h2>
+      </div>
+    </ng-template>
+    
+    <div class="card-content">
+      <p>
+        This prototype demonstrates the recommended architecture for building Electron applications with Angular:
+      </p>
+      
+      <ul class="feature-list">
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>Context Bridge:</strong> Secure IPC communication between renderer and main process
+        </li>
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>IPC Handlers:</strong> Organized domain-specific handlers in the main process
+        </li>
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>Angular Services:</strong> Type-safe services that wrap Electron APIs
+        </li>
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>Reactive State:</strong> RxJS observables for reactive UI updates
+        </li>
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>Event Broadcasting:</strong> Real-time updates across all windows
+        </li>
+        <li>
+          <i class="pi pi-check-circle"></i>
+          <strong>PrimeNG UI:</strong> Professional component library with theming
+        </li>
+      </ul>
+    </div>
+  </p-card>
+
+  @if (isElectron) {
+    <p-card class="system-info-card">
+      <ng-template pTemplate="header">
+        <div class="card-header">
+          <i class="pi pi-desktop"></i>
+          <h2>System Information</h2>
+        </div>
+      </ng-template>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Platform:</span>
+          <span class="info-value">{{ systemInfo.platform || 'Loading...' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Electron Version:</span>
+          <span class="info-value">{{ systemInfo.version || 'Loading...' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">App Data Path:</span>
+          <span class="info-value">{{ systemInfo.appDataPath || 'Loading...' }}</span>
+        </div>
+      </div>
+    </p-card>
+  } @else {
+    <p-card class="warning-card">
+      <ng-template pTemplate="header">
+        <div class="card-header">
+          <i class="pi pi-exclamation-triangle"></i>
+          <h2>Browser Mode</h2>
+        </div>
+      </ng-template>
+      
+      <p>
+        You are currently running in browser mode. Some features require Electron to function.
+        To see the full prototype, run the application with:
+      </p>
+      <pre class="command-block">npm run electron:dev</pre>
+    </p-card>
+  }
+
+  <div class="action-section">
+    <a routerLink="/threads" class="p-button p-button-primary">
+      <i class="pi pi-comments"></i>
+      <span>View Threads Example</span>
+    </a>
+  </div>
+</div>

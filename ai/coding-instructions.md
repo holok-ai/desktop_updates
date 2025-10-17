@@ -11,15 +11,15 @@ UI components are organized in `src/ui/` with subfolders: `pages/`, `sidebar/`, 
 
 Components implementing a specific feature should be grouped in a feature subfolder like `components/projects/` or `components/threads/`.
 
-IPC event handlers are stored in `electron/ipc/eventHandlers/` with one class per IPC group.
+IPC event handlers are stored in `src-electron/ipc/eventHandlers/` with one class per IPC group.
 
-Service classes are stored in `electron/services/` (e.g., `AuthService.ts`, `ThreadService.ts`).
+Service classes are stored in `src-electron/services/` (e.g., `AuthService.ts`, `ThreadService.ts`).
 
 ---
 
 ## File Naming
 
-Use **PascalCase** for component files: `ThreadListComponent` in `thread-list.component.ts`, `LoginScreen.svelte`.
+Use **PascalCase** for component files: `ThreadListComponent` in `thread-list.component.ts`.
 
 Use **kebab-case** for Angular component file names: `thread-list.component.ts`, `model-selector.component.ts`.
 
@@ -51,13 +51,17 @@ Each IPC group (e.g., `auth`, `threads`, `models`) should have a corresponding e
 
 Event handler classes should be named with the pattern `[Group]EventHandler.ts`: `AuthEventHandler.ts`, `ThreadsEventHandler.ts`.
 
+**Service wrappers** are thin Angular services that wrap a single IPC domain with one method per IPC call for simple CRUD operations.
+
+**Facades** orchestrate multiple service wrappers to handle complex multi-step workflows with coordinated error recovery.
+
 Register all handlers from a single class in the main IPC setup: `ipcMain.handle('auth:login', () => authEventHandler.handleLogin())`.
 
 ---
 
 ## Context Bridge Implementation
 
-Define IPC groups in `electron/preload.ts` using the pattern: `auth: { login: () => ipcRenderer.invoke('auth:login') }`.
+Define IPC groups in `src-electron/preload.ts` using the pattern: `auth: { login: () => ipcRenderer.invoke('auth:login') }`.
 
 Each group in the context bridge should map to exactly one event handler class.
 
@@ -67,7 +71,7 @@ Use colon notation for IPC channel names to show grouping: `auth:login`, `thread
 
 ## Event Handler Classes
 
-Create one event handler class per IPC group in `electron/ipc/eventHandlers/`.
+Create one event handler class per IPC group in `src-electron/ipc/eventHandlers/`.
 
 Event handler classes should receive service dependencies via constructor injection: `constructor(private authService: AuthService)`.
 
@@ -87,13 +91,15 @@ Reference design tokens in components using CSS variables: `background: var(--co
 
 Keep component-specific styles in scoped style blocks within the component file.
 
-Avoid inline styles except for dynamic values: `:style="{ width: progress + '%' }"`.
+Avoid inline styles except for dynamic values that must be computed at runtime.
 
 ---
 
 ## Logging
 
 Use `electron-log` for all logging in both main and renderer processes: `import log from 'electron-log'`.
+
+**Auditing:** Write events to the Holokai Audit Q for user actions including authentication, chat activities, thread management, and application lifecycle events.
 
 Log levels should be used appropriately: `log.error()` for errors, `log.warn()` for warnings, `log.info()` for general info, `log.debug()` for verbose output.
 
@@ -109,7 +115,7 @@ Log files are automatically managed by electron-log and stored in the OS-specifi
 
 ## SSO Service
 
-The `AuthService` in `electron/services/AuthService.ts` handles all OAuth/SSO operations in the main process.
+The `AuthService` in `src-electron/services/AuthService.ts` handles all OAuth/SSO operations in the main process.
 
 SSO flow uses OAuth 2.0 with PKCE for security: the service generates `code_verifier` and `code_challenge`.
 
@@ -123,6 +129,8 @@ Access tokens are refreshed automatically using `authService.refreshAccessToken(
 
 Never store tokens in plain text, log them, or pass them to the renderer process; always use `safeStorage` for encryption.
 
+Desktop SSO relies on the Holokai Moku web SSO for OAuth providers and authentication handshake.
+
 The renderer process should only receive confirmation of authentication status, not the actual tokens.
 
 ---
@@ -131,11 +139,11 @@ The renderer process should only receive confirmation of authentication status, 
 
 Unit tests are stored in `tests/unit/` mirroring the source structure: `tests/unit/stores/auth.store.spec.ts`.
 
-Component tests use the framework's testing library: `@testing-library/svelte` or `@angular/core/testing` with Jasmine/Karma.
+Component tests use `@angular/core/testing` with Jasmine/Karma.
 
 For Angular, use `TestBed` to configure testing modules and mock dependencies via providers array.
 
-Mock IPC calls in component tests: Svelte uses `vi.stubGlobal('window', { electron: { ... } })`, Angular uses Jasmine spies on `window.electron` methods.
+Mock IPC calls in component tests using Jasmine spies on `window.electron` methods.
 
 Integration tests for IPC handlers are stored in `tests/integration/ipc/`.
 
@@ -161,11 +169,11 @@ Never make API calls directly from UI components; always use service classes.
 
 ## State Management
 
-Use the framework's built-in state solution: Svelte stores or NgRx Signals (Angular).
+Use NgRx Signals for state management in Angular.
 
 Store files should be named by domain: `auth.store.ts`, `threads.store.ts`, `models.store.ts`.
 
-For Angular, use NgRx Signals with `signalStore()` for lightweight reactive state management.
+Use NgRx Signals with `signalStore()` for lightweight reactive state management.
 
 Keep stores focused on a single domain/feature for better maintainability.
 
@@ -189,7 +197,7 @@ Use error boundaries or error handling middleware to catch unhandled errors.
 
 ## Security
 
-**Sensitive data should be handled in the main process (worker process), not the renderer process** whenever possible.
+**Sensitive data should be handled in the main process, not the renderer process** whenever possible.
 
 API keys, tokens, and credentials should never be stored in or pass through the renderer process.
 

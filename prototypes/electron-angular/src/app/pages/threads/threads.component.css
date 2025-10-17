@@ -1,0 +1,164 @@
+/**
+ * Threads Page Styles - Holokai Dark Theme
+ */
+
+.threads-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text-dark);
+  margin: 0;
+  font-family: var(--font-family);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.card-header i {
+  font-size: 1.5rem;
+  color: var(--color-secondary-light);
+}
+
+.card-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text-dark);
+  font-family: var(--font-family);
+}
+
+/* Status badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-active {
+  background-color: rgba(0, 169, 28, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.status-archived {
+  background-color: rgba(45, 133, 173, 0.2);
+  color: var(--color-secondary-light);
+  border: 1px solid rgba(93, 175, 213, 0.3);
+}
+
+.status-deleted {
+  background-color: rgba(216, 57, 51, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Action buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+/* Icon colors matching moku\web */
+.action-buttons .p-button:has(.pi-eye) {
+  color: #2F68BF !important;
+}
+
+.action-buttons .p-button:has(.pi-pen-to-square) {
+  color: #2D85AD !important;
+}
+
+.action-buttons .p-button:has(.pi-trash) {
+  color: #D83933 !important;
+}
+
+/* Empty state */
+.empty-state {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--color-base-dark);
+}
+
+.empty-state i {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: var(--color-base-dark);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-base-dark);
+}
+
+/* Dialog content */
+.dialog-content {
+  padding: 1rem 0;
+}
+
+.field {
+  margin-bottom: 1.5rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--color-text-dark);
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+}
+
+.w-full {
+  width: 100%;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions button {
+    flex: 1;
+  }
+}

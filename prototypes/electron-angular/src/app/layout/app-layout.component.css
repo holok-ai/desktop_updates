@@ -1,0 +1,82 @@
+/**
+ * App Layout Styles - Holokai Dark Theme
+ * 
+ * This defines the overall layout structure with a sidebar and main content area.
+ */
+
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--hc-dark);
+}
+
+/* Desktop navbar - visible on large screens */
+.navbar-desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .navbar-desktop {
+    display: block;
+  }
+}
+
+/* Mobile navbar overlay */
+.navbar-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.navbar-mobile-overlay.visible {
+  display: flex;
+}
+
+.navbar-mobile-content {
+  width: 280px;
+  height: 100%;
+}
+
+/* Hide mobile nav on large screens */
+@media (min-width: 1024px) {
+  .navbar-mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* Main content wrapper */
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--hc-cream);
+}
+
+/* Header - visible on mobile */
+.header-mobile {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .header-mobile {
+    display: none;
+  }
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  padding: 1rem;
+  background: var(--hc-cream);
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding: 3rem;
+  }
+}
