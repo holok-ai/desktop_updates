@@ -433,6 +433,8 @@ MenuNavigationService is initialized at app startup via `APP_INITIALIZER` to ens
 
 ### 5.2.7 Menu-to-Route Mapping
 
+Example of an expected menu to route mapping is below:
+
 | Menu Command | Route Action | Component Behavior |
 |--------------|--------------|--------------------|
 | File → Get Threads | Navigate to `/threads` | Loads thread list |
@@ -505,9 +507,66 @@ Log files are automatically managed by electron-log and stored in the OS-specifi
 
 ---
 
-## 7. Security Considerations
+## 7. LLM Requirements
 
-### 7.1 Security Checklist
+The desktop application must support integration with multiple Large Language Model (LLM) providers through a unified abstraction layer. 
+
+### 7.1 Multi-Provider Support
+
+**REQ-LLM-01: Provider Abstraction Interface**
+The application shall implement a provider-agnostic interface (`IChatProvider`) that standardizes chat operations across all LLM providers. 
+
+Each provider implementation must support both streaming and non-streaming response modes.
+
+```typescript
+interface IChatProvider {
+  chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
+  chatWithOptions(request: ChatRequestWithOptions, onTokenReceived?: (token: string) => void): Promise<void>;
+}
+```
+
+**REQ-LLM-02: Supported Providers**
+The application shall support the following LLM providers at minimum: (Anthropic) Claude, OpenAI, Ollama and Perplexity with architecture designed for easy addition of new providers through factory pattern instantiation.
+
+### 7.2 Message Format and Conversion
+
+**REQ-LLM-03: Universal Message Format**
+The application shall maintain an internal universal message format that is provider-agnostic, with converter classes responsible for translating between the internal format and each provider's specific API requirements.
+
+**REQ-LLM-04: Conversation History**
+The application shall preserve complete conversation context across all LLM interactions, maintaining message history in the internal format and converting to provider-specific format only at the point of API invocation.
+
+### 7.3 Performance Auditing
+
+**REQ-LLM-05: Token Metrics Collection**
+The application shall collect  performance metrics for each LLM interaction, including prompt token count, completion token count, total tokens, time to first token, total duration, and tokens per second.
+
+**REQ-LLM-06: Audit Data Persistence**
+The application shall support audit logging of LLM prompts and responses by either application logging or autid logging. 
+
+### 7.4 File and Content Handling
+
+**REQ-LLM-07: Multi-Modal Input Support**
+The application shall support attachment of files to LLM prompts, with automatic detection of text vs. binary files and appropriate encoding (UTF-8 for text, Base64 for binary) before transmission to providers. The application shall support uploading images for processing by image generating LLMs, such as 
+
+**REQ-LLM-08: Markdown and Code Rendering**
+The application shall render LLM responses with proper markdown formatting and syntax-highlighted code blocks using marked.js for mark down text and prism.js for syntax highlighting of common programming languages including JavaScript, TypeScript, Python, CSS, and Bash.
+
+**REQ-LLM-09: Image Rendering**
+The application should support rendering LLM responses as images when the response format is returned as a base64-encoded image rather than text. 
+
+Note: this design should use the same IChatProvider interface and provide a handler for the response format, rather than creating an IImageProvider interface for image generating models like Gemini 2.5 Flash Image/"nano-bananas". 
+
+### 7.5 Error Handling and Recovery
+
+**REQ-LLM-10: Provider Error Management**
+The application shall gracefully handle provider-specific errors with appropriate user feedback, logging failures without exposing sensitive API details while maintaining audit trail for troubleshooting.
+
+---
+
+## 8. Security Considerations
+
+### 8.1 Security Checklist
 
 - ✅ **Context Isolation**: Enabled - renderer cannot access Node APIs
 - ✅ **Node Integration**: Disabled in renderer process
@@ -520,7 +579,7 @@ Log files are automatically managed by electron-log and stored in the OS-specifi
 - ✅ **Sandboxed Renderer**: Renderer process runs in sandbox
 - ✅ **Angular Security**: Built-in XSS protection via DomSanitizer
 
-### 7.2 Electron Security Configuration
+### 8.2 Electron Security Configuration
 
 **BrowserWindow Settings:**
 - nodeIntegration: false
@@ -542,7 +601,7 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 - base-uri 'self'
 - form-action 'self'
 
-### 7.3 Data Protection
+### 8.3 Data Protection
 
 **Sensitive Data Handling:**
 - API keys never passed through renderer process
@@ -552,6 +611,312 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 - All sensitive operations logged without exposing secrets
 
 **Dependencies:** Electron safeStorage, electron-log
+
+---
+## 9. Authentication Workflow
+
+The desktop application uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) for secure authentication with the Moku server. This workflow ensures that only the legitimate desktop application can exchange authorization codes for access tokens.
+
+### 9.1 Initial Authentication Flow
+
+**Step 1: Client ID and Custom Protocol (Desktop)**
+
+The Electron Main process has a constant variable containing the client id.
+
+In your Electron app, you register your custom protocol (e.g., holokai://) using `app.setAsDefaultProtocolClient('holokai')`. This tells the operating system that any link starting with holokai:// should be opened by your Electron app.
+
+**Step 2: Electron App (Before Browser)**
+
+- Generates a code_verifier: 32+ byte random string (base64url encoded)
+- Creates a SHA-256 hash of it called the code_challenge
+- Generate a 32-byte random value for state, encoded as hexadecimal characters
+- Electron Main process stores the code verifier and code challenge using an in-memory store with a timeout (default of 5 minutes)
+
+**Step 3: Electron → Browser**
+
+Launches the system browser with authorization URL:
+```
+https://moku.com/api/oauth/authorize
+  ?client_id={CLIENT_ID}
+  &redirect_uri=holokai://home
+  &code_challenge={CODE_CHALLENGE}
+  &code_challenge_method=S256
+  &state={STATE}
+  &response_type=code
+  &scope={SCOPES}  // Optional, e.g., "read write"
+```
+
+Note: All parameters must be properly URL-encoded.
+
+If browser fails to open:
+- Display error message: "Unable to open browser. Please check your default browser settings."
+- Perform cleanup (delete code_verifier, code_challenge, state from memory)
+- Log error with system info
+- Provide manual URL option for user to copy/paste
+
+**Step 4: Moku Server**
+
+Server receives authorization request.
+
+VALIDATE REQUEST:
+- Verify client_id is valid and registered
+- Verify redirect_uri exactly matches whitelisted value ('holokai://home')
+- Verify all required parameters present (client_id, redirect_uri, code_challenge, code_challenge_method, state, response_type)
+- Verify code_challenge_method is 'S256'
+
+If validation fails:
+- Return error to redirect_uri with error code
+- Example: `holokai://home?error=invalid_request&error_description=...&state={STATE}`
+
+User authenticates/logs in.
+
+If authentication fails:
+- Redirect with error: `holokai://home?error=access_denied&state={STATE}`
+
+On successful authentication:
+
+CREATE AUTHORIZATION CODE:
+- Generate unique authorization_code
+- Set expiration: 60 seconds from creation
+- Store associated data:
+  * code_challenge (from request)
+  * redirect_uri (from request)
+  * client_id
+  * user_id/session
+  * state (optional, for audit)
+  * created_at timestamp
+
+REDIRECT to desktop app:
+`holokai://home?code={AUTHORIZATION_CODE}&state={STATE}`
+
+**Step 5: Electron App (Token Exchange)**
+
+App receives deep link via open-url event: `holokai://home?...`
+
+VALIDATE DEEP LINK:
+- Verify URL starts with 'holokai://home'
+- Parse query parameters
+
+CHECK FOR ERRORS:
+If 'error' parameter present:
+- Extract error and error_description
+- Log/display error to user
+- Perform cleanup (remove code_verifier, state from memory)
+- Exit flow
+
+EXTRACT PARAMETERS:
+- code (authorization_code)
+- state
+
+VALIDATE STATE:
+- Retrieve stored state from in-memory cache
+- If not found (timeout or missing):
+  * Log error "State not found or expired"
+  * Perform cleanup
+  * Exit flow
+- Compare received state with stored state
+- If mismatch:
+  * Log security warning "State mismatch - possible CSRF attack"
+  * Perform cleanup
+  * Exit flow
+- If match: Delete state from memory (one-time use)
+
+EXCHANGE CODE FOR TOKENS:
+```
+POST /api/oauth/token
+Content-Type: application/json
+
+{
+  "grant_type": "authorization_code",
+  "code": "{AUTHORIZATION_CODE}",
+  "client_id": "{CLIENT_ID}",
+  "code_verifier": "{CODE_VERIFIER}",
+  "redirect_uri": "holokai://home"
+}
+```
+
+CLEANUP IN-MEMORY STORAGE:
+- Delete code_verifier
+- Delete code_challenge
+- State already deleted after verification
+
+ON ERROR:
+- Perform full cleanup
+- Display error to user
+- Log for debugging
+
+**Step 6: Moku API (Final Check)**
+
+Your backend receives a request at: `POST /api/oauth/token`
+
+Validate:
+- Verify all required parameters present (grant_type, code, client_id, code_verifier, redirect_uri)
+- Verify grant_type is 'authorization_code'
+- Verify client_id is valid
+
+CHECK CODE STATUS:
+- Verify code has not already been used (detect replay attacks)
+- If already used:
+  * Log security alert "Authorization code reuse detected"
+  * Revoke any tokens issued with this code (if applicable)
+  * Return 400: `{"error": "invalid_grant", "error_description": "Code already used"}`
+
+CHECK CODE EXPIRATION:
+- Calculate: current_time - code.created_at
+- If > 60 seconds:
+  * Return 400: `{"error": "invalid_grant", "error_description": "Authorization code expired"}`
+
+VALIDATE REDIRECT_URI:
+- Compare request redirect_uri with stored redirect_uri from Step 4
+- If mismatch:
+  * Log security warning "Redirect URI mismatch"
+  * Return 400: `{"error": "invalid_grant", "error_description": "Redirect URI mismatch"}`
+
+VALIDATE PKCE:
+- Hash received code_verifier using SHA-256
+- Encode hash as base64url
+- Compare with stored code_challenge
+- If mismatch:
+  * Log security alert "PKCE verification failed - possible attack"
+  * Return 400: `{"error": "invalid_grant", "error_description": "Code verifier invalid"}`
+
+ALL CHECKS PASSED - ISSUE TOKENS:
+- Mark authorization_code as used (or delete it)
+- Generate access_token:
+  * Format: JWT or opaque token
+  * Expiration: 3600 seconds (1 hour) recommended
+  * Include: user_id, client_id, scope, issued_at, expires_at
+- Generate refresh_token:
+  * Cryptographically secure random string
+  * Store in database with: user_id, client_id, created_at
+  * Optional: Set expiration (e.g., 30 days, 90 days, or no expiration)
+
+RETURN SUCCESS RESPONSE:
+```
+HTTP 200 OK
+Content-Type: application/json
+
+{
+  "access_token": "{ACCESS_TOKEN}",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "{REFRESH_TOKEN}",
+  "scope": "{SCOPES}"  // Optional
+}
+```
+
+ON ANY VALIDATION FAILURE:
+- Do NOT issue tokens
+- Log the failure with details
+- Return appropriate OAuth error response
+
+**Step 7: Electron App Main Process Stores the Access Token and Refresh Token**
+
+VALIDATE RESPONSE:
+- Verify all required fields present
+- Verify token_type is "Bearer"
+- Verify expires_in is reasonable (> 0)
+- If validation fails: log error, perform cleanup, display error to user
+
+STORE TOKENS:
+
+In-memory (Main Process):
+- access_token
+- token_expires_at = Date.now() + (expires_in * 1000) - 60000  // 1-min safety buffer
+- token_type
+
+Electron app keeps the access token in memory, available for any api calls to Moku API.
+
+Persistent Storage (safeStorage):
+- Electron app securely stores the Refresh Token (and only the refresh token) on the user's machine using safeStorage, an API built directly into Electron. It encrypts data using the operating system's native credential manager (macOS Keychain, Windows Credential Vault, Linux Keyring).
+
+On an OAuth failure or timeout, the Electron app should cleanup to allow the user to attempt another login workflow. Cleanup includes removing the code verifier and state from memory, resetting any workflow variables and clearing the access token and refresh token values.
+
+**Step 8: Token Refresh (When Access Token Expires)**
+
+When making API calls:
+
+1. Check if access_token exists and is not expired
+2. If expired or missing, request token refresh from Moku API:
+
+```
+POST /api/oauth/token
+Content-Type: application/json
+
+{
+  "grant_type": "refresh_token",
+  "refresh_token": "{REFRESH_TOKEN}",
+  "client_id": "{CLIENT_ID}"
+}
+```
+
+3. Server response:
+
+```json
+{
+  "access_token": "new_token",
+  "refresh_token": "new_refresh_token",  // If using rotation
+  "expires_in": 3600
+}
+```
+
+4. Update storage:
+   - Store new `access_token` in memory
+   - Update `token_expires_at`
+   - Store new `refresh_token` in `safeStorage` (if rotated)
+
+5. If refresh fails (401):
+   - Clear all tokens
+   - Restart OAuth flow from Step 2
+
+### 9.2 Re-Authentication Flow (User Restarts Desktop)
+
+This is the flow that will happen 99% of the time.
+
+1. **App Starts**: The Electron app launches.
+
+2. **Check for Token**: It looks for the encrypted refresh token in safeStorage.
+
+3. **Decrypt Token**: If the token exists, it reads and decrypts the refresh token:
+
+```javascript
+import { safeStorage } from 'electron';
+
+const encryptedToken = await store.get('refresh_token');
+const refreshToken = safeStorage.decryptString(encryptedToken);
+```
+
+4. **Refresh the Session**: Your app makes a direct, background API call to your Moku `/api/oauth/token` endpoint. This does not involve opening the browser.
+
+```
+POST /api/oauth/token
+
+{
+  "grant_type": "refresh_token",
+  "refresh_token": "...the_decrypted_token...",
+  "client_id": "moku-desktop-app"
+}
+```
+
+5. **Get New Tokens**: Your Moku API validates the refresh token and returns a new Access Token and (optionally, but recommended) a new Refresh Token.
+
+6. **Load App**: The app is now fully authenticated. It loads the user's data and proceeds to the main UI.
+
+### 9.3 Backend Requirements
+
+Your Spring backend will need to be configured to act as an OAuth 2.0 Authorization Server (which Spring Authorization Server can do) to handle the `/authorize` and `/token` endpoints for your new Electron "client."
+
+**Required Endpoints:**
+- `GET /api/oauth/authorize` - Authorization endpoint for initiating OAuth flow
+- `POST /api/oauth/token` - Token endpoint for exchanging codes and refreshing tokens
+
+**Configuration Requirements:**
+- Desktop app registration with client_id
+- Whitelisted redirect URIs: `holokai://home`
+- Token expiration policies
+- Authorization code expiration: 60 seconds
+- Access token expiration: 3600 seconds (1 hour) recommended
+- Support for PKCE (code_challenge_method: S256)
 
 ---
 
