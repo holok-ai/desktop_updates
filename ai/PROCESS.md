@@ -8,7 +8,7 @@ Dynamo
 * Product Manager - DK
 * Team Lead - Peter Baxter 
 * Business Analyst - Jon Teitelebaum and Michelle Apicella 
-* CI/CD - Ken Oshini
+* CI/CD - Ken Ohnishi
 * UX - Kevin Chard 
 
 NKK
