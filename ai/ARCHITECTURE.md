@@ -5,16 +5,16 @@
 ### 2.1 High-Level Architecture
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│                   ELECTRON MAIN PROCESS                   │
-│                                                           │
+┌─────────────────────────────────────────────────────────┐
+│                   ELECTRON MAIN PROCESS                 │
+│                                                         │
 │  ┌────────────────────────────────────────────────┐     │
 │  │  Application Lifecycle Manager                 │     │
 │  │  - Window management                           │     │
 │  │  - Auto-updater                                │     │
 │  │  - Tray icon / Menu                            │     │
 │  └────────────────────────────────────────────────┘     │
-│                                                           │
+│                                                         │
 │  ┌────────────────────────────────────────────────┐     │
 │  │  IPC Handler Layer                             │     │
 │  │  - Authentication handlers                     │     │
@@ -22,7 +22,7 @@
 │  │  - Settings handlers                           │     │
 │  │  - File system operations                      │     │
 │  └────────────────────────────────────────────────┘     │
-│                                                           │
+│                                                         │
 │  ┌────────────────────────────────────────────────┐     │
 │  │  Services Layer                                │     │
 │  │  - AuthService (OAuth flow orchestration)      │     │
@@ -30,55 +30,55 @@
 │  │  - SecureStorageService (credentials)          │     │
 │  │  - LoggingService (electron-log)               │     │
 │  └────────────────────────────────────────────────┘     │
-│                                                           │
+│                                                         │
 │  ┌────────────────────────────────────────────────┐     │
 │  │  Data Persistence                              │     │
 │  │  - Moku API (threads, messages via REST)       │     │
 │  │  - Electron Store (app settings, preferences)  │     │
 │  │  - Secure Storage (API keys, tokens)           │     │
 │  └────────────────────────────────────────────────┘     │
-│                                                           │
-└──────────────────────┬───────────────────────────────────┘
+│                                                         │
+└──────────────────────┬──────────────────────────────────┘
                        │
                   IPC Bridge
                        │
 ┌──────────────────────▼───────────────────────────────────┐
-│                 ELECTRON RENDERER PROCESS                 │
-│                                                           │
-│  ┌────────────────────────────────────────────────┐     │
-│  │  Angular 18 UI Components                      │     │
-│  │  - LoginScreenComponent                        │     │
-│  │  - ThreadListComponent                         │     │
-│  │  - ChatWindowComponent (reused from lib)       │     │
-│  │  - ModelSelectorComponent                      │     │
-│  │  - SidebarComponent                            │     │
-│  └────────────────────────────────────────────────┘     │
-│                                                           │
-│  ┌────────────────────────────────────────────────┐     │
-│  │  State Management (NgRx Signals)               │     │
-│  │  - AuthStore (user, isAuthenticated)           │     │
-│  │  - ThreadsStore (thread list, active thread)   │     │
-│  │  - ModelsStore (available models, selected)    │     │
-│  └────────────────────────────────────────────────┘     │
-│                                                           │
-│  ┌────────────────────────────────────────────────┐     │
-│  │  Business Logic (from chat-component)          │     │
-│  │  - ChatService                                 │     │
-│  │  - ChatProviderFactory                         │     │
-│  │  - Provider implementations                    │     │
-│  │    • ClaudeChatProvider                        │     │
-│  │    • OpenAIChatProvider                        │     │
-│  │    • OllamaChatProvider                        │     │
-│  └────────────────────────────────────────────────┘     │
-│                                                           │
-│  ┌────────────────────────────────────────────────┐     │
-│  │  Menu Integration Layer                        │     │
-│  │  - MenuNavigationService (menu interceptor)    │     │
-│  │    Translates menu commands → router actions   │     │
-│  │    Components remain menu-agnostic             │     │
-│  └────────────────────────────────────────────────┘     │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+│                 ELECTRON RENDERER PROCESS                │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐      │
+│  │  Svelte + UI Components                        │      │
+│  │  - LoginScreenComponent                        │      │
+│  │  - ThreadListComponent                         │      │
+│  │  - ChatWindowComponent (reused from lib)       │      │
+│  │  - ModelSelectorComponent                      │      │
+│  │  - SidebarComponent                            │      │
+│  └────────────────────────────────────────────────┘      │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐      │
+│  │  State Management (NgRx Signals)               │      │
+│  │  - AuthStore (user, isAuthenticated)           │      │
+│  │  - ThreadsStore (thread list, active thread)   │      │
+│  │  - ModelsStore (available models, selected)    │      │
+│  └────────────────────────────────────────────────┘      │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐      │
+│  │  Business Logic (from chat-component)          │      │
+│  │  - ChatService                                 │      │
+│  │  - ChatProviderFactory                         │      │
+│  │  - Provider implementations                    │      │
+│  │    • ClaudeChatProvider                        │      │
+│  │    • OpenAIChatProvider                        │      │
+│  │    • OllamaChatProvider                        │      │
+│  └────────────────────────────────────────────────┘      │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐      │
+│  │  Menu Integration Layer                        │      │
+│  │  - MenuNavigationService (menu interceptor)    │      │
+│  │    Translates menu commands → router actions   │      │
+│  │    Components remain menu-agnostic             │      │
+│  └────────────────────────────────────────────────┘      │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Process Communication Flow
@@ -616,6 +616,31 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 ## 9. Authentication Workflow
 
 The desktop application uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) for secure authentication with the Moku server. This workflow ensures that only the legitimate desktop application can exchange authorization codes for access tokens.
+
+### Quick Overview
+
+**Initial Authentication (First-Time Login):**
+1. **Client Setup** - Register custom protocol (`holokai://`) and store client ID in Electron main process
+2. **Generate PKCE Values** - Create code_verifier, code_challenge, and state parameter; store in memory (5-min timeout)
+3. **Launch Browser** - Open system browser with authorization URL containing PKCE challenge and state
+4. **Server Validation** - Moku server validates request, user logs in, server creates 60-second authorization code
+5. **Token Exchange** - Desktop app receives callback, validates state, exchanges code + code_verifier for tokens
+6. **Server Verification** - Moku API verifies PKCE, validates code (expiration, replay, redirect_uri), issues tokens
+7. **Token Storage** - Store access_token in memory, refresh_token in encrypted safeStorage (OS credential manager)
+8. **Token Refresh** - When access_token expires, use refresh_token to get new tokens without browser interaction
+
+**Re-Authentication (99% of use cases):**
+- App starts → Check safeStorage for refresh_token → Decrypt → Call token endpoint → Get new tokens → Load app
+
+**Security Features:**
+- ✅ PKCE prevents authorization code interception
+- ✅ State parameter prevents CSRF attacks
+- ✅ 60-second authorization code expiration
+- ✅ One-time use codes (replay attack prevention)
+- ✅ Encrypted token storage via OS credential managers
+- ✅ Access tokens in memory only (never persisted)
+
+---
 
 ### 9.1 Initial Authentication Flow
 
