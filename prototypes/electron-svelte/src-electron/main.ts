@@ -1,10 +1,16 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import log from 'electron-log';
-import { registerAuthHandlers } from './ipc-handlers/auth-handler';
+import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler';
 import { registerSystemHandlers } from './ipc-handlers/system-handler';
+
+/**
+ * Custom Protocol Configuration for OAuth
+ * Per Section 9.1 Step 1: Register custom protocol for OAuth callbacks
+ */
+const CUSTOM_PROTOCOL = 'holokai';
 
 /**
  * Configure electron-log
@@ -226,6 +232,63 @@ function registerIpcHandlers(): void {
   ipcMain.on('log:debug', (_event, message: string, ...params: any[]) => {
     log.debug('[Renderer]', message, ...params);
   });
+}
+
+/**
+ * Custom Protocol Registration
+ * Registers the custom protocol handler before app is ready.
+ * This allows the OS to redirect holokai:// URLs to this application.
+ */
+if (process.defaultApp) {
+  // Development mode: Need to specify electron executable and app path
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL, process.execPath, [
+      path.resolve(process.argv[1])
+    ]);
+  }
+} else {
+  // Production mode: Just register the protocol
+  app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
+}
+
+log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
+
+/**
+ * Deep Link Handler for OAuth Callback
+ * Handles OAuth callback when browser redirects to holokai://home after authentication.
+ */
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  log.info('[Protocol] Received deep link:', url);
+
+  if (url.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
+    log.info('[Protocol] OAuth callback detected, processing...');
+    handleOAuthCallback(url, mainWindow);
+  } else {
+    log.warn('[Protocol] Received unexpected deep link:', url);
+  }
+});
+
+/**
+ * Windows-specific Protocol Handler
+ * On Windows, protocol URLs are passed as command line arguments to new instances.
+ */
+if (process.platform === 'win32') {
+  const args = process.argv.slice(1);
+  const protocolUrl = args.find(arg => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
+
+  if (protocolUrl) {
+    log.info('[Protocol] Windows: Received protocol URL on startup:', protocolUrl);
+
+    // Process after app is ready
+    app.on('ready', () => {
+      setTimeout(() => {
+        if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
+          handleOAuthCallback(protocolUrl, mainWindow);
+        }
+      }, 1000);
+    });
+  }
 }
 
 /**

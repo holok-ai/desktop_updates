@@ -1,20 +1,17 @@
-import { safeStorage, app } from 'electron';
+import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Authentication Service
- * 
- * Handles authentication operations including:
- * - SSO flow initiation (Step 1: redirect to Moku web)
+ * Handles OAuth 2.0 with PKCE authentication flow including:
+ * - OAuth flow initiation with PKCE
  * - Token storage using Electron's safeStorage (encrypted)
  * - User session management
- * 
- * According to Option 1 from options-comparison-sso.md:
- * Step 1: Desktop app constructs URL to Moku web SSO
- * Step 2: Opens system browser for authentication
+ * - Token refresh
  */
 
 export interface UserProfile {
@@ -38,15 +35,27 @@ export interface AuthState {
 }
 
 /**
- * Custom protocol for OAuth redirect
+ * OAuth Configuration Constants
  */
-const CUSTOM_PROTOCOL = 'holokai://callback';
+const CLIENT_ID = 'holokai-desktop-app';
+const REDIRECT_URI = 'holokai://home';
+const PKCE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Storage keys for secure storage
  */
 const STORAGE_KEY_TOKENS = 'holokai.auth.tokens';
 const STORAGE_KEY_USER = 'holokai.auth.user';
+
+/**
+ * PKCE State Storage Interface
+ */
+interface PKCEState {
+  codeVerifier: string;
+  codeChallenge: string;
+  state: string;
+  timestamp: number;
+}
 
 export class AuthService {
   private currentAuthState: AuthState = {
@@ -55,10 +64,16 @@ export class AuthService {
     isAuthenticated: false
   };
 
+  // In-memory PKCE storage with timeout
+  private pkceStorage: Map<string, PKCEState> = new Map();
+
   constructor() {
     // Load stored auth data on initialization
     this.loadStoredAuth();
     log.info('[AuthService] Initialized');
+
+    // Clean up expired PKCE states every minute
+    setInterval(() => this.cleanupExpiredPKCE(), 60000);
   }
 
   /**
@@ -121,70 +136,112 @@ export class AuthService {
   }
 
   /**
-   * Step 1 & 2: Initiate SSO flow by opening Moku web in system browser
-   * 
-   * This is a MOCK implementation for demonstration.
-   * In production, this would:
-   * 1. Open system browser to: https://moku.holokai.com/auth/desktop?redirect_uri=holokai://callback
-   * 2. User authenticates with their provider (Microsoft, Google, OAuth2.0)
-   * 3. Moku web redirects to holokai://callback?code=XXXX&state=YYYY
-   * 4. Desktop app's protocol handler captures the code
-   * 5. Desktop exchanges code for tokens via POST to /api/auth/token
+   * Start OAuth Flow
+   * Generates PKCE parameters, stores them in memory, and opens browser to authorization URL.
+   * Returns the authorization URL that was opened.
    */
-  public async startOAuthFlow(): Promise<{ authUrl: string; mockData: any }> {
+  public async startOAuthFlow(): Promise<{ authUrl: string; mockData?: any }> {
     log.info('[AuthService] Starting OAuth flow');
 
-    // Generate state parameter for CSRF protection
+    // Generate PKCE parameters
     const state = this.generateState();
-
-    // Generate PKCE code challenge (recommended for native apps)
     const codeVerifier = this.generateCodeVerifier();
     const codeChallenge = await this.generateCodeChallenge(codeVerifier);
 
-    // Construct the Moku web SSO URL
-    const mokuWebUrl = this.getMokuWebUrl();
-    const authUrl = `${mokuWebUrl}/auth/desktop?` +
-      `redirect_uri=${encodeURIComponent(CUSTOM_PROTOCOL)}&` +
-      `state=${state}&` +
-      `code_challenge=${codeChallenge}&` +
-      `code_challenge_method=S256`;
-
-    log.info('[AuthService] OAuth URL constructed:', authUrl);
-
-    // In production, this would open the system browser:
-    // shell.openExternal(authUrl);
-    
-    // For this MOCK, we'll simulate a successful authentication
-    // Return mock data that represents what would happen after Steps 1-5
-    const mockAuthCode = this.generateMockAuthCode();
-    const mockTokens = this.generateMockTokens();
-    const mockUser = this.generateMockUser();
-
-    log.info('[AuthService] MOCK: Simulating successful authentication');
-    log.info('[AuthService] MOCK: In production, user would see:', authUrl);
-    log.info('[AuthService] MOCK: After auth, callback would be:', `${CUSTOM_PROTOCOL}?code=${mockAuthCode}&state=${state}`);
-
-    return {
-      authUrl,
-      mockData: {
-        authCode: mockAuthCode,
-        state,
-        codeVerifier,
-        explanation: 'In production, the browser would open to authUrl, and the callback would return to the app via custom protocol'
-      }
+    // Store PKCE state in memory with timeout
+    const pkceState: PKCEState = {
+      codeVerifier,
+      codeChallenge,
+      state,
+      timestamp: Date.now()
     };
+    this.pkceStorage.set(state, pkceState);
+
+    // Schedule cleanup after timeout
+    setTimeout(() => {
+      if (this.pkceStorage.has(state)) {
+        log.warn('[AuthService] PKCE state expired:', state);
+        this.pkceStorage.delete(state);
+      }
+    }, PKCE_TIMEOUT_MS);
+
+    // Construct authorization URL
+    const mokuWebUrl = this.getMokuWebUrl();
+    const authUrl = `${mokuWebUrl}/api/oauth/authorize?` +
+      `client_id=${encodeURIComponent(CLIENT_ID)}&` +
+      `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+      `code_challenge=${encodeURIComponent(codeChallenge)}&` +
+      `code_challenge_method=S256&` +
+      `state=${encodeURIComponent(state)}&` +
+      `response_type=code&` +
+      `scope=read%20write`;
+
+    log.info('[AuthService] Opening browser to:', authUrl);
+
+    // Open system browser
+    try {
+      await shell.openExternal(authUrl);
+      log.info('[AuthService] Browser opened successfully, waiting for callback...');
+    } catch (error) {
+      log.error('[AuthService] Failed to open browser:', error);
+      this.pkceStorage.delete(state);
+      throw new Error('Unable to open browser. Please check your default browser settings.');
+    }
+
+    return { authUrl };
   }
 
   /**
-   * Step 5 (Mock): Exchange authorization code for tokens
-   * 
-   * In production, this would be:
-   * POST https://moku.holokai.com/api/auth/token
-   * Body: { code: "XXXX", grant_type: "authorization_code" }
-   * Response: { access_token, refresh_token, expires_in, user }
+   * Process OAuth Callback
+   * Validates state, retrieves PKCE parameters, and exchanges code for tokens.
+   * Called by the deep link handler when OAuth callback is received.
+   */
+  public async processOAuthCallback(code: string, state: string): Promise<AuthState> {
+    log.info('[AuthService] Processing OAuth callback');
+
+    // Validate state and retrieve PKCE parameters
+    const pkceState = this.pkceStorage.get(state);
+
+    if (!pkceState) {
+      log.error('[AuthService] State not found or expired');
+      throw new Error('State not found or expired. Please try logging in again.');
+    }
+
+    // Verify state matches (CSRF protection)
+    if (pkceState.state !== state) {
+      log.error('[AuthService] State mismatch - possible CSRF attack');
+      this.pkceStorage.delete(state);
+      throw new Error('State mismatch - possible CSRF attack');
+    }
+
+    // Delete state after verification (one-time use)
+    this.pkceStorage.delete(state);
+
+    // Exchange code for tokens
+    return this.exchangeCodeForTokens(code, pkceState.codeVerifier);
+  }
+
+  /**
+   * Exchange Authorization Code for Tokens
+   * Makes API call to Moku server to exchange authorization code for access and refresh tokens.
+   * Currently mocked - will need HTTP client implementation for production.
    */
   public async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<AuthState> {
-    log.info('[AuthService] Exchanging auth code for tokens (MOCK)');
+    log.info('[AuthService] Exchanging authorization code for tokens');
+
+    // TODO: Replace with real API call
+    // const mokuApiUrl = this.getMokuApiUrl();
+    // const response = await fetch(`${mokuApiUrl}/api/oauth/token`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     grant_type: 'authorization_code',
+    //     code,
+    //     client_id: CLIENT_ID,
+    //     code_verifier: codeVerifier,
+    //     redirect_uri: REDIRECT_URI
+    //   })
+    // });
 
     // MOCK: Simulate API call delay
     await this.delay(500);
@@ -202,8 +259,8 @@ export class AuthService {
   }
 
   /**
-   * Complete authentication with mock data (for testing without full OAuth flow)
-   * This simulates the complete OAuth flow in one step
+   * Mock Login
+   * Simulates complete OAuth flow in one step for testing without browser.
    */
   public async mockLogin(provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft'): Promise<AuthState> {
     log.info('[AuthService] Mock login started for provider:', provider);
@@ -301,8 +358,9 @@ export class AuthService {
   }
 
   /**
-   * Refresh access token
-   * In production, would call: POST https://moku.holokai.com/api/auth/refresh
+   * Refresh Access Token
+   * Uses refresh token to obtain new access token from Moku API.
+   * Currently mocked - will need HTTP client implementation for production.
    */
   public async refreshToken(): Promise<AuthTokens> {
     log.info('[AuthService] Refreshing access token (MOCK)');
@@ -331,6 +389,29 @@ export class AuthService {
   // ============================================================================
 
   /**
+   * Clean up expired PKCE states from memory
+   */
+  private cleanupExpiredPKCE(): void {
+    const now = Date.now();
+    const expiredStates: string[] = [];
+
+    this.pkceStorage.forEach((pkceState, state) => {
+      if (now - pkceState.timestamp > PKCE_TIMEOUT_MS) {
+        expiredStates.push(state);
+      }
+    });
+
+    expiredStates.forEach(state => {
+      log.debug('[AuthService] Cleaning up expired PKCE state:', state);
+      this.pkceStorage.delete(state);
+    });
+
+    if (expiredStates.length > 0) {
+      log.info(`[AuthService] Cleaned up ${expiredStates.length} expired PKCE states`);
+    }
+  }
+
+  /**
    * Clear all stored authentication data
    */
   private clearStoredAuth(): void {
@@ -339,30 +420,28 @@ export class AuthService {
   }
 
   /**
-   * Generate state parameter for CSRF protection
+   * Generate State Parameter
+   * Creates random state value for CSRF protection (32 bytes as hex).
    */
   private generateState(): string {
-    return Math.random().toString(36).substring(2, 15) +
-           Math.random().toString(36).substring(2, 15);
+    return crypto.randomBytes(32).toString('hex');
   }
 
   /**
-   * Generate PKCE code verifier
+   * Generate PKCE Code Verifier
+   * Creates cryptographically random verifier (32+ bytes, base64url encoded).
    */
   private generateCodeVerifier(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Buffer.from(array).toString('base64url');
+    return crypto.randomBytes(32).toString('base64url');
   }
 
   /**
-   * Generate PKCE code challenge from verifier
+   * Generate PKCE Code Challenge
+   * Creates SHA-256 hash of verifier, base64url encoded.
    */
   private async generateCodeChallenge(verifier: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    return Buffer.from(hash).toString('base64url');
+    const hash = crypto.createHash('sha256').update(verifier).digest();
+    return hash.toString('base64url');
   }
 
   /**

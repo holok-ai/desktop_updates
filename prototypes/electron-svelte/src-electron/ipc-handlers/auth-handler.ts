@@ -1,25 +1,96 @@
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import { AuthService, AuthState, UserProfile } from '../services/auth.service';
 import log from 'electron-log';
 
 /**
  * Authentication IPC Handlers
- * 
- * Handles all authentication-related IPC communication between
- * renderer and main process.
- * 
- * Implements the SSO flow from options-comparison-sso.md Option 1:
- * - Step 1-2: Start OAuth flow (redirect to Moku web)
- * - Step 3-4: Handled by Moku web and system browser
- * - Step 5: Exchange auth code for tokens
- * 
- * Security:
- * - Tokens never exposed to renderer process
- * - All sensitive operations in main process
- * - Uses Electron's safeStorage for encryption
+ * Handles all authentication-related IPC communication between renderer and main process.
+ * Security: Tokens never exposed to renderer process, all sensitive operations in main process.
  */
 
 let authService: AuthService;
+
+/**
+ * OAuth Callback Handler
+ * Processes OAuth callback URLs received via deep links (holokai://home?code=...&state=...).
+ * Validates the callback, extracts parameters, and exchanges authorization code for tokens.
+ */
+export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | null): void {
+  log.info('[Auth] Processing OAuth callback:', url);
+
+  try {
+    // Parse the URL
+    const urlObj = new URL(url);
+    const params = urlObj.searchParams;
+
+    // Check for error response
+    const error = params.get('error');
+    if (error) {
+      const errorDescription = params.get('error_description') || 'Unknown error';
+      log.error('[Auth] OAuth error:', error, errorDescription);
+
+      // Notify renderer of error
+      if (mainWindow) {
+        mainWindow.webContents.send('auth:callback-error', {
+          error,
+          description: errorDescription
+        });
+      }
+      return;
+    }
+
+    // Extract authorization code and state
+    const code = params.get('code');
+    const state = params.get('state');
+
+    if (!code || !state) {
+      log.error('[Auth] Missing required parameters in callback');
+      if (mainWindow) {
+        mainWindow.webContents.send('auth:callback-error', {
+          error: 'invalid_callback',
+          description: 'Missing code or state parameter'
+        });
+      }
+      return;
+    }
+
+    log.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
+
+    // Process the callback through auth service
+    authService.processOAuthCallback(code, state)
+      .then(authState => {
+        log.info('[Auth] OAuth flow completed successfully');
+
+        // Notify renderer of successful authentication
+        if (mainWindow) {
+          mainWindow.webContents.send('auth:callback-success', {
+            user: authState.user,
+            isAuthenticated: authState.isAuthenticated
+          });
+        }
+      })
+      .catch(error => {
+        log.error('[Auth] Error processing OAuth callback:', error);
+
+        if (mainWindow) {
+          mainWindow.webContents.send('auth:callback-error', {
+            error: 'exchange_failed',
+            description: error.message || 'Failed to exchange authorization code'
+          });
+        }
+      });
+
+  } catch (error) {
+    log.error('[Auth] Error parsing OAuth callback URL:', error);
+
+    if (mainWindow) {
+      mainWindow.webContents.send('auth:callback-error', {
+        error: 'invalid_url',
+        description: 'Failed to parse callback URL'
+      });
+    }
+  }
+}
 
 /**
  * Register all authentication IPC handlers
@@ -29,8 +100,7 @@ export function registerAuthHandlers() {
   authService = new AuthService();
 
   /**
-   * Start OAuth flow (Steps 1-2)
-   * Opens system browser to Moku web SSO page
+   * Start OAuth flow - Opens system browser to Moku web SSO page
    */
   ipcMain.handle('auth:startOAuthFlow', async (): Promise<{ authUrl: string }> => {
     log.info('[IPC] auth:startOAuthFlow called');
@@ -52,8 +122,7 @@ export function registerAuthHandlers() {
   });
 
   /**
-   * Exchange authorization code for tokens (Step 5)
-   * Called after OAuth callback with authorization code
+   * Exchange authorization code for tokens (manual exchange for testing)
    */
   ipcMain.handle(
     'auth:exchangeCode',
@@ -77,8 +146,7 @@ export function registerAuthHandlers() {
   );
 
   /**
-   * Mock login (for testing without full OAuth flow)
-   * This simulates the complete authentication flow
+   * Mock login - Simulates complete authentication flow for testing
    */
   ipcMain.handle(
     'auth:mockLogin',
@@ -134,8 +202,7 @@ export function registerAuthHandlers() {
   });
 
   /**
-   * Logout user
-   * Clears all stored authentication data
+   * Logout user - Clears all stored authentication data
    */
   ipcMain.handle('auth:logout', async (): Promise<void> => {
     log.info('[IPC] auth:logout called');
@@ -149,8 +216,7 @@ export function registerAuthHandlers() {
   });
 
   /**
-   * Refresh access token
-   * Uses refresh token to get new access token
+   * Refresh access token - Uses refresh token to get new access token
    */
   ipcMain.handle('auth:refreshToken', async (): Promise<void> => {
     log.info('[IPC] auth:refreshToken called');
@@ -167,7 +233,7 @@ export function registerAuthHandlers() {
 }
 
 /**
- * Clean up handlers (called when app is closing)
+ * Unregister authentication handlers - Called when app is closing
  */
 export function unregisterAuthHandlers() {
   ipcMain.removeHandler('auth:startOAuthFlow');
