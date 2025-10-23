@@ -5,27 +5,27 @@ The team is developing a desktop application to accelerate the use of text chat 
 
 ## Team
 Dynamo 
-Product Manager - DK
-Team Lead - Peter Baxter 
-Business Analyst - Jon Teitelebaum and Michelle Apicella 
-CI/CD - Ken Oshini
-UX - Kevin Chard 
+* Product Manager - DK
+* Team Lead - Peter Baxter 
+* Business Analyst - Jon Teitelebaum and Michelle Apicella 
+* CI/CD - Ken Ohnishi
+* UX - Kevin Chard 
 
 NKK
-Contract Manager - CLara N.
-Developer - Fynn (TBD) / NKK
-Developer - Kong (TBD) / NKK 
+* Contract Manager - CLara N.
+* Developer - Fynn (TBD) / NKK
+* Developer - Kong (TBD) / NKK 
 
 ## Team Way of Working  
 
 Kanban approach with a one week development cycle and some Scrum-style ceremonies.
 The team should include assistance from AI to accelerate and support responsibilities. (A person is always responsible, not AI.)
 
-Dynamo - (weekly) Refinement and Prioritization
-Team - (daily) Stand Ups with Progress Updates in Slack
-Team -= (daily) Design, Code and Test in Github (issues, code, tests and evidence artifacts)
-Team - (weekly) Meeting for Planning + Retrospective
-Dynamo - (weekly/as needed) Development Verification/QA, Regression, End to End Testing
+* Dynamo - (weekly) Refinement and Prioritization
+* Team - (daily) Stand Ups with Progress Updates in Slack
+* Team -= (daily) Design, Code and Test in Github (issues, code, tests and evidence artifacts)
+* Team - (weekly) Meeting for Planning + Retrospective
+* Dynamo - (weekly/as needed) Development Verification/QA, Regression, End to End Testing
 
 ### Kanban Overview 
 The team will follow a Kanban process which tracks the movement of backlog items to the "done" state. 
@@ -34,13 +34,13 @@ Dynamo will maintain the development process and backlog with input and review f
 
 ### Backlog Item States 
 The team will maintain a state for each Backlog Item, which is one of:
-Defined:     backlog item where business and technical requirements are being developed, or are complete
-Ready:       assigned to the team for inclusion in a development cycle
-In-Progress: design or coding activities in progress
-Testing:     test automation or testing in progress
-Complete:    development complete and ready for verification
-Done:        item developed and verified, meets defintion of done
-Removed:     backlog item no longer considered valuable - no refinement or development 
+* Defined:     backlog item where business and technical requirements are being developed, or are complete
+* Ready:       assigned to the team for inclusion in a development cycle
+* In-Progress: design or coding activities in progress
+* Testing:     test automation or testing in progress
+* Complete:    development complete and ready for verification
+* Done:        item developed and verified, meets defintion of done
+* Removed:     backlog item no longer considered valuable - no refinement or development 
 
 ## Requirements Flow 
 Business requirements are organized as Epics consisting of Features consisting of Backlog Items. Features are organized into Releases. 
