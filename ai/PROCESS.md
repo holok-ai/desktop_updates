@@ -5,27 +5,27 @@ The team is developing a desktop application to accelerate the use of text chat 
 
 ## Team
 Dynamo 
-Product Manager - DK
-Team Lead - Peter Baxter 
-Business Analyst - Jon Teitelebaum and Michelle Apicella 
-CI/CD - Ken Oshini
-UX - Kevin Chard 
+* Product Manager - DK
+* Team Lead - Peter Baxter 
+* Business Analyst - Jon Teitelebaum and Michelle Apicella 
+* CI/CD - Ken Oshini
+* UX - Kevin Chard 
 
 NKK
-Contract Manager - CLara N.
-Developer - Fynn (TBD) / NKK
-Developer - Kong (TBD) / NKK 
+* Contract Manager - CLara N.
+* Developer - Fynn (TBD) / NKK
+* Developer - Kong (TBD) / NKK 
 
 ## Team Way of Working  
 
 Kanban approach with a one week development cycle and some Scrum-style ceremonies.
 The team should include assistance from AI to accelerate and support responsibilities. (A person is always responsible, not AI.)
 
-Dynamo - (weekly) Refinement and Prioritization
-Team - (daily) Stand Ups with Progress Updates in Slack
-Team -= (daily) Design, Code and Test in Github (issues, code, tests and evidence artifacts)
-Team - (weekly) Meeting for Planning + Retrospective
-Dynamo - (weekly/as needed) Development Verification/QA, Regression, End to End Testing
+* Dynamo - (weekly) Refinement and Prioritization
+* Team - (daily) Stand Ups with Progress Updates in Slack
+* Team -= (daily) Design, Code and Test in Github (issues, code, tests and evidence artifacts)
+* Team - (weekly) Meeting for Planning + Retrospective
+* Dynamo - (weekly/as needed) Development Verification/QA, Regression, End to End Testing
 
 ### Kanban Overview 
 The team will follow a Kanban process which tracks the movement of backlog items to the "done" state. 
