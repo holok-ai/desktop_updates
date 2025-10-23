@@ -34,13 +34,13 @@ Dynamo will maintain the development process and backlog with input and review f
 
 ### Backlog Item States 
 The team will maintain a state for each Backlog Item, which is one of:
-Defined:     backlog item where business and technical requirements are being developed, or are complete
-Ready:       assigned to the team for inclusion in a development cycle
-In-Progress: design or coding activities in progress
-Testing:     test automation or testing in progress
-Complete:    development complete and ready for verification
-Done:        item developed and verified, meets defintion of done
-Removed:     backlog item no longer considered valuable - no refinement or development 
+* Defined:     backlog item where business and technical requirements are being developed, or are complete
+* Ready:       assigned to the team for inclusion in a development cycle
+* In-Progress: design or coding activities in progress
+* Testing:     test automation or testing in progress
+* Complete:    development complete and ready for verification
+* Done:        item developed and verified, meets defintion of done
+* Removed:     backlog item no longer considered valuable - no refinement or development 
 
 ## Requirements Flow 
 Business requirements are organized as Epics consisting of Features consisting of Backlog Items. Features are organized into Releases. 
