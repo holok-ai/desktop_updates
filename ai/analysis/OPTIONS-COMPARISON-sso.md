@@ -11,8 +11,9 @@
 1. [Option 1: Desktop SSO Using Moku Web](#option-1-desktop-sso-using-moku-web)
 2. [Option 2: Desktop SSO with Custom Protocol](#option-2-desktop-sso-with-custom-protocol)
 3. [Option 3: Desktop SSO with Browser Authentication](#option-3-desktop-sso-with-browser-authentication)
-4. [Comparison Matrix](#comparison-matrix)
-5. [Recommendation](#recommendation)
+4. [Option 4: Desktop SSO with Exchange Code Flow](#option-4-desktop-sso-with-exchange-code-flow)
+5. [Comparison Matrix](#comparison-matrix)
+6. [Recommendation](#recommendation)
 
 ---
 
@@ -682,21 +683,205 @@ Embedded browser must only load HTTPS content. Desktop should validate SSL certi
 
 ---
 
+## Option 4: Desktop SSO with Exchange Code Flow
+
+### Overview
+
+Desktop application spawns system browser to Moku web's desktop-specific login page where the user authenticates via OAuth2. After successful authentication, Moku web generates a one-time-use exchange code and redirects back to the desktop via custom protocol. The desktop then exchanges the code for an API key and finally calls the token refresh endpoint to obtain the access token with app permissions.
+
+### Authentication Flow
+
+**Step 1: Desktop Detects No Token**
+Desktop app detects it does not have a valid access token and spawns the system browser to `moku.holokai.app/login/desktop` (configurable URL stored in desktop app settings).
+
+**Step 2: Browser Login - OAuth2 Authentication**
+User logs in via OAuth2 (Microsoft, Google, or custom providers) through Moku web's familiar SSO interface. Moku web backend creates a user session upon successful authentication.
+
+**Step 3: Generate API Key**
+After user successfully authenticates, Moku web calls `POST /api/auth/apiKey` (existing endpoint) to generate a JWT token for the authenticated user. Response: `{"apiKey": "jwt-token-string"}`
+
+**Step 4: Generate Exchange Code**
+Moku web calls `POST /api/auth/generate-exchange-code` (new endpoint) with the apiKey in the request body. Backend generates a one-time-use exchange code (valid for ~5 minutes) and stores the mapping between code and apiKey. Response: `{"code": "exchange-code-xyz"}`
+
+**Step 5: Redirect to Desktop**
+Moku web redirects the browser to the custom protocol callback with the exchange code:
+```
+holokai://home?code=exchange-code-xyz
+```
+
+**Step 6: Desktop Intercepts Code**
+Desktop's custom protocol handler intercepts the redirect and extracts the exchange code from the query parameter.
+
+**Step 7: Exchange Code for API Key**
+Desktop calls `POST /api/auth/exchange-code` (new endpoint) with the exchange code in the request body:
+```json
+{
+  "code": "exchange-code-xyz"
+}
+```
+Backend validates the code (must be valid and not expired), retrieves the associated apiKey, invalidates the code (one-time use), and returns the apiKey. Response: `{"apiKey": "jwt-token-string"}`
+
+**Step 8: Exchange API Key for Access Token**
+Desktop calls `POST /api/auth/token/refresh` (existing endpoint) with the apiKey:
+```json
+{
+  "apiKey": "jwt-token-string"
+}
+```
+Backend validates the apiKey, checks user is active, retrieves user's application access (from team membership), generates a new JWT token with application URL slugs in claims, and returns the accessToken. Response: `{"accessToken": "jwt-with-app-permissions"}`
+
+**Step 9: Store Access Token**
+Desktop stores the accessToken in secure Electron safeStorage for use in all subsequent Moku API calls.
+
+### Re-Authentication Flow - Token Refresh
+
+When the stored accessToken is about to expire or becomes invalid:
+
+1. Desktop detects expired/invalid accessToken
+2. Desktop calls `POST /api/auth/token/refresh` with a cached apiKey (if available)
+3. Backend returns new accessToken
+4. Desktop updates stored accessToken
+5. API calls continue without user interaction
+
+If no cached apiKey is available:
+1. Desktop detects missing/invalid accessToken
+2. Desktop re-runs authentication flow starting from Step 1
+
+### Endpoint Requirements
+
+**Existing Endpoints (No Changes Required):**
+
+1. **`GET /api/auth/apiKey`**
+   - Input: None (user must be authenticated via session)
+   - Output: `{ "apiKey": "jwt-token-string" }`
+   - Called by: Moku Web after OAuth2 login
+   - Used for: Initial token generation
+
+2. **`POST /api/auth/token/refresh`**
+   - Input: `{ "apiKey": "jwt-token" }`
+   - Output: `{ "accessToken": "jwt-with-app-permissions" }`
+   - Called by: Desktop App
+   - Used for: Obtaining final access token with app permissions
+
+**New Endpoints Required:**
+
+1. **`POST /api/auth/generate-exchange-code`** (NEW)
+   - Input: `{ "apiKey": "jwt-token" }`
+   - Output: `{ "code": "one-time-use-code" }`
+   - Called by: Moku Web
+   - Side Effects: Generates exchange code valid for ~5 minutes, one-time use
+   - Security: Should validate apiKey belongs to current authenticated user
+
+2. **`POST /api/auth/exchange-code`** (NEW)
+   - Input: `{ "code": "one-time-use-code" }`
+   - Output: `{ "apiKey": "jwt-token" }`
+   - Called by: Desktop App
+   - Side Effects: Invalidates code after first successful exchange (prevents replay attacks)
+   - Security: Should validate code exists, is not expired, and has not been used
+
+### Token Details
+
+Tokens include the following claims (from existing JwtTokenService):
+- `userId`: User's email address
+- `urlSlugs`: List of application URL slugs user has access to (for access token only)
+- `subject`: User's UUID
+- `issuer`: "moku-api"
+- `issuedAt`: Timestamp of token creation
+- `expiration`: 24 hours default (apiKey), 1 hour default (accessToken), or 10 years for long-lived tokens
+
+### Security Considerations
+
+**Token Protection:**
+- API key never visible in browser address bar (only code is in URL)
+- API key only passed in POST request body, not in query parameters
+- Exchange code is one-time-use and expires after 5 minutes
+- Exchange code becomes invalid immediately after successful exchange (prevents replay attacks)
+
+**No localhost Listener Required:**
+- Custom protocol callback is OS-managed and secure
+- No need to open ephemeral server ports on localhost
+
+**Session-Based:**
+- Browser login creates server-side session
+- Exchange code maps session to desktop client
+- Desktop receives tokens but doesn't need to store session cookies
+
+**Secure Storage:**
+- apiKey stored temporarily in desktop memory (if needed for refresh)
+- accessToken stored in Electron safeStorage (encrypted by OS)
+
+### Advantages
+
+✅ **Token Never in Browser:** Only exchange code passes through browser URL, not the actual token  
+✅ **One-Time-Use Code:** Exchange code becomes invalid after first use (prevents token replay)  
+✅ **No Localhost Listener:** Custom protocol callback is OS-managed and secure  
+✅ **Uses Existing Endpoints:** Minimal new backend code (only 2 new endpoints needed)  
+✅ **Browser-Based OAuth:** Moku web handles all provider integrations and OAuth complexity  
+✅ **Future-Proof:** Automatically supports new providers added to Moku web  
+✅ **Cross-Platform:** Custom protocol works on Windows, macOS, and Linux  
+✅ **User Sees Real Domain:** SSL certificate visible in system browser (not embedded webview)
+
+### Disadvantages
+
+❌ **Requires Browser:** User must have functional system browser available  
+❌ **Context Switch:** User briefly switches context from desktop to browser and back  
+❌ **Moku Web Dependency:** Desktop authentication requires Moku web to be available  
+❌ **Two New Endpoints:** Backend requires implementation of 2 new endpoints (though relatively simple)  
+❌ **Custom Protocol Registration:** Custom protocol must be registered with OS (can occasionally fail)  
+
+### Implementation Complexity
+
+**Desktop App:** Medium - Custom protocol handling, code extraction from URI, sequential API calls  
+**Moku Web Backend:** Low - Two straightforward endpoints for code generation and exchange  
+**Moku Web Frontend:** Low - Add login/desktop endpoint, call apiKey endpoint, redirect with code  
+**Testing Effort:** Medium - Test protocol handling, code generation/validation, error scenarios
+
+### Error Scenarios
+
+**Browser Launch Fails:**
+- Desktop app shows error message
+- User can retry authentication
+
+**User Closes Browser Without Logging In:**
+- Desktop detects no callback after timeout (5+ minutes)
+- Shows timeout message, allows user to retry
+
+**Exchange Code Expired:**
+- Desktop calls exchange-code endpoint but code is >5 minutes old
+- Endpoint returns 401 error
+- Desktop app shows error, user must restart auth flow
+
+**Code Already Used (Replay Attack):**
+- Desktop or attacker tries to use code twice
+- Second attempt returns 401, code is rejected
+- Normal: first exchange succeeds, subsequent attempts fail
+
+**Invalid API Key:**
+- Exchange code returns invalid apiKey for some reason
+- Desktop calls token/refresh with invalid key
+- Endpoint returns 401, user must restart auth
+
+---
+
 ## Comparison Matrix
 
-| Criteria | Option 1: Moku Web | Option 2: Custom Protocol | Option 3: Browser Embedded |
-|----------|-------------------|---------------------------|----------------------------|
-| **Implementation Complexity** | Medium | High | Low-Medium |
-| **Security** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐ Good |
-| **User Experience** | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐⭐ Excellent |
-| **Maintenance Effort** | ⭐⭐⭐⭐⭐ Low | ⭐⭐ High | ⭐⭐⭐⭐ Low |
-| **Provider Flexibility** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
-| **Moku Web Dependency** | Required | Partial | Required |
-| **Custom Protocol Required** | Yes | Yes | No |
-| **Code Duplication** | None | High | None |
-| **Offline Support** | None | Partial | None |
-| **Testing Complexity** | Medium | High | Medium |
-| **Cross-Platform Stability** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐ Good |
+| Criteria | Option 1: Moku Web | Option 2: Custom Protocol | Option 3: Browser Embedded | Option 4: Exchange Code |
+|----------|-------------------|---------------------------|----------------------------|------------------------|
+| **Implementation Complexity** | Medium | High | Low-Medium | Medium |
+| **Security** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
+| **User Experience** | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good |
+| **Maintenance Effort** | ⭐⭐⭐⭐⭐ Low | ⭐⭐ High | ⭐⭐⭐⭐ Low | ⭐⭐⭐⭐⭐ Low |
+| **Provider Flexibility** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐⭐ Excellent |
+| **Moku Web Dependency** | Required | Partial | Required | Required |
+| **Custom Protocol Required** | Yes | Yes | No | Yes |
+| **Code Duplication** | None | High | None | None |
+| **Offline Support** | None | Partial | None | None |
+| **Testing Complexity** | Medium | High | Medium | Medium |
+| **Cross-Platform Stability** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
+| **Token Never in Browser** | No (PKCE/Code only) | No | No | Yes ✅ |
+| **One-Time-Use Code** | Yes (Auth Code) | No | No | Yes ✅ |
+| **No Localhost Listener** | Yes | Yes | Yes | Yes ✅ |
+| **New Backend Endpoints** | 3 | 1 | 1 | 2 |
 
 ---
 
