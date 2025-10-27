@@ -5,6 +5,17 @@
 
 ---
 
+## Branch Naming
+
+Branches should follow this syntax:
+
+{last name}/FEATURE-{story id}-{short-title}
+{last name}/FIX-{issue id}-{short-title}
+
+Example: 
+baxter/FEATURE-1-implement-chat-input-editting
+baxter/FIX-2-correct-issue-with-logfile-name
+
 ## Folder Structure
 
 UI components are organized in `src/ui/` with subfolders: `pages/`, `sidebar/`, and `components/`.
