@@ -3,8 +3,8 @@
  * Provides access to Electron APIs with error handling
  */
 class ElectronService {
-  get api() {
-    if (!window.electronAPI) {
+  get api(): typeof window.electronAPI {
+    if (typeof window.electronAPI === 'undefined') {
       throw new Error('Electron API not available');
     }
     return window.electronAPI;
@@ -21,13 +21,13 @@ class ElectronService {
 
   // Logging
   log = {
-    info: (message: string, ...params: any[]) => {
+    info: (message: string, ...params: unknown[]): void => {
       this.api.log.info(message, ...params);
     },
-    warn: (message: string, ...params: any[]) => {
+    warn: (message: string, ...params: unknown[]): void => {
       this.api.log.warn(message, ...params);
     },
-    error: (message: string, ...params: any[]) => {
+    error: (message: string, ...params: unknown[]): void => {
       this.api.log.error(message, ...params);
     }
   };

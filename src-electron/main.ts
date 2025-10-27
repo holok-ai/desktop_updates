@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
 import log from 'electron-log';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler';
@@ -70,19 +71,21 @@ function createWindow(): void {
 
   // Load the Svelte application
   // Try to load from dev server first, fallback to built files
-  const loadURL = async () => {
+  const loadURL = async (): Promise<void> => {
     try {
       // Check if dev server is running by attempting to load
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await mainWindow!.loadURL('http://localhost:5173');
       console.log('Loaded from Vite dev server');
-    } catch (error) {
+    } catch (_error) {
       // Dev server not available, load from built files
       console.log('Loading from built files');
-      mainWindow!.loadFile(path.join(__dirname, '../dist/index.html'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      void mainWindow!.loadFile(path.join(__dirname, '../dist/index.html'));
     }
   };
 
-  loadURL();
+  void loadURL();
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -94,7 +97,7 @@ function createWindow(): void {
  * Create application menu
  */
 function createMenu(): void {
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const template: MenuItemConstructorOptions[] = [
     {
       label: 'File',
       submenu: [
@@ -180,7 +183,8 @@ function createMenu(): void {
           label: 'About',
           click: () => {
             // Show About dialog
-            dialog.showMessageBox(mainWindow!, {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            void dialog.showMessageBox(mainWindow!, {
               type: 'info',
               title: 'About Holokai Desktop',
               message: 'Holokai Desktop',
@@ -217,19 +221,19 @@ function registerIpcHandlers(): void {
   registerSystemHandlers();
   
   // Register logging handlers (renderer -> main)
-  ipcMain.on('log:info', (_event, message: string, ...params: any[]) => {
+  ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
     log.info('[Renderer]', message, ...params);
   });
-  
-  ipcMain.on('log:warn', (_event, message: string, ...params: any[]) => {
+
+  ipcMain.on('log:warn', (_event, message: string, ...params: unknown[]) => {
     log.warn('[Renderer]', message, ...params);
   });
-  
-  ipcMain.on('log:error', (_event, message: string, ...params: any[]) => {
+
+  ipcMain.on('log:error', (_event, message: string, ...params: unknown[]) => {
     log.error('[Renderer]', message, ...params);
   });
-  
-  ipcMain.on('log:debug', (_event, message: string, ...params: any[]) => {
+
+  ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
     log.debug('[Renderer]', message, ...params);
   });
 }
@@ -296,7 +300,7 @@ if (process.platform === 'win32') {
  */
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 

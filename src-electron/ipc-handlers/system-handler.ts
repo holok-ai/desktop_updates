@@ -9,29 +9,29 @@ import { ipcMain, app } from 'electron';
 /**
  * Register all system-related IPC handlers
  */
-export function registerSystemHandlers() {
+export function registerSystemHandlers(): void {
   /**
    * Get platform information
    */
-  ipcMain.handle('system:platform', async (): Promise<string> => {
+  ipcMain.handle('system:platform', (): Promise<string> => {
     console.log('[IPC] system:platform called');
-    return process.platform;
+    return Promise.resolve(process.platform);
   });
 
   /**
    * Get Electron version
    */
-  ipcMain.handle('system:version', async (): Promise<string> => {
+  ipcMain.handle('system:version', (): Promise<string> => {
     console.log('[IPC] system:version called');
-    return process.versions.electron;
+    return Promise.resolve(process.versions.electron);
   });
 
   /**
    * Get system path
    */
-  ipcMain.handle('system:getPath', async (_event, name: string): Promise<string> => {
+  ipcMain.handle('system:getPath', (_event, name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads'): Promise<string> => {
     console.log('[IPC] system:getPath called with name:', name);
-    return app.getPath(name as any);
+    return Promise.resolve(app.getPath(name));
   });
 
   console.log('[IPC] System handlers registered');
@@ -40,7 +40,7 @@ export function registerSystemHandlers() {
 /**
  * Clean up handlers (called when app is closing)
  */
-export function unregisterSystemHandlers() {
+export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('system:platform');
   ipcMain.removeHandler('system:version');
   ipcMain.removeHandler('system:getPath');

@@ -1,7 +1,14 @@
 import { writable, derived } from 'svelte/store';
 import type { UserProfile, AuthState } from '../../../src-electron/preload';
 
-function createAuthStore() {
+interface AuthStore {
+  subscribe: (run: (value: AuthState) => void) => (() => void);
+  setUser: (user: UserProfile | null) => void;
+  setAuthState: (authState: AuthState) => void;
+  logout: () => void;
+}
+
+function createAuthStore(): AuthStore {
   const { subscribe, set, update } = writable<AuthState>({
     user: null,
     tokens: null,
@@ -10,17 +17,17 @@ function createAuthStore() {
 
   return {
     subscribe,
-    setUser: (user: UserProfile | null) => {
+    setUser: (user: UserProfile | null): void => {
       update(state => ({
         ...state,
         user,
         isAuthenticated: user !== null
       }));
     },
-    setAuthState: (authState: AuthState) => {
+    setAuthState: (authState: AuthState): void => {
       set(authState);
     },
-    logout: () => {
+    logout: (): void => {
       set({
         user: null,
         tokens: null,

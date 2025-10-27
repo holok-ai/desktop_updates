@@ -107,7 +107,7 @@ export class SettingsService {
    */
   public setSettings(settings: Partial<AppSettings>): void {
     Object.entries(settings).forEach(([key, value]) => {
-      this.store.set(key as keyof AppSettings, value as any);
+      this.store.set(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
     });
     log.info('[SettingsService] Multiple settings updated:', settings);
   }

@@ -1,0 +1,17 @@
+{
+  "name": "eslint-plugin-holokai",
+  "version": "1.0.0",
+  "description": "Custom ESLint rules for Holokai Desktop project",
+  "main": "index.js",
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "holokai"
+  ],
+  "author": "Holokai",
+  "license": "MIT",
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}

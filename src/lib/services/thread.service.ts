@@ -6,7 +6,7 @@ class ThreadService {
     this.setupEventListeners();
   }
 
-  private setupEventListeners() {
+  private setupEventListeners(): void {
     // Listen for real-time updates
     window.electronAPI.thread.onThreadCreated((thread) => {
       threads.addThread(thread);

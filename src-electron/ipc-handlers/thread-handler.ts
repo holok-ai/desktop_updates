@@ -15,7 +15,7 @@ import { Thread } from '../preload';
 const threads: Map<string, Thread> = new Map();
 
 // Initialize with some sample data
-function initializeSampleData() {
+function initializeSampleData(): void {
   const sampleThreads: Thread[] = [
     {
       id: '1',
@@ -43,9 +43,9 @@ function initializeSampleData() {
 /**
  * Helper function to broadcast events to all windows
  */
-function broadcast(channel: string, ...args: any[]) {
+function broadcast(channel: string, ...args: unknown[]): void {
   BrowserWindow.getAllWindows().forEach(window => {
-    window.webContents.send(channel, ...args);
+    window.webContents.send(channel, ...(args as [unknown]));
   });
 }
 
@@ -59,24 +59,24 @@ function generateId(): string {
 /**
  * Register all thread-related IPC handlers
  */
-export function registerThreadHandlers() {
+export function registerThreadHandlers(): void {
   // Initialize sample data
   initializeSampleData();
 
   /**
    * Get all threads
    */
-  ipcMain.handle('thread:getAll', async (): Promise<Thread[]> => {
+  ipcMain.handle('thread:getAll', (): Promise<Thread[]> => {
     console.log('[IPC] thread:getAll called');
-    return Array.from(threads.values());
+    return Promise.resolve(Array.from(threads.values()));
   });
 
   /**
    * Get a thread by ID
    */
-  ipcMain.handle('thread:getById', async (_event, id: string): Promise<Thread | null> => {
+  ipcMain.handle('thread:getById', (_event, id: string): Promise<Thread | null> => {
     console.log('[IPC] thread:getById called with id:', id);
-    return threads.get(id) || null;
+    return Promise.resolve(threads.get(id) ?? null);
   });
 
   /**
@@ -84,7 +84,7 @@ export function registerThreadHandlers() {
    */
   ipcMain.handle(
     'thread:create',
-    async (_event, threadData: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> => {
+    (_event, threadData: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> => {
       console.log('[IPC] thread:create called with data:', threadData);
 
       const newThread: Thread = {
@@ -99,7 +99,7 @@ export function registerThreadHandlers() {
       // Broadcast the new thread to all windows
       broadcast('thread:created', newThread);
 
-      return newThread;
+      return Promise.resolve(newThread);
     }
   );
 
@@ -108,7 +108,7 @@ export function registerThreadHandlers() {
    */
   ipcMain.handle(
     'thread:update',
-    async (_event, id: string, updates: Partial<Thread>): Promise<Thread> => {
+    (_event, id: string, updates: Partial<Thread>): Promise<Thread> => {
       console.log('[IPC] thread:update called with id:', id, 'updates:', updates);
 
       const existingThread = threads.get(id);
@@ -129,14 +129,14 @@ export function registerThreadHandlers() {
       // Broadcast the update to all windows
       broadcast('thread:updated', updatedThread);
 
-      return updatedThread;
+      return Promise.resolve(updatedThread);
     }
   );
 
   /**
    * Delete a thread
    */
-  ipcMain.handle('thread:delete', async (_event, id: string): Promise<boolean> => {
+  ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
     console.log('[IPC] thread:delete called with id:', id);
 
     const deleted = threads.delete(id);
@@ -146,7 +146,7 @@ export function registerThreadHandlers() {
       broadcast('thread:deleted', id);
     }
 
-    return deleted;
+    return Promise.resolve(deleted);
   });
 
   console.log('[IPC] Thread handlers registered');
@@ -155,7 +155,7 @@ export function registerThreadHandlers() {
 /**
  * Clean up handlers (called when app is closing)
  */
-export function unregisterThreadHandlers() {
+export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:getAll');
   ipcMain.removeHandler('thread:getById');
   ipcMain.removeHandler('thread:create');

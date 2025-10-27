@@ -50,7 +50,7 @@ export interface Thread {
   status: 'active' | 'archived' | 'deleted';
   createdAt: Date;
   updatedAt: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -61,12 +61,12 @@ export interface Thread {
 export interface SettingsAPI {
   // Get all settings
   getAll: () => Promise<AppSettings>;
-  
+
   // Get specific setting
-  get: (key: string) => Promise<any>;
-  
+  get: (key: string) => Promise<unknown>;
+
   // Set specific setting
-  set: (key: string, value: any) => Promise<void>;
+  set: (key: string, value: unknown) => Promise<void>;
   
   // Set multiple settings
   setMultiple: (settings: Partial<AppSettings>) => Promise<void>;
@@ -162,10 +162,10 @@ export interface SystemAPI {
  * Provides logging functionality to the renderer process.
  */
 export interface LogAPI {
-  info: (message: string, ...params: any[]) => void;
-  warn: (message: string, ...params: any[]) => void;
-  error: (message: string, ...params: any[]) => void;
-  debug: (message: string, ...params: any[]) => void;
+  info: (message: string, ...params: unknown[]) => void;
+  warn: (message: string, ...params: unknown[]) => void;
+  error: (message: string, ...params: unknown[]) => void;
+  debug: (message: string, ...params: unknown[]) => void;
 }
 
 /**
@@ -214,7 +214,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     
-    set: (key: string, value: any) => ipcRenderer.invoke('settings:set', key, value),
+    set: (key: string, value: unknown) => ipcRenderer.invoke('settings:set', key, value),
     
     setMultiple: (settings: Partial<AppSettings>) => 
       ipcRenderer.invoke('settings:setMultiple', settings),
@@ -245,30 +245,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
     
     // Event listeners with cleanup function
-    onThreadCreated: (callback: (thread: Thread) => void) => {
-      const subscription = (_event: IpcRendererEvent, thread: Thread) => callback(thread);
+    onThreadCreated: (callback: (thread: Thread) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, thread: Thread): void => callback(thread);
       ipcRenderer.on('thread:created', subscription);
-      
+
       // Return cleanup function
-      return () => {
+      return (): void => {
         ipcRenderer.removeListener('thread:created', subscription);
       };
     },
-    
-    onThreadUpdated: (callback: (thread: Thread) => void) => {
-      const subscription = (_event: IpcRendererEvent, thread: Thread) => callback(thread);
+
+    onThreadUpdated: (callback: (thread: Thread) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, thread: Thread): void => callback(thread);
       ipcRenderer.on('thread:updated', subscription);
-      
-      return () => {
+
+      return (): void => {
         ipcRenderer.removeListener('thread:updated', subscription);
       };
     },
-    
-    onThreadDeleted: (callback: (threadId: string) => void) => {
-      const subscription = (_event: IpcRendererEvent, threadId: string) => callback(threadId);
+
+    onThreadDeleted: (callback: (threadId: string) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, threadId: string): void => callback(threadId);
       ipcRenderer.on('thread:deleted', subscription);
-      
-      return () => {
+
+      return (): void => {
         ipcRenderer.removeListener('thread:deleted', subscription);
       };
     }
@@ -288,13 +288,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Sends log messages to main process via IPC
    */
   log: {
-    info: (message: string, ...params: any[]) => 
+    info: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:info', message, ...params),
-    warn: (message: string, ...params: any[]) => 
+    warn: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:warn', message, ...params),
-    error: (message: string, ...params: any[]) => 
+    error: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:error', message, ...params),
-    debug: (message: string, ...params: any[]) => 
+    debug: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:debug', message, ...params)
   } as LogAPI,
 
@@ -303,12 +303,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *
    * Allows renderer to listen for menu commands from the main process
    */
-  onMenuCommand: (channel: string, callback: () => void) => {
-    const subscription = (_event: IpcRendererEvent) => callback();
+  onMenuCommand: (channel: string, callback: () => void): (() => void) => {
+    const subscription = (_event: IpcRendererEvent): void => callback();
     ipcRenderer.on(channel, subscription);
 
     // Return cleanup function
-    return () => {
+    return (): void => {
       ipcRenderer.removeListener(channel, subscription);
     };
   }

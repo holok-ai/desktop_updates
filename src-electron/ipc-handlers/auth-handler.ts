@@ -69,13 +69,14 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
           });
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         log.error('[Auth] Error processing OAuth callback:', error);
 
         if (mainWindow) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to exchange authorization code';
           mainWindow.webContents.send('auth:callback-error', {
             error: 'exchange_failed',
-            description: error.message || 'Failed to exchange authorization code'
+            description: errorMessage
           });
         }
       });
@@ -95,7 +96,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
 /**
  * Register all authentication IPC handlers
  */
-export function registerAuthHandlers() {
+export function registerAuthHandlers(): void {
   // Initialize auth service
   authService = new AuthService();
 
@@ -110,11 +111,13 @@ export function registerAuthHandlers() {
       
       // In production, would return just the URL
       // For mock, return additional data for demonstration
-      return {
-        authUrl: result.authUrl,
-        // @ts-ignore - mock data for demonstration
-        _mockData: result.mockData
+      const response: { authUrl: string } = {
+        authUrl: result.authUrl
       };
+      // @ts-expect-error - mock data for demonstration
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      response._mockData = result.mockData;
+      return response;
     } catch (error) {
       log.error('[IPC] Error starting OAuth flow:', error);
       throw error;
@@ -172,43 +175,44 @@ export function registerAuthHandlers() {
   /**
    * Get current authentication state
    */
-  ipcMain.handle('auth:getAuthState', async (): Promise<AuthState> => {
+  ipcMain.handle('auth:getAuthState', (): Promise<AuthState> => {
     log.info('[IPC] auth:getAuthState called');
-    
+
     const authState = authService.getAuthState();
-    
+
     // Return only non-sensitive data to renderer
-    return {
+    return Promise.resolve({
       user: authState.user,
       tokens: null, // Never send tokens to renderer
       isAuthenticated: authState.isAuthenticated
-    };
+    });
   });
 
   /**
    * Get current user profile
    */
-  ipcMain.handle('auth:getUser', async (): Promise<UserProfile | null> => {
+  ipcMain.handle('auth:getUser', (): Promise<UserProfile | null> => {
     log.info('[IPC] auth:getUser called');
-    return authService.getUser();
+    return Promise.resolve(authService.getUser());
   });
 
   /**
    * Check if user is authenticated
    */
-  ipcMain.handle('auth:isAuthenticated', async (): Promise<boolean> => {
+  ipcMain.handle('auth:isAuthenticated', (): Promise<boolean> => {
     log.info('[IPC] auth:isAuthenticated called');
-    return authService.isAuthenticated();
+    return Promise.resolve(authService.isAuthenticated());
   });
 
   /**
    * Logout user - Clears all stored authentication data
    */
-  ipcMain.handle('auth:logout', async (): Promise<void> => {
+  ipcMain.handle('auth:logout', (): Promise<void> => {
     log.info('[IPC] auth:logout called');
-    
+
     try {
-      await authService.logout();
+      authService.logout();
+      return Promise.resolve();
     } catch (error) {
       log.error('[IPC] Error during logout:', error);
       throw error;
@@ -235,7 +239,7 @@ export function registerAuthHandlers() {
 /**
  * Unregister authentication handlers - Called when app is closing
  */
-export function unregisterAuthHandlers() {
+export function unregisterAuthHandlers(): void {
   ipcMain.removeHandler('auth:startOAuthFlow');
   ipcMain.removeHandler('auth:exchangeCode');
   ipcMain.removeHandler('auth:mockLogin');
