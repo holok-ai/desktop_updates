@@ -612,588 +612,423 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 
 **Dependencies:** Electron safeStorage, electron-log
 
----
-## 9. Authentication Workflow
+## 9. Authentication Workflow (Exchange Code Flow)
 
-The desktop application uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) for secure authentication. **Moku API acts as an OAuth Client/Proxy**, facilitating authentication through external Identity Providers (IDPs) such as Google, Microsoft, Okta, or other enterprise SSO systems. This pass-through architecture provides Single Sign-On (SSO) capability while maintaining Moku's own token system for API access.
+The desktop application uses an **Exchange Code Flow** for secure authentication. The desktop app spawns a browser with a Moku web URL that indicates a desktop user is logging in. Moku web authenticates via OAuth2. After login, Moku web generates a one-time-use exchange code and redirects the user back to the desktop app with the exchange code. The desktop calls a Moku API endpoint to exchange the code for a JWT token. Desktop then calls the refresh endpoint to obtain the access token with app permissions.
 
-### Quick Overview
+### 9.1 Authentication Flow
 
-**Initial Authentication (First-Time Login):**
-1. **Client Setup** - Register custom protocol (`holokai://`) and store client ID in Electron main process
-2. **Generate PKCE Values** - Create code_verifier, code_challenge, and state parameter; store in memory (5-min timeout)
-3. **Launch Browser** - Open system browser with Moku's authorization URL containing PKCE challenge and state
-4. **Moku Redirects to IDP** - Moku API redirects browser to external IDP (Google/Microsoft/Okta)
-5. **IDP Authentication** - User authenticates with external IDP; IDP redirects back to Moku with IDP authorization code
-6. **Moku Processes IDP Response** - Moku exchanges IDP code for IDP tokens, creates/links Moku user, generates Moku authorization code
-7. **Desktop Receives Callback** - Moku redirects to desktop with Moku authorization code
-8. **Token Exchange** - Desktop validates state, exchanges Moku code + code_verifier for Moku tokens
-9. **Token Storage** - Store Moku access_token in memory, refresh_token in encrypted safeStorage (OS credential manager)
-10. **Token Refresh** - When access_token expires, use refresh_token to get new Moku tokens without browser interaction
-
-**Re-Authentication (99% of use cases):**
-- App starts → Check safeStorage for refresh_token → Decrypt → Call Moku token endpoint → Get new tokens → Load app
-
-**Security Features:**
-- ✅ PKCE prevents authorization code interception
-- ✅ State parameter prevents CSRF attacks
-- ✅ 60-second authorization code expiration
-- ✅ One-time use codes (replay attack prevention)
-- ✅ Encrypted token storage via OS credential managers
-- ✅ Access tokens in memory only (never persisted)
-- ✅ Enterprise SSO integration (Google, Microsoft, Okta, etc.)
-- ✅ MFA/2FA handled by external IDP
-
----
-
-### 9.1 Initial Authentication Flow
-
-**Step 1: Client ID and Custom Protocol (Desktop)**
-
-The Electron Main process has a constant variable containing the client id.
-
-In your Electron app, you register your custom protocol (e.g., holokai://) using `app.setAsDefaultProtocolClient('holokai')`. This tells the operating system that any link starting with holokai:// should be opened by your Electron app.
-
-**Step 2: Electron App (Before Browser)**
-
-- Generates a code_verifier: 32+ byte random string (base64url encoded)
-- Creates a SHA-256 hash of it called the code_challenge
-- Generate a 32-byte random value for state, encoded as hexadecimal characters
-- Electron Main process stores the code verifier and code challenge using an in-memory store with a timeout (default of 5 minutes)
-
-**Step 3: Electron → Browser**
-
-Launches the system browser with authorization URL:
 ```
-https://moku.com/api/oauth/authorize
-  ?client_id={CLIENT_ID}
-  &redirect_uri=holokai://home
-  &code_challenge={CODE_CHALLENGE}
-  &code_challenge_method=S256
-  &state={STATE}
-  &response_type=code
-  &scope={SCOPES}  // Optional, e.g., "read write"
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    DESKTOP SSO - EXCHANGE CODE FLOW                        ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────┐                                                  ┌─────────────┐
+│   DESKTOP   │                                                  │  MOKU WEB   │
+└──────┬──────┘                                                  └──────┬──────┘
+       │                                                                 │
+       │ 1. No token detected                                           │
+       ├─────────────────────────────────────────────────────────────→ │
+       │        Spawn browser to                                        │
+       │  moku.holokai.app/login/desktop                               │
+       │                                                                 │
+       │                                                    2. User logs in (OAuth2)
+       │                                                                 │
+       │                                    3. POST /api/auth/apiKey     │
+       │                              ┌────────────────────────────────→│
+       │                              │      (generates JWT token)       │
+       │                              │                                  │
+       │                              │    Returns: { apiKey: "jwt" }   │
+       │                              │←────────────────────────────────┤
+       │                              │                                  │
+       │                       4. POST /api/auth/generate-exchange-code │
+       │                              ┌────────────────────────────────→│
+       │                              │      (apiKey in request)         │
+       │                              │                                  │
+       │                              │    Returns: { code: "xyz" }     │
+       │                              │←────────────────────────────────┤
+       │                              │                                  │
+       │    5. Redirect: holokai://home?code=xyz                        │
+       │←─────────────────────────────────────────────────────────────│
+       │                                                                 │
+       │ 6. Parse code from URI                                         │
+       │                                                                 │
+       │ 7. POST /api/auth/exchange-code                              │
+       ├────────────────────────────────────────────────────────────→ │
+       │        { code: "xyz" }                                         │
+       │                                                                 │
+       │           Returns: { apiKey: "jwt" }                          │
+       │←────────────────────────────────────────────────────────────┤
+       │                                                                 │
+       │ 8. POST /api/auth/token/refresh                              │
+       ├────────────────────────────────────────────────────────────→ │
+       │        { apiKey: "jwt" }                                       │
+       │                                                                 │
+       │    Returns: { accessToken: "jwt-with-app-access" }           │
+       │←────────────────────────────────────────────────────────────┤
+       │                                                                 │
+       │ 9. Store accessToken securely                                  │
+       │ ✓ Done - Use for all API calls                               │
+       │                                                                 │
+
+═══════════════════════════════════════════════════════════════════════════════
 ```
 
-Note: All parameters must be properly URL-encoded.
+### 9.2 Step-by-Step Flow
 
-If browser fails to open:
-- Display error message: "Unable to open browser. Please check your default browser settings."
-- Perform cleanup (delete code_verifier, code_challenge, state from memory)
+**Step 1: Desktop Detects No Token**
+
+On first launch or after token expiration, the desktop app detects it lacks a valid access token. It spawns the system default browser to:
+```
+https://moku.holokai.app/login/desktop
+```
+
+This URL is stored as a configuration setting in the desktop app, allowing for different environments (dev, staging, prod).
+
+**Step 2: User Logs in via OAuth2**
+
+User logs in through Moku web using OAuth2. Moku web handles authentication with Identity Providers (Google, Microsoft, Okta, etc.) and creates a user session upon successful authentication.
+
+Note: Desktop app does NOT interact with external IDPs directly. Moku web manages all OAuth provider integrations.
+
+**Step 3: Generate API Key**
+
+After successful authentication, Moku web calls its backend to generate a JWT token (apiKey) for the authenticated user:
+
+```
+POST /api/auth/apiKey
+```
+
+Response:
+```json
+{
+  "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ"
+}
+```
+
+**Step 4: Generate Exchange Code**
+
+Moku web calls its backend to generate a one-time-use exchange code:
+
+```
+POST /api/auth/generate-exchange-code
+
+Body: { "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ" }
+```
+
+Response:
+```json
+{
+  "code": "exc_xyz123abc456"
+}
+```
+
+**Step 5: Redirect to Desktop**
+
+Moku web redirects the browser back to the desktop app using the custom protocol:
+
+```
+holokai://home?code=exc_xyz123abc456
+```
+
+**Step 6: Desktop Intercepts Code**
+
+Desktop's custom protocol handler (registered at app startup) intercepts the redirect.
+
+Electron main process:
+- Listens for `open-url` event
+- Extracts query parameter: `code=exc_xyz123abc456`
+- Passes code to AuthService for token exchange
+
+**Step 7: Exchange Code for API Key**
+
+Desktop calls Moku backend to exchange the code for the apiKey:
+
+```
+POST https://api.moku.holokai.app/api/auth/exchange-code
+
+Body: { "code": "exc_xyz123abc456" }
+```
+
+Response:
+```json
+{
+  "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ"
+}
+```
+
+Error responses:
+- 401 if code not found
+- 401 if code expired
+- 401 if code already used
+
+**Step 8: Exchange API Key for Access Token**
+
+Desktop calls Moku backend to exchange apiKey for accessToken with app permissions:
+
+```
+POST https://api.moku.holokai.app/api/auth/token/refresh
+
+Body: { "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ" }
+```
+
+Response:
+```json
+{
+  "accessToken": "eyJhbGc...[JWT-WITH-APP-ACCESS]...XYZ"
+}
+```
+
+**Step 9: Store Access Token**
+
+Desktop app stores the accessToken securely:
+
+```typescript
+// In-memory (Main Process)
+this.accessToken = accessToken;
+this.tokenExpiresAt = Date.now() + (3600 * 1000) - (60 * 1000); // 1-hour minus 60s buffer
+
+// Persistent (Encrypted via OS)
+await store.set('moku_access_token', accessToken);
+```
+
+Desktop uses this accessToken for all subsequent Moku API calls (in Authorization header).
+
+### 9.3 Re-Authentication Flow
+
+This is the flow for most app launches.
+
+1. **App Starts**: Electron app launches
+
+2. **Check for Token**: Load stored accessToken from memory/storage
+
+3. **Validate Token**: Check if token is still valid (not expired)
+
+4. **If Valid**: Load app normally - use accessToken for API calls
+
+5. **If Expired or Missing**: Restart full authentication flow (Step 1)
+
+6. **If Token Refresh Available**: Call token refresh endpoint with cached apiKey
+
+```
+POST https://api.moku.holokai.app/api/auth/token/refresh
+
+Body: { "apiKey": "<cached-api-key>" }
+```
+
+7. **Load App**: Desktop now has valid accessToken and proceeds to main UI
+
+### 9.4 Secure Token Storage
+
+**Access Token Storage:**
+- **In-Memory**: Main process keeps current accessToken in memory
+- **Expiration Tracking**: Calculated as `now + expiresIn - 60s` (1-minute safety buffer)
+- **Never Persisted**: Access tokens are NOT written to disk
+
+**API Key Storage (Optional):**
+- Desktop may optionally cache the apiKey briefly for token refresh
+- If cached, stored in Electron Store (can be encrypted via OS)
+- Should expire after 24 hours or on app restart
+- Only used for token refresh, never exposed to renderer
+
+**Security Implementation:**
+
+```typescript
+// src-electron/services/AuthService.ts
+
+export class AuthService {
+  private accessToken: string | null = null;
+  private tokenExpiresAt: number | null = null;
+  private apiKey: string | null = null; // Optional, short-lived cache
+  
+  async exchangeCodeForTokens(code: string): Promise<void> {
+    try {
+      // Exchange code for apiKey
+      const exchangeResponse = await axios.post(
+        'https://api.moku.holokai.app/api/auth/exchange-code',
+        { code }
+      );
+      const apiKey = exchangeResponse.data.apiKey;
+      
+      // Cache apiKey briefly (optional)
+      this.apiKey = apiKey;
+      
+      // Exchange apiKey for accessToken
+      const tokenResponse = await axios.post(
+        'https://api.moku.holokai.app/api/auth/token/refresh',
+        { apiKey }
+      );
+      
+      const { accessToken, expires_in } = tokenResponse.data;
+      
+      // Store tokens
+      this.accessToken = accessToken;
+      this.tokenExpiresAt = Date.now() + (expires_in * 1000) - (60 * 1000);
+      
+      // Notify renderer that auth succeeded
+      BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('auth:success', { userId: extractUserFromToken(accessToken) });
+      });
+      
+    } catch (error) {
+      logger.error('Token exchange failed', error);
+      this.cleanup();
+      throw error;
+    }
+  }
+  
+  async refreshAccessToken(): Promise<void> {
+    if (this.isTokenValid()) {
+      return; // Token still valid, no refresh needed
+    }
+    
+    if (!this.apiKey && !this.hasStoredApiKey()) {
+      // No apiKey available - need full re-authentication
+      throw new Error('Re-authentication required');
+    }
+    
+    try {
+      const apiKey = this.apiKey || await store.get('cached_api_key');
+      const response = await axios.post(
+        'https://api.moku.holokai.app/api/auth/token/refresh',
+        { apiKey }
+      );
+      
+      const { accessToken, expires_in } = response.data;
+      this.accessToken = accessToken;
+      this.tokenExpiresAt = Date.now() + (expires_in * 1000) - (60 * 1000);
+      
+    } catch (error) {
+      logger.error('Token refresh failed', error);
+      this.cleanup();
+      throw error;
+    }
+  }
+  
+  isTokenValid(): boolean {
+    return this.accessToken && this.tokenExpiresAt && Date.now() < this.tokenExpiresAt;
+  }
+  
+  getAccessToken(): string {
+    return this.accessToken || '';
+  }
+  
+  private cleanup(): void {
+    this.accessToken = null;
+    this.tokenExpiresAt = null;
+    this.apiKey = null;
+    store.delete('cached_api_key');
+  }
+}
+```
+
+### 9.5 Custom Protocol Registration
+
+**Windows (Registry):**
+Electron Builder automatically creates registry entries during installation:
+```
+HKEY_CURRENT_USER\Software\Classes\holokai
+  @= "URL: Holokai Protocol"
+  "URL Protocol" = ""
+  \shell\open\command
+    @= "C:\\Program Files\\Holokai\\Holokai.exe" \"%1\"
+```
+
+**macOS (Info.plist):**
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key>
+    <string>com.holokai.app</string>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>holokai</string>
+    </array>
+  </dict>
+</array>
+```
+
+**Linux (Desktop Entry):**
+```ini
+[Desktop Entry]
+Name=Holokai
+Exec=holokai %U
+Type=Application
+MimeType=x-scheme-handler/holokai
+```
+
+### 9.6 Error Scenarios
+
+**Browser Launch Fails:**
+- Display error: "Unable to open browser. Check your default browser settings."
+- User can copy custom protocol URL manually
 - Log error with system info
-- Provide manual URL option for user to copy/paste
 
-**Step 4: Moku API (OAuth Client) - Initial Processing**
-
-Moku API receives authorization request.
-
-VALIDATE REQUEST:
-- Verify client_id is valid and registered
-- Verify redirect_uri exactly matches whitelisted value ('holokai://home')
-- Verify all required parameters present (client_id, redirect_uri, code_challenge, code_challenge_method, state, response_type)
-- Verify code_challenge_method is 'S256'
-
-If validation fails:
-- Return error to redirect_uri with error code
-- Example: `holokai://home?error=invalid_request&error_description=...&state={STATE}`
-
-STORE DESKTOP REQUEST:
-- Store desktop's code_challenge, redirect_uri, state in session (associated with session ID)
-- This will be needed after IDP authentication completes
-
-REDIRECT TO EXTERNAL IDP:
-Moku redirects browser to external Identity Provider (Google, Microsoft, Okta, etc.):
-```
-https://accounts.google.com/o/oauth2/v2/auth
-  ?client_id={MOKU_CLIENT_ID_AT_GOOGLE}
-  &redirect_uri=https://moku.com/api/oauth/callback/google
-  &response_type=code
-  &scope=openid profile email
-  &state={SESSION_ID}
-```
-
-Note: Each IDP has its own authorization URL and parameters.
-
-**Step 5: External IDP Authentication**
-
-User authenticates with the external IDP:
-- User enters credentials at Google/Microsoft/Okta
-- User consents to share profile information with Moku
-- IDP may perform MFA/2FA if configured
-
-IDP redirects back to Moku's callback:
-```
-https://moku.com/api/oauth/callback/google?code={IDP_CODE}&state={SESSION_ID}
-```
-
-**Step 6: Moku API - Process IDP Response**
-
-Moku receives callback from IDP.
-
-EXCHANGE IDP CODE FOR IDP TOKENS:
-```
-POST https://oauth2.googleapis.com/token
-
-{
-  "code": "{IDP_CODE}",
-  "client_id": "{MOKU_CLIENT_ID_AT_GOOGLE}",
-  "client_secret": "{MOKU_CLIENT_SECRET_AT_GOOGLE}",
-  "redirect_uri": "https://moku.com/api/oauth/callback/google",
-  "grant_type": "authorization_code"
-}
-```
-
-IDP RESPONSE:
-```json
-{
-  "access_token": "{IDP_ACCESS_TOKEN}",
-  "id_token": "{JWT_WITH_USER_INFO}",
-  "refresh_token": "{IDP_REFRESH_TOKEN}",
-  "expires_in": 3600,
-  "token_type": "Bearer"
-}
-```
-
-EXTRACT USER INFORMATION:
-- Parse id_token JWT to extract user info (email, name, sub/user_id)
-- Or call IDP's userinfo endpoint with access_token
-
-CREATE OR LINK MOKU USER:
-- Look up user by email in Moku database
-- If user exists: Link IDP account to existing Moku user
-- If new user: Create new Moku user record with IDP information
-- Store IDP's user_id (sub) for future linking
-
-GENERATE MOKU AUTHORIZATION CODE:
-- Create unique Moku authorization_code
-- Set expiration: 60 seconds from creation
-- Retrieve stored desktop request data (code_challenge, redirect_uri, state) from session
-- Associate authorization_code with:
-  * Moku user_id
-  * Desktop's code_challenge
-  * Desktop's redirect_uri
-  * Desktop's state
-  * created_at timestamp
-
-REDIRECT to desktop app:
-`holokai://home?code={MOKU_AUTHORIZATION_CODE}&state={DESKTOP_STATE}`
-
-Note: This is Moku's authorization code, NOT the IDP's code.
-
-**Step 7: Electron App (Token Exchange)**
-
-App receives deep link via open-url event: `holokai://home?...`
-
-VALIDATE DEEP LINK:
-- Verify URL starts with 'holokai://home'
-- Parse query parameters
-
-CHECK FOR ERRORS:
-If 'error' parameter present:
-- Extract error and error_description
-- Log/display error to user
-- Perform cleanup (remove code_verifier, state from memory)
-- Exit flow
-
-EXTRACT PARAMETERS:
-- code (authorization_code)
-- state
-
-VALIDATE STATE:
-- Retrieve stored state from in-memory cache
-- If not found (timeout or missing):
-  * Log error "State not found or expired"
-  * Perform cleanup
-  * Exit flow
-- Compare received state with stored state
-- If mismatch:
-  * Log security warning "State mismatch - possible CSRF attack"
-  * Perform cleanup
-  * Exit flow
-- If match: Delete state from memory (one-time use)
-
-EXCHANGE CODE FOR TOKENS:
-```
-POST /api/oauth/token
-Content-Type: application/json
-
-{
-  "grant_type": "authorization_code",
-  "code": "{AUTHORIZATION_CODE}",
-  "client_id": "{CLIENT_ID}",
-  "code_verifier": "{CODE_VERIFIER}",
-  "redirect_uri": "holokai://home"
-}
-```
-
-CLEANUP IN-MEMORY STORAGE:
-- Delete code_verifier
-- Delete code_challenge
-- State already deleted after verification
-
-ON ERROR:
-- Perform full cleanup
-- Display error to user
-- Log for debugging
-
-**Step 8: Moku API - Token Issuance**
-
-Moku backend receives token request at: `POST /api/oauth/token`
-
-Note: This validates the **Moku authorization code** (generated in Step 6), NOT the IDP code.
-
-Validate:
-- Verify all required parameters present (grant_type, code, client_id, code_verifier, redirect_uri)
-- Verify grant_type is 'authorization_code'
-- Verify client_id is valid (desktop-client)
-
-CHECK MOKU CODE STATUS:
-- Verify Moku authorization code has not already been used (detect replay attacks)
-- If already used:
-  * Log security alert "Authorization code reuse detected"
-  * Revoke any tokens issued with this code (if applicable)
-  * Return 400: `{"error": "invalid_grant", "error_description": "Code already used"}`
-
-CHECK CODE EXPIRATION:
-- Calculate: current_time - code.created_at
-- If > 60 seconds:
-  * Return 400: `{"error": "invalid_grant", "error_description": "Authorization code expired"}`
-
-VALIDATE REDIRECT_URI:
-- Compare request redirect_uri with stored redirect_uri from Step 4
-- If mismatch:
-  * Log security warning "Redirect URI mismatch"
-  * Return 400: `{"error": "invalid_grant", "error_description": "Redirect URI mismatch"}`
-
-VALIDATE PKCE:
-- Hash received code_verifier using SHA-256
-- Encode hash as base64url
-- Compare with stored code_challenge (from Step 4)
-- If mismatch:
-  * Log security alert "PKCE verification failed - possible attack"
-  * Return 400: `{"error": "invalid_grant", "error_description": "Code verifier invalid"}`
-
-ALL CHECKS PASSED - ISSUE MOKU TOKENS:
-- Mark Moku authorization_code as used (or delete it)
-- Generate Moku access_token:
-  * Format: JWT or opaque token
-  * Expiration: 3600 seconds (1 hour) recommended
-  * Include: moku_user_id, client_id, scope, issued_at, expires_at
-  * Note: This is a Moku token, not the IDP token
-- Generate Moku refresh_token:
-  * Cryptographically secure random string
-  * Store in database with: moku_user_id, client_id, created_at
-  * Optionally link to IDP refresh token for future IDP token refresh
-  * Optional: Set expiration (e.g., 30 days, 90 days, or no expiration)
-
-RETURN SUCCESS RESPONSE:
-```
-HTTP 200 OK
-Content-Type: application/json
-
-{
-  "access_token": "{MOKU_ACCESS_TOKEN}",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "{MOKU_REFRESH_TOKEN}",
-  "scope": "{SCOPES}"
-}
-```
-
-Note: Desktop receives **Moku tokens**, which it will use for all Moku API calls.
-
-ON ANY VALIDATION FAILURE:
-- Do NOT issue tokens
-- Log the failure with details
-- Return appropriate OAuth error response
-
-**Step 9: Electron App Main Process Stores the Moku Access Token and Refresh Token**
-
-VALIDATE RESPONSE:
-- Verify all required fields present
-- Verify token_type is "Bearer"
-- Verify expires_in is reasonable (> 0)
-- If validation fails: log error, perform cleanup, display error to user
-
-STORE TOKENS:
-
-In-memory (Main Process):
-- access_token
-- token_expires_at = Date.now() + (expires_in * 1000) - 60000  // 1-min safety buffer
-- token_type
-
-Electron app keeps the access token in memory, available for any api calls to Moku API.
-
-Persistent Storage (safeStorage):
-- Electron app securely stores the Refresh Token (and only the refresh token) on the user's machine using safeStorage, an API built directly into Electron. It encrypts data using the operating system's native credential manager (macOS Keychain, Windows Credential Vault, Linux Keyring).
-
-On an OAuth failure or timeout, the Electron app should cleanup to allow the user to attempt another login workflow. Cleanup includes removing the code verifier and state from memory, resetting any workflow variables and clearing the access token and refresh token values.
-
-**Step 10: Token Refresh (When Moku Access Token Expires)**
-
-When making API calls to Moku:
-
-1. Check if moku_access_token exists and is not expired
-2. If expired or missing, request token refresh from Moku API:
-
-```
-POST /api/oauth/token
-Content-Type: application/json
-
-{
-  "grant_type": "refresh_token",
-  "refresh_token": "{MOKU_REFRESH_TOKEN}",
-  "client_id": "{CLIENT_ID}"
-}
-```
-
-Note: This uses the **Moku refresh token**, not the IDP refresh token.
-
-3. Moku server response:
-
-```json
-{
-  "access_token": "new_moku_token",
-  "refresh_token": "new_moku_refresh_token",  // If using rotation
-  "expires_in": 3600
-}
-```
-
-Note: Moku may optionally use the stored IDP refresh token to get a fresh IDP token if needed, but this is transparent to the desktop app.
-
-4. Update storage:
-   - Store new `access_token` in memory
-   - Update `token_expires_at`
-   - Store new `refresh_token` in `safeStorage` (if rotated)
-
-5. If refresh fails (401):
-   - Clear all tokens
-   - Restart OAuth flow from Step 2 (will trigger full IDP authentication again)
-
-### 9.2 Re-Authentication Flow (User Restarts Desktop)
-
-This is the flow that will happen 99% of the time.
-
-1. **App Starts**: The Electron app launches.
-
-2. **Check for Token**: It looks for the encrypted refresh token in safeStorage.
-
-3. **Decrypt Token**: If the token exists, it reads and decrypts the refresh token:
-
-```javascript
-import { safeStorage } from 'electron';
-
-const encryptedToken = await store.get('refresh_token');
-const refreshToken = safeStorage.decryptString(encryptedToken);
-```
-
-4. **Refresh the Session**: Your app makes a direct, background API call to your Moku `/api/oauth/token` endpoint. This does not involve opening the browser.
-
-```
-POST /api/oauth/token
-
-{
-  "grant_type": "refresh_token",
-  "refresh_token": "...the_decrypted_token...",
-  "client_id": "moku-desktop-app"
-}
-```
-
-5. **Get New Tokens**: Your Moku API validates the refresh token and returns a new Access Token and (optionally, but recommended) a new Refresh Token.
-
-6. **Load App**: The app is now fully authenticated. It loads the user's data and proceeds to the main UI.
-
-### 9.3 Backend Requirements
-
-Moku Spring backend needs to be configured as an **OAuth 2.0 Client** (not Authorization Server), acting as a proxy/broker between the desktop app and external IDPs.
-
-**Required Moku API Endpoints:**
-- `GET /api/oauth/authorize` - Initial authorization endpoint (receives desktop request, redirects to IDP)
-- `GET /api/oauth/callback/{provider}` - IDP callback endpoint (receives IDP response, processes authentication)
-- `POST /api/oauth/token` - Token endpoint for exchanging Moku codes and refreshing Moku tokens
-
-**Configuration Requirements:**
-
-**Desktop Client Registration (in Moku):**
-- client_id: `desktop-client` or similar
-- Whitelisted redirect URIs: `holokai://home`
-- Authorization code expiration: 60 seconds
-- Access token expiration: 3600 seconds (1 hour) recommended
-- Support for PKCE (code_challenge_method: S256)
-
-**IDP Registration (Moku as OAuth Client at each IDP):**
-
-For each external IDP (Google, Microsoft, Okta), register Moku as an OAuth client:
-
-**Google:**
-- Register at: https://console.cloud.google.com/apis/credentials
-- Redirect URI: `https://moku.com/api/oauth/callback/google`
-- Scopes: `openid profile email`
-- Get: client_id, client_secret
-
-**Microsoft:**
-- Register at: https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps
-- Redirect URI: `https://moku.com/api/oauth/callback/microsoft`
-- Scopes: `openid profile email`
-- Get: client_id, client_secret, tenant_id
-
-**Okta:**
-- Register in Okta Admin Console
-- Redirect URI: `https://moku.com/api/oauth/callback/okta`
-- Scopes: `openid profile email`
-- Get: client_id, client_secret, issuer_url
-
-**Spring Boot Configuration (application.yml):**
-
-```yaml
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
-            scope: openid,profile,email
-            redirect-uri: "{baseUrl}/api/oauth/callback/google"
-            authorization-grant-type: authorization_code
-            
-          microsoft:
-            client-id: ${MICROSOFT_CLIENT_ID}
-            client-secret: ${MICROSOFT_CLIENT_SECRET}
-            scope: openid,profile,email
-            redirect-uri: "{baseUrl}/api/oauth/callback/microsoft"
-            authorization-grant-type: authorization_code
-            
-          okta:
-            client-id: ${OKTA_CLIENT_ID}
-            client-secret: ${OKTA_CLIENT_SECRET}
-            scope: openid,profile,email
-            redirect-uri: "{baseUrl}/api/oauth/callback/okta"
-            authorization-grant-type: authorization_code
-            
-        provider:
-          microsoft:
-            authorization-uri: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize
-            token-uri: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token
-            user-info-uri: https://graph.microsoft.com/oidc/userinfo
-            jwk-set-uri: https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys
-            user-name-attribute: sub
-            
-          okta:
-            authorization-uri: ${OKTA_ISSUER}/v1/authorize
-            token-uri: ${OKTA_ISSUER}/v1/token
-            user-info-uri: ${OKTA_ISSUER}/v1/userinfo
-            jwk-set-uri: ${OKTA_ISSUER}/v1/keys
-            user-name-attribute: sub
-
-moku:
-  oauth:
-    desktop-client:
-      id: desktop-client
-      redirect-uri: holokai://home
-      authorization-code-ttl: 60  # seconds
-      access-token-ttl: 3600  # seconds (1 hour)
-```
-
-**Database Schema Requirements:**
-
-```sql
--- Moku Users table
-CREATE TABLE users (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- IDP Account Links
-CREATE TABLE user_idp_accounts (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id BIGINT NOT NULL,
-  provider VARCHAR(50) NOT NULL,  -- 'google', 'microsoft', 'okta'
-  provider_user_id VARCHAR(255) NOT NULL,  -- IDP's user ID (sub)
-  provider_email VARCHAR(255),
-  provider_refresh_token TEXT,  -- Optional: store IDP refresh token
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  UNIQUE KEY unique_provider_account (provider, provider_user_id)
-);
-
--- Moku Authorization Codes (temporary)
-CREATE TABLE authorization_codes (
-  code VARCHAR(255) PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  client_id VARCHAR(255) NOT NULL,
-  code_challenge VARCHAR(255) NOT NULL,
-  redirect_uri VARCHAR(500) NOT NULL,
-  expires_at TIMESTAMP NOT NULL,
-  used BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- Moku Refresh Tokens
-CREATE TABLE refresh_tokens (
-  token VARCHAR(255) PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  client_id VARCHAR(255) NOT NULL,
-  expires_at TIMESTAMP,  -- NULL for no expiration
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-```
-
-**Key Implementation Points:**
-
-1. **User Linking:** Match users by email from IDP, create new users if needed
-2. **Token Separation:** Desktop receives Moku tokens; IDP tokens are only used internally by Moku
-3. **PKCE Validation:** Validate desktop's code_verifier against stored code_challenge
-4. **Session Management:** Use server-side sessions to track desktop's PKCE parameters during IDP flow
-5. **Error Handling:** Properly handle IDP authentication failures and redirect errors to desktop
-6. **Security:** Never expose IDP tokens or credentials to desktop client
-
-**Spring Security Configuration Example:**
-
-```java
-@Configuration
-@EnableWebSecurity
-public class SecurityConfig {
-    
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/oauth/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2Login(oauth2 -> oauth2
-                .authorizationEndpoint(authorization -> authorization
-                    .baseUri("/api/oauth/authorize")
-                )
-                .redirectionEndpoint(redirection -> redirection
-                    .baseUri("/api/oauth/callback/*")
-                )
-                .userInfoEndpoint(userInfo -> userInfo
-                    .userService(customOAuth2UserService())
-                )
-                .successHandler(oAuth2AuthenticationSuccessHandler())
-            );
-        return http.build();
-    }
-    
-    @Bean
-    public OAuth2UserService<OAuth2UserRequest, OAuth2User> customOAuth2UserService() {
-        return new CustomOAuth2UserService();
-    }
-    
-    @Bean
-    public AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler() {
-        return new DesktopOAuth2SuccessHandler();
-    }
-}
-```
+**User Closes Browser Without Logging In:**
+- Desktop detects no callback after 5+ minute timeout
+- Show: "Login window closed. Please try again."
+- Allow user to retry authentication
+
+**Exchange Code Expired:**
+- Desktop receives 401: "Code expired"
+- Show: "Login took too long. Please try again."
+- User restarts authentication flow
+
+**Code Already Used (Replay Attack):**
+- First exchange succeeds
+- Subsequent attempts with same code return 401
+- Main process prevents accidental reuse
+
+**Invalid API Key:**
+- Exchange code returns valid apiKey
+- But token refresh fails with 401
+- Show: "Login failed. Please try again."
+- Restart full authentication
+
+### 9.7 Key Benefits
+
+✅ **Token never visible in browser** — Only exchange code passes through URL  
+✅ **One-time-use code** — Code becomes invalid after first exchange (security)  
+✅ **No localhost listener needed** — Desktop uses custom protocol callback  
+✅ **Minimal backend changes** — Only 2 new endpoints required  
+✅ **Secure token handoff** — Custom protocol is OS-managed  
+✅ **Stateless desktop** — No session cookies or complex state management  
+✅ **Cross-platform** — Works on Windows, macOS, and Linux
+
+### 9.8 Security Considerations
+
+**HTTPS Enforcement:**
+- All Moku API calls use HTTPS only
+- Desktop validates SSL certificates
+- No insecure HTTP fallback
+
+**Code Security:**
+- Exchange code is cryptographically random (256-bit)
+- 5-minute TTL prevents brute force attacks
+- One-time use prevents replay attacks
+- Invalidated immediately after successful exchange
+
+**Token Security:**
+- Access tokens never logged or exposed
+- Short-lived (1 hour) reduces window of compromise
+- API key briefly cached only for token refresh
+- Stored in OS credential managers when persisted
+
+**Session Security:**
+- Server-side session expires after timeout
+- Browser login creates isolated session
+- No cookies shared between browser and desktop
+- User can log out from either context independently
+
+### 9.9 Required Endpoints
+
+| Endpoint | Method | Input | Output | Called By | Notes |
+|----------|--------|-------|--------|-----------|-------|
+| `/api/auth/apiKey` | GET | None | `{ apiKey: "jwt" }` | Moku Web | User must be authenticated |
+| `/api/auth/generate-exchange-code` | POST | `{ apiKey: "jwt" }` | `{ code: "xyz" }` | Moku Web | Generates one-time code (5 min TTL) |
+| `/api/auth/exchange-code` | POST | `{ code: "xyz" }` | `{ apiKey: "jwt" }` | Desktop App | Invalidates code after use |
+| `/api/auth/token/refresh` | POST | `{ apiKey: "jwt" }` | `{ accessToken: "jwt" }` | Desktop App | Adds app permissions to token |
 
 ---
 

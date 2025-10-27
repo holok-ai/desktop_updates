@@ -11,7 +11,7 @@
 </script>
 
 <div class="home">
-  <h1>Welcome to Holokai Desktop (Svelte)</h1>
+  <h1>Welcome to Holokai Desktop</h1>
   <p>This is a reference implementation demonstrating best practices for building Electron applications with Svelte.</p>
   
   <div class="system-info">

@@ -19,9 +19,7 @@ Service classes are stored in `src-electron/services/` (e.g., `AuthService.ts`, 
 
 ## File Naming
 
-Use **PascalCase** for component files: `ThreadListComponent` in `thread-list.component.ts`.
-
-Use **kebab-case** for Angular component file names: `thread-list.component.ts`, `model-selector.component.ts`.
+Use **PascalCase** for Svelte component files: `ThreadList.svelte`, `ModelSelector.svelte`.
 
 Use **PascalCase** for class files: `AuthService.ts`, `MokuAPIClient.ts`.
 
@@ -51,7 +49,7 @@ Each IPC group (e.g., `auth`, `threads`, `models`) should have a corresponding e
 
 Event handler classes should be named with the pattern `[Group]EventHandler.ts`: `AuthEventHandler.ts`, `ThreadsEventHandler.ts`.
 
-**Service wrappers** are thin Angular services that wrap a single IPC domain with one method per IPC call for simple CRUD operations.
+**Service wrappers** are thin TypeScript services that wrap a single IPC domain with one method per IPC call for simple CRUD operations.
 
 **Facades** orchestrate multiple service wrappers to handle complex multi-step workflows with coordinated error recovery.
 
@@ -139,11 +137,9 @@ The renderer process should only receive confirmation of authentication status, 
 
 Unit tests are stored in `tests/unit/` mirroring the source structure: `tests/unit/stores/auth.store.spec.ts`.
 
-Component tests use `@angular/core/testing` with Jasmine/Karma.
+Component tests use Svelte Testing Library with Vitest.
 
-For Angular, use `TestBed` to configure testing modules and mock dependencies via providers array.
-
-Mock IPC calls in component tests using Jasmine spies on `window.electron` methods.
+Mock IPC calls in component tests using Vitest spies on `window.electronAPI` methods.
 
 Integration tests for IPC handlers are stored in `tests/integration/ipc/`.
 
@@ -169,15 +165,15 @@ Never make API calls directly from UI components; always use service classes.
 
 ## State Management
 
-Use NgRx Signals for state management in Angular.
+Use Svelte stores for state management.
 
 Store files should be named by domain: `auth.store.ts`, `threads.store.ts`, `models.store.ts`.
 
-Use NgRx Signals with `signalStore()` for lightweight reactive state management.
+Use Svelte's built-in store types: `writable()`, `readable()`, and `derived()`.
 
 Keep stores focused on a single domain/feature for better maintainability.
 
-Avoid storing derived data in stores; use computed signals or derived values instead.
+Avoid storing derived data in stores; use derived stores for computed values.
 
 ---
 
@@ -223,82 +219,112 @@ Use dependency injection for services to enable easy testing and mocking.
 
 ---
 
-## Angular-Specific Guidelines
+## Svelte-Specific Guidelines
 
 ### Component Structure
 
-Use standalone components with `@Component({ standalone: true })` decorator.
+Svelte components are single-file components with `<script>`, `<template>`, and `<style>` sections.
 
-Import dependencies directly in the component's `imports` array, not through NgModules.
+Use `<script lang="ts">` for TypeScript support in components.
 
-Use `OnPush` change detection strategy for all components: `changeDetection: ChangeDetectionStrategy.OnPush`.
+Export component props using `export let propName: Type`.
 
-Implement lifecycle hooks as needed: `OnInit`, `OnDestroy`, `AfterViewInit`.
+Keep component logic in the script section and avoid complex expressions in markup.
 
-Use signals for reactive state within components: `signal()`, `computed()`, `effect()`.
+Use lifecycle functions when needed: `onMount()`, `onDestroy()`, `beforeUpdate()`, `afterUpdate()`.
+
+### Reactivity
+
+Svelte's reactivity is built-in: variables are reactive by default when reassigned.
+
+Use reactive declarations for derived values: `$: derivedValue = sourceValue * 2`.
+
+Use reactive statements for side effects: `$: if (condition) { doSomething(); }`.
+
+Subscribe to stores using the `$` prefix: `$authStore.user` automatically subscribes and unsubscribes.
+
+### Store Usage
+
+Create writable stores: `export const user = writable<User | null>(null)`.
+
+Create readable stores for values controlled internally: `export const time = readable(new Date(), set => {...})`.
+
+Create derived stores for computed values: `export const fullName = derived([firstName, lastName], ([$first, $last]) => $first + ' ' + $last)`.
+
+Update stores using `set()` or `update()`: `user.set(newUser)` or `user.update(u => ({ ...u, name: 'New Name' }))`.
+
+Custom stores can add methods: Return an object with `subscribe`, `set`, and custom methods.
 
 ### Template Syntax
 
-Use Angular's template syntax: `*ngIf`, `*ngFor`, `[property]`, `(event)`, `[(ngModel)]`.
+Use Svelte directives: `{#if}`, `{#each}`, `{#await}` for control flow.
 
-Prefer structural directives over programmatic DOM manipulation.
+Bind properties with `:` shorthand: `<input bind:value={name}>` or `<input bind:value>`.
 
-Use Angular pipes for data transformation in templates: `| date`, `| async`, `| json`.
+Handle events with `on:` directive: `<button on:click={handleClick}>`.
 
-Avoid complex logic in templates; move to component methods or computed signals.
+Use two-way binding with `bind:`: `<input bind:value={text}>`.
 
-### Dependency Injection
+Apply conditional classes: `<div class:active={isActive}>` or `<div class={isActive ? 'active' : ''}>`.
 
-Inject services via constructor: `constructor(private authStore: AuthStore)`.
+### Component Communication
 
-Mark services with `@Injectable({ providedIn: 'root' })` for singleton instances.
+Pass data down via props: `<Child propName={value} />`.
 
-Use `inject()` function in standalone components if preferred over constructor injection.
+Emit events up using `createEventDispatcher()` or callback props.
 
-### NgRx Signals Usage
+Use context API for deeply nested data: `setContext()` and `getContext()`.
 
-Create stores using `signalStore()` from `@ngrx/signals`.
+Share state across components using stores imported from store files.
 
-Define state with `withState()`, computed values with `withComputed()`, and methods with `withMethods()`.
+### Styling
 
-Access store values using signal notation: `authStore.user()`, `threadsStore.activeThread()`.
+Component styles are scoped by default; no need for CSS modules or scoped attributes.
 
-Update state immutably within store methods.
+Use `:global()` selector for global styles within a component: `:global(body) { margin: 0; }`.
 
-### PrimeNG Integration
+Apply dynamic styles with style directive: `<div style:color={textColor}>`.
 
-Import PrimeNG components individually to reduce bundle size: `import { ButtonModule } from 'primeng/button'`.
-
-Use PrimeNG components consistently: `p-button`, `p-dropdown`, `p-dialog`, `p-table`.
-
-Apply custom styles via `styleClass` attribute or component CSS.
-
-Reference PrimeNG documentation for component APIs and event handlers.
-
-### Routing (if applicable)
-
-Define routes in `app.routes.ts` using the new functional router configuration.
-
-Use `RouterLink` directive for navigation: `<a routerLink="/threads">Threads</a>`.
-
-Implement route guards using functional guards: `canActivateFn`, `canDeactivateFn`.
+Combine Tailwind utility classes with component-scoped styles as needed.
 
 ### Performance
 
-Use `trackBy` functions with `*ngFor` to optimize rendering: `*ngFor="let thread of threads; trackBy: trackById"`.
+Use `{#key}` blocks to force re-rendering when values change: `{#key value}{/key}`.
 
-Implement virtual scrolling for long lists using `@angular/cdk/scrolling`.
+Implement virtual scrolling for large lists using libraries like `svelte-virtual`.
 
-Lazy load feature modules or components when they're not immediately needed.
+Lazy load components dynamically using `import()`: `const Component = await import('./Component.svelte')`.
 
-Use Angular's built-in `async` pipe to automatically manage subscriptions.
+Use `tick()` to await DOM updates: `await tick()`.
+
+Optimize list rendering with `{#each}` by providing a key: `{#each items as item (item.id)}`.
 
 ### Type Safety
 
-Define interfaces for all data structures in `src/app/shared/types/`.
+Define prop types using TypeScript: `export let user: User`.
+
+Create type definitions in `src/lib/types/` for shared interfaces.
 
 Use strict TypeScript configuration: `"strict": true` in `tsconfig.json`.
 
 Avoid `any` type; use proper types or `unknown` with type guards.
 
-Leverage Angular's typed forms for form validation and type safety.
+Use generic types for reusable components: `<script lang="ts" generics="T extends Record<string, any>">`.
+
+### Transitions and Animations
+
+Use built-in transitions: `import { fade, slide, fly } from 'svelte/transition'`.
+
+Apply transitions to elements: `<div transition:fade>`.
+
+Use easing functions from `svelte/easing` for smooth animations.
+
+Create custom transitions for specialized animation needs.
+
+### Actions
+
+Use actions for DOM element behavior: `<div use:tooltip={'text'}>`.
+
+Define actions as functions: `function action(node, parameters) { return { update, destroy }; }`.
+
+Actions are useful for third-party library integration and DOM manipulation.

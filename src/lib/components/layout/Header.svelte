@@ -8,7 +8,7 @@
 </script>
 
 <header>
-  <div class="logo">Holokai Desktop (Svelte)</div>
+  <div class="logo">Holokai Desktop</div>
   <div class="user-section">
     {#if $currentUser}
       <span>{$currentUser.name}</span>

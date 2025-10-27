@@ -3,12 +3,12 @@ import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
 /**
  * Authentication Service
- * Handles OAuth 2.0 with PKCE authentication flow including:
- * - OAuth flow initiation with PKCE
+ * Handles Exchange Code Flow authentication including:
+ * - OAuth flow initiation via Moku web
+ * - Exchange code handling
  * - Token storage using Electron's safeStorage (encrypted)
  * - User session management
  * - Token refresh
@@ -19,12 +19,11 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
-  provider: 'microsoft' | 'google' | 'oauth2';
 }
 
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
+  apiKey?: string; // Optional, cached for token refresh
   expiresAt: number; // Unix timestamp
 }
 
@@ -35,27 +34,28 @@ export interface AuthState {
 }
 
 /**
+ * API Response Types
+ */
+interface ExchangeCodeResponse {
+  apiKey: string;
+}
+
+interface TokenResponse {
+  accessToken: string;
+  expires_in: number;
+}
+
+/**
  * OAuth Configuration Constants
  */
-const CLIENT_ID = 'holokai-desktop-app';
 const REDIRECT_URI = 'holokai://home';
-const PKCE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Storage keys for secure storage
  */
 const STORAGE_KEY_TOKENS = 'holokai.auth.tokens';
 const STORAGE_KEY_USER = 'holokai.auth.user';
-
-/**
- * PKCE State Storage Interface
- */
-interface PKCEState {
-  codeVerifier: string;
-  codeChallenge: string;
-  state: string;
-  timestamp: number;
-}
 
 export class AuthService {
   private currentAuthState: AuthState = {
@@ -64,16 +64,14 @@ export class AuthService {
     isAuthenticated: false
   };
 
-  // In-memory PKCE storage with timeout
-  private pkceStorage: Map<string, PKCEState> = new Map();
+  // Track if we're waiting for a callback
+  private waitingForCallback: boolean = false;
+  private callbackTimeout?: NodeJS.Timeout;
 
   constructor() {
     // Load stored auth data on initialization
     this.loadStoredAuth();
-    log.info('[AuthService] Initialized');
-
-    // Clean up expired PKCE states every minute
-    setInterval(() => this.cleanupExpiredPKCE(), 60000);
+    log.info('[AuthService] Initialized with Exchange Code Flow');
   }
 
   /**
@@ -110,14 +108,20 @@ export class AuthService {
         const decryptedTokens = safeStorage.decryptString(encryptedTokens);
         const tokens: AuthTokens = JSON.parse(decryptedTokens);
 
-        // Check if tokens are still valid
+        // Check if access token is still valid
         if (tokens.expiresAt > Date.now()) {
           this.currentAuthState.tokens = tokens;
-          log.info('[AuthService] Valid tokens loaded from storage');
+          log.info('[AuthService] Valid access token loaded from storage');
         } else {
-          log.info('[AuthService] Stored tokens expired, clearing');
-          this.clearStoredAuth();
-          return;
+          log.info('[AuthService] Stored access token expired');
+          // Try to refresh if we have an apiKey
+          if (tokens.apiKey) {
+            log.info('[AuthService] Will attempt token refresh on next request');
+            this.currentAuthState.tokens = tokens;
+          } else {
+            this.clearStoredAuth();
+            return;
+          }
         }
       }
 
@@ -137,44 +141,20 @@ export class AuthService {
 
   /**
    * Start OAuth Flow
-   * Generates PKCE parameters, stores them in memory, and opens browser to authorization URL.
+   * Opens browser to Moku web desktop login page.
    * Returns the authorization URL that was opened.
    */
-  public async startOAuthFlow(): Promise<{ authUrl: string; mockData?: any }> {
-    log.info('[AuthService] Starting OAuth flow');
+  public async startOAuthFlow(): Promise<{ authUrl: string }> {
+    log.info('[AuthService] Starting Exchange Code Flow');
 
-    // Generate PKCE parameters
-    const state = this.generateState();
-    const codeVerifier = this.generateCodeVerifier();
-    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+    if (this.waitingForCallback) {
+      log.warn('[AuthService] Already waiting for callback, cancelling previous attempt');
+      this.cancelCallback();
+    }
 
-    // Store PKCE state in memory with timeout
-    const pkceState: PKCEState = {
-      codeVerifier,
-      codeChallenge,
-      state,
-      timestamp: Date.now()
-    };
-    this.pkceStorage.set(state, pkceState);
-
-    // Schedule cleanup after timeout
-    setTimeout(() => {
-      if (this.pkceStorage.has(state)) {
-        log.warn('[AuthService] PKCE state expired:', state);
-        this.pkceStorage.delete(state);
-      }
-    }, PKCE_TIMEOUT_MS);
-
-    // Construct authorization URL
+    // Construct desktop login URL
     const mokuWebUrl = this.getMokuWebUrl();
-    const authUrl = `${mokuWebUrl}/api/oauth/authorize?` +
-      `client_id=${encodeURIComponent(CLIENT_ID)}&` +
-      `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-      `code_challenge=${encodeURIComponent(codeChallenge)}&` +
-      `code_challenge_method=S256&` +
-      `state=${encodeURIComponent(state)}&` +
-      `response_type=code&` +
-      `scope=read%20write`;
+    const authUrl = `${mokuWebUrl}/login/desktop`;
 
     log.info('[AuthService] Opening browser to:', authUrl);
 
@@ -182,9 +162,18 @@ export class AuthService {
     try {
       await shell.openExternal(authUrl);
       log.info('[AuthService] Browser opened successfully, waiting for callback...');
+      
+      // Set waiting flag and timeout
+      this.waitingForCallback = true;
+      this.callbackTimeout = setTimeout(() => {
+        if (this.waitingForCallback) {
+          log.warn('[AuthService] Callback timeout - user may have closed browser');
+          this.waitingForCallback = false;
+        }
+      }, CALLBACK_TIMEOUT_MS);
+      
     } catch (error) {
       log.error('[AuthService] Failed to open browser:', error);
-      this.pkceStorage.delete(state);
       throw new Error('Unable to open browser. Please check your default browser settings.');
     }
 
@@ -192,92 +181,226 @@ export class AuthService {
   }
 
   /**
+   * Cancel waiting for callback
+   */
+  private cancelCallback(): void {
+    this.waitingForCallback = false;
+    if (this.callbackTimeout) {
+      clearTimeout(this.callbackTimeout);
+      this.callbackTimeout = undefined;
+    }
+  }
+
+  /**
    * Process OAuth Callback
-   * Validates state, retrieves PKCE parameters, and exchanges code for tokens.
+   * Validates exchange code and completes authentication flow.
    * Called by the deep link handler when OAuth callback is received.
    */
-  public async processOAuthCallback(code: string, state: string): Promise<AuthState> {
-    log.info('[AuthService] Processing OAuth callback');
+  public async processOAuthCallback(code: string): Promise<AuthState> {
+    log.info('[AuthService] Processing OAuth callback with exchange code');
 
-    // Validate state and retrieve PKCE parameters
-    const pkceState = this.pkceStorage.get(state);
-
-    if (!pkceState) {
-      log.error('[AuthService] State not found or expired');
-      throw new Error('State not found or expired. Please try logging in again.');
+    if (!this.waitingForCallback) {
+      log.warn('[AuthService] Received callback but not expecting one');
     }
 
-    // Verify state matches (CSRF protection)
-    if (pkceState.state !== state) {
-      log.error('[AuthService] State mismatch - possible CSRF attack');
-      this.pkceStorage.delete(state);
-      throw new Error('State mismatch - possible CSRF attack');
-    }
-
-    // Delete state after verification (one-time use)
-    this.pkceStorage.delete(state);
+    // Clear callback timeout
+    this.cancelCallback();
 
     // Exchange code for tokens
-    return this.exchangeCodeForTokens(code, pkceState.codeVerifier);
+    return this.exchangeCodeForTokens(code);
   }
 
   /**
-   * Exchange Authorization Code for Tokens
-   * Makes API call to Moku server to exchange authorization code for access and refresh tokens.
-   * Currently mocked - will need HTTP client implementation for production.
+   * Exchange Code for Tokens
+   * Step 1: Exchange code for apiKey
+   * Step 2: Exchange apiKey for accessToken
    */
-  public async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<AuthState> {
-    log.info('[AuthService] Exchanging authorization code for tokens');
+  public async exchangeCodeForTokens(code: string): Promise<AuthState> {
+    log.info('[AuthService] Exchanging code for tokens');
 
-    // TODO: Replace with real API call
-    // const mokuApiUrl = this.getMokuApiUrl();
-    // const response = await fetch(`${mokuApiUrl}/api/oauth/token`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     grant_type: 'authorization_code',
-    //     code,
-    //     client_id: CLIENT_ID,
-    //     code_verifier: codeVerifier,
-    //     redirect_uri: REDIRECT_URI
-    //   })
-    // });
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
 
-    // MOCK: Simulate API call delay
-    await this.delay(500);
+      // Step 1: Exchange code for apiKey
+      log.info('[AuthService] Step 1: Exchanging code for apiKey');
+      const exchangeResponse = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
 
-    // MOCK: Generate tokens and user profile
-    const tokens = this.generateMockTokens();
-    const user = this.generateMockUser();
+      if (!exchangeResponse.ok) {
+        const errorText = await exchangeResponse.text();
+        log.error('[AuthService] Exchange code failed:', exchangeResponse.status, errorText);
+        
+        if (exchangeResponse.status === 401) {
+          throw new Error('Invalid or expired exchange code. Please try logging in again.');
+        }
+        throw new Error(`Failed to exchange code: ${exchangeResponse.status}`);
+      }
 
-    // Store tokens securely
-    await this.storeAuthData(tokens, user);
+      const { apiKey } = await exchangeResponse.json() as ExchangeCodeResponse;
+      log.info('[AuthService] Successfully received apiKey');
 
-    log.info('[AuthService] Authentication successful:', user.email);
+      // Step 2: Exchange apiKey for accessToken
+      log.info('[AuthService] Step 2: Exchanging apiKey for accessToken');
+      const tokenResponse = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey })
+      });
 
-    return this.currentAuthState;
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        log.error('[AuthService] Token refresh failed:', tokenResponse.status, errorText);
+        throw new Error(`Failed to get access token: ${tokenResponse.status}`);
+      }
+
+      const { accessToken, expires_in } = await tokenResponse.json() as TokenResponse;
+      log.info('[AuthService] Successfully received accessToken');
+
+      // Create tokens object
+      const tokens: AuthTokens = {
+        accessToken,
+        apiKey, // Cache for future token refresh
+        expiresAt: Date.now() + (expires_in * 1000) - (60 * 1000) // 1-minute safety buffer
+      };
+
+      // Extract user info from access token (JWT)
+      const user = this.extractUserFromToken(accessToken);
+
+      // Store authentication data
+      await this.storeAuthData(tokens, user);
+
+      log.info('[AuthService] Authentication successful:', user.email);
+
+      return this.currentAuthState;
+
+    } catch (error) {
+      log.error('[AuthService] Token exchange failed:', error);
+      this.cleanup();
+      throw error;
+    }
   }
 
   /**
-   * Mock Login
-   * Simulates complete OAuth flow in one step for testing without browser.
+   * Extract user information from JWT token
    */
-  public async mockLogin(provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft'): Promise<AuthState> {
-    log.info('[AuthService] Mock login started for provider:', provider);
+  private extractUserFromToken(token: string): UserProfile {
+    try {
+      // JWT has 3 parts separated by dots
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid JWT format');
+      }
 
-    // Simulate network delay
-    await this.delay(1000);
+      // Decode payload (middle part)
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
 
-    // Generate mock tokens and user
-    const tokens = this.generateMockTokens();
-    const user = this.generateMockUser(provider);
+      // Extract user information
+      return {
+        id: payload.subject || payload.sub || payload.userId,
+        email: payload.userId || payload.email,
+        name: payload.name || payload.email || 'User',
+        picture: payload.picture
+      };
+    } catch (error) {
+      log.error('[AuthService] Error extracting user from token:', error);
+      // Return minimal user profile if extraction fails
+      return {
+        id: 'unknown',
+        email: 'user@example.com',
+        name: 'User'
+      };
+    }
+  }
 
-    // Store authentication data
-    await this.storeAuthData(tokens, user);
+  /**
+   * Refresh Access Token
+   * Uses cached apiKey to obtain new access token from Moku API.
+   */
+  public async refreshAccessToken(): Promise<AuthTokens> {
+    log.info('[AuthService] Refreshing access token');
 
-    log.info('[AuthService] Mock login successful:', user.email);
+    // Check if token is still valid
+    if (this.isTokenValid()) {
+      log.info('[AuthService] Token still valid, no refresh needed');
+      return this.currentAuthState.tokens!;
+    }
 
-    return this.currentAuthState;
+    // Check if we have an apiKey to refresh with
+    if (!this.currentAuthState.tokens?.apiKey) {
+      log.error('[AuthService] No apiKey available for token refresh');
+      throw new Error('Re-authentication required');
+    }
+
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const apiKey = this.currentAuthState.tokens.apiKey;
+
+      log.info('[AuthService] Calling token refresh endpoint');
+      const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error('[AuthService] Token refresh failed:', response.status, errorText);
+        
+        // Clear stored auth on refresh failure
+        this.cleanup();
+        throw new Error('Token refresh failed. Please log in again.');
+      }
+
+      const { accessToken, expires_in } = await response.json() as TokenResponse;
+      log.info('[AuthService] Token refresh successful');
+
+      // Update tokens
+      const newTokens: AuthTokens = {
+        accessToken,
+        apiKey, // Keep the same apiKey
+        expiresAt: Date.now() + (expires_in * 1000) - (60 * 1000) // 1-minute safety buffer
+      };
+
+      // Store updated tokens
+      if (this.currentAuthState.user) {
+        await this.storeAuthData(newTokens, this.currentAuthState.user);
+      }
+
+      return newTokens;
+
+    } catch (error) {
+      log.error('[AuthService] Token refresh error:', error);
+      this.cleanup();
+      throw error;
+    }
+  }
+
+  /**
+   * Check if access token is valid
+   */
+  private isTokenValid(): boolean {
+    return this.currentAuthState.tokens !== null &&
+           this.currentAuthState.tokens.expiresAt > Date.now();
+  }
+
+  /**
+   * Get current access token, refreshing if needed
+   */
+  public async getAccessToken(): Promise<string> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    // Check if token needs refresh
+    if (!this.isTokenValid()) {
+      log.info('[AuthService] Access token expired, refreshing...');
+      await this.refreshAccessToken();
+    }
+
+    return this.currentAuthState.tokens?.accessToken || '';
   }
 
   /**
@@ -326,8 +449,7 @@ export class AuthService {
    */
   public isAuthenticated(): boolean {
     return this.currentAuthState.isAuthenticated && 
-           this.currentAuthState.tokens !== null &&
-           this.currentAuthState.tokens.expiresAt > Date.now();
+           this.currentAuthState.tokens !== null;
   }
 
   /**
@@ -343,45 +465,56 @@ export class AuthService {
   public async logout(): Promise<void> {
     log.info('[AuthService] Logging out user:', this.currentAuthState.user?.email);
 
-    // In production, would also revoke tokens on server:
+    // TODO: In production, revoke tokens on server:
     // POST https://moku.holokai.com/api/auth/revoke
-    // Body: { refresh_token: "..." }
+    // Body: { apiKey: "..." }
 
+    this.cleanup();
+    log.info('[AuthService] Logout complete');
+  }
+
+  /**
+   * Clean up authentication state
+   */
+  private cleanup(): void {
     this.clearStoredAuth();
     this.currentAuthState = {
       user: null,
       tokens: null,
       isAuthenticated: false
     };
-
-    log.info('[AuthService] Logout complete');
   }
 
   /**
-   * Refresh Access Token
-   * Uses refresh token to obtain new access token from Moku API.
-   * Currently mocked - will need HTTP client implementation for production.
+   * Mock Login
+   * Simulates complete OAuth flow in one step for testing without browser.
    */
-  public async refreshToken(): Promise<AuthTokens> {
-    log.info('[AuthService] Refreshing access token (MOCK)');
+  public async mockLogin(): Promise<AuthState> {
+    log.info('[AuthService] Mock login started');
 
-    if (!this.currentAuthState.tokens) {
-      throw new Error('No refresh token available');
-    }
+    // Simulate network delay
+    await this.delay(1000);
 
-    // MOCK: Simulate API call
-    await this.delay(300);
+    // Generate mock tokens and user
+    const tokens: AuthTokens = {
+      accessToken: 'mock_access_token_' + Date.now(),
+      apiKey: 'mock_api_key_' + Date.now(),
+      expiresAt: Date.now() + (60 * 60 * 1000) // 1 hour from now
+    };
 
-    // Generate new tokens
-    const newTokens = this.generateMockTokens();
-    
-    // Update stored tokens
-    if (this.currentAuthState.user) {
-      await this.storeAuthData(newTokens, this.currentAuthState.user);
-    }
+    const user: UserProfile = {
+      id: 'mock_user_' + Date.now(),
+      email: 'user@example.com',
+      name: 'Mock User',
+      picture: 'https://via.placeholder.com/150'
+    };
 
-    log.info('[AuthService] Token refresh successful');
-    return newTokens;
+    // Store authentication data
+    await this.storeAuthData(tokens, user);
+
+    log.info('[AuthService] Mock login successful:', user.email);
+
+    return this.currentAuthState;
   }
 
   // ============================================================================
@@ -389,96 +522,11 @@ export class AuthService {
   // ============================================================================
 
   /**
-   * Clean up expired PKCE states from memory
-   */
-  private cleanupExpiredPKCE(): void {
-    const now = Date.now();
-    const expiredStates: string[] = [];
-
-    this.pkceStorage.forEach((pkceState, state) => {
-      if (now - pkceState.timestamp > PKCE_TIMEOUT_MS) {
-        expiredStates.push(state);
-      }
-    });
-
-    expiredStates.forEach(state => {
-      log.debug('[AuthService] Cleaning up expired PKCE state:', state);
-      this.pkceStorage.delete(state);
-    });
-
-    if (expiredStates.length > 0) {
-      log.info(`[AuthService] Cleaned up ${expiredStates.length} expired PKCE states`);
-    }
-  }
-
-  /**
    * Clear all stored authentication data
    */
   private clearStoredAuth(): void {
     this.removeFromStorage(STORAGE_KEY_TOKENS);
     this.removeFromStorage(STORAGE_KEY_USER);
-  }
-
-  /**
-   * Generate State Parameter
-   * Creates random state value for CSRF protection (32 bytes as hex).
-   */
-  private generateState(): string {
-    return crypto.randomBytes(32).toString('hex');
-  }
-
-  /**
-   * Generate PKCE Code Verifier
-   * Creates cryptographically random verifier (32+ bytes, base64url encoded).
-   */
-  private generateCodeVerifier(): string {
-    return crypto.randomBytes(32).toString('base64url');
-  }
-
-  /**
-   * Generate PKCE Code Challenge
-   * Creates SHA-256 hash of verifier, base64url encoded.
-   */
-  private async generateCodeChallenge(verifier: string): Promise<string> {
-    const hash = crypto.createHash('sha256').update(verifier).digest();
-    return hash.toString('base64url');
-  }
-
-  /**
-   * Generate mock authorization code
-   */
-  private generateMockAuthCode(): string {
-    return 'mock_auth_code_' + Date.now();
-  }
-
-  /**
-   * Generate mock tokens
-   */
-  private generateMockTokens(): AuthTokens {
-    return {
-      accessToken: 'mock_access_token_' + Date.now(),
-      refreshToken: 'mock_refresh_token_' + Date.now(),
-      expiresAt: Date.now() + (60 * 60 * 1000) // 1 hour from now
-    };
-  }
-
-  /**
-   * Generate mock user profile
-   */
-  private generateMockUser(provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft'): UserProfile {
-    const providerEmails = {
-      microsoft: 'user@company.com',
-      google: 'user@gmail.com',
-      oauth2: 'user@example.com'
-    };
-
-    return {
-      id: 'mock_user_' + Date.now(),
-      email: providerEmails[provider],
-      name: 'Mock User',
-      picture: 'https://via.placeholder.com/150',
-      provider
-    };
   }
 
   /**

@@ -57,7 +57,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     log.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
 
     // Process the callback through auth service
-    authService.processOAuthCallback(code, state)
+    authService.processOAuthCallback(code)
       .then(authState => {
         log.info('[Auth] OAuth flow completed successfully');
 
@@ -126,11 +126,11 @@ export function registerAuthHandlers() {
    */
   ipcMain.handle(
     'auth:exchangeCode',
-    async (_event, code: string, codeVerifier: string): Promise<AuthState> => {
+    async (_event, code: string): Promise<AuthState> => {
       log.info('[IPC] auth:exchangeCode called');
-      
+
       try {
-        const authState = await authService.exchangeCodeForTokens(code, codeVerifier);
+        const authState = await authService.exchangeCodeForTokens(code);
         
         // Return only non-sensitive data to renderer
         return {
@@ -150,11 +150,11 @@ export function registerAuthHandlers() {
    */
   ipcMain.handle(
     'auth:mockLogin',
-    async (_event, provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft'): Promise<AuthState> => {
-      log.info('[IPC] auth:mockLogin called with provider:', provider);
-      
+    async (_event): Promise<AuthState> => {
+      log.info('[IPC] auth:mockLogin called');
+
       try {
-        const authState = await authService.mockLogin(provider);
+        const authState = await authService.mockLogin();
         
         // Return only non-sensitive data to renderer
         return {
@@ -220,9 +220,9 @@ export function registerAuthHandlers() {
    */
   ipcMain.handle('auth:refreshToken', async (): Promise<void> => {
     log.info('[IPC] auth:refreshToken called');
-    
+
     try {
-      await authService.refreshToken();
+      await authService.refreshAccessToken();
     } catch (error) {
       log.error('[IPC] Error refreshing token:', error);
       throw error;

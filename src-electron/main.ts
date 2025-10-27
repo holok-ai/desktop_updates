@@ -182,9 +182,9 @@ function createMenu(): void {
             // Show About dialog
             dialog.showMessageBox(mainWindow!, {
               type: 'info',
-              title: 'About Holokai Desktop (Svelte)',
-              message: 'Holokai Desktop (Svelte)',
-              detail: 'Version: 1.0\n\nA reference Electron + Svelte application demonstrating architecture patterns.',
+              title: 'About Holokai Desktop',
+              message: 'Holokai Desktop',
+              detail: 'Version: 1.0\n\nAn Electron + Svelte application demonstrating architecture patterns.',
               buttons: ['OK']
             });
           }

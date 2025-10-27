@@ -20,10 +20,10 @@ When building a new feature, ask yourself:
 - Exposes functionality via IPC handlers
 - Services: AuthService, ThreadService, ModelService, etc.
 
-**Renderer Process (Angular 18):**
+**Renderer Process (Svelte):**
 - Runs the UI in a sandboxed browser environment
 - Communicates with main process via Context Bridge (no direct Node access)
-- Uses NgRx Signals for state management
+- Uses Svelte stores for state management
 - Components are menu-agnostic and trigger-agnostic
 
 ## Building a New Feature
@@ -99,52 +99,54 @@ export function registerIPCHandlers(projectService: ProjectService) {
 
 ### Step 4: Create Service Wrapper (Renderer Process)
 
-**Location:** `src/app/services/project-ipc.service.ts`
+**Location:** `src/lib/services/project.service.ts`
 
 Simple CRUD operations → Use service wrapper only:
 
 ```typescript
-@Injectable({ providedIn: 'root' })
-export class ProjectIpcService {
+export class ProjectService {
   async getAllProjects(): Promise<Project[]> {
-    return window.electron.projects.getAll();
+    return window.electronAPI.projects.getAll();
   }
 
   async createProject(data: CreateProjectData): Promise<Project> {
-    return window.electron.projects.create(data);
+    return window.electronAPI.projects.create(data);
   }
 }
+
+// Export singleton instance
+export const projectService = new ProjectService();
 ```
 
 ### Step 5: Create Facade (Only for Complex Workflows)
 
-**Location:** `src/app/services/project.facade.ts`
+**Location:** `src/lib/services/project.facade.ts`
 
 Multi-step operations → Use Facade pattern:
 
 ```typescript
-@Injectable({ providedIn: 'root' })
-export class ProjectFacade {
-  constructor(
-    private projectIpc: ProjectIpcService,
-    private threadIpc: ThreadIpcService,
-    private settingsIpc: SettingsIpcService
-  ) {}
+import { projectService } from './project.service';
+import { threadService } from './thread.service';
+import { settingsService } from './settings.service';
 
+export class ProjectFacade {
   async initializeNewProject(name: string): Promise<void> {
     // Step 1: Create project
-    const project = await this.projectIpc.createProject({ name });
-    
+    const project = await projectService.createProject({ name });
+
     // Step 2: Create default thread
-    await this.threadIpc.create({ 
+    await threadService.create({
       projectId: project.id,
       name: 'Default Chat'
     });
-    
+
     // Step 3: Update user preferences
-    await this.settingsIpc.set('lastProjectId', project.id);
+    await settingsService.set('lastProjectId', project.id);
   }
 }
+
+// Export singleton instance
+export const projectFacade = new ProjectFacade();
 ```
 
 **When to use Facades:**
@@ -154,76 +156,93 @@ export class ProjectFacade {
 
 ### Step 6: Build Your Component
 
-**Location:** `src/app/components/project-list/project-list.component.ts`
+**Location:** `src/lib/components/ProjectList.svelte`
 
 Components should be **trigger-agnostic** (work via routes, menus, or links):
 
-```typescript
-@Component({
-  selector: 'app-project-list',
-  standalone: true,
-  templateUrl: './project-list.component.html'
-})
-export class ProjectListComponent implements OnInit {
-  projects = signal<Project[]>([]);
-  
-  constructor(
-    private projectIpc: ProjectIpcService,  // Simple CRUD
-    // OR
-    private projectFacade: ProjectFacade,    // Complex workflows
-    private router: Router
-  ) {
-    // Check for menu-triggered actions via router state
-    const nav = this.router.getCurrentNavigation();
-    if (nav?.extras?.state?.['openCreateDialog']) {
-      this.displayCreateDialog = true;
-    }
-  }
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { projectService } from '$lib/services/project.service';
+  // OR for complex workflows:
+  // import { projectFacade } from '$lib/services/project.facade';
+  import type { Project } from '$lib/types';
 
-  ngOnInit() {
+  let projects: Project[] = [];
+  let displayCreateDialog = false;
+
+  // Check for menu-triggered actions via page data or navigation state
+  // (implementation depends on your router setup)
+
+  onMount(async () => {
     // Load data - same code regardless of how component was activated
-    this.loadProjects();
+    await loadProjects();
+  });
+
+  async function loadProjects() {
+    projects = await projectService.getAllProjects();
   }
 
-  private async loadProjects() {
-    const data = await this.projectIpc.getAllProjects();
-    this.projects.set(data);
+  async function createProject(name: string) {
+    const newProject = await projectService.createProject({ name });
+    projects = [...projects, newProject];
+    displayCreateDialog = false;
   }
-}
+</script>
+
+<div class="project-list">
+  <h1>Projects</h1>
+
+  {#each projects as project (project.id)}
+    <div class="project-item">{project.name}</div>
+  {/each}
+
+  {#if displayCreateDialog}
+    <!-- Create dialog component -->
+  {/if}
+</div>
 ```
 
 **Component Rules:**
 - ✅ Components never listen to menu events directly
-- ✅ All data loading happens in `ngOnInit`
-- ✅ Check router state for action flags (e.g., open dialog)
-- ✅ Inject service wrappers for CRUD, facades for workflows
+- ✅ All data loading happens in `onMount`
+- ✅ Use reactive statements for derived data
+- ✅ Import service wrappers for CRUD, facades for workflows
 
 ### Step 7: Add Menu Integration (If Needed)
 
-**Location:** `src/app/services/menu-navigation.service.ts`
+**Location:** `src/lib/services/menu-navigation.service.ts`
 
 ```typescript
-private setupProjectMenuHandlers(): void {
-  window.electron.menu.onViewProjects(() => {
-    if (this.router.url === '/projects') {
-      this.reloadCurrentRoute();  // Refresh if already there
-    } else {
-      this.router.navigate(['/projects']);
-    }
-  });
-  
-  window.electron.menu.onNewProject(() => {
-    // Pass state to open create dialog
-    this.router.navigate(['/projects'], {
-      state: { openCreateDialog: true }
+import { goto } from '$app/navigation';
+import { page } from '$app/stores';
+import { get } from 'svelte/store';
+
+export class MenuNavigationService {
+  setupProjectMenuHandlers(): void {
+    window.electronAPI.onMenuCommand('menu:view-projects', () => {
+      const currentPath = get(page).url.pathname;
+      if (currentPath === '/projects') {
+        // Refresh if already there
+        goto('/projects', { invalidateAll: true });
+      } else {
+        goto('/projects');
+      }
     });
-  });
+
+    window.electronAPI.onMenuCommand('menu:new-project', () => {
+      // Navigate with state flag for dialog
+      goto('/projects?openDialog=true');
+    });
+  }
 }
+
+export const menuNavigationService = new MenuNavigationService();
 ```
 
 **Menu-to-Route Pattern:**
-- Menu clicks → MenuNavigationService translates to router.navigate()
-- Components detect state via `router.getCurrentNavigation()`
+- Menu clicks → MenuNavigationService translates to navigation actions
+- Components check URL parameters or page stores for action flags
 - Same component code works for all triggers (menu, link, programmatic)
 
 ## Logging and Auditing
@@ -282,33 +301,41 @@ await this.auditService.log({
    - Use TypeScript types for compile-time safety
    - Sanitize user input before API calls
 
-3. **Angular Security:**
-   - Use DomSanitizer for dynamic content
-   - Never use `innerHTML` with untrusted data
-   - Trust Angular's built-in XSS protection
+3. **Svelte Security:**
+   - Use `{@html}` directive only with sanitized content
+   - Never render untrusted HTML directly
+   - Svelte automatically escapes content by default
 
 ## Testing Your Feature
 
 ```typescript
-// Service wrapper test
-it('should fetch projects', async () => {
-  spyOn(window.electron.projects, 'getAll')
-    .and.returnValue(Promise.resolve(mockProjects));
-  
-  const result = await service.getAllProjects();
-  expect(result).toEqual(mockProjects);
+// Service wrapper test (Vitest)
+import { describe, it, expect, vi } from 'vitest';
+
+describe('ProjectService', () => {
+  it('should fetch projects', async () => {
+    const mockProjects = [{ id: '1', name: 'Test' }];
+    vi.spyOn(window.electronAPI.projects, 'getAll')
+      .mockResolvedValue(mockProjects);
+
+    const result = await projectService.getAllProjects();
+    expect(result).toEqual(mockProjects);
+  });
 });
 
 // Facade test (mock service wrappers)
-it('should initialize project workflow', async () => {
-  const projectIpcSpy = jasmine.createSpyObj('ProjectIpcService', ['createProject']);
-  const threadIpcSpy = jasmine.createSpyObj('ThreadIpcService', ['create']);
-  
-  facade = new ProjectFacade(projectIpcSpy, threadIpcSpy);
-  await facade.initializeNewProject('Test');
-  
-  expect(projectIpcSpy.createProject).toHaveBeenCalled();
-  expect(threadIpcSpy.create).toHaveBeenCalled();
+describe('ProjectFacade', () => {
+  it('should initialize project workflow', async () => {
+    const createProjectSpy = vi.spyOn(projectService, 'createProject')
+      .mockResolvedValue({ id: '1', name: 'Test' });
+    const createThreadSpy = vi.spyOn(threadService, 'create')
+      .mockResolvedValue({ id: 'thread1' });
+
+    await projectFacade.initializeNewProject('Test');
+
+    expect(createProjectSpy).toHaveBeenCalled();
+    expect(createThreadSpy).toHaveBeenCalled();
+  });
 });
 ```
 
@@ -320,63 +347,86 @@ it('should initialize project workflow', async () => {
 | **Facade** | Multi-step workflow, 3+ services | `ProjectFacade.initializeNewProject()` |
 | **Menu Integration** | Feature accessible via app menu | MenuNavigationService handler |
 | **Router State** | Menu needs to trigger action | `state: { openDialog: true }` |
-| **Signal Store** | Complex UI state management | NgRx Signals for reactive data |
+| **Svelte Store** | Complex UI state management | Svelte stores for reactive data |
 
 ## Key Architectural Principles
 
 1. **Process Separation:** Main does I/O and security, renderer does UI
 2. **Data Source:** All persistence via Moku API (no local database)
 3. **Menu Handling:** Centralized in MenuNavigationService
-4. **Component Design:** Trigger-agnostic, data loading in ngOnInit
+4. **Component Design:** Trigger-agnostic, data loading in onMount
 5. **Service Layers:** Wrappers for IPC calls, Facades for workflows
-6. **NgRx Signals:** Reactive state management with signals
+6. **Svelte Stores:** Reactive state management with stores
 7. **Security First:** Context isolation, input validation, audit logging
 
-## NgRx Signals State Management
+## Svelte Stores State Management
 
-Use NgRx Signals for reactive state management in components:
+Use Svelte stores for reactive state management across components:
 
 ```typescript
-import { signalStore, withState, withMethods } from '@ngrx/signals';
+// src/lib/stores/threads.store.ts
+import { writable, derived } from 'svelte/store';
+import type { Thread } from '$lib/types';
 
-// Define a store
-export const ThreadsStore = signalStore(
-  { providedIn: 'root' },
-  withState({
-    threads: [] as Thread[],
-    activeThreadId: null as string | null,
-    isLoading: false
-  }),
-  withMethods((store) => ({
-    setThreads(threads: Thread[]) {
-      patchState(store, { threads });
-    },
-    setActiveThread(id: string) {
-      patchState(store, { activeThreadId: id });
-    }
-  }))
-);
+function createThreadsStore() {
+  const { subscribe, set, update } = writable<Thread[]>([]);
 
-// Use in component
-@Component({ ... })
-export class ThreadListComponent {
-  threadsStore = inject(ThreadsStore);
-  
-  ngOnInit() {
-    // Access signal values
-    console.log(this.threadsStore.threads());
-    // Update state
-    this.threadsStore.setThreads(newThreads);
-  }
+  return {
+    subscribe,
+    setThreads: (threads: Thread[]) => set(threads),
+    addThread: (thread: Thread) => update(threads => [...threads, thread]),
+    removeThread: (id: string) => update(threads =>
+      threads.filter(t => t.id !== id)
+    ),
+    updateThread: (id: string, updates: Partial<Thread>) =>
+      update(threads => threads.map(t =>
+        t.id === id ? { ...t, ...updates } : t
+      ))
+  };
 }
+
+export const threadsStore = createThreadsStore();
+export const activeThreadId = writable<string | null>(null);
+export const isLoading = writable<boolean>(false);
+
+// Derived store for active thread
+export const activeThread = derived(
+  [threadsStore, activeThreadId],
+  ([$threads, $activeThreadId]) =>
+    $threads.find(t => t.id === $activeThreadId) || null
+);
+```
+
+**Use in component:**
+
+```svelte
+<script lang="ts">
+  import { threadsStore, activeThread } from '$lib/stores/threads.store';
+
+  // Access store values with $ prefix (auto-subscribe/unsubscribe)
+  $: console.log('Current threads:', $threadsStore);
+  $: console.log('Active thread:', $activeThread);
+
+  async function loadThreads() {
+    const threads = await threadService.getAll();
+    threadsStore.setThreads(threads);
+  }
+</script>
+
+<div>
+  {#each $threadsStore as thread (thread.id)}
+    <div>{thread.name}</div>
+  {/each}
+</div>
 ```
 
 ## Getting Help
 
-- **Architecture details:** See `architecture.md` in this folder
+- **Architecture details:** See `ARCHITECTURE.md` in this folder
 - **IPC reference:** Check `src-electron/preload.ts` for available APIs
-- **Component examples:** Review `ThreadListComponent` and `ChatWindowComponent`
+- **Component examples:** Review existing components in `src/lib/components/`
 - **Service examples:** See `AuthService` and `ThreadService` in `src-electron/services/`
+- **Svelte documentation:** https://svelte.dev/docs
 
 ---
 

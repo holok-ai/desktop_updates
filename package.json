@@ -46,7 +46,7 @@
   },
   "build": {
     "appId": "com.holokai.desktop.svelte",
-    "productName": "Holokai Desktop (Svelte)",
+    "productName": "Holokai Desktop",
     "directories": {
       "output": "release"
     },
