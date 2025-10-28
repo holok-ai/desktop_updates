@@ -1,9 +1,9 @@
-import Store from 'electron-store';
+import ElectronStore from 'electron-store';
 import log from 'electron-log';
 
 /**
  * Application Settings Service
- * 
+ *
  * Manages application configuration using electron-store for persistence.
  * Settings are stored in the user's app data folder and encrypted.
  */
@@ -11,10 +11,10 @@ import log from 'electron-log';
 export interface AppSettings {
   // Moku Web URL - where the SSO login page is hosted
   mokuWebUrl: string;
-  
+
   // Moku API URL - backend API endpoint
   mokuApiUrl: string;
-  
+
   // Other settings can be added here
   theme?: 'light' | 'dark';
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -27,17 +27,17 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   // Development Moku web URL (for SSO testing)
   // NOTE: This should be the Moku web app URL, NOT the desktop app URL
-  mokuWebUrl: 'http://localhost:4201',  // Moku web runs on different port
-  
+  mokuWebUrl: 'http://localhost:4201', // Moku web runs on different port
+
   // Development Moku API URL
   mokuApiUrl: 'http://localhost:3000/api',
-  
+
   // Production alternatives (commented out):
   // mokuWebUrl: 'https://moku.holokai.com',
   // mokuApiUrl: 'https://moku.holokai.com/api',
-  
+
   theme: 'light',
-  logLevel: 'info'
+  logLevel: 'info',
 };
 
 /**
@@ -45,34 +45,34 @@ const DEFAULT_SETTINGS: AppSettings = {
  * Provides type-safe access to application settings
  */
 export class SettingsService {
-  private store: Store<AppSettings>;
+  private store: ElectronStore<AppSettings>;
 
   constructor() {
     // Initialize electron-store with schema
-    this.store = new Store<AppSettings>({
+    this.store = new ElectronStore<AppSettings>({
       defaults: DEFAULT_SETTINGS,
       schema: {
         mokuWebUrl: {
           type: 'string',
           format: 'uri',
-          default: DEFAULT_SETTINGS.mokuWebUrl
+          default: DEFAULT_SETTINGS.mokuWebUrl,
         },
         mokuApiUrl: {
           type: 'string',
           format: 'uri',
-          default: DEFAULT_SETTINGS.mokuApiUrl
+          default: DEFAULT_SETTINGS.mokuApiUrl,
         },
         theme: {
           type: 'string',
           enum: ['light', 'dark'],
-          default: DEFAULT_SETTINGS.theme
+          default: DEFAULT_SETTINGS.theme,
         },
         logLevel: {
           type: 'string',
           enum: ['debug', 'info', 'warn', 'error'],
-          default: DEFAULT_SETTINGS.logLevel
-        }
-      }
+          default: DEFAULT_SETTINGS.logLevel,
+        },
+      },
     });
 
     log.info('[SettingsService] Initialized');

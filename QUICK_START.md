@@ -23,17 +23,20 @@ npm install
 **Option A: Two-Terminal Approach (Recommended)**
 
 Terminal 1 - Start Vite Dev Server:
+
 ```bash
 npm run dev
 ```
 
 Terminal 2 - Build and Start Electron:
+
 ```bash
 npm run build:electron
 npm run electron
 ```
 
 **Option B: Automated Watch Mode**
+
 ```bash
 npm run electron:dev
 ```
@@ -50,12 +53,14 @@ This creates distributable installers in the `release/` folder.
 ## What's Included
 
 ### ✅ Complete Electron Main Process
+
 - `src-electron/main.ts` - Application lifecycle
 - `src-electron/preload.ts` - Context Bridge API
 - `src-electron/ipc-handlers/` - All IPC handlers (auth, settings, system, thread)
 - `src-electron/services/` - Business logic services (AuthService, SettingsService)
 
 ### ✅ Complete Svelte Application
+
 - `src/App.svelte` - Root component with auth routing
 - `src/lib/stores/` - Reactive stores (auth, threads)
 - `src/lib/services/` - Service layer (electron, thread)
@@ -63,6 +68,7 @@ This creates distributable installers in the `release/` folder.
 - `src/routes/` - Page components (Home, Login, Threads)
 
 ### ✅ Configuration Files
+
 - `package.json` - All dependencies configured
 - `vite.config.ts` - Vite build configuration
 - `tsconfig.json` - TypeScript configuration
@@ -99,11 +105,13 @@ This creates distributable installers in the `release/` folder.
 ## Testing the Application
 
 ### 1. Login
+
 - Click "Sign In (Mock)"
 - Choose a provider (Microsoft/Google/OAuth2)
 - You'll be logged in with a mock user
 
 ### 2. Threads
+
 - Navigate to "Threads" in the sidebar
 - Click "New Thread" to create
 - Click "Edit" on any thread to modify
@@ -111,6 +119,7 @@ This creates distributable installers in the `release/` folder.
 - Changes sync in real-time if you open multiple windows
 
 ### 3. Menu Commands
+
 - File → New Thread (Ctrl+N)
 - File → Refresh (Ctrl+R)
 - File → Developer Tools (Ctrl+Shift+I)
@@ -135,15 +144,18 @@ This creates distributable installers in the `release/` folder.
 ## Troubleshooting
 
 ### Electron window doesn't open
+
 - Ensure Vite dev server is running first (npm run dev)
 - Check that port 5173 is available
 - Try the two-terminal approach instead of automated
 
 ### TypeScript errors
+
 - Run `npm install` to ensure all types are installed
 - Restart your IDE/editor
 
 ### Module not found errors
+
 - Run `npm run build:electron` before starting Electron
 - Check that all paths use forward slashes in imports
 

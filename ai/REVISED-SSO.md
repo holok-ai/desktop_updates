@@ -82,12 +82,12 @@ The desktop app spawns a browser with a Moku web URL that indicates a desktop us
 
 ## Endpoint Summary
 
-| Endpoint | Method | Input | Output | Called By | Notes |
-|----------|--------|-------|--------|-----------|-------|
-| `/api/auth/apiKey` | GET | None | `{ apiKey: "jwt" }` | Moku Web | Existing endpoint; user must be authenticated |
-| `/api/auth/generate-exchange-code` | POST | `{ apiKey: "jwt" }` | `{ code: "xyz" }` | Moku Web | **NEW ENDPOINT**; generates one-time code (5 min TTL) |
-| `/api/auth/exchange-code` | POST | `{ code: "xyz" }` | `{ apiKey: "jwt" }` | Desktop App | **NEW ENDPOINT**; invalidates code after use |
-| `/api/auth/token/refresh` | POST | `{ apiKey: "jwt" }` | `{ accessToken: "jwt" }` | Desktop App | Existing endpoint; adds app permissions to token |
+| Endpoint                           | Method | Input               | Output                   | Called By   | Notes                                                 |
+| ---------------------------------- | ------ | ------------------- | ------------------------ | ----------- | ----------------------------------------------------- |
+| `/api/auth/apiKey`                 | GET    | None                | `{ apiKey: "jwt" }`      | Moku Web    | Existing endpoint; user must be authenticated         |
+| `/api/auth/generate-exchange-code` | POST   | `{ apiKey: "jwt" }` | `{ code: "xyz" }`        | Moku Web    | **NEW ENDPOINT**; generates one-time code (5 min TTL) |
+| `/api/auth/exchange-code`          | POST   | `{ code: "xyz" }`   | `{ apiKey: "jwt" }`      | Desktop App | **NEW ENDPOINT**; invalidates code after use          |
+| `/api/auth/token/refresh`          | POST   | `{ apiKey: "jwt" }` | `{ accessToken: "jwt" }` | Desktop App | Existing endpoint; adds app permissions to token      |
 
 ---
 

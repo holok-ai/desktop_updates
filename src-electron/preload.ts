@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 /**
  * Preload Script with Context Bridge
@@ -12,26 +12,26 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 /**
  * Thread API
- * 
+ *
  * Example API group for thread-related operations.
  * Each API group should have a clear, limited set of functions.
  */
 export interface ThreadAPI {
   // Get all threads
   getAll: () => Promise<Thread[]>;
-  
+
   // Get a single thread by ID
   getById: (id: string) => Promise<Thread | null>;
-  
+
   // Create a new thread
   create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
-  
+
   // Update an existing thread
   update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
-  
+
   // Delete a thread
   delete: (id: string) => Promise<boolean>;
-  
+
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
@@ -40,7 +40,7 @@ export interface ThreadAPI {
 
 /**
  * Thread Interface
- * 
+ *
  * Defines the structure of a thread object.
  */
 export interface Thread {
@@ -67,19 +67,19 @@ export interface SettingsAPI {
 
   // Set specific setting
   set: (key: string, value: unknown) => Promise<void>;
-  
+
   // Set multiple settings
   setMultiple: (settings: Partial<AppSettings>) => Promise<void>;
-  
+
   // Reset to defaults
   reset: () => Promise<void>;
-  
+
   // Get Moku Web URL
   getMokuWebUrl: () => Promise<string>;
-  
+
   // Get Moku API URL
   getMokuApiUrl: () => Promise<string>;
-  
+
   // Get settings file path
   getStorePath: () => Promise<string>;
 }
@@ -102,25 +102,25 @@ export interface AppSettings {
 export interface AuthAPI {
   // Start OAuth flow (Steps 1-2 of SSO)
   startOAuthFlow: () => Promise<{ authUrl: string }>;
-  
+
   // Exchange authorization code for tokens (Step 5 of SSO)
   exchangeCode: (code: string, codeVerifier: string) => Promise<AuthState>;
-  
+
   // Mock login for testing
   mockLogin: (provider: 'microsoft' | 'google' | 'oauth2') => Promise<AuthState>;
-  
+
   // Get authentication state
   getAuthState: () => Promise<AuthState>;
-  
+
   // Get current user
   getUser: () => Promise<UserProfile | null>;
-  
+
   // Check if authenticated
   isAuthenticated: () => Promise<boolean>;
-  
+
   // Logout
   logout: () => Promise<void>;
-  
+
   // Refresh access token
   refreshToken: () => Promise<void>;
 }
@@ -153,7 +153,9 @@ export interface AuthState {
 export interface SystemAPI {
   platform: () => Promise<string>;
   version: () => Promise<string>;
-  getPath: (name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads') => Promise<string>;
+  getPath: (
+    name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
+  ) => Promise<string>;
 }
 
 /**
@@ -188,22 +190,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:startOAuthFlow'),
-    
-    exchangeCode: (code: string, codeVerifier: string) => 
+
+    exchangeCode: (code: string, codeVerifier: string) =>
       ipcRenderer.invoke('auth:exchangeCode', code, codeVerifier),
-    
-    mockLogin: (provider: 'microsoft' | 'google' | 'oauth2') => 
+
+    mockLogin: (provider: 'microsoft' | 'google' | 'oauth2') =>
       ipcRenderer.invoke('auth:mockLogin', provider),
-    
+
     getAuthState: () => ipcRenderer.invoke('auth:getAuthState'),
-    
+
     getUser: () => ipcRenderer.invoke('auth:getUser'),
-    
+
     isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
-    
+
     logout: () => ipcRenderer.invoke('auth:logout'),
-    
-    refreshToken: () => ipcRenderer.invoke('auth:refreshToken')
+
+    refreshToken: () => ipcRenderer.invoke('auth:refreshToken'),
   } as AuthAPI,
 
   /**
@@ -211,21 +213,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
-    
+
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
-    
+
     set: (key: string, value: unknown) => ipcRenderer.invoke('settings:set', key, value),
-    
-    setMultiple: (settings: Partial<AppSettings>) => 
+
+    setMultiple: (settings: Partial<AppSettings>) =>
       ipcRenderer.invoke('settings:setMultiple', settings),
-    
+
     reset: () => ipcRenderer.invoke('settings:reset'),
-    
+
     getMokuWebUrl: () => ipcRenderer.invoke('settings:getMokuWebUrl'),
-    
+
     getMokuApiUrl: () => ipcRenderer.invoke('settings:getMokuApiUrl'),
-    
-    getStorePath: () => ipcRenderer.invoke('settings:getStorePath')
+
+    getStorePath: () => ipcRenderer.invoke('settings:getStorePath'),
   } as SettingsAPI,
 
   /**
@@ -233,17 +235,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   thread: {
     getAll: () => ipcRenderer.invoke('thread:getAll'),
-    
+
     getById: (id: string) => ipcRenderer.invoke('thread:getById', id),
-    
-    create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => 
+
+    create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) =>
       ipcRenderer.invoke('thread:create', thread),
-    
-    update: (id: string, updates: Partial<Thread>) => 
+
+    update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
-    
+
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
-    
+
     // Event listeners with cleanup function
     onThreadCreated: (callback: (thread: Thread) => void): (() => void) => {
       const subscription = (_event: IpcRendererEvent, thread: Thread): void => callback(thread);
@@ -271,7 +273,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return (): void => {
         ipcRenderer.removeListener('thread:deleted', subscription);
       };
-    }
+    },
   } as ThreadAPI,
 
   /**
@@ -280,7 +282,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   system: {
     platform: () => ipcRenderer.invoke('system:platform'),
     version: () => ipcRenderer.invoke('system:version'),
-    getPath: (name: string) => ipcRenderer.invoke('system:getPath', name)
+    getPath: (name: string) => ipcRenderer.invoke('system:getPath', name),
   } as SystemAPI,
 
   /**
@@ -295,7 +297,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:error', message, ...params),
     debug: (message: string, ...params: unknown[]): void =>
-      ipcRenderer.send('log:debug', message, ...params)
+      ipcRenderer.send('log:debug', message, ...params),
   } as LogAPI,
 
   /**
@@ -311,12 +313,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return (): void => {
       ipcRenderer.removeListener(channel, subscription);
     };
-  }
+  },
 } as ElectronAPI);
 
 /**
  * TypeScript declarations for window.electronAPI
- * 
+ *
  * This makes TypeScript aware of the electronAPI on the window object.
  */
 declare global {

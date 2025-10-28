@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron';
-import { SettingsService, AppSettings } from '../services/settings.service';
+import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import log from 'electron-log';
 
 /**
  * Settings IPC Handlers
- * 
+ *
  * Handles all settings-related IPC communication between
  * renderer and main process.
  */
@@ -37,20 +37,26 @@ export function registerSettingsHandlers(): void {
   /**
    * Set a specific setting
    */
-  ipcMain.handle('settings:set', (_event, key: keyof AppSettings, value: unknown): Promise<void> => {
-    log.info('[IPC] settings:set called with key:', key, 'value:', value);
-    settingsService.setSetting(key, value as AppSettings[keyof AppSettings]);
-    return Promise.resolve();
-  });
+  ipcMain.handle(
+    'settings:set',
+    (_event, key: keyof AppSettings, value: unknown): Promise<void> => {
+      log.info('[IPC] settings:set called with key:', key, 'value:', value);
+      settingsService.setSetting(key, value as AppSettings[keyof AppSettings]);
+      return Promise.resolve();
+    },
+  );
 
   /**
    * Set multiple settings
    */
-  ipcMain.handle('settings:setMultiple', (_event, settings: Partial<AppSettings>): Promise<void> => {
-    log.info('[IPC] settings:setMultiple called with:', settings);
-    settingsService.setSettings(settings);
-    return Promise.resolve();
-  });
+  ipcMain.handle(
+    'settings:setMultiple',
+    (_event, settings: Partial<AppSettings>): Promise<void> => {
+      log.info('[IPC] settings:setMultiple called with:', settings);
+      settingsService.setSettings(settings);
+      return Promise.resolve();
+    },
+  );
 
   /**
    * Reset settings to defaults
@@ -111,6 +117,6 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:getMokuWebUrl');
   ipcMain.removeHandler('settings:getMokuApiUrl');
   ipcMain.removeHandler('settings:getStorePath');
-  
+
   log.info('[IPC] Settings handlers unregistered');
 }

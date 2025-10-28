@@ -3,12 +3,13 @@
   import { authStore } from './lib/stores/auth.store';
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Login from './routes/login/+page.svelte';
+  import type { AuthState } from '../src-electron/services/auth.service';
 
-  let isLoading = true;
-  let authState = { isAuthenticated: false, user: null, tokens: null };
+  let isLoading = $state(true);
+  let authState = $state<AuthState>({ isAuthenticated: false, user: null, tokens: null });
 
+  // Load initial auth state
   onMount(async () => {
-    // Check authentication status on app load
     try {
       const state = await window.electronAPI.auth.getAuthState();
       authStore.setAuthState(state);
@@ -18,8 +19,10 @@
     } finally {
       isLoading = false;
     }
+  });
 
-    // Subscribe to auth store changes
+  // Subscribe to auth store changes
+  $effect(() => {
     const unsubscribe = authStore.subscribe((state) => {
       authState = state;
     });

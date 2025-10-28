@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { AuthService, AuthState, UserProfile } from '../services/auth.service';
+import { AuthService, AuthState, UserProfile } from '../services/auth.service.js';
 import log from 'electron-log';
 
 /**
@@ -33,7 +33,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
       if (mainWindow) {
         mainWindow.webContents.send('auth:callback-error', {
           error,
-          description: errorDescription
+          description: errorDescription,
         });
       }
       return;
@@ -48,7 +48,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
       if (mainWindow) {
         mainWindow.webContents.send('auth:callback-error', {
           error: 'invalid_callback',
-          description: 'Missing code or state parameter'
+          description: 'Missing code or state parameter',
         });
       }
       return;
@@ -57,15 +57,16 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     log.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
 
     // Process the callback through auth service
-    authService.processOAuthCallback(code)
-      .then(authState => {
+    authService
+      .processOAuthCallback(code)
+      .then((authState) => {
         log.info('[Auth] OAuth flow completed successfully');
 
         // Notify renderer of successful authentication
         if (mainWindow) {
           mainWindow.webContents.send('auth:callback-success', {
             user: authState.user,
-            isAuthenticated: authState.isAuthenticated
+            isAuthenticated: authState.isAuthenticated,
           });
         }
       })
@@ -73,21 +74,21 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
         log.error('[Auth] Error processing OAuth callback:', error);
 
         if (mainWindow) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to exchange authorization code';
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to exchange authorization code';
           mainWindow.webContents.send('auth:callback-error', {
             error: 'exchange_failed',
-            description: errorMessage
+            description: errorMessage,
           });
         }
       });
-
   } catch (error) {
     log.error('[Auth] Error parsing OAuth callback URL:', error);
 
     if (mainWindow) {
       mainWindow.webContents.send('auth:callback-error', {
         error: 'invalid_url',
-        description: 'Failed to parse callback URL'
+        description: 'Failed to parse callback URL',
       });
     }
   }
@@ -105,14 +106,14 @@ export function registerAuthHandlers(): void {
    */
   ipcMain.handle('auth:startOAuthFlow', async (): Promise<{ authUrl: string }> => {
     log.info('[IPC] auth:startOAuthFlow called');
-    
+
     try {
       const result = await authService.startOAuthFlow();
-      
+
       // In production, would return just the URL
       // For mock, return additional data for demonstration
       const response: { authUrl: string } = {
-        authUrl: result.authUrl
+        authUrl: result.authUrl,
       };
       // @ts-expect-error - mock data for demonstration
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -127,50 +128,44 @@ export function registerAuthHandlers(): void {
   /**
    * Exchange authorization code for tokens (manual exchange for testing)
    */
-  ipcMain.handle(
-    'auth:exchangeCode',
-    async (_event, code: string): Promise<AuthState> => {
-      log.info('[IPC] auth:exchangeCode called');
+  ipcMain.handle('auth:exchangeCode', async (_event, code: string): Promise<AuthState> => {
+    log.info('[IPC] auth:exchangeCode called');
 
-      try {
-        const authState = await authService.exchangeCodeForTokens(code);
-        
-        // Return only non-sensitive data to renderer
-        return {
-          user: authState.user,
-          tokens: null, // Never send tokens to renderer
-          isAuthenticated: authState.isAuthenticated
-        };
-      } catch (error) {
-        log.error('[IPC] Error exchanging auth code:', error);
-        throw error;
-      }
+    try {
+      const authState = await authService.exchangeCodeForTokens(code);
+
+      // Return only non-sensitive data to renderer
+      return {
+        user: authState.user,
+        tokens: null, // Never send tokens to renderer
+        isAuthenticated: authState.isAuthenticated,
+      };
+    } catch (error) {
+      log.error('[IPC] Error exchanging auth code:', error);
+      throw error;
     }
-  );
+  });
 
   /**
    * Mock login - Simulates complete authentication flow for testing
    */
-  ipcMain.handle(
-    'auth:mockLogin',
-    async (_event): Promise<AuthState> => {
-      log.info('[IPC] auth:mockLogin called');
+  ipcMain.handle('auth:mockLogin', async (_event): Promise<AuthState> => {
+    log.info('[IPC] auth:mockLogin called');
 
-      try {
-        const authState = await authService.mockLogin();
-        
-        // Return only non-sensitive data to renderer
-        return {
-          user: authState.user,
-          tokens: null, // Never send tokens to renderer
-          isAuthenticated: authState.isAuthenticated
-        };
-      } catch (error) {
-        log.error('[IPC] Error with mock login:', error);
-        throw error;
-      }
+    try {
+      const authState = await authService.mockLogin();
+
+      // Return only non-sensitive data to renderer
+      return {
+        user: authState.user,
+        tokens: null, // Never send tokens to renderer
+        isAuthenticated: authState.isAuthenticated,
+      };
+    } catch (error) {
+      log.error('[IPC] Error with mock login:', error);
+      throw error;
     }
-  );
+  });
 
   /**
    * Get current authentication state
@@ -184,7 +179,7 @@ export function registerAuthHandlers(): void {
     return Promise.resolve({
       user: authState.user,
       tokens: null, // Never send tokens to renderer
-      isAuthenticated: authState.isAuthenticated
+      isAuthenticated: authState.isAuthenticated,
     });
   });
 
@@ -248,6 +243,6 @@ export function unregisterAuthHandlers(): void {
   ipcMain.removeHandler('auth:isAuthenticated');
   ipcMain.removeHandler('auth:logout');
   ipcMain.removeHandler('auth:refreshToken');
-  
+
   log.info('[IPC] Auth handlers unregistered');
 }

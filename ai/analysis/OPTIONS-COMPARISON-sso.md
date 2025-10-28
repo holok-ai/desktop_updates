@@ -28,9 +28,9 @@ The desktop application delegates all authentication to the existing Moku web SS
 Solution (SSO with PKCE): This process proves that the app starting the login is the same app finishing it.
 Here is your flow, modified with PKCE:
 
-1. Client Id and Custom Protocol (Desktop): 
+1. Client Id and Custom Protocol (Desktop):
 
-The Electron Main process has a constant variable containing the client id. 
+The Electron Main process has a constant variable containing the client id.
 
 In your Electron app, you register your custom protocol (e.g., holokai://) using app.setAsDefaultProtocolClient('holokai'). This tells the operating system that any link starting with holokai:// should be opened by your Electron app.
 
@@ -45,13 +45,13 @@ Electron Main process stores the code verifier and code challenge using an in-me
 
 Launches the system browser with authorization URL:
 https://moku.com/api/oauth/authorize
-  ?client_id={CLIENT_ID}
-  &redirect_uri=holokai://home
-  &code_challenge={CODE_CHALLENGE}
-  &code_challenge_method=S256
-  &state={STATE}
-  &response_type=code
-  &scope={SCOPES}  // Optional, e.g., "read write"
+?client_id={CLIENT_ID}
+&redirect_uri=holokai://home
+&code_challenge={CODE_CHALLENGE}
+&code_challenge_method=S256
+&state={STATE}
+&response_type=code
+&scope={SCOPES} // Optional, e.g., "read write"
 
 Note: All parameters must be properly URL-encoded.
 
@@ -62,32 +62,36 @@ If browser fails to open, display error and perform cleanup.
 Server receives authorization request.
 
 VALIDATE REQUEST:
+
 - Verify client_id is valid and registered
 - Verify redirect_uri exactly matches whitelisted value ('holokai://home')
 - Verify all required parameters present (client_id, redirect_uri, code_challenge, code_challenge_method, state, response_type)
 - Verify code_challenge_method is 'S256'
 
 If validation fails:
+
 - Return error to redirect_uri with error code
 - Example: holokai://home?error=invalid_request&error_description=...&state={STATE}
 
 User authenticates/logs in.
 
 If authentication fails:
+
 - Redirect with error: holokai://home?error=access_denied&state={STATE}
 
 On successful authentication:
 
 CREATE AUTHORIZATION CODE:
+
 - Generate unique authorization_code
 - Set expiration: 60 seconds from creation
 - Store associated data:
-  * code_challenge (from request)
-  * redirect_uri (from request)
-  * client_id
-  * user_id/session
-  * state (optional, for audit)
-  * created_at timestamp
+  - code_challenge (from request)
+  - redirect_uri (from request)
+  - client_id
+  - user_id/session
+  - state (optional, for audit)
+  - created_at timestamp
 
 REDIRECT to desktop app:
 holokai://home?code={AUTHORIZATION_CODE}&state={STATE}
@@ -97,31 +101,35 @@ holokai://home?code={AUTHORIZATION_CODE}&state={STATE}
 App receives deep link via open-url event: holokai://home?...
 
 VALIDATE DEEP LINK:
+
 - Verify URL starts with 'holokai://home'
 - Parse query parameters
 
 CHECK FOR ERRORS:
 If 'error' parameter present:
+
 - Extract error and error_description
 - Log/display error to user
 - Perform cleanup (remove code_verifier, state from memory)
 - Exit flow
 
 EXTRACT PARAMETERS:
+
 - code (authorization_code)
 - state
 
 VALIDATE STATE:
+
 - Retrieve stored state from in-memory cache
-- If not found (timeout or missing): 
-  * Log error "State not found or expired"
-  * Perform cleanup
-  * Exit flow
+- If not found (timeout or missing):
+  - Log error "State not found or expired"
+  - Perform cleanup
+  - Exit flow
 - Compare received state with stored state
 - If mismatch:
-  * Log security warning "State mismatch - possible CSRF attack"
-  * Perform cleanup
-  * Exit flow
+  - Log security warning "State mismatch - possible CSRF attack"
+  - Perform cleanup
+  - Exit flow
 - If match: Delete state from memory (one-time use)
 
 EXCHANGE CODE FOR TOKENS:
@@ -129,19 +137,21 @@ POST /api/oauth/token
 Content-Type: application/json
 
 {
-  "grant_type": "authorization_code",
-  "code": "{AUTHORIZATION_CODE}",
-  "client_id": "{CLIENT_ID}",
-  "code_verifier": "{CODE_VERIFIER}",
-  "redirect_uri": "holokai://home"  // REQUIRED
+"grant_type": "authorization_code",
+"code": "{AUTHORIZATION_CODE}",
+"client_id": "{CLIENT_ID}",
+"code_verifier": "{CODE_VERIFIER}",
+"redirect_uri": "holokai://home" // REQUIRED
 }
 
 CLEANUP IN-MEMORY STORAGE:
+
 - Delete code_verifier
 - Delete code_challenge
 - State already deleted after verification
 
 ON ERROR:
+
 - Perform full cleanup
 - Display error to user
 - Log for debugging
@@ -150,82 +160,91 @@ ON ERROR:
 
 Your backend receives a request at: POST /api/oauth/token
 Validate:
+
 - Verify all required parameters present (grant_type, code, client_id, code_verifier, redirect_uri)
 - Verify grant_type is 'authorization_code'
 - Verify client_id is valid
 
 CHECK CODE STATUS:
+
 - Verify code has not already been used (detect replay attacks)
 - If already used:
-  * Log security alert "Authorization code reuse detected"
-  * Revoke any tokens issued with this code (if applicable)
-  * Return 400: {"error": "invalid_grant", "error_description": "Code already used"}
+  - Log security alert "Authorization code reuse detected"
+  - Revoke any tokens issued with this code (if applicable)
+  - Return 400: {"error": "invalid_grant", "error_description": "Code already used"}
 
 CHECK CODE EXPIRATION:
+
 - Calculate: current_time - code.created_at
 - If > 60 seconds:
-  * Return 400: {"error": "invalid_grant", "error_description": "Authorization code expired"}
+  - Return 400: {"error": "invalid_grant", "error_description": "Authorization code expired"}
 
 VALIDATE REDIRECT_URI:
+
 - Compare request redirect_uri with stored redirect_uri from Step 4
 - If mismatch:
-  * Log security warning "Redirect URI mismatch"
-  * Return 400: {"error": "invalid_grant", "error_description": "Redirect URI mismatch"}
+  - Log security warning "Redirect URI mismatch"
+  - Return 400: {"error": "invalid_grant", "error_description": "Redirect URI mismatch"}
 
 VALIDATE PKCE:
+
 - Hash received code_verifier using SHA-256
 - Encode hash as base64url
 - Compare with stored code_challenge
 - If mismatch:
-  * Log security alert "PKCE verification failed - possible attack"
-  * Return 400: {"error": "invalid_grant", "error_description": "Code verifier invalid"}
+  - Log security alert "PKCE verification failed - possible attack"
+  - Return 400: {"error": "invalid_grant", "error_description": "Code verifier invalid"}
 
 ALL CHECKS PASSED - ISSUE TOKENS:
+
 - Mark authorization_code as used (or delete it)
 - Generate access_token:
-  * Format: JWT or opaque token
-  * Expiration: 3600 seconds (1 hour) recommended
-  * Include: user_id, client_id, scope, issued_at, expires_at
+  - Format: JWT or opaque token
+  - Expiration: 3600 seconds (1 hour) recommended
+  - Include: user_id, client_id, scope, issued_at, expires_at
 - Generate refresh_token:
-  * Cryptographically secure random string
-  * Store in database with: user_id, client_id, created_at
-  * Optional: Set expiration (e.g., 30 days, 90 days, or no expiration)
+  - Cryptographically secure random string
+  - Store in database with: user_id, client_id, created_at
+  - Optional: Set expiration (e.g., 30 days, 90 days, or no expiration)
 
 RETURN SUCCESS RESPONSE:
 HTTP 200 OK
 Content-Type: application/json
 
 {
-  "access_token": "{ACCESS_TOKEN}",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "{REFRESH_TOKEN}",
-  "scope": "{SCOPES}"  // Optional
+"access_token": "{ACCESS_TOKEN}",
+"token_type": "Bearer",
+"expires_in": 3600,
+"refresh_token": "{REFRESH_TOKEN}",
+"scope": "{SCOPES}" // Optional
 }
 
 ON ANY VALIDATION FAILURE:
+
 - Do NOT issue tokens
 - Log the failure with details
 - Return appropriate OAuth error response
 
-7. Electron App Main Process Stores the Access Token and Refresh Token 
+7. Electron App Main Process Stores the Access Token and Refresh Token
 
 VALIDATE RESPONSE:
+
 - Verify all required fields present
 - Verify token_type is "Bearer"
 - Verify expires_in is reasonable (> 0)
 
 STORE TOKENS:
 In-memory (Main Process):
+
 - access_token
-- token_expires_at = Date.now() + (expires_in * 1000) - 60000  // 1-min safety buffer
+- token_expires_at = Date.now() + (expires_in \* 1000) - 60000 // 1-min safety buffer
 - token_type
 
-Electron app keeps the access token in memory, available for any api calls to Moku API. 
+Electron app keeps the access token in memory, available for any api calls to Moku API.
 
-Electron app  securely stores the Refresh Token (and only the refresh token) on the user's machine using safeStorage, an API built directly into Electron. It encrypts data using the operating system's native credential manager (macOS Keychain, Windows Credential Vault, Linux Keyring).
+Electron app securely stores the Refresh Token (and only the refresh token) on the user's machine using safeStorage, an API built directly into Electron. It encrypts data using the operating system's native credential manager (macOS Keychain, Windows Credential Vault, Linux Keyring).
 
-On an OAuth failure or timeout, the ELectron app should cleanup to allow the user to attempt another login workflow. Cleanup includes removing the code verifieer and state from memory, resetting any workflow variables and clearing the access token and refresh token values. 
+On an OAuth failure or timeout, the ELectron app should cleanup to allow the user to attempt another login workflow. Cleanup includes removing the code verifieer and state from memory, resetting any workflow variables and clearing the access token and refresh token values.
 
 8. Token Refresh (When Access Token Expires) ← NEW STEP
 
@@ -238,18 +257,19 @@ httpPOST /api/oauth/token
 Content-Type: application/json
 
 {
-  "grant_type": "refresh_token",
-  "refresh_token": "{REFRESH_TOKEN}",
-  "client_id": "{CLIENT_ID}"
+"grant_type": "refresh_token",
+"refresh_token": "{REFRESH_TOKEN}",
+"client_id": "{CLIENT_ID}"
 }
 
 3. Server response:
 
 json{
-  "access_token": "new_token",
-  "refresh_token": "new_refresh_token",  // If using rotation
-  "expires_in": 3600
+"access_token": "new_token",
+"refresh_token": "new_refresh_token", // If using rotation
+"expires_in": 3600
 }
+
 ```
 
 4. Update storage:
@@ -262,7 +282,7 @@ json{
    - Restart OAuth flow from Step 2
 
 
-Notes: 
+Notes:
 Your Spring backend will need to be configured to act as an OAuth 2.0 Authorization Server (which Spring Authorization Server can do) to handle the /authorize and /token endpoints for your new Electron "client."
 
 ### Re-Authentication Flow - User Restarts Desktop
@@ -298,12 +318,14 @@ JSON
 
 6. Load App: The app is now fully authenticated. It loads the user's data and proceeds to the main UI.
 
-### Alternate Flow 
+### Alternate Flow
 
 **Step 1: Initiate Authentication**
 Desktop app constructs a URL to Moku web's SSO endpoint with a custom redirect URI:
 ```
+
 https://moku.holokai.com/auth/desktop?redirect_uri=holokai://callback
+
 ```
 
 **Step 2: Open System Browser**
@@ -318,7 +340,9 @@ After successful authentication, Moku web backend generates a desktop-specific a
 **Step 5: Redirect to Custom Protocol**
 Moku web redirects the browser to:
 ```
+
 holokai://callback?code=XXXX&state=YYYY
+
 ```
 
 **Step 6: Desktop Protocol Handler**
@@ -327,8 +351,10 @@ Electron's custom protocol handler (registered during app startup) intercepts th
 **Step 7: Token Exchange**
 Desktop app makes server-to-server call to Moku web's token endpoint:
 ```
+
 POST https://moku.holokai.com/api/auth/token
 { "code": "XXXX", "grant_type": "authorization_code" }
+
 ```
 
 Moku backend validates the code and returns access token, refresh token, and user profile.
@@ -500,8 +526,10 @@ Desktop makes additional API call to fetch user profile from provider.
 **Step 8: Moku API Registration**
 Desktop sends provider token and user profile to Moku API for user registration/linking:
 ```
+
 POST https://moku.holokai.com/api/users/link-provider
 { "provider": "microsoft", "token": "...", "profile": {...} }
+
 ```
 
 **Step 9: Moku Session**
@@ -585,8 +613,10 @@ Desktop application uses an embedded Electron BrowserView or BrowserWindow to di
 **Step 1: Launch Embedded Browser**
 Desktop app creates BrowserView or BrowserWindow pointing to:
 ```
+
 https://moku.holokai.com/auth/desktop-embedded
-```
+
+````
 
 **Step 2: Display Moku SSO**
 Embedded browser shows Moku web's full SSO interface with all provider options. User selects provider and completes authentication flow within embedded browser.
@@ -595,7 +625,7 @@ Embedded browser shows Moku web's full SSO interface with all provider options. 
 After successful authentication, Moku web executes JavaScript in embedded browser context:
 ```javascript
 window.postMessage({ type: 'AUTH_SUCCESS', tokens: {...} }, '*')
-```
+````
 
 **Step 4: Token Capture**
 Desktop app's preload script or webview listener captures postMessage event and extracts tokens.
@@ -609,6 +639,7 @@ Desktop app closes BrowserView/BrowserWindow and navigates to main interface.
 ### Alternative: JavaScript Injection
 
 Instead of postMessage, desktop could inject JavaScript into embedded browser to access tokens directly:
+
 - BrowserView's `executeJavaScript()` method
 - Access localStorage or sessionStorage from Moku web
 - Extract tokens directly from page state
@@ -617,6 +648,7 @@ Instead of postMessage, desktop could inject JavaScript into embedded browser to
 
 **New Endpoint: `/auth/desktop-embedded`**
 Special authentication page that:
+
 - Shows standard SSO options
 - Detects embedded browser context
 - After auth, posts message to parent with tokens
@@ -624,6 +656,7 @@ Special authentication page that:
 
 **Token Exposure API:**
 Moku web needs secure method to expose tokens to desktop:
+
 - Temporary token exchange endpoint
 - One-time-use codes that desktop can exchange for tokens
 - Or direct token passing via postMessage with origin validation
@@ -632,6 +665,7 @@ Moku web needs secure method to expose tokens to desktop:
 
 **Origin Validation:**
 Moku web must validate postMessage origin to prevent token theft:
+
 ```javascript
 if (event.origin !== 'file://') return; // Electron apps use file:// protocol
 ```
@@ -705,6 +739,7 @@ Moku web calls `POST /api/auth/generate-exchange-code` (new endpoint) with the a
 
 **Step 5: Redirect to Desktop**
 Moku web redirects the browser to the custom protocol callback with the exchange code:
+
 ```
 holokai://home?code=exchange-code-xyz
 ```
@@ -714,20 +749,24 @@ Desktop's custom protocol handler intercepts the redirect and extracts the excha
 
 **Step 7: Exchange Code for API Key**
 Desktop calls `POST /api/auth/exchange-code` (new endpoint) with the exchange code in the request body:
+
 ```json
 {
   "code": "exchange-code-xyz"
 }
 ```
+
 Backend validates the code (must be valid and not expired), retrieves the associated apiKey, invalidates the code (one-time use), and returns the apiKey. Response: `{"apiKey": "jwt-token-string"}`
 
 **Step 8: Exchange API Key for Access Token**
 Desktop calls `POST /api/auth/token/refresh` (existing endpoint) with the apiKey:
+
 ```json
 {
   "apiKey": "jwt-token-string"
 }
 ```
+
 Backend validates the apiKey, checks user is active, retrieves user's application access (from team membership), generates a new JWT token with application URL slugs in claims, and returns the accessToken. Response: `{"accessToken": "jwt-with-app-permissions"}`
 
 **Step 9: Store Access Token**
@@ -744,6 +783,7 @@ When the stored accessToken is about to expire or becomes invalid:
 5. API calls continue without user interaction
 
 If no cached apiKey is available:
+
 1. Desktop detects missing/invalid accessToken
 2. Desktop re-runs authentication flow starting from Step 1
 
@@ -782,6 +822,7 @@ If no cached apiKey is available:
 ### Token Details
 
 Tokens include the following claims (from existing JwtTokenService):
+
 - `userId`: User's email address
 - `urlSlugs`: List of application URL slugs user has access to (for access token only)
 - `subject`: User's UUID
@@ -792,21 +833,25 @@ Tokens include the following claims (from existing JwtTokenService):
 ### Security Considerations
 
 **Token Protection:**
+
 - API key never visible in browser address bar (only code is in URL)
 - API key only passed in POST request body, not in query parameters
 - Exchange code is one-time-use and expires after 5 minutes
 - Exchange code becomes invalid immediately after successful exchange (prevents replay attacks)
 
 **No localhost Listener Required:**
+
 - Custom protocol callback is OS-managed and secure
 - No need to open ephemeral server ports on localhost
 
 **Session-Based:**
+
 - Browser login creates server-side session
 - Exchange code maps session to desktop client
 - Desktop receives tokens but doesn't need to store session cookies
 
 **Secure Storage:**
+
 - apiKey stored temporarily in desktop memory (if needed for refresh)
 - accessToken stored in Electron safeStorage (encrypted by OS)
 
@@ -827,7 +872,7 @@ Tokens include the following claims (from existing JwtTokenService):
 ❌ **Context Switch:** User briefly switches context from desktop to browser and back  
 ❌ **Moku Web Dependency:** Desktop authentication requires Moku web to be available  
 ❌ **Two New Endpoints:** Backend requires implementation of 2 new endpoints (though relatively simple)  
-❌ **Custom Protocol Registration:** Custom protocol must be registered with OS (can occasionally fail)  
+❌ **Custom Protocol Registration:** Custom protocol must be registered with OS (can occasionally fail)
 
 ### Implementation Complexity
 
@@ -839,24 +884,29 @@ Tokens include the following claims (from existing JwtTokenService):
 ### Error Scenarios
 
 **Browser Launch Fails:**
+
 - Desktop app shows error message
 - User can retry authentication
 
 **User Closes Browser Without Logging In:**
+
 - Desktop detects no callback after timeout (5+ minutes)
 - Shows timeout message, allows user to retry
 
 **Exchange Code Expired:**
+
 - Desktop calls exchange-code endpoint but code is >5 minutes old
 - Endpoint returns 401 error
 - Desktop app shows error, user must restart auth flow
 
 **Code Already Used (Replay Attack):**
+
 - Desktop or attacker tries to use code twice
 - Second attempt returns 401, code is rejected
 - Normal: first exchange succeeds, subsequent attempts fail
 
 **Invalid API Key:**
+
 - Exchange code returns invalid apiKey for some reason
 - Desktop calls token/refresh with invalid key
 - Endpoint returns 401, user must restart auth
@@ -865,23 +915,23 @@ Tokens include the following claims (from existing JwtTokenService):
 
 ## Comparison Matrix
 
-| Criteria | Option 1: Moku Web | Option 2: Custom Protocol | Option 3: Browser Embedded | Option 4: Exchange Code |
-|----------|-------------------|---------------------------|----------------------------|------------------------|
-| **Implementation Complexity** | Medium | High | Low-Medium | Medium |
-| **Security** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
-| **User Experience** | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good |
-| **Maintenance Effort** | ⭐⭐⭐⭐⭐ Low | ⭐⭐ High | ⭐⭐⭐⭐ Low | ⭐⭐⭐⭐⭐ Low |
-| **Provider Flexibility** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐⭐ Excellent |
-| **Moku Web Dependency** | Required | Partial | Required | Required |
-| **Custom Protocol Required** | Yes | Yes | No | Yes |
-| **Code Duplication** | None | High | None | None |
-| **Offline Support** | None | Partial | None | None |
-| **Testing Complexity** | Medium | High | Medium | Medium |
-| **Cross-Platform Stability** | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
-| **Token Never in Browser** | No (PKCE/Code only) | No | No | Yes ✅ |
-| **One-Time-Use Code** | Yes (Auth Code) | No | No | Yes ✅ |
-| **No Localhost Listener** | Yes | Yes | Yes | Yes ✅ |
-| **New Backend Endpoints** | 3 | 1 | 1 | 2 |
+| Criteria                      | Option 1: Moku Web   | Option 2: Custom Protocol | Option 3: Browser Embedded | Option 4: Exchange Code |
+| ----------------------------- | -------------------- | ------------------------- | -------------------------- | ----------------------- |
+| **Implementation Complexity** | Medium               | High                      | Low-Medium                 | Medium                  |
+| **Security**                  | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good               | ⭐⭐⭐ Good                | ⭐⭐⭐⭐⭐ Excellent    |
+| **User Experience**           | ⭐⭐⭐⭐ Very Good   | ⭐⭐⭐⭐ Very Good        | ⭐⭐⭐⭐⭐ Excellent       | ⭐⭐⭐⭐ Very Good      |
+| **Maintenance Effort**        | ⭐⭐⭐⭐⭐ Low       | ⭐⭐ High                 | ⭐⭐⭐⭐ Low               | ⭐⭐⭐⭐⭐ Low          |
+| **Provider Flexibility**      | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good               | ⭐⭐⭐⭐⭐ Excellent       | ⭐⭐⭐⭐⭐ Excellent    |
+| **Moku Web Dependency**       | Required             | Partial                   | Required                   | Required                |
+| **Custom Protocol Required**  | Yes                  | Yes                       | No                         | Yes                     |
+| **Code Duplication**          | None                 | High                      | None                       | None                    |
+| **Offline Support**           | None                 | Partial                   | None                       | None                    |
+| **Testing Complexity**        | Medium               | High                      | Medium                     | Medium                  |
+| **Cross-Platform Stability**  | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Very Good        | ⭐⭐⭐ Good                | ⭐⭐⭐⭐⭐ Excellent    |
+| **Token Never in Browser**    | No (PKCE/Code only)  | No                        | No                         | Yes ✅                  |
+| **One-Time-Use Code**         | Yes (Auth Code)      | No                        | No                         | Yes ✅                  |
+| **No Localhost Listener**     | Yes                  | Yes                       | Yes                        | Yes ✅                  |
+| **New Backend Endpoints**     | 3                    | 1                         | 1                          | 2                       |
 
 ---
 
@@ -904,6 +954,7 @@ Tokens include the following claims (from existing JwtTokenService):
 ### Secondary Recommendation: Option 3 (Browser Embedded)
 
 Use this option only if:
+
 - Context switching to system browser is unacceptable for UX
 - Custom protocol registration consistently fails on target platforms
 - Willing to accept slightly higher security risk
@@ -911,6 +962,7 @@ Use this option only if:
 ### Not Recommended: Option 2 (Custom Protocol)
 
 This option should be avoided because:
+
 - High maintenance burden (multiple provider implementations)
 - Security concerns with client secrets in desktop app
 - Code duplication between web and desktop
@@ -931,10 +983,10 @@ If user feedback indicates context switching is problematic, add Option 3 as an 
 
 **Document Control**
 
-| Version | Date | Author | Purpose |
-|---------|------|--------|---------|
-| 1.0 | 2025-10-15 | Architecture Team | Initial comparison |
+| Version | Date       | Author            | Purpose            |
+| ------- | ---------- | ----------------- | ------------------ |
+| 1.0     | 2025-10-15 | Architecture Team | Initial comparison |
 
 ---
 
-*End of Document*
+_End of Document_

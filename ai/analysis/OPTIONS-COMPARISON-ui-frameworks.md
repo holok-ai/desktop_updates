@@ -1,4 +1,5 @@
 # Framework Comparison for Holokai Desktop Application
+
 ## Svelte 5 vs React 18 vs Vue 3 vs Angular 18
 
 **Context:** Electron Desktop Application  
@@ -12,6 +13,7 @@
 This analysis compares four leading frameworks for implementing the Holokai Desktop application in Electron. All four can successfully deliver the required functionality, but they differ significantly in philosophy, learning curve, bundle size, and long-term maintainability.
 
 **Quick Recommendation:**
+
 - **Svelte** → Smallest bundles, cleanest code, best performance
 - **React** → Largest ecosystem, most familiar to developers
 - **Vue** → Best balance of features, gentler learning curve
@@ -21,20 +23,22 @@ This analysis compares four leading frameworks for implementing the Holokai Desk
 
 ## 1. Bundle Size & Performance
 
-| Framework | Runtime | Hello World | Typical Chat App | Compilation |
-|-----------|---------|-------------|------------------|-------------|
-| **Svelte 5** | ~3-5 KB | ~5 KB | ~30-50 KB | Compile-time |
-| **React 18** | ~45 KB | ~60 KB | ~150-200 KB | Runtime (Virtual DOM) |
-| **Vue 3** | ~40-50 KB | ~50 KB | ~100-150 KB | Runtime (Virtual DOM) |
-| **Angular 18** | ~70-90 KB | ~100 KB | ~200-300 KB | Runtime + AOT |
+| Framework      | Runtime   | Hello World | Typical Chat App | Compilation           |
+| -------------- | --------- | ----------- | ---------------- | --------------------- |
+| **Svelte 5**   | ~3-5 KB   | ~5 KB       | ~30-50 KB        | Compile-time          |
+| **React 18**   | ~45 KB    | ~60 KB      | ~150-200 KB      | Runtime (Virtual DOM) |
+| **Vue 3**      | ~40-50 KB | ~50 KB      | ~100-150 KB      | Runtime (Virtual DOM) |
+| **Angular 18** | ~70-90 KB | ~100 KB     | ~200-300 KB      | Runtime + AOT         |
 
 **Memory Consumption (Desktop App):**
+
 - Svelte: 40-60 MB
-- React: 80-120 MB  
+- React: 80-120 MB
 - Vue: 60-100 MB
 - Angular: 100-150 MB
 
 **Initial Load Performance:**
+
 - Svelte: ⚡⚡⚡⚡⚡ (5/5) - Compiler eliminates overhead
 - React: ⚡⚡⚡☆☆ (3/5) - Virtual DOM reconciliation
 - Vue: ⚡⚡⚡⚡☆ (4/5) - Optimized reactivity
@@ -49,6 +53,7 @@ This analysis compares four leading frameworks for implementing the Holokai Desk
 ### Component Definition
 
 **Svelte (~15 lines):**
+
 ```svelte
 <script lang="ts">
   let { title, count = 0 } = $props();
@@ -62,6 +67,7 @@ This analysis compares four leading frameworks for implementing the Holokai Desk
 ```
 
 **React (~20 lines):**
+
 ```tsx
 interface Props {
   title: string;
@@ -70,7 +76,7 @@ interface Props {
 
 export function Card({ title, count = 0 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  
+
   return (
     <div className={expanded ? 'expanded' : ''}>
       <h2>{title}</h2>
@@ -81,10 +87,11 @@ export function Card({ title, count = 0 }: Props) {
 ```
 
 **Vue (~20 lines):**
+
 ```vue
 <script setup lang="ts">
 const props = withDefaults(defineProps<Props>(), {
-  count: 0
+  count: 0,
 });
 const expanded = ref(false);
 </script>
@@ -98,6 +105,7 @@ const expanded = ref(false);
 ```
 
 **Angular (~30 lines):**
+
 ```typescript
 @Component({
   selector: 'app-card',
@@ -106,7 +114,7 @@ const expanded = ref(false);
       <h2>{{ title }}</h2>
       <p>{{ count }}</p>
     </div>
-  `
+  `,
 })
 export class CardComponent {
   @Input() title!: string;
@@ -118,24 +126,28 @@ export class CardComponent {
 ### State Management Boilerplate
 
 **Svelte (~15 lines):**
+
 ```typescript
 export const threads = writable<Thread[]>([]);
 export function addThread(t: Thread) {
-  threads.update(arr => [...arr, t]);
+  threads.update((arr) => [...arr, t]);
 }
 ```
 
 **React + Zustand (~20 lines):**
+
 ```typescript
 export const useThreadStore = create<State>((set) => ({
   threads: [],
-  addThread: (t) => set((state) => ({
-    threads: [...state.threads, t]
-  }))
+  addThread: (t) =>
+    set((state) => ({
+      threads: [...state.threads, t],
+    })),
 }));
 ```
 
 **Vue + Pinia (~25 lines):**
+
 ```typescript
 export const useThreadsStore = defineStore('threads', () => {
   const threads = ref<Thread[]>([]);
@@ -147,15 +159,16 @@ export const useThreadsStore = defineStore('threads', () => {
 ```
 
 **Angular + Service (~35 lines):**
+
 ```typescript
 @Injectable({ providedIn: 'root' })
 export class ThreadsService {
   private threads = signal<Thread[]>([]);
-  
+
   addThread(t: Thread) {
-    this.threads.update(arr => [...arr, t]);
+    this.threads.update((arr) => [...arr, t]);
   }
-  
+
   getThreads() {
     return this.threads.asReadonly();
   }
@@ -163,6 +176,7 @@ export class ThreadsService {
 ```
 
 **Compactness Rating:**
+
 - **Svelte:** ⭐⭐⭐⭐⭐ (5/5) - Minimal boilerplate
 - **React:** ⭐⭐⭐⭐☆ (4/5) - Concise with hooks
 - **Vue:** ⭐⭐⭐⭐☆ (4/5) - Similar to React
@@ -174,42 +188,47 @@ export class ThreadsService {
 
 ## 3. Developer Experience & Learning Curve
 
-| Aspect | Svelte | React | Vue | Angular |
-|--------|--------|-------|-----|---------|
-| **Learning Curve** | Low | Medium | Low-Medium | High |
-| **Official Docs** | Excellent | Good | Excellent | Comprehensive |
-| **TypeScript** | Good | Excellent | Good | Native |
-| **Hot Reload** | Fast | Fast | Fast | Slower |
-| **Build Time** | Fast | Medium | Medium | Slow |
-| **Error Messages** | Good | Good | Excellent | Verbose |
+| Aspect             | Svelte    | React     | Vue        | Angular       |
+| ------------------ | --------- | --------- | ---------- | ------------- |
+| **Learning Curve** | Low       | Medium    | Low-Medium | High          |
+| **Official Docs**  | Excellent | Good      | Excellent  | Comprehensive |
+| **TypeScript**     | Good      | Excellent | Good       | Native        |
+| **Hot Reload**     | Fast      | Fast      | Fast       | Slower        |
+| **Build Time**     | Fast      | Medium    | Medium     | Slow          |
+| **Error Messages** | Good      | Good      | Excellent  | Verbose       |
 
 ### Ease of Development
 
 **Svelte:**
+
 - ✅ Minimal concepts to learn (stores, reactivity)
 - ✅ No virtual DOM understanding needed
 - ✅ Fast compilation and HMR
 - ❌ Smaller ecosystem for solutions
 
 **React:**
+
 - ✅ Huge ecosystem and community
 - ✅ Abundant learning resources
 - ❌ Need to learn hooks patterns deeply
 - ❌ Many ways to do same thing (analysis paralysis)
 
 **Vue:**
+
 - ✅ Gentle learning curve
 - ✅ Excellent documentation
 - ✅ Clear conventions and patterns
 - ❌ Two APIs (Options vs Composition) can confuse
 
 **Angular:**
+
 - ✅ Opinionated structure (less decision fatigue)
 - ✅ Comprehensive built-in solutions
 - ❌ Steep learning curve
 - ❌ Heavy TypeScript/RxJS knowledge required
 
 **Development Ease Rating:**
+
 - **Svelte:** ⭐⭐⭐⭐⭐ (5/5) - Intuitive, minimal concepts
 - **Vue:** ⭐⭐⭐⭐⭐ (5/5) - Great DX, excellent docs
 - **React:** ⭐⭐⭐⭐☆ (4/5) - Good once hooks are mastered
@@ -224,6 +243,7 @@ export class ThreadsService {
 ### Core Dependencies Needed
 
 **Svelte:**
+
 ```json
 {
   "svelte": "^5.0.0",
@@ -232,9 +252,11 @@ export class ThreadsService {
   "axios": "^1.6.0"
 }
 ```
+
 **Total:** ~4 core dependencies
 
 **React:**
+
 ```json
 {
   "react": "^18.2.0",
@@ -245,9 +267,11 @@ export class ThreadsService {
   "axios": "^1.6.0"
 }
 ```
+
 **Total:** ~6 core dependencies
 
 **Vue:**
+
 ```json
 {
   "vue": "^3.4.0",
@@ -257,9 +281,11 @@ export class ThreadsService {
   "axios": "^1.6.0"
 }
 ```
+
 **Total:** ~5 core dependencies
 
 **Angular:**
+
 ```json
 {
   "@angular/core": "^18.0.0",
@@ -272,44 +298,50 @@ export class ThreadsService {
   "axios": "^1.6.0"
 }
 ```
+
 **Total:** ~8+ core dependencies
 
 ### Component Libraries Available
 
-| Framework | Libraries | Quality | Electron Examples |
-|-----------|-----------|---------|-------------------|
-| **Svelte** | bits-ui, Skeleton | Good | Few |
-| **React** | MUI, Chakra, shadcn | Excellent | Many |
-| **Vue** | Vuetify, Element Plus | Excellent | Some |
-| **Angular** | Material, PrimeNG | Excellent | Some |
+| Framework   | Libraries             | Quality   | Electron Examples |
+| ----------- | --------------------- | --------- | ----------------- |
+| **Svelte**  | bits-ui, Skeleton     | Good      | Few               |
+| **React**   | MUI, Chakra, shadcn   | Excellent | Many              |
+| **Vue**     | Vuetify, Element Plus | Excellent | Some              |
+| **Angular** | Material, PrimeNG     | Excellent | Some              |
 
 ### Community & Resources
 
 **Svelte:**
+
 - 75k+ GitHub stars
 - Growing but smaller community
 - Fewer Electron-specific examples
 - Less Stack Overflow coverage
 
 **React:**
+
 - 225k+ GitHub stars
 - Massive ecosystem and community
 - Abundant Electron examples (VS Code, Slack)
 - Best Stack Overflow coverage
 
 **Vue:**
+
 - 210k+ GitHub stars
 - Large, active community
 - Good Electron examples
 - Excellent Stack Overflow coverage
 
 **Angular:**
+
 - 95k+ GitHub stars
 - Enterprise-focused community
 - Moderate Electron examples
 - Good Stack Overflow coverage
 
 **Ecosystem Rating:**
+
 - **React:** ⭐⭐⭐⭐⭐ (5/5) - Unmatched ecosystem
 - **Vue:** ⭐⭐⭐⭐⭐ (5/5) - Mature, comprehensive
 - **Angular:** ⭐⭐⭐⭐☆ (4/5) - Enterprise-grade
@@ -324,24 +356,28 @@ export class ThreadsService {
 ### Testing Setup Complexity
 
 **Svelte:**
+
 - Testing Library (@testing-library/svelte)
 - Vitest for unit tests
 - Playwright for E2E
 - **Setup:** ~30 minutes
 
 **React:**
+
 - Testing Library (@testing-library/react)
 - Jest/Vitest for unit tests
 - Playwright for E2E
 - **Setup:** ~20 minutes (more examples)
 
 **Vue:**
+
 - Vue Test Utils (@vue/test-utils)
 - Vitest for unit tests
 - Playwright for E2E
 - **Setup:** ~25 minutes
 
 **Angular:**
+
 - Jasmine/Karma (built-in)
 - Angular Testing utilities
 - Protractor/Playwright for E2E
@@ -350,24 +386,28 @@ export class ThreadsService {
 ### Code Maintainability (5-Year Horizon)
 
 **Svelte:**
+
 - ✅ Less code = less to maintain
 - ✅ Simple refactoring
 - ❌ Smaller team = slower ecosystem evolution
 - ❌ Less established patterns for large apps
 
 **React:**
+
 - ✅ Battle-tested at scale
 - ✅ Abundant refactoring tools
 - ✅ Massive community support
 - ❌ Rapid churn in best practices
 
 **Vue:**
+
 - ✅ Stable, incremental updates
 - ✅ Excellent official guides
 - ✅ Strong composition patterns
 - ✅ Good long-term support
 
 **Angular:**
+
 - ✅ Opinionated = consistent codebases
 - ✅ Enterprise LTS support
 - ✅ Built-in migration tools
@@ -376,12 +416,14 @@ export class ThreadsService {
 ### Testing & Maintainability Rating
 
 **Testing:**
+
 - **Angular:** ⭐⭐⭐⭐⭐ (5/5) - Best built-in testing
 - **React:** ⭐⭐⭐⭐⭐ (5/5) - Excellent tooling
 - **Vue:** ⭐⭐⭐⭐⭐ (5/5) - Great official support
 - **Svelte:** ⭐⭐⭐⭐☆ (4/5) - Good but newer
 
 **Maintainability:**
+
 - **Vue:** ⭐⭐⭐⭐⭐ (5/5) - Best balance
 - **Angular:** ⭐⭐⭐⭐⭐ (5/5) - Enterprise-grade
 - **React:** ⭐⭐⭐⭐☆ (4/5) - Good with discipline
@@ -394,6 +436,7 @@ export class ThreadsService {
 ## 6. Security
 
 All four frameworks implement identical security patterns in Electron:
+
 - ✅ Context Bridge IPC isolation
 - ✅ Electron safeStorage for credentials
 - ✅ OAuth PKCE in main process
@@ -401,6 +444,7 @@ All four frameworks implement identical security patterns in Electron:
 - ✅ CSP headers
 
 **Minor Differences:**
+
 - **Svelte:** Smallest runtime = smaller attack surface (~3-5 KB)
 - **React/Vue:** Medium runtime (~40-50 KB)
 - **Angular:** Largest runtime (~70-90 KB)
@@ -414,24 +458,25 @@ All four frameworks implement identical security patterns in Electron:
 
 ## Overall Comparison Matrix
 
-| Criterion | Svelte | React | Vue | Angular |
-|-----------|--------|-------|-----|---------|
-| **Bundle Size** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆ | ⭐⭐⭐⭐☆ | ⭐⭐☆☆☆ |
-| **Performance** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆ | ⭐⭐⭐⭐☆ | ⭐⭐⭐☆☆ |
-| **Code Compactness** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐☆ | ⭐⭐⭐☆☆ |
-| **Learning Curve** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆ |
-| **Ecosystem** | ⭐⭐⭐☆☆ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ |
-| **Developer Experience** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆ |
-| **Testing** | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Maintainability** | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐☆ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Security** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Total** | **42/45** | **39/45** | **43/45** | **36/45** |
+| Criterion                | Svelte     | React      | Vue        | Angular    |
+| ------------------------ | ---------- | ---------- | ---------- | ---------- |
+| **Bundle Size**          | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆   | ⭐⭐⭐⭐☆  | ⭐⭐☆☆☆    |
+| **Performance**          | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆   | ⭐⭐⭐⭐☆  | ⭐⭐⭐☆☆   |
+| **Code Compactness**     | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐☆  | ⭐⭐⭐☆☆   |
+| **Learning Curve**       | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆   |
+| **Ecosystem**            | ⭐⭐⭐☆☆   | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆  |
+| **Developer Experience** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐⭐ | ⭐⭐⭐☆☆   |
+| **Testing**              | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Maintainability**      | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐☆  | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Security**             | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Total**                | **42/45**  | **39/45**  | **43/45**  | **36/45**  |
 
 ---
 
 ## Final Recommendation
 
 ### 🥇 Best Overall: **Vue 3** (43/45)
+
 - **Best balance** of all criteria
 - Strong ecosystem and maintainability
 - Excellent documentation
@@ -439,18 +484,21 @@ All four frameworks implement identical security patterns in Electron:
 - **Choose if:** You want the best all-around option
 
 ### 🥈 Best Performance: **Svelte 5** (42/45)
+
 - Smallest bundles (3-10x smaller)
 - Cleanest, most readable code
 - Minimal boilerplate
 - **Choose if:** Performance and code simplicity are priorities
 
 ### 🥉 Best Ecosystem: **React 18** (39/45)
+
 - Largest community and resources
 - Most familiar to developers
 - Most third-party integrations
 - **Choose if:** Developer familiarity and ecosystem matter most
 
 ### 🏅 Best Structure: **Angular 18** (36/45)
+
 - Most opinionated and consistent
 - Built-in solutions for everything
 - Best for large teams with enterprise needs

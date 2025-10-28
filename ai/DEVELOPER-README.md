@@ -5,6 +5,7 @@ This guide helps you quickly understand how to build features in the Electron de
 ## Quick Start Checklist
 
 When building a new feature, ask yourself:
+
 1. **Does it need data from the main process?** → Add IPC handlers
 2. **Does it involve multiple steps?** → Consider a Facade pattern
 3. **Can users trigger it from a menu?** → Register with MenuNavigationService
@@ -15,12 +16,14 @@ When building a new feature, ask yourself:
 ### Two-Process Model
 
 **Main Process (Node.js):**
+
 - Manages app lifecycle, windows, and native OS features
 - Handles all data operations (Moku API calls, secure storage)
 - Exposes functionality via IPC handlers
 - Services: AuthService, ThreadService, ModelService, etc.
 
 **Renderer Process (Svelte):**
+
 - Runs the UI in a sandboxed browser environment
 - Communicates with main process via Context Bridge (no direct Node access)
 - Uses Svelte stores for state management
@@ -39,12 +42,10 @@ contextBridge.exposeInMainWorld('electron', {
   // Your feature namespace
   projects: {
     getAll: () => ipcRenderer.invoke('projects:get-all'),
-    create: (data: CreateProjectData) => 
-      ipcRenderer.invoke('projects:create', data),
-    archive: (id: string) => 
-      ipcRenderer.invoke('projects:archive', id)
-  }
-})
+    create: (data: CreateProjectData) => ipcRenderer.invoke('projects:create', data),
+    archive: (id: string) => ipcRenderer.invoke('projects:archive', id),
+  },
+});
 ```
 
 ### Step 2: Create Service Class (Main Process)
@@ -55,7 +56,7 @@ contextBridge.exposeInMainWorld('electron', {
 export class ProjectService {
   constructor(
     private mokuClient: MokuAPIClient,
-    private logger: typeof log
+    private logger: typeof log,
   ) {}
 
   async getAllProjects(): Promise<Project[]> {
@@ -77,6 +78,7 @@ export class ProjectService {
 ```
 
 **Key Points:**
+
 - All data operations go through Moku API (no SQLite/local DB)
 - Log with context but never log sensitive data
 - Let errors bubble up to IPC handlers
@@ -90,7 +92,7 @@ export function registerIPCHandlers(projectService: ProjectService) {
   ipcMain.handle('projects:get-all', async () => {
     return projectService.getAllProjects();
   });
-  
+
   ipcMain.handle('projects:create', async (_, data: CreateProjectData) => {
     return projectService.createProject(data);
   });
@@ -137,7 +139,7 @@ export class ProjectFacade {
     // Step 2: Create default thread
     await threadService.create({
       projectId: project.id,
-      name: 'Default Chat'
+      name: 'Default Chat',
     });
 
     // Step 3: Update user preferences
@@ -150,6 +152,7 @@ export const projectFacade = new ProjectFacade();
 ```
 
 **When to use Facades:**
+
 - Coordinating 3+ service calls in sequence
 - Complex error recovery across services
 - Logic that multiple components would duplicate
@@ -204,6 +207,7 @@ Components should be **trigger-agnostic** (work via routes, menus, or links):
 ```
 
 **Component Rules:**
+
 - ✅ Components never listen to menu events directly
 - ✅ All data loading happens in `onMount`
 - ✅ Use reactive statements for derived data
@@ -241,6 +245,7 @@ export const menuNavigationService = new MenuNavigationService();
 ```
 
 **Menu-to-Route Pattern:**
+
 - Menu clicks → MenuNavigationService translates to navigation actions
 - Components check URL parameters or page stores for action flags
 - Same component code works for all triggers (menu, link, programmatic)
@@ -250,6 +255,7 @@ export const menuNavigationService = new MenuNavigationService();
 ### Local Logging (electron-log)
 
 **Use in both processes:**
+
 ```typescript
 import log from 'electron-log';
 
@@ -262,6 +268,7 @@ window.electron.log.info('User action', { action: 'create-project' });
 ```
 
 **What to log:**
+
 - ✅ App lifecycle events (startup, shutdown)
 - ✅ API success/failures with context
 - ✅ Navigation and state changes
@@ -270,16 +277,18 @@ window.electron.log.info('User action', { action: 'create-project' });
 ### Auditing (Holo Audit Service)
 
 **Use for user actions:**
+
 ```typescript
 // In main process service
 await this.auditService.log({
   event: 'project.created',
   userId: user.id,
-  metadata: { projectId, name }
+  metadata: { projectId, name },
 });
 ```
 
 **What to audit:**
+
 - User authentication events (login, logout, SSO)
 - Chat and prompt-response activities
 - Thread/project management actions
@@ -315,8 +324,7 @@ import { describe, it, expect, vi } from 'vitest';
 describe('ProjectService', () => {
   it('should fetch projects', async () => {
     const mockProjects = [{ id: '1', name: 'Test' }];
-    vi.spyOn(window.electronAPI.projects, 'getAll')
-      .mockResolvedValue(mockProjects);
+    vi.spyOn(window.electronAPI.projects, 'getAll').mockResolvedValue(mockProjects);
 
     const result = await projectService.getAllProjects();
     expect(result).toEqual(mockProjects);
@@ -326,10 +334,10 @@ describe('ProjectService', () => {
 // Facade test (mock service wrappers)
 describe('ProjectFacade', () => {
   it('should initialize project workflow', async () => {
-    const createProjectSpy = vi.spyOn(projectService, 'createProject')
+    const createProjectSpy = vi
+      .spyOn(projectService, 'createProject')
       .mockResolvedValue({ id: '1', name: 'Test' });
-    const createThreadSpy = vi.spyOn(threadService, 'create')
-      .mockResolvedValue({ id: 'thread1' });
+    const createThreadSpy = vi.spyOn(threadService, 'create').mockResolvedValue({ id: 'thread1' });
 
     await projectFacade.initializeNewProject('Test');
 
@@ -341,13 +349,13 @@ describe('ProjectFacade', () => {
 
 ## Common Patterns Reference
 
-| Pattern | Use When | Example |
-|---------|----------|---------|
-| **Service Wrapper** | Single IPC call, simple CRUD | `ProjectIpcService.getAll()` |
-| **Facade** | Multi-step workflow, 3+ services | `ProjectFacade.initializeNewProject()` |
-| **Menu Integration** | Feature accessible via app menu | MenuNavigationService handler |
-| **Router State** | Menu needs to trigger action | `state: { openDialog: true }` |
-| **Svelte Store** | Complex UI state management | Svelte stores for reactive data |
+| Pattern              | Use When                         | Example                                |
+| -------------------- | -------------------------------- | -------------------------------------- |
+| **Service Wrapper**  | Single IPC call, simple CRUD     | `ProjectIpcService.getAll()`           |
+| **Facade**           | Multi-step workflow, 3+ services | `ProjectFacade.initializeNewProject()` |
+| **Menu Integration** | Feature accessible via app menu  | MenuNavigationService handler          |
+| **Router State**     | Menu needs to trigger action     | `state: { openDialog: true }`          |
+| **Svelte Store**     | Complex UI state management      | Svelte stores for reactive data        |
 
 ## Key Architectural Principles
 
@@ -374,14 +382,10 @@ function createThreadsStore() {
   return {
     subscribe,
     setThreads: (threads: Thread[]) => set(threads),
-    addThread: (thread: Thread) => update(threads => [...threads, thread]),
-    removeThread: (id: string) => update(threads =>
-      threads.filter(t => t.id !== id)
-    ),
+    addThread: (thread: Thread) => update((threads) => [...threads, thread]),
+    removeThread: (id: string) => update((threads) => threads.filter((t) => t.id !== id)),
     updateThread: (id: string, updates: Partial<Thread>) =>
-      update(threads => threads.map(t =>
-        t.id === id ? { ...t, ...updates } : t
-      ))
+      update((threads) => threads.map((t) => (t.id === id ? { ...t, ...updates } : t))),
   };
 }
 
@@ -392,8 +396,7 @@ export const isLoading = writable<boolean>(false);
 // Derived store for active thread
 export const activeThread = derived(
   [threadsStore, activeThreadId],
-  ([$threads, $activeThreadId]) =>
-    $threads.find(t => t.id === $activeThreadId) || null
+  ([$threads, $activeThreadId]) => $threads.find((t) => t.id === $activeThreadId) || null,
 );
 ```
 

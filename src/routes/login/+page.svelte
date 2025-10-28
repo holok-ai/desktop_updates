@@ -39,7 +39,7 @@
       </label>
     </div>
 
-    <button on:click={handleLogin} disabled={isLoading}>
+    <button onclick={handleLogin} disabled={isLoading}>
       {isLoading ? 'Signing in...' : 'Sign In (Mock)'}
     </button>
 

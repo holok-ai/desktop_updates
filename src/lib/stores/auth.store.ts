@@ -2,7 +2,7 @@ import { writable, derived } from 'svelte/store';
 import type { UserProfile, AuthState } from '../../../src-electron/preload';
 
 interface AuthStore {
-  subscribe: (run: (value: AuthState) => void) => (() => void);
+  subscribe: (run: (value: AuthState) => void) => () => void;
   setUser: (user: UserProfile | null) => void;
   setAuthState: (authState: AuthState) => void;
   logout: () => void;
@@ -12,16 +12,16 @@ function createAuthStore(): AuthStore {
   const { subscribe, set, update } = writable<AuthState>({
     user: null,
     tokens: null,
-    isAuthenticated: false
+    isAuthenticated: false,
   });
 
   return {
     subscribe,
     setUser: (user: UserProfile | null): void => {
-      update(state => ({
+      update((state) => ({
         ...state,
         user,
-        isAuthenticated: user !== null
+        isAuthenticated: user !== null,
       }));
     },
     setAuthState: (authState: AuthState): void => {
@@ -31,12 +31,12 @@ function createAuthStore(): AuthStore {
       set({
         user: null,
         tokens: null,
-        isAuthenticated: false
+        isAuthenticated: false,
       });
-    }
+    },
   };
 }
 
 export const authStore = createAuthStore();
-export const isAuthenticated = derived(authStore, $auth => $auth.isAuthenticated);
-export const currentUser = derived(authStore, $auth => $auth.user);
+export const isAuthenticated = derived(authStore, ($auth) => $auth.isAuthenticated);
+export const currentUser = derived(authStore, ($auth) => $auth.user);

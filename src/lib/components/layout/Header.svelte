@@ -12,7 +12,7 @@
   <div class="user-section">
     {#if $currentUser}
       <span>{$currentUser.name}</span>
-      <button on:click={handleLogout}>Logout</button>
+      <button onclick={handleLogout}>Logout</button>
     {/if}
   </div>
 </header>

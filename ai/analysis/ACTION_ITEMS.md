@@ -7,6 +7,7 @@
 ## 🔴 CRITICAL - Complete Before Production (5-6 days)
 
 ### 1. Implement Exchange Code Flow (1-2 days)
+
 **File:** `src-electron/services/auth.service.ts`
 
 - [ ] Complete `startOAuthFlow()` to properly open browser
@@ -25,10 +26,12 @@
 ### 2. Implement Routing and MenuNavigationService (1 day)
 
 **New Files:**
+
 - [ ] `src/lib/services/menu-navigation.service.ts`
 - [ ] Routing configuration (use SvelteKit or svelte-routing)
 
 **Changes:**
+
 - [ ] Replace manual page switching with hash-based routing
 - [ ] Create MenuNavigationService that listens to menu events
 - [ ] Service should call `router.navigate()`, not set page state
@@ -36,6 +39,7 @@
 - [ ] Make components respond only to route activation
 
 **Example:**
+
 ```typescript
 // MenuNavigationService
 window.electronAPI.onMenuCommand('menu:new-thread', () => {
@@ -52,6 +56,7 @@ window.electronAPI.onMenuCommand('menu:new-thread', () => {
 **New File:** `src-electron/services/thread.service.ts`
 
 **Changes in:**
+
 - [ ] Create `ThreadService` class in main process
 - [ ] Replace in-memory Map with Moku API calls
 - [ ] Update `thread-handler.ts` to use ThreadService
@@ -62,6 +67,7 @@ window.electronAPI.onMenuCommand('menu:new-thread', () => {
   - `deleteThread()` → DELETE `/api/threads/:id`
 
 **Remove:**
+
 - [ ] `const threads: Map<string, Thread> = new Map();` from `thread-handler.ts`
 - [ ] `initializeSampleData()` function
 
@@ -72,6 +78,7 @@ window.electronAPI.onMenuCommand('menu:new-thread', () => {
 ### 4. Add Basic Tests (2 days)
 
 **Create test files:**
+
 ```
 tests/
   unit/
@@ -91,6 +98,7 @@ tests/
 ```
 
 **Add to package.json:**
+
 ```json
 "scripts": {
   "test": "vitest",
@@ -99,6 +107,7 @@ tests/
 ```
 
 **Install dependencies:**
+
 ```bash
 npm install -D vitest @vitest/ui @testing-library/svelte
 ```
@@ -108,12 +117,14 @@ npm install -D vitest @vitest/ui @testing-library/svelte
 ### 5. Write Setup Documentation (0.5 day)
 
 **Create files:**
+
 - [ ] `README.md` - Main project overview
 - [ ] `docs/SETUP.md` - Development environment setup
 - [ ] `docs/KNOWN-ISSUES.md` - Current limitations
 - [ ] `.env.example` - Environment variables template
 
 **README.md should include:**
+
 - Prerequisites (Node.js version, etc.)
 - Installation: `npm install`
 - Development: `npm run electron:dev`
@@ -127,9 +138,11 @@ npm install -D vitest @vitest/ui @testing-library/svelte
 ## 🟡 HIGH PRIORITY - Complete Soon (3-4 days)
 
 ### 6. Implement Content Security Policy (0.5 day)
+
 **File:** `src-electron/main.ts`
 
 - [ ] Add CSP headers configuration
+
 ```typescript
 session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
   callback({
@@ -137,15 +150,16 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       ...details.responseHeaders,
       'Content-Security-Policy': [
         "default-src 'self'; " +
-        "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: https:; " +
-        "connect-src 'self' https://api.moku.holokai.com;"
-      ]
-    }
+          "script-src 'self'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: https:; " +
+          "connect-src 'self' https://api.moku.holokai.com;",
+      ],
+    },
   });
 });
 ```
+
 - [ ] Test application with strict CSP
 - [ ] Document any required CSP exceptions
 
@@ -154,6 +168,7 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 ---
 
 ### 7. Create MokuAPIClient Service (1 day)
+
 **New File:** `src-electron/services/moku-api-client.ts`
 
 - [ ] Create centralized API client class
@@ -165,15 +180,16 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 - [ ] Refactor `thread.service.ts` to use MokuAPIClient
 
 **Example:**
+
 ```typescript
 export class MokuAPIClient {
   async get(path: string): Promise<any> {
     const token = await this.authService.getAccessToken();
     const response = await fetch(`${this.baseUrl}${path}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
     });
     if (!response.ok) throw new Error(`API Error: ${response.status}`);
     return response.json();
@@ -186,6 +202,7 @@ export class MokuAPIClient {
 ---
 
 ### 8. Implement Audit Logging (1 day)
+
 **New File:** `src-electron/services/audit.service.ts`
 
 - [ ] Create AuditService class
@@ -196,12 +213,13 @@ export class MokuAPIClient {
   - User login/logout
   - Thread create/update/delete
 - [ ] Example usage in auth.service.ts:
+
 ```typescript
 await auditService.logEvent({
   type: 'USER_LOGIN',
   userId: user.id,
   provider: 'microsoft',
-  timestamp: new Date()
+  timestamp: new Date(),
 });
 ```
 
@@ -224,16 +242,19 @@ await auditService.logEvent({
 ### 10. Replace console.log with electron-log (0.5 day)
 
 **Files to update:**
+
 - [ ] `src-electron/ipc-handlers/thread-handler.ts` (multiple instances)
 - [ ] `src-electron/ipc-handlers/system-handler.ts`
 - [ ] Any other files using `console.log()`
 
 **Replace:**
+
 ```typescript
 console.log('[IPC] thread:getAll called');
 ```
 
 **With:**
+
 ```typescript
 log.info('[IPC] thread:getAll called');
 ```
@@ -266,9 +287,11 @@ log.info('[IPC] thread:getAll called');
 ### 13. Add Settings UI (1 day)
 
 **New Files:**
+
 - [ ] `src/routes/settings/+page.svelte`
 
 **Features:**
+
 - [ ] Form to configure Moku Web URL
 - [ ] Form to configure Moku API URL
 - [ ] Theme selector (light/dark)
@@ -300,17 +323,20 @@ log.info('[IPC] thread:getAll called');
 ## Quick Win Items (< 1 hour each)
 
 ### Documentation
+
 - [ ] Add comments to complex functions in auth.service.ts
 - [ ] Create API_ENDPOINTS.md documenting Moku API contract
 - [ ] Add JSDoc comments to all public service methods
 
 ### Code Quality
+
 - [ ] Run TypeScript compiler with strict mode
 - [ ] Fix any TypeScript errors/warnings
 - [ ] Add eslint configuration
 - [ ] Run linter and fix issues
 
 ### Configuration
+
 - [ ] Create `.env.example` file
 - [ ] Document required environment variables
 - [ ] Add validation for required settings on startup
@@ -322,6 +348,7 @@ log.info('[IPC] thread:getAll called');
 Before marking items as complete, verify:
 
 ### Manual Testing
+
 - [ ] Application starts without errors
 - [ ] Can navigate between pages
 - [ ] Menu commands work correctly
@@ -330,6 +357,7 @@ Before marking items as complete, verify:
 - [ ] Logging appears in log files
 
 ### Code Review
+
 - [ ] All TypeScript errors resolved
 - [ ] No console.log statements remain
 - [ ] All files follow naming conventions
@@ -337,6 +365,7 @@ Before marking items as complete, verify:
 - [ ] Sensitive data not logged
 
 ### Platform Testing
+
 - [ ] Windows 10/11
 - [ ] macOS 12+
 - [ ] Linux (Ubuntu 22.04+)
@@ -353,7 +382,7 @@ Each item is considered complete when:
 ✅ Code reviewed against architecture.md  
 ✅ Documentation updated  
 ✅ Manual testing passed  
-✅ Committed to version control  
+✅ Committed to version control
 
 ---
 
@@ -365,6 +394,7 @@ Each item is considered complete when:
 - Low Priority items are nice-to-haves
 
 **Estimated Timeline:**
+
 - 2 developers working together: 4.5-6 days for Critical + High Priority
 - Single developer: 9-12 days for Critical + High Priority
 

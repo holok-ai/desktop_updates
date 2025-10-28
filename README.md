@@ -7,7 +7,7 @@ This is the **Holokai Desktop application** built with Electron and Svelte, demo
 The Holokai Desktop application is an Electron-based AI chat client that serves as part of the broader Holokai AI platform ecosystem. This application showcases:
 
 - **Modern desktop architecture** with Electron and Svelte
-- **Secure SSO integration** with the existing Moku web application  
+- **Secure SSO integration** with the existing Moku web application
 - **Multi-LLM support** for various AI providers (Claude, OpenAI, Ollama, Perplexity)
 - **Enterprise-ready** with air-gapped deployment capabilities
 - **API-based persistence** - no local databases, all data via Moku REST APIs
@@ -140,13 +140,13 @@ contextBridge.exposeInMainWorld('electron', {
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:start-oauth'),
     logout: () => ipcRenderer.invoke('auth:logout'),
-    getUser: () => ipcRenderer.invoke('auth:get-user')
+    getUser: () => ipcRenderer.invoke('auth:get-user'),
   },
   threads: {
     getAll: () => ipcRenderer.invoke('threads:get-all'),
     create: (data) => ipcRenderer.invoke('threads:create', data),
-    delete: (id) => ipcRenderer.invoke('threads:delete', id)
-  }
+    delete: (id) => ipcRenderer.invoke('threads:delete', id),
+  },
 });
 ```
 
@@ -160,7 +160,7 @@ export class ThreadService {
   async createThread(data: ThreadData): Promise<Thread> {
     return window.electron.threads.create(data);
   }
-  
+
   async getAllThreads(): Promise<Thread[]> {
     return window.electron.threads.getAll();
   }
@@ -177,11 +177,11 @@ import { writable } from 'svelte/store';
 
 function createThreadStore() {
   const { subscribe, set, update } = writable<Thread[]>([]);
-  
+
   return {
     subscribe,
     setThreads: (threads: Thread[]) => set(threads),
-    addThread: (thread: Thread) => update(threads => [...threads, thread])
+    addThread: (thread: Thread) => update((threads) => [...threads, thread]),
   };
 }
 
@@ -205,7 +205,7 @@ class MenuNavigationService {
       }
     });
   }
-  
+
   private reloadCurrentRoute() {
     invalidateAll(); // SvelteKit's way to reload data
   }
@@ -242,6 +242,7 @@ electronAPI.thread.onThreadCreated((thread) => {
 **Options for WSL Users:**
 
 1. **Recommended: Use Windows Terminal with PowerShell or CMD** (not WSL bash)
+
    ```powershell
    # Open PowerShell or CMD in Windows
    cd C:\Projects\repos\holokai\desktop
@@ -250,10 +251,11 @@ electronAPI.thread.onThreadCreated((thread) => {
    ```
 
 2. **Alternative: Install GUI Support in WSL2** (Windows 11 or recent Windows 10 with WSLg)
+
    ```bash
    # Update WSL to get WSLg support
    wsl --update
-   
+
    # Install required libraries
    sudo apt-get update
    sudo apt-get install -y libgbm1 libnss3 libnspr4 libasound2 \
@@ -273,17 +275,20 @@ npm install
 **Option 1: Two-Terminal Approach (Recommended)**
 
 Terminal 1 - Start Vite Dev Server:
+
 ```bash
 npm run dev
 ```
 
 Terminal 2 - Build and Run Electron:
+
 ```bash
 npm run build:electron
 npm run electron
 ```
 
 **Option 2: Automated Watch Mode**
+
 ```bash
 npm run electron:dev
 ```
@@ -331,13 +336,14 @@ npm run package
 ✓ **HTTPS Only**: All Moku API calls use HTTPS  
 ✓ **OAuth PKCE**: Enhanced OAuth security via Moku web  
 ✓ **Sandboxed Renderer**: Renderer process runs in sandbox  
-✓ **Input Validation**: All IPC parameters validated in main process  
+✓ **Input Validation**: All IPC parameters validated in main process
 
 ## Development Guidelines
 
 ### Coding Standards
 
 Refer to `ai/coding-instructions.md` for detailed guidelines on:
+
 - File and folder naming conventions
 - IPC organization patterns
 - Service wrapper and facade patterns
@@ -347,24 +353,28 @@ Refer to `ai/coding-instructions.md` for detailed guidelines on:
 ### Svelte Best Practices
 
 **Component Structure:**
+
 - Single-file components with `<script>`, markup, and `<style>`
 - Use `<script lang="ts">` for TypeScript
 - Export props: `export let propName: Type`
 - Keep component logic in script section
 
 **Reactivity:**
+
 - Variables are reactive by default when reassigned
 - Reactive declarations: `$: derived = source * 2`
 - Reactive statements: `$: if (condition) { doSomething(); }`
 - Store subscriptions: `$authStore.user` (auto-subscribe/unsubscribe)
 
 **State Management:**
+
 - Use `writable()`, `readable()`, and `derived()` stores
 - Keep stores focused on single domains
 - Custom stores can add methods
 - Update stores using `set()` or `update()`
 
 **Performance:**
+
 - Use `{#key}` blocks to force re-rendering
 - Implement virtual scrolling for large lists
 - Lazy load components dynamically using `import()`
@@ -387,6 +397,7 @@ npm run test:e2e
 ```
 
 Tests use:
+
 - **Vitest** for unit testing
 - **Svelte Testing Library** for component tests
 - **Playwright** for E2E testing
@@ -414,18 +425,23 @@ To add new functionality:
 ## Svelte Advantages
 
 ### True Reactivity
+
 Svelte's compiler transforms your declarative components into efficient imperative code that surgically updates the DOM, eliminating the need for virtual DOM diffing.
 
 ### Smaller Bundle Size
+
 Applications typically ship with 50-100KB of JavaScript compared to 500KB+ for traditional frameworks, resulting in faster initial load times.
 
 ### Simpler Mental Model
+
 No need to learn complex state management patterns or lifecycle hooks. Svelte components are just HTML, CSS, and JavaScript with intuitive reactive assignments.
 
 ### Better Performance
+
 Without the overhead of a virtual DOM or runtime framework, Svelte applications have faster initial render, smoother animations, and lower memory usage.
 
 ### Developer Experience
+
 Built-in TypeScript support, excellent IDE integration, clear error messages, and a gentle learning curve make development more enjoyable and productive.
 
 ## License

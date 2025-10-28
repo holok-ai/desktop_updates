@@ -1,0 +1,19 @@
+{
+  "low": false,
+  "moderate": true,
+  "high": true,
+  "critical": true,
+  "allowlist": [],
+  "report-type": "full",
+  "output-format": "json",
+  "pass-enoaudit": true,
+  "show-not-found": true,
+  "show-found": true,
+  "registry": "https://registry.npmjs.org",
+  "retry-count": 3,
+  "config": {
+    "branches-to-scan": ["main", "develop", "release/*"],
+    "max-buffer-size": 10485760,
+    "timeout": 300000
+  }
+}

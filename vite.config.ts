@@ -8,20 +8,20 @@ export default defineConfig({
   base: './',
   server: {
     port: 5173,
-    strictPort: true
+    strictPort: true,
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'index.html')
-      }
-    }
+        main: path.resolve(__dirname, 'index.html'),
+      },
+    },
   },
   resolve: {
     alias: {
-      '$lib': path.resolve(__dirname, './src/lib')
-    }
-  }
+      $lib: path.resolve(__dirname, './src/lib'),
+    },
+  },
 });

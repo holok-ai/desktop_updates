@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron';
 
 /**
  * System IPC Handlers
- * 
+ *
  * This module contains IPC handlers for system-level operations.
  */
 
@@ -29,10 +29,16 @@ export function registerSystemHandlers(): void {
   /**
    * Get system path
    */
-  ipcMain.handle('system:getPath', (_event, name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads'): Promise<string> => {
-    console.log('[IPC] system:getPath called with name:', name);
-    return Promise.resolve(app.getPath(name));
-  });
+  ipcMain.handle(
+    'system:getPath',
+    (
+      _event,
+      name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
+    ): Promise<string> => {
+      console.log('[IPC] system:getPath called with name:', name);
+      return Promise.resolve(app.getPath(name));
+    },
+  );
 
   console.log('[IPC] System handlers registered');
 }

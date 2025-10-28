@@ -7,7 +7,7 @@ This directory now contains a complete ESLint configuration that enforces the co
 The following configuration files have been set up:
 
 1. **`.eslintrc.json`** - Main ESLint configuration with TypeScript and Svelte support
-2. **`.prettierrc.json`** - Prettier configuration for consistent formatting  
+2. **`.prettierrc.json`** - Prettier configuration for consistent formatting
 3. **`.eslintignore`** - Files and directories to exclude from linting
 4. **`.eslintrc.extended.js`** - Extended configuration with custom Holokai rules
 5. **`eslint-plugin-holokai/`** - Custom ESLint plugin for project-specific rules
@@ -45,6 +45,7 @@ npm run type-check
 ### 3. VS Code Integration
 
 For the best development experience, install these VS Code extensions:
+
 - ESLint (`dbaeumer.vscode-eslint`)
 - Prettier (`esbenp.prettier-vscode`)
 - Svelte for VS Code (`svelte.svelte-vscode`)
@@ -52,22 +53,26 @@ For the best development experience, install these VS Code extensions:
 ## 📋 What's Being Enforced
 
 ### Naming Conventions ✅
+
 - `camelCase` for variables and functions
 - `PascalCase` for classes and types
 - `SCREAMING_SNAKE_CASE` for constants
 - Boolean prefixes: `is`, `has`, `should`
 
 ### IPC Patterns ✅
+
 - Colon notation for channels: `auth:login`
 - Event handlers: `[Group]EventHandler`
 - Try-catch blocks for all IPC calls
 
 ### Security ✅
+
 - No sensitive data in logs or errors
 - No direct API calls from UI components
 - Secure token storage enforcement
 
 ### Code Quality ✅
+
 - No `any` types in TypeScript
 - Mandatory `electron-log` instead of `console`
 - Proper async/await handling
@@ -78,6 +83,7 @@ For the best development experience, install these VS Code extensions:
 To enable the custom Holokai rules, you can either:
 
 ### Option 1: Use Extended Configuration (Recommended)
+
 Edit your package.json to use the extended configuration:
 
 ```json
@@ -89,20 +95,16 @@ Edit your package.json to use the extended configuration:
 ```
 
 ### Option 2: Add Custom Rules to Base Config
+
 Add the plugin to your `.eslintrc.json`:
 
 ```json
 {
-  "plugins": [
-    "@typescript-eslint",
-    "security",
-    "no-secrets",
-    "./eslint-plugin-holokai"
-  ],
+  "plugins": ["@typescript-eslint", "security", "no-secrets", "./eslint-plugin-holokai"],
   "rules": {
     // ... existing rules ...
     "holokai/ipc-channel-naming": "error",
-    "holokai/use-electron-log": "error",
+    "holokai/use-electron-log": "error"
     // ... other custom rules
   }
 }
@@ -111,13 +113,17 @@ Add the plugin to your `.eslintrc.json`:
 ## 🐛 Troubleshooting
 
 ### ESLint not finding the local plugin
+
 Make sure the plugin path is correct:
+
 ```json
 "plugins": ["./eslint-plugin-holokai"]
 ```
 
 ### Svelte files not being linted
+
 Ensure your VS Code settings include Svelte validation:
+
 ```json
 {
   "eslint.validate": ["javascript", "typescript", "svelte"]
@@ -125,7 +131,9 @@ Ensure your VS Code settings include Svelte validation:
 ```
 
 ### Too many errors initially
+
 Start with warnings and gradually increase severity:
+
 ```bash
 # Run with max warnings to see all issues
 npm run lint -- --max-warnings 1000
@@ -142,6 +150,7 @@ npm run lint -- --max-warnings 1000
 ## 🤝 Contributing
 
 When adding new patterns to `coding-instructions.md`, remember to:
+
 1. Update the ESLint rules accordingly
 2. Add corresponding custom rules if needed
 3. Document the changes in this README

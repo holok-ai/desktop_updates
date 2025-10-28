@@ -1,11 +1,49 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 dist-electron/
 release/
 .svelte-kit/
 build/
-.DS_Store
-*.log
+
+# Environment files
 .env
 .env.local
+.env.*.local
+
+# Security reports and scans
+security-reports/
+*.sarif
+sbom.json
+audit-report.json
+snyk-report.json
+retire-report.json
+electronegativity-report.json
+eslint-security-report.json
+npm-audit.json
+outdated-report.json
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# Package manager files
 package-lock.json
+yarn.lock
+pnpm-lock.yaml

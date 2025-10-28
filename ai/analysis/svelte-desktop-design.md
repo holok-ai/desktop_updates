@@ -153,21 +153,21 @@ UI Re-render (Svelte reactivity)
 
 ### 3.1 Core Technologies
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Electron** | 28.x | Desktop app framework |
-| **Svelte** | 5.x | UI framework with compiler-based reactivity |
-| **TypeScript** | 5.3.x | Type safety |
-| **Vite** | 5.x | Build tool & dev server |
-| **Electron Builder** | 24.x | Packaging & distribution |
+| Technology           | Version | Purpose                                     |
+| -------------------- | ------- | ------------------------------------------- |
+| **Electron**         | 28.x    | Desktop app framework                       |
+| **Svelte**           | 5.x     | UI framework with compiler-based reactivity |
+| **TypeScript**       | 5.3.x   | Type safety                                 |
+| **Vite**             | 5.x     | Build tool & dev server                     |
+| **Electron Builder** | 24.x    | Packaging & distribution                    |
 
 ### 3.2 UI & Styling
 
-| Technology | Purpose |
-|------------|---------|
-| **Tailwind CSS** | Utility-first styling |
+| Technology                | Purpose                                    |
+| ------------------------- | ------------------------------------------ |
+| **Tailwind CSS**          | Utility-first styling                      |
 | **Holokai Design Tokens** | Consistent theming (CSS custom properties) |
-| **Lucide Icons** | Icon library |
+| **Lucide Icons**          | Icon library                               |
 
 ### 3.3 Key Dependencies
 
@@ -237,19 +237,19 @@ App.svelte (Root)
 
 ```svelte
 <script lang="ts">
-  import { authStore } from '$lib/stores/auth'
-  import OAuthButton from './OAuthButton.svelte'
-  
-  let isLoading = $state(false)
-  
+  import { authStore } from '$lib/stores/auth';
+  import OAuthButton from './OAuthButton.svelte';
+
+  let isLoading = $state(false);
+
   async function handleLogin() {
-    isLoading = true
+    isLoading = true;
     try {
-      await authStore.login()
+      await authStore.login();
     } catch (error) {
-      console.error('Login failed:', error)
+      console.error('Login failed:', error);
     } finally {
-      isLoading = false
+      isLoading = false;
     }
   }
 </script>
@@ -257,18 +257,11 @@ App.svelte (Root)
 <div class="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
   <div class="w-full max-w-md space-y-8 p-8">
     <div class="text-center">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-        Welcome to Holokai
-      </h1>
-      <p class="mt-2 text-gray-600 dark:text-gray-400">
-        Sign in to continue
-      </p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Welcome to Holokai</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">Sign in to continue</p>
     </div>
-    
-    <OAuthButton 
-      loading={isLoading} 
-      onclick={handleLogin}
-    />
+
+    <OAuthButton loading={isLoading} onclick={handleLogin} />
   </div>
 </div>
 ```
@@ -277,17 +270,17 @@ App.svelte (Root)
 
 ```svelte
 <script lang="ts">
-  import { threadsStore } from '$lib/stores/threads'
-  import ThreadItem from './ThreadItem.svelte'
-  
-  const { threads, activeThreadId } = threadsStore
-  
+  import { threadsStore } from '$lib/stores/threads';
+  import ThreadItem from './ThreadItem.svelte';
+
+  const { threads, activeThreadId } = threadsStore;
+
   function selectThread(threadId: string) {
-    threadsStore.setActiveThread(threadId)
+    threadsStore.setActiveThread(threadId);
   }
-  
+
   function deleteThread(threadId: string) {
-    threadsStore.deleteThread(threadId)
+    threadsStore.deleteThread(threadId);
   }
 </script>
 
@@ -309,14 +302,14 @@ App.svelte (Root)
 
 ```svelte
 <script lang="ts">
-  import { modelsStore } from '$lib/stores/models'
-  import { ChevronDown } from 'lucide-svelte'
-  
-  const { availableModels, selectedModel } = modelsStore
-  
+  import { modelsStore } from '$lib/stores/models';
+  import { ChevronDown } from 'lucide-svelte';
+
+  const { availableModels, selectedModel } = modelsStore;
+
   function handleChange(event: Event) {
-    const target = event.target as HTMLSelectElement
-    modelsStore.setSelectedModel(target.value)
+    const target = event.target as HTMLSelectElement;
+    modelsStore.setSelectedModel(target.value);
   }
 </script>
 
@@ -324,8 +317,8 @@ App.svelte (Root)
   <select
     value={$selectedModel}
     onchange={handleChange}
-    class="appearance-none bg-white dark:bg-gray-800 border border-gray-300 
-           dark:border-gray-600 rounded-lg px-4 py-2 pr-10 
+    class="appearance-none bg-white dark:bg-gray-800 border border-gray-300
+           dark:border-gray-600 rounded-lg px-4 py-2 pr-10
            focus:outline-none focus:ring-2 focus:ring-blue-500"
   >
     {#each $availableModels as model (model.id)}
@@ -334,7 +327,7 @@ App.svelte (Root)
       </option>
     {/each}
   </select>
-  <ChevronDown 
+  <ChevronDown
     class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 
            text-gray-500 pointer-events-none"
   />
@@ -353,196 +346,189 @@ Svelte 5's runes-based reactivity provides a streamlined state management approa
 
 ```typescript
 // lib/stores/auth.ts
-import { writable, derived } from 'svelte/store'
+import { writable, derived } from 'svelte/store';
 
 interface User {
-  id: string
-  email: string
-  name: string
+  id: string;
+  email: string;
+  name: string;
 }
 
 function createAuthStore() {
   const { subscribe, set, update } = writable<{
-    user: User | null
-    accessToken: string | null
-    refreshToken: string | null
+    user: User | null;
+    accessToken: string | null;
+    refreshToken: string | null;
   }>({
     user: null,
     accessToken: null,
-    refreshToken: null
-  })
+    refreshToken: null,
+  });
 
   return {
     subscribe,
-    
+
     async login() {
       // Trigger OAuth flow via IPC
-      const result = await window.electron.auth.startOAuthFlow()
-      
+      const result = await window.electron.auth.startOAuthFlow();
+
       if (result.success) {
         set({
           user: result.user,
           accessToken: result.accessToken,
-          refreshToken: result.refreshToken
-        })
+          refreshToken: result.refreshToken,
+        });
       } else {
-        throw new Error(result.error)
+        throw new Error(result.error);
       }
     },
 
     async logout() {
-      await window.electron.auth.logout()
+      await window.electron.auth.logout();
       set({
         user: null,
         accessToken: null,
-        refreshToken: null
-      })
+        refreshToken: null,
+      });
     },
 
     async refreshAccessToken() {
-      const state = get(authStore)
-      if (!state.refreshToken) return
+      const state = get(authStore);
+      if (!state.refreshToken) return;
 
-      const result = await window.electron.auth.refreshToken(state.refreshToken)
+      const result = await window.electron.auth.refreshToken(state.refreshToken);
       if (result.success) {
-        update(s => ({
+        update((s) => ({
           ...s,
-          accessToken: result.accessToken
-        }))
+          accessToken: result.accessToken,
+        }));
       } else {
         // Refresh failed, force re-login
-        await this.logout()
+        await this.logout();
       }
-    }
-  }
+    },
+  };
 }
 
-export const authStore = createAuthStore()
+export const authStore = createAuthStore();
 
-export const isAuthenticated = derived(
-  authStore,
-  $auth => !!$auth.user && !!$auth.accessToken
-)
+export const isAuthenticated = derived(authStore, ($auth) => !!$auth.user && !!$auth.accessToken);
 ```
 
 #### 5.1.2 Threads Store
 
 ```typescript
 // lib/stores/threads.ts
-import { writable, derived, get } from 'svelte/store'
+import { writable, derived, get } from 'svelte/store';
 
 interface Thread {
-  id: string
-  title: string
-  createdAt: string
-  updatedAt: string
-  provider: 'claude' | 'openai' | 'ollama'
-  model: string
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  provider: 'claude' | 'openai' | 'ollama';
+  model: string;
 }
 
 function createThreadsStore() {
-  const threads = writable<Thread[]>([])
-  const activeThreadId = writable<string | null>(null)
-  const isLoading = writable(false)
+  const threads = writable<Thread[]>([]);
+  const activeThreadId = writable<string | null>(null);
+  const isLoading = writable(false);
 
   return {
     threads: { subscribe: threads.subscribe },
     activeThreadId: { subscribe: activeThreadId.subscribe },
     isLoading: { subscribe: isLoading.subscribe },
 
-    activeThread: derived(
-      [threads, activeThreadId],
-      ([$threads, $activeThreadId]) =>
-        $threads.find(t => t.id === $activeThreadId)
+    activeThread: derived([threads, activeThreadId], ([$threads, $activeThreadId]) =>
+      $threads.find((t) => t.id === $activeThreadId),
     ),
 
     async loadThreads() {
-      isLoading.set(true)
+      isLoading.set(true);
       try {
         // Fetch from Moku API via IPC
-        const result = await window.electron.threads.getAll()
-        threads.set(result)
+        const result = await window.electron.threads.getAll();
+        threads.set(result);
       } finally {
-        isLoading.set(false)
+        isLoading.set(false);
       }
     },
 
     async createThread(provider: string, model: string) {
       // Create via Moku API
-      const result = await window.electron.threads.create({ provider, model })
-      threads.update(t => [...t, result])
-      activeThreadId.set(result.id)
-      return result
+      const result = await window.electron.threads.create({ provider, model });
+      threads.update((t) => [...t, result]);
+      activeThreadId.set(result.id);
+      return result;
     },
 
     async deleteThread(threadId: string) {
       // Delete via Moku API
-      await window.electron.threads.delete(threadId)
-      threads.update(t => t.filter(thread => thread.id !== threadId))
-      
-      const currentActive = get(activeThreadId)
+      await window.electron.threads.delete(threadId);
+      threads.update((t) => t.filter((thread) => thread.id !== threadId));
+
+      const currentActive = get(activeThreadId);
       if (currentActive === threadId) {
-        const remaining = get(threads)
-        activeThreadId.set(remaining[0]?.id || null)
+        const remaining = get(threads);
+        activeThreadId.set(remaining[0]?.id || null);
       }
     },
 
     setActiveThread(threadId: string) {
-      activeThreadId.set(threadId)
-    }
-  }
+      activeThreadId.set(threadId);
+    },
+  };
 }
 
-export const threadsStore = createThreadsStore()
+export const threadsStore = createThreadsStore();
 ```
 
 #### 5.1.3 Models Store
 
 ```typescript
 // lib/stores/models.ts
-import { writable, derived } from 'svelte/store'
+import { writable, derived } from 'svelte/store';
 
 interface Model {
-  id: string
-  name: string
-  provider: 'claude' | 'openai' | 'ollama'
-  contextWindow: number
-  supportsStreaming: boolean
+  id: string;
+  name: string;
+  provider: 'claude' | 'openai' | 'ollama';
+  contextWindow: number;
+  supportsStreaming: boolean;
 }
 
 function createModelsStore() {
-  const models = writable<Model[]>([])
-  const selectedModelId = writable<string | null>(null)
+  const models = writable<Model[]>([]);
+  const selectedModelId = writable<string | null>(null);
 
   return {
     models: { subscribe: models.subscribe },
     selectedModelId: { subscribe: selectedModelId.subscribe },
 
-    availableModels: derived(models, $models => $models),
-    
-    selectedModel: derived(
-      [models, selectedModelId],
-      ([$models, $selectedModelId]) =>
-        $models.find(m => m.id === $selectedModelId)
+    availableModels: derived(models, ($models) => $models),
+
+    selectedModel: derived([models, selectedModelId], ([$models, $selectedModelId]) =>
+      $models.find((m) => m.id === $selectedModelId),
     ),
 
     async loadModels() {
-      const result = await window.electron.models.getAvailable()
-      models.set(result)
-      
-      const current = get(selectedModelId)
+      const result = await window.electron.models.getAvailable();
+      models.set(result);
+
+      const current = get(selectedModelId);
       if (!current && result.length > 0) {
-        selectedModelId.set(result[0].id)
+        selectedModelId.set(result[0].id);
       }
     },
 
     setSelectedModel(modelId: string) {
-      selectedModelId.set(modelId)
-    }
-  }
+      selectedModelId.set(modelId);
+    },
+  };
 }
 
-export const modelsStore = createModelsStore()
+export const modelsStore = createModelsStore();
 ```
 
 ---
@@ -554,6 +540,7 @@ export const modelsStore = createModelsStore()
 The desktop application delegates all authentication to the existing Moku web SSO system, allowing users to sign in using Microsoft, Google, or standard OAuth2.0 accounts through the familiar web interface. The desktop app receives authentication tokens via a secure callback mechanism using custom protocol handling.
 
 **Key Benefits:**
+
 - Single source of truth for all authentication logic in Moku web
 - Consistent user experience across web and desktop platforms
 - Enhanced security with server-side OAuth handling
@@ -606,84 +593,81 @@ The desktop application delegates all authentication to the existing Moku web SS
 
 ```typescript
 // main/services/AuthService.ts
-import { BrowserWindow, shell } from 'electron'
-import crypto from 'crypto'
-import axios from 'axios'
+import { BrowserWindow, shell } from 'electron';
+import crypto from 'crypto';
+import axios from 'axios';
 
 export class AuthService {
-  private codeVerifier: string | null = null
-  
+  private codeVerifier: string | null = null;
+
   generatePKCEPair() {
     // Generate random code verifier
-    this.codeVerifier = crypto.randomBytes(32).toString('base64url')
-    
+    this.codeVerifier = crypto.randomBytes(32).toString('base64url');
+
     // Create code challenge
-    const codeChallenge = crypto
-      .createHash('sha256')
-      .update(this.codeVerifier)
-      .digest('base64url')
-    
-    return { codeVerifier: this.codeVerifier, codeChallenge }
+    const codeChallenge = crypto.createHash('sha256').update(this.codeVerifier).digest('base64url');
+
+    return { codeVerifier: this.codeVerifier, codeChallenge };
   }
-  
+
   async startOAuthFlow(): Promise<AuthResult> {
-    const { codeChallenge } = this.generatePKCEPair()
-    
-    const authUrl = new URL('https://auth.holokai.com/oauth/authorize')
-    authUrl.searchParams.set('client_id', process.env.OAUTH_CLIENT_ID!)
-    authUrl.searchParams.set('redirect_uri', 'holokai://callback')
-    authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('code_challenge', codeChallenge)
-    authUrl.searchParams.set('code_challenge_method', 'S256')
-    authUrl.searchParams.set('scope', 'read write')
-    
+    const { codeChallenge } = this.generatePKCEPair();
+
+    const authUrl = new URL('https://auth.holokai.com/oauth/authorize');
+    authUrl.searchParams.set('client_id', process.env.OAUTH_CLIENT_ID!);
+    authUrl.searchParams.set('redirect_uri', 'holokai://callback');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+    authUrl.searchParams.set('scope', 'read write');
+
     // Open in default browser
-    await shell.openExternal(authUrl.toString())
-    
+    await shell.openExternal(authUrl.toString());
+
     // The callback will be intercepted by protocol handler
     // Return promise that resolves when auth completes
     return new Promise((resolve) => {
       // Store resolver to be called by protocol handler
-      this.authResolver = resolve
-    })
+      this.authResolver = resolve;
+    });
   }
-  
+
   async exchangeCodeForTokens(code: string): Promise<TokenResponse> {
     const response = await axios.post('https://auth.holokai.com/oauth/token', {
       grant_type: 'authorization_code',
       code,
       code_verifier: this.codeVerifier,
       client_id: process.env.OAUTH_CLIENT_ID,
-      redirect_uri: 'holokai://callback'
-    })
-    
-    return response.data
+      redirect_uri: 'holokai://callback',
+    });
+
+    return response.data;
   }
-  
+
   async handleCallback(url: string) {
-    const urlObj = new URL(url)
-    const code = urlObj.searchParams.get('code')
-    
+    const urlObj = new URL(url);
+    const code = urlObj.searchParams.get('code');
+
     if (!code) {
-      this.authResolver?.({ success: false, error: 'No code received' })
-      return
+      this.authResolver?.({ success: false, error: 'No code received' });
+      return;
     }
-    
+
     try {
-      const tokens = await this.exchangeCodeForTokens(code)
-      const user = await this.fetchUserInfo(tokens.access_token)
-      
+      const tokens = await this.exchangeCodeForTokens(code);
+      const user = await this.fetchUserInfo(tokens.access_token);
+
       // Store tokens securely
-      await this.secureStorageService.setTokens(tokens)
-      
+      await this.secureStorageService.setTokens(tokens);
+
       this.authResolver?.({
         success: true,
         user,
         accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token
-      })
+        refreshToken: tokens.refresh_token,
+      });
     } catch (error) {
-      this.authResolver?.({ success: false, error: error.message })
+      this.authResolver?.({ success: false, error: error.message });
     }
   }
 }
@@ -693,57 +677,57 @@ export class AuthService {
 
 ```typescript
 // main/services/SecureStorageService.ts
-import { safeStorage } from 'electron'
-import Store from 'electron-store'
+import { safeStorage } from 'electron';
+import Store from 'electron-store';
 
 interface SecureData {
-  accessToken?: Buffer
-  refreshToken?: Buffer
-  apiKeys?: Record<string, Buffer>
+  accessToken?: Buffer;
+  refreshToken?: Buffer;
+  apiKeys?: Record<string, Buffer>;
 }
 
 export class SecureStorageService {
-  private store: Store<SecureData>
-  
+  private store: Store<SecureData>;
+
   constructor() {
     this.store = new Store({
       name: 'secure-storage',
-      encryptionKey: 'holokai-desktop-v1'
-    })
+      encryptionKey: 'holokai-desktop-v1',
+    });
   }
-  
+
   async setAccessToken(token: string) {
     if (safeStorage.isEncryptionAvailable()) {
-      const encrypted = safeStorage.encryptString(token)
-      this.store.set('accessToken', encrypted)
+      const encrypted = safeStorage.encryptString(token);
+      this.store.set('accessToken', encrypted);
     } else {
-      throw new Error('Encryption not available')
+      throw new Error('Encryption not available');
     }
   }
-  
+
   async getAccessToken(): Promise<string | null> {
-    const encrypted = this.store.get('accessToken')
-    if (!encrypted) return null
-    
-    return safeStorage.decryptString(encrypted)
+    const encrypted = this.store.get('accessToken');
+    if (!encrypted) return null;
+
+    return safeStorage.decryptString(encrypted);
   }
-  
+
   async setAPIKey(provider: string, apiKey: string) {
-    const keys = this.store.get('apiKeys', {})
-    keys[provider] = safeStorage.encryptString(apiKey)
-    this.store.set('apiKeys', keys)
+    const keys = this.store.get('apiKeys', {});
+    keys[provider] = safeStorage.encryptString(apiKey);
+    this.store.set('apiKeys', keys);
   }
-  
+
   async getAPIKey(provider: string): Promise<string | null> {
-    const keys = this.store.get('apiKeys', {})
-    const encrypted = keys[provider]
-    if (!encrypted) return null
-    
-    return safeStorage.decryptString(encrypted)
+    const keys = this.store.get('apiKeys', {});
+    const encrypted = keys[provider];
+    if (!encrypted) return null;
+
+    return safeStorage.decryptString(encrypted);
   }
-  
+
   clearAll() {
-    this.store.clear()
+    this.store.clear();
   }
 }
 ```
@@ -758,7 +742,7 @@ export class SecureStorageService {
 
 ```typescript
 // preload/index.ts
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron';
 
 // Expose protected methods to renderer
 contextBridge.exposeInMainWorld('electron', {
@@ -766,100 +750,95 @@ contextBridge.exposeInMainWorld('electron', {
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:start-oauth'),
     logout: () => ipcRenderer.invoke('auth:logout'),
-    refreshToken: (refreshToken: string) => 
-      ipcRenderer.invoke('auth:refresh-token', refreshToken),
-    getUser: () => ipcRenderer.invoke('auth:get-user')
+    refreshToken: (refreshToken: string) => ipcRenderer.invoke('auth:refresh-token', refreshToken),
+    getUser: () => ipcRenderer.invoke('auth:get-user'),
   },
-  
+
   // Thread operations
   threads: {
     getAll: () => ipcRenderer.invoke('threads:get-all'),
-    create: (data: CreateThreadData) => 
-      ipcRenderer.invoke('threads:create', data),
+    create: (data: CreateThreadData) => ipcRenderer.invoke('threads:create', data),
     delete: (id: string) => ipcRenderer.invoke('threads:delete', id),
-    update: (id: string, data: UpdateThreadData) => 
-      ipcRenderer.invoke('threads:update', id, data),
+    update: (id: string, data: UpdateThreadData) => ipcRenderer.invoke('threads:update', id, data),
     syncMessage: (threadId: string, message: any) =>
-      ipcRenderer.invoke('threads:syncMessage', threadId, message)
+      ipcRenderer.invoke('threads:syncMessage', threadId, message),
   },
-  
+
   // Model operations
   models: {
     getAvailable: () => ipcRenderer.invoke('models:get-available'),
     testConnection: (provider: string, apiKey: string) =>
-      ipcRenderer.invoke('models:test-connection', provider, apiKey)
+      ipcRenderer.invoke('models:test-connection', provider, apiKey),
   },
-  
+
   // Settings operations
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
-    set: (key: string, value: any) => 
-      ipcRenderer.invoke('settings:set', key, value),
-    getAll: () => ipcRenderer.invoke('settings:get-all')
+    set: (key: string, value: any) => ipcRenderer.invoke('settings:set', key, value),
+    getAll: () => ipcRenderer.invoke('settings:get-all'),
   },
-  
+
   // System operations
   system: {
     getVersion: () => ipcRenderer.invoke('system:get-version'),
     checkForUpdates: () => ipcRenderer.invoke('system:check-updates'),
-    openExternal: (url: string) => 
-      ipcRenderer.invoke('system:open-external', url)
-  }
-})
+    openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
+  },
+});
 ```
 
 #### 7.1.2 Main Process IPC Handlers
 
 ```typescript
 // main/ipc/handlers.ts
-import { ipcMain } from 'electron'
-import { AuthService } from '../services/AuthService'
-import { ThreadService } from '../services/ThreadService'
-import { ModelService } from '../services/ModelService'
+import { ipcMain } from 'electron';
+import { AuthService } from '../services/AuthService';
+import { ThreadService } from '../services/ThreadService';
+import { ModelService } from '../services/ModelService';
 
 export function registerIPCHandlers(
   authService: AuthService,
   threadService: ThreadService,
-  modelService: ModelService
+  modelService: ModelService,
 ) {
   // Auth handlers
   ipcMain.handle('auth:start-oauth', async () => {
-    return authService.startOAuthFlow()
-  })
-  
+    return authService.startOAuthFlow();
+  });
+
   ipcMain.handle('auth:logout', async () => {
-    return authService.logout()
-  })
-  
+    return authService.logout();
+  });
+
   ipcMain.handle('auth:refresh-token', async (_, refreshToken: string) => {
-    return authService.refreshAccessToken(refreshToken)
-  })
-  
+    return authService.refreshAccessToken(refreshToken);
+  });
+
   // Thread handlers - All data fetched from Moku API
   ipcMain.handle('threads:get-all', async () => {
-    return threadService.getAllThreads() // Calls Moku API
-  })
-  
+    return threadService.getAllThreads(); // Calls Moku API
+  });
+
   ipcMain.handle('threads:create', async (_, data: CreateThreadData) => {
-    return threadService.createThread(data) // Calls Moku API
-  })
-  
+    return threadService.createThread(data); // Calls Moku API
+  });
+
   ipcMain.handle('threads:delete', async (_, id: string) => {
-    return threadService.deleteThread(id) // Calls Moku API
-  })
+    return threadService.deleteThread(id); // Calls Moku API
+  });
 
   ipcMain.handle('threads:syncMessage', async (_, threadId: string, message: any) => {
-    return threadService.syncMessage(threadId, message) // Sends to Moku API
-  })
-  
+    return threadService.syncMessage(threadId, message); // Sends to Moku API
+  });
+
   // Model handlers
   ipcMain.handle('models:get-available', async () => {
-    return modelService.getAvailableModels()
-  })
-  
+    return modelService.getAvailableModels();
+  });
+
   ipcMain.handle('models:test-connection', async (_, provider: string, apiKey: string) => {
-    return modelService.testProviderConnection(provider, apiKey)
-  })
+    return modelService.testProviderConnection(provider, apiKey);
+  });
 }
 ```
 
@@ -869,27 +848,28 @@ The application integrates the `@holokai/chat-component` library, which handles 
 
 ```svelte
 <script lang="ts">
-  import { ChatWindow } from '@holokai/chat-component'
-  import { threadsStore } from '$lib/stores/threads'
-  import { modelsStore } from '$lib/stores/models'
-  import { onMount } from 'svelte'
-  
-  const { activeThread } = threadsStore
-  const { selectedModel } = modelsStore
-  
-  let apiKey = $state<string | null>(null)
-  
+  import { ChatWindow } from '@holokai/chat-component';
+  import { threadsStore } from '$lib/stores/threads';
+  import { modelsStore } from '$lib/stores/models';
+  import { onMount } from 'svelte';
+
+  const { activeThread } = threadsStore;
+  const { selectedModel } = modelsStore;
+
+  let apiKey = $state<string | null>(null);
+
   $effect(() => {
     if ($selectedModel) {
-      window.electron.settings.get(`apiKey_${$selectedModel.provider}`)
-        .then(key => apiKey = key)
+      window.electron.settings
+        .get(`apiKey_${$selectedModel.provider}`)
+        .then((key) => (apiKey = key));
     }
-  })
-  
+  });
+
   async function handleMessageSent(message: Message) {
     // Sync to Moku API via main process
     if ($activeThread) {
-      await window.electron.threads.syncMessage($activeThread.id, message)
+      await window.electron.threads.syncMessage($activeThread.id, message);
     }
   }
 </script>
@@ -916,29 +896,29 @@ All thread and message data is persisted to the Moku API. The main process inclu
 
 ```typescript
 // electron/services/MokuAPIClient.ts
-import axios, { AxiosInstance } from 'axios'
-import { app } from 'electron'
+import axios, { AxiosInstance } from 'axios';
+import { app } from 'electron';
 
 interface Thread {
-  id: string
-  title: string
-  provider: string
-  model: string
-  createdAt: string
-  updatedAt: string
+  id: string;
+  title: string;
+  provider: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Message {
-  id: string
-  threadId: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
+  id: string;
+  threadId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
 }
 
 export class MokuAPIClient {
-  private client: AxiosInstance
-  private accessToken: string | null = null
+  private client: AxiosInstance;
+  private accessToken: string | null = null;
 
   constructor(baseURL: string = 'https://api.holokai.com') {
     this.client = axios.create({
@@ -946,74 +926,70 @@ export class MokuAPIClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Holokai-Desktop/${app.getVersion()}`
-      }
-    })
+        'User-Agent': `Holokai-Desktop/${app.getVersion()}`,
+      },
+    });
 
     // Add auth interceptor
     this.client.interceptors.request.use((config) => {
       if (this.accessToken) {
-        config.headers.Authorization = `Bearer ${this.accessToken}`
+        config.headers.Authorization = `Bearer ${this.accessToken}`;
       }
-      return config
-    })
+      return config;
+    });
   }
 
   setAccessToken(token: string) {
-    this.accessToken = token
+    this.accessToken = token;
   }
 
   // Thread operations
   async getThreads(): Promise<Thread[]> {
-    const response = await this.client.get('/v1/threads')
-    return response.data
+    const response = await this.client.get('/v1/threads');
+    return response.data;
   }
 
   async getThread(threadId: string): Promise<Thread> {
-    const response = await this.client.get(`/v1/threads/${threadId}`)
-    return response.data
+    const response = await this.client.get(`/v1/threads/${threadId}`);
+    return response.data;
   }
 
-  async createThread(data: {
-    title?: string
-    provider: string
-    model: string
-  }): Promise<Thread> {
-    const response = await this.client.post('/v1/threads', data)
-    return response.data
+  async createThread(data: { title?: string; provider: string; model: string }): Promise<Thread> {
+    const response = await this.client.post('/v1/threads', data);
+    return response.data;
   }
 
   async updateThread(threadId: string, data: Partial<Thread>): Promise<Thread> {
-    const response = await this.client.patch(`/v1/threads/${threadId}`, data)
-    return response.data
+    const response = await this.client.patch(`/v1/threads/${threadId}`, data);
+    return response.data;
   }
 
   async deleteThread(threadId: string): Promise<void> {
-    await this.client.delete(`/v1/threads/${threadId}`)
+    await this.client.delete(`/v1/threads/${threadId}`);
   }
 
   // Message operations
   async getMessages(threadId: string): Promise<Message[]> {
-    const response = await this.client.get(`/v1/threads/${threadId}/messages`)
-    return response.data
+    const response = await this.client.get(`/v1/threads/${threadId}/messages`);
+    return response.data;
   }
 
-  async createMessage(threadId: string, message: {
-    role: 'user' | 'assistant'
-    content: string
-  }): Promise<Message> {
-    const response = await this.client.post(
-      `/v1/threads/${threadId}/messages`,
-      message
-    )
-    return response.data
+  async createMessage(
+    threadId: string,
+    message: {
+      role: 'user' | 'assistant';
+      content: string;
+    },
+  ): Promise<Message> {
+    const response = await this.client.post(`/v1/threads/${threadId}/messages`, message);
+    return response.data;
   }
 
   // Batch sync for offline support (future)
   async syncMessages(threadId: string, messages: Message[]): Promise<void> {
     await this.client.post(`/v1/threads/${threadId}/messages/batch`, {
-      messages
-    })
+      messages,
+    });
   }
 }
 ```
@@ -1024,64 +1000,64 @@ The main process service coordinates between IPC handlers and the Moku API:
 
 ```typescript
 // electron/services/ThreadService.ts
-import { MokuAPIClient } from './MokuAPIClient'
-import { SecureStorageService } from './SecureStorageService'
-import log from 'electron-log'
+import { MokuAPIClient } from './MokuAPIClient';
+import { SecureStorageService } from './SecureStorageService';
+import log from 'electron-log';
 
 export class ThreadService {
   constructor(
     private mokuAPI: MokuAPIClient,
-    private secureStorage: SecureStorageService
+    private secureStorage: SecureStorageService,
   ) {}
 
   async getAllThreads() {
     try {
-      log.info('Fetching all threads from Moku API')
-      const threads = await this.mokuAPI.getThreads()
-      log.info(`Retrieved ${threads.length} threads`)
-      return threads
+      log.info('Fetching all threads from Moku API');
+      const threads = await this.mokuAPI.getThreads();
+      log.info(`Retrieved ${threads.length} threads`);
+      return threads;
     } catch (error) {
-      log.error('Failed to fetch threads:', error)
-      throw new Error('Failed to load threads from server')
+      log.error('Failed to fetch threads:', error);
+      throw new Error('Failed to load threads from server');
     }
   }
 
   async createThread(data: { provider: string; model: string }) {
     try {
-      log.info('Creating new thread:', { provider: data.provider, model: data.model })
+      log.info('Creating new thread:', { provider: data.provider, model: data.model });
       const thread = await this.mokuAPI.createThread({
         title: 'New Conversation',
-        ...data
-      })
-      log.info('Thread created:', thread.id)
-      return thread
+        ...data,
+      });
+      log.info('Thread created:', thread.id);
+      return thread;
     } catch (error) {
-      log.error('Failed to create thread:', error)
-      throw new Error('Failed to create thread')
+      log.error('Failed to create thread:', error);
+      throw new Error('Failed to create thread');
     }
   }
 
   async deleteThread(threadId: string) {
     try {
-      log.info('Deleting thread:', threadId)
-      await this.mokuAPI.deleteThread(threadId)
-      log.info('Thread deleted:', threadId)
+      log.info('Deleting thread:', threadId);
+      await this.mokuAPI.deleteThread(threadId);
+      log.info('Thread deleted:', threadId);
     } catch (error) {
-      log.error('Failed to delete thread:', error)
-      throw new Error('Failed to delete thread')
+      log.error('Failed to delete thread:', error);
+      throw new Error('Failed to delete thread');
     }
   }
 
   async syncMessage(threadId: string, message: any) {
     try {
-      log.info('Syncing message to Moku API:', { threadId, role: message.role })
+      log.info('Syncing message to Moku API:', { threadId, role: message.role });
       await this.mokuAPI.createMessage(threadId, {
         role: message.role,
-        content: message.content
-      })
-      log.info('Message synced successfully')
+        content: message.content,
+      });
+      log.info('Message synced successfully');
     } catch (error) {
-      log.error('Failed to sync message:', error)
+      log.error('Failed to sync message:', error);
       // Don't throw - allow chat to continue even if sync fails
       // Could implement retry queue here for offline resilience
     }
@@ -1136,11 +1112,11 @@ const mainWindow = new BrowserWindow({
     sandbox: true,
     webSecurity: true,
     allowRunningInsecureContent: false,
-    
+
     // Preload script
-    preload: path.join(__dirname, 'preload.js')
-  }
-})
+    preload: path.join(__dirname, 'preload.js'),
+  },
+});
 
 // Set CSP headers
 mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -1156,11 +1132,11 @@ mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) 
         "font-src 'self' data:",
         "object-src 'none'",
         "base-uri 'self'",
-        "form-action 'self'"
-      ].join('; ')
-    }
-  })
-})
+        "form-action 'self'",
+      ].join('; '),
+    },
+  });
+});
 ```
 
 ---
@@ -1326,11 +1302,7 @@ VITE_APP_VERSION=1.0.0
       "output": "dist",
       "buildResources": "resources"
     },
-    "files": [
-      "dist-electron/**/*",
-      "dist/**/*",
-      "package.json"
-    ],
+    "files": ["dist-electron/**/*", "dist/**/*", "package.json"],
     "mac": {
       "category": "public.app-category.productivity",
       "target": ["dmg", "zip"],
@@ -1357,18 +1329,18 @@ VITE_APP_VERSION=1.0.0
 
 ```typescript
 // electron/main.ts
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater } from 'electron-updater';
 
 // Configure auto-updater
-autoUpdater.checkForUpdatesAndNotify()
+autoUpdater.checkForUpdatesAndNotify();
 
 autoUpdater.on('update-available', () => {
   // Notify user
-})
+});
 
 autoUpdater.on('update-downloaded', () => {
   // Prompt user to restart
-})
+});
 ```
 
 ---
@@ -1379,9 +1351,9 @@ autoUpdater.on('update-downloaded', () => {
 
 ```typescript
 // tests/unit/stores/auth.spec.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { get } from 'svelte/store'
-import { authStore } from '$lib/stores/auth'
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { get } from 'svelte/store';
+import { authStore } from '$lib/stores/auth';
 
 describe('Auth Store', () => {
   beforeEach(() => {
@@ -1390,96 +1362,96 @@ describe('Auth Store', () => {
       electron: {
         auth: {
           startOAuthFlow: vi.fn(),
-          logout: vi.fn()
-        }
-      }
-    })
-  })
-  
+          logout: vi.fn(),
+        },
+      },
+    });
+  });
+
   it('should initialize with null user', () => {
-    const state = get(authStore)
-    expect(state.user).toBeNull()
-  })
-  
+    const state = get(authStore);
+    expect(state.user).toBeNull();
+  });
+
   it('should set user on successful login', async () => {
-    const mockUser = { id: '1', email: 'test@test.com', name: 'Test' }
-    
+    const mockUser = { id: '1', email: 'test@test.com', name: 'Test' };
+
     window.electron.auth.startOAuthFlow.mockResolvedValue({
       success: true,
       user: mockUser,
       accessToken: 'token123',
-      refreshToken: 'refresh123'
-    })
-    
-    await authStore.login()
-    
-    const state = get(authStore)
-    expect(state.user).toEqual(mockUser)
-  })
-})
+      refreshToken: 'refresh123',
+    });
+
+    await authStore.login();
+
+    const state = get(authStore);
+    expect(state.user).toEqual(mockUser);
+  });
+});
 ```
 
 ### 12.2 Component Tests
 
 ```typescript
 // tests/unit/components/ThreadList.spec.ts
-import { render, fireEvent } from '@testing-library/svelte'
-import { describe, it, expect, vi } from 'vitest'
-import ThreadList from '$lib/components/threads/ThreadList.svelte'
-import { threadsStore } from '$lib/stores/threads'
+import { render, fireEvent } from '@testing-library/svelte';
+import { describe, it, expect, vi } from 'vitest';
+import ThreadList from '$lib/components/threads/ThreadList.svelte';
+import { threadsStore } from '$lib/stores/threads';
 
 describe('ThreadList', () => {
   it('renders threads from store', () => {
-    const { getAllByTestId } = render(ThreadList)
-    
+    const { getAllByTestId } = render(ThreadList);
+
     // Mock threads in store
     threadsStore.threads.set([
       { id: '1', title: 'Thread 1', createdAt: '2025-01-01' },
-      { id: '2', title: 'Thread 2', createdAt: '2025-01-02' }
-    ])
-    
-    expect(getAllByTestId('thread-item')).toHaveLength(2)
-  })
-  
+      { id: '2', title: 'Thread 2', createdAt: '2025-01-02' },
+    ]);
+
+    expect(getAllByTestId('thread-item')).toHaveLength(2);
+  });
+
   it('calls selectThread when thread is clicked', async () => {
-    const selectThreadSpy = vi.spyOn(threadsStore, 'setActiveThread')
-    
-    const { getByTestId } = render(ThreadList)
-    const threadItem = getByTestId('thread-item')
-    
-    await fireEvent.click(threadItem)
-    
-    expect(selectThreadSpy).toHaveBeenCalled()
-  })
-})
+    const selectThreadSpy = vi.spyOn(threadsStore, 'setActiveThread');
+
+    const { getByTestId } = render(ThreadList);
+    const threadItem = getByTestId('thread-item');
+
+    await fireEvent.click(threadItem);
+
+    expect(selectThreadSpy).toHaveBeenCalled();
+  });
+});
 ```
 
 ### 12.3 E2E Tests (Playwright)
 
 ```typescript
 // tests/e2e/auth.spec.ts
-import { test, expect, _electron as electron } from '@playwright/test'
+import { test, expect, _electron as electron } from '@playwright/test';
 
 test('complete authentication flow', async () => {
-  const app = await electron.launch({ args: ['.'] })
-  const window = await app.firstWindow()
-  
+  const app = await electron.launch({ args: ['.'] });
+  const window = await app.firstWindow();
+
   // Should show login screen
-  await expect(window.locator('text=Sign in')).toBeVisible()
-  
+  await expect(window.locator('text=Sign in')).toBeVisible();
+
   // Click sign in button
-  await window.click('button:has-text("Sign in with OAuth")')
-  
+  await window.click('button:has-text("Sign in with OAuth")');
+
   // Mock OAuth callback
   await app.evaluate(({ ipcMain }) => {
-    ipcMain.emit('auth:callback', null, 'holokai://callback?code=test123')
-  })
-  
+    ipcMain.emit('auth:callback', null, 'holokai://callback?code=test123');
+  });
+
   // Should show main app
-  await expect(window.locator('text=New Thread')).toBeVisible()
-  
-  await app.close()
-})
+  await expect(window.locator('text=New Thread')).toBeVisible();
+
+  await app.close();
+});
 ```
 
 ---
@@ -1490,15 +1462,13 @@ test('complete authentication flow', async () => {
 
 ```svelte
 <script lang="ts">
-  import { threadsStore } from '$lib/stores/threads'
-  
+  import { threadsStore } from '$lib/stores/threads';
+
   // Fine-grained reactivity with runes
-  let activeThread = $derived(
-    $threadsStore.find(t => t.id === $activeThreadId)
-  )
-  
+  let activeThread = $derived($threadsStore.find((t) => t.id === $activeThreadId));
+
   // Computed values are automatically memoized
-  let threadCount = $derived($threadsStore.length)
+  let threadCount = $derived($threadsStore.length);
 </script>
 ```
 
@@ -1506,18 +1476,18 @@ test('complete authentication flow', async () => {
 
 ```svelte
 <script lang="ts">
-  import { onMount } from 'svelte'
-  
-  let SettingsModal
-  let showSettings = $state(false)
-  
+  import { onMount } from 'svelte';
+
+  let SettingsModal;
+  let showSettings = $state(false);
+
   async function openSettings() {
     if (!SettingsModal) {
       // Lazy load component
-      const module = await import('$lib/components/settings/SettingsModal.svelte')
-      SettingsModal = module.default
+      const module = await import('$lib/components/settings/SettingsModal.svelte');
+      SettingsModal = module.default;
     }
-    showSettings = true
+    showSettings = true;
   }
 </script>
 
@@ -1530,19 +1500,14 @@ test('complete authentication flow', async () => {
 
 ```svelte
 <script lang="ts">
-  import { VirtualList } from 'svelte-virtual-scroll-list'
-  import { threadsStore } from '$lib/stores/threads'
-  import ThreadItem from './ThreadItem.svelte'
-  
-  const { threads } = threadsStore
+  import { VirtualList } from 'svelte-virtual-scroll-list';
+  import { threadsStore } from '$lib/stores/threads';
+  import ThreadItem from './ThreadItem.svelte';
+
+  const { threads } = threadsStore;
 </script>
 
-<VirtualList
-  data={$threads}
-  key="id"
-  itemHeight={72}
-  component={ThreadItem}
-/>
+<VirtualList data={$threads} key="id" itemHeight={72} component={ThreadItem} />
 ```
 
 ---
@@ -1576,19 +1541,19 @@ test('complete authentication flow', async () => {
 
 ## Appendix A: Glossary
 
-| Term | Definition |
-|------|------------|
-| **Context Bridge** | Electron API for secure IPC between main and renderer |
-| **PKCE** | Proof Key for Code Exchange - OAuth security extension |
-| **IPC** | Inter-Process Communication between Electron processes |
-| **Renderer Process** | Chromium process running UI code |
-| **Main Process** | Node.js process managing app lifecycle |
-| **Custom Protocol** | App-specific URL scheme (holokai://) |
-| **Provider Pattern** | Design pattern for pluggable implementations |
-| **Runes** | Svelte 5's signals-based reactivity primitives |
-| **Derived State** | Computed values that update automatically |
-| **Store** | Reactive state container in Svelte |
-| **AppData** | User-specific application data directory |
+| Term                 | Definition                                             |
+| -------------------- | ------------------------------------------------------ |
+| **Context Bridge**   | Electron API for secure IPC between main and renderer  |
+| **PKCE**             | Proof Key for Code Exchange - OAuth security extension |
+| **IPC**              | Inter-Process Communication between Electron processes |
+| **Renderer Process** | Chromium process running UI code                       |
+| **Main Process**     | Node.js process managing app lifecycle                 |
+| **Custom Protocol**  | App-specific URL scheme (holokai://)                   |
+| **Provider Pattern** | Design pattern for pluggable implementations           |
+| **Runes**            | Svelte 5's signals-based reactivity primitives         |
+| **Derived State**    | Computed values that update automatically              |
+| **Store**            | Reactive state container in Svelte                     |
+| **AppData**          | User-specific application data directory               |
 
 ---
 
@@ -1607,19 +1572,20 @@ test('complete authentication flow', async () => {
 
 **Document Control**
 
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 1.0 | 2025-10-14 | Architecture Team | Initial version (Svelte variant) |
+| Version | Date       | Author            | Changes                          |
+| ------- | ---------- | ----------------- | -------------------------------- |
+| 1.0     | 2025-10-14 | Architecture Team | Initial version (Svelte variant) |
 
 ---
 
 **Approval**
 
 This document requires approval from:
+
 - [ ] Technical Lead
 - [ ] Security Team
 - [ ] Product Owner
 
 ---
 
-*End of Document*
+_End of Document_

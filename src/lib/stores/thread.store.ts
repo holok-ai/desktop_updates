@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import type { Thread } from '../../../src-electron/preload';
 
 interface ThreadStore {
-  subscribe: (run: (value: Thread[]) => void) => (() => void);
+  subscribe: (run: (value: Thread[]) => void) => () => void;
   setThreads: (threads: Thread[]) => void;
   addThread: (thread: Thread) => void;
   updateThread: (updatedThread: Thread) => void;
@@ -16,16 +16,14 @@ function createThreadStore(): ThreadStore {
     subscribe,
     setThreads: (threads: Thread[]): void => set(threads),
     addThread: (thread: Thread): void => {
-      update(threads => [...threads, thread]);
+      update((threads) => [...threads, thread]);
     },
     updateThread: (updatedThread: Thread): void => {
-      update(threads =>
-        threads.map(t => t.id === updatedThread.id ? updatedThread : t)
-      );
+      update((threads) => threads.map((t) => (t.id === updatedThread.id ? updatedThread : t)));
     },
     deleteThread: (threadId: string): void => {
-      update(threads => threads.filter(t => t.id !== threadId));
-    }
+      update((threads) => threads.filter((t) => t.id !== threadId));
+    },
   };
 }
 

@@ -15,7 +15,8 @@ module.exports = {
         },
         schema: [],
         messages: {
-          invalidChannelName: 'IPC channel name "{{name}}" must use colon notation (e.g., "auth:login")',
+          invalidChannelName:
+            'IPC channel name "{{name}}" must use colon notation (e.g., "auth:login")',
         },
       },
       create(context) {
@@ -61,7 +62,10 @@ module.exports = {
           ClassDeclaration(node) {
             if (node.id && node.id.name.endsWith('Service')) {
               const filename = context.getFilename();
-              if (!filename.includes('src-electron/services/') && !filename.includes('src-electron\\services\\')) {
+              if (
+                !filename.includes('src-electron/services/') &&
+                !filename.includes('src-electron\\services\\')
+              ) {
                 context.report({
                   node: node.id,
                   messageId: 'wrongLocation',
@@ -119,20 +123,27 @@ module.exports = {
       },
       create(context) {
         const sensitivePatterns = [
-          'password', 'token', 'secret', 'key', 'apiKey', 
-          'authorization', 'bearer', 'credential', 'auth'
+          'password',
+          'token',
+          'secret',
+          'key',
+          'apiKey',
+          'authorization',
+          'bearer',
+          'credential',
+          'auth',
         ];
-        
+
         return {
           ThrowStatement(node) {
             if (node.argument && node.argument.type === 'NewExpression') {
               const args = node.argument.arguments;
               if (args.length > 0 && args[0].type === 'TemplateLiteral') {
                 const expressions = args[0].expressions;
-                expressions.forEach(expr => {
+                expressions.forEach((expr) => {
                   if (expr.type === 'Identifier') {
                     const varName = expr.name.toLowerCase();
-                    if (sensitivePatterns.some(pattern => varName.includes(pattern))) {
+                    if (sensitivePatterns.some((pattern) => varName.includes(pattern))) {
                       context.report({
                         node: expr,
                         messageId: 'sensitiveData',
@@ -171,7 +182,7 @@ module.exports = {
             ) {
               let parent = node.parent;
               let inTryCatch = false;
-              
+
               while (parent) {
                 if (parent.type === 'TryStatement') {
                   inTryCatch = true;
@@ -179,7 +190,7 @@ module.exports = {
                 }
                 parent = parent.parent;
               }
-              
+
               if (!inTryCatch) {
                 context.report({
                   node,
@@ -203,22 +214,24 @@ module.exports = {
         },
         schema: [],
         messages: {
-          directApiCall: 'UI components should not make direct API calls. Use service classes instead.',
+          directApiCall:
+            'UI components should not make direct API calls. Use service classes instead.',
         },
       },
       create(context) {
         return {
           CallExpression(node) {
             const filename = context.getFilename();
-            const isUIComponent = filename.includes('/ui/') || filename.includes('\\ui\\') || 
-                                 filename.endsWith('.svelte');
-            
+            const isUIComponent =
+              filename.includes('/ui/') ||
+              filename.includes('\\ui\\') ||
+              filename.endsWith('.svelte');
+
             if (isUIComponent) {
               // Check for fetch or axios calls
               if (
-                (node.callee.name === 'fetch') ||
-                (node.callee.type === 'MemberExpression' && 
-                 node.callee.object.name === 'axios')
+                node.callee.name === 'fetch' ||
+                (node.callee.type === 'MemberExpression' && node.callee.object.name === 'axios')
               ) {
                 context.report({
                   node,

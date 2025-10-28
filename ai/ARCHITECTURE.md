@@ -1,4 +1,4 @@
-## 1. Overview 
+## 1. Overview
 
 ## 2. Architecture Overview
 
@@ -109,26 +109,27 @@ UI Re-render (Angular change detection)
 
 ### 3.1 Core Technologies
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Electron** | 28.x | Desktop app framework |
-| **Angular** | 18.x | UI framework with standalone components |
-| **NgRx Signals** | 18.x | Lightweight reactive state management |
-| **TypeScript** | 5.3.x | Type safety |
-| **Electron Builder** | 24.x | Packaging & distribution |
+| Technology           | Version | Purpose                                 |
+| -------------------- | ------- | --------------------------------------- |
+| **Electron**         | 28.x    | Desktop app framework                   |
+| **Angular**          | 18.x    | UI framework with standalone components |
+| **NgRx Signals**     | 18.x    | Lightweight reactive state management   |
+| **TypeScript**       | 5.3.x   | Type safety                             |
+| **Electron Builder** | 24.x    | Packaging & distribution                |
 
 ### 3.2 UI & Styling
 
-| Technology | Purpose |
-|------------|---------|
-| **Tailwind CSS** | Utility-first styling (shared with Moku web) |
+| Technology                | Purpose                                      |
+| ------------------------- | -------------------------------------------- |
+| **Tailwind CSS**          | Utility-first styling (shared with Moku web) |
 | **Holokai Design Tokens** | Consistent theming via CSS custom properties |
-| **PrimeNG** | Angular UI component library |
-| **Lucide Angular** | Icon library |
+| **PrimeNG**               | Angular UI component library                 |
+| **Lucide Angular**        | Icon library                                 |
 
 ### 3.3 Key Dependencies
 
 **Production Dependencies:**
+
 - `@angular/core`, `@angular/common`, `@angular/router` (^18.0.0) - Angular framework
 - `@ngrx/signals` (^18.0.0) - State management
 - `@holokai/chat-component` (^1.0.0) - Chat functionality
@@ -139,6 +140,7 @@ UI Re-render (Angular change detection)
 - `axios` (^1.6.0) - HTTP client
 
 **Development Dependencies:**
+
 - `@angular-devkit/build-angular`, `@angular/cli`, `@angular/compiler-cli` (^18.0.0) - Build tools
 - `electron` (^28.0.0) - Desktop framework
 - `electron-builder` (^24.9.0) - Packaging
@@ -156,7 +158,7 @@ The main process will use a ContextBridge with groupings to logically organize f
 
 ```typescript
 // src-electron/preload.ts
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron';
 
 // Expose protected methods to renderer
 contextBridge.exposeInMainWorld('electron', {
@@ -164,111 +166,105 @@ contextBridge.exposeInMainWorld('electron', {
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:start-oauth'),
     logout: () => ipcRenderer.invoke('auth:logout'),
-    refreshToken: (refreshToken: string) => 
-      ipcRenderer.invoke('auth:refresh-token', refreshToken),
-    getUser: () => ipcRenderer.invoke('auth:get-user')
+    refreshToken: (refreshToken: string) => ipcRenderer.invoke('auth:refresh-token', refreshToken),
+    getUser: () => ipcRenderer.invoke('auth:get-user'),
   },
-  
+
   // Thread operations
   threads: {
     getAll: () => ipcRenderer.invoke('threads:get-all'),
-    create: (data: CreateThreadData) => 
-      ipcRenderer.invoke('threads:create', data),
+    create: (data: CreateThreadData) => ipcRenderer.invoke('threads:create', data),
     delete: (id: string) => ipcRenderer.invoke('threads:delete', id),
-    update: (id: string, data: UpdateThreadData) => 
-      ipcRenderer.invoke('threads:update', id, data),
+    update: (id: string, data: UpdateThreadData) => ipcRenderer.invoke('threads:update', id, data),
     syncMessage: (threadId: string, message: any) =>
-      ipcRenderer.invoke('threads:syncMessage', threadId, message)
+      ipcRenderer.invoke('threads:syncMessage', threadId, message),
   },
-  
+
   // Model operations
   models: {
     getAvailable: () => ipcRenderer.invoke('models:get-available'),
     testConnection: (provider: string, apiKey: string) =>
-      ipcRenderer.invoke('models:test-connection', provider, apiKey)
+      ipcRenderer.invoke('models:test-connection', provider, apiKey),
   },
-  
+
   // Settings operations
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
-    set: (key: string, value: any) => 
-      ipcRenderer.invoke('settings:set', key, value),
-    getAll: () => ipcRenderer.invoke('settings:get-all')
+    set: (key: string, value: any) => ipcRenderer.invoke('settings:set', key, value),
+    getAll: () => ipcRenderer.invoke('settings:get-all'),
   },
-  
+
   // System operations
   system: {
     getVersion: () => ipcRenderer.invoke('system:get-version'),
     checkForUpdates: () => ipcRenderer.invoke('system:check-updates'),
-    openExternal: (url: string) => 
-      ipcRenderer.invoke('system:open-external', url)
-  }
-})
+    openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
+  },
+});
 ```
 
-### 4.2 IPC Handlers Use Service Classes 
+### 4.2 IPC Handlers Use Service Classes
 
-The IPC Handler Process will use service classes (or another design pattern if appropriate) for each Context Bridge grouping. For example, all Thread  operations are performed in a Thread service class. 
+The IPC Handler Process will use service classes (or another design pattern if appropriate) for each Context Bridge grouping. For example, all Thread operations are performed in a Thread service class.
 
 ```typescript
 // src-electron/ipc/handlers.ts
-import { ipcMain } from 'electron'
-import { AuthService } from '../services/AuthService'
-import { ThreadService } from '../services/ThreadService'
-import { ModelService } from '../services/ModelService'
+import { ipcMain } from 'electron';
+import { AuthService } from '../services/AuthService';
+import { ThreadService } from '../services/ThreadService';
+import { ModelService } from '../services/ModelService';
 
 export function registerIPCHandlers(
   authService: AuthService,
   threadService: ThreadService,
-  modelService: ModelService
+  modelService: ModelService,
 ) {
   // Auth handlers
   ipcMain.handle('auth:start-oauth', async () => {
-    return authService.startOAuthFlow()
-  })
-  
+    return authService.startOAuthFlow();
+  });
+
   ipcMain.handle('auth:logout', async () => {
-    return authService.logout()
-  })
-  
+    return authService.logout();
+  });
+
   ipcMain.handle('auth:refresh-token', async (_, refreshToken: string) => {
-    return authService.refreshAccessToken(refreshToken)
-  })
-  
+    return authService.refreshAccessToken(refreshToken);
+  });
+
   // Thread handlers - All data fetched from Moku API
   ipcMain.handle('threads:get-all', async () => {
-    return threadService.getAllThreads() // Calls Moku API
-  })
-  
+    return threadService.getAllThreads(); // Calls Moku API
+  });
+
   ipcMain.handle('threads:create', async (_, data: CreateThreadData) => {
-    return threadService.createThread(data) // Calls Moku API
-  })
-  
+    return threadService.createThread(data); // Calls Moku API
+  });
+
   ipcMain.handle('threads:delete', async (_, id: string) => {
-    return threadService.deleteThread(id) // Calls Moku API
-  })
+    return threadService.deleteThread(id); // Calls Moku API
+  });
 
   ipcMain.handle('threads:syncMessage', async (_, threadId: string, message: any) => {
-    return threadService.syncMessage(threadId, message) // Sends to Moku API
-  })
-  
+    return threadService.syncMessage(threadId, message); // Sends to Moku API
+  });
+
   // Model handlers
   ipcMain.handle('models:get-available', async () => {
-    return modelService.getAvailableModels()
-  })
-  
+    return modelService.getAvailableModels();
+  });
+
   ipcMain.handle('models:test-connection', async (_, provider: string, apiKey: string) => {
-    return modelService.testProviderConnection(provider, apiKey)
-  })
+    return modelService.testProviderConnection(provider, apiKey);
+  });
 }
 ```
 
-# 5. Render Process 
+# 5. Render Process
 
+## 5.1 Using Services to Access IPCs
 
-## 5.1 Using Services to Access IPCs 
-
-The Render process should use a "Service Wrapper + Facade Pattern" for communicating with the host process via IPC. 
+The Render process should use a "Service Wrapper + Facade Pattern" for communicating with the host process via IPC.
 
 Key Points:
 Service wrappers: One service per IPC domain, one method per IPC call - focused and single-purpose
@@ -309,6 +305,7 @@ No menu-specific code in component!
 ### 5.2.3 Implementation Pattern
 
 **MenuNavigationService Responsibilities:**
+
 - Listen to ALL menu events from main process via Context Bridge
 - Translate menu commands into Angular Router navigation
 - Decide whether to navigate to new route or refresh current route
@@ -316,6 +313,7 @@ No menu-specific code in component!
 - Centralize all menu logic in one place
 
 **Example Menu Handler:**
+
 ```typescript
 private setupFileMenuHandlers(): void {
   // Menu: File → Get Threads
@@ -328,7 +326,7 @@ private setupFileMenuHandlers(): void {
       this.router.navigate(['/threads']);
     }
   });
-  
+
   // Menu: File → New Thread
   window.electron.menu.onNewThread(() => {
     // Navigate and pass state to open dialog
@@ -340,6 +338,7 @@ private setupFileMenuHandlers(): void {
 ```
 
 **Route Reloading Pattern:**
+
 ```typescript
 private reloadCurrentRoute(): void {
   const currentUrl = this.router.url;
@@ -355,12 +354,14 @@ private reloadCurrentRoute(): void {
 ### 5.2.4 Component Design (Menu-Agnostic)
 
 Components are designed to work identically whether activated by:
+
 - Route navigation (user clicks link/button)
 - Menu command (user clicks Electron menu)
 - Deep link (custom protocol URL)
 - Programmatic navigation
 
 **Pattern:**
+
 ```typescript
 @Component({ ... })
 export class ThreadListComponent implements OnInit {
@@ -384,6 +385,7 @@ export class ThreadListComponent implements OnInit {
 ```
 
 **Benefits:**
+
 - ✅ Components have zero menu-specific code
 - ✅ All menu logic centralized in MenuNavigationService
 - ✅ Easy to test components (no menu dependencies)
@@ -393,12 +395,14 @@ export class ThreadListComponent implements OnInit {
 ### 5.2.5 Routing Configuration
 
 The application uses **hash-based routing** (`#/`) which is recommended for Electron:
+
 - Works with `file://` protocol without server configuration
 - No need for server-side rewrites
 - Deep linking support
 - Browser history API works normally
 
 **Configuration:**
+
 ```typescript
 bootstrapApplication(AppComponent, {
   providers: [
@@ -407,9 +411,9 @@ bootstrapApplication(AppComponent, {
       // Enable hash routing
       withHashLocation(),
       // Allow reloading same route (for menu refresh commands)
-      withRouterConfig({ onSameUrlNavigation: 'reload' })
-    )
-  ]
+      withRouterConfig({ onSameUrlNavigation: 'reload' }),
+    ),
+  ],
 });
 ```
 
@@ -435,49 +439,53 @@ MenuNavigationService is initialized at app startup via `APP_INITIALIZER` to ens
 
 Example of an expected menu to route mapping is below:
 
-| Menu Command | Route Action | Component Behavior |
-|--------------|--------------|--------------------|
-| File → Get Threads | Navigate to `/threads` | Loads thread list |
-| File → New Thread | Navigate to `/threads` + state | Opens create dialog |
-| File → Settings | Navigate to `/settings` | Shows settings |
-| File → Refresh | Reload current route | Re-runs ngOnInit |
-| Recent → Thread X | Navigate to `/thread/:id` | Shows thread detail |
+| Menu Command       | Route Action                   | Component Behavior  |
+| ------------------ | ------------------------------ | ------------------- |
+| File → Get Threads | Navigate to `/threads`         | Loads thread list   |
+| File → New Thread  | Navigate to `/threads` + state | Opens create dialog |
+| File → Settings    | Navigate to `/settings`        | Shows settings      |
+| File → Refresh     | Reload current route           | Re-runs ngOnInit    |
+| Recent → Thread X  | Navigate to `/thread/:id`      | Shows thread detail |
 
 ### 5.2.8 Design Principles
 
 **Separation of Concerns:**
+
 - **Frontend Router**: Handles UI navigation within renderer process
 - **IPC Communication**: Handles data fetching between renderer and main
 - **Menu Service**: Translates menu commands to router actions
 - These layers are separate and should not be conflated
 
 **Component Responsibilities:**
+
 - Components focus on WHAT to do (display data, handle user input)
 - Components don't care HOW they were activated (route, menu, etc.)
 - Data loading happens in ngOnInit regardless of activation source
 
 **Trigger-Agnostic Design:**
+
 - Same component code works for route navigation and menu commands
 - No conditional logic based on activation source
 - Single data loading method used by all triggers
 
-## 5.1.1  Service Wrappers 
+## 5.1.1 Service Wrappers
 
-Service wrappers are thin Angular services that directly correspond to IPC domains (auth, threads, models) from the Contect Bridge. Each service method wraps exactly one IPC call with type safety, error handling, and retry logic. Service wrappers are used for CRUD operations, simple actions and small sets of method calls. 
+Service wrappers are thin Angular services that directly correspond to IPC domains (auth, threads, models) from the Contect Bridge. Each service method wraps exactly one IPC call with type safety, error handling, and retry logic. Service wrappers are used for CRUD operations, simple actions and small sets of method calls.
 
-## 5.1.2  Facade plus Service Wrappers 
+## 5.1.2 Facade plus Service Wrappers
 
 For complex service interaction, a Facade should be used. Facades orchestrate multiple service wrappers to handle complex multi-step workflows, coordinating timing, error recovery, and state management across several operations behind a simplified API.
 
 # 6. Auditting and Local Logging
 
-Implement two types of logging: 
-auditting - uses the Holo audit service 
-local logging - logs startup, loading, configuration, communication and fatal errors 
+Implement two types of logging:
+auditting - uses the Holo audit service
+local logging - logs startup, loading, configuration, communication and fatal errors
 
 ## 6.1 Auditting
 
 Write events and actions to the Holokai Audit Q. These include:
+
 - application start up and shut down
 - user SSO login, redirect, revokje, and logout
 - prompt-response activities such as chat, thread and project
@@ -486,10 +494,11 @@ Write events and actions to the Holokai Audit Q. These include:
 ## 6.2 Logging
 
 Write events to the local log file such as:
+
 - application start up and shut down
 - dependency load and version information
 - communication connection success and failures
-- host resource access 
+- host resource access
 
 **Application logging should be created in the main process and made available to the render process using preload.**
 
@@ -509,19 +518,22 @@ Log files are automatically managed by electron-log and stored in the OS-specifi
 
 ## 7. LLM Requirements
 
-The desktop application must support integration with multiple Large Language Model (LLM) providers through a unified abstraction layer. 
+The desktop application must support integration with multiple Large Language Model (LLM) providers through a unified abstraction layer.
 
 ### 7.1 Multi-Provider Support
 
 **REQ-LLM-01: Provider Abstraction Interface**
-The application shall implement a provider-agnostic interface (`IChatProvider`) that standardizes chat operations across all LLM providers. 
+The application shall implement a provider-agnostic interface (`IChatProvider`) that standardizes chat operations across all LLM providers.
 
 Each provider implementation must support both streaming and non-streaming response modes.
 
 ```typescript
 interface IChatProvider {
   chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
-  chatWithOptions(request: ChatRequestWithOptions, onTokenReceived?: (token: string) => void): Promise<void>;
+  chatWithOptions(
+    request: ChatRequestWithOptions,
+    onTokenReceived?: (token: string) => void,
+  ): Promise<void>;
 }
 ```
 
@@ -539,23 +551,23 @@ The application shall preserve complete conversation context across all LLM inte
 ### 7.3 Performance Auditing
 
 **REQ-LLM-05: Token Metrics Collection**
-The application shall collect  performance metrics for each LLM interaction, including prompt token count, completion token count, total tokens, time to first token, total duration, and tokens per second.
+The application shall collect performance metrics for each LLM interaction, including prompt token count, completion token count, total tokens, time to first token, total duration, and tokens per second.
 
 **REQ-LLM-06: Audit Data Persistence**
-The application shall support audit logging of LLM prompts and responses by either application logging or autid logging. 
+The application shall support audit logging of LLM prompts and responses by either application logging or autid logging.
 
 ### 7.4 File and Content Handling
 
 **REQ-LLM-07: Multi-Modal Input Support**
-The application shall support attachment of files to LLM prompts, with automatic detection of text vs. binary files and appropriate encoding (UTF-8 for text, Base64 for binary) before transmission to providers. The application shall support uploading images for processing by image generating LLMs, such as 
+The application shall support attachment of files to LLM prompts, with automatic detection of text vs. binary files and appropriate encoding (UTF-8 for text, Base64 for binary) before transmission to providers. The application shall support uploading images for processing by image generating LLMs, such as
 
 **REQ-LLM-08: Markdown and Code Rendering**
 The application shall render LLM responses with proper markdown formatting and syntax-highlighted code blocks using marked.js for mark down text and prism.js for syntax highlighting of common programming languages including JavaScript, TypeScript, Python, CSS, and Bash.
 
 **REQ-LLM-09: Image Rendering**
-The application should support rendering LLM responses as images when the response format is returned as a base64-encoded image rather than text. 
+The application should support rendering LLM responses as images when the response format is returned as a base64-encoded image rather than text.
 
-Note: this design should use the same IChatProvider interface and provide a handler for the response format, rather than creating an IImageProvider interface for image generating models like Gemini 2.5 Flash Image/"nano-bananas". 
+Note: this design should use the same IChatProvider interface and provide a handler for the response format, rather than creating an IImageProvider interface for image generating models like Gemini 2.5 Flash Image/"nano-bananas".
 
 ### 7.5 Error Handling and Recovery
 
@@ -582,6 +594,7 @@ The application shall gracefully handle provider-specific errors with appropriat
 ### 8.2 Electron Security Configuration
 
 **BrowserWindow Settings:**
+
 - nodeIntegration: false
 - contextIsolation: true
 - sandbox: true
@@ -591,6 +604,7 @@ The application shall gracefully handle provider-specific errors with appropriat
 
 **Content Security Policy Headers:**
 Applied via session.webRequest.onHeadersReceived interceptor:
+
 - default-src 'self'
 - script-src 'self'
 - style-src 'self' 'unsafe-inline' (required for Angular/Tailwind)
@@ -604,6 +618,7 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 ### 8.3 Data Protection
 
 **Sensitive Data Handling:**
+
 - API keys never passed through renderer process
 - Tokens stored encrypted in main process only
 - Passwords never logged or persisted
@@ -679,6 +694,7 @@ The desktop application uses an **Exchange Code Flow** for secure authentication
 **Step 1: Desktop Detects No Token**
 
 On first launch or after token expiration, the desktop app detects it lacks a valid access token. It spawns the system default browser to:
+
 ```
 https://moku.holokai.app/login/desktop
 ```
@@ -700,6 +716,7 @@ POST /api/auth/apiKey
 ```
 
 Response:
+
 ```json
 {
   "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ"
@@ -717,6 +734,7 @@ Body: { "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ" }
 ```
 
 Response:
+
 ```json
 {
   "code": "exc_xyz123abc456"
@@ -736,6 +754,7 @@ holokai://home?code=exc_xyz123abc456
 Desktop's custom protocol handler (registered at app startup) intercepts the redirect.
 
 Electron main process:
+
 - Listens for `open-url` event
 - Extracts query parameter: `code=exc_xyz123abc456`
 - Passes code to AuthService for token exchange
@@ -751,6 +770,7 @@ Body: { "code": "exc_xyz123abc456" }
 ```
 
 Response:
+
 ```json
 {
   "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ"
@@ -758,6 +778,7 @@ Response:
 ```
 
 Error responses:
+
 - 401 if code not found
 - 401 if code expired
 - 401 if code already used
@@ -773,6 +794,7 @@ Body: { "apiKey": "eyJhbGc...[JWT-TOKEN]...XYZ" }
 ```
 
 Response:
+
 ```json
 {
   "accessToken": "eyJhbGc...[JWT-WITH-APP-ACCESS]...XYZ"
@@ -786,7 +808,7 @@ Desktop app stores the accessToken securely:
 ```typescript
 // In-memory (Main Process)
 this.accessToken = accessToken;
-this.tokenExpiresAt = Date.now() + (3600 * 1000) - (60 * 1000); // 1-hour minus 60s buffer
+this.tokenExpiresAt = Date.now() + 3600 * 1000 - 60 * 1000; // 1-hour minus 60s buffer
 
 // Persistent (Encrypted via OS)
 await store.set('moku_access_token', accessToken);
@@ -821,11 +843,13 @@ Body: { "apiKey": "<cached-api-key>" }
 ### 9.4 Secure Token Storage
 
 **Access Token Storage:**
+
 - **In-Memory**: Main process keeps current accessToken in memory
 - **Expiration Tracking**: Calculated as `now + expiresIn - 60s` (1-minute safety buffer)
 - **Never Persisted**: Access tokens are NOT written to disk
 
 **API Key Storage (Optional):**
+
 - Desktop may optionally cache the apiKey briefly for token refresh
 - If cached, stored in Electron Store (can be encrypted via OS)
 - Should expire after 24 hours or on app restart
@@ -840,79 +864,76 @@ export class AuthService {
   private accessToken: string | null = null;
   private tokenExpiresAt: number | null = null;
   private apiKey: string | null = null; // Optional, short-lived cache
-  
+
   async exchangeCodeForTokens(code: string): Promise<void> {
     try {
       // Exchange code for apiKey
       const exchangeResponse = await axios.post(
         'https://api.moku.holokai.app/api/auth/exchange-code',
-        { code }
+        { code },
       );
       const apiKey = exchangeResponse.data.apiKey;
-      
+
       // Cache apiKey briefly (optional)
       this.apiKey = apiKey;
-      
+
       // Exchange apiKey for accessToken
       const tokenResponse = await axios.post(
         'https://api.moku.holokai.app/api/auth/token/refresh',
-        { apiKey }
+        { apiKey },
       );
-      
+
       const { accessToken, expires_in } = tokenResponse.data;
-      
+
       // Store tokens
       this.accessToken = accessToken;
-      this.tokenExpiresAt = Date.now() + (expires_in * 1000) - (60 * 1000);
-      
+      this.tokenExpiresAt = Date.now() + expires_in * 1000 - 60 * 1000;
+
       // Notify renderer that auth succeeded
-      BrowserWindow.getAllWindows().forEach(window => {
+      BrowserWindow.getAllWindows().forEach((window) => {
         window.webContents.send('auth:success', { userId: extractUserFromToken(accessToken) });
       });
-      
     } catch (error) {
       logger.error('Token exchange failed', error);
       this.cleanup();
       throw error;
     }
   }
-  
+
   async refreshAccessToken(): Promise<void> {
     if (this.isTokenValid()) {
       return; // Token still valid, no refresh needed
     }
-    
+
     if (!this.apiKey && !this.hasStoredApiKey()) {
       // No apiKey available - need full re-authentication
       throw new Error('Re-authentication required');
     }
-    
+
     try {
-      const apiKey = this.apiKey || await store.get('cached_api_key');
-      const response = await axios.post(
-        'https://api.moku.holokai.app/api/auth/token/refresh',
-        { apiKey }
-      );
-      
+      const apiKey = this.apiKey || (await store.get('cached_api_key'));
+      const response = await axios.post('https://api.moku.holokai.app/api/auth/token/refresh', {
+        apiKey,
+      });
+
       const { accessToken, expires_in } = response.data;
       this.accessToken = accessToken;
-      this.tokenExpiresAt = Date.now() + (expires_in * 1000) - (60 * 1000);
-      
+      this.tokenExpiresAt = Date.now() + expires_in * 1000 - 60 * 1000;
     } catch (error) {
       logger.error('Token refresh failed', error);
       this.cleanup();
       throw error;
     }
   }
-  
+
   isTokenValid(): boolean {
     return this.accessToken && this.tokenExpiresAt && Date.now() < this.tokenExpiresAt;
   }
-  
+
   getAccessToken(): string {
     return this.accessToken || '';
   }
-  
+
   private cleanup(): void {
     this.accessToken = null;
     this.tokenExpiresAt = null;
@@ -926,6 +947,7 @@ export class AuthService {
 
 **Windows (Registry):**
 Electron Builder automatically creates registry entries during installation:
+
 ```
 HKEY_CURRENT_USER\Software\Classes\holokai
   @= "URL: Holokai Protocol"
@@ -935,6 +957,7 @@ HKEY_CURRENT_USER\Software\Classes\holokai
 ```
 
 **macOS (Info.plist):**
+
 ```xml
 <key>CFBundleURLTypes</key>
 <array>
@@ -950,6 +973,7 @@ HKEY_CURRENT_USER\Software\Classes\holokai
 ```
 
 **Linux (Desktop Entry):**
+
 ```ini
 [Desktop Entry]
 Name=Holokai
@@ -961,26 +985,31 @@ MimeType=x-scheme-handler/holokai
 ### 9.6 Error Scenarios
 
 **Browser Launch Fails:**
+
 - Display error: "Unable to open browser. Check your default browser settings."
 - User can copy custom protocol URL manually
 - Log error with system info
 
 **User Closes Browser Without Logging In:**
+
 - Desktop detects no callback after 5+ minute timeout
 - Show: "Login window closed. Please try again."
 - Allow user to retry authentication
 
 **Exchange Code Expired:**
+
 - Desktop receives 401: "Code expired"
 - Show: "Login took too long. Please try again."
 - User restarts authentication flow
 
 **Code Already Used (Replay Attack):**
+
 - First exchange succeeds
 - Subsequent attempts with same code return 401
 - Main process prevents accidental reuse
 
 **Invalid API Key:**
+
 - Exchange code returns valid apiKey
 - But token refresh fails with 401
 - Show: "Login failed. Please try again."
@@ -999,23 +1028,27 @@ MimeType=x-scheme-handler/holokai
 ### 9.8 Security Considerations
 
 **HTTPS Enforcement:**
+
 - All Moku API calls use HTTPS only
 - Desktop validates SSL certificates
 - No insecure HTTP fallback
 
 **Code Security:**
+
 - Exchange code is cryptographically random (256-bit)
 - 5-minute TTL prevents brute force attacks
 - One-time use prevents replay attacks
 - Invalidated immediately after successful exchange
 
 **Token Security:**
+
 - Access tokens never logged or exposed
 - Short-lived (1 hour) reduces window of compromise
 - API key briefly cached only for token refresh
 - Stored in OS credential managers when persisted
 
 **Session Security:**
+
 - Server-side session expires after timeout
 - Browser login creates isolated session
 - No cookies shared between browser and desktop
@@ -1023,14 +1056,11 @@ MimeType=x-scheme-handler/holokai
 
 ### 9.9 Required Endpoints
 
-| Endpoint | Method | Input | Output | Called By | Notes |
-|----------|--------|-------|--------|-----------|-------|
-| `/api/auth/apiKey` | GET | None | `{ apiKey: "jwt" }` | Moku Web | User must be authenticated |
-| `/api/auth/generate-exchange-code` | POST | `{ apiKey: "jwt" }` | `{ code: "xyz" }` | Moku Web | Generates one-time code (5 min TTL) |
-| `/api/auth/exchange-code` | POST | `{ code: "xyz" }` | `{ apiKey: "jwt" }` | Desktop App | Invalidates code after use |
-| `/api/auth/token/refresh` | POST | `{ apiKey: "jwt" }` | `{ accessToken: "jwt" }` | Desktop App | Adds app permissions to token |
+| Endpoint                           | Method | Input               | Output                   | Called By   | Notes                               |
+| ---------------------------------- | ------ | ------------------- | ------------------------ | ----------- | ----------------------------------- |
+| `/api/auth/apiKey`                 | GET    | None                | `{ apiKey: "jwt" }`      | Moku Web    | User must be authenticated          |
+| `/api/auth/generate-exchange-code` | POST   | `{ apiKey: "jwt" }` | `{ code: "xyz" }`        | Moku Web    | Generates one-time code (5 min TTL) |
+| `/api/auth/exchange-code`          | POST   | `{ code: "xyz" }`   | `{ apiKey: "jwt" }`      | Desktop App | Invalidates code after use          |
+| `/api/auth/token/refresh`          | POST   | `{ apiKey: "jwt" }` | `{ accessToken: "jwt" }` | Desktop App | Adds app permissions to token       |
 
 ---
-
-
-

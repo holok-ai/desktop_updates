@@ -14,18 +14,18 @@
     cleanups.push(
       window.electronAPI.onMenuCommand('menu:new-thread', () => {
         currentPage = 'threads';
-      })
+      }),
     );
 
     cleanups.push(
       window.electronAPI.onMenuCommand('menu:refresh', () => {
         // Trigger refresh
         window.location.reload();
-      })
+      }),
     );
 
     return () => {
-      cleanups.forEach(cleanup => cleanup());
+      cleanups.forEach((cleanup) => cleanup());
     };
   });
 
@@ -37,7 +37,7 @@
 <div class="layout">
   <Header />
   <div class="main-container">
-    <Navbar {currentPage} on:navigate={(e) => navigateTo(e.detail)} />
+    <Navbar {currentPage} onnavigate={(page) => navigateTo(page as 'home' | 'threads')} />
     <main class="content">
       {#if currentPage === 'home'}
         <Home />

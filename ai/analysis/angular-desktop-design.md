@@ -155,26 +155,27 @@ UI Re-render (Angular change detection)
 
 ### 3.1 Core Technologies
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Electron** | 28.x | Desktop app framework |
-| **Angular** | 18.x | UI framework with standalone components |
-| **NgRx Signals** | 18.x | Lightweight reactive state management |
-| **TypeScript** | 5.3.x | Type safety |
-| **Electron Builder** | 24.x | Packaging & distribution |
+| Technology           | Version | Purpose                                 |
+| -------------------- | ------- | --------------------------------------- |
+| **Electron**         | 28.x    | Desktop app framework                   |
+| **Angular**          | 18.x    | UI framework with standalone components |
+| **NgRx Signals**     | 18.x    | Lightweight reactive state management   |
+| **TypeScript**       | 5.3.x   | Type safety                             |
+| **Electron Builder** | 24.x    | Packaging & distribution                |
 
 ### 3.2 UI & Styling
 
-| Technology | Purpose |
-|------------|---------|
-| **Tailwind CSS** | Utility-first styling (shared with Moku web) |
+| Technology                | Purpose                                      |
+| ------------------------- | -------------------------------------------- |
+| **Tailwind CSS**          | Utility-first styling (shared with Moku web) |
 | **Holokai Design Tokens** | Consistent theming via CSS custom properties |
-| **PrimeNG** | Angular UI component library |
-| **Lucide Angular** | Icon library |
+| **PrimeNG**               | Angular UI component library                 |
+| **Lucide Angular**        | Icon library                                 |
 
 ### 3.3 Key Dependencies
 
 **Production Dependencies:**
+
 - `@angular/core`, `@angular/common`, `@angular/router` (^18.0.0) - Angular framework
 - `@ngrx/signals` (^18.0.0) - State management
 - `@holokai/chat-component` (^1.0.0) - Chat functionality
@@ -185,6 +186,7 @@ UI Re-render (Angular change detection)
 - `axios` (^1.6.0) - HTTP client
 
 **Development Dependencies:**
+
 - `@angular-devkit/build-angular`, `@angular/cli`, `@angular/compiler-cli` (^18.0.0) - Build tools
 - `electron` (^28.0.0) - Desktop framework
 - `electron-builder` (^24.9.0) - Packaging
@@ -236,6 +238,7 @@ AppComponent (Root)
 **Purpose:** Full-screen authentication interface displayed when user is not authenticated.
 
 **Responsibilities:**
+
 - Display OAuth login button
 - Handle loading state during authentication
 - Call AuthStore.login() method
@@ -248,6 +251,7 @@ AppComponent (Root)
 **Purpose:** Display scrollable list of all chat threads with selection and deletion capabilities.
 
 **Responsibilities:**
+
 - Render thread items from ThreadsStore
 - Handle thread selection via click events
 - Support thread deletion with confirmation
@@ -261,6 +265,7 @@ AppComponent (Root)
 **Purpose:** Dropdown for selecting AI provider and model.
 
 **Responsibilities:**
+
 - Display available models from ModelsStore
 - Update selected model on change
 - Group models by provider
@@ -273,6 +278,7 @@ AppComponent (Root)
 **Purpose:** Integration wrapper for @holokai/chat-component library.
 
 **Responsibilities:**
+
 - Configure chat component with active model and thread
 - Load API key for selected provider from secure storage
 - Handle message sent events and sync to Moku API
@@ -293,14 +299,17 @@ NgRx Signals provides lightweight, reactive state management with fine-grained r
 #### 5.2.1 AuthStore
 
 **State:**
+
 - user (User object with id, email, name)
 - accessToken (encrypted OAuth token)
 - refreshToken (for token renewal)
 
 **Computed:**
+
 - isAuthenticated (derived from user and accessToken presence)
 
 **Methods:**
+
 - login() - Initiates OAuth flow via IPC
 - logout() - Clears tokens and user data
 - refreshAccessToken() - Renews expired access token
@@ -310,15 +319,18 @@ NgRx Signals provides lightweight, reactive state management with fine-grained r
 #### 5.2.2 ThreadsStore
 
 **State:**
+
 - threads (array of Thread objects)
 - activeThreadId (currently selected thread)
 - isLoading (fetch/operation state)
 
 **Computed:**
+
 - activeThread (finds thread by activeThreadId)
 - sortedThreads (threads sorted by updatedAt desc)
 
 **Methods:**
+
 - loadThreads() - Fetches all threads from Moku API
 - createThread(provider, model) - Creates new thread and sets as active
 - deleteThread(threadId) - Removes thread and adjusts active selection
@@ -329,15 +341,18 @@ NgRx Signals provides lightweight, reactive state management with fine-grained r
 #### 5.2.3 ModelsStore
 
 **State:**
+
 - models (array of available Model objects)
 - selectedModelId (currently selected model)
 
 **Computed:**
+
 - selectedModel (finds model by selectedModelId)
 - availableModels (all models array)
 - modelsByProvider (models grouped by provider)
 
 **Methods:**
+
 - loadModels() - Fetches available models from main process
 - setSelectedModel(modelId) - Updates selected model
 
@@ -352,6 +367,7 @@ NgRx Signals provides lightweight, reactive state management with fine-grained r
 The desktop application delegates all authentication to the existing Moku web SSO system, allowing users to sign in using Microsoft, Google, or standard OAuth2.0 accounts through the familiar web interface. The desktop app receives authentication tokens via a secure callback mechanism using custom protocol handling.
 
 **Key Benefits:**
+
 - Single source of truth for all authentication logic in Moku web
 - Consistent user experience across web and desktop platforms
 - Enhanced security with server-side OAuth handling
@@ -387,6 +403,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 #### 6.1.2 Main Process Components
 
 **AuthService:**
+
 - Manages OAuth flow lifecycle
 - Generates PKCE challenge pairs
 - Opens system browser for authentication
@@ -395,6 +412,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 - Fetches user profile information
 
 **Custom Protocol Handler:**
+
 - Registers holokai:// protocol with OS
 - Intercepts OAuth redirect callbacks
 - Extracts authorization code from URL
@@ -405,6 +423,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 ### 6.2 Secure Token Storage
 
 **SecureStorageService:**
+
 - Uses Electron safeStorage API for encryption
 - Stores encrypted tokens in electron-store
 - Provides get/set methods for tokens and API keys
@@ -412,6 +431,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 - Checks encryption availability before storing
 
 **Storage Strategy:**
+
 - Access tokens encrypted with OS-level encryption (Keychain on macOS, Credential Vault on Windows)
 - Refresh tokens stored separately from access tokens
 - API keys per provider stored in separate keys
@@ -430,6 +450,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 **Purpose:** Secure bridge between renderer and main process using contextBridge API.
 
 **Exposed APIs:**
+
 - auth (startOAuthFlow, logout, refreshToken, getUser)
 - threads (getAll, create, delete, update, syncMessage)
 - models (getAvailable, testConnection)
@@ -446,6 +467,7 @@ The desktop application delegates all authentication to the existing Moku web SS
 All IPC handlers registered in main process startup using ipcMain.handle(). Each handler delegates to appropriate service class.
 
 **Handler Categories:**
+
 - Authentication handlers (OAuth flow, logout, token refresh)
 - Thread management (CRUD operations via Moku API)
 - Model operations (list available, test connections)
@@ -463,6 +485,7 @@ All handlers wrap operations in try-catch and return structured responses with s
 The @holokai/chat-component library is integrated as a standalone Angular component. The desktop app wraps it in ChatContainerComponent.
 
 **Configuration:**
+
 - Provider and model from ModelsStore
 - API key loaded from secure storage via settings IPC
 - ThreadId from ThreadsStore
@@ -479,6 +502,7 @@ When user sends message, ChatWindowComponent emits messageSent event. Desktop ap
 RESTful HTTP client for all thread and message persistence operations.
 
 **API Endpoints:**
+
 - GET /v1/threads (list all threads)
 - POST /v1/threads (create thread)
 - GET /v1/threads/:id (get single thread)
@@ -502,6 +526,7 @@ Failed requests logged and thrown. No local fallback - all persistence requires 
 Coordinates between IPC handlers and MokuAPIClient. Adds logging and error translation.
 
 **Methods:**
+
 - getAllThreads() - Fetches threads from API, logs count
 - createThread(data) - Creates thread, logs result
 - deleteThread(threadId) - Deletes thread, logs success
@@ -546,6 +571,7 @@ The application implements two distinct logging systems:
 ### 8.2 Electron Security Configuration
 
 **BrowserWindow Settings:**
+
 - nodeIntegration: false
 - contextIsolation: true
 - sandbox: true
@@ -555,6 +581,7 @@ The application implements two distinct logging systems:
 
 **Content Security Policy Headers:**
 Applied via session.webRequest.onHeadersReceived interceptor:
+
 - default-src 'self'
 - script-src 'self'
 - style-src 'self' 'unsafe-inline' (required for Angular/Tailwind)
@@ -568,6 +595,7 @@ Applied via session.webRequest.onHeadersReceived interceptor:
 ### 8.3 Data Protection
 
 **Sensitive Data Handling:**
+
 - API keys never passed through renderer process
 - Tokens stored encrypted in main process only
 - Passwords never logged or persisted
@@ -591,7 +619,8 @@ The Holokai Desktop application maximizes code reuse from the Moku web project l
 **Location:** `C:\projects\repos\holokai\moku\web\src\styles\tokens.css`
 
 **Contains:**
-- Complete color system via CSS custom properties (--color-primary, --color-secondary, --surface-*, etc.)
+
+- Complete color system via CSS custom properties (--color-primary, --color-secondary, --surface-\*, etc.)
 - Typography scale (--h1-size through --h6-size, --body-lg-size, etc.)
 - Font weights (--weight-regular, --weight-semibold, etc.)
 - Spacing system (--grid-sm, --grid-md, --grid-lg, --grid-xl)
@@ -609,6 +638,7 @@ Reference tokens.css directly in angular.json styles array using relative path t
 **Location:** `C:\projects\repos\holokai\moku\web\tailwind.config.js`
 
 **Contains:**
+
 - Responsive breakpoints (sm: 481px, md: 769px, lg: 1280px)
 - Extended color palette mapped to CSS custom properties
 - Extended spacing scale mapped to grid units
@@ -625,6 +655,7 @@ Copy tailwind.config.js from Moku web to desktop project. Update content paths t
 #### 9.2.3 Additional Shared Styles
 
 **Shareable Files from moku/web/src/styles:**
+
 - `core.css` - Base resets and global styles
 - `components.css` - Common component patterns
 - `dark.css` - Dark mode theme variables
@@ -638,6 +669,7 @@ Import shared styles in desktop styles.css using @import or add to angular.json 
 #### 9.3.1 Type Definitions
 
 **Shareable Types:**
+
 - User interface (id, email, name, role)
 - Thread interface (id, title, createdAt, updatedAt, provider, model)
 - Message interface (id, threadId, role, content, timestamp)
@@ -651,6 +683,7 @@ Create shared TypeScript package or use path mapping in tsconfig.json to referen
 #### 9.3.2 Utility Functions
 
 **Shareable Utilities:**
+
 - Date formatting functions
 - String manipulation (truncate, sanitize)
 - Validation helpers (email, URL)
@@ -663,6 +696,7 @@ Extract shared utilities to separate package or reference via path aliases. Ensu
 #### 9.3.3 HTTP Client Interceptors
 
 **Shareable Interceptors:**
+
 - Authentication token injection
 - Error handling and retry logic
 - Request/response logging
@@ -679,6 +713,7 @@ Adapt Angular interceptors from Moku web for use in desktop renderer process. Re
 Moku web uses PrimeNG for UI components. Desktop app uses same PrimeNG version with identical theme configuration.
 
 **Shareable Assets:**
+
 - PrimeNG theme customization CSS
 - Component override styles from `primeng-overrides.css`
 - Table styling from `primeng-table.css`
@@ -693,6 +728,7 @@ Use same PrimeNG version (^17.0.0) and import same override stylesheets. This en
 **Library Location:** Separate package published to npm or referenced via local path.
 
 **Shared Functionality:**
+
 - Complete chat UI (message list, input, streaming indicator)
 - Provider abstraction (ClaudeChatProvider, OpenAIChatProvider, OllamaChatProvider)
 - Message rendering with markdown support
@@ -705,6 +741,7 @@ Both web and desktop applications import @holokai/chat-component. Desktop provid
 ### 9.5 Assets and Icons
 
 **Shared Assets:**
+
 - Brand logos and wordmarks
 - Lucide icon set (via lucide-angular package)
 - Empty state illustrations
@@ -868,6 +905,7 @@ Required environment variables: OAuth client ID, OAuth redirect URI (holokai://c
 ### 12.1 Build Configuration
 
 Electron Builder configuration includes:
+
 - Application ID (com.holokai.desktop)
 - Product name (Holokai)
 - Build directories for output and resources
@@ -876,12 +914,14 @@ Electron Builder configuration includes:
 ### 12.2 Code Signing
 
 **macOS:**
+
 - Developer ID certificate required
 - Hardened runtime enabled
 - Entitlements file for security features
 - Notarization for Gatekeeper
 
 **Windows:**
+
 - Code signing certificate (EV preferred)
 - Timestamp server for long-term validity
 
@@ -900,6 +940,7 @@ Electron Updater integration for automatic update checks. App checks for updates
 **Framework:** Jasmine + Karma for Angular components and services.
 
 **Coverage:**
+
 - Component logic and template bindings
 - Store state management (signals, computed, methods)
 - Service methods and error handling
@@ -910,6 +951,7 @@ Electron Updater integration for automatic update checks. App checks for updates
 ### 13.2 Integration Testing
 
 **Focus:**
+
 - IPC communication between renderer and main process
 - Store coordination with components
 - API client integration with services
@@ -922,6 +964,7 @@ Electron Updater integration for automatic update checks. App checks for updates
 **Framework:** Playwright with Electron support.
 
 **Test Scenarios:**
+
 - Complete authentication flow
 - Thread creation and deletion
 - Model switching
@@ -932,6 +975,7 @@ Electron Updater integration for automatic update checks. App checks for updates
 ### 13.4 Security Testing
 
 **Manual Audits:**
+
 - CSP policy validation
 - IPC surface area review
 - Token storage encryption verification
@@ -946,17 +990,20 @@ Electron Updater integration for automatic update checks. App checks for updates
 ### 14.1 Angular Performance
 
 **Change Detection:**
+
 - OnPush strategy for all components
 - Signals for fine-grained reactivity
 - Avoid template expressions, use computed signals
 - Minimize component tree depth
 
 **Lazy Loading:**
+
 - Route-level code splitting (if routing used)
 - Dynamic component loading for modals
 - Defer heavy libraries until needed
 
 **Bundle Optimization:**
+
 - Tree shaking for unused code
 - PrimeNG component cherry-picking
 - Source map generation only in dev
@@ -964,10 +1011,12 @@ Electron Updater integration for automatic update checks. App checks for updates
 ### 14.2 Rendering Optimization
 
 **Virtual Scrolling:**
+
 - Implement virtual scroll for thread list with many items
 - CDK virtual scroll for message list in long threads
 
 **Throttling/Debouncing:**
+
 - Debounce search inputs
 - Throttle scroll event handlers
 - Rate limit API calls
@@ -975,22 +1024,26 @@ Electron Updater integration for automatic update checks. App checks for updates
 ### 14.3 Data Management
 
 **Caching:**
+
 - Cache thread list in ThreadsStore
 - Cache model list in ModelsStore
 - Invalidate on mutations
 
 **Pagination:**
+
 - Load messages in batches for long threads
 - Infinite scroll for thread history
 
 ### 14.4 Electron-Specific
 
 **Process Management:**
+
 - Keep main process lean, avoid heavy computation
 - Use worker threads for CPU-intensive tasks if needed
 - Minimize IPC call frequency
 
 **Memory Management:**
+
 - Limit message history in renderer
 - Clear unused component references
 - Monitor heap size in production
@@ -1035,20 +1088,20 @@ Electron Updater integration for automatic update checks. App checks for updates
 
 ## Appendix A: Glossary
 
-| Term | Definition |
-|------|------------|
-| **Context Bridge** | Electron API for secure IPC between main and renderer |
-| **PKCE** | Proof Key for Code Exchange - OAuth security extension |
-| **IPC** | Inter-Process Communication between Electron processes |
-| **Renderer Process** | Chromium process running UI code (Angular app) |
-| **Main Process** | Node.js process managing app lifecycle and native APIs |
-| **Custom Protocol** | App-specific URL scheme (holokai://) for OAuth callbacks |
-| **NgRx Signals** | Lightweight reactive state management for Angular |
-| **Signal** | Fine-grained reactive primitive in Angular/NgRx |
-| **Computed** | Derived value that updates automatically from signals |
-| **Standalone Component** | Angular component without NgModule |
-| **safeStorage** | Electron API for OS-level credential encryption |
-| **AppData** | User-specific application data directory |
+| Term                     | Definition                                               |
+| ------------------------ | -------------------------------------------------------- |
+| **Context Bridge**       | Electron API for secure IPC between main and renderer    |
+| **PKCE**                 | Proof Key for Code Exchange - OAuth security extension   |
+| **IPC**                  | Inter-Process Communication between Electron processes   |
+| **Renderer Process**     | Chromium process running UI code (Angular app)           |
+| **Main Process**         | Node.js process managing app lifecycle and native APIs   |
+| **Custom Protocol**      | App-specific URL scheme (holokai://) for OAuth callbacks |
+| **NgRx Signals**         | Lightweight reactive state management for Angular        |
+| **Signal**               | Fine-grained reactive primitive in Angular/NgRx          |
+| **Computed**             | Derived value that updates automatically from signals    |
+| **Standalone Component** | Angular component without NgModule                       |
+| **safeStorage**          | Electron API for OS-level credential encryption          |
+| **AppData**              | User-specific application data directory                 |
 
 ---
 
@@ -1069,19 +1122,20 @@ Electron Updater integration for automatic update checks. App checks for updates
 
 **Document Control**
 
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 1.0 | 2025-10-15 | Architecture Team | Initial version (Angular variant) |
+| Version | Date       | Author            | Changes                           |
+| ------- | ---------- | ----------------- | --------------------------------- |
+| 1.0     | 2025-10-15 | Architecture Team | Initial version (Angular variant) |
 
 ---
 
 **Approval**
 
 This document requires approval from:
+
 - [ ] Technical Lead
 - [ ] Security Team
 - [ ] Product Owner
 
 ---
 
-*End of Document*
+_End of Document_

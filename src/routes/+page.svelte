@@ -12,14 +12,17 @@
 
 <div class="home">
   <h1>Welcome to Holokai Desktop</h1>
-  <p>This is a reference implementation demonstrating best practices for building Electron applications with Svelte.</p>
-  
+  <p>
+    This is a reference implementation demonstrating best practices for building Electron
+    applications with Svelte.
+  </p>
+
   <div class="system-info">
     <h2>System Information</h2>
     <p><strong>Platform:</strong> {platform}</p>
     <p><strong>Electron Version:</strong> {version}</p>
   </div>
-  
+
   <div class="features">
     <h2>Features Demonstrated:</h2>
     <ul>
@@ -46,7 +49,8 @@
     color: #666;
   }
 
-  .system-info, .features {
+  .system-info,
+  .features {
     margin-top: 2rem;
     padding: 1.5rem;
     background: white;
@@ -55,7 +59,8 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
-  .system-info h2, .features h2 {
+  .system-info h2,
+  .features h2 {
     color: #333;
     margin-bottom: 1rem;
   }

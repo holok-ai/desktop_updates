@@ -23,8 +23,10 @@ export default [
       '.cache/**',
       'logs/**',
       '.eslintrc.*.js',
-      'eslint-plugin-holokai/**'
-    ]
+      'eslint-plugin-holokai/**',
+      'scripts/**',
+      'analyze-eslint.cjs',
+    ],
   },
 
   // Base ESLint recommended rules
@@ -39,17 +41,17 @@ export default [
         ecmaVersion: 'latest',
         sourceType: 'module',
         project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         ...globals.browser,
         ...globals.node,
-        ...globals.es2022
-      }
+        ...globals.es2022,
+      },
     },
     plugins: {
       '@typescript-eslint': typescript,
-      security
+      security,
     },
     rules: {
       ...typescript.configs['recommended'].rules,
@@ -58,16 +60,22 @@ export default [
       ...security.configs.recommended.rules,
 
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/explicit-function-return-type': ['error', {
-        allowExpressions: true,
-        allowTypedFunctionExpressions: true,
-        allowHigherOrderFunctions: true
-      }],
-      '@typescript-eslint/strict-boolean-expressions': ['error', {
-        allowString: false,
-        allowNumber: false,
-        allowNullableObject: false
-      }],
+      '@typescript-eslint/explicit-function-return-type': [
+        'error',
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+          allowHigherOrderFunctions: true,
+        },
+      ],
+      '@typescript-eslint/strict-boolean-expressions': [
+        'error',
+        {
+          allowString: false,
+          allowNumber: false,
+          allowNullableObject: false,
+        },
+      ],
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-call': 'error',
@@ -77,79 +85,88 @@ export default [
         {
           selector: 'variable',
           format: ['camelCase'],
-          leadingUnderscore: 'allow'
+          leadingUnderscore: 'allow',
         },
         {
           selector: 'variable',
           modifiers: ['const'],
           format: ['camelCase', 'UPPER_CASE'],
-          leadingUnderscore: 'allow'
+          leadingUnderscore: 'allow',
         },
         {
           selector: 'variable',
           types: ['boolean'],
           format: ['camelCase'],
-          prefix: ['is', 'has', 'should', 'can', 'did', 'will', 'was', 'were']
+          prefix: ['is', 'has', 'should', 'can', 'did', 'will', 'was', 'were'],
         },
         {
           selector: 'class',
-          format: ['PascalCase']
+          format: ['PascalCase'],
         },
         {
           selector: 'interface',
-          format: ['PascalCase']
+          format: ['PascalCase'],
         },
         {
           selector: 'typeAlias',
-          format: ['PascalCase']
+          format: ['PascalCase'],
         },
         {
           selector: 'enum',
-          format: ['PascalCase']
+          format: ['PascalCase'],
         },
         {
           selector: 'typeParameter',
-          format: ['PascalCase']
+          format: ['PascalCase'],
         },
         {
           selector: 'function',
-          format: ['camelCase']
+          format: ['camelCase'],
         },
         {
           selector: 'method',
-          format: ['camelCase']
+          format: ['camelCase'],
         },
         {
           selector: 'parameter',
           format: ['camelCase'],
-          leadingUnderscore: 'allow'
+          leadingUnderscore: 'allow',
         },
         {
           selector: 'property',
           format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
-          leadingUnderscore: 'allow'
-        }
+          leadingUnderscore: 'allow',
+        },
       ],
       '@typescript-eslint/only-throw-error': 'error',
       'security/detect-non-literal-fs-filename': 'warn',
       'security/detect-object-injection': 'warn',
       'security/detect-possible-timing-attacks': 'error',
       'security/detect-unsafe-regex': 'error',
-      'no-console': ['error', {
-        allow: ['warn', 'error']
-      }],
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_'
-      }],
-      '@typescript-eslint/no-empty-function': ['error', {
-        allow: ['arrowFunctions', 'constructors']
-      }],
+      'no-console': [
+        'error',
+        {
+          allow: ['warn', 'error'],
+        },
+      ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-empty-function': [
+        'error',
+        {
+          allow: ['arrowFunctions', 'constructors'],
+        },
+      ],
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/prefer-as-const': 'error',
-      'eqeqeq': ['error', 'always'],
+      eqeqeq: ['error', 'always'],
       'no-var': 'error',
       'prefer-const': 'error',
       'prefer-template': 'error',
@@ -163,33 +180,40 @@ export default [
       '@typescript-eslint/require-await': 'error',
       'no-return-await': 'off',
       '@typescript-eslint/return-await': ['error', 'in-try-catch'],
-      'spaced-comment': ['error', 'always', {
-        line: {
-          markers: ['/'],
-          exceptions: ['-', '+']
+      'spaced-comment': [
+        'error',
+        'always',
+        {
+          line: {
+            markers: ['/'],
+            exceptions: ['-', '+'],
+          },
+          block: {
+            markers: ['!'],
+            exceptions: ['*'],
+            balanced: true,
+          },
         },
-        block: {
-          markers: ['!'],
-          exceptions: ['*'],
-          balanced: true
-        }
-      }],
+      ],
       'no-alert': 'error',
       'no-debugger': 'error',
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'warn',
       'prefer-arrow-callback': 'error',
       'arrow-body-style': ['error', 'as-needed'],
-      'curly': ['error', 'all'],
+      curly: ['error', 'all'],
       'dot-notation': 'error',
       'no-lonely-if': 'error',
       'no-unneeded-ternary': 'error',
       'operator-assignment': ['error', 'always'],
-      'prefer-destructuring': ['error', {
-        array: true,
-        object: true
-      }]
-    }
+      'prefer-destructuring': [
+        'error',
+        {
+          array: true,
+          object: true,
+        },
+      ],
+    },
   },
 
   // Svelte files
@@ -200,22 +224,22 @@ export default [
       parserOptions: {
         parser: typescriptParser,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'module',
       },
       globals: {
-        ...globals.browser
-      }
+        ...globals.browser,
+      },
     },
     plugins: {
       svelte,
-      '@typescript-eslint': typescript
+      '@typescript-eslint': typescript,
     },
     rules: {
       ...svelte.configs.recommended.rules,
       'svelte/no-at-html-tags': 'error',
       'svelte/valid-compile': 'error',
-      'svelte/no-dom-manipulating': 'warn'
-    }
+      'svelte/no-dom-manipulating': 'warn',
+    },
   },
 
   // Test files - relaxed rules
@@ -223,8 +247,8 @@ export default [
     files: ['**/*.spec.ts', '**/*.test.ts', '**/tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
-      'no-console': 'off'
-    }
+      'no-console': 'off',
+    },
   },
 
   // Electron main process
@@ -236,16 +260,16 @@ export default [
         ecmaVersion: 'latest',
         sourceType: 'module',
         project: './tsconfig.electron.json',
-        tsconfigRootDir: import.meta.dirname
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         ...globals.node,
-        ...globals.es2022
-      }
+        ...globals.es2022,
+      },
     },
     plugins: {
       '@typescript-eslint': typescript,
-      security
+      security,
     },
     rules: {
       ...typescript.configs['recommended'].rules,
@@ -254,17 +278,23 @@ export default [
       ...security.configs.recommended.rules,
       'security/detect-non-literal-fs-filename': 'warn',
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/explicit-function-return-type': ['error', {
-        allowExpressions: true,
-        allowTypedFunctionExpressions: true,
-        allowHigherOrderFunctions: true
-      }],
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_'
-      }]
-    }
+      '@typescript-eslint/explicit-function-return-type': [
+        'error',
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+          allowHigherOrderFunctions: true,
+        },
+      ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
   },
 
   // Renderer process
@@ -272,14 +302,14 @@ export default [
     files: ['src/**/*.ts', 'src/**/*.svelte'],
     languageOptions: {
       globals: {
-        ...globals.browser
-      }
+        ...globals.browser,
+      },
     },
     plugins: {
-      security
+      security,
     },
     rules: {
-      'security/detect-non-literal-fs-filename': 'error'
-    }
-  }
+      'security/detect-non-literal-fs-filename': 'error',
+    },
+  },
 ];

@@ -1,11 +1,16 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import log from 'electron-log';
-import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler';
-import { registerSettingsHandlers } from './ipc-handlers/settings-handler';
-import { registerThreadHandlers } from './ipc-handlers/thread-handler';
-import { registerSystemHandlers } from './ipc-handlers/system-handler';
+import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
+import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
+import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Custom Protocol Configuration for OAuth
@@ -19,15 +24,16 @@ const CUSTOM_PROTOCOL = 'holokai';
  * Sets up logging to save to user's AppData folder with custom filename format
  */
 const appDataPath = app.getPath('appData');
-const logFolderPath = path.join(appDataPath, 'holokai', 'desktop-svelte');
+const logFolderPath = path.join(appDataPath, 'holokai', 'desktop');
 
 // Configure log file path and format
 log.transports.file.resolvePathFn = () => {
   const date = new Date();
-  const dateStr = date.getFullYear() +
+  const dateStr =
+    date.getFullYear() +
     String(date.getMonth() + 1).padStart(2, '0') +
     String(date.getDate()).padStart(2, '0');
-  return path.join(logFolderPath, `desktop_svelte_${dateStr}.log`);
+  return path.join(logFolderPath, `desktop_${dateStr}.log`);
 };
 
 // Set log level (info, warn, error, debug)
@@ -57,16 +63,16 @@ function createWindow(): void {
     webPreferences: {
       // Preload script with context bridge for secure IPC
       preload: path.join(__dirname, 'preload.js'),
-      
+
       // Security: Disable node integration in renderer
       nodeIntegration: false,
-      
+
       // Security: Enable context isolation (context bridge required)
       contextIsolation: true,
 
       // Security: Enable sandbox for additional security
-      sandbox: true
-    }
+      sandbox: true,
+    },
   });
 
   // Load the Svelte application
@@ -109,7 +115,7 @@ function createMenu(): void {
             if (mainWindow) {
               mainWindow.webContents.send('menu:new-thread');
             }
-          }
+          },
         },
         {
           label: 'Refresh',
@@ -119,7 +125,7 @@ function createMenu(): void {
             if (mainWindow) {
               mainWindow.webContents.send('menu:refresh');
             }
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -130,7 +136,7 @@ function createMenu(): void {
             if (mainWindow) {
               mainWindow.webContents.send('menu:settings');
             }
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -145,7 +151,7 @@ function createMenu(): void {
                 mainWindow.webContents.openDevTools();
               }
             }
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -153,9 +159,9 @@ function createMenu(): void {
           accelerator: 'Alt+F4',
           click: () => {
             app.quit();
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     {
       label: 'Help',
@@ -167,7 +173,7 @@ function createMenu(): void {
             if (mainWindow) {
               mainWindow.webContents.send('menu:getting-started');
             }
-          }
+          },
         },
         {
           label: 'Users Guide',
@@ -176,7 +182,7 @@ function createMenu(): void {
             if (mainWindow) {
               mainWindow.webContents.send('menu:users-guide');
             }
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -188,13 +194,14 @@ function createMenu(): void {
               type: 'info',
               title: 'About Holokai Desktop',
               message: 'Holokai Desktop',
-              detail: 'Version: 1.0\n\nAn Electron + Svelte application demonstrating architecture patterns.',
-              buttons: ['OK']
+              detail:
+                'Version: 1.0\n\nHolokai Desktop application for chat workflows. ',
+              buttons: ['OK'],
             });
-          }
-        }
-      ]
-    }
+          },
+        },
+      ],
+    },
   ];
 
   const menu = Menu.buildFromTemplate(template);
@@ -203,23 +210,23 @@ function createMenu(): void {
 
 /**
  * Register all IPC handlers
- * 
+ *
  * This function registers all IPC handlers that the renderer process can invoke.
  * Each handler should be in its own module for better organization.
  */
 function registerIpcHandlers(): void {
   // Register settings handlers FIRST (other services depend on settings)
   registerSettingsHandlers();
-  
+
   // Register authentication IPC handlers
   registerAuthHandlers();
-  
+
   // Register thread-related IPC handlers
   registerThreadHandlers();
-  
+
   // Register system-related IPC handlers
   registerSystemHandlers();
-  
+
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
     log.info('[Renderer]', message, ...params);
@@ -247,7 +254,7 @@ if (process.defaultApp) {
   // Development mode: Need to specify electron executable and app path
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL, process.execPath, [
-      path.resolve(process.argv[1])
+      path.resolve(process.argv[1]),
     ]);
   }
 } else {
@@ -279,7 +286,7 @@ app.on('open-url', (event, url) => {
  */
 if (process.platform === 'win32') {
   const args = process.argv.slice(1);
-  const protocolUrl = args.find(arg => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
+  const protocolUrl = args.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
   if (protocolUrl) {
     log.info('[Protocol] Windows: Received protocol URL on startup:', protocolUrl);

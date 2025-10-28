@@ -1,6 +1,6 @@
 import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
-import { getSettingsService } from '../ipc-handlers/settings-handler';
+import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -62,7 +62,7 @@ export class AuthService {
   private currentAuthState: AuthState = {
     user: null,
     tokens: null,
-    isAuthenticated: false
+    isAuthenticated: false,
   };
 
   // Track if we're waiting for a callback
@@ -163,7 +163,7 @@ export class AuthService {
     try {
       await shell.openExternal(authUrl);
       log.info('[AuthService] Browser opened successfully, waiting for callback...');
-      
+
       // Set waiting flag and timeout
       this.waitingForCallback = true;
       this.callbackTimeout = setTimeout(() => {
@@ -172,7 +172,6 @@ export class AuthService {
           this.waitingForCallback = false;
         }
       }, CALLBACK_TIMEOUT_MS);
-      
     } catch (error) {
       log.error('[AuthService] Failed to open browser:', error);
       throw new Error('Unable to open browser. Please check your default browser settings.');
@@ -227,20 +226,20 @@ export class AuthService {
       const exchangeResponse = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ code }),
       });
 
       if (!exchangeResponse.ok) {
         const errorText = await exchangeResponse.text();
         log.error('[AuthService] Exchange code failed:', exchangeResponse.status, errorText);
-        
+
         if (exchangeResponse.status === 401) {
           throw new Error('Invalid or expired exchange code. Please try logging in again.');
         }
         throw new Error(`Failed to exchange code: ${exchangeResponse.status}`);
       }
 
-      const { apiKey } = await exchangeResponse.json() as ExchangeCodeResponse;
+      const { apiKey } = (await exchangeResponse.json()) as ExchangeCodeResponse;
       log.info('[AuthService] Successfully received apiKey');
 
       // Step 2: Exchange apiKey for accessToken
@@ -248,7 +247,7 @@ export class AuthService {
       const tokenResponse = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey })
+        body: JSON.stringify({ apiKey }),
       });
 
       if (!tokenResponse.ok) {
@@ -257,14 +256,14 @@ export class AuthService {
         throw new Error(`Failed to get access token: ${tokenResponse.status}`);
       }
 
-      const { accessToken, expires_in } = await tokenResponse.json() as TokenResponse;
+      const { accessToken, expires_in } = (await tokenResponse.json()) as TokenResponse;
       log.info('[AuthService] Successfully received accessToken');
 
       // Create tokens object
       const tokens: AuthTokens = {
         accessToken,
         apiKey, // Cache for future token refresh
-        expiresAt: Date.now() + (expires_in * 1000) - (60 * 1000) // 1-minute safety buffer
+        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
       };
 
       // Extract user info from access token (JWT)
@@ -276,7 +275,6 @@ export class AuthService {
       log.info('[AuthService] Authentication successful:', user.email);
 
       return this.currentAuthState;
-
     } catch (error) {
       log.error('[AuthService] Token exchange failed:', error);
       this.cleanup();
@@ -296,7 +294,10 @@ export class AuthService {
       }
 
       // Decode payload (middle part)
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString()) as Record<string, unknown>;
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString()) as Record<
+        string,
+        unknown
+      >;
 
       // Extract user information with type assertions
       const subject = payload.subject as string | undefined;
@@ -310,7 +311,7 @@ export class AuthService {
         id: subject ?? sub ?? userId ?? 'unknown',
         email: userId ?? email ?? 'user@example.com',
         name: name ?? email ?? 'User',
-        picture
+        picture,
       };
     } catch (error) {
       log.error('[AuthService] Error extracting user from token:', error);
@@ -318,7 +319,7 @@ export class AuthService {
       return {
         id: 'unknown',
         email: 'user@example.com',
-        name: 'User'
+        name: 'User',
       };
     }
   }
@@ -351,26 +352,26 @@ export class AuthService {
       const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey })
+        body: JSON.stringify({ apiKey }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         log.error('[AuthService] Token refresh failed:', response.status, errorText);
-        
+
         // Clear stored auth on refresh failure
         this.cleanup();
         throw new Error('Token refresh failed. Please log in again.');
       }
 
-      const { accessToken, expires_in } = await response.json() as TokenResponse;
+      const { accessToken, expires_in } = (await response.json()) as TokenResponse;
       log.info('[AuthService] Token refresh successful');
 
       // Update tokens
       const newTokens: AuthTokens = {
         accessToken,
         apiKey, // Keep the same apiKey
-        expiresAt: Date.now() + (expires_in * 1000) - (60 * 1000) // 1-minute safety buffer
+        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
       };
 
       // Store updated tokens
@@ -379,7 +380,6 @@ export class AuthService {
       }
 
       return newTokens;
-
     } catch (error) {
       log.error('[AuthService] Token refresh error:', error);
       this.cleanup();
@@ -391,8 +391,9 @@ export class AuthService {
    * Check if access token is valid
    */
   private isTokenValid(): boolean {
-    return this.currentAuthState.tokens !== null &&
-           this.currentAuthState.tokens.expiresAt > Date.now();
+    return (
+      this.currentAuthState.tokens !== null && this.currentAuthState.tokens.expiresAt > Date.now()
+    );
   }
 
   /**
@@ -436,7 +437,7 @@ export class AuthService {
       this.currentAuthState = {
         user,
         tokens,
-        isAuthenticated: true
+        isAuthenticated: true,
       };
 
       log.info('[AuthService] Auth data stored securely');
@@ -457,8 +458,7 @@ export class AuthService {
    * Check if user is authenticated
    */
   public isAuthenticated(): boolean {
-    return this.currentAuthState.isAuthenticated && 
-           this.currentAuthState.tokens !== null;
+    return this.currentAuthState.isAuthenticated && this.currentAuthState.tokens !== null;
   }
 
   /**
@@ -490,7 +490,7 @@ export class AuthService {
     this.currentAuthState = {
       user: null,
       tokens: null,
-      isAuthenticated: false
+      isAuthenticated: false,
     };
   }
 
@@ -508,14 +508,14 @@ export class AuthService {
     const tokens: AuthTokens = {
       accessToken: 'mock_access_token_' + Date.now(),
       apiKey: 'mock_api_key_' + Date.now(),
-      expiresAt: Date.now() + (60 * 60 * 1000) // 1 hour from now
+      expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour from now
     };
 
     const user: UserProfile = {
       id: 'mock_user_' + Date.now(),
       email: 'user@example.com',
       name: 'Mock User',
-      picture: 'https://via.placeholder.com/150'
+      picture: 'https://via.placeholder.com/150',
     };
 
     // Store authentication data
@@ -542,7 +542,7 @@ export class AuthService {
    * Delay helper for simulating async operations
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

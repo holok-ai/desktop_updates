@@ -29,7 +29,7 @@ class ElectronService {
     },
     error: (message: string, ...params: unknown[]): void => {
       this.api.log.error(message, ...params);
-    }
+    },
   };
 }
 

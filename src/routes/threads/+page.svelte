@@ -7,11 +7,15 @@
   let isLoading = true;
   let showDialog = false;
   let editingThread: Thread | null = null;
-  
-  let formData = {
+
+  let formData: {
+    title: string;
+    description: string;
+    status: 'active' | 'archived' | 'deleted';
+  } = {
     title: '',
     description: '',
-    status: 'active' as const
+    status: 'active',
   };
 
   onMount(async () => {
@@ -40,7 +44,7 @@
     formData = {
       title: thread.title,
       description: thread.description,
-      status: thread.status
+      status: thread.status,
     };
     showDialog = true;
   }
@@ -72,7 +76,7 @@
 <div class="threads-page">
   <div class="header">
     <h1>Threads</h1>
-    <button on:click={openCreateDialog}>New Thread</button>
+    <button onclick={openCreateDialog}>New Thread</button>
   </div>
 
   {#if isLoading}
@@ -80,7 +84,7 @@
   {:else if $threads.length === 0}
     <div class="empty">
       <p>No threads yet. Create your first thread!</p>
-      <button on:click={openCreateDialog}>Create Thread</button>
+      <button onclick={openCreateDialog}>Create Thread</button>
     </div>
   {:else}
     <div class="threads-list">
@@ -92,8 +96,8 @@
           </div>
           <p>{thread.description}</p>
           <div class="thread-actions">
-            <button on:click={() => openEditDialog(thread)}>Edit</button>
-            <button class="danger" on:click={() => handleDelete(thread.id)}>Delete</button>
+            <button onclick={() => openEditDialog(thread)}>Edit</button>
+            <button class="danger" onclick={() => handleDelete(thread.id)}>Delete</button>
           </div>
         </div>
       {/each}
@@ -102,14 +106,12 @@
 </div>
 
 {#if showDialog}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="dialog-overlay" on:click={() => showDialog = false}>
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="dialog" on:click|stopPropagation>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="dialog-overlay" onclick={() => (showDialog = false)}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="dialog" onclick={(e) => e.stopPropagation()}>
       <h2>{editingThread ? 'Edit Thread' : 'Create Thread'}</h2>
-      
+
       <div class="form-group">
         <label for="title">Title</label>
         <input
@@ -127,7 +129,7 @@
           bind:value={formData.description}
           placeholder="Enter thread description"
           rows="4"
-        />
+        ></textarea>
       </div>
 
       <div class="form-group">
@@ -139,8 +141,8 @@
       </div>
 
       <div class="dialog-actions">
-        <button on:click={() => showDialog = false}>Cancel</button>
-        <button class="primary" on:click={handleSave}>
+        <button onclick={() => (showDialog = false)}>Cancel</button>
+        <button class="primary" onclick={handleSave}>
           {editingThread ? 'Update' : 'Create'}
         </button>
       </div>
@@ -165,7 +167,8 @@
     color: #333;
   }
 
-  .loading, .empty {
+  .loading,
+  .empty {
     text-align: center;
     padding: 3rem;
     color: #666;

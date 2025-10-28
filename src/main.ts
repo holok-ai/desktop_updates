@@ -1,9 +1,14 @@
-import './app.css'
-import App from './App.svelte'
+import './app.css';
+import { mount } from 'svelte';
+import App from './App.svelte';
 
-const app = new App({
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  target: document.getElementById('app')!,
-})
+const appElement = document.getElementById('app');
+if (appElement === null) {
+  throw new Error('App mount point not found');
+}
 
-export default app
+const app = mount(App, {
+  target: appElement,
+});
+
+export default app;

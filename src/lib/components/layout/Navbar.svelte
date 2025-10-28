@@ -1,22 +1,20 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-
-  export let currentPage: string;
-
-  const dispatch = createEventDispatcher();
+  // eslint-disable-next-line no-unused-vars
+  let { currentPage, onnavigate }: { currentPage: string; onnavigate: (page: string) => void } =
+    $props();
 
   function navigate(page: string) {
-    dispatch('navigate', page);
+    onnavigate(page);
   }
 </script>
 
 <nav>
   <ul>
     <li class:active={currentPage === 'home'}>
-      <button on:click={() => navigate('home')}>Home</button>
+      <button onclick={() => navigate('home')}>Home</button>
     </li>
     <li class:active={currentPage === 'threads'}>
-      <button on:click={() => navigate('threads')}>Threads</button>
+      <button onclick={() => navigate('threads')}>Threads</button>
     </li>
   </ul>
 </nav>

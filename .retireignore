@@ -1,0 +1,4 @@
+# Retire.js ignore file
+# Ignore @types packages as they are TypeScript type definitions only
+# and don't contain executable code that could have vulnerabilities
+@types/node
