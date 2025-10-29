@@ -123,6 +123,10 @@ export interface AuthAPI {
 
   // Refresh access token
   refreshToken: () => Promise<void>;
+
+  // OAuth callback event listeners
+  onAuthCallbackSuccess: (callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void) => () => void;
+  onAuthCallbackError: (callback: (error: { error: string; description: string }) => void) => () => void;
 }
 
 /**
@@ -206,6 +210,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     logout: () => ipcRenderer.invoke('auth:logout'),
 
     refreshToken: () => ipcRenderer.invoke('auth:refreshToken'),
+
+    // OAuth callback event listeners
+    onAuthCallbackSuccess: (callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: { user: UserProfile; isAuthenticated: boolean }): void => callback(data);
+      ipcRenderer.on('auth:callback-success', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('auth:callback-success', subscription);
+      };
+    },
+
+    onAuthCallbackError: (callback: (error: { error: string; description: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, error: { error: string; description: string }): void => callback(error);
+      ipcRenderer.on('auth:callback-error', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('auth:callback-error', subscription);
+      };
+    },
   } as AuthAPI,
 
   /**

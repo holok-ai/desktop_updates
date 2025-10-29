@@ -81,7 +81,7 @@ function createWindow(): void {
     try {
       // Check if dev server is running by attempting to load
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await mainWindow!.loadURL('http://localhost:5173');
+      await mainWindow!.loadURL('http://localhost:5177');
       console.log('Loaded from Vite dev server');
     } catch (_error) {
       // Dev server not available, load from built files
@@ -344,11 +344,43 @@ app.on('before-quit', () => {
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
+log.info('[App] ==========================================');
+log.info('[App] Single instance lock requested');
+log.info('[App] Got the lock:', gotTheLock);
+
 if (!gotTheLock) {
+  log.info('[App] Second instance detected - quitting this instance');
+  log.info('[App] Command line args:', process.argv);
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    // Someone tried to run a second instance, focus our window
+  log.info('[App] This is the first instance - continuing startup');
+
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    log.info('[App] ==========================================');
+    log.info('[App] Second instance attempted to start');
+    log.info('[App] Command line:', commandLine);
+    log.info('[App] Working directory:', workingDirectory);
+
+    // Show dialog to confirm
+    void dialog.showMessageBox({
+      type: 'info',
+      title: 'Second Instance Detected',
+      message: 'A second instance was attempted',
+      detail: `Command line: ${commandLine.join(' ')}`,
+      buttons: ['OK']
+    });
+
+    // Check command line for protocol URL
+    const protocolUrl = commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
+
+    if (protocolUrl) {
+      log.info('[Protocol] Windows second-instance: Received protocol URL:', protocolUrl);
+      if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
+        handleOAuthCallback(protocolUrl, mainWindow);
+      }
+    }
+
+    // Focus the window
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();

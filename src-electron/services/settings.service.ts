@@ -1,5 +1,7 @@
 import ElectronStore from 'electron-store';
 import log from 'electron-log';
+import { app } from 'electron';
+import * as path from 'path';
 
 /**
  * Application Settings Service
@@ -27,10 +29,10 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   // Development Moku web URL (for SSO testing)
   // NOTE: This should be the Moku web app URL, NOT the desktop app URL
-  mokuWebUrl: 'http://localhost:4201', // Moku web runs on different port
+  mokuWebUrl: 'http://localhost:4200', // Moku web runs on different port
 
   // Development Moku API URL
-  mokuApiUrl: 'http://localhost:3000/api',
+  mokuApiUrl: 'http://localhost:8080',
 
   // Production alternatives (commented out):
   // mokuWebUrl: 'https://moku.holokai.com',
@@ -48,8 +50,13 @@ export class SettingsService {
   private store: ElectronStore<AppSettings>;
 
   constructor() {
-    // Initialize electron-store with schema
+    // Set custom config path to match logging structure: holokai/desktop
+    const appDataPath = app.getPath('appData');
+    const configPath = path.join(appDataPath, 'holokai', 'desktop');
+
+    // Initialize electron-store with schema and custom path
     this.store = new ElectronStore<AppSettings>({
+      cwd: configPath,
       defaults: DEFAULT_SETTINGS,
       schema: {
         mokuWebUrl: {
@@ -76,6 +83,7 @@ export class SettingsService {
     });
 
     log.info('[SettingsService] Initialized');
+    log.info('[SettingsService] Config path:', this.getStorePath());
     log.info('[SettingsService] Moku Web URL:', this.getMokuWebUrl());
     log.info('[SettingsService] Moku API URL:', this.getMokuApiUrl());
   }

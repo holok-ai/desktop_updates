@@ -12,15 +12,21 @@ let authService: AuthService;
 
 /**
  * OAuth Callback Handler
- * Processes OAuth callback URLs received via deep links (holokai://home?code=...&state=...).
+ * Processes OAuth callback URLs received via deep links (holokai://home?code=...).
  * Validates the callback, extracts parameters, and exchanges authorization code for tokens.
  */
 export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | null): void {
+  log.info('[Auth] ========================================');
   log.info('[Auth] Processing OAuth callback:', url);
+  log.info('[Auth] Main window exists:', !!mainWindow);
 
   try {
     // Parse the URL
     const urlObj = new URL(url);
+    log.info('[Auth] Parsed URL protocol:', urlObj.protocol);
+    log.info('[Auth] Parsed URL pathname:', urlObj.pathname);
+    log.info('[Auth] Parsed URL search params:', urlObj.search);
+
     const params = urlObj.searchParams;
 
     // Check for error response
@@ -41,10 +47,13 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
 
     // Extract authorization code and state
     const code = params.get('code');
-    const state = params.get('state');
+//    const state = params.get('state');
 
-    if (!code || !state) {
+    log.info('[Auth] Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
+
+    if (!code) {
       log.error('[Auth] Missing required parameters in callback');
+      log.error('[Auth] Code present:', !!code);
       if (mainWindow) {
         mainWindow.webContents.send('auth:callback-error', {
           error: 'invalid_callback',
@@ -55,12 +64,16 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     }
 
     log.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
+    log.info('[Auth] Calling authService.processOAuthCallback...');
 
     // Process the callback through auth service
     authService
       .processOAuthCallback(code)
       .then((authState) => {
         log.info('[Auth] OAuth flow completed successfully');
+        log.info('[Auth] Auth state - isAuthenticated:', authState.isAuthenticated);
+        log.info('[Auth] Auth state - user:', authState.user?.email);
+        log.info('[Auth] Sending auth:callback-success to renderer...');
 
         // Notify renderer of successful authentication
         if (mainWindow) {
@@ -68,10 +81,15 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             user: authState.user,
             isAuthenticated: authState.isAuthenticated,
           });
+          log.info('[Auth] auth:callback-success sent to renderer');
+        } else {
+          log.warn('[Auth] Cannot send to renderer - mainWindow is null');
         }
       })
       .catch((error: unknown) => {
         log.error('[Auth] Error processing OAuth callback:', error);
+        log.error('[Auth] Error type:', error instanceof Error ? 'Error' : typeof error);
+        log.error('[Auth] Error message:', error instanceof Error ? error.message : String(error));
 
         if (mainWindow) {
           const errorMessage =
@@ -80,18 +98,22 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             error: 'exchange_failed',
             description: errorMessage,
           });
+          log.info('[Auth] auth:callback-error sent to renderer');
         }
       });
   } catch (error) {
     log.error('[Auth] Error parsing OAuth callback URL:', error);
+    log.error('[Auth] Error details:', error instanceof Error ? error.stack : String(error));
 
     if (mainWindow) {
       mainWindow.webContents.send('auth:callback-error', {
         error: 'invalid_url',
         description: 'Failed to parse callback URL',
       });
+      log.info('[Auth] auth:callback-error sent to renderer (parse error)');
     }
   }
+  log.info('[Auth] ========================================');
 }
 
 /**
