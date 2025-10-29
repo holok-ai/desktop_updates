@@ -124,9 +124,9 @@
 
 {#if showDialog}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="dialog-overlay" onclick={() => (showDialog = false)}>
+  <div class="dialog-overlay" onclick={() => (showDialog = false)} tabindex="0" role="dialog">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="dialog" onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" onclick={(e) => e.stopPropagation()} tabindex="0" role="button">
       <h2>{editingThread ? 'Edit Thread' : 'Create Thread'}</h2>
 
       <div class="form-group">
