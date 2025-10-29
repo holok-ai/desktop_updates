@@ -2,19 +2,33 @@
   import { authStore } from '../../lib/stores/auth.store';
 
   let isLoading = false;
+  let isMockLoading = false;
   let provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft';
 
   async function handleLogin() {
     isLoading = true;
     try {
-      const authState = await window.electronAPI.auth.mockLogin(provider);
-      authStore.setAuthState(authState);
-      window.electronAPI.log.info('Login successful', { provider });
+      await window.electronAPI.auth.startOAuthFlow();
+      window.electronAPI.log.info('OAuth flow initiated');
     } catch (error) {
       console.error('Login failed:', error);
       window.electronAPI.log.error('Login failed', error);
     } finally {
       isLoading = false;
+    }
+  }
+
+  async function handleMockLogin() {
+    isMockLoading = true;
+    try {
+      const authState = await window.electronAPI.auth.mockLogin(provider);
+      authStore.setAuthState(authState);
+      window.electronAPI.log.info('Mock login successful', { provider });
+    } catch (error) {
+      console.error('Mock login failed:', error);
+      window.electronAPI.log.error('Mock login failed', error);
+    } finally {
+      isMockLoading = false;
     }
   }
 </script>
@@ -23,6 +37,14 @@
   <div class="login-card">
     <h1>Holokai Desktop</h1>
     <p>Sign in to continue</p>
+
+    <button onclick={handleLogin} disabled={isLoading} class="primary-button">
+      {isLoading ? 'Redirecting...' : 'Login'}
+    </button>
+
+    <div class="divider">
+      <span>or use mock login</span>
+    </div>
 
     <div class="provider-select">
       <label>
@@ -39,11 +61,11 @@
       </label>
     </div>
 
-    <button onclick={handleLogin} disabled={isLoading}>
-      {isLoading ? 'Signing in...' : 'Sign In (Mock)'}
+    <button onclick={handleMockLogin} disabled={isMockLoading} class="mock-button">
+      {isMockLoading ? 'Signing in...' : 'Sign In (Mock)'}
     </button>
 
-    <p class="note">Note: This is a mock authentication for demonstration purposes</p>
+    <p class="note">Mock login is for testing purposes only</p>
   </div>
 </div>
 
@@ -88,8 +110,6 @@
   button {
     width: 100%;
     padding: 1rem;
-    background: #667eea;
-    color: white;
     border: none;
     border-radius: 8px;
     font-size: 1rem;
@@ -97,13 +117,60 @@
     cursor: pointer;
   }
 
-  button:hover:not(:disabled) {
-    background: #764ba2;
+  .primary-button {
+    background: #667eea;
+    color: white;
+    margin-bottom: 1.5rem;
+  }
+
+  .primary-button:hover:not(:disabled) {
+    background: #5568d3;
+  }
+
+  .mock-button {
+    background: #e0e0e0;
+    color: #333;
+    margin-top: 1rem;
+  }
+
+  .mock-button:hover:not(:disabled) {
+    background: #d0d0d0;
   }
 
   button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .divider {
+    text-align: center;
+    margin: 1.5rem 0;
+    position: relative;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: #ddd;
+  }
+
+  .divider::before {
+    left: 0;
+  }
+
+  .divider::after {
+    right: 0;
+  }
+
+  .divider span {
+    background: white;
+    padding: 0 1rem;
+    color: #999;
+    font-size: 0.875rem;
   }
 
   .note {

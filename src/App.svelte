@@ -19,6 +19,29 @@
     } finally {
       isLoading = false;
     }
+
+    // Listen for OAuth callback success
+    const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
+      window.electronAPI.log.info('[App] OAuth callback success received', data);
+      authStore.setAuthState({
+        isAuthenticated: data.isAuthenticated,
+        user: data.user,
+        tokens: null, // tokens stay in main process
+      });
+    });
+
+    // Listen for OAuth callback errors
+    const unsubscribeError = window.electronAPI.auth.onAuthCallbackError((error) => {
+      window.electronAPI.log.error('[App] OAuth callback error received', error);
+      console.error('OAuth authentication failed:', error.description);
+      // Could show error message to user here
+    });
+
+    // Cleanup listeners when component unmounts
+    return () => {
+      unsubscribeSuccess();
+      unsubscribeError();
+    };
   });
 
   // Subscribe to auth store changes

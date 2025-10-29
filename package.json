@@ -1,7 +1,7 @@
 {
-  "name": "holokai-desktop-svelte",
+  "name": "holokai-desktop",
   "version": "1.0.0",
-  "description": "Holokai Desktop - Reference Electron + Svelte application demonstrating architecture patterns",
+  "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -100,6 +100,12 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "protocols": {
+      "name": "Holokai Desktop",
+      "schemes": [
+        "holokai"
+      ]
+    },
     "win": {
       "target": "nsis"
     },
