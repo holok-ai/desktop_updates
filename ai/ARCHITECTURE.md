@@ -278,15 +278,15 @@ Development approach: Always start with service wrappers first, add facades only
 
 ## 5.2 Menu Navigation and Routing Architecture
 
-### 5.2.1 Overview (Svelte + Hash Router)
+### 5.2.1 Overview (Svelte + svelte-spa-router)
 
-The renderer uses Svelte with a lightweight, custom hash-based router. All navigation flows through a centralized **MenuNavigationService** that translates Electron menu events into router navigations. Components are menu-agnostic: they respond only to route changes via a reactive store.
+The renderer uses Svelte with `svelte-spa-router` (hash-based). All navigation flows through a centralized **MenuNavigationService** that translates Electron menu events into router navigations using `push()` and verb-style query parameters (e.g., `#/threads?create`). Components are menu-agnostic and react only to `svelte-spa-router` stores.
 
 **Key Principles:**
 
 - Components do not subscribe to menu events
 - Navigation is idempotent (same target → no-op)
-- Navigation state is passed via query parameters
+- Navigation state uses verb-style query parameters (e.g., `?create`)
 - Invalid routes redirect to home
 - Hash routing ensures back/forward works under `file://`
 
@@ -299,50 +299,42 @@ Main sends menu channel via webContents
     ↓
 Context Bridge exposes window.electronAPI.onMenuCommand()
     ↓
-MenuNavigationService → router.navigate('#/path?state=...')
+MenuNavigationService → push('/path?verb')
     ↓
-Router updates location.hash and emits current route store
+Router updates location.hash and emits `location` and `querystring` stores
     ↓
 Svelte components react to route changes
 ```
 
-### 5.2.3 Router Service API
+### 5.2.3 Router API (svelte-spa-router)
 
-```ts
-// src/lib/services/router.service.ts
-export type RouteEntry = { path: string; params: URLSearchParams };
+We rely on `svelte-spa-router` exports:
 
-class HashRouterService {
-  current: Writable<RouteEntry>;  // subscribable store
-  start(): void;                  // attach hashchange listener and emit initial route
-  navigate(path: string, params?: Record<string,string>, opts?: { replace?: boolean }): void; // idempotent
-}
-
-export const router = new HashRouterService();
-```
+- `<Router {routes} />` component renders matched route
+- Stores: `location` (string), `querystring` (string | undefined)
+- Navigation: `push(path)`, `replace(path)`, `pop()`
 
 Behavior:
 
-- Emits `{ path, params }` parsed from `location.hash`
-- Redirects unknown paths to `#/` using `location.replace` (no extra history entry)
-- `navigate` builds `#${path}?query` and no-ops if already at target
+- Stores derive from `location.hash` and update on navigation/back/forward
+- Unknown paths handled via `'*'` catch-all route; we redirect to home with `replace('/')`
 
 ### 5.2.4 MenuNavigationService Responsibilities
 
 - Subscribe to `window.electronAPI.onMenuCommand(channel, handler)`
-- Map menu channels to route paths and optional query params
-- Call `router.navigate(path, params)` only (no component state changes)
+- Map menu channels to route paths with verb-style query params
+- Call `push(path)` only (no component state changes)
 
 Example mapping:
 
 ```ts
 // src/lib/services/menu-navigation.service.ts
 window.electronAPI.onMenuCommand('menu:new-thread', () => {
-  router.navigate('/threads', { openCreateDialog: 'true' });
+  void push('/threads?create');
 });
 
 window.electronAPI.onMenuCommand('menu:settings', () => {
-  router.navigate('/settings');
+  void push('/settings');
 });
 ```
 
@@ -353,14 +345,16 @@ Components subscribe to route changes and react accordingly. They never listen t
 ```svelte
 <!-- routes/threads/+page.svelte -->
 <script lang="ts">
-  import { router } from '$lib/services/router.service';
+  import { querystring, replace } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
   let showDialog = $state(false);
 
   $effect(() => {
-    const unsub = router.current.subscribe((route) => {
-      if (route.path === '/threads' && route.params.get('openCreateDialog') === 'true') {
+    const unsub = querystring.subscribe((qs) => {
+      const params = new URLSearchParams(qs ?? '');
+      if (params.has('create') && !showDialog) {
         showDialog = true;
-        router.navigate('/threads', undefined, { replace: true }); // clean URL
+        void replace(ROUTE.THREADS); // clean URL
       }
     });
     return unsub;
@@ -379,11 +373,11 @@ Benefits:
 
 - Uses `location.hash` to encode the active route: `#/`, `#/threads`, `#/settings`
 - Back/forward works via `hashchange` listener
-- Invalid paths redirect with `location.replace('#/')` to avoid history pollution
+- Invalid paths redirect via `'*'` route using `replace('/')` to avoid history pollution
 
 ### 5.2.7 Initialization
 
-- Router: call `router.start()` once at app startup (e.g., in root layout mount)
+- Router: declare routes in `src/lib/router/routes.ts` and mount `<Router {routes} />` in `AppLayout.svelte`
 - MenuNavigationService: imported once for side effects so listeners register at startup (e.g., in `App.svelte`)
 
 ```ts
@@ -396,7 +390,7 @@ import '$lib/services/menu-navigation.service'; // registers menu listeners
 | Menu Command       | Route Action                                 | Component Behavior        |
 | ------------------ | --------------------------------------------- | ------------------------- |
 | File → Get Threads | Navigate to `#/threads`                       | Loads thread list         |
-| File → New Thread  | Navigate to `#/threads?openCreateDialog=true` | Opens create dialog       |
+| File → New Thread  | Navigate to `#/threads?create`                | Opens create dialog       |
 | File → Settings    | Navigate to `#/settings`                      | Shows settings            |
 | View → Refresh     | Reload window                                 | Full renderer reload      |
 
