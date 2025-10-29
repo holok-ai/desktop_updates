@@ -4,6 +4,7 @@
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Login from './routes/login/+page.svelte';
   import type { AuthState } from '../src-electron/services/auth.service';
+  import '$lib/services/menu-navigation.service';
 
   let isLoading = $state(true);
   let authState = $state<AuthState>({ isAuthenticated: false, user: null, tokens: null });

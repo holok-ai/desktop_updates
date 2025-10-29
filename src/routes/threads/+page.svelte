@@ -3,29 +3,42 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
+  import { THREAD_STATUS } from '$lib/constants/status.constant';
+  import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
+  import { ROUTE } from '$lib/constants/route.constant';
 
-  let isLoading = true;
-  let showDialog = false;
-  let editingThread: Thread | null = null;
+  let isLoading = $state(true);
+  let showDialog = $state(false);
+  let editingThread: Thread | null = $state(null);
 
-  let formData: {
-    title: string;
-    description: string;
-    status: 'active' | 'archived' | 'deleted';
-  } = {
+  let formData: Thread = $state({
+    id: '',
+    createdAt: new Date(),
+    updatedAt: new Date(),
     title: '',
     description: '',
-    status: 'active',
-  };
+    status: THREAD_STATUS.ACTIVE,
+  });
 
-  let selectedThread: Thread | null = null;
+  let selectedThread: Thread | null = $state(null);
   type Msg = { id: string; role: 'user' | 'assistant' | 'system'; content: string; createdAt: number };
-  let messages: Msg[] = [];
+  let messages: Msg[] = $state([]);
 
   onMount(async () => {
     await loadThreads();
+  });
+
+  $effect(() => {
+    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+      if (params.has('create') && !showDialog) {
+        openCreateDialog();
+        void replace(ROUTE.THREADS);
+      }
+    });
+    return unsubscribe;
   });
 
   async function loadThreads() {
@@ -41,13 +54,16 @@
 
   function openCreateDialog() {
     editingThread = null;
-    formData = { title: '', description: '', status: 'active' };
+    formData = { id: '', createdAt: new Date(), updatedAt: new Date(), title: '', description: '', status: THREAD_STATUS.ACTIVE };
     showDialog = true;
   }
 
   function openEditDialog(thread: Thread) {
     editingThread = thread;
     formData = {
+      id: thread.id,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
       title: thread.title,
       description: thread.description,
       status: thread.status,
@@ -63,10 +79,11 @@
 
   async function handleSave() {
     try {
+      const data = $state.snapshot(formData);
       if (editingThread) {
-        await threadService.update(editingThread.id, formData);
+        await threadService.update(editingThread.id, data);
       } else {
-        await threadService.create(formData);
+        await threadService.create(data);
       }
       showDialog = false;
     } catch (error) {
@@ -151,9 +168,9 @@
 
 {#if showDialog}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="dialog-overlay" onclick={() => (showDialog = false)}>
+  <div class="dialog-overlay" onclick={() => (showDialog = false)} tabindex="0" role="dialog">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="dialog" onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" onclick={(e) => e.stopPropagation()} tabindex="0" role="button">
       <h2>{editingThread ? 'Edit Thread' : 'Create Thread'}</h2>
 
       <div class="form-group">

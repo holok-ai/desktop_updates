@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import type { ThreadStatus } from '../src/lib/constants/status.constant';
 
 /**
  * Preload Script with Context Bridge
@@ -75,7 +76,7 @@ export interface Thread {
   id: string;
   title: string;
   description: string;
-  status: 'active' | 'archived' | 'deleted';
+  status: ThreadStatus;
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, unknown>;
