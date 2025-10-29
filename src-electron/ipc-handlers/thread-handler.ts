@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { Thread } from '../preload.js';
+import { createScopedLogger, logPerformance } from '../utils/logger.js';
 
 /**
  * Thread IPC Handlers
@@ -13,6 +14,8 @@ import { Thread } from '../preload.js';
 
 // In-memory thread store (replace with real database in production)
 const threads: Map<string, Thread> = new Map();
+
+const threadLog = createScopedLogger('thread');
 
 // Initialize with some sample data
 function initializeSampleData(): void {
@@ -67,7 +70,7 @@ export function registerThreadHandlers(): void {
    * Get all threads
    */
   ipcMain.handle('thread:getAll', (): Promise<Thread[]> => {
-    console.log('[IPC] thread:getAll called');
+    threadLog.info('thread:getAll called');
     return Promise.resolve(Array.from(threads.values()));
   });
 
@@ -75,7 +78,7 @@ export function registerThreadHandlers(): void {
    * Get a thread by ID
    */
   ipcMain.handle('thread:getById', (_event, id: string): Promise<Thread | null> => {
-    console.log('[IPC] thread:getById called with id:', id);
+    threadLog.info('thread:getById called', { id });
     return Promise.resolve(threads.get(id) ?? null);
   });
 
@@ -85,7 +88,8 @@ export function registerThreadHandlers(): void {
   ipcMain.handle(
     'thread:create',
     (_event, threadData: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> => {
-      console.log('[IPC] thread:create called with data:', threadData);
+      const perfLog = logPerformance('thread:create');
+      threadLog.info('thread:create called', { title: threadData.title, status: threadData.status });
 
       const newThread: Thread = {
         ...threadData,
@@ -99,6 +103,7 @@ export function registerThreadHandlers(): void {
       // Broadcast the new thread to all windows
       broadcast('thread:created', newThread);
 
+      perfLog.end({ threadId: newThread.id });
       return Promise.resolve(newThread);
     },
   );
@@ -109,10 +114,11 @@ export function registerThreadHandlers(): void {
   ipcMain.handle(
     'thread:update',
     (_event, id: string, updates: Partial<Thread>): Promise<Thread> => {
-      console.log('[IPC] thread:update called with id:', id, 'updates:', updates);
+      threadLog.info('thread:update called', { id, updates });
 
       const existingThread = threads.get(id);
       if (!existingThread) {
+        threadLog.error('Thread not found for update', { id });
         throw new Error(`Thread with id ${id} not found`);
       }
 
@@ -137,19 +143,22 @@ export function registerThreadHandlers(): void {
    * Delete a thread
    */
   ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
-    console.log('[IPC] thread:delete called with id:', id);
+    threadLog.info('thread:delete called', { id });
 
     const deleted = threads.delete(id);
 
     if (deleted) {
       // Broadcast the deletion to all windows
       broadcast('thread:deleted', id);
+      threadLog.info('Thread deleted successfully', { id });
+    } else {
+      threadLog.warn('Thread not found for deletion', { id });
     }
 
     return Promise.resolve(deleted);
   });
 
-  console.log('[IPC] Thread handlers registered');
+  threadLog.info('Thread handlers registered');
 }
 
 /**
@@ -161,7 +170,7 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
   ipcMain.removeHandler('thread:delete');
-  console.log('[IPC] Thread handlers unregistered');
+  threadLog.info('Thread handlers unregistered');
 }
 
 // Export internal helpers for unit testing

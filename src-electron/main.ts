@@ -1,8 +1,8 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import log from 'electron-log';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
@@ -18,27 +18,8 @@ const __dirname = path.dirname(__filename);
  */
 const CUSTOM_PROTOCOL = 'holokai';
 
-/**
- * Configure electron-log
- *
- * Sets up logging to save to user's AppData folder with custom filename format
- */
-const appDataPath = app.getPath('appData');
-const logFolderPath = path.join(appDataPath, 'holokai', 'desktop');
-
-// Configure log file path and format
-log.transports.file.resolvePathFn = () => {
-  const date = new Date();
-  const dateStr =
-    date.getFullYear() +
-    String(date.getMonth() + 1).padStart(2, '0') +
-    String(date.getDate()).padStart(2, '0');
-  return path.join(logFolderPath, `desktop_${dateStr}.log`);
-};
-
-// Set log level (info, warn, error, debug)
-log.transports.file.level = 'info';
-log.transports.console.level = 'info';
+const protocolLog = createScopedLogger('protocol');
+const appLog = createScopedLogger('app');
 
 // Log application startup
 log.info('Starting application');
@@ -82,10 +63,10 @@ function createWindow(): void {
       // Check if dev server is running by attempting to load
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await mainWindow!.loadURL('http://localhost:5173');
-      console.log('Loaded from Vite dev server');
-    } catch (_error) {
+      appLog.info('Loaded from Vite dev server');
+    } catch {
       // Dev server not available, load from built files
-      console.log('Loading from built files');
+      appLog.info('Loading from built files');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       void mainWindow!.loadFile(path.join(__dirname, '../dist/index.html'));
     }
@@ -261,7 +242,7 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
-log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
+protocolLog.info(`Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
 
 /**
  * Deep Link Handler for OAuth Callback
@@ -269,13 +250,13 @@ log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
  */
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  log.info('[Protocol] Received deep link:', url);
+  protocolLog.info('Received deep link', { url });
 
   if (url.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
-    log.info('[Protocol] OAuth callback detected, processing...');
+    protocolLog.info('OAuth callback detected, processing...');
     handleOAuthCallback(url, mainWindow);
   } else {
-    log.warn('[Protocol] Received unexpected deep link:', url);
+    protocolLog.warn('Received unexpected deep link', { url });
   }
 });
 
@@ -288,7 +269,7 @@ if (process.platform === 'win32') {
   const protocolUrl = args.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
   if (protocolUrl) {
-    log.info('[Protocol] Windows: Received protocol URL on startup:', protocolUrl);
+    protocolLog.info('Windows: Received protocol URL on startup', { url: protocolUrl });
 
     // Process after app is ready
     app.on('ready', () => {
@@ -317,7 +298,7 @@ void app.whenReady().then(() => {
   createWindow();
 
   // Log that application has completed startup
-  log.info('Application startup complete and running');
+  appLog.info('Application startup complete and running');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -329,15 +310,16 @@ void app.whenReady().then(() => {
 
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    log.info('Application exited');
-    app.quit();
+  if (process.platform === 'darwin') {
+    return;
   }
+  appLog.info('Application exited');
+  app.quit();
 });
 
 // Log application exit on quit event
 app.on('before-quit', () => {
-  log.info('Application exited');
+  appLog.info('Application exited');
 });
 
 // Optional: Handle second instance (single instance lock)

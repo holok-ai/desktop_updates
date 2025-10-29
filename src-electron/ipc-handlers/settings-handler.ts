@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
-import log from 'electron-log';
+import { createScopedLogger } from '../utils/logger.js';
 
 /**
  * Settings IPC Handlers
@@ -8,6 +8,8 @@ import log from 'electron-log';
  * Handles all settings-related IPC communication between
  * renderer and main process.
  */
+
+const settingsLog = createScopedLogger('settings');
 
 let settingsService: SettingsService;
 
@@ -22,7 +24,7 @@ export function registerSettingsHandlers(): void {
    * Get all settings
    */
   ipcMain.handle('settings:getAll', (): Promise<AppSettings> => {
-    log.info('[IPC] settings:getAll called');
+    settingsLog.info('settings:getAll called');
     return Promise.resolve(settingsService.getAllSettings());
   });
 
@@ -30,7 +32,7 @@ export function registerSettingsHandlers(): void {
    * Get a specific setting
    */
   ipcMain.handle('settings:get', (_event, key: keyof AppSettings): Promise<unknown> => {
-    log.info('[IPC] settings:get called with key:', key);
+    settingsLog.info('settings:get called', { key });
     return Promise.resolve(settingsService.getSetting(key));
   });
 
@@ -40,7 +42,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     'settings:set',
     (_event, key: keyof AppSettings, value: unknown): Promise<void> => {
-      log.info('[IPC] settings:set called with key:', key, 'value:', value);
+      settingsLog.info('settings:set called', { key, value });
       settingsService.setSetting(key, value as AppSettings[keyof AppSettings]);
       return Promise.resolve();
     },
@@ -52,7 +54,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     'settings:setMultiple',
     (_event, settings: Partial<AppSettings>): Promise<void> => {
-      log.info('[IPC] settings:setMultiple called with:', settings);
+      settingsLog.info('settings:setMultiple called', { settings });
       settingsService.setSettings(settings);
       return Promise.resolve();
     },
@@ -62,7 +64,7 @@ export function registerSettingsHandlers(): void {
    * Reset settings to defaults
    */
   ipcMain.handle('settings:reset', (): Promise<void> => {
-    log.info('[IPC] settings:reset called');
+    settingsLog.info('settings:reset called');
     settingsService.resetToDefaults();
     return Promise.resolve();
   });
@@ -71,7 +73,7 @@ export function registerSettingsHandlers(): void {
    * Get Moku Web URL
    */
   ipcMain.handle('settings:getMokuWebUrl', (): Promise<string> => {
-    log.info('[IPC] settings:getMokuWebUrl called');
+    settingsLog.info('settings:getMokuWebUrl called');
     return Promise.resolve(settingsService.getMokuWebUrl());
   });
 
@@ -79,7 +81,7 @@ export function registerSettingsHandlers(): void {
    * Get Moku API URL
    */
   ipcMain.handle('settings:getMokuApiUrl', (): Promise<string> => {
-    log.info('[IPC] settings:getMokuApiUrl called');
+    settingsLog.info('settings:getMokuApiUrl called');
     return Promise.resolve(settingsService.getMokuApiUrl());
   });
 
@@ -87,11 +89,11 @@ export function registerSettingsHandlers(): void {
    * Get settings file path
    */
   ipcMain.handle('settings:getStorePath', (): Promise<string> => {
-    log.info('[IPC] settings:getStorePath called');
+    settingsLog.info('settings:getStorePath called');
     return Promise.resolve(settingsService.getStorePath());
   });
 
-  log.info('[IPC] Settings handlers registered');
+  settingsLog.info('Settings handlers registered');
 }
 
 /**
@@ -118,5 +120,5 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:getMokuApiUrl');
   ipcMain.removeHandler('settings:getStorePath');
 
-  log.info('[IPC] Settings handlers unregistered');
+  settingsLog.info('Settings handlers unregistered');
 }
