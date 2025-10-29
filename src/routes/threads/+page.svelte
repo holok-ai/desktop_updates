@@ -3,42 +3,39 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
-  import { router } from '$lib/services/router.service';
   import { THREAD_STATUS, type ThreadStatus } from '$lib/constants/status.constant';
-  import { ROUTE } from '$lib/constants/route.constant';
+  import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
+  import { ROUTE } from '$lib/constants/route.constant';
 
   let isLoading = $state(true);
   let showDialog = $state(false);
   let editingThread: Thread | null = $state(null);
 
-  let formData: {
-    title: string;
-    description: string;
-    status: ThreadStatus;
-  } = $state({
+  let formData: Thread = $state({
+    id: '',
+    createdAt: new Date(),
+    updatedAt: new Date(),
     title: '',
     description: '',
     status: THREAD_STATUS.ACTIVE,
   });
 
-  let selectedThread: Thread | null = null;
+  let selectedThread: Thread | null = $state(null);
   type Msg = { id: string; role: 'user' | 'assistant' | 'system'; content: string; createdAt: number };
-  let messages: Msg[] = [];
+  let messages: Msg[] = $state([]);
 
   onMount(async () => {
     await loadThreads();
   });
 
   $effect(() => {
-    const unsubscribe = router.current.subscribe((route) => {
-      const shouldOpenDialog =
-        route.path === ROUTE.THREADS &&
-        route.params.get('openCreateDialog') === 'true';
-      if (shouldOpenDialog && !showDialog) {
+    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+      if (params.has('create') && !showDialog) {
         openCreateDialog();
-        router.navigate(ROUTE.THREADS, undefined, { replace: true });
+        void replace(ROUTE.THREADS);
       }
     });
     return unsubscribe;
@@ -57,13 +54,16 @@
 
   function openCreateDialog() {
     editingThread = null;
-    formData = { title: '', description: '', status: 'active' };
+    formData = { id: '', createdAt: new Date(), updatedAt: new Date(), title: '', description: '', status: THREAD_STATUS.ACTIVE };
     showDialog = true;
   }
 
   function openEditDialog(thread: Thread) {
     editingThread = thread;
     formData = {
+      id: thread.id,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
       title: thread.title,
       description: thread.description,
       status: thread.status,

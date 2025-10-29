@@ -1,5 +1,5 @@
 import { ROUTE, type RoutePath } from '../constants/route.constant';
-import { router } from './router.service';
+import { push } from 'svelte-spa-router';
 
 export class MenuNavigationService {
   private static instance: MenuNavigationService | null = null;
@@ -26,7 +26,7 @@ export class MenuNavigationService {
       {
         channel: 'menu:new-thread',
         handler: () => {
-          this.navigate(routePaths.THREADS, { openCreateDialog: 'true' });
+          void push(`${routePaths.THREADS}?create`);
         }
       },
       {
@@ -61,7 +61,10 @@ export class MenuNavigationService {
   }
 
   public navigate(path: RoutePath, params?: Record<string, string>): void {
-    router.navigate(path, params);
+    const search = params !== undefined && params !== null && Object.keys(params).length > 0
+      ? `?${new URLSearchParams(params).toString()}`
+      : '';
+    void push(`${path}${search}`);
   }
 
   public destroy(): void {

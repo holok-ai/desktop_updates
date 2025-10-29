@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { router } from '$lib/services/router.service';
   import { ROUTE, type RoutePath } from '$lib/constants/route.constant';
+  import { location, push } from 'svelte-spa-router';
 
   let currentPath = $state<RoutePath>(ROUTE.HOME);
 
   $effect(() => {
-    const unsubscribe = router.current.subscribe((route) => {
-      currentPath = route.path as RoutePath;
+    const unsubscribe = location.subscribe((path: string) => {
+      currentPath = (typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME) as RoutePath;
     });
     return unsubscribe;
   });
   function navigateTo(path: RoutePath) {
-    router.navigate(path);
+    push(path);
   }
 </script>
 

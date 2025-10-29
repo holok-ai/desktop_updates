@@ -1,21 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import Header from './Header.svelte';
   import Navbar from './Navbar.svelte';
-  import Home from '../../../routes/+page.svelte';
-  import Threads from '../../../routes/threads/+page.svelte';
-  import { router } from '$lib/services/router.service';
-  import { ROUTE, type RoutePath } from '$lib/constants/route.constant';
-
-  let currentPath = $state<RoutePath>(ROUTE.HOME);
-
-  onMount(() => {
-    router.start();
-    const unsubscribe = router.current.subscribe((route) => {
-      currentPath = route.path as RoutePath;
-    });
-    return unsubscribe;
-  });
+  import Router from 'svelte-spa-router';
+  import { routes } from '$lib/router/routes';
 
 </script>
 
@@ -24,11 +11,7 @@
   <div class="main-container">
     <Navbar />
     <main class="content">
-      {#if currentPath === ROUTE.HOME}
-        <Home />
-      {:else if currentPath === ROUTE.THREADS}
-        <Threads />
-      {/if}
+      <Router {routes} />
     </main>
   </div>
 </div>
