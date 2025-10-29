@@ -3,7 +3,7 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
-  import { THREAD_STATUS, type ThreadStatus } from '$lib/constants/status.constant';
+  import { THREAD_STATUS } from '$lib/constants/status.constant';
   import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
