@@ -1,20 +1,27 @@
 <script lang="ts">
-  // eslint-disable-next-line no-unused-vars
-  let { currentPage, onnavigate }: { currentPage: string; onnavigate: (page: string) => void } =
-    $props();
+  import { router } from '$lib/services/router.service';
+  import { ROUTE, type RoutePath } from '$lib/constants/route.constant';
 
-  function navigate(page: string) {
-    onnavigate(page);
+  let currentPath = $state<RoutePath>(ROUTE.HOME);
+
+  $effect(() => {
+    const unsubscribe = router.current.subscribe((route) => {
+      currentPath = route.path as RoutePath;
+    });
+    return unsubscribe;
+  });
+  function navigateTo(path: RoutePath) {
+    router.navigate(path);
   }
 </script>
 
 <nav>
   <ul>
-    <li class:active={currentPage === 'home'}>
-      <button onclick={() => navigate('home')}>Home</button>
+    <li class:active={currentPath === ROUTE.HOME}>
+      <button onclick={() => navigateTo(ROUTE.HOME)}>Home</button>
     </li>
-    <li class:active={currentPage === 'threads'}>
-      <button onclick={() => navigate('threads')}>Threads</button>
+    <li class:active={currentPath === ROUTE.THREADS}>
+      <button onclick={() => navigateTo(ROUTE.THREADS)}>Threads</button>
     </li>
   </ul>
 </nav>

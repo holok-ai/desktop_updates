@@ -4,44 +4,29 @@
   import Navbar from './Navbar.svelte';
   import Home from '../../../routes/+page.svelte';
   import Threads from '../../../routes/threads/+page.svelte';
+  import { router } from '$lib/services/router.service';
+  import { ROUTE, type RoutePath } from '$lib/constants/route.constant';
 
-  let currentPage: 'home' | 'threads' = 'home';
+  let currentPath = $state<RoutePath>(ROUTE.HOME);
 
   onMount(() => {
-    // Listen for menu commands
-    const cleanups: Array<() => void> = [];
-
-    cleanups.push(
-      window.electronAPI.onMenuCommand('menu:new-thread', () => {
-        currentPage = 'threads';
-      }),
-    );
-
-    cleanups.push(
-      window.electronAPI.onMenuCommand('menu:refresh', () => {
-        // Trigger refresh
-        window.location.reload();
-      }),
-    );
-
-    return () => {
-      cleanups.forEach((cleanup) => cleanup());
-    };
+    router.start();
+    const unsubscribe = router.current.subscribe((route) => {
+      currentPath = route.path as RoutePath;
+    });
+    return unsubscribe;
   });
 
-  function navigateTo(page: 'home' | 'threads') {
-    currentPage = page;
-  }
 </script>
 
 <div class="layout">
   <Header />
   <div class="main-container">
-    <Navbar {currentPage} onnavigate={(page) => navigateTo(page as 'home' | 'threads')} />
+    <Navbar />
     <main class="content">
-      {#if currentPage === 'home'}
+      {#if currentPath === ROUTE.HOME}
         <Home />
-      {:else if currentPage === 'threads'}
+      {:else if currentPath === ROUTE.THREADS}
         <Threads />
       {/if}
     </main>

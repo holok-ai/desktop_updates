@@ -3,23 +3,39 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
+  import { router } from '$lib/services/router.service';
+  import { THREAD_STATUS, type ThreadStatus } from '$lib/constants/status.constant';
+  import { ROUTE } from '$lib/constants/route.constant';
 
-  let isLoading = true;
-  let showDialog = false;
-  let editingThread: Thread | null = null;
+  let isLoading = $state(true);
+  let showDialog = $state(false);
+  let editingThread: Thread | null = $state(null);
 
   let formData: {
     title: string;
     description: string;
-    status: 'active' | 'archived' | 'deleted';
-  } = {
+    status: ThreadStatus;
+  } = $state({
     title: '',
     description: '',
-    status: 'active',
-  };
+    status: THREAD_STATUS.ACTIVE,
+  });
 
   onMount(async () => {
     await loadThreads();
+  });
+
+  $effect(() => {
+    const unsubscribe = router.current.subscribe((route) => {
+      const shouldOpenDialog =
+        route.path === ROUTE.THREADS &&
+        route.params.get('openCreateDialog') === 'true';
+      if (shouldOpenDialog && !showDialog) {
+        openCreateDialog();
+        router.navigate(ROUTE.THREADS, undefined, { replace: true });
+      }
+    });
+    return unsubscribe;
   });
 
   async function loadThreads() {
@@ -51,10 +67,11 @@
 
   async function handleSave() {
     try {
+      const data = $state.snapshot(formData);
       if (editingThread) {
-        await threadService.update(editingThread.id, formData);
+        await threadService.update(editingThread.id, data);
       } else {
-        await threadService.create(formData);
+        await threadService.create(data);
       }
       showDialog = false;
     } catch (error) {
