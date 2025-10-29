@@ -3,6 +3,8 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
+  import ChatPane from '../../lib/components/ChatPane.svelte';
+  import Composer from '../../lib/components/Composer.svelte';
 
   let isLoading = true;
   let showDialog = false;
@@ -17,6 +19,10 @@
     description: '',
     status: 'active',
   };
+
+  let selectedThread: Thread | null = null;
+  type Msg = { id: string; role: 'user' | 'assistant' | 'system'; content: string; createdAt: number };
+  let messages: Msg[] = [];
 
   onMount(async () => {
     await loadThreads();
@@ -49,6 +55,12 @@
     showDialog = true;
   }
 
+  function selectThread(thread: Thread) {
+    selectedThread = thread;
+    // reset messages for now (will be wired to IPC in a later task)
+    messages = [];
+  }
+
   async function handleSave() {
     try {
       if (editingThread) {
@@ -71,10 +83,33 @@
       }
     }
   }
+
+  function handleSendEvent(e: CustomEvent) {
+    // accept either a string detail or an object with { content }
+    const detail = e.detail as any;
+    const content: string = typeof detail === 'string' ? detail : detail?.content;
+    if (!selectedThread || !content) return;
+
+    // Persist user prompt via IPC
+    window.electronAPI.thread
+      .addUserPrompt(selectedThread.id, content)
+      .then((res) => {
+        // update selected thread and messages
+        selectedThread = res.thread;
+        messages = [...messages, { id: res.message.id, role: res.message.role as any, content: res.message.content, createdAt: res.message.createdAt }];
+
+        // Simulate assistant response by adding assistant message via IPC
+        setTimeout(async () => {
+          const resp = await window.electronAPI.thread.addAssistantResponse(res.thread.id, 'Echo: ' + content);
+          messages = [...messages, { id: resp.id, role: resp.role as any, content: resp.content, createdAt: resp.createdAt }];
+        }, 400);
+      })
+      .catch((err) => console.error('Failed to send prompt:', err));
+  }
 </script>
 
 <div class="threads-page">
-  <div class="header">
+    <div class="header">
     <h1>Threads</h1>
     <button onclick={openCreateDialog}>New Thread</button>
   </div>
@@ -82,25 +117,34 @@
   {#if isLoading}
     <div class="loading">Loading threads...</div>
   {:else if $threads.length === 0}
-    <div class="empty">
+      <div class="empty">
       <p>No threads yet. Create your first thread!</p>
       <button onclick={openCreateDialog}>Create Thread</button>
     </div>
   {:else}
-    <div class="threads-list">
-      {#each $threads as thread (thread.id)}
-        <div class="thread-card">
-          <div class="thread-header">
-            <h3>{thread.title}</h3>
-            <span class="status status-{thread.status}">{thread.status}</span>
+    <div class="threads-grid">
+      <div class="threads-list">
+        {#each $threads as thread (thread.id)}
+          <div class="thread-card" role="button" tabindex="0" onclick={() => selectThread(thread)} onkeydown={(e) => e.key === 'Enter' && selectThread(thread)}>
+            <div class="thread-header">
+              <h3>{thread.title}</h3>
+              <span class="status status-{thread.status}">{thread.status}</span>
+            </div>
+            <p>{thread.description}</p>
+            <div class="thread-actions">
+              <button onclick={(e) => { e.stopPropagation(); openEditDialog(thread); }}>Edit</button>
+              <button class="danger" onclick={(e) => { e.stopPropagation(); handleDelete(thread.id); }}>Delete</button>
+            </div>
           </div>
-          <p>{thread.description}</p>
-          <div class="thread-actions">
-            <button onclick={() => openEditDialog(thread)}>Edit</button>
-            <button class="danger" onclick={() => handleDelete(thread.id)}>Delete</button>
-          </div>
+        {/each}
+      </div>
+
+      <div class="chat-column">
+        <ChatPane thread={selectedThread} messages={messages} />
+        <div class="composer-slot">
+          <Composer onSend={(e: CustomEvent) => handleSendEvent(e)} />
         </div>
-      {/each}
+      </div>
     </div>
   {/if}
 </div>
@@ -143,7 +187,7 @@
       <div class="dialog-actions">
         <button onclick={() => (showDialog = false)}>Cancel</button>
         <button class="primary" onclick={handleSave}>
-          {editingThread ? 'Update' : 'Create'}
+          {editingThread ? 'Confirm Update' : 'Confirm Create'}
         </button>
       </div>
     </div>
@@ -178,11 +222,16 @@
     margin-top: 1rem;
   }
 
+  .threads-grid { display: flex; gap: 1rem }
   .threads-list {
+    width: 360px;
+    max-height: 70vh;
+    overflow: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.5rem;
+    gap: 1rem;
   }
+
+  .chat-column { flex: 1; height: 70vh; }
 
   .thread-card {
     background: white;

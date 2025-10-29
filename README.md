@@ -404,6 +404,13 @@ Tests use:
 
 Mock IPC calls in tests using Vitest spies on `window.electron.*` methods.
 
+### Testing Details
+
+- Structure under `tests/`: `unit/`, `integration/ipc/`, `e2e/`, `setup/`, `fixtures/`.
+- Global setup `tests/setup/test-setup.ts` stubs `window.electronAPI` and jsdom gaps.
+- Coverage: run `npm run test:coverage` for text, HTML, and lcov; thresholds enforced.
+- Reports: Vitest JUnit at `test-results/vitest-junit.xml`, Playwright JUnit at `test-results/playwright-junit.xml`, HTML at `playwright-report/`.
+
 ## Extending the Application
 
 To add new functionality:
