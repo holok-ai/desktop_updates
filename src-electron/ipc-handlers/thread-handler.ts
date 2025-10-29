@@ -1,51 +1,37 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { Thread } from '../preload.js';
+import { threadsService } from '../services/threads-service.js';
+import type { Thread as RendererThread } from '../preload.js';
+import type { ThreadMetadata } from '../services/threads-service.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
-
-/**
- * Thread IPC Handlers
- *
- * This module contains all IPC handlers for thread-related operations.
- * It demonstrates the pattern for organizing IPC handlers by domain.
- *
- * In a real application, this would interact with a database or file system.
- * For this prototype, we use an in-memory store.
- */
-
-// In-memory thread store (replace with real database in production)
-const threads: Map<string, Thread> = new Map();
 
 const threadLog = createScopedLogger('thread');
 
-// Initialize with some sample data
-function initializeSampleData(): void {
-  const sampleThreads: Thread[] = [
-    {
-      id: '1',
-      title: 'Welcome Thread',
-      description: 'This is a sample thread to demonstrate the architecture',
-      status: 'active',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      metadata: { tags: ['sample', 'welcome'] },
-    },
-    {
-      id: '2',
-      title: 'Architecture Discussion',
-      description: 'Discussion about software architecture patterns',
-      status: 'active',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      metadata: { tags: ['architecture', 'design'] },
-    },
-  ];
-
-  sampleThreads.forEach((thread) => threads.set(thread.id, thread));
+/**
+ * Helper to convert internal thread representation to renderer-friendly shape
+ * (convert epoch ms to Date objects for compatibility with renderer code).
+ */
+function toRendererThread(
+  t: ReturnType<(typeof threadsService)['loadThread']>,
+): RendererThread | null {
+  if (!t) return null;
+  return {
+    id: t.id,
+    title: typeof t.metadata?.title === 'string' ? t.metadata.title : '',
+    description: t.metadata?.description ?? '',
+    // Normalize status from metadata if present and valid, otherwise default to 'active'
+    status: (() => {
+      const s = t.metadata?.status;
+      if (typeof s === 'string') {
+        if (s === 'active' || s === 'archived' || s === 'deleted') return s;
+      }
+      return 'active';
+    })(),
+    createdAt: new Date(t.createdAt),
+    updatedAt: new Date(t.updatedAt),
+    metadata: { ...t.metadata },
+  };
 }
 
-/**
- * Helper function to broadcast events to all windows
- */
 function broadcast(channel: string, ...args: unknown[]): void {
   BrowserWindow.getAllWindows().forEach((window) => {
     window.webContents.send(channel, ...(args as [unknown]));
@@ -53,117 +39,191 @@ function broadcast(channel: string, ...args: unknown[]): void {
 }
 
 /**
- * Generate a unique ID
+ * Generate a unique ID (kept for test compatibility)
  */
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
 /**
- * Register all thread-related IPC handlers
+ * Initialize sample data (kept for test compatibility)
  */
+export function initializeSampleData(): void {
+  const sampleThreads = [
+    {
+      title: 'Welcome Thread',
+      description: 'This is a sample thread to demonstrate the architecture',
+      metadata: { tags: ['sample', 'welcome'] },
+    },
+    {
+      title: 'Architecture Discussion',
+      description: 'Discussion about software architecture patterns',
+      metadata: { tags: ['architecture', 'design'] },
+    },
+  ];
+
+  sampleThreads.forEach((t) =>
+    threadsService.createThread({ title: t.title, description: t.description, ...t.metadata }),
+  );
+}
+
+// Export helpers for tests
+export { broadcast, generateId };
+
 export function registerThreadHandlers(): void {
-  // Initialize sample data
+  // Initialize sample data for compatibility with tests
   initializeSampleData();
 
-  /**
-   * Get all threads
-   */
-  ipcMain.handle('thread:getAll', (): Promise<Thread[]> => {
-    threadLog.info('thread:getAll called');
-    return Promise.resolve(Array.from(threads.values()));
+  // No external persistence; threadsService is memory-only
+
+  ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
+    const list = threadsService.listThreads();
+    const mapped = list
+      .map((t) => toRendererThread(t))
+      .filter((x): x is RendererThread => x !== null);
+    return Promise.resolve(mapped);
   });
 
-  /**
-   * Get a thread by ID
-   */
-  ipcMain.handle('thread:getById', (_event, id: string): Promise<Thread | null> => {
-    threadLog.info('thread:getById called', { id });
-    return Promise.resolve(threads.get(id) ?? null);
+  ipcMain.handle('thread:getById', (_event, id: string): Promise<RendererThread | null> => {
+    const t = threadsService.loadThread(id);
+    return Promise.resolve(toRendererThread(t));
   });
 
-  /**
-   * Create a new thread
-   */
   ipcMain.handle(
     'thread:create',
-    (_event, threadData: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> => {
+    (
+      _event,
+      threadData: Omit<RendererThread, 'id' | 'createdAt' | 'updatedAt'>,
+    ): Promise<RendererThread> => {
       const perfLog = logPerformance('thread:create');
       threadLog.info('thread:create called', { title: threadData.title, status: threadData.status });
 
-      const newThread: Thread = {
-        ...threadData,
-        id: generateId(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      const metadata = {
+        title: threadData.title,
+        description: threadData.description,
+        ...(threadData.metadata ?? {}),
       };
-
-      threads.set(newThread.id, newThread);
-
-      // Broadcast the new thread to all windows
-      broadcast('thread:created', newThread);
-
-      perfLog.end({ threadId: newThread.id });
-      return Promise.resolve(newThread);
+      const th = threadsService.createThread(metadata);
+      const rt = toRendererThread(th);
+      if (!rt) throw new Error('Failed to convert created thread');
+      broadcast('thread:created', rt);
+      perfLog.end({ threadId: th.id });
+      return Promise.resolve(rt);
     },
   );
 
-  /**
-   * Update a thread
-   */
   ipcMain.handle(
     'thread:update',
-    (_event, id: string, updates: Partial<Thread>): Promise<Thread> => {
-      threadLog.info('thread:update called', { id, updates });
+    (_event, id: string, updates: Partial<RendererThread>): Promise<RendererThread> => {
+      const existing = threadsService.loadThread(id);
+      if (!existing) throw new Error(`Thread with id ${id} not found`);
 
-      const existingThread = threads.get(id);
-      if (!existingThread) {
-        threadLog.error('Thread not found for update', { id });
-        throw new Error(`Thread with id ${id} not found`);
+      // Merge metadata and top-level fields
+      const newMetadata: ThreadMetadata = { ...existing.metadata, ...(updates.metadata ?? {}) };
+      if (typeof updates.title === 'string') newMetadata.title = updates.title;
+      if (typeof updates.description === 'string') newMetadata.description = updates.description;
+      if (typeof updates.status === 'string') {
+        const s = updates.status;
+        if (s === 'active' || s === 'archived' || s === 'deleted') newMetadata.status = s;
       }
 
-      const updatedThread: Thread = {
-        ...existingThread,
-        ...updates,
-        id: existingThread.id, // Prevent ID from being changed
-        createdAt: existingThread.createdAt, // Prevent createdAt from being changed
-        updatedAt: new Date(),
-      };
-
-      threads.set(id, updatedThread);
-
-      // Broadcast the update to all windows
-      broadcast('thread:updated', updatedThread);
-
-      return Promise.resolve(updatedThread);
+      const updated: ReturnType<(typeof threadsService)['saveThread']> = threadsService.saveThread({
+        ...existing,
+        metadata: newMetadata,
+        // keep messages
+        messages: existing.messages,
+        updatedAt: Date.now(),
+      });
+      const rt = toRendererThread(updated);
+      if (!rt) throw new Error('Failed to convert updated thread');
+      broadcast('thread:updated', rt);
+      return Promise.resolve(rt);
     },
   );
 
-  /**
-   * Delete a thread
-   */
   ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
-    threadLog.info('thread:delete called', { id });
-
-    const deleted = threads.delete(id);
-
-    if (deleted) {
-      // Broadcast the deletion to all windows
-      broadcast('thread:deleted', id);
-      threadLog.info('Thread deleted successfully', { id });
-    } else {
-      threadLog.warn('Thread not found for deletion', { id });
-    }
-
+    const deleted = threadsService.deleteThread(id);
+    if (deleted) broadcast('thread:deleted', id);
     return Promise.resolve(deleted);
   });
 
-  threadLog.info('Thread handlers registered');
+  // Add user prompt (creates thread if id null)
+  ipcMain.handle(
+    'thread:addUserPrompt',
+    (
+      _event,
+      threadId: string | null,
+      prompt: string,
+      opts: { title?: string; description?: string; model?: string } = {},
+    ): Promise<{
+      thread: RendererThread;
+      message: { id: string; role: string; content: string; createdAt: number };
+    }> => {
+      const res = threadsService.addUserPrompt(threadId, prompt, opts);
+      const rt = toRendererThread(res.thread);
+      if (!rt) throw new Error('Failed to convert thread');
+      const msg = {
+        id: res.message.id,
+        role: res.message.role,
+        content: res.message.content,
+        createdAt: res.message.createdAt,
+      };
+      broadcast('thread:updated', rt);
+      return Promise.resolve({ thread: rt, message: msg });
+    },
+  );
+
+  // Add assistant response
+  ipcMain.handle(
+    'thread:addAssistantResponse',
+    (_event, threadId: string, response: string, model?: string) => {
+      const msg = threadsService.addAssistantResponse(threadId, response, model);
+      const threadObj = threadsService.loadThread(threadId);
+      const thread = toRendererThread(threadObj);
+      if (!thread) throw new Error('Failed to convert thread after assistant response');
+      broadcast('thread:updated', thread);
+      return Promise.resolve({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt,
+      });
+    },
+  );
+
+  // Save prompt and multiple responses atomically
+  ipcMain.handle(
+    'thread:savePromptAndResponses',
+    (
+      _event,
+      threadId: string | null,
+      prompt: string,
+      responses: { text: string; model?: string }[],
+      opts: { title?: string; description?: string } = {},
+    ) => {
+      const res = threadsService.savePromptAndResponses(threadId, prompt, responses, opts);
+      const rt = toRendererThread(res.thread);
+      if (!rt) throw new Error('Failed to convert thread after savePromptAndResponses');
+      const promptMessage = {
+        id: res.promptMessage.id,
+        role: res.promptMessage.role,
+        content: res.promptMessage.content,
+        createdAt: res.promptMessage.createdAt,
+      };
+      const responseMessages = res.responseMessages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      }));
+      broadcast('thread:updated', rt);
+      return Promise.resolve({ thread: rt, promptMessage, responseMessages });
+    },
+  );
+
+  threadLog.info('[IPC] Thread handlers registered');
 }
 
-/**
- * Clean up handlers (called when app is closing)
- */
 export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:getAll');
   ipcMain.removeHandler('thread:getById');
@@ -172,6 +232,3 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:delete');
   threadLog.info('Thread handlers unregistered');
 }
-
-// Export internal helpers for unit testing
-export { initializeSampleData, broadcast, generateId };

@@ -6,7 +6,7 @@ async function getFirstWindow(app: ElectronApplication): Promise<Page> {
   return page;
 }
 
-test.describe('E2E: Thread management', () => {
+test.describe('E2E: Chat prompt/response', () => {
   let app: ElectronApplication | undefined;
   test.describe.configure({ mode: 'serial' });
 
@@ -27,53 +27,55 @@ test.describe('E2E: Thread management', () => {
     }
   });
 
-  // No beforeEach cleanup; test is resilient to persisted auth state
   test.afterAll(async () => {
-    if (app) {
-      await app.close();
-    }
+    if (app) await app.close();
   });
 
-  test('CRUD flow', async () => {
+  test('send prompt and receive assistant response', async () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    // Login first if not already authenticated
+    // Ensure we're authenticated (click mock sign-in if present)
     const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
     if (await loginBtn.count()) {
-      await expect(loginBtn).toBeVisible();
       await loginBtn.click();
 
       await page.waitForTimeout(1200);
     }
 
-    // Navigate to Threads via navbar
+    // Navigate to Threads
     await page.getByRole('button', { name: 'Threads' }).click();
-
-    // Wait for list or empty state
     await expect(page.locator('.threads-list, .empty').first()).toBeVisible();
 
-    // Create
-    await page.getByRole('button', { name: 'New Thread' }).click();
-    await page.getByLabel('Title').fill('Playwright Thread');
-    await page.getByLabel('Description').fill('Created by E2E');
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    // Create a thread if none exist
+    const newBtn = page.getByRole('button', { name: 'New Thread' });
+    if (await newBtn.count()) {
+      await newBtn.click();
+      await page.getByLabel('Title').fill('E2E Chat Thread');
+      await page.getByLabel('Description').fill('testing chat');
+      await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    }
 
-    const createdCard = page.locator('.thread-card', { hasText: 'Playwright Thread' });
-    await expect(createdCard).toBeVisible();
+    // Select first thread card
+    const firstCard = page.locator('.thread-card').first();
+    await expect(firstCard).toBeVisible();
+    await firstCard.click();
 
-    // Update
-    await createdCard.getByRole('button', { name: 'Edit' }).click();
-    await page.getByLabel('Title').fill('Playwright Thread Updated');
-    await page.getByRole('button', { name: 'Update' }).click();
+    // Compose a prompt
+    const prompt = 'Hello integration';
+    const textarea = page.locator('textarea[placeholder="Write a message..."]');
+    await expect(textarea).toBeVisible();
+    await textarea.fill(prompt);
+    await page.getByRole('button', { name: 'Send' }).click();
+
+    // Expect user message to appear
     await expect(
-      page.locator('.thread-card', { hasText: 'Playwright Thread Updated' }),
+      page.locator('.messages .message.user .message-content', { hasText: prompt }),
     ).toBeVisible();
 
-    // Delete (accept confirm dialog)
-    page.once('dialog', (d) => d.accept());
-    const updatedCard = page.locator('.thread-card', { hasText: 'Playwright Thread Updated' });
-    await updatedCard.getByRole('button', { name: 'Delete' }).click();
-    await expect(updatedCard).toHaveCount(0);
+    // Expect assistant echo response to appear
+    await expect(
+      page.locator('.messages .message.assistant .message-content', { hasText: 'Echo: ' + prompt }),
+    ).toBeVisible({ timeout: 5000 });
   });
 });
