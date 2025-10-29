@@ -228,6 +228,13 @@ export default [
       },
       globals: {
         ...globals.browser,
+        // Add Svelte 5 runes as globals
+        $props: 'readonly',
+        $state: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $bindable: 'readonly',
+        $inspect: 'readonly',
       },
     },
     plugins: {
@@ -245,9 +252,26 @@ export default [
   // Test files - relaxed rules
   {
     files: ['**/*.spec.ts', '**/*.test.ts', '**/tests/**/*.ts'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
     },
   },
 

@@ -163,3 +163,6 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:delete');
   console.log('[IPC] Thread handlers unregistered');
 }
+
+// Export internal helpers for unit testing
+export { initializeSampleData, broadcast, generateId };
