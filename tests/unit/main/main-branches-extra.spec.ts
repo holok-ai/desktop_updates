@@ -22,7 +22,6 @@ describe('main.ts extra branches (devtools toggle and second-instance)', () => {
         (this as any).loadFile = vi.fn(async () => Promise.resolve());
         (this as any).on = vi.fn();
         // capture the created window instance for assertions
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
         createdWindow = this as any;
         (this as any).isMinimized = vi.fn(() => true);
         (this as any).restore = vi.fn();
@@ -154,7 +153,6 @@ describe('main.ts extra branches (devtools toggle and second-instance)', () => {
       focus = vi.fn();
       constructor() {
         // capture instance when constructed by main
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
         createdWindow = this as any;
         (this as any).loadURL = vi.fn(async () => Promise.resolve());
         (this as any).loadFile = vi.fn(async () => Promise.resolve());

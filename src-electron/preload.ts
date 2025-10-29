@@ -36,6 +36,34 @@ export interface ThreadAPI {
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
   onThreadDeleted: (callback: (threadId: string) => void) => () => void;
+  // Add user prompt (creates thread if id null)
+  addUserPrompt: (
+    threadId: string | null,
+    prompt: string,
+    opts?: { title?: string; description?: string; model?: string },
+  ) => Promise<{
+    thread: Thread;
+    message: { id: string; role: string; content: string; createdAt: number };
+  }>;
+
+  // Add assistant response to a thread
+  addAssistantResponse: (
+    threadId: string,
+    response: string,
+    model?: string,
+  ) => Promise<{ id: string; role: string; content: string; createdAt: number }>;
+
+  // Save prompt and multiple responses in a single operation
+  savePromptAndResponses: (
+    threadId: string | null,
+    prompt: string,
+    responses: { text: string; model?: string }[],
+    opts?: { title?: string; description?: string },
+  ) => Promise<{
+    thread: Thread;
+    promptMessage: { id: string; role: string; content: string; createdAt: number };
+    responseMessages: { id: string; role: string; content: string; createdAt: number }[];
+  }>;
 }
 
 /**
@@ -274,6 +302,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('thread:deleted', subscription);
       };
     },
+    addUserPrompt: (
+      threadId: string | null,
+      prompt: string,
+      opts: { title?: string; description?: string; model?: string } | undefined,
+    ) => ipcRenderer.invoke('thread:addUserPrompt', threadId, prompt, opts),
+
+    addAssistantResponse: (threadId: string, response: string, model?: string) =>
+      ipcRenderer.invoke('thread:addAssistantResponse', threadId, response, model),
+
+    savePromptAndResponses: (
+      threadId: string | null,
+      prompt: string,
+      responses: { text: string; model?: string }[],
+      opts?: { title?: string; description?: string },
+    ) => ipcRenderer.invoke('thread:savePromptAndResponses', threadId, prompt, responses, opts),
   } as ThreadAPI,
 
   /**
