@@ -50,6 +50,25 @@ Use **SCREAMING_SNAKE_CASE** for constants: `const MAX_RETRIES = 3`, `const API_
 
 Prefix boolean variables with `is`, `has`, or `should`: `isLoading`, `hasPermission`, `shouldRetry`.
 
+## Class Naming
+
+When defining classes and data models, follow these rules to keep naming consistent:
+
+- **ID fields**: Use `UUID` for any `id` fields. At runtime an `id` is a string, but the canonical type should be `UUID` and IDs should be generated using a secure UUID generator (e.g. `crypto.randomUUID()` in Node). Avoid custom sequential schemes unless explicitly required and namespaced (use prefixes only when necessary).
+- **Title / Name**: The human-readable name of an entity should be stored in a `title` field (not `name`). Use `title: string` at the top level of model interfaces and mirror it in `metadata.title` when present. This keeps UI expectations consistent (e.g., list headers, card titles).
+
+Example:
+
+```ts
+interface Thread {
+  id: UUID;        // stable unique id
+  title: string;   // human-friendly name shown in UI
+  metadata: { title?: string; description?: string }
+}
+```
+
+These conventions ensure IDs are globally unique and display names are found in a predictable `title` field across models.
+
 ---
 
 ## IPC Organization

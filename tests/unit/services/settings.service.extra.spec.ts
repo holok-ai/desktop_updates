@@ -1,0 +1,68 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('electron-store', () => {
+  return {
+    default: class MockStore {
+      store: Record<string, any>;
+      path = '/tmp/settings.json';
+      constructor(opts: any) {
+        this.store = { ...(opts?.defaults || {}) };
+      }
+      get(key: string, fallback?: any) {
+        return this.store[key] ?? fallback;
+      }
+      set(key: string, value: any) {
+        this.store[key] = value;
+      }
+      clear() {
+        this.store = {};
+      }
+    },
+  };
+});
+
+vi.mock('electron-log', () => ({ default: { info: vi.fn() } }));
+
+import { SettingsService } from '../../../src-electron/services/settings.service';
+
+describe('SettingsService', () => {
+  let svc: SettingsService;
+  beforeEach(() => {
+    svc = new SettingsService();
+  });
+
+  it('getAllSettings returns defaults', () => {
+    const all = svc.getAllSettings();
+    expect(all.mokuWebUrl).toBeDefined();
+    expect(all.mokuApiUrl).toBeDefined();
+  });
+
+  it('get/set setting', () => {
+    svc.setSetting('mokuWebUrl', 'http://a');
+    expect(svc.getSetting('mokuWebUrl')).toBe('http://a');
+  });
+
+  it('setSettings updates multiple', () => {
+    svc.setSettings({ mokuWebUrl: 'u', mokuApiUrl: 'a' });
+    expect(svc.getMokuWebUrl()).toBe('u');
+    expect(svc.getMokuApiUrl()).toBe('a');
+  });
+
+  it('resetToDefaults clears store', () => {
+    svc.setSetting('mokuWebUrl', 'x');
+    svc.resetToDefaults();
+    const all = svc.getAllSettings();
+    expect(all.mokuWebUrl).not.toBe('x');
+  });
+
+  it('theme and logLevel getters/setters', () => {
+    svc.setTheme('dark');
+    expect(svc.getTheme()).toBe('dark');
+    svc.setLogLevel('debug');
+    expect(svc.getLogLevel()).toBe('debug');
+  });
+
+  it('getStorePath returns path', () => {
+    expect(svc.getStorePath()).toMatch(/settings.json/);
+  });
+});
