@@ -40,8 +40,7 @@ log.transports.file.resolvePathFn = () => {
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
 
-// Log application startup
-log.info('Starting application');
+log.info('[App] Starting application');
 
 /**
  * Main Electron Process
@@ -316,8 +315,7 @@ void app.whenReady().then(() => {
   // Create the main window
   createWindow();
 
-  // Log that application has completed startup
-  log.info('Application startup complete and running');
+  log.info('[App] Application startup complete');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -330,50 +328,30 @@ void app.whenReady().then(() => {
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    log.info('Application exited');
+    log.info('[App] Exiting - all windows closed');
     app.quit();
   }
 });
 
-// Log application exit on quit event
 app.on('before-quit', () => {
-  log.info('Application exited');
+  log.info('[App] Application exiting');
 });
 
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
-log.info('[App] ==========================================');
-log.info('[App] Single instance lock requested');
-log.info('[App] Got the lock:', gotTheLock);
-
 if (!gotTheLock) {
-  log.info('[App] Second instance detected - quitting this instance');
-  log.info('[App] Command line args:', process.argv);
+  log.info('[App] Second instance detected - quitting');
   app.quit();
 } else {
-  log.info('[App] This is the first instance - continuing startup');
-
   app.on('second-instance', (event, commandLine, workingDirectory) => {
-    log.info('[App] ==========================================');
-    log.info('[App] Second instance attempted to start');
-    log.info('[App] Command line:', commandLine);
-    log.info('[App] Working directory:', workingDirectory);
-
-    // Show dialog to confirm
-    void dialog.showMessageBox({
-      type: 'info',
-      title: 'Second Instance Detected',
-      message: 'A second instance was attempted',
-      detail: `Command line: ${commandLine.join(' ')}`,
-      buttons: ['OK']
-    });
+    log.info('[App] Second instance attempted - processing command line');
 
     // Check command line for protocol URL
     const protocolUrl = commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
     if (protocolUrl) {
-      log.info('[Protocol] Windows second-instance: Received protocol URL:', protocolUrl);
+      log.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
       if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
         handleOAuthCallback(protocolUrl, mainWindow);
       }
