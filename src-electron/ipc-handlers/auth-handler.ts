@@ -18,16 +18,16 @@ let authService: AuthService;
  * Validates the callback, extracts parameters, and exchanges authorization code for tokens.
  */
 export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | null): void {
-  authLog.info('[Auth] ========================================');
-  authLog.info('[Auth] Processing OAuth callback:', url);
-  authLog.info('[Auth] Main window exists:', !!mainWindow);
+  authLog.info('========================================');
+  authLog.info('Processing OAuth callback:', url);
+  authLog.info('Main window exists:', !!mainWindow);
 
   try {
     // Parse the URL
     const urlObj = new URL(url);
-    authLog.info('[Auth] Parsed URL protocol:', urlObj.protocol);
-    authLog.info('[Auth] Parsed URL pathname:', urlObj.pathname);
-    authLog.info('[Auth] Parsed URL search params:', urlObj.search);
+    authLog.info('Parsed URL protocol:', urlObj.protocol);
+    authLog.info('Parsed URL pathname:', urlObj.pathname);
+    authLog.info('Parsed URL search params:', urlObj.search);
 
     const params = urlObj.searchParams;
 
@@ -51,11 +51,11 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     const code = params.get('code');
 //    const state = params.get('state');
 
-    authLog.info('[Auth] Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
+    authLog.info('Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
 
     if (!code) {
-      authLog.error('[Auth] Missing required parameters in callback');
-      authLog.error('[Auth] Code present:', !!code);
+      authLog.error('Missing required parameters in callback');
+      authLog.error('Code present:', !!code);
       if (mainWindow) {
         mainWindow.webContents.send('auth:callback-error', {
           error: 'invalid_callback',
@@ -65,17 +65,17 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
       return;
     }
 
-    authLog.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
-    authLog.info('[Auth] Calling authService.processOAuthCallback...');
+    authLog.info('Valid OAuth callback received, exchanging code for tokens');
+    authLog.info('Calling authService.processOAuthCallback...');
 
     // Process the callback through auth service
     authService
       .processOAuthCallback(code)
       .then((authState) => {
-        authLog.info('[Auth] OAuth flow completed successfully');
-        authLog.info('[Auth] Auth state - isAuthenticated:', authState.isAuthenticated);
-        authLog.info('[Auth] Auth state - user:', authState.user?.email);
-        authLog.info('[Auth] Sending auth:callback-success to renderer...');
+        authLog.info('OAuth flow completed successfully');
+        authLog.info('State - isAuthenticated:', authState.isAuthenticated);
+        authLog.info('State - user:', authState.user?.email);
+        authLog.info('Sending auth:callback-success to renderer...');
 
         // Notify renderer of successful authentication
         if (mainWindow) {
@@ -83,15 +83,15 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             user: authState.user,
             isAuthenticated: authState.isAuthenticated,
           });
-          authLog.info('[Auth] auth:callback-success sent to renderer');
+          authLog.info('auth:callback-success sent to renderer');
         } else {
-          authLog.warn('[Auth] Cannot send to renderer - mainWindow is null');
+          authLog.warn('Cannot send to renderer - mainWindow is null');
         }
       })
       .catch((error: unknown) => {
-        authLog.error('[Auth] Error processing OAuth callback:', error);
-        authLog.error('[Auth] Error type:', error instanceof Error ? 'Error' : typeof error);
-        authLog.error('[Auth] Error message:', error instanceof Error ? error.message : String(error));
+        authLog.error('Error processing OAuth callback:', error);
+        authLog.error('Error type:', error instanceof Error ? 'Error' : typeof error);
+        authLog.error('Error message:', error instanceof Error ? error.message : String(error));
 
         if (mainWindow) {
           const errorMessage =
@@ -100,22 +100,22 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             error: 'exchange_failed',
             description: errorMessage,
           });
-          authLog.info('[Auth] auth:callback-error sent to renderer');
+          authLog.info('auth:callback-error sent to renderer');
         }
       });
   } catch (error) {
-    authLog.error('[Auth] Error parsing OAuth callback URL:', error);
-    authLog.error('[Auth] Error details:', error instanceof Error ? error.stack : String(error));
+    authLog.error('Error parsing OAuth callback URL:', error);
+    authLog.error('Error details:', error instanceof Error ? error.stack : String(error));
 
     if (mainWindow) {
       mainWindow.webContents.send('auth:callback-error', {
         error: 'invalid_url',
         description: 'Failed to parse callback URL',
       });
-      authLog.info('[Auth] auth:callback-error sent to renderer (parse error)');
+      authLog.info('auth:callback-error sent to renderer (parse error)');
     }
   }
-  authLog.info('[Auth] ========================================');
+  authLog.info('========================================');
 }
 
 /**
@@ -153,7 +153,7 @@ export function registerAuthHandlers(): void {
    * Exchange authorization code for tokens (manual exchange for testing)
    */
   ipcMain.handle('auth:exchangeCode', async (_event, code: string): Promise<AuthState> => {
-    authLog.info('auth:exchangeCode called');
+    authLog.info('exchangeCode called');
 
     try {
       const authState = await authService.exchangeCodeForTokens(code);
@@ -174,7 +174,7 @@ export function registerAuthHandlers(): void {
    * Mock login - Simulates complete authentication flow for testing
    */
   ipcMain.handle('auth:mockLogin', async (_event): Promise<AuthState> => {
-    authLog.info('auth:mockLogin called');
+    authLog.info('mockLogin called');
 
     try {
       const authState = await authService.mockLogin();
@@ -195,7 +195,7 @@ export function registerAuthHandlers(): void {
    * Get current authentication state
    */
   ipcMain.handle('auth:getAuthState', (): Promise<AuthState> => {
-    authLog.info('auth:getAuthState called');
+    authLog.info('getAuthState called');
 
     const authState = authService.getAuthState();
 
@@ -211,7 +211,7 @@ export function registerAuthHandlers(): void {
    * Get current user profile
    */
   ipcMain.handle('auth:getUser', (): Promise<UserProfile | null> => {
-    authLog.info('auth:getUser called');
+    authLog.info('GetUser called');
     return Promise.resolve(authService.getUser());
   });
 
@@ -219,7 +219,7 @@ export function registerAuthHandlers(): void {
    * Check if user is authenticated
    */
   ipcMain.handle('auth:isAuthenticated', (): Promise<boolean> => {
-    authLog.info('auth:isAuthenticated called');
+    authLog.info('IsAuthenticated called');
     return Promise.resolve(authService.isAuthenticated());
   });
 
@@ -227,7 +227,7 @@ export function registerAuthHandlers(): void {
    * Logout user - Clears all stored authentication data
    */
   ipcMain.handle('auth:logout', (): Promise<void> => {
-    authLog.info('auth:logout called');
+    authLog.info('Logout called');
 
     try {
       authService.logout();
@@ -242,7 +242,7 @@ export function registerAuthHandlers(): void {
    * Refresh access token - Uses refresh token to get new access token
    */
   ipcMain.handle('auth:refreshToken', async (): Promise<void> => {
-    authLog.info('auth:refreshToken called');
+    authLog.info('refreshToken called');
 
     try {
       await authService.refreshAccessToken();
@@ -252,7 +252,7 @@ export function registerAuthHandlers(): void {
     }
   });
 
-  authLog.info('Auth handlers registered');
+  authLog.info('Handlers registered');
 }
 
 /**
@@ -268,5 +268,5 @@ export function unregisterAuthHandlers(): void {
   ipcMain.removeHandler('auth:logout');
   ipcMain.removeHandler('auth:refreshToken');
 
-  authLog.info('Auth handlers unregistered');
+  authLog.info('Handlers unregistered');
 }

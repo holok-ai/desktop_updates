@@ -21,7 +21,7 @@ const CUSTOM_PROTOCOL = 'holokai';
 const protocolLog = createScopedLogger('protocol');
 const appLog = createScopedLogger('app');
 
-appLog.info('[App] Starting application');
+appLog.info('Starting application');
 
 /**
  * Main Electron Process
@@ -296,7 +296,7 @@ void app.whenReady().then(() => {
   // Create the main window
   createWindow();
 
-  appLog.info('[App] Application startup complete');
+  appLog.info('Application startup complete');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -309,7 +309,7 @@ void app.whenReady().then(() => {
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    appLog.info('[App] Exiting - all windows closed');
+    appLog.info('Exiting - all windows closed');
     app.quit();
   }
   appLog.info('Application exited');
@@ -317,24 +317,24 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  appLog.info('[App] Application exiting');
+  appLog.info('Application exiting');
 });
 
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  appLog.info('[App] Second instance detected - quitting');
+  appLog.info('Second instance detected - quitting');
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, _workingDirectory) => {
-    appLog.info('[App] Second instance attempted - processing command line');
+    appLog.info('Second instance attempted - processing command line');
 
     // Check command line for protocol URL
     const protocolUrl = commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
     if (protocolUrl) {
-      protocolLog.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
+      protocolLog.info('Received protocol URL via second instance:', protocolUrl);
       if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
         handleOAuthCallback(protocolUrl, mainWindow);
       }

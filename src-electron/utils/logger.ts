@@ -46,10 +46,10 @@ export function createScopedLogger(scope: string): {
   debug: (message: string, ...args: unknown[]) => void;
 } {
   return {
-    info: (message: string, ...args: unknown[]) => log.info(`[${scope}] ${message}`, ...args),
-    warn: (message: string, ...args: unknown[]) => log.warn(`[${scope}] ${message}`, ...args),
-    error: (message: string, ...args: unknown[]) => log.error(`[${scope}] ${message}`, ...args),
-    debug: (message: string, ...args: unknown[]) => log.debug(`[${scope}] ${message}`, ...args),
+    info: (message: string, ...args: unknown[]) => log.info(`[${scope.toUpperCase()}] ${message}`, ...args),
+    warn: (message: string, ...args: unknown[]) => log.warn(`[${scope.toUpperCase()}] ${message}`, ...args),
+    error: (message: string, ...args: unknown[]) => log.error(`[${scope.toUpperCase()}] ${message}`, ...args),
+    debug: (message: string, ...args: unknown[]) => log.debug(`[${scope.toUpperCase()}] ${message}`, ...args),
   };
 }
 

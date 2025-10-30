@@ -15,7 +15,7 @@ This document describes the structured logging implementation for the Holokai De
 ### ✅ Scenario 2 — Appropriate Log Levels
 - **Status**: Complete
 - `log.error()` used for errors
-- `log.warn()` for warnings  
+- `log.warn()` for warnings
 - `log.info()` for important events
 - `log.debug()` for detailed debugging (development only)
 

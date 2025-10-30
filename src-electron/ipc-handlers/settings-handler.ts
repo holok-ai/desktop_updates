@@ -24,7 +24,7 @@ export function registerSettingsHandlers(): void {
    * Get all settings
    */
   ipcMain.handle('settings:getAll', (): Promise<AppSettings> => {
-    settingsLog.info('settings:getAll called');
+    settingsLog.info('GetAll called');
     return Promise.resolve(settingsService.getAllSettings());
   });
 
@@ -32,7 +32,7 @@ export function registerSettingsHandlers(): void {
    * Get a specific setting
    */
   ipcMain.handle('settings:get', (_event, key: keyof AppSettings): Promise<unknown> => {
-    settingsLog.info('settings:get called', { key });
+    settingsLog.info('Get called', { key });
     return Promise.resolve(settingsService.getSetting(key));
   });
 
@@ -42,7 +42,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     'settings:set',
     (_event, key: keyof AppSettings, value: unknown): Promise<void> => {
-      settingsLog.info('settings:set called', { key, value });
+      settingsLog.info('Set called', { key, value });
       settingsService.setSetting(key, value as AppSettings[keyof AppSettings]);
       return Promise.resolve();
     },
@@ -54,7 +54,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     'settings:setMultiple',
     (_event, settings: Partial<AppSettings>): Promise<void> => {
-      settingsLog.info('settings:setMultiple called', { settings });
+      settingsLog.info('SetMultiple called', { settings });
       settingsService.setSettings(settings);
       return Promise.resolve();
     },
@@ -64,7 +64,7 @@ export function registerSettingsHandlers(): void {
    * Reset settings to defaults
    */
   ipcMain.handle('settings:reset', (): Promise<void> => {
-    settingsLog.info('settings:reset called');
+    settingsLog.info('Reset called');
     settingsService.resetToDefaults();
     return Promise.resolve();
   });
@@ -73,7 +73,7 @@ export function registerSettingsHandlers(): void {
    * Get Moku Web URL
    */
   ipcMain.handle('settings:getMokuWebUrl', (): Promise<string> => {
-    settingsLog.info('settings:getMokuWebUrl called');
+    settingsLog.info('GetMokuWebUrl called');
     return Promise.resolve(settingsService.getMokuWebUrl());
   });
 
@@ -81,7 +81,7 @@ export function registerSettingsHandlers(): void {
    * Get Moku API URL
    */
   ipcMain.handle('settings:getMokuApiUrl', (): Promise<string> => {
-    settingsLog.info('settings:getMokuApiUrl called');
+    settingsLog.info('GetMokuApiUrl called');
     return Promise.resolve(settingsService.getMokuApiUrl());
   });
 
@@ -89,11 +89,11 @@ export function registerSettingsHandlers(): void {
    * Get settings file path
    */
   ipcMain.handle('settings:getStorePath', (): Promise<string> => {
-    settingsLog.info('settings:getStorePath called');
+    settingsLog.info('GetStorePath called');
     return Promise.resolve(settingsService.getStorePath());
   });
 
-  settingsLog.info('Settings handlers registered');
+  settingsLog.info('Handlers registered');
 }
 
 /**
@@ -120,5 +120,5 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:getMokuApiUrl');
   ipcMain.removeHandler('settings:getStorePath');
 
-  settingsLog.info('Settings handlers unregistered');
+  settingsLog.info('Handlers unregistered');
 }

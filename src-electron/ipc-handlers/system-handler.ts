@@ -17,7 +17,7 @@ export function registerSystemHandlers(): void {
    * Get platform information
    */
   ipcMain.handle('system:platform', (): Promise<string> => {
-    systemLog.info('system:platform called');
+    systemLog.info('Platform called');
     return Promise.resolve(process.platform);
   });
 
@@ -25,7 +25,7 @@ export function registerSystemHandlers(): void {
    * Get Electron version
    */
   ipcMain.handle('system:version', (): Promise<string> => {
-    systemLog.info('system:version called');
+    systemLog.info('Version called');
     return Promise.resolve(process.versions.electron);
   });
 
@@ -38,12 +38,12 @@ export function registerSystemHandlers(): void {
       _event,
       name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
     ): Promise<string> => {
-      systemLog.info('system:getPath called', { name });
+      systemLog.info('GetPath called', { name });
       return Promise.resolve(app.getPath(name));
     },
   );
 
-  systemLog.info('System handlers registered');
+  systemLog.info('Handlers registered');
 }
 
 /**
@@ -53,5 +53,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('system:platform');
   ipcMain.removeHandler('system:version');
   ipcMain.removeHandler('system:getPath');
-  systemLog.info('System handlers unregistered');
+  systemLog.info('Handlers unregistered');
 }

@@ -96,7 +96,7 @@ export function registerThreadHandlers(): void {
       threadData: Omit<RendererThread, 'id' | 'createdAt' | 'updatedAt'>,
     ): Promise<RendererThread> => {
       const perfLog = logPerformance('thread:create');
-      threadLog.info('thread:create called', { title: threadData.title, status: threadData.status });
+      threadLog.info('Create called', { title: threadData.title, status: threadData.status });
 
       const metadata = {
         title: threadData.title,
@@ -221,7 +221,7 @@ export function registerThreadHandlers(): void {
     },
   );
 
-  threadLog.info('[IPC] Thread handlers registered');
+  threadLog.info('Handlers registered');
 }
 
 export function unregisterThreadHandlers(): void {
@@ -230,5 +230,5 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
   ipcMain.removeHandler('thread:delete');
-  threadLog.info('Thread handlers unregistered');
+  threadLog.info('Handlers unregistered');
 }
