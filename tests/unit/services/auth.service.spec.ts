@@ -89,6 +89,39 @@ describe('AuthService (unit)', () => {
     );
   });
 
+  it('exchangeCodeForTokens throws on non-401 exchange failure', async () => {
+    vi.spyOn(globalThis as any, 'fetch').mockImplementationOnce(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => 'server error',
+    }));
+
+    await expect(service.exchangeCodeForTokens('bad')).rejects.toThrow(
+      'Failed to exchange code: 500',
+    );
+  });
+
+  it('processOAuthCallback cancels waiting flag and delegates to exchangeCodeForTokens', async () => {
+    // Arrange: ensure we are marked as waiting
+    (service as any).waitingForCallback = true;
+
+    const mockedState = { user: null, tokens: null, isAuthenticated: false };
+    const spyExchange = vi
+      .spyOn<any, any>(service as any, 'exchangeCodeForTokens')
+      .mockResolvedValue(mockedState);
+
+    // Act
+    const res = await service.processOAuthCallback('code-x');
+
+    // Assert
+    expect(spyExchange).toHaveBeenCalledWith('code-x');
+    // @ts-ignore
+    expect((service as any).waitingForCallback).toBe(false);
+    expect(res).toBe(mockedState);
+
+    spyExchange.mockRestore();
+  });
+
   it('mockLogin returns authenticated state and stores tokens', async () => {
     const spySave = vi.spyOn<any, any>(service as any, 'storeAuthData');
     const state = await service.mockLogin();
@@ -105,12 +138,10 @@ describe('AuthService (unit)', () => {
     };
 
     // Mock fetch to return refreshed token
-    const fetchMock = vi
-      .spyOn(globalThis as any, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ accessToken: 'new', expires_in: 3600 }),
-      });
+    const fetchMock = vi.spyOn(globalThis as any, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ accessToken: 'new', expires_in: 3600 }),
+    });
     const spyStore = vi.spyOn<any, any>(service as any, 'storeAuthData');
 
     const tokens = await service.refreshAccessToken();

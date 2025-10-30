@@ -21,6 +21,9 @@ vi.mock('electron-store', () => {
   };
 });
 
+// Mock electron to provide app.getPath used by SettingsService
+vi.mock('electron', () => ({ app: { getPath: () => '/tmp' } }));
+
 vi.mock('electron-log', () => ({ default: { info: vi.fn() } }));
 
 import { SettingsService } from '../../../src-electron/services/settings.service';

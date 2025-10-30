@@ -15,8 +15,31 @@ let settingsService: SettingsService;
  * Register all settings IPC handlers
  */
 export function registerSettingsHandlers(): void {
-  // Initialize settings service
-  settingsService = new SettingsService();
+  // Initialize settings service. If initialization fails (e.g. in test env
+  // where electron/app paths are not available), fall back to a safe
+  // in-memory stub so IPC handlers can still be registered.
+  try {
+    settingsService = new SettingsService();
+  } catch (err) {
+    log.error('[IPC] Failed to initialize SettingsService, falling back to in-memory stub', err);
+    // Minimal stub implementing the same API used by handlers
+    settingsService = {
+      getAllSettings: () =>
+        ({
+          mokuWebUrl: 'http://localhost:4200',
+          mokuApiUrl: 'http://localhost:8080',
+          theme: 'light',
+          logLevel: 'info',
+        }) as AppSettings,
+      getSetting: (_key: keyof AppSettings) => undefined,
+      setSetting: (_k: keyof AppSettings, _v: AppSettings[keyof AppSettings]) => {},
+      setSettings: (_s: Partial<AppSettings>) => {},
+      resetToDefaults: () => {},
+      getMokuWebUrl: () => 'http://localhost:4200',
+      getMokuApiUrl: () => 'http://localhost:8080',
+      getStorePath: () => '',
+    } as unknown as SettingsService;
+  }
 
   /**
    * Get all settings

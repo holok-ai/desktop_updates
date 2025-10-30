@@ -35,9 +35,14 @@ test.describe('E2E: Chat prompt/response', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
+    // Wait for full network idle to avoid racing on lazy-mounted login component
+    await page.waitForLoadState('networkidle');
+
     // Ensure we're authenticated (click mock sign-in if present)
     const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
     if (await loginBtn.count()) {
+      // Ensure the login component is visible before interacting
+      await expect(loginBtn).toBeVisible({ timeout: 5000 });
       await loginBtn.click();
 
       await page.waitForTimeout(1200);
@@ -56,17 +61,26 @@ test.describe('E2E: Chat prompt/response', () => {
       await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
     }
 
-    // Select first thread card
+    // Select first thread card (wait for list to settle)
     const firstCard = page.locator('.thread-card').first();
-    await expect(firstCard).toBeVisible();
+    await expect(firstCard).toBeVisible({ timeout: 5000 });
     await firstCard.click();
 
     // Compose a prompt
     const prompt = 'Hello integration';
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible();
+    await expect(textarea).toBeVisible({ timeout: 3000 });
     await textarea.fill(prompt);
-    await page.getByRole('button', { name: 'Send' }).click();
+    // Press Enter to send (mirrors normal UX), fallback to button click
+    await textarea.press('Enter');
+    // Wait briefly for message to render; if not sent, click Send
+    try {
+      await expect(
+        page.locator('.messages .message.user .message-content', { hasText: prompt }),
+      ).toBeVisible({ timeout: 5000 });
+    } catch {
+      await page.getByRole('button', { name: 'Send' }).click();
+    }
 
     // Expect user message to appear
     await expect(

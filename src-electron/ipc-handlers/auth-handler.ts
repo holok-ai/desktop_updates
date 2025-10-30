@@ -47,7 +47,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
 
     // Extract authorization code and state
     const code = params.get('code');
-//    const state = params.get('state');
+    // const state = params.get('state');
 
     log.info('[Auth] Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
 

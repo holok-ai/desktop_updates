@@ -17,7 +17,10 @@ test.describe('E2E: Auth Flow (mock)', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -36,17 +39,23 @@ test.describe('E2E: Auth Flow (mock)', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
+    // Wait for full network idle to avoid racing on lazy-mounted login component
+    await page.waitForLoadState('networkidle');
+
     // If already authenticated, skip login; otherwise perform mock login
     const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
     if (await loginBtn.count()) {
-      await expect(loginBtn).toBeVisible();
+      // Ensure the login component is visible before interacting
+      await expect(loginBtn).toBeVisible({ timeout: 5000 });
       await loginBtn.click();
       // mockLogin waits ~1000ms; give it a moment to update UI
       await page.waitForTimeout(1200);
     }
 
     // Expect App layout visible with Logout and header logo
-    await page.getByRole('button', { name: 'Logout' }).waitFor({ state: 'visible', timeout: 10000 });
+    await page
+      .getByRole('button', { name: 'Logout' })
+      .waitFor({ state: 'visible', timeout: 10000 });
     await expect(page.getByText('Holokai Desktop', { exact: true })).toBeVisible();
 
     // Reload renderer window to ensure auth state persists
