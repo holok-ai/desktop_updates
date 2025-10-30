@@ -344,7 +344,7 @@ if (!gotTheLock) {
   log.info('[App] Second instance detected - quitting');
   app.quit();
 } else {
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
+  app.on('second-instance', (event, commandLine, _workingDirectory) => {
     log.info('[App] Second instance attempted - processing command line');
 
     // Check command line for protocol URL
