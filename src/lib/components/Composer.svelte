@@ -6,8 +6,8 @@
   let text = '';
 
   function send() {
-    if (!text.trim()) return;
     const payload = text.trim();
+    if (!payload) return;
     dispatch('send', payload);
     if (onSend) onSend(new CustomEvent('send', { detail: payload }));
     text = '';
@@ -15,7 +15,18 @@
 </script>
 
 <div class="composer">
-  <textarea bind:value={text} placeholder="Write a message..." rows={3}></textarea>
+  <textarea
+    bind:value={text}
+    placeholder="Write a message..."
+    rows={3}
+    on:keydown={(e) => {
+      // Send on Enter (without Shift). Allow Shift+Enter for newline.
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    }}
+  ></textarea>
   <div class="actions">
     <button class="primary" onclick={send}>Send</button>
   </div>

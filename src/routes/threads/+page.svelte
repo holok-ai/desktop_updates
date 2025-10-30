@@ -158,9 +158,11 @@
 
       <div class="chat-column">
         <ChatPane thread={selectedThread} messages={messages} />
-        <div class="composer-slot">
-          <Composer onSend={(e: CustomEvent) => handleSendEvent(e)} />
-        </div>
+        {#if selectedThread}
+          <div class="composer-slot">
+            <Composer onSend={(e: CustomEvent) => handleSendEvent(e)} />
+          </div>
+        {/if}
       </div>
     </div>
   {/if}

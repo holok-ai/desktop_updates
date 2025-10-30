@@ -38,10 +38,14 @@ test.describe('E2E: Thread management', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
+    // Wait for full network idle to avoid racing on lazy-mounted login component
+    await page.waitForLoadState('networkidle');
+
     // Login first if not already authenticated
     const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
     if (await loginBtn.count()) {
-      await expect(loginBtn).toBeVisible();
+      // Ensure the login component is visible before interacting
+      await expect(loginBtn).toBeVisible({ timeout: 5000 });
       await loginBtn.click();
 
       await page.waitForTimeout(1200);
@@ -54,7 +58,9 @@ test.describe('E2E: Thread management', () => {
     await expect(page.locator('.threads-list, .empty').first()).toBeVisible();
 
     // Create
-    await page.getByRole('button', { name: 'New Thread' }).click();
+    const newBtn = page.getByRole('button', { name: 'New Thread' });
+    await expect(newBtn).toBeVisible();
+    await newBtn.click();
     await page.getByLabel('Title').fill('Playwright Thread');
     await page.getByLabel('Description').fill('Created by E2E');
     await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
@@ -65,7 +71,7 @@ test.describe('E2E: Thread management', () => {
     // Update
     await createdCard.getByRole('button', { name: 'Edit' }).click();
     await page.getByLabel('Title').fill('Playwright Thread Updated');
-    await page.getByRole('button', { name: 'Update' }).click();
+    await page.getByRole('button', { name: 'Confirm Update', exact: true }).click();
     await expect(
       page.locator('.thread-card', { hasText: 'Playwright Thread Updated' }),
     ).toBeVisible();
