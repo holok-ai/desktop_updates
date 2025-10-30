@@ -155,7 +155,7 @@ export class AuthService {
 
     // Construct desktop login URL
     const mokuWebUrl = this.getMokuWebUrl();
-    const authUrl = `${mokuWebUrl}/login/desktop`;
+    const authUrl = `${mokuWebUrl}/login?source=desktop`;
 
     log.info('[AuthService] Opening browser to:', authUrl);
 

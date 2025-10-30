@@ -21,8 +21,7 @@ const CUSTOM_PROTOCOL = 'holokai';
 const protocolLog = createScopedLogger('protocol');
 const appLog = createScopedLogger('app');
 
-// Log application startup
-log.info('Starting application');
+appLog.info('[App] Starting application');
 
 /**
  * Main Electron Process
@@ -62,9 +61,9 @@ function createWindow(): void {
     try {
       // Check if dev server is running by attempting to load
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await mainWindow!.loadURL('http://localhost:5173');
+      await mainWindow!.loadURL('http://localhost:5177');
       appLog.info('Loaded from Vite dev server');
-    } catch {
+    } catch (_error) {
       // Dev server not available, load from built files
       appLog.info('Loading from built files');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -209,19 +208,19 @@ function registerIpcHandlers(): void {
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
-    log.info('[Renderer]', message, ...params);
+    protocolLog.info('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:warn', (_event, message: string, ...params: unknown[]) => {
-    log.warn('[Renderer]', message, ...params);
+    protocolLog.warn('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:error', (_event, message: string, ...params: unknown[]) => {
-    log.error('[Renderer]', message, ...params);
+    protocolLog.error('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
-    log.debug('[Renderer]', message, ...params);
+    protocolLog.debug('[Renderer]', message, ...params);
   });
 }
 
@@ -297,8 +296,7 @@ void app.whenReady().then(() => {
   // Create the main window
   createWindow();
 
-  // Log that application has completed startup
-  appLog.info('Application startup complete and running');
+  appLog.info('[App] Application startup complete');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -310,26 +308,39 @@ void app.whenReady().then(() => {
 
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
-  if (process.platform === 'darwin') {
-    return;
+  if (process.platform !== 'darwin') {
+    appLog.info('[App] Exiting - all windows closed');
+    app.quit();
   }
   appLog.info('Application exited');
   app.quit();
 });
 
-// Log application exit on quit event
 app.on('before-quit', () => {
-  appLog.info('Application exited');
+  appLog.info('[App] Application exiting');
 });
 
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
+  appLog.info('[App] Second instance detected - quitting');
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    // Someone tried to run a second instance, focus our window
+  app.on('second-instance', (event, commandLine, _workingDirectory) => {
+    appLog.info('[App] Second instance attempted - processing command line');
+
+    // Check command line for protocol URL
+    const protocolUrl = commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
+
+    if (protocolUrl) {
+      protocolLog.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
+      if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
+        handleOAuthCallback(protocolUrl, mainWindow);
+      }
+    }
+
+    // Focus the window
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();

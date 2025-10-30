@@ -278,195 +278,128 @@ Development approach: Always start with service wrappers first, add facades only
 
 ## 5.2 Menu Navigation and Routing Architecture
 
-### 5.2.1 MenuNavigationService Pattern
+### 5.2.1 Overview (Svelte + svelte-spa-router)
 
-The desktop application uses a centralized **MenuNavigationService** to handle all menu commands from the Electron main process. This service acts as an "interceptor" between menu events and Angular Router navigation, ensuring components remain menu-agnostic.
+The renderer uses Svelte with `svelte-spa-router` (hash-based). All navigation flows through a centralized **MenuNavigationService** that translates Electron menu events into router navigations using `push()` and verb-style query parameters (e.g., `#/threads?create`). Components are menu-agnostic and react only to `svelte-spa-router` stores.
 
-**Key Principle:** Components never listen to menu events directly. They only respond to route activation (ngOnInit), making them simpler and more testable.
+**Key Principles:**
+
+- Components do not subscribe to menu events
+- Navigation is idempotent (same target → no-op)
+- Navigation state uses verb-style query parameters (e.g., `?create`)
+- Invalid routes redirect to home
+- Hash routing ensures back/forward works under `file://`
 
 ### 5.2.2 Architecture Flow
 
 ```
 User clicks Electron Menu (Main Process)
     ↓
-Menu Handler: webContents.send('menu:command')
+Main sends menu channel via webContents
     ↓
-Context Bridge: Exposes onMenuCommand() listener
+Context Bridge exposes window.electronAPI.onMenuCommand()
     ↓
-MenuNavigationService: Translates to Router navigation
+MenuNavigationService → push('/path?verb')
     ↓
-Angular Router: Activates route
+Router updates location.hash and emits `location` and `querystring` stores
     ↓
-Component: ngOnInit loads data
-    ↓
-No menu-specific code in component!
+Svelte components react to route changes
 ```
 
-### 5.2.3 Implementation Pattern
+### 5.2.3 Router API (svelte-spa-router)
 
-**MenuNavigationService Responsibilities:**
+We rely on `svelte-spa-router` exports:
 
-- Listen to ALL menu events from main process via Context Bridge
-- Translate menu commands into Angular Router navigation
-- Decide whether to navigate to new route or refresh current route
-- Pass state to components via router state when needed (e.g., open dialog)
-- Centralize all menu logic in one place
+- `<Router {routes} />` component renders matched route
+- Stores: `location` (string), `querystring` (string | undefined)
+- Navigation: `push(path)`, `replace(path)`, `pop()`
 
-**Example Menu Handler:**
+Behavior:
 
-```typescript
-private setupFileMenuHandlers(): void {
-  // Menu: File → Get Threads
-  window.electron.menu.onGetThreads(() => {
-    if (this.router.url === '/threads') {
-      // Already on threads page - reload it
-      this.reloadCurrentRoute();
-    } else {
-      // Navigate to threads page
-      this.router.navigate(['/threads']);
-    }
-  });
+- Stores derive from `location.hash` and update on navigation/back/forward
+- Unknown paths handled via `'*'` catch-all route; we redirect to home with `replace('/')`
 
-  // Menu: File → New Thread
-  window.electron.menu.onNewThread(() => {
-    // Navigate and pass state to open dialog
-    this.router.navigate(['/threads'], {
-      state: { openCreateDialog: true }
-    });
-  });
-}
-```
+### 5.2.4 MenuNavigationService Responsibilities
 
-**Route Reloading Pattern:**
+- Subscribe to `window.electronAPI.onMenuCommand(channel, handler)`
+- Map menu channels to route paths with verb-style query params
+- Call `push(path)` only (no component state changes)
 
-```typescript
-private reloadCurrentRoute(): void {
-  const currentUrl = this.router.url;
-  // Navigate to empty route (skipLocationChange prevents URL change)
-  this.router.navigateByUrl('/', { skipLocationChange: true })
-    .then(() => {
-      // Navigate back - component is destroyed and recreated
-      this.router.navigateByUrl(currentUrl);
-    });
-}
-```
+Example mapping:
 
-### 5.2.4 Component Design (Menu-Agnostic)
+```ts
+// src/lib/services/menu-navigation.service.ts
+window.electronAPI.onMenuCommand('menu:new-thread', () => {
+  void push('/threads?create');
+});
 
-Components are designed to work identically whether activated by:
-
-- Route navigation (user clicks link/button)
-- Menu command (user clicks Electron menu)
-- Deep link (custom protocol URL)
-- Programmatic navigation
-
-**Pattern:**
-
-```typescript
-@Component({ ... })
-export class ThreadListComponent implements OnInit {
-  constructor(
-    private threadService: ThreadService,
-    private router: Router
-  ) {
-    // Check router state for flags from menu
-    const nav = this.router.getCurrentNavigation();
-    if (nav?.extras?.state?.['openCreateDialog']) {
-      this.displayCreateDialog = true;
-    }
-  }
-
-  ngOnInit() {
-    // Simple: Just load data
-    this.loadThreads();
-    // No menu listeners needed!
-  }
-}
-```
-
-**Benefits:**
-
-- ✅ Components have zero menu-specific code
-- ✅ All menu logic centralized in MenuNavigationService
-- ✅ Easy to test components (no menu dependencies)
-- ✅ Menu changes don't affect components
-- ✅ Components work in any context (web, Electron, tests)
-
-### 5.2.5 Routing Configuration
-
-The application uses **hash-based routing** (`#/`) which is recommended for Electron:
-
-- Works with `file://` protocol without server configuration
-- No need for server-side rewrites
-- Deep linking support
-- Browser history API works normally
-
-**Configuration:**
-
-```typescript
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(
-      routes,
-      // Enable hash routing
-      withHashLocation(),
-      // Allow reloading same route (for menu refresh commands)
-      withRouterConfig({ onSameUrlNavigation: 'reload' }),
-    ),
-  ],
+window.electronAPI.onMenuCommand('menu:settings', () => {
+  void push('/settings');
 });
 ```
 
-### 5.2.6 Initialization
+### 5.2.5 Component Design (Menu-Agnostic)
 
-MenuNavigationService is initialized at app startup via `APP_INITIALIZER` to ensure menu handlers are registered before any user interaction:
+Components subscribe to route changes and react accordingly. They never listen to menu events.
 
-```typescript
-{
-  provide: APP_INITIALIZER,
-  useFactory: (menuNavigationService: MenuNavigationService) => {
-    return () => {
-      // Service constructor has already registered handlers
-      console.log('MenuNavigationService initialized');
-    };
-  },
-  deps: [MenuNavigationService],
-  multi: true
-}
+```svelte
+<!-- routes/threads/+page.svelte -->
+<script lang="ts">
+  import { querystring, replace } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
+  let showDialog = $state(false);
+
+  $effect(() => {
+    const unsub = querystring.subscribe((qs) => {
+      const params = new URLSearchParams(qs ?? '');
+      if (params.has('create') && !showDialog) {
+        showDialog = true;
+        void replace(ROUTE.THREADS); // clean URL
+      }
+    });
+    return unsub;
+  });
+</script>
 ```
 
-### 5.2.7 Menu-to-Route Mapping
+Benefits:
 
-Example of an expected menu to route mapping is below:
+- ✅ Components have zero menu-specific code
+- ✅ Single source of truth: route determines UI state
+- ✅ No double navigation; idempotent router
+- ✅ Deep linking supported via query params
 
-| Menu Command       | Route Action                   | Component Behavior  |
-| ------------------ | ------------------------------ | ------------------- |
-| File → Get Threads | Navigate to `/threads`         | Loads thread list   |
-| File → New Thread  | Navigate to `/threads` + state | Opens create dialog |
-| File → Settings    | Navigate to `/settings`        | Shows settings      |
-| File → Refresh     | Reload current route           | Re-runs ngOnInit    |
-| Recent → Thread X  | Navigate to `/thread/:id`      | Shows thread detail |
+### 5.2.6 Hash Routing Details
 
-### 5.2.8 Design Principles
+- Uses `location.hash` to encode the active route: `#/`, `#/threads`, `#/settings`
+- Back/forward works via `hashchange` listener
+- Invalid paths redirect via `'*'` route using `replace('/')` to avoid history pollution
 
-**Separation of Concerns:**
+### 5.2.7 Initialization
 
-- **Frontend Router**: Handles UI navigation within renderer process
-- **IPC Communication**: Handles data fetching between renderer and main
-- **Menu Service**: Translates menu commands to router actions
-- These layers are separate and should not be conflated
+- Router: declare routes in `src/lib/router/routes.ts` and mount `<Router {routes} />` in `AppLayout.svelte`
+- MenuNavigationService: imported once for side effects so listeners register at startup (e.g., in `App.svelte`)
 
-**Component Responsibilities:**
+```ts
+// src/App.svelte
+import '$lib/services/menu-navigation.service'; // registers menu listeners
+```
 
-- Components focus on WHAT to do (display data, handle user input)
-- Components don't care HOW they were activated (route, menu, etc.)
-- Data loading happens in ngOnInit regardless of activation source
+### 5.2.8 Menu-to-Route Mapping
 
-**Trigger-Agnostic Design:**
+| Menu Command       | Route Action                                 | Component Behavior        |
+| ------------------ | --------------------------------------------- | ------------------------- |
+| File → Get Threads | Navigate to `#/threads`                       | Loads thread list         |
+| File → New Thread  | Navigate to `#/threads?create`                | Opens create dialog       |
+| File → Settings    | Navigate to `#/settings`                      | Shows settings            |
+| View → Refresh     | Reload window                                 | Full renderer reload      |
 
-- Same component code works for route navigation and menu commands
-- No conditional logic based on activation source
-- Single data loading method used by all triggers
+### 5.2.9 Design Principles
+
+- **Separation of Concerns**: Router handles navigation, services handle IPC, components render UI
+- **Idempotence**: Multiple identical navigations result in a single render
+- **Decoupling**: Components respond to routes, not menu events
+- **Resilience**: Graceful handling of invalid routes, clean URL after one-shot actions
 
 ## 5.1.1 Service Wrappers
 

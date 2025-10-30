@@ -1,7 +1,7 @@
 {
-  "name": "holokai-desktop-svelte",
+  "name": "holokai-desktop",
   "version": "1.0.0",
-  "description": "Holokai Desktop - Reference Electron + Svelte application demonstrating architecture patterns",
+  "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -45,16 +45,17 @@
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
     "playwright": "^1.56.1",
+    "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "^4.0.3",
+    "@cyclonedx/cyclonedx-npm": "^4.1.0",
     "@doyensec/electronegativity": "^1.10.3",
     "@playwright/test": "^1.56.1",
     "@secretlint/secretlint-rule-preset-recommend": "^11.2.5",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@tsconfig/svelte": "^5.0.0",
-    "@types/node": "^22.18.12",
+    "@types/node": "^22.18.13",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
     "@vitest/coverage-v8": "^4.0.4",
@@ -83,8 +84,8 @@
     "prettier-plugin-svelte": "^3.4.0",
     "retire": "^5.1.0",
     "secretlint": "^11.2.5",
-    "snyk": "^1.1291.0",
-    "svelte": "^5.42.3",
+    "snyk": "^1.1300.2",
+    "svelte": "^5.43.0",
     "svelte-check": "^4.3.3",
     "svelte-eslint-parser": "^1.4.0",
     "typescript": "^5.9.3",
@@ -100,6 +101,12 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "protocols": {
+      "name": "Holokai Desktop",
+      "schemes": [
+        "holokai"
+      ]
+    },
     "win": {
       "target": "nsis"
     },
