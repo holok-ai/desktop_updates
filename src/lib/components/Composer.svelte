@@ -19,7 +19,7 @@
     bind:value={text}
     placeholder="Write a message..."
     rows={3}
-    on:keydown={(e) => {
+    onkeydown={(e) => {
       // Send on Enter (without Shift). Allow Shift+Enter for newline.
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
