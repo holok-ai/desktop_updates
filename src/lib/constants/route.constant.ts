@@ -5,6 +5,5 @@ export const ROUTE = {
   GUIDE: '/guide'
 } as const;
 
-export type RoutePath = typeof ROUTE[keyof typeof ROUTE];
 
 

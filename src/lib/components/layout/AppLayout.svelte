@@ -6,24 +6,14 @@
 
 </script>
 
-<div class="layout">
-  <Header />
-  <div class="main-container">
-    <Navbar />
-    <main class="content">
-      <Router {routes} />
-    </main>
-  </div>
+<div class="main-container">
+  <Navbar />
+  <main class="content">
+    <Router {routes} />
+  </main>
 </div>
 
 <style>
-  .layout {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background: #f5f5f5;
-  }
-
   .main-container {
     display: flex;
     flex: 1;

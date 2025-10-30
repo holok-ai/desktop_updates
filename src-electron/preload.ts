@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { ThreadStatus } from '../src/lib/constants/status.constant';
+import type { ThreadStatus } from '../src/lib/types/status.type';
 
 /**
  * Preload Script with Context Bridge

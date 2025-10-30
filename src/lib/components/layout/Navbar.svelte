@@ -1,8 +1,23 @@
 <script lang="ts">
-  import { ROUTE, type RoutePath } from '$lib/constants/route.constant';
+  import { onMount } from 'svelte';
+  import { ROUTE } from '$lib/constants/route.constant';
+  import type { RoutePath } from '$lib/types/route.type';
   import { location, push } from 'svelte-spa-router';
+  import ActivitySidebar from './ActivitySidebar.svelte';
+  import ActivityListSidebar from './ActivityListSidebar.svelte';
+  import type { SidebarActivity } from '$lib/types/sidebar.type';
+  import { SIDEBAR_STORAGE_KEY } from '$lib/constants/sidebar.constant';
 
   let currentPath = $state<RoutePath>(ROUTE.HOME);
+  let selectedActivity = $state<SidebarActivity | null>(null);
+  let selectedItem = $state<{id:string, label:string} | null>(null);
+
+  onMount(() => {
+    const sidebarActivity = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (sidebarActivity) {
+      try { selectedActivity = JSON.parse(sidebarActivity); } catch {}
+    }
+  });
 
   $effect(() => {
     const unsubscribe = location.subscribe((path: string) => {
@@ -10,55 +25,30 @@
     });
     return unsubscribe;
   });
-  function navigateTo(path: RoutePath) {
-    push(path);
+
+  $effect(() => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(selectedActivity));
+  });
+
+  function handleActivitySelect(event: CustomEvent<{id:string,label:string,icon?:string}>) {
+    selectedActivity = event.detail;
+    selectedItem = null;
+  }
+
+  function handleListSelect(event: CustomEvent<{id:string, label:string}>) {
+    selectedItem = event.detail;
   }
 </script>
 
-<nav>
-  <ul>
-    <li class:active={currentPath === ROUTE.HOME}>
-      <button onclick={() => navigateTo(ROUTE.HOME)}>Home</button>
-    </li>
-    <li class:active={currentPath === ROUTE.THREADS}>
-      <button onclick={() => navigateTo(ROUTE.THREADS)}>Threads</button>
-    </li>
-  </ul>
-</nav>
+<div class="dual-sidebar-layout">
+  <ActivitySidebar on:select={handleActivitySelect}/>
+  <ActivityListSidebar activity={selectedActivity} on:select={handleListSelect} />
+</div>
 
 <style>
-  nav {
-    width: 200px;
-    background: #2a2a2a;
-    padding: 1rem;
-    border-right: 1px solid #333;
-  }
-
-  ul {
-    list-style: none;
-  }
-
-  li {
-    margin-bottom: 0.5rem;
-  }
-
-  li.active button {
-    background: #646cff;
-    color: white;
-  }
-
-  button {
-    width: 100%;
-    text-align: left;
-    padding: 0.75rem 1rem;
-    border: none;
-    background: transparent;
-    color: white;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-
-  button:hover {
-    background: #333;
+  .dual-sidebar-layout {
+    display: flex;
+    height: 100vh;
+    background: #f5f5f5;
   }
 </style>
