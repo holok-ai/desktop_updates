@@ -84,6 +84,18 @@ Coding should be completed with the following artifacts:
 Code must be covered by 1) a unit test AND playwright; 2) playwright; 3) a "test n/a" attribute
 Code test coverage should be 90% or greater.
 
+### Development Workflow Reminders
+
+**When starting new work:**
+1. **Select ticket**: Choose from "Ready" tickets in priority order
+2. **Update ticket status**: Move ticket to "In Progress" in Kanban
+3. **Link ticket to branch**: Use "create branch..." command or manually link with "Development" command after creating branch
+
+**Before submitting a PR:**
+1. **Review code security**: Run `npm run security` - ensure only "eslint security analysis" has findings
+2. **Verify build and tests**: Run `npm run build && npm run build:electron && npm run lint && npm run test:e2e` - all must complete successfully
+3. **Update ticket status**: Move ticket to "Code Review" in Kanban when submitting PR for review
+
 ## Definitions
 
 ### Definition of Ready
