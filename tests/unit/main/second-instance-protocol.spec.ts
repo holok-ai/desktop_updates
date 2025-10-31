@@ -54,6 +54,7 @@ vi.mock('electron', () => {
     app,
     BrowserWindow,
     ipcMain: { handle: vi.fn(), on: vi.fn(), removeHandler: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },
     dialog: { showMessageBox: vi.fn() },
     default: { info: vi.fn() },

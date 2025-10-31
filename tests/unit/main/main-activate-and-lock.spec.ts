@@ -30,6 +30,7 @@ describe('main.ts activate and single-instance branches', () => {
       Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
       dialog: { showMessageBox: vi.fn(() => Promise.resolve({})) },
       ipcMain: { on: vi.fn(), handle: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);
@@ -97,6 +98,7 @@ describe('main.ts activate and single-instance branches', () => {
       Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
       dialog: { showMessageBox: vi.fn(() => Promise.resolve({})) },
       ipcMain: { on: vi.fn(), handle: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);

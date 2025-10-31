@@ -51,6 +51,7 @@ describe('main.ts extra branches (devtools toggle and second-instance)', () => {
       },
       dialog: { showMessageBox: vi.fn(async () => ({})) },
       ipcMain: { on: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);
@@ -175,6 +176,7 @@ describe('main.ts extra branches (devtools toggle and second-instance)', () => {
       Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
       dialog: { showMessageBox: vi.fn(async () => ({})) },
       ipcMain: { on: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);

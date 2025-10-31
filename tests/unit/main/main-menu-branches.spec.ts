@@ -43,6 +43,7 @@ describe('main.ts menu branches', () => {
       },
       dialog: { showMessageBox: vi.fn(async () => ({})) },
       ipcMain: { handle: vi.fn(), on: vi.fn(), removeHandler: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
       contextBridge: { exposeInMainWorld: vi.fn() },
       ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
     } as any;
