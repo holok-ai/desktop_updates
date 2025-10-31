@@ -22,6 +22,9 @@ vi.mock('electron-store', () => {
   };
 });
 
+// Mock electron app used by SettingsService to avoid accessing real app paths during unit tests
+vi.mock('electron', () => ({ app: { getPath: () => '/tmp' } }));
+
 describe('SettingsService (unit)', () => {
   const originalEnv = process.env.npm_package_name;
 
@@ -43,8 +46,8 @@ describe('SettingsService (unit)', () => {
     // Service constructed successfully using fallback projectName
 
     // Basic getters should return defaults
-    expect(svc.getMokuWebUrl()).toBe('http://localhost:4201');
-    expect(svc.getMokuApiUrl()).toBe('http://localhost:3000/api');
+    expect(svc.getMokuWebUrl()).toBe('http://localhost:4200');
+    expect(svc.getMokuApiUrl()).toBe('http://localhost:8080');
     expect(svc.getTheme()).toBe('light');
     expect(svc.getLogLevel()).toBe('info');
     expect(typeof svc.getStorePath()).toBe('string');

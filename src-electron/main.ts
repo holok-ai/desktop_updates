@@ -348,7 +348,9 @@ if (!gotTheLock) {
     log.info('[App] Second instance attempted - processing command line');
 
     // Check command line for protocol URL
-    const protocolUrl = commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
+    const protocolUrl = Array.isArray(commandLine)
+      ? commandLine.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`))
+      : undefined;
 
     if (protocolUrl) {
       log.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
