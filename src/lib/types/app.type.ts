@@ -1,3 +1,3 @@
-import type { APP_COLOR_MODE } from "../constants/app.constant";
+import type { APP_THEME_MODE } from "../constants/app.constant";
 
-export type AppColorMode = (typeof APP_COLOR_MODE)[keyof typeof APP_COLOR_MODE];
+export type AppThemeMode = (typeof APP_THEME_MODE)[keyof typeof APP_THEME_MODE];
