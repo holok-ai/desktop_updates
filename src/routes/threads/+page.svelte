@@ -3,7 +3,7 @@
   import { threads } from '../../lib/stores/thread.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
-  import { THREAD_STATUS } from '$lib/constants/status.constant';
+  import { THREAD_STATUS } from '$shared/constants/status.constant';
   import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
@@ -101,28 +101,6 @@
     }
   }
 
-  function handleSendEvent(e: CustomEvent) {
-    // accept either a string detail or an object with { content }
-    const detail = e.detail as any;
-    const content: string = typeof detail === 'string' ? detail : detail?.content;
-    if (!selectedThread || !content) return;
-
-    // Persist user prompt via IPC
-    window.electronAPI.thread
-      .addUserPrompt(selectedThread.id, content)
-      .then((res) => {
-        // update selected thread and messages
-        selectedThread = res.thread;
-        messages = [...messages, { id: res.message.id, role: res.message.role as any, content: res.message.content, createdAt: res.message.createdAt }];
-
-        // Simulate assistant response by adding assistant message via IPC
-        setTimeout(async () => {
-          const resp = await window.electronAPI.thread.addAssistantResponse(res.thread.id, 'Echo: ' + content);
-          messages = [...messages, { id: resp.id, role: resp.role as any, content: resp.content, createdAt: resp.createdAt }];
-        }, 400);
-      })
-      .catch((err) => console.error('Failed to send prompt:', err));
-  }
 </script>
 
 <div class="threads-page">
@@ -157,12 +135,13 @@
       </div>
 
       <div class="chat-column">
-        <ChatPane thread={selectedThread} messages={messages} />
-        {#if selectedThread}
-          <div class="composer-slot">
-            <Composer onSend={(e: CustomEvent) => handleSendEvent(e)} />
-          </div>
-        {/if}
+        <ChatPane thread={selectedThread} messages={messages}>
+          {#snippet composer({ sendMessage, isStreaming })}
+            {#if selectedThread}
+              <Composer {sendMessage} {isStreaming} />
+            {/if}
+          {/snippet}
+        </ChatPane>
       </div>
     </div>
   {/if}
