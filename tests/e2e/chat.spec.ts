@@ -87,9 +87,9 @@ test.describe('E2E: Chat prompt/response', () => {
       page.locator('.messages .message.user .message-content', { hasText: prompt }),
     ).toBeVisible();
 
-    // Expect assistant echo response to appear
+    // Expect assistant response to appear (LLM may take longer to respond)
     await expect(
-      page.locator('.messages .message.assistant .message-content', { hasText: 'Echo: ' + prompt }),
-    ).toBeVisible({ timeout: 5000 });
+      page.locator('.messages .message.assistant .message-content'),
+    ).toBeVisible({ timeout: 30000 });
   });
 });

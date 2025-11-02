@@ -14,8 +14,12 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "$lib/*": ["./src/lib/*"],
+      "$shared/*": ["./src-shared/*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte"],
+  "include": ["src/**/*.ts", "src/**/*.svelte", "src-shared/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-electron"]
 }
