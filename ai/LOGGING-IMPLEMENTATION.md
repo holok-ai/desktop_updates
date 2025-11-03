@@ -7,12 +7,14 @@ This document describes the structured logging implementation for the Holokai De
 ## Features Implemented
 
 ### ✅ Scenario 1 — Replace All console.log Statements
+
 - **Status**: Complete
 - All `console.log` statements have been replaced with appropriate `electron-log` levels
 - No `console.log` statements remain in production code
 - Verified through codebase search
 
 ### ✅ Scenario 2 — Appropriate Log Levels
+
 - **Status**: Complete
 - `log.error()` used for errors
 - `log.warn()` for warnings
@@ -20,12 +22,14 @@ This document describes the structured logging implementation for the Holokai De
 - `log.debug()` for detailed debugging (development only)
 
 ### ✅ Scenario 3 — Log File Persistence
+
 - **Status**: Complete
 - Logs written to `~/Library/Application Support/holokai-desktop-svelte/logs/`
 - File rotation configured with 50MB max size
 - Logs accessible even after app crash
 
 ### ✅ Scenario 4 — Structured Logging Format
+
 - **Status**: Complete
 - Consistent timestamp format: `[YYYY-MM-DD HH:MM:SS.mmm]`
 - Log level indicators: `[info]`, `[warn]`, `[error]`, `[debug]`
@@ -80,16 +84,18 @@ authLog.error('Token exchange failed', { error: error.message });
 ### Helper Functions
 
 #### Structured Logging
+
 ```typescript
 logStructured('info', 'User action performed', {
   action: 'CREATE_THREAD',
   userId: currentUser.id,
   threadId: newThread.id,
-  duration: endTime - startTime
+  duration: endTime - startTime,
 });
 ```
 
 #### Performance Logging
+
 ```typescript
 const perfLog = logPerformance('thread:create');
 // ... operation ...
@@ -97,6 +103,7 @@ perfLog.end({ threadId: newThread.id });
 ```
 
 #### Error Logging with Stack Traces
+
 ```typescript
 logError('Failed to load threads', error, { threadId: '123' });
 ```
@@ -104,16 +111,19 @@ logError('Failed to load threads', error, { threadId: '123' });
 ## Log File Locations
 
 ### macOS
+
 ```
 ~/Library/Application Support/holokai-desktop-svelte/logs/main.log
 ```
 
 ### Windows
+
 ```
 %APPDATA%/holokai-desktop-svelte/logs/main.log
 ```
 
 ### Linux
+
 ```
 ~/.config/holokai-desktop-svelte/logs/main.log
 ```
@@ -121,6 +131,7 @@ logError('Failed to load threads', error, { threadId: '123' });
 ## Log Format Examples
 
 ### Application Startup
+
 ```
 [2025-10-28 23:42:44.463] [info] Starting application
 [2025-10-28 23:42:44.467] [info] [protocol] Registered custom protocol: holokai://
@@ -133,6 +144,7 @@ logError('Failed to load threads', error, { threadId: '123' });
 ```
 
 ### IPC Operations
+
 ```
 [2025-10-28 23:42:45.123] [info] [thread] thread:getAll called
 [2025-10-28 23:42:45.124] [info] [thread] thread:create called {"title":"New Thread","status":"active"}
@@ -140,6 +152,7 @@ logError('Failed to load threads', error, { threadId: '123' });
 ```
 
 ### Error Handling
+
 ```
 [2025-10-28 23:42:45.200] [error] [auth] OAuth error {"error":"access_denied","description":"User denied access"}
 [2025-10-28 23:42:45.201] [error] [thread] Thread not found for update {"id":"invalid-id"}
@@ -148,26 +161,25 @@ logError('Failed to load threads', error, { threadId: '123' });
 ## Modules Using Structured Logging
 
 ### Main Process (`src-electron/main.ts`)
+
 - Application lifecycle events
 - Window creation and management
 - Protocol registration
 - IPC handler registration
 
 ### IPC Handlers
+
 - **Thread Handler** (`src-electron/ipc-handlers/thread-handler.ts`)
   - Thread CRUD operations
   - Performance metrics
   - Error handling
-  
 - **Auth Handler** (`src-electron/ipc-handlers/auth-handler.ts`)
   - OAuth flow events
   - Token management
   - Authentication state changes
-  
 - **System Handler** (`src-electron/ipc-handlers/system-handler.ts`)
   - System information requests
   - Path operations
-  
 - **Settings Handler** (`src-electron/ipc-handlers/settings-handler.ts`)
   - Settings read/write operations
   - Configuration changes
@@ -175,20 +187,24 @@ logError('Failed to load threads', error, { threadId: '123' });
 ## Non-Functional Requirements Met
 
 ### ✅ Performance
+
 - Logging adds < 5ms latency to operations
 - Asynchronous logging prevents blocking
 
 ### ✅ File Management
+
 - Log files limited to 50MB per file
 - Automatic rotation when size limit reached
 - Logs accessible even after app crash
 
 ### ✅ Security
+
 - Production logs exclude sensitive data (tokens, passwords)
 - Debug logs only in development mode
 - Error logs include stack traces for debugging
 
 ### ✅ Monitoring
+
 - All IPC calls logged at info level
 - Performance metrics logged at debug level
 - Structured metadata for analysis
@@ -198,6 +214,7 @@ logError('Failed to load threads', error, { threadId: '123' });
 ### For Developers
 
 1. **Use Scoped Loggers**: Create module-specific loggers
+
    ```typescript
    const moduleLog = createScopedLogger('module-name');
    ```
@@ -209,11 +226,12 @@ logError('Failed to load threads', error, { threadId: '123' });
    - `debug`: Detailed debugging information
 
 3. **Structured Metadata**: Include relevant context
+
    ```typescript
-   authLog.info('User login successful', { 
-     userId: user.id, 
+   authLog.info('User login successful', {
+     userId: user.id,
      method: 'oauth',
-     duration: '1.2s' 
+     duration: '1.2s',
    });
    ```
 
@@ -234,23 +252,25 @@ logError('Failed to load threads', error, { threadId: '123' });
 ## Future Enhancements
 
 ### Remote Logging
+
 The logging system is designed to support remote logging integration:
 
 ```typescript
 // Example: Send errors to remote service
 log.hooks.push((message, transport) => {
   if (transport !== log.transports.file) return message;
-  
+
   if (message.level === 'error') {
     // Send to Sentry, LogRocket, etc.
     errorTrackingService.captureException(message.data);
   }
-  
+
   return message;
 });
 ```
 
 ### Log Analysis
+
 - Structured JSON metadata enables easy parsing
 - Timestamps allow chronological analysis
 - Scoped logging enables module-specific filtering

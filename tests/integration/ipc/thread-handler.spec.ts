@@ -60,7 +60,7 @@ import {
   unregisterThreadHandlers,
 } from 'src-electron/ipc-handlers/thread-handler';
 // Access mocked ipcMain helper attached to global
- 
+
 // Access mocked ipcMain helper attached to global
 // @ts-ignore
 const ipcMain = globalThis.__mock_ipcMain;

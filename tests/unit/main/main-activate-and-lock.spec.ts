@@ -140,7 +140,9 @@ describe('main.ts activate and single-instance branches', () => {
       expect((electronMock.BrowserWindow as any).created).toBe(true);
     } else {
       // Allow either the activate handler to exist or the initial whenReady path to have created a window
-      expect(typeof activate === 'function' || (electronMock.BrowserWindow as any).created === true).toBe(true);
+      expect(
+        typeof activate === 'function' || (electronMock.BrowserWindow as any).created === true,
+      ).toBe(true);
     }
   });
 });

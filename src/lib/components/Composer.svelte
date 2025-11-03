@@ -43,7 +43,7 @@
 <style>
   .composer textarea {
     width: 100%;
-    padding: .5rem;
+    padding: 0.5rem;
     border-radius: 6px;
     border: 1px solid #d0d0d0;
     font-family: inherit;
@@ -56,14 +56,14 @@
   }
 
   .actions {
-    margin-top: .5rem;
+    margin-top: 0.5rem;
     text-align: right;
   }
 
   .primary {
     background: #646cff;
     color: white;
-    padding: .5rem 1rem;
+    padding: 0.5rem 1rem;
     border-radius: 6px;
     border: none;
     cursor: pointer;
@@ -79,5 +79,3 @@
     cursor: not-allowed;
   }
 </style>
-
-

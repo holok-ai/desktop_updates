@@ -7,6 +7,8 @@
   import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
+  import ModelChooser from '../../lib/components/ModelChooser.svelte';
+  import type { MokuModel } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
 
   let isLoading = $state(true);
@@ -22,8 +24,16 @@
     status: THREAD_STATUS.ACTIVE,
   });
 
+  let selectedModel: MokuModel | null = $state(null);
+  let chooserInitial: { provider: string; id: string } | null = $state(null);
+
   let selectedThread: Thread | null = $state(null);
-  type Msg = { id: string; role: 'user' | 'assistant' | 'system'; content: string; createdAt: number };
+  type Msg = {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    createdAt: number;
+  };
   let messages: Msg[] = $state([]);
 
   onMount(async () => {
@@ -61,7 +71,18 @@
 
   function openCreateDialog() {
     editingThread = null;
-    formData = { id: '', createdAt: new Date(), updatedAt: new Date(), title: '', description: '', status: THREAD_STATUS.ACTIVE };
+    formData = {
+      id: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      title: '',
+      description: '',
+      status: THREAD_STATUS.ACTIVE,
+    };
+    // Reset model selection for new thread
+    selectedModel = null;
+    chooserInitial = null;
+    formData.metadata = {};
     showDialog = true;
   }
 
@@ -74,6 +95,18 @@
   async function handleSave() {
     try {
       const data = $state.snapshot(formData);
+      // Ensure model selection is included in metadata if chosen
+      if (selectedModel) {
+        const merged = {
+          ...((data.metadata as Record<string, unknown>) ?? {}),
+          model: selectedModel.id,
+          provider: selectedModel.provider,
+        } as Record<string, unknown>;
+        // Cast to any because Svelte $state snapshot can produce narrower types
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (data as any).metadata = merged;
+      }
+
       if (editingThread) {
         await threadService.update(editingThread.id, data);
       } else {
@@ -87,21 +120,21 @@
 </script>
 
 <div class="threads-page">
-    <div class="header">
+  <div class="header">
     <h1>Threads</h1>
   </div>
 
   {#if isLoading}
     <div class="loading">Loading threads...</div>
   {:else if $threads.length === 0}
-      <div class="empty">
+    <div class="empty">
       <p>No threads yet. Create your first thread!</p>
       <button onclick={openCreateDialog}>Create Thread</button>
     </div>
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane thread={selectedThread} messages={messages}>
+        <ChatPane thread={selectedThread} {messages}>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} />
@@ -148,9 +181,34 @@
         </select>
       </div>
 
+      <div class="form-group">
+        <span>Model</span>
+        <ModelChooser
+          initialSelection={chooserInitial}
+          on:modelSelected={(e) => {
+            // e.detail is the selected MokuModel
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const m = (e as CustomEvent).detail as any;
+            if (m) {
+              selectedModel = m;
+              formData.metadata = {
+                ...(formData.metadata ?? {}),
+                model: m.id,
+                provider: m.provider,
+              };
+            }
+          }}
+        />
+      </div>
+
       <div class="dialog-actions">
-        <button class="text-white" onclick={() => (showDialog = false)}>Cancel</button>
-        <button class="primary" onclick={handleSave}>
+        <button onclick={() => (showDialog = false)}>Cancel</button>
+        <button
+          class="primary"
+          onclick={handleSave}
+          disabled={!editingThread && !selectedModel}
+          aria-disabled={!editingThread && !selectedModel}
+        >
           {editingThread ? 'Confirm Update' : 'Confirm Create'}
         </button>
       </div>

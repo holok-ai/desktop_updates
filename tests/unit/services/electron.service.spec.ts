@@ -16,14 +16,18 @@ describe('electron.service', () => {
   });
 
   it('getPlatform proxies to electronAPI.system.platform', async () => {
-    const spy = vi.spyOn((win.electronAPI as ElectronAPI).system, 'platform').mockResolvedValue('darwin');
+    const spy = vi
+      .spyOn((win.electronAPI as ElectronAPI).system, 'platform')
+      .mockResolvedValue('darwin');
     const platform = await electronService.getPlatform();
     expect(platform).toBe('darwin');
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('getVersion proxies to electronAPI.system.version', async () => {
-    const spy = vi.spyOn((win.electronAPI as ElectronAPI).system, 'version').mockResolvedValue('1.2.3');
+    const spy = vi
+      .spyOn((win.electronAPI as ElectronAPI).system, 'version')
+      .mockResolvedValue('1.2.3');
     const version = await electronService.getVersion();
     expect(version).toBe('1.2.3');
     expect(spy).toHaveBeenCalledTimes(1);
@@ -39,9 +43,15 @@ describe('electron.service', () => {
   });
 
   it('log methods forward to electronAPI.log', () => {
-    const info = vi.spyOn((win.electronAPI as ElectronAPI).log, 'info').mockImplementation(() => {});
-    const warn = vi.spyOn((win.electronAPI as ElectronAPI).log, 'warn').mockImplementation(() => {});
-    const error = vi.spyOn((win.electronAPI as ElectronAPI).log, 'error').mockImplementation(() => {});
+    const info = vi
+      .spyOn((win.electronAPI as ElectronAPI).log, 'info')
+      .mockImplementation(() => {});
+    const warn = vi
+      .spyOn((win.electronAPI as ElectronAPI).log, 'warn')
+      .mockImplementation(() => {});
+    const error = vi
+      .spyOn((win.electronAPI as ElectronAPI).log, 'error')
+      .mockImplementation(() => {});
 
     electronService.log.info('hello', 1, true);
     electronService.log.warn('warn');

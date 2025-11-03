@@ -28,5 +28,3 @@ describe('thread-handler helper functions', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('thread:created', { id: '1' });
   });
 });
-
-

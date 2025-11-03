@@ -1,8 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadsService } from '../services/threads-service.js';
+import { mokuService } from '../services/moku.service.js';
+
 import type { Thread as RendererThread } from '../preload.js';
-import type { ThreadMetadata } from '../services/threads-service.js';
 import type ThreadsService from '../services/threads-service.js';
+import type { Thread as InternalThread, ThreadMetadata } from '../services/threads-service.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 
 const threadLog = createScopedLogger('thread');
@@ -11,9 +13,7 @@ const threadLog = createScopedLogger('thread');
  * Helper to convert internal thread representation to renderer-friendly shape
  * (convert epoch ms to Date objects for compatibility with renderer code).
  */
-function toRendererThread(
-  t: ReturnType<(typeof threadsService)['loadThread']>,
-): RendererThread | null {
+function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
     id: t.id,
@@ -182,18 +182,27 @@ export function registerThreadHandlers(): void {
 
   ipcMain.handle(
     'thread:create',
-    (
+    async (
       _event,
       threadData: Omit<RendererThread, 'id' | 'createdAt' | 'updatedAt'>,
     ): Promise<RendererThread> => {
       const perfLog = logPerformance('thread:create');
       threadLog.info('Create called', { title: threadData.title, status: threadData.status });
 
-      const metadata = {
+      const metadata: ThreadMetadata = {
         title: threadData.title,
         description: threadData.description,
         ...(threadData.metadata ?? {}),
       };
+
+      // Server-side validation: ensure provided model/provider are available
+      if (typeof metadata.model === 'string' && typeof metadata.provider === 'string') {
+        const mdl = await mokuService.getModel(metadata.provider, metadata.model);
+        if (!mdl || !mdl.available) {
+          throw new Error('Model unavailable—choose another');
+        }
+      }
+
       const th = threadsService.createThread(metadata);
       const rt = toRendererThread(th);
       if (!rt) throw new Error('Failed to convert created thread');

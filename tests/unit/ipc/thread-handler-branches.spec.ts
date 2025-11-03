@@ -27,7 +27,10 @@ vi.mock('electron', () => {
 });
 
 // Import after mocks
-import { registerThreadHandlers, unregisterThreadHandlers } from '../../../src-electron/ipc-handlers/thread-handler';
+import {
+  registerThreadHandlers,
+  unregisterThreadHandlers,
+} from '../../../src-electron/ipc-handlers/thread-handler';
 
 async function invoke(channel: string, ...args: unknown[]): Promise<any> {
   const fn = handlers.get(channel);
@@ -44,7 +47,9 @@ describe('thread-handler additional branches', () => {
   });
 
   it('update throws when thread not found', async () => {
-    await expect(invoke('thread:update', 'missing-id', { title: 'x' })).rejects.toThrow('not found');
+    await expect(invoke('thread:update', 'missing-id', { title: 'x' })).rejects.toThrow(
+      'not found',
+    );
     // no broadcast should have been sent
     expect(sentEvents.find((e) => e.channel === 'thread:updated')).toBeFalsy();
   });
@@ -55,5 +60,3 @@ describe('thread-handler additional branches', () => {
     expect(sentEvents.find((e) => e.channel === 'thread:deleted')).toBeFalsy();
   });
 });
-
-
