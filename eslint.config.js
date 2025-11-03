@@ -245,9 +245,19 @@ export default [
     },
     rules: {
       ...svelte.configs.recommended.rules,
+      'no-unused-vars': 'off',
       'svelte/no-at-html-tags': 'error',
       'svelte/valid-compile': 'error',
       'svelte/no-dom-manipulating': 'warn',
+      'svelte/no-unused-props': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
 
