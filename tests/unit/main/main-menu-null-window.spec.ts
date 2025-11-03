@@ -44,6 +44,7 @@ describe('main.ts menu branches with null mainWindow', () => {
       },
       dialog: { showMessageBox: vi.fn(async () => ({})) },
       ipcMain: { on: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);

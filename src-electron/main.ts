@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, session } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -229,6 +229,131 @@ function registerIpcHandlers(): void {
 }
 
 /**
+ * Content Security Policy Setup
+ *
+ * Implements strict CSP headers to prevent XSS attacks, code injection, and other vulnerabilities.
+ * CSP directives are configured based on environment (development vs production).
+ *
+ * @see docs/issues/issue-56.md for full requirements
+ */
+export function setupContentSecurityPolicy(): void {
+  // Detect development mode
+  const isDev = process.env.NODE_ENV === 'development' || process.defaultApp;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Base CSP directives for production
+    const cspDirectives: string[] = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'", // Required for Svelte and UI libraries
+      "img-src 'self' data: https:",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      'upgrade-insecure-requests',
+    ];
+
+    // Configure connect-src with required APIs
+    const connectSrcDomains = [
+      "'self'",
+      'https://api.moku.holokai.com',
+      'wss://api.moku.holokai.com',
+      'https://moku.holokai.com',
+      'https://api.holokai.com',
+    ];
+
+    // Add development relaxations for Vite HMR and localhost
+    if (isDev) {
+      connectSrcDomains.push(
+        'ws://localhost:*',
+        'ws://127.0.0.1:*',
+        'http://localhost:*',
+        'http://127.0.0.1:*',
+      );
+    }
+
+    cspDirectives.push(`connect-src ${connectSrcDomains.join(' ')}`);
+
+    const cspHeader = cspDirectives.join('; ') + ';';
+
+    log.debug('[CSP] Applied Content-Security-Policy:', isDev ? '(dev mode)' : '(production mode)');
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [cspHeader],
+      },
+    });
+  });
+
+  log.info('[CSP] Content Security Policy initialized');
+}
+
+/**
+ * CSP Violation Reporter
+ *
+ * Monitors console messages for CSP violations and logs them.
+ * Optionally sends violations to a telemetry service if configured.
+ *
+ * Environment variables:
+ * - CSP_TELEMETRY_URL: Preferred endpoint for CSP violation reports
+ * - TELEMETRY_URL: Fallback telemetry endpoint
+ */
+export function setupCspViolationReporter(): void {
+  const telemetryUrl = process.env.CSP_TELEMETRY_URL || process.env.TELEMETRY_URL;
+
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('console-message', (_event, level, message, line, sourceId) => {
+      // Check if this is a CSP violation
+      if (
+        message.includes('Content Security Policy') ||
+        message.includes('CSP') ||
+        message.includes('Refused to')
+      ) {
+        log.warn('[CSP Violation]', {
+          message,
+          sourceId,
+          line,
+          level,
+        });
+
+        // Send to telemetry if configured
+        if (telemetryUrl) {
+          const payload = {
+            type: 'csp_violation',
+            message,
+            sourceId,
+            line,
+            level,
+            appVersion: app.getVersion(),
+            platform: process.platform,
+            timestamp: new Date().toISOString(),
+          };
+
+          // Fire-and-forget POST request
+          fetch(telemetryUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          }).catch((error) => {
+            log.error('[CSP Telemetry] Failed to send violation report:', error);
+          });
+        }
+      }
+    });
+  });
+
+  log.info(
+    '[CSP] Violation reporter initialized',
+    telemetryUrl ? '(telemetry enabled)' : '(logging only)',
+  );
+}
+
+/**
  * Custom Protocol Registration
  * Registers the custom protocol handler before app is ready.
  * This allows the OS to redirect holokai:// URLs to this application.
@@ -291,6 +416,12 @@ if (process.platform === 'win32') {
 
 // This method will be called when Electron has finished initialization
 void app.whenReady().then(() => {
+  // Setup Content Security Policy (must be done before creating windows)
+  setupContentSecurityPolicy();
+
+  // Setup CSP violation monitoring
+  setupCspViolationReporter();
+
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 

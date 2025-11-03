@@ -35,7 +35,9 @@ describe('main.ts ipc log channels', () => {
 
     const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), transports: { file: {}, console: {} } } as any;
 
-    vi.doMock('electron', () => ({ app, BrowserWindow, Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() }, dialog: { showMessageBox: vi.fn(async () => ({})) }, ipcMain: { on }, contextBridge: { exposeInMainWorld: vi.fn() }, ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() } }));
+    const session = { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } };
+
+    vi.doMock('electron', () => ({ app, BrowserWindow, Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() }, dialog: { showMessageBox: vi.fn(async () => ({})) }, ipcMain: { on }, session, contextBridge: { exposeInMainWorld: vi.fn() }, ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() } }));
     vi.doMock('electron-log', () => ({ default: log }));
     vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({ registerAuthHandlers: vi.fn(), handleOAuthCallback: vi.fn() }));
     vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({ registerSettingsHandlers: vi.fn() }));

@@ -78,12 +78,21 @@ vi.mock('electron', () => {
   // @ts-ignore
   globalThis.__mock_app = app;
 
+  const session = {
+    defaultSession: {
+      webRequest: {
+        onHeadersReceived: vi.fn(),
+      },
+    },
+  };
+
   return {
     ipcMain,
     app,
     BrowserWindow,
     Menu,
     dialog,
+    session,
     contextBridge,
     ipcRenderer,
     safeStorage,
