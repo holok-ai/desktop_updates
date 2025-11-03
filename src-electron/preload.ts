@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { ThreadStatus } from '../src/lib/types/status.type';
+import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
+import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 
 /**
  * Preload Script with Context Bridge
@@ -204,10 +206,39 @@ export interface LogAPI {
 }
 
 /**
+ * Chat API
+ *
+ * Chat service operations for interacting with LLM providers.
+ */
+export interface ChatAPI {
+  // Initialize/Create a chat service instance
+  createProvider: (providerType: string, config: ProviderConfig) => Promise<{ success: boolean; error?: string }>;
+
+  // Send a chat message (with streaming support)
+  chat: (request: ChatRequest) => Promise<{ success: boolean; error?: string }>;
+
+  // Send a chat message with advanced options
+  chatWithOptions: (request: ChatRequestWithOptions) => Promise<{ success: boolean; error?: string }>;
+
+  // Listen for streaming tokens (event-based)
+  onToken: (callback: (token: string) => void) => void;
+
+  // Stop listening to token events
+  offToken: () => void;
+
+  // Get audit/performance metrics
+  getMetrics: () => Promise<unknown>;
+
+  // Cleanup/close the provider
+  close: () => Promise<{ success: boolean }>;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
   auth: AuthAPI;
+  chat: ChatAPI;
   settings: SettingsAPI;
   thread: ThreadAPI;
   system: SystemAPI;
@@ -261,6 +292,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as AuthAPI,
+  /**
+   * Chat API Implementation
+   */
+  chat: {
+    // 1. Initialize/Create a chat service instance
+      createProvider: (providerType: string, config: ProviderConfig) =>
+          ipcRenderer.invoke('chat:createProvider', providerType, config),
+
+      // 2. Send a chat message (with streaming support)
+      chat: (request: ChatRequest) =>
+          ipcRenderer.invoke('chat:send', request),
+
+      // 3. Listen for streaming tokens (event-based)
+      onToken: (callback: (token: string) => void) => {
+          ipcRenderer.on('chat:token', (_,token: string) => callback(token));
+      },
+
+      // 4. Stop listening to token events
+      offToken: () => {
+          ipcRenderer.removeAllListeners('chat:token');
+      },
+
+      // 5. Get audit/performance metrics
+      getMetrics: () =>
+          ipcRenderer.invoke('chat:getMetrics'),
+
+      // 6. Cleanup/close the provider
+      close: () =>
+          ipcRenderer.invoke('chat:close'),
+
+      // 7. Optional: Chat with advanced options
+      chatWithOptions: (request: ChatRequestWithOptions) =>
+          ipcRenderer.invoke('chat:sendWithOptions', request)    
+  },
 
   /**
    * Settings API Implementation
@@ -395,3 +460,4 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
+

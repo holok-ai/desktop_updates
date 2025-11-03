@@ -1,12 +1,13 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, session } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import log from 'electron-log';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
+import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -18,29 +19,10 @@ const __dirname = path.dirname(__filename);
  */
 const CUSTOM_PROTOCOL = 'holokai';
 
-/**
- * Configure electron-log
- *
- * Sets up logging to save to user's AppData folder with custom filename format
- */
-const appDataPath = app.getPath('appData');
-const logFolderPath = path.join(appDataPath, 'holokai', 'desktop');
+const protocolLog = createScopedLogger('protocol');
+const appLog = createScopedLogger('app');
 
-// Configure log file path and format
-log.transports.file.resolvePathFn = () => {
-  const date = new Date();
-  const dateStr =
-    date.getFullYear() +
-    String(date.getMonth() + 1).padStart(2, '0') +
-    String(date.getDate()).padStart(2, '0');
-  return path.join(logFolderPath, `desktop_${dateStr}.log`);
-};
-
-// Set log level (info, warn, error, debug)
-log.transports.file.level = 'info';
-log.transports.console.level = 'info';
-
-log.info('[App] Starting application');
+appLog.info('Starting application');
 
 /**
  * Main Electron Process
@@ -81,12 +63,12 @@ function createWindow(): void {
       // Check if dev server is running by attempting to load
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await mainWindow!.loadURL('http://localhost:5177');
-      console.log('Loaded from Vite dev server');
+      appLog.info('Loaded from Vite dev server');
     } catch (_error) {
       // Dev server not available, load from built files
-      console.log('Loading from built files');
+      appLog.info('Loading from built files');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      void mainWindow!.loadFile(path.join(__dirname, '../dist/index.html'));
+      void mainWindow!.loadFile(path.join(__dirname, '../../dist/index.html'));
     }
   };
 
@@ -225,22 +207,150 @@ function registerIpcHandlers(): void {
   // Register system-related IPC handlers
   registerSystemHandlers();
 
+  // Register chat-related IPC handlers
+  registerChatHandlers();
+
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
-    log.info('[Renderer]', message, ...params);
+    protocolLog.info('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:warn', (_event, message: string, ...params: unknown[]) => {
-    log.warn('[Renderer]', message, ...params);
+    protocolLog.warn('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:error', (_event, message: string, ...params: unknown[]) => {
-    log.error('[Renderer]', message, ...params);
+    protocolLog.error('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
-    log.debug('[Renderer]', message, ...params);
+    protocolLog.debug('[Renderer]', message, ...params);
   });
+}
+
+/**
+ * Content Security Policy Setup
+ *
+ * Implements strict CSP headers to prevent XSS attacks, code injection, and other vulnerabilities.
+ * CSP directives are configured based on environment (development vs production).
+ *
+ * @see docs/issues/issue-56.md for full requirements
+ */
+export function setupContentSecurityPolicy(): void {
+  // Detect development mode
+  const isDev = process.env.NODE_ENV === 'development' || process.defaultApp;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Base CSP directives for production
+    const cspDirectives: string[] = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'", // Required for Svelte and UI libraries
+      "img-src 'self' data: https:",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      'upgrade-insecure-requests',
+    ];
+
+    // Configure connect-src with required APIs
+    const connectSrcDomains = [
+      "'self'",
+      'https://api.moku.holokai.com',
+      'wss://api.moku.holokai.com',
+      'https://moku.holokai.com',
+      'https://api.holokai.com',
+    ];
+
+    // Add development relaxations for Vite HMR and localhost
+    if (isDev) {
+      connectSrcDomains.push(
+        'ws://localhost:*',
+        'ws://127.0.0.1:*',
+        'http://localhost:*',
+        'http://127.0.0.1:*',
+      );
+    }
+
+    cspDirectives.push(`connect-src ${connectSrcDomains.join(' ')}`);
+
+    const cspHeader = cspDirectives.join('; ') + ';';
+
+    log.debug('[CSP] Applied Content-Security-Policy:', isDev ? '(dev mode)' : '(production mode)');
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [cspHeader],
+      },
+    });
+  });
+
+  log.info('[CSP] Content Security Policy initialized');
+}
+
+/**
+ * CSP Violation Reporter
+ *
+ * Monitors console messages for CSP violations and logs them.
+ * Optionally sends violations to a telemetry service if configured.
+ *
+ * Environment variables:
+ * - CSP_TELEMETRY_URL: Preferred endpoint for CSP violation reports
+ * - TELEMETRY_URL: Fallback telemetry endpoint
+ */
+export function setupCspViolationReporter(): void {
+  const telemetryUrl = process.env.CSP_TELEMETRY_URL || process.env.TELEMETRY_URL;
+
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('console-message', (_event, level, message, line, sourceId) => {
+      // Check if this is a CSP violation
+      if (
+        message.includes('Content Security Policy') ||
+        message.includes('CSP') ||
+        message.includes('Refused to')
+      ) {
+        log.warn('[CSP Violation]', {
+          message,
+          sourceId,
+          line,
+          level,
+        });
+
+        // Send to telemetry if configured
+        if (telemetryUrl) {
+          const payload = {
+            type: 'csp_violation',
+            message,
+            sourceId,
+            line,
+            level,
+            appVersion: app.getVersion(),
+            platform: process.platform,
+            timestamp: new Date().toISOString(),
+          };
+
+          // Fire-and-forget POST request
+          fetch(telemetryUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          }).catch((error) => {
+            log.error('[CSP Telemetry] Failed to send violation report:', error);
+          });
+        }
+      }
+    });
+  });
+
+  log.info(
+    '[CSP] Violation reporter initialized',
+    telemetryUrl ? '(telemetry enabled)' : '(logging only)',
+  );
 }
 
 /**
@@ -260,7 +370,7 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
-log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
+protocolLog.info(`Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
 
 /**
  * Deep Link Handler for OAuth Callback
@@ -268,13 +378,13 @@ log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
  */
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  log.info('[Protocol] Received deep link:', url);
+  protocolLog.info('Received deep link', { url });
 
   if (url.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
-    log.info('[Protocol] OAuth callback detected, processing...');
+    protocolLog.info('OAuth callback detected, processing...');
     handleOAuthCallback(url, mainWindow);
   } else {
-    log.warn('[Protocol] Received unexpected deep link:', url);
+    protocolLog.warn('Received unexpected deep link', { url });
   }
 });
 
@@ -287,7 +397,7 @@ if (process.platform === 'win32') {
   const protocolUrl = args.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
   if (protocolUrl) {
-    log.info('[Protocol] Windows: Received protocol URL on startup:', protocolUrl);
+    protocolLog.info('Windows: Received protocol URL on startup', { url: protocolUrl });
 
     // Process after app is ready
     app.on('ready', () => {
@@ -306,6 +416,12 @@ if (process.platform === 'win32') {
 
 // This method will be called when Electron has finished initialization
 void app.whenReady().then(() => {
+  // Setup Content Security Policy (must be done before creating windows)
+  setupContentSecurityPolicy();
+
+  // Setup CSP violation monitoring
+  setupCspViolationReporter();
+
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 
@@ -315,7 +431,7 @@ void app.whenReady().then(() => {
   // Create the main window
   createWindow();
 
-  log.info('[App] Application startup complete');
+  appLog.info('Application startup complete');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -328,24 +444,26 @@ void app.whenReady().then(() => {
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    log.info('[App] Exiting - all windows closed');
+    appLog.info('Exiting - all windows closed');
     app.quit();
   }
+  appLog.info('Application exited');
+  app.quit();
 });
 
 app.on('before-quit', () => {
-  log.info('[App] Application exiting');
+  appLog.info('Application exiting');
 });
 
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  log.info('[App] Second instance detected - quitting');
+  appLog.info('Second instance detected - quitting');
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, _workingDirectory) => {
-    log.info('[App] Second instance attempted - processing command line');
+    appLog.info('Second instance attempted - processing command line');
 
     // Check command line for protocol URL
     const protocolUrl = Array.isArray(commandLine)
@@ -353,7 +471,7 @@ if (!gotTheLock) {
       : undefined;
 
     if (protocolUrl) {
-      log.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
+      protocolLog.info('Received protocol URL via second instance:', protocolUrl);
       if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
         handleOAuthCallback(protocolUrl, mainWindow);
       }

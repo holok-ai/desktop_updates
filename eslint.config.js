@@ -321,6 +321,30 @@ export default [
     },
   },
 
+  // Shared code (used by both main and renderer)
+  {
+    files: ['src-shared/**/*.ts'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        project: './tsconfig.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+      globals: {
+        ...globals.es2022,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+    },
+    rules: {
+      ...typescript.configs['recommended'].rules,
+      '@typescript-eslint/no-explicit-any': 'error',
+    },
+  },
+
   // Renderer process
   {
     files: ['src/**/*.ts', 'src/**/*.svelte'],

@@ -1,16 +1,21 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  // Props from ChatPane slot
+  interface Props {
+    // eslint-disable-next-line no-unused-vars
+    sendMessage?: (text: string) => Promise<void>;
+    isStreaming?: boolean;
+  }
 
-  const dispatch = createEventDispatcher();
-  export let onSend: Function | undefined;
-  let text = '';
+  let { sendMessage, isStreaming = false }: Props = $props();
 
-  function send() {
+  let text = $state('');
+
+  async function send() {
     const payload = text.trim();
-    if (!payload) return;
-    dispatch('send', payload);
-    if (onSend) onSend(new CustomEvent('send', { detail: payload }));
-    text = '';
+    if (!payload || !sendMessage || isStreaming) return;
+
+    text = ''; // Clear input immediately
+    await sendMessage(payload);
   }
 </script>
 
@@ -19,6 +24,7 @@
     bind:value={text}
     placeholder="Write a message..."
     rows={3}
+    disabled={isStreaming}
     onkeydown={(e) => {
       // Send on Enter (without Shift). Allow Shift+Enter for newline.
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -28,14 +34,50 @@
     }}
   ></textarea>
   <div class="actions">
-    <button class="primary" onclick={send}>Send</button>
+    <button class="primary" onclick={send} disabled={isStreaming || !text.trim()}>
+      {isStreaming ? 'Sending...' : 'Send'}
+    </button>
   </div>
 </div>
 
 <style>
-  .composer textarea { width: 100%; padding: .5rem; border-radius: 6px; border: 1px solid #d0d0d0 }
-  .actions { margin-top: .5rem; text-align: right }
-  .primary { background: #646cff; color: white; padding: .5rem 1rem; border-radius: 6px }
+  .composer textarea {
+    width: 100%;
+    padding: .5rem;
+    border-radius: 6px;
+    border: 1px solid #d0d0d0;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .composer textarea:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+  }
+
+  .actions {
+    margin-top: .5rem;
+    text-align: right;
+  }
+
+  .primary {
+    background: #646cff;
+    color: white;
+    padding: .5rem 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .primary:hover:not(:disabled) {
+    background: #535bf2;
+  }
+
+  .primary:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
 </style>
 
 

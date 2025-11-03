@@ -1,12 +1,14 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { AuthService, AuthState, UserProfile } from '../services/auth.service.js';
-import log from 'electron-log';
+import { createScopedLogger } from '../utils/logger.js';
 
 /**
  * Authentication IPC Handlers
  * Handles all authentication-related IPC communication between renderer and main process.
  * Security: Tokens never exposed to renderer process, all sensitive operations in main process.
  */
+
+const authLog = createScopedLogger('auth');
 
 let authService: AuthService;
 
@@ -16,16 +18,16 @@ let authService: AuthService;
  * Validates the callback, extracts parameters, and exchanges authorization code for tokens.
  */
 export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | null): void {
-  log.info('[Auth] ========================================');
-  log.info('[Auth] Processing OAuth callback:', url);
-  log.info('[Auth] Main window exists:', !!mainWindow);
+  authLog.info('========================================');
+  authLog.info('Processing OAuth callback:', url);
+  authLog.info('Main window exists:', !!mainWindow);
 
   try {
     // Parse the URL
     const urlObj = new URL(url);
-    log.info('[Auth] Parsed URL protocol:', urlObj.protocol);
-    log.info('[Auth] Parsed URL pathname:', urlObj.pathname);
-    log.info('[Auth] Parsed URL search params:', urlObj.search);
+    authLog.info('Parsed URL protocol:', urlObj.protocol);
+    authLog.info('Parsed URL pathname:', urlObj.pathname);
+    authLog.info('Parsed URL search params:', urlObj.search);
 
     const params = urlObj.searchParams;
 
@@ -33,7 +35,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     const error = params.get('error');
     if (error) {
       const errorDescription = params.get('error_description') || 'Unknown error';
-      log.error('[Auth] OAuth error:', error, errorDescription);
+      authLog.error('OAuth error', { error, description: errorDescription });
 
       // Notify renderer of error
       if (mainWindow) {
@@ -49,11 +51,11 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     const code = params.get('code');
     // const state = params.get('state');
 
-    log.info('[Auth] Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
+    authLog.info('Extracted code:', code ? `${code.substring(0, 10)}...` : 'null');
 
     if (!code) {
-      log.error('[Auth] Missing required parameters in callback');
-      log.error('[Auth] Code present:', !!code);
+      authLog.error('Missing required parameters in callback');
+      authLog.error('Code present:', !!code);
       if (mainWindow) {
         mainWindow.webContents.send('auth:callback-error', {
           error: 'invalid_callback',
@@ -63,17 +65,17 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
       return;
     }
 
-    log.info('[Auth] Valid OAuth callback received, exchanging code for tokens');
-    log.info('[Auth] Calling authService.processOAuthCallback...');
+    authLog.info('Valid OAuth callback received, exchanging code for tokens');
+    authLog.info('Calling authService.processOAuthCallback...');
 
     // Process the callback through auth service
     authService
       .processOAuthCallback(code)
       .then((authState) => {
-        log.info('[Auth] OAuth flow completed successfully');
-        log.info('[Auth] Auth state - isAuthenticated:', authState.isAuthenticated);
-        log.info('[Auth] Auth state - user:', authState.user?.email);
-        log.info('[Auth] Sending auth:callback-success to renderer...');
+        authLog.info('OAuth flow completed successfully');
+        authLog.info('State - isAuthenticated:', authState.isAuthenticated);
+        authLog.info('State - user:', authState.user?.email);
+        authLog.info('Sending auth:callback-success to renderer...');
 
         // Notify renderer of successful authentication
         if (mainWindow) {
@@ -81,15 +83,15 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             user: authState.user,
             isAuthenticated: authState.isAuthenticated,
           });
-          log.info('[Auth] auth:callback-success sent to renderer');
+          authLog.info('auth:callback-success sent to renderer');
         } else {
-          log.warn('[Auth] Cannot send to renderer - mainWindow is null');
+          authLog.warn('Cannot send to renderer - mainWindow is null');
         }
       })
       .catch((error: unknown) => {
-        log.error('[Auth] Error processing OAuth callback:', error);
-        log.error('[Auth] Error type:', error instanceof Error ? 'Error' : typeof error);
-        log.error('[Auth] Error message:', error instanceof Error ? error.message : String(error));
+        authLog.error('Error processing OAuth callback:', error);
+        authLog.error('Error type:', error instanceof Error ? 'Error' : typeof error);
+        authLog.error('Error message:', error instanceof Error ? error.message : String(error));
 
         if (mainWindow) {
           const errorMessage =
@@ -98,22 +100,22 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
             error: 'exchange_failed',
             description: errorMessage,
           });
-          log.info('[Auth] auth:callback-error sent to renderer');
+          authLog.info('auth:callback-error sent to renderer');
         }
       });
   } catch (error) {
-    log.error('[Auth] Error parsing OAuth callback URL:', error);
-    log.error('[Auth] Error details:', error instanceof Error ? error.stack : String(error));
+    authLog.error('Error parsing OAuth callback URL:', error);
+    authLog.error('Error details:', error instanceof Error ? error.stack : String(error));
 
     if (mainWindow) {
       mainWindow.webContents.send('auth:callback-error', {
         error: 'invalid_url',
         description: 'Failed to parse callback URL',
       });
-      log.info('[Auth] auth:callback-error sent to renderer (parse error)');
+      authLog.info('auth:callback-error sent to renderer (parse error)');
     }
   }
-  log.info('[Auth] ========================================');
+  authLog.info('========================================');
 }
 
 /**
@@ -127,7 +129,7 @@ export function registerAuthHandlers(): void {
    * Start OAuth flow - Opens system browser to Moku web SSO page
    */
   ipcMain.handle('auth:startOAuthFlow', async (): Promise<{ authUrl: string }> => {
-    log.info('[IPC] auth:startOAuthFlow called');
+    authLog.info('auth:startOAuthFlow called');
 
     try {
       const result = await authService.startOAuthFlow();
@@ -142,7 +144,7 @@ export function registerAuthHandlers(): void {
       response._mockData = result.mockData;
       return response;
     } catch (error) {
-      log.error('[IPC] Error starting OAuth flow:', error);
+      authLog.error('Error starting OAuth flow', { error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
   });
@@ -151,7 +153,7 @@ export function registerAuthHandlers(): void {
    * Exchange authorization code for tokens (manual exchange for testing)
    */
   ipcMain.handle('auth:exchangeCode', async (_event, code: string): Promise<AuthState> => {
-    log.info('[IPC] auth:exchangeCode called');
+    authLog.info('exchangeCode called');
 
     try {
       const authState = await authService.exchangeCodeForTokens(code);
@@ -163,7 +165,7 @@ export function registerAuthHandlers(): void {
         isAuthenticated: authState.isAuthenticated,
       };
     } catch (error) {
-      log.error('[IPC] Error exchanging auth code:', error);
+      authLog.error('Error exchanging auth code', { error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
   });
@@ -172,7 +174,7 @@ export function registerAuthHandlers(): void {
    * Mock login - Simulates complete authentication flow for testing
    */
   ipcMain.handle('auth:mockLogin', async (_event): Promise<AuthState> => {
-    log.info('[IPC] auth:mockLogin called');
+    authLog.info('mockLogin called');
 
     try {
       const authState = await authService.mockLogin();
@@ -184,7 +186,7 @@ export function registerAuthHandlers(): void {
         isAuthenticated: authState.isAuthenticated,
       };
     } catch (error) {
-      log.error('[IPC] Error with mock login:', error);
+      authLog.error('Error with mock login', { error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
   });
@@ -193,7 +195,7 @@ export function registerAuthHandlers(): void {
    * Get current authentication state
    */
   ipcMain.handle('auth:getAuthState', (): Promise<AuthState> => {
-    log.info('[IPC] auth:getAuthState called');
+    authLog.info('getAuthState called');
 
     const authState = authService.getAuthState();
 
@@ -209,7 +211,7 @@ export function registerAuthHandlers(): void {
    * Get current user profile
    */
   ipcMain.handle('auth:getUser', (): Promise<UserProfile | null> => {
-    log.info('[IPC] auth:getUser called');
+    authLog.info('GetUser called');
     return Promise.resolve(authService.getUser());
   });
 
@@ -217,7 +219,7 @@ export function registerAuthHandlers(): void {
    * Check if user is authenticated
    */
   ipcMain.handle('auth:isAuthenticated', (): Promise<boolean> => {
-    log.info('[IPC] auth:isAuthenticated called');
+    authLog.info('IsAuthenticated called');
     return Promise.resolve(authService.isAuthenticated());
   });
 
@@ -225,13 +227,13 @@ export function registerAuthHandlers(): void {
    * Logout user - Clears all stored authentication data
    */
   ipcMain.handle('auth:logout', (): Promise<void> => {
-    log.info('[IPC] auth:logout called');
+    authLog.info('Logout called');
 
     try {
       authService.logout();
       return Promise.resolve();
     } catch (error) {
-      log.error('[IPC] Error during logout:', error);
+      authLog.error('Error during logout', { error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
   });
@@ -240,17 +242,17 @@ export function registerAuthHandlers(): void {
    * Refresh access token - Uses refresh token to get new access token
    */
   ipcMain.handle('auth:refreshToken', async (): Promise<void> => {
-    log.info('[IPC] auth:refreshToken called');
+    authLog.info('refreshToken called');
 
     try {
       await authService.refreshAccessToken();
     } catch (error) {
-      log.error('[IPC] Error refreshing token:', error);
+      authLog.error('Error refreshing token', { error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
   });
 
-  log.info('[IPC] Auth handlers registered');
+  authLog.info('Handlers registered');
 }
 
 /**
@@ -266,5 +268,5 @@ export function unregisterAuthHandlers(): void {
   ipcMain.removeHandler('auth:logout');
   ipcMain.removeHandler('auth:refreshToken');
 
-  log.info('[IPC] Auth handlers unregistered');
+  authLog.info('Handlers unregistered');
 }

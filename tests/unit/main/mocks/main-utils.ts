@@ -68,3 +68,13 @@ export function handleOpenUrl(
     logger.warn?.('[Protocol] Error handling open url');
   }
 }
+
+export function createMockSession() {
+  return {
+    defaultSession: {
+      webRequest: {
+        onHeadersReceived: () => {},
+      },
+    },
+  };
+}

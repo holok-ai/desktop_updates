@@ -21,6 +21,7 @@ describe('main.ts loadFile fallback branch', () => {
       Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
       dialog: { showMessageBox: vi.fn(() => Promise.resolve({})) },
       ipcMain: { handle: vi.fn(), on: vi.fn() },
+      session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 
     vi.doMock('electron', () => electronMock);
