@@ -7,7 +7,14 @@ describe('main.ts closed handler registration', () => {
     let createdWindow: any = null;
 
     const electronMock: any = {
-      app: { getPath: () => '/mock', whenReady: () => Promise.resolve(), on: vi.fn(), requestSingleInstanceLock: vi.fn(() => true), quit: vi.fn(), setAsDefaultProtocolClient: vi.fn() },
+      app: {
+        getPath: () => '/mock',
+        whenReady: () => Promise.resolve(),
+        on: vi.fn(),
+        requestSingleInstanceLock: vi.fn(() => true),
+        quit: vi.fn(),
+        setAsDefaultProtocolClient: vi.fn(),
+      },
       BrowserWindow: class {
         webContents: any = { send: vi.fn() };
         _closedRegistered = false;
@@ -20,7 +27,9 @@ describe('main.ts closed handler registration', () => {
           (this as any).loadURL = async () => Promise.resolve();
           (this as any).loadFile = async () => Promise.resolve();
         }
-        static getAllWindows() { return []; }
+        static getAllWindows() {
+          return [];
+        }
       },
       Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
       dialog: { showMessageBox: vi.fn(() => Promise.resolve({})) },
@@ -29,12 +38,30 @@ describe('main.ts closed handler registration', () => {
     };
 
     vi.doMock('electron', () => electronMock);
-    vi.doMock('electron-log', () => ({ default: { info: vi.fn(), transports: { file: {}, console: {} } } }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({ registerAuthHandlers: vi.fn(), handleOAuthCallback: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({ registerSettingsHandlers: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({ registerThreadHandlers: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({ registerSystemHandlers: vi.fn() }));
-    vi.doMock('../../../src-electron/main-utils', () => ({ registerProtocol: vi.fn(), createWindowFactory: vi.fn(() => () => new electronMock.BrowserWindow()), handleOpenUrl: vi.fn(), windowsProtocolStartupHandler: vi.fn(), registerActivateHandler: vi.fn(), registerSecondInstanceHandler: vi.fn(() => true) }));
+    vi.doMock('electron-log', () => ({
+      default: { info: vi.fn(), transports: { file: {}, console: {} } },
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
+      registerAuthHandlers: vi.fn(),
+      handleOAuthCallback: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
+      registerSettingsHandlers: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
+      registerThreadHandlers: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
+      registerSystemHandlers: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/main-utils', () => ({
+      registerProtocol: vi.fn(),
+      createWindowFactory: vi.fn(() => () => new electronMock.BrowserWindow()),
+      handleOpenUrl: vi.fn(),
+      windowsProtocolStartupHandler: vi.fn(),
+      registerActivateHandler: vi.fn(),
+      registerSecondInstanceHandler: vi.fn(() => true),
+    }));
 
     await import('../../../src-electron/main');
 
@@ -44,5 +71,3 @@ describe('main.ts closed handler registration', () => {
     expect(typeof cb).toBe('function');
   });
 });
-
-

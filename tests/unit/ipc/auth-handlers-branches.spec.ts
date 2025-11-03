@@ -34,7 +34,9 @@ describe('auth ipc handlers branches', () => {
       },
     }));
 
-    const { registerAuthHandlers } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     const res = await (ipcMain as any).__emit('auth:startOAuthFlow');
@@ -57,11 +59,15 @@ describe('auth ipc handlers branches', () => {
 
     vi.doMock('../../../src-electron/services/auth.service', () => ({
       AuthService: class {
-        startOAuthFlow = vi.fn(async () => { throw new Error('nope'); });
+        startOAuthFlow = vi.fn(async () => {
+          throw new Error('nope');
+        });
       },
     }));
 
-    const { registerAuthHandlers } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     await expect((ipcMain as any).__emit('auth:startOAuthFlow')).rejects.toThrow();
@@ -88,7 +94,9 @@ describe('auth ipc handlers branches', () => {
       },
     }));
 
-    const { registerAuthHandlers } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     const result = await (ipcMain as any).__emit('auth:exchangeCode', 'code');
@@ -99,13 +107,25 @@ describe('auth ipc handlers branches', () => {
   it('auth:exchangeCode throws on failure', async () => {
     vi.resetModules();
     const handlers2 = new Map<string, any>();
-    const ipcMain2 = { handle: (ch: string, fn: any) => handlers2.set(ch, fn), __emit: async (ch: string, ...a: any[]) => { const fn = handlers2.get(ch); return await fn({}, ...a); } } as any;
+    const ipcMain2 = {
+      handle: (ch: string, fn: any) => handlers2.set(ch, fn),
+      __emit: async (ch: string, ...a: any[]) => {
+        const fn = handlers2.get(ch);
+        return await fn({}, ...a);
+      },
+    } as any;
     vi.doMock('electron', () => ({ ipcMain: ipcMain2 }));
-    vi.doMock('../../../src-electron/services/auth.service', () => ({ AuthService: class { exchangeCodeForTokens = vi.fn(async () => { throw new Error('bad'); }); } }));
-    const { registerAuthHandlers: r2 } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    vi.doMock('../../../src-electron/services/auth.service', () => ({
+      AuthService: class {
+        exchangeCodeForTokens = vi.fn(async () => {
+          throw new Error('bad');
+        });
+      },
+    }));
+    const { registerAuthHandlers: r2 } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     r2();
     await expect((ipcMain2 as any).__emit('auth:exchangeCode', 'x')).rejects.toThrow();
   });
 });
-
-

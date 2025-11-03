@@ -29,5 +29,3 @@ describe('IPC unregister helpers', () => {
     expect((ipcMain.removeHandler as any).mock.calls.length).toBeGreaterThan(0);
   });
 });
-
-

@@ -23,7 +23,10 @@ export function registerSettingsHandlers(): void {
   try {
     settingsService = new SettingsService();
   } catch (err) {
-    settingsLog.error('[IPC] Failed to initialize SettingsService, falling back to in-memory stub', err);
+    settingsLog.error(
+      '[IPC] Failed to initialize SettingsService, falling back to in-memory stub',
+      err,
+    );
     // Minimal stub implementing the same API used by handlers
     settingsService = {
       getAllSettings: () =>

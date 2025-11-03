@@ -24,7 +24,10 @@ vi.mock('electron', () => {
   return { ipcMain, app };
 });
 
-import { registerSystemHandlers, unregisterSystemHandlers } from 'src-electron/ipc-handlers/system-handler';
+import {
+  registerSystemHandlers,
+  unregisterSystemHandlers,
+} from 'src-electron/ipc-handlers/system-handler';
 // @ts-ignore
 const ipcMain = globalThis.__mock_ipcMain;
 
@@ -35,7 +38,10 @@ describe('IPC: system-handler', () => {
     registerSystemHandlers();
     // ensure process.versions.electron exists during tests
     try {
-      Object.defineProperty(process.versions, 'electron', { value: '1.0.0-test', configurable: true });
+      Object.defineProperty(process.versions, 'electron', {
+        value: '1.0.0-test',
+        configurable: true,
+      });
     } catch (e) {
       // ignore if not configurable
     }
@@ -66,5 +72,3 @@ describe('IPC: system-handler', () => {
     expect(path).toBe('/mock/home');
   });
 });
-
-

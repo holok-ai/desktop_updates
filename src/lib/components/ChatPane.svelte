@@ -13,7 +13,9 @@
     thread?: Thread | null;
     messages?: Message[];
     // eslint-disable-next-line no-unused-vars
-    composer?: import('svelte').Snippet<[{ sendMessage: (message: string) => Promise<void>, isStreaming: boolean }]>;
+    composer?: import('svelte').Snippet<
+      [{ sendMessage: (message: string) => Promise<void>; isStreaming: boolean }]
+    >;
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
@@ -26,14 +28,11 @@
 
   // Initialize chat service on mount
   async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider(
-      'ollama',
-      {
-        url: 'http://localhost:11434',
-        apiKey: 'ollama',
-        model: 'llama3:latest'
-      }
-    );
+    const result = await window.electronAPI.chat.createProvider('ollama', {
+      url: 'http://localhost:11434',
+      apiKey: 'ollama',
+      model: 'llama3:latest',
+    });
 
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
@@ -74,17 +73,15 @@
       id: crypto.randomUUID(),
       role: 'user',
       content: userMessage,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     messages = [...messages, userMsg];
 
     try {
       const request = {
-        messages: [
-          { role: 'user', content: userMessage }
-        ],
+        messages: [{ role: 'user', content: userMessage }],
         streaming: true,
-        model: 'llama3:latest'
+        model: 'llama3:latest',
       };
 
       const result = await window.electronAPI.chat.chat(request);
@@ -98,7 +95,7 @@
           id: crypto.randomUUID(),
           role: 'assistant',
           content: responseText,
-          createdAt: Date.now()
+          createdAt: Date.now(),
         };
         messages = [...messages, assistantMsg];
       }
@@ -211,13 +208,13 @@
 
   .message.user .message-content {
     background: #e0f2fe;
-    padding: .5rem;
+    padding: 0.5rem;
     border-radius: 6px;
   }
 
   .message.assistant .message-content {
     background: #eef2ff;
-    padding: .5rem;
+    padding: 0.5rem;
     border-radius: 6px;
   }
 
@@ -227,14 +224,19 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 0.9; }
-    50% { opacity: 0.6; }
+    0%,
+    100% {
+      opacity: 0.9;
+    }
+    50% {
+      opacity: 0.6;
+    }
   }
 
   .message-meta {
-    font-size: .75rem;
+    font-size: 0.75rem;
     color: #666;
-    margin-top: .25rem;
+    margin-top: 0.25rem;
   }
 
   .composer {
@@ -245,5 +247,3 @@
     color: #6b7280;
   }
 </style>
-
-

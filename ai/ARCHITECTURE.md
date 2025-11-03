@@ -387,12 +387,12 @@ import '$lib/services/menu-navigation.service'; // registers menu listeners
 
 ### 5.2.8 Menu-to-Route Mapping
 
-| Menu Command       | Route Action                                 | Component Behavior        |
-| ------------------ | --------------------------------------------- | ------------------------- |
-| File → Get Threads | Navigate to `#/threads`                       | Loads thread list         |
-| File → New Thread  | Navigate to `#/threads?create`                | Opens create dialog       |
-| File → Settings    | Navigate to `#/settings`                      | Shows settings            |
-| View → Refresh     | Reload window                                 | Full renderer reload      |
+| Menu Command       | Route Action                   | Component Behavior   |
+| ------------------ | ------------------------------ | -------------------- |
+| File → Get Threads | Navigate to `#/threads`        | Loads thread list    |
+| File → New Thread  | Navigate to `#/threads?create` | Opens create dialog  |
+| File → Settings    | Navigate to `#/settings`       | Shows settings       |
+| View → Refresh     | Reload window                  | Full renderer reload |
 
 ### 5.2.9 Design Principles
 

@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { ThreadStatus } from '../src-shared/constants/status.constant.js';
-import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
+import type {
+  ChatRequest,
+  ChatRequestWithOptions,
+} from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 
 /**
@@ -126,6 +129,28 @@ export interface AppSettings {
 }
 
 /**
+ * Models (Moku) API types
+ */
+export interface MokuModel {
+  provider: string;
+  id: string;
+  title: string;
+  description?: string;
+  available: boolean;
+  default?: boolean;
+  createdAt: number;
+}
+
+/**
+ * Models API
+ */
+export interface ModelsAPI {
+  listAvailable: (userId?: string) => Promise<MokuModel[]>;
+  listAll: (userId?: string) => Promise<MokuModel[]>;
+  get: (provider: string, id: string) => Promise<MokuModel | null>;
+}
+
+/**
  * Auth API
  *
  * Authentication and authorization operations.
@@ -156,8 +181,12 @@ export interface AuthAPI {
   refreshToken: () => Promise<void>;
 
   // OAuth callback event listeners
-  onAuthCallbackSuccess: (callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void) => () => void;
-  onAuthCallbackError: (callback: (error: { error: string; description: string }) => void) => () => void;
+  onAuthCallbackSuccess: (
+    callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void,
+  ) => () => void;
+  onAuthCallbackError: (
+    callback: (error: { error: string; description: string }) => void,
+  ) => () => void;
 }
 
 /**
@@ -212,13 +241,18 @@ export interface LogAPI {
  */
 export interface ChatAPI {
   // Initialize/Create a chat service instance
-  createProvider: (providerType: string, config: ProviderConfig) => Promise<{ success: boolean; error?: string }>;
+  createProvider: (
+    providerType: string,
+    config: ProviderConfig,
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Send a chat message (with streaming support)
   chat: (request: ChatRequest) => Promise<{ success: boolean; error?: string }>;
 
   // Send a chat message with advanced options
-  chatWithOptions: (request: ChatRequestWithOptions) => Promise<{ success: boolean; error?: string }>;
+  chatWithOptions: (
+    request: ChatRequestWithOptions,
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
   onToken: (callback: (token: string) => void) => void;
@@ -240,6 +274,7 @@ export interface ElectronAPI {
   auth: AuthAPI;
   chat: ChatAPI;
   settings: SettingsAPI;
+  models: ModelsAPI;
   thread: ThreadAPI;
   system: SystemAPI;
   log: LogAPI;
@@ -272,8 +307,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     refreshToken: () => ipcRenderer.invoke('auth:refreshToken'),
 
     // OAuth callback event listeners
-    onAuthCallbackSuccess: (callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, data: { user: UserProfile; isAuthenticated: boolean }): void => callback(data);
+    onAuthCallbackSuccess: (
+      callback: (data: { user: UserProfile; isAuthenticated: boolean }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { user: UserProfile; isAuthenticated: boolean },
+      ): void => callback(data);
       ipcRenderer.on('auth:callback-success', subscription);
 
       // Return cleanup function
@@ -282,8 +322,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
 
-    onAuthCallbackError: (callback: (error: { error: string; description: string }) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, error: { error: string; description: string }): void => callback(error);
+    onAuthCallbackError: (
+      callback: (error: { error: string; description: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        error: { error: string; description: string },
+      ): void => callback(error);
       ipcRenderer.on('auth:callback-error', subscription);
 
       // Return cleanup function
@@ -297,34 +342,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   chat: {
     // 1. Initialize/Create a chat service instance
-      createProvider: (providerType: string, config: ProviderConfig) =>
-          ipcRenderer.invoke('chat:createProvider', providerType, config),
+    createProvider: (providerType: string, config: ProviderConfig) =>
+      ipcRenderer.invoke('chat:createProvider', providerType, config),
 
-      // 2. Send a chat message (with streaming support)
-      chat: (request: ChatRequest) =>
-          ipcRenderer.invoke('chat:send', request),
+    // 2. Send a chat message (with streaming support)
+    chat: (request: ChatRequest) => ipcRenderer.invoke('chat:send', request),
 
-      // 3. Listen for streaming tokens (event-based)
-      onToken: (callback: (token: string) => void) => {
-          ipcRenderer.on('chat:token', (_,token: string) => callback(token));
-      },
+    // 3. Listen for streaming tokens (event-based)
+    onToken: (callback: (token: string) => void) => {
+      ipcRenderer.on('chat:token', (_, token: string) => callback(token));
+    },
 
-      // 4. Stop listening to token events
-      offToken: () => {
-          ipcRenderer.removeAllListeners('chat:token');
-      },
+    // 4. Stop listening to token events
+    offToken: () => {
+      ipcRenderer.removeAllListeners('chat:token');
+    },
 
-      // 5. Get audit/performance metrics
-      getMetrics: () =>
-          ipcRenderer.invoke('chat:getMetrics'),
+    // 5. Get audit/performance metrics
+    getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
 
-      // 6. Cleanup/close the provider
-      close: () =>
-          ipcRenderer.invoke('chat:close'),
+    // 6. Cleanup/close the provider
+    close: () => ipcRenderer.invoke('chat:close'),
 
-      // 7. Optional: Chat with advanced options
-      chatWithOptions: (request: ChatRequestWithOptions) =>
-          ipcRenderer.invoke('chat:sendWithOptions', request)    
+    // 7. Optional: Chat with advanced options
+    chatWithOptions: (request: ChatRequestWithOptions) =>
+      ipcRenderer.invoke('chat:sendWithOptions', request),
   },
 
   /**
@@ -348,6 +390,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getStorePath: () => ipcRenderer.invoke('settings:getStorePath'),
   } as SettingsAPI,
+
+  /**
+   * Models (Moku) API Implementation
+   */
+  models: {
+    listAvailable: (userId?: string) => ipcRenderer.invoke('models:listAvailable', userId),
+    listAll: (userId?: string) => ipcRenderer.invoke('models:listAll', userId),
+    get: (provider: string, id: string) => ipcRenderer.invoke('models:get', provider, id),
+  } as ModelsAPI,
 
   /**
    * Thread API Implementation
@@ -460,4 +511,3 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
-

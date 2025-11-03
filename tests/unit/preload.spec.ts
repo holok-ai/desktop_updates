@@ -40,5 +40,3 @@ describe('preload wiring', () => {
     expect(exposed.log).toBeTruthy();
   });
 });
-
-
