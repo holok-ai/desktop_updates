@@ -30,7 +30,7 @@
     "security:fix": "npm audit fix && snyk wizard",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "npm run build:prod && playwright test"
   },
   "keywords": [
     "electron",

@@ -183,7 +183,7 @@
     height: 100%;
     border-left: 1px solid #e5e7eb;
     padding: 1rem;
-    background: #fafafa;
+    background: var(--surface-main);
   }
 
   .chat-header h2 {

@@ -2,8 +2,7 @@ export const ROUTE = {
   HOME: '/',
   THREADS: '/threads',
   SETTINGS: '/settings',
-  GUIDE: '/guide'
+  GUIDE: '/guide',
+  LOGIN: '/login'
 } as const;
-
-
 

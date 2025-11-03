@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { threadsService } from '../services/threads-service.js';
 import type { Thread as RendererThread } from '../preload.js';
 import type { ThreadMetadata } from '../services/threads-service.js';
+import type ThreadsService from '../services/threads-service.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 
 const threadLog = createScopedLogger('thread');
@@ -49,22 +50,112 @@ function generateId(): string {
  * Initialize sample data (kept for test compatibility)
  */
 export function initializeSampleData(): void {
-  const sampleThreads = [
+  const now = Date.now();
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  const samples = [
+    // Recent (today)
     {
-      title: 'Welcome Thread',
-      description: 'This is a sample thread to demonstrate the architecture',
-      metadata: { tags: ['sample', 'welcome'] },
+      title: 'Recent: Design Sync',
+      description: "Notes from today's design sync",
+      tags: ['recent', 'design'],
+      updatedAt: now - 1 * oneHour,
+      createdAt: now - 3 * oneHour,
     },
     {
-      title: 'Architecture Discussion',
+      title: 'Recent: Quick Ideas',
+      description: 'Brain dump of quick ideas',
+      tags: ['recent'],
+      updatedAt: now - 5 * oneHour,
+      createdAt: now - 8 * oneHour,
+    },
+    {
+      title: 'Recent: Quick Ideas 2',
+      description: 'Brain dump of quick ideas',
+      tags: ['recent'],
+      updatedAt: now - 5 * oneHour,
+      createdAt: now - 8 * oneHour,
+    },
+    // Yesterday
+    {
+      title: 'Yesterday: Standup Notes',
+      description: "Summary from yesterday's standup",
+      tags: ['yesterday'],
+      updatedAt: now - 1 * oneDay + 2 * oneHour,
+      createdAt: now - 1 * oneDay - 3 * oneHour,
+    },
+    {
+      title: 'Yesterday: Standup Notes 2',
+      description: "Summary from yesterday's standup",
+      tags: ['yesterday'],
+      updatedAt: now - 1 * oneDay + 2 * oneHour,
+      createdAt: now - 1 * oneDay - 3 * oneHour,
+    },
+    // Last 7 Days
+    {
+      title: 'This Week: Architecture Discussion',
       description: 'Discussion about software architecture patterns',
-      metadata: { tags: ['architecture', 'design'] },
+      tags: ['last7', 'architecture', 'design'],
+      updatedAt: now - 3 * oneDay,
+      createdAt: now - 4 * oneDay,
+    },
+    {
+      title: 'This Week: Architecture Discussion 2',
+      description: 'Discussion about software architecture patterns',
+      tags: ['last7', 'architecture', 'design'],
+      updatedAt: now - 3 * oneDay,
+      createdAt: now - 4 * oneDay,
+    },
+    // Last 30 Days
+    {
+      title: 'Last 2 Weeks: Performance Audit',
+      description: 'Profiling results and action items',
+      tags: ['last30', 'performance'],
+      updatedAt: now - 12 * oneDay,
+      createdAt: now - 14 * oneDay,
+    },
+    // Older (> 30 days)
+    {
+      title: 'Older: Welcome Thread',
+      description: 'This is a sample thread to demonstrate the architecture',
+      tags: ['older', 'sample', 'welcome'],
+      updatedAt: now - 45 * oneDay,
+      createdAt: now - 50 * oneDay,
+    },
+    {
+      title: 'Older: Welcome Thread 2',
+      description: 'This is a sample thread to demonstrate the architecture',
+      tags: ['older', 'sample', 'welcome'],
+      updatedAt: now - 45 * oneDay,
+      createdAt: now - 50 * oneDay,
+    },
+    {
+      title: 'Older: Tutorial',
+      description: 'This is a sample thread to demonstrate the architecture',
+      tags: ['older', 'sample', 'welcome'],
+      updatedAt: now - 45 * oneDay,
+      createdAt: now - 50 * oneDay,
+    },
+    {
+      title: 'Older: Tutorial 2',
+      description: 'This is a sample thread to demonstrate the architecture',
+      tags: ['older', 'sample', 'welcome'],
+      updatedAt: now - 45 * oneDay,
+      createdAt: now - 50 * oneDay,
     },
   ];
 
-  sampleThreads.forEach((t) =>
-    threadsService.createThread({ title: t.title, description: t.description, ...t.metadata }),
-  );
+  const svc: ThreadsService = threadsService;
+
+  samples.forEach((s) => {
+    const thread = svc.createThread({
+      title: s.title,
+      description: s.description,
+      tags: s.tags,
+    });
+    svc.setThreadTimestamps(thread.id, s.createdAt, s.updatedAt);
+  });
 }
 
 // Export helpers for tests

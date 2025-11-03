@@ -7,6 +7,7 @@ export { };
 import Home from '../../routes/+page.svelte';
 import Threads from '../../routes/threads/+page.svelte';
 import Login from '../../routes/login/+page.svelte';
+import Settings from '../../routes/settings/+page.svelte';
 import NotFound from '../components/NotFound.svelte';
 
 // Note: svelte-spa-router uses hash routing by default (e.g., #/threads)
@@ -17,6 +18,7 @@ export const routes = {
   '/': Home,
   '/threads': Threads,
   '/login': Login,
+  '/settings': Settings,
   '*': NotFound,
 };
 /* eslint-enable @typescript-eslint/naming-convention */
