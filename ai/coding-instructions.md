@@ -61,9 +61,9 @@ Example:
 
 ```ts
 interface Thread {
-  id: UUID;        // stable unique id
-  title: string;   // human-friendly name shown in UI
-  metadata: { title?: string; description?: string }
+  id: UUID; // stable unique id
+  title: string; // human-friendly name shown in UI
+  metadata: { title?: string; description?: string };
 }
 ```
 

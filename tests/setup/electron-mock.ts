@@ -15,10 +15,14 @@ export default function electronMock() {
   } as any;
 
   function jestLikeFn(impl?: any) {
-    const fn: any = (...args: any[]) => impl ? impl(...args) : undefined;
+    const fn: any = (...args: any[]) => (impl ? impl(...args) : undefined);
     fn.mock = { calls: [] };
-    fn.mockImplementation = (f: any) => { impl = f; };
-    fn.mockImplementationOnce = (f: any) => { impl = f; };
+    fn.mockImplementation = (f: any) => {
+      impl = f;
+    };
+    fn.mockImplementationOnce = (f: any) => {
+      impl = f;
+    };
     return fn;
   }
 
@@ -35,16 +39,24 @@ export default function electronMock() {
       (this as any).loadFile = async (_file: string) => Promise.resolve();
     }
     on(_ev: string, _cb: any) {}
-    static getAllWindows() { return []; }
+    static getAllWindows() {
+      return [];
+    }
   }
 
-  const Menu = { buildFromTemplate: jestLikeFn(() => ({})), setApplicationMenu: jestLikeFn() } as any;
+  const Menu = {
+    buildFromTemplate: jestLikeFn(() => ({})),
+    setApplicationMenu: jestLikeFn(),
+  } as any;
   const dialog = { showMessageBox: jestLikeFn(async () => ({})) } as any;
   const contextBridge = { exposeInMainWorld: jestLikeFn() };
-  const ipcRenderer = { invoke: jestLikeFn(), on: jestLikeFn(), removeListener: jestLikeFn(), send: jestLikeFn() };
+  const ipcRenderer = {
+    invoke: jestLikeFn(),
+    on: jestLikeFn(),
+    removeListener: jestLikeFn(),
+    send: jestLikeFn(),
+  };
   const safeStorage = { isEncryptionAvailable: jestLikeFn(() => false) };
 
   return { app, BrowserWindow, Menu, dialog, contextBridge, ipcRenderer, safeStorage, ipcMain };
 }
-
-

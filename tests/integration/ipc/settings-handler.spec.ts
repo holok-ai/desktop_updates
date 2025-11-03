@@ -15,7 +15,13 @@ vi.mock('electron', () => {
   } as any;
 
   const BrowserWindow = {
-    getAllWindows: () => [{ webContents: { send: (channel: string, ...args: unknown[]) => sentEvents.push({ channel, args }) } }],
+    getAllWindows: () => [
+      {
+        webContents: {
+          send: (channel: string, ...args: unknown[]) => sentEvents.push({ channel, args }),
+        },
+      },
+    ],
   } as any;
 
   // expose helper
@@ -30,19 +36,32 @@ vi.mock('electron-log', () => ({ default: { info: vi.fn() } }));
 vi.mock('../../../src-electron/services/settings.service', () => ({
   SettingsService: class {
     constructor() {}
-    getAllSettings() { return { mokuWebUrl: 'u', mokuApiUrl: 'a', theme: 'light', logLevel: 'info' }; }
-    getSetting(k: any) { return (this.getAllSettings() as any)[k]; }
+    getAllSettings() {
+      return { mokuWebUrl: 'u', mokuApiUrl: 'a', theme: 'light', logLevel: 'info' };
+    }
+    getSetting(k: any) {
+      return (this.getAllSettings() as any)[k];
+    }
     setSetting() {}
     setSettings() {}
     resetToDefaults() {}
-    getMokuWebUrl() { return 'u'; }
-    getMokuApiUrl() { return 'a'; }
-    getStorePath() { return '/tmp'; }
-  }
+    getMokuWebUrl() {
+      return 'u';
+    }
+    getMokuApiUrl() {
+      return 'a';
+    }
+    getStorePath() {
+      return '/tmp';
+    }
+  },
 }));
 
-import { registerSettingsHandlers, unregisterSettingsHandlers } from 'src-electron/ipc-handlers/settings-handler';
- 
+import {
+  registerSettingsHandlers,
+  unregisterSettingsHandlers,
+} from 'src-electron/ipc-handlers/settings-handler';
+
 // @ts-ignore
 const ipcMain = globalThis.__mock_ipcMain;
 
@@ -65,7 +84,9 @@ describe('IPC: settings-handler', () => {
 
   it('settings:set and setMultiple succeed', async () => {
     await expect(ipcMain.__invoke('settings:set', 'mokuWebUrl', 'v')).resolves.toBeUndefined();
-    await expect(ipcMain.__invoke('settings:setMultiple', { mokuWebUrl: 'v' })).resolves.toBeUndefined();
+    await expect(
+      ipcMain.__invoke('settings:setMultiple', { mokuWebUrl: 'v' }),
+    ).resolves.toBeUndefined();
   });
 
   it('settings:reset succeeds and getMokuWebUrl/getMokuApiUrl/getStorePath', async () => {
@@ -78,5 +99,3 @@ describe('IPC: settings-handler', () => {
     expect(p).toBe('/tmp');
   });
 });
-
-

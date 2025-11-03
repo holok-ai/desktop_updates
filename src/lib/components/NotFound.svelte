@@ -7,4 +7,3 @@
     replace(ROUTE.HOME);
   });
 </script>
-

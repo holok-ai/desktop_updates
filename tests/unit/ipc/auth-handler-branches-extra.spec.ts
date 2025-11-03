@@ -51,7 +51,9 @@ describe('auth-handler extra branches', () => {
       },
     }));
 
-    const { registerAuthHandlers, handleOAuthCallback } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers, handleOAuthCallback } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     const send = vi.fn();
@@ -81,7 +83,9 @@ describe('auth-handler extra branches', () => {
       },
     }));
 
-    const { registerAuthHandlers, handleOAuthCallback } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers, handleOAuthCallback } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     // error param, null window
@@ -116,7 +120,9 @@ describe('auth-handler extra branches', () => {
       },
     }));
 
-    const { registerAuthHandlers, handleOAuthCallback } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers, handleOAuthCallback } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     const send = vi.fn();
@@ -134,7 +140,9 @@ describe('auth-handler extra branches', () => {
   });
 
   it('handleOAuthCallback sends invalid_url on parse failure', async () => {
-    const { handleOAuthCallback, registerAuthHandlers } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { handleOAuthCallback, registerAuthHandlers } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
 
     // Mock AuthService minimally for init
     const mockProcessOAuthCallback = vi.fn();
@@ -187,7 +195,9 @@ describe('auth-handler extra branches', () => {
       },
     }));
 
-    const { registerAuthHandlers, handleOAuthCallback } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers, handleOAuthCallback } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     const send = vi.fn();
@@ -208,7 +218,9 @@ describe('auth-handler extra branches', () => {
     const mockGetAuth = vi.fn(() => ({ user: null, tokens: null, isAuthenticated: false }));
     const mockGetUser = vi.fn(() => null);
     const mockIsAuth = vi.fn(() => false);
-    const mockLogout = vi.fn(() => { throw new Error('logout failed'); });
+    const mockLogout = vi.fn(() => {
+      throw new Error('logout failed');
+    });
     const mockRefresh = vi.fn().mockRejectedValue(new Error('refresh failed'));
 
     vi.doMock('../../../src-electron/services/auth.service', () => ({
@@ -224,7 +236,9 @@ describe('auth-handler extra branches', () => {
       },
     }));
 
-    const { registerAuthHandlers } = await import('../../../src-electron/ipc-handlers/auth-handler');
+    const { registerAuthHandlers } = await import(
+      '../../../src-electron/ipc-handlers/auth-handler'
+    );
     registerAuthHandlers();
 
     await expect(handlers['auth:mockLogin']({})).rejects.toThrow('mock failed');
@@ -232,5 +246,3 @@ describe('auth-handler extra branches', () => {
     expect(() => handlers['auth:logout']({})).toThrow('logout failed');
   });
 });
-
-

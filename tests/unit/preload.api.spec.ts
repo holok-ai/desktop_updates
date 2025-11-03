@@ -7,17 +7,19 @@ const invokeSpy = vi.fn();
 const sendSpy = vi.fn();
 
 vi.mock('electron', () => ({
-  contextBridge: { exposeInMainWorld: (name: string, obj: unknown) => {
-    // attach for direct import tests
-    // @ts-ignore
-    (globalThis as any)[name] = obj;
-  } },
+  contextBridge: {
+    exposeInMainWorld: (name: string, obj: unknown) => {
+      // attach for direct import tests
+      // @ts-ignore
+      (globalThis as any)[name] = obj;
+    },
+  },
   ipcRenderer: {
     invoke: (...args: unknown[]) => invokeSpy(...args),
     on: (...args: unknown[]) => onSpy(...args),
     removeListener: (...args: unknown[]) => removeListenerSpy(...args),
     send: (...args: unknown[]) => sendSpy(...args),
-  }
+  },
 }));
 
 describe('preload API behavior', () => {
@@ -183,5 +185,3 @@ describe('preload API behavior', () => {
     expect(sendSpy).toHaveBeenCalledWith('log:debug', 'd');
   });
 });
-
-

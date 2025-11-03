@@ -46,10 +46,14 @@ export function createScopedLogger(scope: string): {
   debug: (message: string, ...args: unknown[]) => void;
 } {
   return {
-    info: (message: string, ...args: unknown[]) => log.info(`[${scope.toUpperCase()}] ${message}`, ...args),
-    warn: (message: string, ...args: unknown[]) => log.warn(`[${scope.toUpperCase()}] ${message}`, ...args),
-    error: (message: string, ...args: unknown[]) => log.error(`[${scope.toUpperCase()}] ${message}`, ...args),
-    debug: (message: string, ...args: unknown[]) => log.debug(`[${scope.toUpperCase()}] ${message}`, ...args),
+    info: (message: string, ...args: unknown[]) =>
+      log.info(`[${scope.toUpperCase()}] ${message}`, ...args),
+    warn: (message: string, ...args: unknown[]) =>
+      log.warn(`[${scope.toUpperCase()}] ${message}`, ...args),
+    error: (message: string, ...args: unknown[]) =>
+      log.error(`[${scope.toUpperCase()}] ${message}`, ...args),
+    debug: (message: string, ...args: unknown[]) =>
+      log.debug(`[${scope.toUpperCase()}] ${message}`, ...args),
   };
 }
 
@@ -60,7 +64,7 @@ export function createScopedLogger(scope: string): {
 export function logStructured(
   level: 'info' | 'warn' | 'error' | 'debug',
   message: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ): void {
   const logMessage = metadata ? `${message} ${JSON.stringify(metadata)}` : message;
 
