@@ -1,6 +1,9 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { ChatService } from '../services/chat/ChatService.js';
-import type { ChatRequest, ChatRequestWithOptions } from '../services/chat/interfaces/ChatMessage.js';
+import type {
+  ChatRequest,
+  ChatRequestWithOptions,
+} from '../services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
 import log from 'electron-log';
 
@@ -21,7 +24,11 @@ export function registerChatHandlers(): void {
    */
   ipcMain.handle(
     'chat:createProvider',
-    (_event, providerType: string, config: ProviderConfig): { success: boolean; error?: string } => {
+    (
+      _event,
+      providerType: string,
+      config: ProviderConfig,
+    ): { success: boolean; error?: string } => {
       log.info('[IPC] chat:createProvider called', { providerType });
 
       try {
@@ -33,7 +40,7 @@ export function registerChatHandlers(): void {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
       }
-    }
+    },
   );
 
   /**
@@ -41,7 +48,10 @@ export function registerChatHandlers(): void {
    */
   ipcMain.handle(
     'chat:send',
-    async (event: IpcMainInvokeEvent, request: ChatRequest): Promise<{ success: boolean; error?: string }> => {
+    async (
+      event: IpcMainInvokeEvent,
+      request: ChatRequest,
+    ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:send called');
 
       if (!chatService) {
@@ -62,7 +72,7 @@ export function registerChatHandlers(): void {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
       }
-    }
+    },
   );
 
   /**
@@ -72,7 +82,7 @@ export function registerChatHandlers(): void {
     'chat:sendWithOptions',
     async (
       event: IpcMainInvokeEvent,
-      request: ChatRequestWithOptions
+      request: ChatRequestWithOptions,
     ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:sendWithOptions called');
 
@@ -94,7 +104,7 @@ export function registerChatHandlers(): void {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
       }
-    }
+    },
   );
 
   /**

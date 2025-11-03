@@ -1,6 +1,4 @@
-
-
-export { };
+export {};
 
 // Route map for svelte-spa-router (hash-based routing)
 // Keep imports local to avoid circular deps

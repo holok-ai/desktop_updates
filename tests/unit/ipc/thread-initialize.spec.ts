@@ -22,5 +22,3 @@ describe('thread initialize sample data', () => {
     expect(typeof (mod as any).unregisterThreadHandlers).toBe('function');
   });
 });
-
-

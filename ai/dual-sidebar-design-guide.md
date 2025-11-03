@@ -1,7 +1,9 @@
 # Dual Sidebar Implementation Guide
+
 ## Holokai Desktop Application
 
 ### Table of Contents
+
 1. [Design Goals & Objectives](#design-goals--objectives)
 2. [Architecture Overview](#architecture-overview)
 3. [Component Structure](#component-structure)
@@ -15,6 +17,7 @@
 ## Design Goals & Objectives
 
 ### Primary Objectives
+
 The Holokai Desktop application extends the existing Moku web application with a desktop-optimized dual sidebar layout that provides:
 
 1. **Enhanced Navigation Hierarchy**
@@ -33,6 +36,7 @@ The Holokai Desktop application extends the existing Moku web application with a
    - Dark theme optimized for extended desktop use
 
 ### User Experience Goals
+
 - **Efficient Navigation**: Users can quickly switch between different activities and their sub-items
 - **Contextual Organization**: Related content is grouped and easily accessible
 - **Progressive Disclosure**: Collapsible sidebars allow users to focus on content when needed
@@ -43,6 +47,7 @@ The Holokai Desktop application extends the existing Moku web application with a
 ## Architecture Overview
 
 ### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    App Container                      │
@@ -66,6 +71,7 @@ C: Main Content Area (flexible width)
 ```
 
 ### Component Hierarchy
+
 ```typescript
 AppLayout
 ├── ActivitySidebar (Primary)
@@ -97,18 +103,22 @@ AppLayout
 ### Core Components
 
 #### 1. AppLayout Component
+
 The root layout component that orchestrates the dual sidebar structure.
 
 **Responsibilities:**
+
 - Manages overall layout grid
 - Coordinates sidebar state
 - Handles responsive behavior
 - Routes navigation events
 
 #### 2. ActivitySidebar Component (Primary)
+
 Left-most sidebar showing high-level activities.
 
 **Features:**
+
 - Organization/workspace selector
 - Global actions (New Thread, Search)
 - Activity navigation items with badges
@@ -116,9 +126,11 @@ Left-most sidebar showing high-level activities.
 - Persistent state storage
 
 #### 3. ActivityListSidebar Component (Secondary)
+
 Context-specific content list based on selected activity.
 
 **Features:**
+
 - Dynamic content based on selected activity
 - Grouped/accordion view for content organization
 - Thread/item preview information
@@ -126,9 +138,11 @@ Context-specific content list based on selected activity.
 - Collapsible to save space
 
 #### 4. State Management Service
+
 Centralized state management for sidebar coordination.
 
 **Manages:**
+
 - Collapse/expand states
 - Selected activity and thread
 - Navigation history
@@ -143,23 +157,25 @@ Centralized state management for sidebar coordination.
 The implementation leverages the existing Moku design system with desktop-specific enhancements:
 
 #### Color Palette (Dark Theme)
+
 ```css
 /* Core surfaces - matching Figma dark mode */
---surface-sidebar-primary: #111827;    /* gray-900 */
---surface-sidebar-secondary: #0f172a;  /* gray-900/95 */
---surface-main: #030712;               /* gray-950 */
---surface-card: #1f2937;               /* gray-800 */
+--surface-sidebar-primary: #111827; /* gray-900 */
+--surface-sidebar-secondary: #0f172a; /* gray-900/95 */
+--surface-main: #030712; /* gray-950 */
+--surface-card: #1f2937; /* gray-800 */
 --surface-hover: rgba(59, 130, 246, 0.1);
---border-sidebar: #1f2937;             /* gray-800 */
---border-active: #3b82f6;              /* blue-500 */
+--border-sidebar: #1f2937; /* gray-800 */
+--border-active: #3b82f6; /* blue-500 */
 
 /* Text colors */
---text-primary: #f9fafb;               /* gray-50 */
---text-secondary: #9ca3af;             /* gray-400 */
---text-muted: #6b7280;                 /* gray-500 */
+--text-primary: #f9fafb; /* gray-50 */
+--text-secondary: #9ca3af; /* gray-400 */
+--text-muted: #6b7280; /* gray-500 */
 ```
 
 #### Spacing & Dimensions
+
 ```css
 /* Sidebar dimensions */
 --sidebar-primary-width: 64px;
@@ -168,16 +184,17 @@ The implementation leverages the existing Moku design system with desktop-specif
 --sidebar-secondary-collapsed: 48px;
 
 /* Consistent spacing using Tailwind/PrimeNG patterns */
---spacing-xs: 0.25rem;  /* 4px */
---spacing-sm: 0.5rem;   /* 8px */
---spacing-md: 1rem;     /* 16px */
---spacing-lg: 1.5rem;   /* 24px */
---spacing-xl: 2rem;     /* 32px */
+--spacing-xs: 0.25rem; /* 4px */
+--spacing-sm: 0.5rem; /* 8px */
+--spacing-md: 1rem; /* 16px */
+--spacing-lg: 1.5rem; /* 24px */
+--spacing-xl: 2rem; /* 32px */
 ```
 
 ### PrimeNG Component Customization
 
 #### Components Used
+
 - **p-accordion**: Thread grouping in secondary sidebar
 - **p-button**: Action buttons and toggles
 - **p-inputtext**: Search functionality
@@ -187,6 +204,7 @@ The implementation leverages the existing Moku design system with desktop-specif
 - **p-badge**: Notification counts
 
 #### Tailwind CSS Integration
+
 - Utility-first approach for layout and spacing
 - Custom classes for complex component states
 - Responsive modifiers for breakpoint handling
@@ -223,9 +241,9 @@ interface SidebarState {
 ```typescript
 // Window size thresholds
 const BREAKPOINTS = {
-  minimum: 800,      // Below this, switch to mobile layout
+  minimum: 800, // Below this, switch to mobile layout
   comfortable: 1280, // Both sidebars expanded
-  optimal: 1920     // Full desktop experience
+  optimal: 1920, // Full desktop experience
 };
 ```
 
@@ -246,21 +264,25 @@ import { SidebarStateService } from './services/sidebar-state.service';
     <div class="flex h-screen w-[100vw] overflow-hidden bg-gray-950">
       <!-- Primary Activity Sidebar (Left) -->
       <div class="activity-sidebar bg-gray-900 border-r border-gray-800">
-        <app-activity-sidebar 
+        <app-activity-sidebar
           [collapsed]="primarySidebarCollapsed"
           (activitySelected)="onActivitySelected($event)"
-          (toggle)="togglePrimarySidebar()">
+          (toggle)="togglePrimarySidebar()"
+        >
         </app-activity-sidebar>
       </div>
 
       <!-- Secondary Activity List Sidebar (Middle) -->
-      <div class="activity-list-sidebar bg-gray-900/95 border-r border-gray-800"
-           [class.hidden]="!selectedActivity">
-        <app-activity-list 
+      <div
+        class="activity-list-sidebar bg-gray-900/95 border-r border-gray-800"
+        [class.hidden]="!selectedActivity"
+      >
+        <app-activity-list
           [activity]="selectedActivity"
           [collapsed]="secondarySidebarCollapsed"
           (itemSelected)="onItemSelected($event)"
-          (toggle)="toggleSecondarySidebar()">
+          (toggle)="toggleSecondarySidebar()"
+        >
         </app-activity-list>
       </div>
 
@@ -272,7 +294,7 @@ import { SidebarStateService } from './services/sidebar-state.service';
       </div>
     </div>
   `,
-  styleUrls: ['./app-layout.component.css']
+  styleUrls: ['./app-layout.component.css'],
 })
 export class AppLayoutComponent implements OnInit {
   primarySidebarCollapsed = false;
@@ -359,34 +381,40 @@ interface ThreadGroup {
 
       <!-- Primary Actions -->
       <div class="primary-actions">
-        <button pButton 
-                class="p-button-text action-button"
-                icon="pi pi-plus"
-                [pTooltip]="'New Thread'"
-                tooltipPosition="right"
-                (click)="createNewThread()">
+        <button
+          pButton
+          class="p-button-text action-button"
+          icon="pi pi-plus"
+          [pTooltip]="'New Thread'"
+          tooltipPosition="right"
+          (click)="createNewThread()"
+        >
           <span *ngIf="!collapsed">New Thread</span>
         </button>
-        
+
         <div class="search-container" *ngIf="!collapsed">
           <span class="p-input-icon-left w-full">
             <i class="pi pi-search"></i>
-            <input pInputText 
-                   type="text" 
-                   placeholder="Search Threads"
-                   class="w-full search-input"
-                   [(ngModel)]="searchQuery">
+            <input
+              pInputText
+              type="text"
+              placeholder="Search Threads"
+              class="w-full search-input"
+              [(ngModel)]="searchQuery"
+            />
           </span>
         </div>
       </div>
 
       <!-- Navigation Items with Badges -->
       <div class="nav-items">
-        <div *ngFor="let item of activities" 
-             class="nav-item"
-             [class.active]="item.id === selectedActivity?.id"
-             (click)="selectActivity(item)"
-             pRipple>
+        <div
+          *ngFor="let item of activities"
+          class="nav-item"
+          [class.active]="item.id === selectedActivity?.id"
+          (click)="selectActivity(item)"
+          pRipple
+        >
           <i [class]="item.icon + ' nav-icon'"></i>
           <span class="nav-label" *ngIf="!collapsed">{{ item.label }}</span>
           <span class="badge" *ngIf="item.badge && !collapsed">
@@ -397,15 +425,16 @@ interface ThreadGroup {
 
       <!-- Collapse Toggle -->
       <div class="sidebar-footer">
-        <button pButton 
-                class="p-button-text collapse-btn"
-                [icon]="collapsed ? 'pi pi-angle-double-right' : 'pi pi-angle-double-left'"
-                (click)="toggleCollapse()">
-        </button>
+        <button
+          pButton
+          class="p-button-text collapse-btn"
+          [icon]="collapsed ? 'pi pi-angle-double-right' : 'pi pi-angle-double-left'"
+          (click)="toggleCollapse()"
+        ></button>
       </div>
     </nav>
   `,
-  styleUrls: ['./activity-sidebar.component.css']
+  styleUrls: ['./activity-sidebar.component.css'],
 })
 export class ActivitySidebarComponent {
   @Input() collapsed = false;
@@ -421,40 +450,40 @@ export class ActivitySidebarComponent {
       id: 'home',
       label: 'Home',
       icon: 'pi pi-home',
-      route: '/home'
+      route: '/home',
     },
     {
       id: 'threads',
       label: 'Threads',
       icon: 'pi pi-comments',
       route: '/threads',
-      badge: 12
+      badge: 12,
     },
     {
       id: 'agents',
       label: 'Agents',
       icon: 'pi pi-robot',
       route: '/agents',
-      badge: 3
+      badge: 3,
     },
     {
       id: 'projects',
       label: 'Projects',
       icon: 'pi pi-folder',
-      route: '/projects'
+      route: '/projects',
     },
     {
       id: 'activity',
       label: 'Activity',
       icon: 'pi pi-chart-line',
-      route: '/activity'
+      route: '/activity',
     },
     {
       id: 'profile',
       label: 'Profile',
       icon: 'pi pi-user',
-      route: '/profile'
-    }
+      route: '/profile',
+    },
   ];
 
   selectActivity(activity: ActivityItem) {
@@ -643,32 +672,37 @@ interface ThreadGroup {
         <h3 class="header-title" *ngIf="!collapsed">
           {{ activity?.label }}
         </h3>
-        <button pButton 
-                class="p-button-text p-button-sm collapse-toggle"
-                [icon]="collapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'"
-                (click)="toggleCollapse()">
-        </button>
+        <button
+          pButton
+          class="p-button-text p-button-sm collapse-toggle"
+          [icon]="collapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'"
+          (click)="toggleCollapse()"
+        ></button>
       </div>
 
       <!-- Quick Actions -->
       <div class="quick-actions" *ngIf="!collapsed">
-        <button pButton 
-                class="p-button-text p-button-sm"
-                icon="pi pi-filter"
-                label="Filter">
-        </button>
-        <button pButton 
-                class="p-button-text p-button-sm"
-                icon="pi pi-sort-alt"
-                label="Sort">
-        </button>
+        <button
+          pButton
+          class="p-button-text p-button-sm"
+          icon="pi pi-filter"
+          label="Filter"
+        ></button>
+        <button
+          pButton
+          class="p-button-text p-button-sm"
+          icon="pi pi-sort-alt"
+          label="Sort"
+        ></button>
       </div>
 
       <!-- Grouped Thread List -->
-      <p-accordion [multiple]="true" 
-                   [activeIndex]="activeIndices"
-                   styleClass="thread-accordion"
-                   *ngIf="!collapsed">
+      <p-accordion
+        [multiple]="true"
+        [activeIndex]="activeIndices"
+        styleClass="thread-accordion"
+        *ngIf="!collapsed"
+      >
         <p-accordionTab *ngFor="let group of threadGroups; let i = index">
           <ng-template pTemplate="header">
             <span class="group-header">
@@ -677,19 +711,21 @@ interface ThreadGroup {
               <span class="thread-count">{{ group.threads.length }}</span>
             </span>
           </ng-template>
-          
+
           <div class="thread-list">
-            <div *ngFor="let thread of group.threads"
-                 class="thread-item"
-                 [class.active]="thread.id === selectedThreadId"
-                 [class.unread]="thread.unread"
-                 (click)="selectThread(thread)"
-                 pRipple>
+            <div
+              *ngFor="let thread of group.threads"
+              class="thread-item"
+              [class.active]="thread.id === selectedThreadId"
+              [class.unread]="thread.unread"
+              (click)="selectThread(thread)"
+              pRipple
+            >
               <div class="thread-content">
                 <span class="thread-title">{{ thread.title }}</span>
                 <span class="thread-preview">{{ thread.lastMessage }}</span>
                 <span class="thread-meta">
-                  {{ thread.timestamp | date:'short' }}
+                  {{ thread.timestamp | date: 'short' }}
                 </span>
               </div>
               <div class="thread-indicator" *ngIf="thread.unread"></div>
@@ -700,17 +736,19 @@ interface ThreadGroup {
 
       <!-- Collapsed State - Icon Grid -->
       <div class="collapsed-content" *ngIf="collapsed">
-        <div *ngFor="let group of threadGroups"
-             class="collapsed-group"
-             [pTooltip]="group.label"
-             tooltipPosition="right">
+        <div
+          *ngFor="let group of threadGroups"
+          class="collapsed-group"
+          [pTooltip]="group.label"
+          tooltipPosition="right"
+        >
           <i class="pi pi-folder"></i>
           <span class="collapsed-count">{{ group.threads.length }}</span>
         </div>
       </div>
     </div>
   `,
-  styleUrls: ['./activity-list-sidebar.component.css']
+  styleUrls: ['./activity-list-sidebar.component.css'],
 })
 export class ActivityListSidebarComponent {
   @Input() activity: ActivityItem | null = null;
@@ -731,15 +769,15 @@ export class ActivityListSidebarComponent {
           title: 'How to improve team collaboration',
           lastMessage: 'Here are some strategies for better team communication...',
           timestamp: new Date(),
-          unread: true
+          unread: true,
         },
         {
           id: 't2',
           title: 'Effective remote work strategies',
           lastMessage: 'Working from home can be challenging but...',
-          timestamp: new Date(Date.now() - 3600000)
-        }
-      ]
+          timestamp: new Date(Date.now() - 3600000),
+        },
+      ],
     },
     {
       id: 'pinned',
@@ -749,15 +787,15 @@ export class ActivityListSidebarComponent {
           id: 't3',
           title: 'Best practices for project management',
           lastMessage: 'Project management requires careful planning...',
-          timestamp: new Date(Date.now() - 86400000)
-        }
-      ]
+          timestamp: new Date(Date.now() - 86400000),
+        },
+      ],
     },
     {
       id: 'archived',
       label: 'Archived',
-      threads: []
-    }
+      threads: [],
+    },
   ];
 
   selectThread(thread: Thread) {
@@ -817,25 +855,25 @@ export class ActivityListSidebarComponent {
 /* PrimeNG Accordion Customization */
 ::ng-deep .thread-accordion {
   @apply flex-1 overflow-y-auto;
-  
+
   .p-accordion-header {
     @apply bg-transparent border-0;
-    
+
     .p-accordion-header-link {
       @apply bg-gray-800/30 hover:bg-gray-800/50;
       @apply text-gray-300 border-0 rounded-lg;
       @apply px-3 py-2 mx-2 my-1;
     }
-    
+
     .p-accordion-header-link:focus {
       box-shadow: 0 0 0 2px var(--border-active);
     }
   }
-  
+
   .p-accordion-content {
     @apply bg-transparent border-0 p-0;
   }
-  
+
   .p-accordion-toggle-icon {
     @apply text-gray-500;
   }
@@ -951,13 +989,13 @@ interface SidebarState {
 @Injectable({ providedIn: 'root' })
 export class SidebarStateService {
   private readonly STORAGE_KEY = 'holokai-sidebar-state';
-  
+
   private state$ = new BehaviorSubject<SidebarState>({
     primaryCollapsed: false,
     secondaryCollapsed: false,
     selectedActivityId: null,
     selectedThreadId: null,
-    searchQuery: ''
+    searchQuery: '',
   });
 
   constructor() {
@@ -967,14 +1005,14 @@ export class SidebarStateService {
 
   // Observable getters
   get primaryCollapsed$(): Observable<boolean> {
-    return new Observable(observer => {
-      this.state$.subscribe(state => observer.next(state.primaryCollapsed));
+    return new Observable((observer) => {
+      this.state$.subscribe((state) => observer.next(state.primaryCollapsed));
     });
   }
 
   get secondaryCollapsed$(): Observable<boolean> {
-    return new Observable(observer => {
-      this.state$.subscribe(state => observer.next(state.secondaryCollapsed));
+    return new Observable((observer) => {
+      this.state$.subscribe((state) => observer.next(state.secondaryCollapsed));
     });
   }
 
@@ -988,9 +1026,9 @@ export class SidebarStateService {
   }
 
   setSelectedActivity(activityId: string | null): void {
-    this.updateState({ 
+    this.updateState({
       selectedActivityId: activityId,
-      selectedThreadId: null // Reset thread when activity changes
+      selectedThreadId: null, // Reset thread when activity changes
     });
   }
 
@@ -1032,9 +1070,7 @@ export class SidebarStateService {
 
   private setupAutoSave(): void {
     // Auto-save state changes with debouncing
-    this.state$.pipe(
-      debounceTime(500)
-    ).subscribe(() => {
+    this.state$.pipe(debounceTime(500)).subscribe(() => {
       this.saveState();
     });
   }
@@ -1046,7 +1082,7 @@ export class SidebarStateService {
       secondaryCollapsed: false,
       selectedActivityId: null,
       selectedThreadId: null,
-      searchQuery: ''
+      searchQuery: '',
     };
     this.state$.next(defaultState);
     localStorage.removeItem(this.STORAGE_KEY);
@@ -1066,42 +1102,42 @@ export class SidebarStateService {
   --sidebar-primary-expanded: 240px;
   --sidebar-secondary-width: 280px;
   --sidebar-secondary-collapsed: 48px;
-  
+
   /* Dark Theme Surfaces */
-  --surface-sidebar-primary: #111827;     /* gray-900 */
-  --surface-sidebar-secondary: #0f172aF2; /* gray-900 with 95% opacity */
-  --surface-main: #030712;                /* gray-950 */
-  --surface-card: #1f2937;                /* gray-800 */
+  --surface-sidebar-primary: #111827; /* gray-900 */
+  --surface-sidebar-secondary: #0f172af2; /* gray-900 with 95% opacity */
+  --surface-main: #030712; /* gray-950 */
+  --surface-card: #1f2937; /* gray-800 */
   --surface-hover: rgba(59, 130, 246, 0.1);
-  
+
   /* Borders */
-  --border-sidebar: #1f2937;               /* gray-800 */
-  --border-active: #3b82f6;                /* blue-500 */
-  --border-focus: #60a5fa;                 /* blue-400 */
-  
+  --border-sidebar: #1f2937; /* gray-800 */
+  --border-active: #3b82f6; /* blue-500 */
+  --border-focus: #60a5fa; /* blue-400 */
+
   /* Text Colors */
-  --text-primary: #f9fafb;                 /* gray-50 */
-  --text-secondary: #9ca3af;               /* gray-400 */
-  --text-muted: #6b7280;                   /* gray-500 */
-  --text-disabled: #4b5563;                /* gray-600 */
-  
+  --text-primary: #f9fafb; /* gray-50 */
+  --text-secondary: #9ca3af; /* gray-400 */
+  --text-muted: #6b7280; /* gray-500 */
+  --text-disabled: #4b5563; /* gray-600 */
+
   /* Accent Colors */
-  --accent-primary: #3b82f6;               /* blue-500 */
-  --accent-hover: #2563eb;                 /* blue-600 */
-  --accent-active: #1d4ed8;                /* blue-700 */
-  
+  --accent-primary: #3b82f6; /* blue-500 */
+  --accent-hover: #2563eb; /* blue-600 */
+  --accent-active: #1d4ed8; /* blue-700 */
+
   /* Spacing Scale */
-  --spacing-xs: 0.25rem;                   /* 4px */
-  --spacing-sm: 0.5rem;                    /* 8px */
-  --spacing-md: 1rem;                      /* 16px */
-  --spacing-lg: 1.5rem;                    /* 24px */
-  --spacing-xl: 2rem;                      /* 32px */
-  
+  --spacing-xs: 0.25rem; /* 4px */
+  --spacing-sm: 0.5rem; /* 8px */
+  --spacing-md: 1rem; /* 16px */
+  --spacing-lg: 1.5rem; /* 24px */
+  --spacing-xl: 2rem; /* 32px */
+
   /* Animation */
   --transition-fast: 150ms;
   --transition-base: 300ms;
   --transition-slow: 500ms;
-  
+
   /* Z-Index Layers */
   --z-dropdown: 100;
   --z-sidebar: 200;
@@ -1139,9 +1175,7 @@ Add to your `tailwind.config.js`:
 
 ```javascript
 module.exports = {
-  content: [
-    './src/**/*.{html,ts}',
-  ],
+  content: ['./src/**/*.{html,ts}'],
   darkMode: 'class',
   theme: {
     extend: {
@@ -1151,13 +1185,11 @@ module.exports = {
       animation: {
         'slide-in': 'slideIn 300ms ease-out',
         'slide-out': 'slideOut 300ms ease-in',
-      }
-    }
+      },
+    },
   },
-  plugins: [
-    require('tailwindcss-primeui')
-  ]
-}
+  plugins: [require('tailwindcss-primeui')],
+};
 ```
 
 ### Electron Integration
@@ -1170,14 +1202,14 @@ const { BrowserWindow } = require('electron');
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1400,      // Comfortable width for dual sidebars
+    width: 1400, // Comfortable width for dual sidebars
     height: 900,
-    minWidth: 800,    // Minimum to maintain usability
+    minWidth: 800, // Minimum to maintain usability
     minHeight: 600,
     webPreferences: {
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    }
+      preload: path.join(__dirname, 'preload.js'),
+    },
   });
 
   // Handle window state persistence
@@ -1201,7 +1233,7 @@ export class KeyboardShortcutsService {
     'cmd+shift+b': () => this.toggleSecondarySidebar(),
     'cmd+n': () => this.createNewThread(),
     'cmd+/': () => this.focusSearch(),
-    'cmd+1-9': (num: number) => this.navigateToActivity(num)
+    'cmd+1-9': (num: number) => this.navigateToActivity(num),
   };
 }
 ```

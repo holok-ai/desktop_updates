@@ -8,6 +8,7 @@ import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
+import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -203,6 +204,9 @@ function registerIpcHandlers(): void {
 
   // Register thread-related IPC handlers
   registerThreadHandlers();
+
+  // Register models (Moku) handlers
+  registerModelsHandlers();
 
   // Register system-related IPC handlers
   registerSystemHandlers();

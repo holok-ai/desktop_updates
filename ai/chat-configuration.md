@@ -13,6 +13,7 @@ docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 ```
 
 **What this does:**
+
 - `-d`: Runs container in detached mode (background)
 - `-v ollama:/root/.ollama`: Creates a volume to persist models
 - `-p 11434:11434`: Maps port 11434 (Ollama's default port)
@@ -75,6 +76,7 @@ llama3:latest Model
 ### Configuration
 
 The app is currently configured to use:
+
 - **Provider**: Ollama
 - **URL**: `http://localhost:11434`
 - **Model**: `llama3:latest`
@@ -83,14 +85,11 @@ The app is currently configured to use:
 These settings are hardcoded in `ChatPane.svelte` (lines 23-29):
 
 ```typescript
-const result = await window.electronAPI.chat.createProvider(
-  'ollama',
-  {
-    url: 'http://localhost:11434',
-    apiKey: 'ollama',
-    model: 'llama3:latest'
-  }
-);
+const result = await window.electronAPI.chat.createProvider('ollama', {
+  url: 'http://localhost:11434',
+  apiKey: 'ollama',
+  model: 'llama3:latest',
+});
 ```
 
 ### Streaming Flow
@@ -118,9 +117,11 @@ const result = await window.electronAPI.chat.createProvider(
 ### Testing
 
 Unit tests for the chat service are available at:
+
 - `tests/unit/services/chat.service.spec.ts`
 
 Run tests with:
+
 ```bash
 npm test -- tests/unit/services/chat.service.spec.ts
 ```
@@ -130,13 +131,15 @@ npm test -- tests/unit/services/chat.service.spec.ts
 To use a different Ollama model:
 
 1. **Pull the model** in Docker:
+
    ```bash
    docker exec -it ollama ollama pull <model-name>
    ```
 
 2. **Update the configuration** in `ChatPane.svelte`:
+
    ```typescript
-   model: '<model-name>'  // e.g., 'llama3.1:latest', 'mistral:latest'
+   model: '<model-name>'; // e.g., 'llama3.1:latest', 'mistral:latest'
    ```
 
 3. **Rebuild the app**:
@@ -147,6 +150,7 @@ To use a different Ollama model:
 ## Troubleshooting
 
 ### Ollama Container Not Responding
+
 ```bash
 # Check container status
 docker ps -a
@@ -159,11 +163,13 @@ docker logs ollama
 ```
 
 ### Connection Refused
+
 - Ensure Ollama container is running: `docker ps`
 - Verify port 11434 is accessible: `curl http://localhost:11434`
 - Check firewall settings
 
 ### Model Not Found
+
 ```bash
 # List available models
 docker exec -it ollama ollama list
@@ -173,6 +179,7 @@ docker exec -it ollama ollama pull llama3:latest
 ```
 
 ### Slow Responses
+
 - llama3:latest requires significant RAM (8GB+ recommended)
 - Consider using smaller models like `llama3:8b` or `mistral:7b`
 - Check Docker resource limits in Docker Desktop settings

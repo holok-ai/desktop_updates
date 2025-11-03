@@ -3,7 +3,6 @@
   import Navbar from './Navbar.svelte';
   import Router from 'svelte-spa-router';
   import { routes } from '$lib/router/routes';
-
 </script>
 
 <div class="layout">

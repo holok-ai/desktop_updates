@@ -43,7 +43,7 @@ describe('main.ts menu branches with null mainWindow', () => {
         setApplicationMenu: vi.fn(),
       },
       dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
+      ipcMain: { on: vi.fn(), handle: vi.fn(), removeHandler: vi.fn() },
       session: { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } },
     };
 

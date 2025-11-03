@@ -21,7 +21,9 @@ describe('main.ts menu branches', () => {
         (this as any).loadFile = vi.fn(async (_: string) => Promise.resolve());
         (this as any).on = vi.fn();
       }
-      static getAllWindows() { return []; }
+      static getAllWindows() {
+        return [];
+      }
     }
 
     const electronMock = {
@@ -49,13 +51,30 @@ describe('main.ts menu branches', () => {
     } as any;
 
     vi.doMock('electron', () => electronMock);
-    vi.doMock('electron-log', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), transports: { file: {}, console: {} } } }));
+    vi.doMock('electron-log', () => ({
+      default: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+        transports: { file: {}, console: {} },
+      },
+    }));
 
     // simple mocks for handler modules used during import
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({ registerAuthHandlers: vi.fn(), handleOAuthCallback: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({ registerSettingsHandlers: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({ registerThreadHandlers: vi.fn() }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({ registerSystemHandlers: vi.fn() }));
+    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
+      registerAuthHandlers: vi.fn(),
+      handleOAuthCallback: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
+      registerSettingsHandlers: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
+      registerThreadHandlers: vi.fn(),
+    }));
+    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
+      registerSystemHandlers: vi.fn(),
+    }));
     // delegate helpers passthrough but not used in this test
     vi.doMock('../../../src-electron/main-utils', () => ({
       registerProtocol: vi.fn(),
@@ -95,5 +114,3 @@ describe('main.ts menu branches', () => {
     expect(electronMock.app.quit).toHaveBeenCalled();
   });
 });
-
-

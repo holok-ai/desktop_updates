@@ -144,7 +144,9 @@ export function registerAuthHandlers(): void {
       response._mockData = result.mockData;
       return response;
     } catch (error) {
-      authLog.error('Error starting OAuth flow', { error: error instanceof Error ? error.message : 'Unknown error' });
+      authLog.error('Error starting OAuth flow', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   });
@@ -165,7 +167,9 @@ export function registerAuthHandlers(): void {
         isAuthenticated: authState.isAuthenticated,
       };
     } catch (error) {
-      authLog.error('Error exchanging auth code', { error: error instanceof Error ? error.message : 'Unknown error' });
+      authLog.error('Error exchanging auth code', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   });
@@ -186,7 +190,9 @@ export function registerAuthHandlers(): void {
         isAuthenticated: authState.isAuthenticated,
       };
     } catch (error) {
-      authLog.error('Error with mock login', { error: error instanceof Error ? error.message : 'Unknown error' });
+      authLog.error('Error with mock login', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   });
@@ -233,7 +239,9 @@ export function registerAuthHandlers(): void {
       authService.logout();
       return Promise.resolve();
     } catch (error) {
-      authLog.error('Error during logout', { error: error instanceof Error ? error.message : 'Unknown error' });
+      authLog.error('Error during logout', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   });
@@ -247,7 +255,9 @@ export function registerAuthHandlers(): void {
     try {
       await authService.refreshAccessToken();
     } catch (error) {
-      authLog.error('Error refreshing token', { error: error instanceof Error ? error.message : 'Unknown error' });
+      authLog.error('Error refreshing token', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   });
