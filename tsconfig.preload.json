@@ -1,11 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJS",
+    "module": "NodeNext",
     "outDir": "./dist-electron",
+    "rootDir": ".",
     "target": "ES2022",
     "lib": ["ES2022"],
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "noEmit": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -13,5 +14,5 @@
     "verbatimModuleSyntax": false
   },
   "include": ["src-electron/preload.ts"],
-  "exclude": ["node_modules", "dist", "src"]
+  "exclude": ["node_modules", "dist", "src", "src-shared"]
 }

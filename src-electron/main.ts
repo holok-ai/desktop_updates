@@ -7,6 +7,7 @@ import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-h
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
+import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -86,7 +87,7 @@ function createWindow(): void {
       // Dev server not available, load from built files
       console.log('Loading from built files');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      void mainWindow!.loadFile(path.join(__dirname, '../dist/index.html'));
+      void mainWindow!.loadFile(path.join(__dirname, '../../dist/index.html'));
     }
   };
 
@@ -224,6 +225,9 @@ function registerIpcHandlers(): void {
 
   // Register system-related IPC handlers
   registerSystemHandlers();
+
+  // Register chat-related IPC handlers
+  registerChatHandlers();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
