@@ -1,10 +1,13 @@
 import { ipcMain, app } from 'electron';
+import { createScopedLogger } from '../utils/logger.js';
 
 /**
  * System IPC Handlers
  *
  * This module contains IPC handlers for system-level operations.
  */
+
+const systemLog = createScopedLogger('system');
 
 /**
  * Register all system-related IPC handlers
@@ -14,7 +17,7 @@ export function registerSystemHandlers(): void {
    * Get platform information
    */
   ipcMain.handle('system:platform', (): Promise<string> => {
-    console.log('[IPC] system:platform called');
+    systemLog.info('Platform called');
     return Promise.resolve(process.platform);
   });
 
@@ -22,7 +25,7 @@ export function registerSystemHandlers(): void {
    * Get Electron version
    */
   ipcMain.handle('system:version', (): Promise<string> => {
-    console.log('[IPC] system:version called');
+    systemLog.info('Version called');
     return Promise.resolve(process.versions.electron);
   });
 
@@ -35,12 +38,12 @@ export function registerSystemHandlers(): void {
       _event,
       name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
     ): Promise<string> => {
-      console.log('[IPC] system:getPath called with name:', name);
+      systemLog.info('GetPath called', { name });
       return Promise.resolve(app.getPath(name));
     },
   );
 
-  console.log('[IPC] System handlers registered');
+  systemLog.info('Handlers registered');
 }
 
 /**
@@ -50,5 +53,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('system:platform');
   ipcMain.removeHandler('system:version');
   ipcMain.removeHandler('system:getPath');
-  console.log('[IPC] System handlers unregistered');
+  systemLog.info('Handlers unregistered');
 }

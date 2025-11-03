@@ -1,8 +1,8 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import log from 'electron-log';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
@@ -19,29 +19,10 @@ const __dirname = path.dirname(__filename);
  */
 const CUSTOM_PROTOCOL = 'holokai';
 
-/**
- * Configure electron-log
- *
- * Sets up logging to save to user's AppData folder with custom filename format
- */
-const appDataPath = app.getPath('appData');
-const logFolderPath = path.join(appDataPath, 'holokai', 'desktop');
+const protocolLog = createScopedLogger('protocol');
+const appLog = createScopedLogger('app');
 
-// Configure log file path and format
-log.transports.file.resolvePathFn = () => {
-  const date = new Date();
-  const dateStr =
-    date.getFullYear() +
-    String(date.getMonth() + 1).padStart(2, '0') +
-    String(date.getDate()).padStart(2, '0');
-  return path.join(logFolderPath, `desktop_${dateStr}.log`);
-};
-
-// Set log level (info, warn, error, debug)
-log.transports.file.level = 'info';
-log.transports.console.level = 'info';
-
-log.info('[App] Starting application');
+appLog.info('Starting application');
 
 /**
  * Main Electron Process
@@ -82,10 +63,10 @@ function createWindow(): void {
       // Check if dev server is running by attempting to load
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await mainWindow!.loadURL('http://localhost:5177');
-      console.log('Loaded from Vite dev server');
+      appLog.info('Loaded from Vite dev server');
     } catch (_error) {
       // Dev server not available, load from built files
-      console.log('Loading from built files');
+      appLog.info('Loading from built files');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       void mainWindow!.loadFile(path.join(__dirname, '../../dist/index.html'));
     }
@@ -231,19 +212,19 @@ function registerIpcHandlers(): void {
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
-    log.info('[Renderer]', message, ...params);
+    protocolLog.info('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:warn', (_event, message: string, ...params: unknown[]) => {
-    log.warn('[Renderer]', message, ...params);
+    protocolLog.warn('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:error', (_event, message: string, ...params: unknown[]) => {
-    log.error('[Renderer]', message, ...params);
+    protocolLog.error('[Renderer]', message, ...params);
   });
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
-    log.debug('[Renderer]', message, ...params);
+    protocolLog.debug('[Renderer]', message, ...params);
   });
 }
 
@@ -264,7 +245,7 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
-log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
+protocolLog.info(`Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
 
 /**
  * Deep Link Handler for OAuth Callback
@@ -272,13 +253,13 @@ log.info(`[Protocol] Registered custom protocol: ${CUSTOM_PROTOCOL}://`);
  */
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  log.info('[Protocol] Received deep link:', url);
+  protocolLog.info('Received deep link', { url });
 
   if (url.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
-    log.info('[Protocol] OAuth callback detected, processing...');
+    protocolLog.info('OAuth callback detected, processing...');
     handleOAuthCallback(url, mainWindow);
   } else {
-    log.warn('[Protocol] Received unexpected deep link:', url);
+    protocolLog.warn('Received unexpected deep link', { url });
   }
 });
 
@@ -291,7 +272,7 @@ if (process.platform === 'win32') {
   const protocolUrl = args.find((arg) => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 
   if (protocolUrl) {
-    log.info('[Protocol] Windows: Received protocol URL on startup:', protocolUrl);
+    protocolLog.info('Windows: Received protocol URL on startup', { url: protocolUrl });
 
     // Process after app is ready
     app.on('ready', () => {
@@ -319,7 +300,7 @@ void app.whenReady().then(() => {
   // Create the main window
   createWindow();
 
-  log.info('[App] Application startup complete');
+  appLog.info('Application startup complete');
 
   // On macOS, re-create window when dock icon is clicked
   app.on('activate', () => {
@@ -332,24 +313,26 @@ void app.whenReady().then(() => {
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    log.info('[App] Exiting - all windows closed');
+    appLog.info('Exiting - all windows closed');
     app.quit();
   }
+  appLog.info('Application exited');
+  app.quit();
 });
 
 app.on('before-quit', () => {
-  log.info('[App] Application exiting');
+  appLog.info('Application exiting');
 });
 
 // Optional: Handle second instance (single instance lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  log.info('[App] Second instance detected - quitting');
+  appLog.info('Second instance detected - quitting');
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, _workingDirectory) => {
-    log.info('[App] Second instance attempted - processing command line');
+    appLog.info('Second instance attempted - processing command line');
 
     // Check command line for protocol URL
     const protocolUrl = Array.isArray(commandLine)
@@ -357,7 +340,7 @@ if (!gotTheLock) {
       : undefined;
 
     if (protocolUrl) {
-      log.info('[Protocol] Received protocol URL via second instance:', protocolUrl);
+      protocolLog.info('Received protocol URL via second instance:', protocolUrl);
       if (protocolUrl.startsWith(`${CUSTOM_PROTOCOL}://home`)) {
         handleOAuthCallback(protocolUrl, mainWindow);
       }

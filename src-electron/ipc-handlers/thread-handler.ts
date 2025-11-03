@@ -2,6 +2,9 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { threadsService } from '../services/threads-service.js';
 import type { Thread as RendererThread } from '../preload.js';
 import type { ThreadMetadata } from '../services/threads-service.js';
+import { createScopedLogger, logPerformance } from '../utils/logger.js';
+
+const threadLog = createScopedLogger('thread');
 
 /**
  * Helper to convert internal thread representation to renderer-friendly shape
@@ -92,6 +95,9 @@ export function registerThreadHandlers(): void {
       _event,
       threadData: Omit<RendererThread, 'id' | 'createdAt' | 'updatedAt'>,
     ): Promise<RendererThread> => {
+      const perfLog = logPerformance('thread:create');
+      threadLog.info('Create called', { title: threadData.title, status: threadData.status });
+
       const metadata = {
         title: threadData.title,
         description: threadData.description,
@@ -101,6 +107,7 @@ export function registerThreadHandlers(): void {
       const rt = toRendererThread(th);
       if (!rt) throw new Error('Failed to convert created thread');
       broadcast('thread:created', rt);
+      perfLog.end({ threadId: th.id });
       return Promise.resolve(rt);
     },
   );
@@ -214,7 +221,7 @@ export function registerThreadHandlers(): void {
     },
   );
 
-  console.log('[IPC] Thread handlers registered');
+  threadLog.info('Handlers registered');
 }
 
 export function unregisterThreadHandlers(): void {
@@ -223,5 +230,5 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
   ipcMain.removeHandler('thread:delete');
-  console.log('[IPC] Thread handlers unregistered');
+  threadLog.info('Handlers unregistered');
 }
