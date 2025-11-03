@@ -16,7 +16,15 @@ function createThreadStore(): ThreadStore {
     subscribe,
     setThreads: (threads: Thread[]): void => set(threads),
     addThread: (thread: Thread): void => {
-      update((threads) => [...threads, thread]);
+      update((threads) => {
+        const updated = [...threads, thread];
+        // Sort by createdAt, newest first (matching server-side sort)
+        return updated.sort((a, b) => {
+          const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
+          const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
+          return bTime - aTime;
+        });
+      });
     },
     updateThread: (updatedThread: Thread): void => {
       update((threads) => threads.map((t) => (t.id === updatedThread.id ? updatedThread : t)));

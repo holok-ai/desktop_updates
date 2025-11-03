@@ -26,6 +26,8 @@ export default [
       'eslint-plugin-holokai/**',
       'scripts/**',
       'analyze-eslint.cjs',
+      'playwright-report/**',
+      'test-results/**',
     ],
   },
 

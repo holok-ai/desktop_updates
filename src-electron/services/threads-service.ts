@@ -92,10 +92,12 @@ export class ThreadsService {
   }
 
   /**
-   * List all threads (shallow clones). Order is insertion order.
+   * List all threads (shallow clones). Ordered by createdAt, newest first.
    */
   public listThreads(): Thread[] {
-    return Array.from(this.threadsById.values()).map((t) => this.cloneThread(t));
+    return Array.from(this.threadsById.values())
+      .map((t) => this.cloneThread(t))
+      .sort((a, b) => b.createdAt - a.createdAt);
   }
 
   /**

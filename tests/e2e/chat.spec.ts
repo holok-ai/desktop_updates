@@ -67,29 +67,28 @@ test.describe('E2E: Chat prompt/response', () => {
     await firstCard.click();
 
     // Compose a prompt
-    const prompt = 'Hello integration';
+    const prompt = 'Hello';
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
     await expect(textarea).toBeVisible({ timeout: 3000 });
     await textarea.fill(prompt);
-    // Press Enter to send (mirrors normal UX), fallback to button click
-    await textarea.press('Enter');
-    // Wait briefly for message to render; if not sent, click Send
-    try {
-      await expect(
-        page.locator('.messages .message.user .message-content', { hasText: prompt }),
-      ).toBeVisible({ timeout: 5000 });
-    } catch {
-      await page.getByRole('button', { name: 'Send' }).click();
-    }
 
-    // Expect user message to appear
+    // Press Enter to send (mirrors normal UX)
+    await textarea.press('Enter');
+
+    // Wait for user message to appear in the UI
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: prompt }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 5000 });
 
-    // Expect assistant response to appear (LLM may take longer to respond)
+    // Wait for assistant response to start streaming (message appears)
     await expect(
       page.locator('.messages .message.assistant .message-content'),
     ).toBeVisible({ timeout: 30000 });
+
+    // Wait for streaming to complete by checking that the streaming indicator disappears
+    // The .streaming class is removed when streaming completes
+    await expect(
+      page.locator('.messages .message.assistant.streaming'),
+    ).toBeHidden({ timeout: 60000 });
   });
 });
