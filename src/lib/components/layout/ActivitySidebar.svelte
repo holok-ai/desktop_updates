@@ -49,11 +49,40 @@
     const stored = localStorage.getItem(APP_THEME_MODE_STORAGE_KEY);
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
 
+    // React to theme changes applied elsewhere (e.g., Settings page)
+    const html = document.documentElement;
+    const syncFromClass = () => {
+      const isDark = html.classList.contains(APP_THEME_MODE.DARK);
+      const nextMode = isDark ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
+      if (currentMode !== nextMode) {
+        currentMode = nextMode;
+        modeStore.set(nextMode);
+      }
+    };
+    const observer = new MutationObserver(syncFromClass);
+    observer.observe(html, { attributes: true, attributeFilter: ['class'] });
+    // Also handle storage changes (in case of multi-window)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === APP_THEME_MODE_STORAGE_KEY && e.newValue) {
+        const next = e.newValue === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
+        if (currentMode !== next) {
+          currentMode = next;
+          modeStore.set(next);
+        }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
     // Initial sync with current route
     let currentPath = '';
     const unsub = location.subscribe((p: string) => (currentPath = p));
     syncSelectedWithLocation(currentPath);
     unsub();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('storage', onStorage);
+    };
   });
 
   $effect(() => {
