@@ -19,7 +19,6 @@
       // Guard window.electronAPI availability (web-only fallback or unexpected runtime)
       // If unavailable, provide a small in-component fallback list so the chooser
       // remains usable in non-Electron contexts (dev preview / web).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win: any = typeof window !== 'undefined' ? window : undefined;
       if (
         win &&
@@ -63,7 +62,6 @@
       if (m) dispatch('modelSelected', m);
     } catch (err: unknown) {
       // Make a best-effort error message
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       error = (err as any)?.message ?? String(err);
     } finally {
       loading = false;

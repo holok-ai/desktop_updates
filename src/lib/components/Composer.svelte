@@ -1,7 +1,6 @@
 <script lang="ts">
   // Props from ChatPane slot
   interface Props {
-    // eslint-disable-next-line no-unused-vars
     sendMessage?: (text: string) => Promise<void>;
     isStreaming?: boolean;
   }

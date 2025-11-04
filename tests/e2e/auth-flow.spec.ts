@@ -52,18 +52,22 @@ test.describe('E2E: Auth Flow (mock)', () => {
       await page.waitForTimeout(1200);
     }
 
-    // Expect App layout visible with Logout and header logo
-    await page
-      .getByRole('button', { name: 'Logout' })
-      .waitFor({ state: 'visible', timeout: 10000 });
-    await expect(page.getByText('Holokai Desktop', { exact: true })).toBeVisible();
+    // Navigate to Settings via sidebar profile entry and expect Logout there
+    await page.getByRole('menuitem', { name: 'Profile/Settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    const logoutBtn = page.getByRole('button', { name: 'Logout' });
+    await expect(logoutBtn).toBeVisible({ timeout: 10000 });
 
     // Reload renderer window to ensure auth state persists
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
+    // After reload, navigate to Settings again and ensure Logout is visible
+    await page.getByRole('menuitem', { name: 'Profile/Settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    const logoutBtn2 = page.getByRole('button', { name: 'Logout' });
+    await expect(logoutBtn2).toBeVisible({ timeout: 10000 });
 
     // Logout and verify back to login screen
-    await page.getByRole('button', { name: 'Logout' }).click();
+    await logoutBtn2.click();
     // After logout the page reloads; wait for login button again
     await expect(page.getByRole('button', { name: 'Sign In (Mock)' })).toBeVisible();
   });

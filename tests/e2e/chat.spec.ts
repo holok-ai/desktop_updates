@@ -48,23 +48,24 @@ test.describe('E2E: Chat prompt/response', () => {
       await page.waitForTimeout(1200);
     }
 
-    // Navigate to Threads
-    await page.getByRole('button', { name: 'Threads' }).click();
-    await expect(page.locator('.threads-list, .empty').first()).toBeVisible();
+    // Navigate to Threads via main sidebar (menuitem)
+    await page.getByRole('menuitem', { name: 'Threads' }).click();
+    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 
-    // Create a thread if none exist
-    const newBtn = page.getByRole('button', { name: 'New Thread' });
-    if (await newBtn.count()) {
-      await newBtn.click();
+    // Ensure a thread exists by creating one via secondary sidebar quick action
+    await page.getByRole('menuitem', { name: 'Home' }).click();
+    const newThreadMenuItem = page.getByRole('menuitem', { name: 'New Thread' });
+    if (await newThreadMenuItem.count()) {
+      await newThreadMenuItem.click();
       await page.getByLabel('Title').fill('E2E Chat Thread');
       await page.getByLabel('Description').fill('testing chat');
       await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
     }
 
-    // Select first thread card (wait for list to settle)
-    const firstCard = page.locator('.thread-card').first();
-    await expect(firstCard).toBeVisible({ timeout: 5000 });
-    await firstCard.click();
+    // Switch back to Threads activity and select the created thread from the grouped list
+    await page.getByRole('menuitem', { name: 'Threads' }).click();
+    await page.getByRole('menuitem', { name: 'E2E Chat Thread' }).click();
 
     // Compose a prompt
     const prompt = 'Hello';

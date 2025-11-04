@@ -72,7 +72,6 @@ test.describe('E2E: Model selection on thread start', () => {
       } catch {
         // Fallback: set the select's value via JS and dispatch change
         await select.evaluate((el, v) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (el as any).value = v;
           el.dispatchEvent(new Event('change', { bubbles: true }));
         }, desired);

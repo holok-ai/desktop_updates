@@ -3,6 +3,6 @@ export const ROUTE = {
   THREADS: '/threads',
   SETTINGS: '/settings',
   GUIDE: '/guide',
+  LOGIN: '/login'
 } as const;
 
-export type RoutePath = (typeof ROUTE)[keyof typeof ROUTE];

@@ -12,7 +12,6 @@
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
-    // eslint-disable-next-line no-unused-vars
     composer?: import('svelte').Snippet<
       [{ sendMessage: (message: string) => Promise<void>; isStreaming: boolean }]
     >;
@@ -180,7 +179,7 @@
     height: 100%;
     border-left: 1px solid #e5e7eb;
     padding: 1rem;
-    background: #fafafa;
+    background: var(--surface-main);
   }
 
   .chat-header h2 {

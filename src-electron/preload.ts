@@ -1,10 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { ThreadStatus } from '../src-shared/constants/status.constant.js';
-import type {
-  ChatRequest,
-  ChatRequestWithOptions,
-} from './services/chat/interfaces/ChatMessage.js';
+import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
+import type { ThreadStatus } from '$lib/types/status.type.js';
 
 /**
  * Preload Script with Context Bridge

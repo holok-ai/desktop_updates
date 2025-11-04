@@ -252,6 +252,19 @@ export class ThreadsService {
   }
 
   /**
+   * Test helper: set explicit createdAt/updatedAt for a thread.
+   * For testing purposes only. TODO: remove later when we integrate with a real database.
+   */
+  public setThreadTimestamps(threadId: string, createdAt: number, updatedAt: number): Thread {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+    thread.createdAt = createdAt;
+    thread.updatedAt = updatedAt;
+    this.threadsById.set(thread.id, thread);
+    return this.cloneThread(thread);
+  }
+
+  /**
    * Internal: return a deep-safe clone to avoid exposing internal state.
    */
   private cloneThread(thread: Thread): Thread {

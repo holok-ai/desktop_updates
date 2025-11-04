@@ -1,4 +1,5 @@
-import { ROUTE, type RoutePath } from '../constants/route.constant';
+import { ROUTE } from '../constants/route.constant';
+import type { RoutePath } from '../types/route.type';
 
 export class MenuNavigationService {
   private static instance: MenuNavigationService | null = null;

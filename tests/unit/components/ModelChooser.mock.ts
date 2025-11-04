@@ -18,7 +18,6 @@ export default class MockModelChooser {
 
     (async () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const models = await (globalThis as any).electronAPI.models.listAvailable();
         if (this.selectEl && Array.isArray(models)) {
           let firstSelected: { provider: string; id: string } | null = null;

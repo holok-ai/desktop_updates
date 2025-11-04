@@ -3,5 +3,3 @@ export const THREAD_STATUS = {
   ARCHIVED: 'archived',
   DELETED: 'deleted',
 } as const;
-
-export type ThreadStatus = (typeof THREAD_STATUS)[keyof typeof THREAD_STATUS];
