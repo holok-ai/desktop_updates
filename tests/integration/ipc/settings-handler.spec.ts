@@ -37,7 +37,14 @@ vi.mock('../../../src-electron/services/settings.service', () => ({
   SettingsService: class {
     constructor() {}
     getAllSettings() {
-      return { mokuWebUrl: 'u', mokuApiUrl: 'a', theme: 'light', logLevel: 'info' };
+      return {
+        mokuWebUrl: 'u',
+        mokuApiUrl: 'a',
+        theme: 'light',
+        autoUpdate: true,
+        updateAvailable: false,
+        latestVersion: '',
+      };
     }
     getSetting(k: any) {
       return (this.getAllSettings() as any)[k];

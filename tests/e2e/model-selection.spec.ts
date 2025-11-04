@@ -45,12 +45,28 @@ test.describe('E2E: Model selection on thread start', () => {
       await page.waitForTimeout(1000);
     }
 
-    // Navigate to Threads
-    await page.getByRole('button', { name: 'Threads' }).click();
-    await expect(page.locator('.threads-list, .empty').first()).toBeVisible();
+    // Navigate to Threads via sidebar item (role=menuitem)
+    const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
+    await expect(threadsMenuItem).toBeVisible();
+    await threadsMenuItem.click();
+    await page.waitForTimeout(500); // Wait for threads page to load
 
-    // Open create dialog
-    await page.getByRole('button', { name: 'New Thread' }).click();
+    // Open create dialog: use visible CTA if present, else force query param
+    const createCta = page.getByRole('button', { name: 'Create Thread' });
+    if (await createCta.count()) {
+      await createCta.click();
+    } else {
+      // Trigger route query to open dialog
+      await page.evaluate(() => {
+        // eslint-disable-next-line no-restricted-globals
+        const base = location.hash.startsWith('#') ? location.hash.split('?')[0] : '#/threads';
+        // eslint-disable-next-line no-restricted-globals
+        location.hash = base + '?create=';
+      });
+    }
+
+    // Wait for dialog to appear
+    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).toBeVisible();
 
     // Wait for model chooser select
     const select = page.locator('select#model-select');
@@ -63,14 +79,10 @@ test.describe('E2E: Model selection on thread start', () => {
     const desired = 'openai::gpt-4o-mini';
     const desiredOption = select.locator(`option[value="${desired}"]`);
     if (await desiredOption.count()) {
-      // Try to select the desired option even if it's not fully visible in the
-      // DOM (some renderings hide options). If selectOption throws, fall back
-      // to setting the value via page script.
       try {
         await select.selectOption(desired);
         selectedValue = desired;
       } catch {
-        // Fallback: set the select's value via JS and dispatch change
         await select.evaluate((el, v) => {
           (el as any).value = v;
           el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -78,7 +90,6 @@ test.describe('E2E: Model selection on thread start', () => {
         selectedValue = desired;
       }
     } else {
-      // fallback: pick the first option with a non-empty value (skip the placeholder)
       const options = select.locator('option:not([value=""])');
       const optCount = await options.count();
       if (optCount > 0) {
@@ -88,7 +99,6 @@ test.describe('E2E: Model selection on thread start', () => {
           selectedValue = val;
         }
       } else {
-        // no options to choose from - fail early with a helpful message
         throw new Error('No model options available to select in ModelChooser');
       }
     }
@@ -98,18 +108,27 @@ test.describe('E2E: Model selection on thread start', () => {
     await page.getByLabel('Description').fill('Testing model selection persistence');
     await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
 
-    // Wait for created card
-    const createdCard = page.locator('.thread-card', { hasText: 'E2E Model Thread' });
-    await expect(createdCard).toBeVisible();
+    // Wait for dialog to close
+    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).not.toBeVisible({ timeout: 5000 });
 
-    // Open edit dialog and verify model persisted
-    await createdCard.getByRole('button', { name: 'Edit' }).click();
-    const editSelect = page.locator('select#model-select');
-    await expect(editSelect).toBeVisible();
-    const value = await editSelect.inputValue();
-    // The persisted value should match whatever we actually selected (either the
-    // desired option or the fallback). If selectedValue is null something went
-    // wrong earlier and the test will fail here.
-    expect(value).toBe(selectedValue);
+    // Wait for thread to appear in sidebar (as a menuitem in the threads accordion)
+    // The thread should appear in the ActivityListSidebar
+    const threadItem = page.getByRole('menuitem', { name: 'E2E Model Thread' });
+    await expect(threadItem).toBeVisible({ timeout: 10000 });
+
+    // Verify model persisted by checking thread metadata via IPC
+    const threadMetadata = await page.evaluate(async (title) => {
+      const threads = await window.electronAPI.thread.getAll();
+      const thread = threads.find((t: any) => t.title === title);
+      return thread?.metadata;
+    }, 'E2E Model Thread');
+
+    expect(threadMetadata).toBeDefined();
+    expect(selectedValue).not.toBeNull();
+    // Metadata stores model ID separately from provider
+    // Extract ID part from selectedValue (format: "provider::id" or just "id")
+    const expectedModelId = selectedValue!.includes('::') ? selectedValue!.split('::')[1] : selectedValue!;
+    expect(threadMetadata?.model).toBe(expectedModelId);
+    expect(threadMetadata?.provider).toBeDefined();
   });
 });
