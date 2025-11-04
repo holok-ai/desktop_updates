@@ -12,7 +12,6 @@
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
-    // eslint-disable-next-line no-unused-vars
     composer?: import('svelte').Snippet<
       [{ sendMessage: (message: string) => Promise<void>; isStreaming: boolean }]
     >;

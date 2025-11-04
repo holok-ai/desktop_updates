@@ -6,7 +6,6 @@ function mount(props = {}) {
   // mount into document body
   const target = document.createElement('div');
   document.body.appendChild(target);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const comp: any = new ModelChooser({ target, props });
   return { comp, target };
 }
@@ -32,9 +31,7 @@ describe('ModelChooser accessibility and behavior', () => {
 
   beforeEach(() => {
     // Provide a minimal electronAPI for the component to call
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).window = globalThis.window ?? globalThis;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).electronAPI = {
       models: {
         listAvailable: vi.fn(() => Promise.resolve(mockModels)),
@@ -82,7 +79,6 @@ describe('ModelChooser accessibility and behavior', () => {
     // ensure handler called with model object
     expect(called.length).toBe(1);
     // detail should have provider and id
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((called[0] as any).id).toBe('gpt-4o');
 
     comp.$destroy();

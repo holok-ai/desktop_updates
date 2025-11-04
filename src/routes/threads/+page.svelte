@@ -103,7 +103,6 @@
           provider: selectedModel.provider,
         } as Record<string, unknown>;
         // Cast to any because Svelte $state snapshot can produce narrower types
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (data as any).metadata = merged;
       }
 
@@ -187,7 +186,6 @@
           initialSelection={chooserInitial}
           on:modelSelected={(e) => {
             // e.detail is the selected MokuModel
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const m = (e as CustomEvent).detail as any;
             if (m) {
               selectedModel = m;
