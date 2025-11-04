@@ -36,7 +36,7 @@
 <style>
   .dual-sidebar-layout {
     display: flex;
-    height: 100vh;
-    background: #f5f5f5;
+    height: 100%;
+    background: var(--surface-sidebar-secondary);
   }
 </style>

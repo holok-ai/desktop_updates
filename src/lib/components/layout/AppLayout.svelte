@@ -16,6 +16,7 @@
     display: flex;
     flex: 1;
     overflow: hidden;
+    height: 100vh;
   }
 
   .content {

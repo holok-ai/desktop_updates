@@ -4,6 +4,7 @@ import ElectronStore from 'electron-store';
 import log from 'electron-log';
 import { app } from 'electron';
 import * as path from 'path';
+import * as fs from 'node:fs';
 
 /**
  * Application Settings Service
@@ -21,7 +22,10 @@ export interface AppSettings {
 
   // Other settings can be added here
   theme?: 'light' | 'dark';
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  autoUpdate?: boolean;
+
+  updateAvailable?: boolean;
+  latestVersion?: string;
 }
 
 /**
@@ -41,7 +45,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   // mokuApiUrl: 'https://moku.holokai.com/api',
 
   theme: 'light',
-  logLevel: 'info',
+  autoUpdate: true,
+  updateAvailable: false,
+  latestVersion: '',
 };
 
 /**
@@ -76,10 +82,17 @@ export class SettingsService {
           enum: ['light', 'dark'],
           default: DEFAULT_SETTINGS.theme,
         },
-        logLevel: {
+        autoUpdate: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.autoUpdate,
+        },
+        updateAvailable: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.updateAvailable,
+        },
+        latestVersion: {
           type: 'string',
-          enum: ['debug', 'info', 'warn', 'error'],
-          default: DEFAULT_SETTINGS.logLevel,
+          default: DEFAULT_SETTINGS.latestVersion,
         },
       },
     } as any); // TODO: Reason to put any in here to pass the unit test since it require passing projectName. Will need define real type in future
@@ -88,6 +101,19 @@ export class SettingsService {
     log.info('[SettingsService] Config path:', this.getStorePath());
     log.info('[SettingsService] Moku Web URL:', this.getMokuWebUrl());
     log.info('[SettingsService] Moku API URL:', this.getMokuApiUrl());
+
+    // Ensure config file exists on first run: create with defaults if missing
+    try {
+      const storePath = this.getStorePath();
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      if (!fs.existsSync(storePath)) {
+        // Write current (default-merged) settings to disk to create config.json
+        this.store.store = { ...DEFAULT_SETTINGS, ...this.store.store };
+        log.info('[SettingsService] Created settings file with defaults at:', storePath);
+      }
+    } catch (err) {
+      log.warn('[SettingsService] Unable to verify/create settings file:', err);
+    }
   }
 
   /**
@@ -173,21 +199,6 @@ export class SettingsService {
   public setTheme(theme: 'light' | 'dark'): void {
     this.store.set('theme', theme);
     log.info('[SettingsService] Theme updated:', theme);
-  }
-
-  /**
-   * Get log level
-   */
-  public getLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
-    return this.store.get('logLevel', 'info');
-  }
-
-  /**
-   * Set log level
-   */
-  public setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
-    this.store.set('logLevel', level);
-    log.info('[SettingsService] Log level updated:', level);
   }
 
   /**

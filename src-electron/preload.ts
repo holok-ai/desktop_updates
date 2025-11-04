@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
+import type { AppThemeMode } from '$lib/types/app.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -121,8 +122,10 @@ export interface SettingsAPI {
 export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
-  theme?: 'light' | 'dark';
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  theme?: AppThemeMode;
+  autoUpdate?: boolean;
+  updateAvailable?: boolean;
+  latestVersion?: string;
 }
 
 /**
