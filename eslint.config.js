@@ -215,6 +215,7 @@ export default [
           object: true,
         },
       ],
+      '@typescript-eslint/unified-signatures': 'off',
     },
   },
 
@@ -330,6 +331,7 @@ export default [
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/unified-signatures': 'off',
     },
   },
 
