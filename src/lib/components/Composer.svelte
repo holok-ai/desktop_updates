@@ -44,7 +44,7 @@
     width: 100%;
     padding: 0.5rem;
     border-radius: 6px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--border-sidebar);
     font-family: inherit;
     resize: vertical;
   }

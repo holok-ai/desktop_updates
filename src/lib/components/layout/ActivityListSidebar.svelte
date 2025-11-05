@@ -6,7 +6,7 @@
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -17,6 +17,7 @@
   let threadItems = $state<SidebarActivity[]>([]);
   let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let lastActivityId: string | null = null;
+  let selectedThreadId: string | null = $state(null);
 
   const navigationOptions: SidebarActivity[] = [
     { id: 'new-thread', label: 'New Thread', shortLabel: 'New', icon: 'pi pi-pen-to-square', onClick: () => push(`${ROUTE.THREADS}?create`) },
@@ -25,6 +26,26 @@
 
   onMount(async () => {
     await getThreadItems();
+  });
+
+  $effect(() => {
+    const unsub = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+      const tid = params.get('threadId');
+      if (tid) {
+        selectedThreadId = tid;
+        try { window.localStorage.setItem('lastThreadId', tid); } catch {}
+      } else {
+        // Fallback to last selected from localStorage
+        try {
+          const last = window.localStorage.getItem('lastThreadId');
+          selectedThreadId = last;
+        } catch {
+          selectedThreadId = null;
+        }
+      }
+    });
+    return unsub;
   });
 
   $effect(() => {
@@ -43,6 +64,8 @@
 
   function select(item: { id: string; label: string }) {
     dispatch('select', item);
+    selectedThreadId = item.id;
+    try { window.localStorage.setItem('lastThreadId', item.id); } catch {}
 
     if ((item as SidebarActivity).route === ROUTE.THREADS) {
       push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
@@ -139,13 +162,54 @@
         {#each navigationOptions as item}
           <SidebarItem isSelected={false} {item} {isCollapsed} on:click={() => item.onClick?.()} />
         {/each}
-        <AccordionSection title="Agents" isSidebarCollapsed={isCollapsed} items={agentItems} />
-        <AccordionSection title="Projects" isSidebarCollapsed={isCollapsed} items={projectItems} />
-        <AccordionSection title="Threads" isSidebarCollapsed={isCollapsed} items={threadItems} on:click={(e) => select(e.detail)} />
+        <AccordionSection title="Agents" isSubsection={true} isSidebarCollapsed={isCollapsed} items={agentItems} selectedId={null} />
+        <AccordionSection title="Projects" isSubsection={true} isSidebarCollapsed={isCollapsed} items={projectItems} selectedId={null} />
+        <AccordionSection
+          title="Threads"
+          isSidebarCollapsed={isCollapsed}
+          items={threadItems}
+          isSubsection={true}
+          showActions={true}
+          selectedId={activity?.id === 'threads' ? selectedThreadId : null}
+          on:click={(e) => select(e.detail)}
+          on:delete={async (e) => {
+            const item = e.detail as { id: string };
+            if (item?.id?.startsWith('temp_')) {
+              // Remove ephemeral thread locally
+              threads.deleteThread(item.id);
+              return;
+            }
+            try {
+              await threadService.softDelete(item.id);
+            } catch (err) {
+              console.error('Failed to delete thread', err);
+            }
+          }}
+        />
       {/if}
       {#if activity?.id === 'threads'}
         {#each groupedThreadSections as section}
-          <AccordionSection title={section.title} isSidebarCollapsed={isCollapsed} items={section.items} on:click={(e) => select(e.detail)} />
+          <AccordionSection
+            title={section.title}
+            isSidebarCollapsed={isCollapsed}
+            isSubsection={true}
+            items={section.items}
+            showActions={true}
+            selectedId={selectedThreadId}
+            on:click={(e) => select(e.detail)}
+            on:delete={async (e) => {
+              const item = e.detail as { id: string };
+              if (item?.id?.startsWith('temp_')) {
+                threads.deleteThread(item.id);
+                return;
+              }
+              try {
+                await threadService.softDelete(item.id);
+              } catch (err) {
+                console.error('Failed to delete thread', err);
+              }
+            }}
+          />
         {/each}
       {/if}
     </ul>
@@ -174,14 +238,6 @@
     color: var(--text-primary, #fff);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-  }
-  .list-items {
-    flex: 1;
-    padding: 1rem 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
     gap: 0.5rem;
   }
   .activity-list-sidebar.collapsed .activity-title,
