@@ -81,12 +81,15 @@ export class MenuNavigationService {
       return;
     }
 
-    // If no global helper is available, log a warning. The real app should
-    // provide routing through the SPA router; in unit tests we set
-    // `globalThis.__routerPush = vi.fn()` to capture navigation calls.
-    // Avoid importing 'svelte-spa-router' here to prevent Vite from trying to
-    // resolve it in the test environment.
-    console.warn('[MenuNavigationService] router push not available');
+    // Fallback for hash-based routing used by svelte-spa-router
+    // This ensures navigation works without a global router helper.
+    const href = `#${path}${search}`;
+    if (globalThis.location.hash !== href) {
+      globalThis.location.hash = href;
+    } else {
+      // trigger route reload if already on same hash
+      globalThis.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
   }
 
   public destroy(): void {

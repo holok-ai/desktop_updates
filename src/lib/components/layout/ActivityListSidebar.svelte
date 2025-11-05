@@ -126,7 +126,7 @@
       <span class="activity-title">{'Organization Name'}</span>
     {/if}
     <button
-      class="{!isCollapsed && 'p-0'} bg-transparent border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
+      class="{!isCollapsed && 'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
       onclick={toggleSidebar}
       aria-label="Collapse/Expand Activity List"
     >

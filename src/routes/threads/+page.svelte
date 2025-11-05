@@ -200,7 +200,7 @@
       </div>
 
       <div class="dialog-actions">
-        <button onclick={() => (showDialog = false)}>Cancel</button>
+        <button class="text-white" onclick={() => (showDialog = false)}>Cancel</button>
         <button
           class="primary"
           onclick={handleSave}

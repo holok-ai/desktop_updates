@@ -36,7 +36,7 @@ describe('SettingsService (unit)', () => {
     process.env.npm_package_name = originalEnv;
   });
 
-  it('uses fallback projectName when npm_package_name is not set', async () => {
+  it('initializes with defaults when npm_package_name is not set', async () => {
     delete process.env.npm_package_name;
     const mod = await import('../../../src-electron/services/settings.service');
     const { SettingsService } = mod;
@@ -49,12 +49,14 @@ describe('SettingsService (unit)', () => {
     expect(svc.getMokuWebUrl()).toBe('http://localhost:4200');
     expect(svc.getMokuApiUrl()).toBe('http://localhost:8080');
     expect(svc.getTheme()).toBe('light');
-    expect(svc.getLogLevel()).toBe('info');
+    // new fields present with defaults
+    expect(svc.getSetting('autoUpdate')).toBe(true);
+    expect(svc.getSetting('updateAvailable')).toBe(false);
+    expect(svc.getSetting('latestVersion')).toBe('');
     expect(typeof svc.getStorePath()).toBe('string');
   });
 
-  it('respects npm_package_name when provided and allows setters/getters/reset', async () => {
-    process.env.npm_package_name = 'the-package';
+  it('allows setters/getters/reset', async () => {
     const { SettingsService } = await import('../../../src-electron/services/settings.service');
     const svc = new SettingsService();
 
@@ -65,14 +67,15 @@ describe('SettingsService (unit)', () => {
     expect(svc.getMokuWebUrl()).toBe('https://example.com');
 
     // set multiple settings
-    svc.setSettings({ theme: 'dark', logLevel: 'debug' });
+    svc.setSettings({ theme: 'dark', autoUpdate: false, latestVersion: '1.2.3' });
     expect(svc.getTheme()).toBe('dark');
-    expect(svc.getLogLevel()).toBe('debug');
+    expect(svc.getSetting('autoUpdate')).toBe(false);
+    expect(svc.getSetting('latestVersion')).toBe('1.2.3');
 
     // reset to defaults
     svc.resetToDefaults();
     expect(svc.getTheme()).toBe('light');
-    expect(svc.getLogLevel()).toBe('info');
+    expect(svc.getSetting('autoUpdate')).toBe(true);
   });
 
   it('getSetting and setSetting generic behavior', async () => {
@@ -92,5 +95,6 @@ describe('SettingsService (unit)', () => {
     const all = svc.getAllSettings();
     expect(all).toBeTruthy();
     expect((all as any).mokuWebUrl).toBeDefined();
+    expect((all as any).autoUpdate).toBe(true);
   });
 });

@@ -58,11 +58,13 @@ describe('SettingsService', () => {
     expect(all.mokuWebUrl).not.toBe('x');
   });
 
-  it('theme and logLevel getters/setters', () => {
+  it('theme getter/setter and new fields', () => {
     svc.setTheme('dark');
     expect(svc.getTheme()).toBe('dark');
-    svc.setLogLevel('debug');
-    expect(svc.getLogLevel()).toBe('debug');
+    svc.setSettings({ autoUpdate: false, latestVersion: '9.9.9', updateAvailable: true });
+    expect(svc.getSetting('autoUpdate')).toBe(false);
+    expect(svc.getSetting('latestVersion')).toBe('9.9.9');
+    expect(svc.getSetting('updateAvailable')).toBe(true);
   });
 
   it('getStorePath returns path', () => {

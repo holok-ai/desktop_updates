@@ -52,17 +52,21 @@ test.describe('E2E: Auth Flow (mock)', () => {
       await page.waitForTimeout(1200);
     }
 
-    // Navigate to Settings via sidebar profile entry and expect Logout there
-    await page.getByRole('menuitem', { name: 'Profile/Settings' }).click();
-    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    // Open sidebar profile submenu and assert Logout is available
+    const profileBtn = page.locator('nav').locator('button').filter({ has: page.locator('.pi-user') }).first();
+    await expect(profileBtn).toBeVisible();
+    await profileBtn.click();
     const logoutBtn = page.getByRole('button', { name: 'Logout' });
     await expect(logoutBtn).toBeVisible({ timeout: 10000 });
 
     // Reload renderer window to ensure auth state persists
     await page.reload();
-    // After reload, navigate to Settings again and ensure Logout is visible
-    await page.getByRole('menuitem', { name: 'Profile/Settings' }).click();
-    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    await page.waitForLoadState('domcontentloaded');
+
+    // Open submenu again and ensure Logout is still available
+    const profileBtn2 = page.locator('nav').locator('button').filter({ has: page.locator('.pi-user') }).first();
+    await expect(profileBtn2).toBeVisible();
+    await profileBtn2.click();
     const logoutBtn2 = page.getByRole('button', { name: 'Logout' });
     await expect(logoutBtn2).toBeVisible({ timeout: 10000 });
 
