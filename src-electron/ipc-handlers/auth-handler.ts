@@ -280,3 +280,13 @@ export function unregisterAuthHandlers(): void {
 
   authLog.info('Handlers unregistered');
 }
+
+/**
+ * Expose singleton AuthService for other handlers/services (read-only usage)
+ */
+export function getAuthService(): AuthService {
+  if (!authService) {
+    authService = new AuthService();
+  }
+  return authService;
+}

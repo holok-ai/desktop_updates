@@ -3,6 +3,7 @@ import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interf
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode } from '$lib/types/app.type.js';
+import type { Message } from '$lib/types/thread.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -36,6 +37,14 @@ export interface ThreadAPI {
   // Delete a thread
   delete: (id: string) => Promise<boolean>;
 
+  // Soft delete a thread (deletedAt timestamp)
+  softDelete: (id: string) => Promise<boolean>;
+
+  // Get messages for a thread (persisted)
+  getMessages: (
+    id: string,
+  ) => Promise<Message[]>;
+
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
@@ -68,6 +77,29 @@ export interface ThreadAPI {
     promptMessage: { id: string; role: string; content: string; createdAt: number };
     responseMessages: { id: string; role: string; content: string; createdAt: number }[];
   }>;
+
+  // Append a message with idempotency support
+  appendMessage: (
+    threadId: string,
+    payload: {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      metadata?: Record<string, unknown>;
+      client_message_id?: string;
+    },
+  ) => Promise<
+    | {
+        success: true;
+        message: Message;
+        thread: Thread;
+      }
+    | { success: false; status: number; error: string; thread_id?: string }
+  >;
+
+  // Telemetry: listen for message.persisted audit events
+  onMessagePersisted: (
+    callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
+  ) => () => void;
 }
 
 /**
@@ -416,6 +448,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
 
+    softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
+
+    getMessages: (id: string) => ipcRenderer.invoke('thread:getMessages', id),
+
     // Event listeners with cleanup function
     onThreadCreated: (callback: (thread: Thread) => void): (() => void) => {
       const subscription = (_event: IpcRendererEvent, thread: Thread): void => callback(thread);
@@ -459,6 +495,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
       responses: { text: string; model?: string }[],
       opts?: { title?: string; description?: string },
     ) => ipcRenderer.invoke('thread:savePromptAndResponses', threadId, prompt, responses, opts),
+
+    appendMessage: (
+      threadId: string,
+      payload: {
+        role: 'user' | 'assistant' | 'system';
+        content: string;
+        metadata?: Record<string, unknown>;
+        client_message_id?: string;
+      },
+    ) => ipcRenderer.invoke('thread:appendMessage', threadId, payload),
+
+    onMessagePersisted: (
+      callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
+    ) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { thread_id: string; message_id: string; timestamp: string },
+      ): void => callback(data);
+      ipcRenderer.on('message:persisted', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('message:persisted', subscription);
+      };
+    },
   } as ThreadAPI,
 
   /**

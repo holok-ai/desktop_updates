@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import type { Thread } from '../../../src-electron/preload';
+  import { threadService } from '$lib/services/thread.service';
 
   type Message = {
     id: string;
@@ -24,6 +25,7 @@
   let responseText = $state('');
   let isStreaming = $state(false);
   let error = $state('');
+  const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Initialize chat service on mount
   async function initializeChatService() {
@@ -67,14 +69,48 @@
     isStreaming = true;
     setupTokenListener();
 
-    // Add user message to messages array immediately
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: userMessage,
-      createdAt: Date.now(),
-    };
-    messages = [...messages, userMsg];
+    // If thread exists, persist user message immediately (idempotent)
+    // If no thread yet, defer persistence until after response (atomic save)
+    const clientMessageId = crypto.randomUUID();
+    const isTemp = !!thread && typeof thread.id === 'string' && thread.id.startsWith('temp_');
+    if (thread && !isTemp) {
+      try {
+        const persisted = await threadService.appendMessage(thread.id, {
+          role: 'user',
+          content: userMessage,
+          metadata: { provider: 'ollama', model: 'llama3:latest' },
+          clientMessageId: clientMessageId,
+        });
+
+        if (!persisted.success) {
+          if (persisted.status === 403) {
+            error = 'Forbidden: THREAD_ACCESS_DENIED';
+            return;
+          }
+          throw new Error(persisted.error);
+        }
+
+        const userMsg: Message = {
+          id: persisted.message.id,
+          role: 'user',
+          content: userMessage,
+          createdAt: persisted.message.createdAt,
+        };
+        messages = [...messages, userMsg];
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to append message';
+        return;
+      }
+    } else {
+      // Optimistically show user message locally when no thread yet
+      const userMsg: Message = {
+        id: clientMessageId,
+        role: 'user',
+        content: userMessage,
+        createdAt: Date.now(),
+      };
+      messages = [...messages, userMsg];
+    }
 
     try {
       const request = {
@@ -89,14 +125,59 @@
         error = result.error || 'Chat failed';
         console.error('Chat failed:', result.error);
       } else {
-        // After streaming completes, add assistant response to messages
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: responseText,
-          createdAt: Date.now(),
-        };
-        messages = [...messages, assistantMsg];
+        // After streaming completes
+        if (thread && !isTemp) {
+          // Append assistant response to existing thread
+          const assistantPersist = await threadService.appendMessage(thread.id, {
+            role: 'assistant',
+            content: responseText,
+            metadata: { provider: 'ollama', model: 'llama3:latest' },
+            clientMessageId: crypto.randomUUID(),
+          });
+
+          if (assistantPersist.success) {
+            const assistantMsg: Message = {
+              id: assistantPersist.message.id,
+              role: 'assistant',
+              content: responseText,
+              createdAt: assistantPersist.message.createdAt,
+            };
+            messages = [...messages, assistantMsg];
+          } else {
+            const assistantMsg: Message = {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: responseText,
+              createdAt: Date.now(),
+            };
+            messages = [...messages, assistantMsg];
+          }
+        } else {
+          // No thread yet: persist both prompt + response atomically and create thread now
+          const saved = await window.electronAPI.thread.savePromptAndResponses(
+            null,
+            userMessage,
+            [{ text: responseText, model: 'llama3:latest' }],
+            { title: thread?.title ?? '', description: thread?.description ?? '' },
+          );
+          // Replace local messages with canonical saved ones
+          messages = [
+            {
+              id: saved.promptMessage.id,
+              role: saved.promptMessage.role as any,
+              content: saved.promptMessage.content,
+              createdAt: saved.promptMessage.createdAt,
+            },
+            ...saved.responseMessages.map((m) => ({
+              id: m.id,
+              role: m.role as any,
+              content: m.content,
+              createdAt: m.createdAt,
+            })),
+          ];
+          // Notify parent to adopt the new thread
+          dispatch('threadCreated', { thread: saved.thread, tempId: thread?.id });
+        }
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -185,6 +266,7 @@
   .chat-header h2 {
     margin: 0;
   }
+  .icon-button { background: transparent; border: none; font-size: 20px; cursor: pointer; }
 
   .error-banner {
     background-color: #fee;
@@ -206,13 +288,13 @@
   }
 
   .message.user .message-content {
-    background: #e0f2fe;
+    background: var(--surface-card);
     padding: 0.5rem;
     border-radius: 6px;
   }
 
   .message.assistant .message-content {
-    background: #eef2ff;
+    background: var(--surface-card);
     padding: 0.5rem;
     border-radius: 6px;
   }

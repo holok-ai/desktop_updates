@@ -10,6 +10,7 @@
   import ModelChooser from '../../lib/components/ModelChooser.svelte';
   import type { MokuModel } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
+  import type { Message } from '$lib/types/thread.type';
 
   let isLoading = $state(true);
   let showDialog = $state(false);
@@ -28,16 +29,44 @@
   let chooserInitial: { provider: string; id: string } | null = $state(null);
 
   let selectedThread: Thread | null = $state(null);
-  type Msg = {
-    id: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    createdAt: number;
-  };
-  let messages: Msg[] = $state([]);
+  let messages: Message[] = $state([]);
 
   onMount(async () => {
     await loadThreads();
+    // If no threadId in URL, restore last selected from localStorage
+    const params = new URLSearchParams((window as any).location?.search ?? '');
+    if (!params.get('threadId')) {
+      try {
+        const last = window.localStorage.getItem('lastThreadId');
+        if (last) {
+          const found = $threads.find((t) => t.id === last);
+          if (found) {
+            selectThread(found);
+            void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(last)}`);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  // Refresh messages when the selected thread is updated elsewhere
+  onMount(() => {
+    const off = window.electronAPI.thread.onThreadUpdated((t) => {
+      if (selectedThread && t.id === selectedThread.id) {
+        void (async () => {
+          try {
+            messages = await threadService.getMessages(t.id);
+          } catch (e) {
+            console.error('Failed to refresh messages:', e);
+          }
+        })();
+      }
+    });
+    return () => {
+      off();
+    };
   });
 
   $effect(() => {
@@ -88,34 +117,61 @@
 
   function selectThread(thread: Thread) {
     selectedThread = thread;
-    // reset messages for now (will be wired to IPC in a later task)
     messages = [];
+    // Load persisted messages for this thread
+    void (async () => {
+      try {
+        messages = await threadService.getMessages(thread.id);
+      } catch (e) {
+        console.error('Failed to load messages:', e);
+      }
+    })();
+    try {
+      window.localStorage.setItem('lastThreadId', thread.id);
+    } catch {
+      // ignore
+    }
   }
 
   async function handleSave() {
     try {
       const data = $state.snapshot(formData);
-      // Ensure model selection is included in metadata if chosen
       if (selectedModel) {
         const merged = {
           ...((data.metadata as Record<string, unknown>) ?? {}),
           model: selectedModel.id,
           provider: selectedModel.provider,
         } as Record<string, unknown>;
-        // Cast to any because Svelte $state snapshot can produce narrower types
         (data as any).metadata = merged;
       }
 
       if (editingThread) {
         await threadService.update(editingThread.id, data);
       } else {
-        await threadService.create(data);
+        // Create an ephemeral thread for sidebar/selection (not persisted yet)
+        const tempId = `temp_${crypto.randomUUID()}`;
+        const tempThread: Thread = {
+          id: tempId,
+          title: data.title,
+          description: data.description,
+          status: THREAD_STATUS.ACTIVE,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          metadata: data.metadata ?? {},
+        } as Thread;
+        // Add to store and select it
+        threads.addThread(tempThread);
+        selectedThread = tempThread;
+        messages = [];
+        // Update URL so sidebar highlights the temp thread
+        void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
       }
       showDialog = false;
     } catch (error) {
       console.error('Failed to save thread:', error);
     }
   }
+
 </script>
 
 <div class="threads-page">
@@ -133,7 +189,17 @@
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane thread={selectedThread} {messages}>
+        <ChatPane thread={selectedThread} {messages} on:threadCreated={(e) => {
+          const detail = (e as CustomEvent).detail as { thread: Thread; tempId?: string };
+          // Replace temp thread if present
+          if (detail.tempId) {
+            threads.deleteThread(detail.tempId);
+          }
+          threads.addThread(detail.thread);
+          selectThread(detail.thread);
+          // Update URL so sidebar selection stays in sync on first creation
+          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(detail.thread.id)}`);
+        }}>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} />
