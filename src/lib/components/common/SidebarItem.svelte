@@ -102,7 +102,7 @@
     border: none;
     color: var(--text-primary);
     cursor: pointer;
-    padding: 0 1rem;
+    padding: 0;
 
     &:focus {
       outline: none;
