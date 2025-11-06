@@ -115,7 +115,7 @@ describe('MessageStateMachine', () => {
     unsub();
   });
 
-  it('schedules automatic retry for transient failures and increments attemptCount', async () => {
+  it('schedules automatic retry for transient failures and increments retryCount', async () => {
     vi.useFakeTimers();
     const threadId = 'thread-2';
     const clientId = 'client-2';
@@ -138,9 +138,9 @@ describe('MessageStateMachine', () => {
     // advance timers for first backoff (3s)
     vi.advanceTimersByTime(3000);
 
-    // after retry trigger, state should be retrying and attemptCount incremented
+    // after retry trigger, state should be retrying and retryCount incremented
     expect(snaps[snaps.length - 1].state).toBe('retrying');
-    expect(snaps[snaps.length - 1].attemptCount).toBe(1);
+    expect(snaps[snaps.length - 1].retryCount).toBe(1);
 
     // simulate server ACK after retry
     msm.handleEvent({ type: 'ACK', clientMessageId: clientId, threadId });

@@ -10,6 +10,8 @@
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
+  import type { MessageStatus } from '$lib/types/status.type';
+  import { MESSAGE_STATUS } from '$lib/constants/status.constant';
 
   interface Props {
     thread?: Thread | null;
@@ -19,15 +21,6 @@
         sendMessage: (message: string) => Promise<void>; 
         isStreaming: boolean;
       }]
-  }
-
-  function retryMessage(clientMessageId: string) {
-    if (!thread) return;
-    try {
-      messageStateMachine.handleEvent({ type: 'RETRY_TRIGGER', clientMessageId, threadId: thread.id });
-    } catch (e) {
-      console.error('Failed to trigger retry', e);
-    }
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
@@ -103,12 +96,63 @@
     });
   }
 
+  // Update message status in the UI
+  function updateMessageStatus(messageId: string, status: MessageStatus, errorMsg?: string) {
+    messages = messages.map((message) =>
+      message.id === messageId ? { ...message, status, error: errorMsg } : message
+    );
+  }
+
   // Retry sending a failed message
   async function retryMessage(messageId: string) {
     const message = messages.find((message) => message.id === messageId);
     if (!message || !thread) return;
 
-    await transmitter.retryMessage(message, thread.id);
+    updateMessageStatus(messageId, MESSAGE_STATUS.SENDING);
+    await persistMessage(message, thread.id);
+  }
+
+  // Persist message with retry logic and timeout
+  async function persistMessage(message: Message, threadId: string): Promise<boolean> {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout')), outboxService.getTimeout())
+    );
+
+    try {
+      const persistPromise = threadService.appendMessage(threadId, {
+        role: message.role,
+        content: message.content,
+        metadata: { provider: 'ollama', model: 'llama3:latest' },
+        clientMessageId: message.clientMessageId,
+      });
+
+      const persisted = await Promise.race([persistPromise, timeoutPromise]);
+
+      if (persisted.success) {
+        updateMessageStatus(message.id, MESSAGE_STATUS.SENT);
+        await outboxService.removePendingMessage(message.id);
+        return true;
+      } else {
+        throw new Error(persisted.error);
+      }
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to send';
+      updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
+      await outboxService.updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
+
+      // Schedule retry if possible
+      if (outboxService.canRetry(message.id)) {
+        const retryCount = (message.retryCount || 0) + 1;
+        messages = messages.map((m) =>
+          m.id === message.id ? { ...m, retryCount } : m
+        );
+
+        outboxService.scheduleRetry(message.id, async () => {
+          await retryMessage(message.id);
+        });
+      }
+      return false;
+    }
   }
 
   // Send message and handle streaming response
@@ -144,9 +188,10 @@
       statusMetadataByClientId.set(clientMessageId, snap.metadata ?? {});
     });
 
-    // remember to unsubscribe on cleanup
-    if (!stateUnsubs) stateUnsubs = new Map();
-    stateUnsubs.set(clientMessageId, unsubscribe);
+    // Persist to memory storage if thread exists
+    if (thread && !isTemp) {
+      await persistMessage(userMsg, thread.id);
+    }
 
     try {
       isStreaming = true;
@@ -249,15 +294,6 @@
   async function cleanup() {
     window.electronAPI.chat.offToken();
     await window.electronAPI.chat.close();
-    // unsubscribe any state subscriptions
-    try {
-      for (const unsub of Array.from(stateUnsubs.values())) unsub();
-    } catch (e) {
-      // ignore
-    }
-    stateUnsubs.clear();
-    // remove ipc listeners
-    if (ipcUnsubOnMessageError) ipcUnsubOnMessageError();
   }
 
   // Process pending messages when coming back online
@@ -276,20 +312,6 @@
   onMount(() => {
     outboxService.init();
     initializeChatService();
-
-    // Listen for message error events from main process and forward to FSM
-    try {
-      ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
-        const clientId = evt?.client_message_id ?? evt?.clientMessageId;
-        const threadId = evt?.thread_id ?? evt?.threadId ?? (thread ? thread.id : undefined);
-        const errorObj = evt?.error ?? {};
-        if (typeof clientId === 'string' && clientId.length > 0 && typeof threadId === 'string') {
-          messageStateMachine.handleEvent({ type: 'FAIL', clientMessageId: clientId, threadId, errorCode: (errorObj as any).code, errorMessage: (errorObj as any).message });
-        }
-      });
-    } catch (e) {
-      // ignore if API not available
-    }
 
     return () => {
       cleanup();
@@ -342,7 +364,9 @@
             onRetry={retryMessage}
             onEdit={handleEdit}
             onShowVersions={handleShowVersions}
+            threadId={thread?.id}
             {isStreaming}
+            on:copied={(event) => showToast(event.detail.message)}
           />
         {/each}
       {/if}
@@ -473,6 +497,16 @@
     line-height: 1em;
     font-style: normal;
     font-family: 'PrimeIcons', primeicons, sans-serif;
+  }
+  .toast {
+    position: absolute;
+    right: 1rem;
+    top: 3.5rem;
+    background: #111827;
+    color: #fff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
   .error-banner {

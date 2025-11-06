@@ -2,6 +2,9 @@
   import { MESSAGE_STATUS } from '$lib/constants/status.constant';
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
+  import { createEventDispatcher } from 'svelte';
+  import type { Attachment } from '../../../src-shared/types/attachment.types';
+  import AttachmentPreview from './AttachmentPreview.svelte';
 
   interface Props {
     message: Message;
@@ -10,6 +13,8 @@
     onShowVersions?: (messageId: string) => void;
     isStreaming?: boolean;
   }
+
+  const dispatch = createEventDispatcher<{ copied: { message: string } }>();
 
   const STATUS_ICON = {
     [MESSAGE_STATUS.SENDING]: '●',
@@ -25,10 +30,11 @@
     [MESSAGE_STATUS.PENDING_OFFLINE]: 'Offline',
   } as const;
 
-  let { message, onRetry, onEdit, onShowVersions, isStreaming = false }: Props = $props();
+  let { message, onRetry, onEdit, onShowVersions, isStreaming = false, threadId }: Props = $props();
 
   let isEditingInline = $state(false);
   let editedContent = $state('');
+  const inlinePreviewUrls = new Map<string, string>();
 
   function getStatusIcon(status?: MessageStatus): string {
     if (!status) return '';
@@ -72,6 +78,77 @@
     if (onShowVersions && message.id) {
       onShowVersions(message.id);
     }
+  }
+
+  async function handleCopy() {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(message.content);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = message.content;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      dispatch('copied', { message: 'Prompt copied to clipboard' });
+    } catch (error) {
+      console.error('Copy failed', error);
+      dispatch('copied', { message: 'Failed to copy prompt' });
+    }
+  }
+
+  async function getInlinePreviewUrl(attachment: Attachment): Promise<string | undefined> {
+    if (!threadId) return undefined;
+
+    const MAX_INLINE_SIZE = 500 * 1024; // 500KB
+    const cacheKey = `${threadId}:${attachment.id}`;
+    if (inlinePreviewUrls.has(cacheKey)) {
+      return inlinePreviewUrls.get(cacheKey);
+    }
+
+    if (attachment.size > MAX_INLINE_SIZE) {
+      return undefined;
+    }
+
+    try {
+      const userId = 'current-user'; // TODO: Get from auth store
+      const result = await window.electronAPI.file.preview({
+        threadId,
+        fileId: attachment.id,
+        userId,
+      });
+
+      if (result.success && result.token && result.fileInfo?.canInlinePreview) {
+        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
+        if (fileData.success && fileData.buffer) {
+          const uint8Array = new Uint8Array(fileData.buffer as any);
+          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
+          const url = URL.createObjectURL(blob);
+          inlinePreviewUrls.set(cacheKey, url);
+          return url;
+        }
+      }
+    } catch (err) {
+      console.error('Error generating inline preview:', err);
+    }
+
+    return undefined;
+  }
+
+  async function previewAttachment(attachment: Attachment) {
+    if (!threadId) return;
+    // TODO: Implement preview attachment
+    console.log('Previewing attachment:', threadId, attachment.id, attachment.filename);
+  }
+
+  async function downloadAttachment(attachment: Attachment) {
+    if (!threadId) return;
+    // TODO: Implement download attachment
+    console.log('Downloading attachment:', threadId, attachment.id, attachment.filename);
   }
 </script>
 
@@ -125,6 +202,9 @@
       </span>
     {/if}
     <div class="message-actions">
+      <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
+        📋
+      </button>
       {#if message.role === 'user' && onEdit && message.status !== MESSAGE_STATUS.SENDING}
         <button class="action-button" onclick={handleEdit} aria-label="Edit message" title="Edit message">
           ✎
@@ -145,12 +225,35 @@
   {#if message.error}
     <div class="error-text">{message.error}</div>
   {/if}
+  {#if message.metadata?.attachments && message.metadata.attachments.length > 0}
+    <div class="message-attachments">
+      {#each message.metadata.attachments as attachment (attachment.id)}
+        {#await threadId ? getInlinePreviewUrl(attachment) : undefined}
+          <AttachmentPreview
+            {attachment}
+            mode="history"
+            onPreview={() => previewAttachment(attachment)}
+            onDownload={() => downloadAttachment(attachment)}
+          />
+        {:then inlineUrl}
+          <AttachmentPreview
+            {attachment}
+            mode="history"
+            inlinePreviewUrl={inlineUrl}
+            onPreview={() => previewAttachment(attachment)}
+            onDownload={() => downloadAttachment(attachment)}
+          />
+        {/await}
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
   .message {
     margin-bottom: 1rem;
     transition: opacity 0.3s ease;
+    position: relative;
   }
 
   .message.sending {
@@ -256,6 +359,41 @@
     margin-left: auto;
   }
 
+  .message-actions {
+    position: absolute;
+    right: 0.5rem;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .copy-button {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: inherit;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .copy-button:hover {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+
+  .copy-button:focus {
+    outline: none;
+    border-color: rgba(100, 108, 255, 0.28);
+    box-shadow: 0 0 0 4px rgba(100, 108, 255, 0.08);
+  }
+
   .message-footer {
     display: flex;
     align-items: center;
@@ -336,6 +474,14 @@
     font-size: 0.75rem;
     color: #ef4444;
     margin-top: 0.25rem;
+  }
+
+  .message-attachments {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 600px;
   }
 </style>
 
