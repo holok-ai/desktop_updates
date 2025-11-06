@@ -6,10 +6,13 @@
 
   const dispatch = createEventDispatcher();
 
-  const { title, isSidebarCollapsed, items } = $props<{
+  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection } = $props<{
     title: string;
     isSidebarCollapsed: boolean;
     items: SidebarActivity[];
+    showActions?: boolean;
+    selectedId?: string | null;
+    isSubsection?: boolean;
   }>();
 
   let isCollapsed = $state(false);
@@ -32,14 +35,17 @@
 
   {#key isCollapsed}
     {#if !isCollapsed}
-      <div class="accordion-content" transition:slide={{ duration: 200 }}>
+      <div class="accordion-content gap-1 flex flex-col" transition:slide={{ duration: 200 }}>
         {#each items as item (item.id)}
           <SidebarItem
             {item}
+            {isSubsection}
             isCollapsed={isSidebarCollapsed}
             isHidden={false}
-            isSelected={false}
+            isSelected={selectedId === item.id}
+            {showActions}
             on:click={() => onClick(item)}
+            on:delete={() => dispatch('delete', item)}
           />
         {/each}
       </div>
@@ -83,7 +89,6 @@
   }
 
   .accordion-content {
-    overflow: hidden;
     will-change: height;
     overflow-anchor: none; /* avoid scroll jump when expanding/collapsing */
   }

@@ -1,15 +1,9 @@
 import { randomUUID } from 'crypto';
-
-/**
- * In-memory Threads service
- * - Memory-only store for threads and messages
- * - APIs: createThread, saveThread, loadThread, listThreads, addMessage, replaceMessages, deleteThread, clearAll
- * - Designed for simple UI integration; no persistence
- */
+import { app } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
-
-// UUID type alias (string at runtime, aliased for clarity)
 export type UUID = string;
 
 export interface Message {
@@ -17,37 +11,41 @@ export interface Message {
   title: string;
   role: MessageRole;
   content: string;
-  createdAt: number; // epoch ms
+  createdAt: number;
+  metadata?: Record<string, unknown>;
+  clientMessageId?: string;
+  deletedAt?: number | null;
 }
 
 export interface ThreadMetadata {
   title?: string;
   description?: string;
-  model?: string; // model identifier for this thread (e.g. gpt-4o)
+  model?: string;
   [key: string]: unknown;
 }
 
 export interface Thread {
   id: UUID;
-  // Top-level title for convenience (mirrors metadata.title)
   title: string;
   metadata: ThreadMetadata;
   messages: Message[];
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number | null;
 }
 
 function generateId(prefix = ''): string {
-  // Use Node's crypto.randomUUID for stable UUID generation, keep prefix if provided
   return `${prefix}${randomUUID()}`;
 }
 
-export class ThreadsService {
+export class ThreadRepository {
   private readonly threadsById: Map<string, Thread> = new Map();
+  private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
-  /**
-   * Create a new thread with optional metadata and return a clone of it
-   */
+  constructor() {
+    this.loadFromDisk();
+  }
+
   public createThread(metadata: ThreadMetadata = {}): Thread {
     const now = Date.now();
     const thread: Thread = {
@@ -58,76 +56,83 @@ export class ThreadsService {
       createdAt: now,
       updatedAt: now,
     };
-
     this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
     return this.cloneThread(thread);
   }
 
-  /**
-   * Save or update a thread. If the thread does not exist it will be created.
-   */
   public saveThread(thread: Thread): Thread {
     const now = Date.now();
     const existing = this.threadsById.get(thread.id);
     const toSave: Thread = existing
-      ? {
-          ...existing,
-          title: typeof thread.title === 'string' ? thread.title : existing.title,
-          metadata: { ...thread.metadata },
-          messages: [...thread.messages],
-          updatedAt: now,
-        }
+      ? { ...existing, title: typeof thread.title === 'string' ? thread.title : existing.title, metadata: { ...thread.metadata }, messages: [...thread.messages], updatedAt: now }
       : { ...thread, createdAt: thread.createdAt ?? now, updatedAt: now };
-
     this.threadsById.set(toSave.id, toSave);
+    this.saveToDisk();
     return this.cloneThread(toSave);
   }
 
-  /**
-   * Load a thread by id. Returns null if not found.
-   */
   public loadThread(threadId: string): Thread | null {
     const thread = this.threadsById.get(threadId);
     return thread ? this.cloneThread(thread) : null;
   }
 
-  /**
-   * List all threads (shallow clones). Ordered by createdAt, newest first.
-   */
   public listThreads(): Thread[] {
     return Array.from(this.threadsById.values())
+      .filter((t) => !t.deletedAt && t.metadata?.status !== 'deleted')
       .map((t) => this.cloneThread(t))
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
-  /**
-   * Append a message to a thread. If the thread does not exist an error is thrown.
-   * Returns the appended message.
-   */
   public addMessage(threadId: string, role: MessageRole, content: string): Message {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
-
-    const message: Message = {
-      id: generateId('msg_'),
-      title: thread.title,
-      role,
-      content,
-      createdAt: Date.now(),
-    };
-
+    const message: Message = { id: generateId('msg_'), title: thread.title, role, content, createdAt: Date.now() };
     thread.messages.push(message);
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-
+    this.saveToDisk();
     return { ...message };
   }
 
-  /**
-   * Convenience: add a user prompt. If threadId is null/undefined a new thread
-   * will be created using optional metadata and the prompt added to it.
-   * Returns the thread and the created message.
-   */
+  public appendMessage(
+    threadId: string,
+    payload: { role: MessageRole; content: string; metadata?: Record<string, unknown>; clientMessageId?: string },
+  ): Message {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+    const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
+    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+    if (payload.clientMessageId) {
+      const byThread = this.idempotencyIndex.get(threadId);
+      const existingId = byThread?.get(payload.clientMessageId);
+      if (existingId) {
+        const found = thread.messages.find((m) => m.id === existingId);
+        if (found) return { ...found };
+      }
+    }
+    const message: Message = {
+      id: generateId('msg_'),
+      title: thread.title,
+      role: payload.role,
+      content: payload.content,
+      createdAt: Date.now(),
+      metadata: payload.metadata ? { ...payload.metadata } : undefined,
+      clientMessageId: payload.clientMessageId,
+      deletedAt: null,
+    };
+    thread.messages.push(message);
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    if (payload.clientMessageId) {
+      if (!this.idempotencyIndex.has(threadId)) this.idempotencyIndex.set(threadId, new Map());
+      const index = this.idempotencyIndex.get(threadId);
+      if (index) index.set(payload.clientMessageId, message.id);
+    }
+    this.saveToDisk();
+    return { ...message };
+  }
+
   public addUserPrompt(
     threadId: string | null | undefined,
     prompt: string,
@@ -135,26 +140,16 @@ export class ThreadsService {
   ): { thread: Thread; message: Message } {
     let tid = threadId;
     if (!tid) {
-      const th = this.createThread({
-        title: opts.title,
-        description: opts.description,
-        model: opts.model,
-      });
+      const th = this.createThread({ title: opts.title, description: opts.description, model: opts.model });
       tid = th.id;
     }
-
     const message = this.addMessage(tid, 'user', prompt);
     const thread = this.loadThread(tid);
     if (!thread) throw new Error(`Thread disappeared after creation: ${tid}`);
     return { thread, message };
   }
 
-  /**
-   * Convenience: add an assistant/model response to a thread.
-   * Returns the created message.
-   */
   public addAssistantResponse(threadId: string, response: string, model?: string): Message {
-    // Optionally record model at thread metadata level
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     if (model) {
@@ -162,32 +157,23 @@ export class ThreadsService {
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
     }
-
     return this.addMessage(threadId, 'assistant', response);
   }
 
-  /**
-   * Update thread metadata (shallow merge). Returns the updated thread.
-   */
   public updateThreadMetadata(threadId: string, updates: Partial<ThreadMetadata>): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     thread.metadata = { ...thread.metadata, ...updates };
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
     return this.cloneThread(thread);
   }
 
-  /**
-   * Set the model used for this thread.
-   */
   public setThreadModel(threadId: string, model: string): Thread {
     return this.updateThreadMetadata(threadId, { model });
   }
 
-  /**
-   * Get the model configured for a thread, if any.
-   */
   public getThreadModel(threadId: string): string | undefined {
     const thread = this.threadsById.get(threadId);
     if (!thread) return undefined;
@@ -195,19 +181,12 @@ export class ThreadsService {
     return typeof m === 'string' ? m : undefined;
   }
 
-  /**
-   * List threads filtered by model identifier.
-   */
   public listThreadsByModel(model: string): Thread[] {
     return Array.from(this.threadsById.values())
       .filter((t) => t.metadata?.model === model)
       .map((t) => this.cloneThread(t));
   }
 
-  /**
-   * Convenience: save both a user prompt and one or more model responses as a
-   * single operation. Returns the thread and created messages.
-   */
   public savePromptAndResponses(
     threadId: string | null | undefined,
     prompt: string,
@@ -225,61 +204,113 @@ export class ThreadsService {
     return { thread: t, promptMessage, responseMessages };
   }
 
-  /**
-   * Replace messages for a thread. Useful for syncing or bulk edits.
-   */
   public replaceMessages(threadId: string, messages: Message[]): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     thread.messages = messages.map((m) => ({ ...m }));
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
     return this.cloneThread(thread);
   }
 
-  /**
-   * Delete a thread. Returns true if deleted, false if not found.
-   */
   public deleteThread(threadId: string): boolean {
-    return this.threadsById.delete(threadId);
+    const deleted = this.threadsById.delete(threadId);
+    if (deleted) this.saveToDisk();
+    return deleted;
   }
 
-  /**
-   * Remove all threads (useful for testing or resetting state).
-   */
+  public softDeleteThread(threadId: string): boolean {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) return false;
+    thread.deletedAt = Date.now();
+    thread.metadata = { ...thread.metadata, status: 'deleted' };
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+    return true;
+  }
+
   public clearAll(): void {
     this.threadsById.clear();
+    this.idempotencyIndex.clear();
+    this.saveToDisk();
   }
 
-  /**
-   * Test helper: set explicit createdAt/updatedAt for a thread.
-   * For testing purposes only. TODO: remove later when we integrate with a real database.
-   */
   public setThreadTimestamps(threadId: string, createdAt: number, updatedAt: number): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     thread.createdAt = createdAt;
     thread.updatedAt = updatedAt;
     this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
     return this.cloneThread(thread);
   }
 
-  /**
-   * Internal: return a deep-safe clone to avoid exposing internal state.
-   */
   private cloneThread(thread: Thread): Thread {
-    return {
-      id: thread.id,
-      title: thread.title,
-      metadata: { ...thread.metadata },
-      messages: thread.messages.map((m) => ({ ...m })),
-      createdAt: thread.createdAt,
-      updatedAt: thread.updatedAt,
-    };
+    return { id: thread.id, title: thread.title, metadata: { ...thread.metadata }, messages: thread.messages.map((m) => ({ ...m })), createdAt: thread.createdAt, updatedAt: thread.updatedAt, deletedAt: thread.deletedAt ?? null };
+  }
+
+  private getStorePath(): string | null {
+    try {
+      const userData = app.getPath('userData');
+      return path.join(userData, 'threads-storage.json');
+    } catch {
+      return null;
+    }
+  }
+
+  private saveToDisk(): void {
+    try {
+      const storePath = this.getStorePath();
+      if (!storePath) return;
+      const payload = { version: 1, threads: Array.from(this.threadsById.values()) };
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.writeFileSync(storePath, JSON.stringify(payload), 'utf-8');
+    } catch {
+      // ignore IO errors
+    }
+  }
+
+  private loadFromDisk(): void {
+    try {
+      const storePath = this.getStorePath();
+      if (!storePath) return;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      if (!fs.existsSync(storePath)) return;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      const data = fs.readFileSync(storePath, 'utf-8');
+      const parsed = JSON.parse(data) as { version?: number; threads?: Thread[] };
+      const threads = Array.isArray(parsed.threads) ? parsed.threads : [];
+      this.threadsById.clear();
+      this.idempotencyIndex.clear();
+      for (const t of threads) {
+        if (typeof t.id !== 'string' || !Array.isArray(t.messages)) continue;
+        this.threadsById.set(t.id, {
+          id: t.id,
+          title: t.title ?? '',
+          metadata: { ...(t.metadata ?? {}) },
+          messages: t.messages.map((m) => ({ ...m })),
+          createdAt: t.createdAt ?? Date.now(),
+          updatedAt: t.updatedAt ?? Date.now(),
+          deletedAt: t.deletedAt ?? null,
+        });
+        for (const m of t.messages) {
+          const key = typeof m.clientMessageId === 'string' ? m.clientMessageId : undefined;
+          if (key) {
+            if (!this.idempotencyIndex.has(t.id)) this.idempotencyIndex.set(t.id, new Map());
+            const index = this.idempotencyIndex.get(t.id);
+            if (index) index.set(key, m.id);
+          }
+        }
+      }
+    } catch {
+      // ignore malformed store
+    }
   }
 }
 
-// Export a singleton instance for simple usage in the UI layer.
-export const threadsService = new ThreadsService();
+export const threadRepository = new ThreadRepository();
 
-export default ThreadsService;
+export default ThreadRepository;
+

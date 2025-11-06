@@ -4,6 +4,7 @@
   import ActivityListSidebar from './ActivityListSidebar.svelte';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import { SIDEBAR_STORAGE_KEY } from '$lib/constants/sidebar.constant';
+  import { push } from 'svelte-spa-router';
 
   let selectedActivity = $state<SidebarActivity | null>(null);
 
@@ -15,6 +16,10 @@
       catch (error) {
         console.error('Failed to parse sidebar activity:', error);
       }
+    }
+
+    if (selectedActivity?.route) {
+      push(selectedActivity.route);
     }
   });
 

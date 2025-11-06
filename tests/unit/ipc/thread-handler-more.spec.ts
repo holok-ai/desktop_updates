@@ -40,8 +40,8 @@ describe('thread-handler additional branches', () => {
       },
     }));
 
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         createThread: (m: any) => ({
           id: 't1',
           metadata: m,
@@ -71,8 +71,8 @@ describe('thread-handler additional branches', () => {
       },
     }));
 
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         createThread: (m: any) => ({
           id: 't2',
           metadata: m,
@@ -96,8 +96,8 @@ describe('thread-handler additional branches', () => {
   });
 
   it('getById returns null when thread not found', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         loadThread: (id: string) => undefined,
         createThread: (metadata: any) => ({
           id: 's',
@@ -117,8 +117,8 @@ describe('thread-handler additional branches', () => {
   });
 
   it('thread:delete returns false when deleteThread returns false', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         deleteThread: (id: string) => false,
         createThread: (metadata: any) => ({
           id: 's',

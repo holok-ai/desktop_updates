@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import ThreadsService from '../../../src-electron/services/threads-service';
+import ThreadRepository from '../../../src-electron/repository/thread-repository';
 
-describe('ThreadsService (unit)', () => {
-  let svc: ThreadsService;
+describe('ThreadRepository (unit)', () => {
+  let svc: ThreadRepository;
 
   beforeEach(() => {
-    svc = new ThreadsService();
+    svc = new ThreadRepository();
     svc.clearAll();
   });
 
