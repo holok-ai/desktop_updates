@@ -24,6 +24,7 @@
     placeholder="Write a message..."
     rows={3}
     disabled={isStreaming}
+    data-testid="message-input"
     onkeydown={(e) => {
       // Send on Enter (without Shift). Allow Shift+Enter for newline.
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -33,7 +34,7 @@
     }}
   ></textarea>
   <div class="actions">
-    <button class="primary" onclick={send} disabled={isStreaming || !text.trim()}>
+    <button class="primary" onclick={send} disabled={isStreaming || !text.trim()} data-testid="send-button">
       {isStreaming ? 'Sending...' : 'Send'}
     </button>
   </div>
@@ -50,8 +51,9 @@
   }
 
   .composer textarea:disabled {
-    background-color: #f5f5f5;
+    opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
   }
 
   .actions {
