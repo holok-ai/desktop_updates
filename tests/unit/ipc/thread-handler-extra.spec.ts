@@ -27,8 +27,8 @@ describe('thread-handler extra branches', () => {
 
   it('getAll maps archived and defaults invalid status to active', async () => {
     // mock threads-service
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         listThreads: () => [
           {
             id: '1',
@@ -66,8 +66,8 @@ describe('thread-handler extra branches', () => {
   });
 
   it('create throws when createThread returns undefined', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         createThread: () => undefined,
       },
     }));
@@ -81,8 +81,8 @@ describe('thread-handler extra branches', () => {
   });
 
   it('addAssistantResponse throws when loadThread returns undefined', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         addAssistantResponse: () => ({
           id: 'm1',
           role: 'assistant',
@@ -109,8 +109,8 @@ describe('thread-handler extra branches', () => {
   });
 
   it('savePromptAndResponses throws when conversion fails', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         savePromptAndResponses: () => ({
           thread: undefined,
           promptMessage: { id: 'p', role: 'user', content: 'q', createdAt: Date.now() },
@@ -135,8 +135,8 @@ describe('thread-handler extra branches', () => {
   });
 
   it('update accepts and applies valid status values', async () => {
-    vi.doMock('../../../src-electron/services/threads-service', () => ({
-      threadsService: {
+    vi.doMock('../../../src-electron/repository/thread-repository', () => ({
+      threadRepository: {
         loadThread: (id: string) => ({
           id,
           metadata: { title: 't' },

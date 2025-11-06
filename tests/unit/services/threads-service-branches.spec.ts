@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import ThreadsService from '../../../src-electron/services/threads-service';
+import ThreadRepository from '../../../src-electron/repository/thread-repository';
 
-describe('ThreadsService branches (error paths)', () => {
-  let svc: ThreadsService;
+describe('ThreadRepository branches (error paths)', () => {
+  let svc: ThreadRepository;
 
   beforeEach(() => {
-    svc = new ThreadsService();
+    svc = new ThreadRepository();
     svc.clearAll();
   });
 
@@ -24,7 +24,7 @@ describe('ThreadsService branches (error paths)', () => {
   it('replaceMessages throws when thread missing', () => {
     expect(() =>
       svc.replaceMessages('nope', [
-        { id: 'm1', role: 'user', content: 'x', createdAt: Date.now() },
+        { id: 'm1', role: 'user', content: 'x', createdAt: Date.now(), title: 'x' },
       ]),
     ).toThrow('Thread not found');
   });
@@ -75,7 +75,7 @@ describe('ThreadsService branches (error paths)', () => {
   it('replaceMessages replaces messages when thread exists', () => {
     const t = svc.createThread({ title: 'r' });
     svc.addMessage(t.id, 'user', 'old');
-    const newMsgs = [{ id: 'x', role: 'assistant' as const, content: 'n1', createdAt: Date.now() }];
+    const newMsgs = [{ id: 'x', role: 'assistant' as const, content: 'n1', createdAt: Date.now(), title: 'x' }];
     const updated = svc.replaceMessages(t.id, newMsgs);
     expect(updated.messages).toHaveLength(1);
     expect(updated.messages[0].content).toBe('n1');

@@ -34,7 +34,10 @@
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
-        try { window.localStorage.setItem('lastThreadId', tid); } catch {}
+        try { window.localStorage.setItem('lastThreadId', tid); }
+        catch (error) {
+          console.error('Failed to set lastThreadId', error);
+        }
       } else {
         // Fallback to last selected from localStorage
         try {
@@ -65,7 +68,12 @@
   function select(item: { id: string; label: string }) {
     dispatch('select', item);
     selectedThreadId = item.id;
-    try { window.localStorage.setItem('lastThreadId', item.id); } catch {}
+    try {
+      window.localStorage.setItem('lastThreadId', item.id);
+    }
+    catch (error) {
+      console.error('Failed to set lastThreadId', error);
+    }
 
     if ((item as SidebarActivity).route === ROUTE.THREADS) {
       push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);

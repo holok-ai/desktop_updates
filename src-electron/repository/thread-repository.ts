@@ -126,7 +126,8 @@ export class ThreadRepository {
     this.threadsById.set(thread.id, thread);
     if (payload.clientMessageId) {
       if (!this.idempotencyIndex.has(threadId)) this.idempotencyIndex.set(threadId, new Map());
-      this.idempotencyIndex.get(threadId)!.set(payload.clientMessageId, message.id);
+      const index = this.idempotencyIndex.get(threadId);
+      if (index) index.set(payload.clientMessageId, message.id);
     }
     this.saveToDisk();
     return { ...message };
@@ -264,6 +265,7 @@ export class ThreadRepository {
       const storePath = this.getStorePath();
       if (!storePath) return;
       const payload = { version: 1, threads: Array.from(this.threadsById.values()) };
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       fs.writeFileSync(storePath, JSON.stringify(payload), 'utf-8');
     } catch {
       // ignore IO errors
@@ -274,7 +276,9 @@ export class ThreadRepository {
     try {
       const storePath = this.getStorePath();
       if (!storePath) return;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       if (!fs.existsSync(storePath)) return;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       const data = fs.readFileSync(storePath, 'utf-8');
       const parsed = JSON.parse(data) as { version?: number; threads?: Thread[] };
       const threads = Array.isArray(parsed.threads) ? parsed.threads : [];
@@ -295,7 +299,8 @@ export class ThreadRepository {
           const key = typeof m.clientMessageId === 'string' ? m.clientMessageId : undefined;
           if (key) {
             if (!this.idempotencyIndex.has(t.id)) this.idempotencyIndex.set(t.id, new Map());
-            this.idempotencyIndex.get(t.id)!.set(key, m.id);
+            const index = this.idempotencyIndex.get(t.id);
+            if (index) index.set(key, m.id);
           }
         }
       }

@@ -55,9 +55,10 @@ test.describe('E2E: Chat prompt/response', () => {
     // Ensure a thread exists by creating one via secondary sidebar quick action
     await page.getByRole('menuitem', { name: 'Home' }).click();
     const newThreadMenuItem = page.getByRole('menuitem', { name: 'New Thread' });
+    let threadName = 'E2E Chat Thread';
     if (await newThreadMenuItem.count()) {
       await newThreadMenuItem.click();
-      await page.getByLabel('Title').fill('E2E Chat Thread');
+      await page.getByLabel('Title').fill(threadName);
       await page.getByLabel('Description').fill('testing chat');
       await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
@@ -65,7 +66,21 @@ test.describe('E2E: Chat prompt/response', () => {
 
     // Switch back to Threads activity and select the created thread from the grouped list
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await page.getByRole('menuitem', { name: 'E2E Chat Thread' }).click();
+    
+    // Thread might be in Recent section or other grouped sections
+    // Use .first() to handle strict mode violation (duplicate items)
+    const threadItem = page.getByRole('menuitem', { name: threadName }).first();
+    if (await threadItem.count() === 0) {
+      // Try to find by clicking through sections
+      const sections = page.locator('[role="button"]').filter({ hasText: /Recent|Yesterday|Last 7 Days/ });
+      if (await sections.count() > 0) {
+        await sections.first().click();
+        await page.waitForTimeout(300);
+      }
+    }
+    
+    await expect(threadItem).toBeVisible({ timeout: 5000 });
+    await threadItem.click();
 
     // Compose a prompt
     const prompt = 'Hello';
