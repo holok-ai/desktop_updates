@@ -2,13 +2,11 @@
   import { onMount, createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
   import type { Thread } from '../../../src-electron/preload';
-  import { threadService } from '$lib/services/thread.service';
   import { outboxService } from '$lib/services/outbox.service';
   import { networkService } from '$lib/services/network.service';
+  import { MessageTransmitter } from '$lib/services/message-transmitter.service';
   import type { Message } from '$lib/types/thread.type';
-  import type { MessageStatus } from '$lib/types/status.type';
   import MessageBubble from './MessageBubble.svelte';
-  import { MESSAGE_STATUS } from '$lib/constants/status.constant';
 
   interface Props {
     thread?: Thread | null;
@@ -27,6 +25,26 @@
   let error = $state('');
   let isOnline = $state(true);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+
+  // Initialize message transmitter
+  const transmitter = new MessageTransmitter({
+    onMessageUpdate: (update) => {
+      messages = messages.map((message) =>
+        message.id === update.messageId 
+          ? { ...message, status: update.status, error: update.error, retryCount: update.retryCount ?? message.retryCount } 
+          : message
+      );
+    },
+    onMessagesReplace: (newMessages) => {
+      messages = newMessages;
+    },
+    onMessageAdd: (message) => {
+      messages = [...messages, message];
+    },
+    onThreadCreated: (newThread, tempId) => {
+      dispatch('threadCreated', { thread: newThread, tempId });
+    }
+  });
 
   // Subscribe to network status and process queue only on offline->online transition
   let wasOnline = networkService.getCurrentStatus();
@@ -70,63 +88,12 @@
     });
   }
 
-  // Update message status in the UI
-  function updateMessageStatus(messageId: string, status: MessageStatus, errorMsg?: string) {
-    messages = messages.map((message) =>
-      message.id === messageId ? { ...message, status, error: errorMsg } : message
-    );
-  }
-
   // Retry sending a failed message
   async function retryMessage(messageId: string) {
     const message = messages.find((message) => message.id === messageId);
     if (!message || !thread) return;
 
-    updateMessageStatus(messageId, MESSAGE_STATUS.SENDING);
-    await persistMessage(message, thread.id);
-  }
-
-  // Persist message with retry logic and timeout
-  async function persistMessage(message: Message, threadId: string): Promise<boolean> {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), outboxService.getTimeout())
-    );
-
-    try {
-      const persistPromise = threadService.appendMessage(threadId, {
-        role: message.role,
-        content: message.content,
-        metadata: { provider: 'ollama', model: 'llama3:latest' },
-        clientMessageId: message.clientMessageId,
-      });
-
-      const persisted = await Promise.race([persistPromise, timeoutPromise]);
-
-      if (persisted.success) {
-        updateMessageStatus(message.id, MESSAGE_STATUS.SENT);
-        await outboxService.removePendingMessage(message.id);
-        return true;
-      } else {
-        throw new Error(persisted.error);
-      }
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : 'Failed to send';
-      updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
-      await outboxService.updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
-
-      // Schedule retry if possible
-      if (outboxService.canRetry(message.id)) {
-        const retryCount = (message.retryCount || 0) + 1;
-        messages = messages.map((m) =>
-          m.id === message.id ? { ...m, retryCount } : m
-        );
-
-        outboxService.scheduleRetry(message.id, async () => {
-          await retryMessage(message.id);
-        });
-      }
-      return false;
-    }
+    await transmitter.retryMessage(message, thread.id);
   }
 
   // Send message and handle streaming response
@@ -140,41 +107,16 @@
 
     error = '';
 
-    // Generate client message ID for idempotency
-    const clientMessageId = crypto.randomUUID();
-    const isTemp = !!thread && typeof thread.id === 'string' && thread.id.startsWith('temp_');
+    // Create and add optimistic message
+    const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
 
-    // Determine initial status based on network connectivity
-    const initialStatus: MessageStatus = isOnline ? MESSAGE_STATUS.SENDING : MESSAGE_STATUS.PENDING_OFFLINE;
-
-    // Create optimistic message - render immediately
-    const userMsg: Message = {
-      id: clientMessageId,
-      role: 'user',
-      content: userMessage,
-      createdAt: Date.now(),
-      status: initialStatus,
-      clientMessageId,
-      retryCount: 0,
-    };
-
-    // Render immediately (< 100ms requirement)
-    messages = [...messages, userMsg];
-
-    // Add to outbox for resilience
-    if (thread && !isTemp) {
-      await outboxService.addPendingMessage(userMsg, thread.id);
-    }
+    // Send the user message (handles outbox and persistence)
+    await transmitter.sendUserMessage(userMsg, thread, isOnline);
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
       isStreaming = false;
       return;
-    }
-
-    // Persist to memory storage if thread exists
-    if (thread && !isTemp) {
-      await persistMessage(userMsg, thread.id);
     }
 
     try {
@@ -192,63 +134,8 @@
         error = result.error || 'Chat failed';
         console.error('Chat failed:', result.error);
       } else {
-        // After streaming completes
-        if (thread && !isTemp) {
-          // Append assistant response to existing thread
-          const assistantPersist = await threadService.appendMessage(thread.id, {
-            role: 'assistant',
-            content: responseText,
-            metadata: { provider: 'ollama', model: 'llama3:latest' },
-            clientMessageId: crypto.randomUUID(),
-          });
-
-          if (assistantPersist.success) {
-            const assistantMsg: Message = {
-              id: assistantPersist.message.id,
-              role: 'assistant',
-              content: responseText,
-              createdAt: assistantPersist.message.createdAt,
-              status: MESSAGE_STATUS.SENT,
-            };
-            messages = [...messages, assistantMsg];
-          } else {
-            const assistantMsg: Message = {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: responseText,
-              createdAt: Date.now(),
-              status: MESSAGE_STATUS.FAILED,
-            };
-            messages = [...messages, assistantMsg];
-          }
-        } else {
-          // No thread yet: persist both prompt + response atomically and create thread now
-          const saved = await window.electronAPI.thread.savePromptAndResponses(
-            null,
-            userMessage,
-            [{ text: responseText, model: 'llama3:latest' }],
-            { title: thread?.title ?? '', description: thread?.description ?? '' },
-          );
-          // Replace local messages with canonical saved ones
-          messages = [
-            {
-              id: saved.promptMessage.id,
-              role: saved.promptMessage.role as any,
-              content: saved.promptMessage.content,
-              createdAt: saved.promptMessage.createdAt,
-              status: MESSAGE_STATUS.SENT,
-            },
-            ...saved.responseMessages.map((m) => ({
-              id: m.id,
-              role: m.role as any,
-              content: m.content,
-              createdAt: m.createdAt,
-              status: MESSAGE_STATUS.SENT,
-            })),
-          ];
-          // Notify parent to adopt the new thread
-          dispatch('threadCreated', { thread: saved.thread, tempId: thread?.id });
-        }
+        // After streaming completes, handle assistant response
+        await transmitter.handleAssistantResponse(responseText, thread, userMessage);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -267,57 +154,13 @@
   // Process pending messages when coming back online
   async function processPendingMessages() {
     const map = get(outboxService.pending);
-    for (const [messageId, pendingMsg] of map) {
-      if (pendingMsg.threadId === thread?.id) {
-        updateMessageStatus(messageId, MESSAGE_STATUS.SENDING);
-        const persisted = await persistMessage(pendingMsg.message, pendingMsg.threadId);
-        if (persisted) {
-          // After persisting the user message, trigger assistant response
-          try {
-            isStreaming = true;
-            setupTokenListener();
-            const request = {
-              messages: [{ role: 'user', content: pendingMsg.message.content }],
-              streaming: true,
-              model: 'llama3:latest',
-            };
-            const result = await window.electronAPI.chat.chat(request);
-            if (result.success && thread) {
-              const assistantPersist = await threadService.appendMessage(thread.id, {
-                role: 'assistant',
-                content: responseText,
-                metadata: { provider: 'ollama', model: 'llama3:latest' },
-                clientMessageId: crypto.randomUUID(),
-              });
-              if (assistantPersist.success) {
-                const assistantMsg: Message = {
-                  id: assistantPersist.message.id,
-                  role: 'assistant',
-                  content: responseText,
-                  createdAt: assistantPersist.message.createdAt,
-                  status: MESSAGE_STATUS.SENT,
-                };
-                messages = [...messages, assistantMsg];
-              } else {
-                const assistantMsg: Message = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: responseText,
-                  createdAt: Date.now(),
-                  status: MESSAGE_STATUS.FAILED,
-                };
-                messages = [...messages, assistantMsg];
-              }
-            }
-          } catch (error) {
-            console.error('Error processing pending message:', error);
-          } finally {
-            isStreaming = false;
-            window.electronAPI.chat.offToken();
-          }
-        }
-      }
-    }
+    await transmitter.processPendingMessages(thread, map, {
+      setupTokenListener,
+      getResponseText: () => responseText,
+      chat: (request) => window.electronAPI.chat.chat(request),
+      setStreaming: (streaming) => { isStreaming = streaming; },
+      offToken: () => window.electronAPI.chat.offToken()
+    });
   }
 
   // Lifecycle hooks
