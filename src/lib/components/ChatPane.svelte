@@ -10,8 +10,6 @@
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
-  import type { MessageStatus } from '$lib/types/status.type';
-  import { MESSAGE_STATUS } from '$lib/constants/status.constant';
 
   interface Props {
     thread?: Thread | null;
@@ -96,63 +94,12 @@
     });
   }
 
-  // Update message status in the UI
-  function updateMessageStatus(messageId: string, status: MessageStatus, errorMsg?: string) {
-    messages = messages.map((message) =>
-      message.id === messageId ? { ...message, status, error: errorMsg } : message
-    );
-  }
-
   // Retry sending a failed message
   async function retryMessage(messageId: string) {
     const message = messages.find((message) => message.id === messageId);
     if (!message || !thread) return;
 
-    updateMessageStatus(messageId, MESSAGE_STATUS.SENDING);
-    await persistMessage(message, thread.id);
-  }
-
-  // Persist message with retry logic and timeout
-  async function persistMessage(message: Message, threadId: string): Promise<boolean> {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), outboxService.getTimeout())
-    );
-
-    try {
-      const persistPromise = threadService.appendMessage(threadId, {
-        role: message.role,
-        content: message.content,
-        metadata: { provider: 'ollama', model: 'llama3:latest' },
-        clientMessageId: message.clientMessageId,
-      });
-
-      const persisted = await Promise.race([persistPromise, timeoutPromise]);
-
-      if (persisted.success) {
-        updateMessageStatus(message.id, MESSAGE_STATUS.SENT);
-        await outboxService.removePendingMessage(message.id);
-        return true;
-      } else {
-        throw new Error(persisted.error);
-      }
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : 'Failed to send';
-      updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
-      await outboxService.updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
-
-      // Schedule retry if possible
-      if (outboxService.canRetry(message.id)) {
-        const retryCount = (message.retryCount || 0) + 1;
-        messages = messages.map((m) =>
-          m.id === message.id ? { ...m, retryCount } : m
-        );
-
-        outboxService.scheduleRetry(message.id, async () => {
-          await retryMessage(message.id);
-        });
-      }
-      return false;
-    }
+    await transmitter.retryMessage(message, thread.id);
   }
 
   // Send message and handle streaming response
@@ -176,21 +123,6 @@
     if (!isOnline) {
       isStreaming = false;
       return;
-    }
-
-    // subscribe to state changes for this clientMessageId and update UI message status
-    const unsubscribe = messageStateMachine.subscribe(clientMessageId, (snap) => {
-      const idx = messages.findIndex((m) => m.clientMessageId === clientMessageId || m.id === clientMessageId);
-      if (idx === -1) return;
-      const m = messages[idx];
-      const updated: Message = { ...m, status: snap.state, attemptCount: snap.attemptCount };
-      messages = [...messages.slice(0, idx), updated, ...messages.slice(idx + 1)];
-      statusMetadataByClientId.set(clientMessageId, snap.metadata ?? {});
-    });
-
-    // Persist to memory storage if thread exists
-    if (thread && !isTemp) {
-      await persistMessage(userMsg, thread.id);
     }
 
     try {
