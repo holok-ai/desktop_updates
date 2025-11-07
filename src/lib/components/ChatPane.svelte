@@ -21,6 +21,15 @@
     >;
   }
 
+  function retryMessage(clientMessageId: string) {
+    if (!thread) return;
+    try {
+      messageStateMachine.handleEvent({ type: 'RETRY_TRIGGER', clientMessageId, threadId: thread.id });
+    } catch (e) {
+      console.error('Failed to trigger retry', e);
+    }
+  }
+
   let { thread = null, messages = [], composer }: Props = $props();
 
   // State management
@@ -125,6 +134,20 @@
       return;
     }
 
+    // subscribe to state changes for this clientMessageId and update UI message status
+    const unsubscribe = messageStateMachine.subscribe(clientMessageId, (snap) => {
+      const idx = messages.findIndex((m) => m.clientMessageId === clientMessageId || m.id === clientMessageId);
+      if (idx === -1) return;
+      const m = messages[idx];
+      const updated: Message = { ...m, status: snap.state, attemptCount: snap.attemptCount };
+      messages = [...messages.slice(0, idx), updated, ...messages.slice(idx + 1)];
+      statusMetadataByClientId.set(clientMessageId, snap.metadata ?? {});
+    });
+
+    // remember to unsubscribe on cleanup
+    if (!stateUnsubs) stateUnsubs = new Map();
+    stateUnsubs.set(clientMessageId, unsubscribe);
+
     try {
       isStreaming = true;
       setupTokenListener();
@@ -226,6 +249,15 @@
   async function cleanup() {
     window.electronAPI.chat.offToken();
     await window.electronAPI.chat.close();
+    // unsubscribe any state subscriptions
+    try {
+      for (const unsub of Array.from(stateUnsubs.values())) unsub();
+    } catch (e) {
+      // ignore
+    }
+    stateUnsubs.clear();
+    // remove ipc listeners
+    if (ipcUnsubOnMessageError) ipcUnsubOnMessageError();
   }
 
   // Process pending messages when coming back online
@@ -244,6 +276,20 @@
   onMount(() => {
     outboxService.init();
     initializeChatService();
+
+    // Listen for message error events from main process and forward to FSM
+    try {
+      ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
+        const clientId = evt?.client_message_id ?? evt?.clientMessageId;
+        const threadId = evt?.thread_id ?? evt?.threadId ?? (thread ? thread.id : undefined);
+        const errorObj = evt?.error ?? {};
+        if (typeof clientId === 'string' && clientId.length > 0 && typeof threadId === 'string') {
+          messageStateMachine.handleEvent({ type: 'FAIL', clientMessageId: clientId, threadId, errorCode: (errorObj as any).code, errorMessage: (errorObj as any).message });
+        }
+      });
+    } catch (e) {
+      // ignore if API not available
+    }
 
     return () => {
       cleanup();

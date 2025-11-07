@@ -435,7 +435,6 @@ export class MessageStateMachine {
       // otherwise, assume server will emit ACK and FSM will reconcile
     } catch (e) {
       // On unexpected errors, transition to failed and do not schedule more retries here
-
       console.error('performRetry error', e);
       this.handleEvent({
         type: 'FAIL',
