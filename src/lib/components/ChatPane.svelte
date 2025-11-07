@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, createEventDispatcher, tick } from 'svelte';
   import type { Thread } from '../../../src-electron/preload';
   import { threadService } from '$lib/services/thread.service';
 
@@ -25,7 +25,158 @@
   let responseText = $state('');
   let isStreaming = $state(false);
   let error = $state('');
-  const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+  const dispatch = createEventDispatcher<any>();
+
+  // UI state for per-message actions
+  let openMenuForId = $state<string | null>(null);
+  let toast = $state('');
+  let toastTimeout: number | null = null;
+  // Inline edit state
+  let editingMessageId = $state<string | null>(null);
+  let editingText = $state('');
+  // Calculated inline styles for menus (position fixed to avoid scroll clipping)
+  let menuStyles = $state<Record<string, string>>({} as Record<string, string>);
+
+  function showToast(message: string, ms = 2500) {
+    toast = message;
+    if (toastTimeout) window.clearTimeout(toastTimeout);
+    // @ts-ignore - window.setTimeout returns number in browser
+    toastTimeout = window.setTimeout(() => (toast = ''), ms);
+  }
+
+  async function handleCopy(content: string) {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        // Fallback: attempt to use execCommand (older) or log
+        const ta = document.createElement('textarea');
+        ta.value = content;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      showToast('Prompt copied to clipboard');
+      openMenuForId = null;
+    } catch (e) {
+      console.error('Copy failed', e);
+      showToast('Failed to copy prompt');
+      openMenuForId = null;
+    }
+  }
+
+  function handleEdit(messageId: string) {
+    const msg = messages.find((mm) => mm.id === messageId);
+    editingMessageId = messageId;
+    editingText = msg ? msg.content : '';
+    openMenuForId = null;
+  }
+
+  function cancelEdit() {
+    editingMessageId = null;
+    editingText = '';
+    showToast('Edit cancelled');
+  }
+
+  async function runEditedPrompt() {
+    if (!editingText || !editingText.trim()) {
+      showToast('Cannot run empty prompt');
+      return;
+    }
+    const toSend = editingText;
+    // Clear edit state before sending to avoid double UI states
+    editingMessageId = null;
+    editingText = '';
+    await sendMessage(toSend);
+  }
+
+  async function handleRunAgain(content: string) {
+    openMenuForId = null;
+    // Reuse sendMessage flow to append and generate a new response
+    await sendMessage(content);
+  }
+
+  function handleRunInAnotherModel(content: string) {
+    openMenuForId = null;
+    // Notify parent to open prefilled new-thread view
+    dispatch('openNewThreadPrefill', { prompt: content });
+    // Also emit a global DOM event as a fallback for listeners attached outside Svelte
+    try {
+      window.dispatchEvent(
+        new CustomEvent('openNewThreadPrefill', { detail: { prompt: content } }),
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  // Accessibility helpers for action menus
+  async function toggleMenuFor(id: string) {
+    const willOpen = openMenuForId !== id;
+    openMenuForId = willOpen ? id : null;
+    if (willOpen) {
+      await tick();
+      const btn = document.querySelector<HTMLButtonElement>(`[data-action-btn="${id}"]`);
+      const first = document
+        .getElementById(`action-menu-${id}`)
+        ?.querySelector<HTMLButtonElement>('.action-item');
+      const menuEl = document.getElementById(`action-menu-${id}`) as HTMLElement | null;
+      if (btn && menuEl) {
+        const rect = btn.getBoundingClientRect();
+        const top = Math.round(rect.bottom - 50);
+        menuStyles = {
+          ...(menuStyles ?? {}),
+          [id]: `position: fixed; right: 60px; top: ${top}px;`,
+        } as Record<string, string>;
+      } else if (btn) {
+        // fallback if menu element not measured yet
+        const rect = btn.getBoundingClientRect();
+        const menuWidth = 180;
+        const center = rect.left + rect.width / 2;
+        let left = Math.round(center - menuWidth / 2);
+        const margin = 8;
+        if (left + menuWidth > window.innerWidth - margin)
+          left = Math.round(window.innerWidth - margin - menuWidth);
+        if (left < margin) left = margin;
+        const top = Math.round(rect.bottom + 12);
+        menuStyles = {
+          ...(menuStyles ?? {}),
+          [id]: `position: fixed; left: ${left}px; top: ${top}px;`,
+        } as Record<string, string>;
+      }
+      first?.focus();
+    } else {
+      // closed
+      if (menuStyles && menuStyles[id]) {
+        const copy = { ...(menuStyles ?? {}) } as Record<string, string>;
+        delete copy[id];
+        menuStyles = copy;
+      }
+    }
+  }
+
+  function onMenuKeydown(e: KeyboardEvent, id: string) {
+    const menu = document.getElementById(`action-menu-${id}`);
+    if (!menu) return;
+    const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('.action-item'));
+    const current = document.activeElement as HTMLButtonElement | null;
+    const idx = current ? items.indexOf(current) : -1;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = items[(idx + 1) % items.length];
+      next?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = items[(idx - 1 + items.length) % items.length];
+      prev?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      openMenuForId = null;
+    }
+  }
 
   // Initialize chat service on mount
   async function initializeChatService() {
@@ -223,14 +374,123 @@
       <div class="error-banner">{error}</div>
     {/if}
 
+    {#if toast}
+      <div class="toast">{toast}</div>
+    {/if}
+
     <div class="messages">
       {#if messages.length === 0}
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
         {#each messages as m (m.id)}
-          <div class="message {m.role}">
-            <div class="message-content">{m.content}</div>
-            <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
+          <div
+            class="message {m.role}"
+            role="button"
+            aria-label={`${m.role} message`}
+            tabindex="0"
+            onkeydown={(e) => {
+              // Allow context-menu key on focused message to open actions
+              if (e.key === 'ContextMenu' || (e.key === 'F10' && (e as KeyboardEvent).shiftKey)) {
+                e.preventDefault();
+                toggleMenuFor(m.id);
+              }
+            }}
+          >
+            {#if editingMessageId === m.id}
+              <div class="message-edit">
+                <textarea
+                  class="edit-input"
+                  bind:value={editingText}
+                  onkeydown={(e) => {
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                ></textarea>
+                <div class="edit-actions">
+                  <button class="action-item" onclick={() => cancelEdit()}>Cancel</button>
+                  <button class="action-item" onclick={() => runEditedPrompt()}>Run Prompt</button>
+                </div>
+              </div>
+              <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
+            {:else}
+              <div class="message-content">{m.content}</div>
+              <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
+            {/if}
+
+            <div class="message-actions">
+              <button
+                class="icon-button"
+                data-action-btn={m.id}
+                aria-haspopup="true"
+                aria-expanded={openMenuForId === m.id}
+                aria-controls={`action-menu-${m.id}`}
+                aria-label="Open actions for prompt"
+                onclick={() => toggleMenuFor(m.id)}
+                onkeydown={(e) => {
+                  // Context menu key or Shift+F10
+                  if (
+                    e.key === 'ContextMenu' ||
+                    (e.key === 'F10' && (e as KeyboardEvent).shiftKey)
+                  ) {
+                    e.preventDefault();
+                    toggleMenuFor(m.id);
+                  }
+                }}
+              >
+                ⋯
+              </button>
+
+              {#if openMenuForId === m.id}
+                <div
+                  id={`action-menu-${m.id}`}
+                  class="action-menu"
+                  role="menu"
+                  tabindex="-1"
+                  onkeydown={(e) => onMenuKeydown(e as KeyboardEvent, m.id)}
+                  style={menuStyles[m.id] ?? ''}
+                >
+                  <button
+                    data-testid="copy-prompt-to-clipboard"
+                    class="action-item"
+                    role="menuitem"
+                    tabindex="0"
+                    onclick={() => handleCopy(m.content)}
+                    aria-label="Copy prompt to clipboard"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    data-testid="edit-prompt"
+                    class="action-item"
+                    role="menuitem"
+                    tabindex="0"
+                    onclick={() => handleEdit(m.id)}
+                    aria-label="Edit prompt inline"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    data-testid="run-again"
+                    class="action-item"
+                    role="menuitem"
+                    tabindex="0"
+                    onclick={() => handleRunAgain(m.content)}
+                    aria-label="Run this prompt again in this thread"
+                  >
+                    Run again
+                  </button>
+                  <button
+                    data-testid="run-in-another-model"
+                    class="action-item"
+                    role="menuitem"
+                    tabindex="0"
+                    onclick={() => handleRunInAnotherModel(m.content)}
+                    aria-label="Run this prompt in another model"
+                  >
+                    Run in another model
+                  </button>
+                </div>
+              {/if}
+            </div>
           </div>
         {/each}
       {/if}
@@ -266,7 +526,87 @@
   .chat-header h2 {
     margin: 0;
   }
-  .icon-button { background: transparent; border: none; font-size: 20px; cursor: pointer; }
+  .icon-button {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    color: inherit;
+  }
+  .icon-button:focus {
+    outline: none;
+    border-color: rgba(100, 108, 255, 0.28);
+    box-shadow: 0 0 0 4px rgba(100, 108, 255, 0.08);
+  }
+
+  .message-actions {
+    position: absolute;
+    right: 0.5rem;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .action-menu {
+    background: var(--surface-card);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    z-index: 60;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.6);
+  }
+  .action-item {
+    background: transparent;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.95rem;
+  }
+  .action-item:focus,
+  .action-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .toast {
+    position: absolute;
+    right: 1rem;
+    top: 3.5rem;
+    background: #111827;
+    color: #fff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  .message-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .edit-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-family: inherit;
+  }
+  .edit-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
 
   .error-banner {
     background-color: #fee;
@@ -285,6 +625,8 @@
 
   .message {
     margin-bottom: 1rem;
+    position: relative;
+    padding-right: 4.5rem; /* space for action button */
   }
 
   .message.user .message-content {

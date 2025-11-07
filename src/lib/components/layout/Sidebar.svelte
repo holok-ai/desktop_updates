@@ -11,9 +11,9 @@
   onMount(() => {
     const sidebarActivity = localStorage.getItem(SIDEBAR_STORAGE_KEY);
     if (sidebarActivity) {
-      try { selectedActivity = JSON.parse(sidebarActivity); }
-
-      catch (error) {
+      try {
+        selectedActivity = JSON.parse(sidebarActivity);
+      } catch (error) {
         console.error('Failed to parse sidebar activity:', error);
       }
     }
@@ -27,15 +27,14 @@
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(selectedActivity));
   });
 
-  function handleActivitySelect(event: CustomEvent<{id:string,label:string,icon?:string}>) {
+  function handleActivitySelect(event: CustomEvent<{ id: string; label: string; icon?: string }>) {
     selectedActivity = event.detail;
   }
-
 </script>
 
 <div class="dual-sidebar-layout">
-  <ActivitySidebar on:select={handleActivitySelect}/>
-  <ActivityListSidebar activity={selectedActivity}/>
+  <ActivitySidebar on:select={handleActivitySelect} />
+  <ActivityListSidebar activity={selectedActivity} />
 </div>
 
 <style>

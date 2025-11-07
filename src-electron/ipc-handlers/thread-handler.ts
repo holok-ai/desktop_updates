@@ -18,7 +18,12 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
     id: t.id,
-    title: t.title && t.title.length > 0 ? t.title : (typeof t.metadata?.title === 'string' ? t.metadata.title : ''),
+    title:
+      t.title && t.title.length > 0
+        ? t.title
+        : typeof t.metadata?.title === 'string'
+          ? t.metadata.title
+          : '',
     description: t.metadata?.description ?? '',
     // Normalize status from metadata if present and valid, otherwise default to 'active'
     status: (() => {
@@ -163,7 +168,6 @@ export function initializeSampleData(): void {
 export { broadcast, generateId };
 
 export function registerThreadHandlers(): void {
-
   // No external persistence; threadsService is memory-only
 
   ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
@@ -182,9 +186,10 @@ export function registerThreadHandlers(): void {
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
   ipcMain.handle(
     'thread:getMessages',
-    (_event, id: string): Promise<
-      { id: string; role: string; content: string; createdAt: number }[]
-    > => {
+    (
+      _event,
+      id: string,
+    ): Promise<{ id: string; role: string; content: string; createdAt: number }[]> => {
       const t = threadRepository.loadThread(id);
       if (!t) return Promise.resolve([]);
       const items = t.messages
@@ -192,6 +197,85 @@ export function registerThreadHandlers(): void {
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt }));
       return Promise.resolve(items);
+    },
+  );
+
+  // Duplicate message (Run again) — create a new user prompt from existing user message
+  ipcMain.handle(
+    'thread:duplicateMessage',
+    (
+      _event,
+      threadId: string,
+      messageId: string,
+    ): Promise<
+      | {
+          success: true;
+          message: { id: string; role: string; content: string; createdAt: number };
+          thread: RendererThread;
+        }
+      | { success: false; status: number; error: string; thread_id?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+          thread_id: threadId,
+        });
+      }
+
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
+      }
+
+      try {
+        const msg = threadRepository.duplicateMessage(threadId, messageId);
+        const rt = toRendererThread(threadRepository.loadThread(threadId));
+        if (!rt) throw new Error('Failed to convert thread after duplicate');
+
+        broadcast('thread:updated', rt);
+        broadcast('message:persisted', {
+          thread_id: threadId,
+          message_id: msg.id,
+          timestamp: new Date(msg.createdAt).toISOString(),
+        });
+
+        return Promise.resolve({
+          success: true,
+          message: { id: msg.id, role: msg.role, content: msg.content, createdAt: msg.createdAt },
+          thread: rt,
+        } as const);
+      } catch (e) {
+        const err = e as Error;
+        if (err.message === 'CAN_ONLY_DUPLICATE_USER_PROMPTS')
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: err.message,
+            thread_id: threadId,
+          });
+        return Promise.resolve({ success: false, status: 400, error: err.message });
+      }
     },
   );
 
@@ -242,13 +326,14 @@ export function registerThreadHandlers(): void {
         if (s === 'active' || s === 'archived' || s === 'deleted') newMetadata.status = s;
       }
 
-      const updated: ReturnType<(typeof threadRepository)['saveThread']> = threadRepository.saveThread({
-        ...existing,
-        metadata: newMetadata,
-        // keep messages
-        messages: existing.messages,
-        updatedAt: Date.now(),
-      });
+      const updated: ReturnType<(typeof threadRepository)['saveThread']> =
+        threadRepository.saveThread({
+          ...existing,
+          metadata: newMetadata,
+          // keep messages
+          messages: existing.messages,
+          updatedAt: Date.now(),
+        });
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
       broadcast('thread:updated', rt);
@@ -293,19 +378,34 @@ export function registerThreadHandlers(): void {
 
       // Authorization check
       if (!auth.isAuthenticated()) {
-        return Promise.resolve({ success: false, status: 403, error: 'THREAD_ACCESS_DENIED', thread_id: threadId });
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
       }
 
       const currentUser = auth.getUser();
       const internal = threadRepository.loadThread(threadId);
       if (!internal) {
-        return Promise.resolve({ success: false, status: 404, error: 'THREAD_NOT_FOUND', thread_id: threadId });
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+          thread_id: threadId,
+        });
       }
 
       // Ownership check if thread has userId
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
-        return Promise.resolve({ success: false, status: 403, error: 'THREAD_ACCESS_DENIED', thread_id: threadId });
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
       }
 
       try {
@@ -340,7 +440,12 @@ export function registerThreadHandlers(): void {
       } catch (e) {
         const err = e as Error;
         if (err.message === 'MESSAGE_TOO_LARGE') {
-          return Promise.resolve({ success: false, status: 413, error: 'MESSAGE_TOO_LARGE', thread_id: threadId });
+          return Promise.resolve({
+            success: false,
+            status: 413,
+            error: 'MESSAGE_TOO_LARGE',
+            thread_id: threadId,
+          });
         }
         return Promise.resolve({ success: false, status: 400, error: err.message });
       }

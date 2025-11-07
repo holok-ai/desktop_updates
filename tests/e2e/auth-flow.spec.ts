@@ -53,7 +53,11 @@ test.describe('E2E: Auth Flow (mock)', () => {
     }
 
     // Open sidebar profile submenu and assert Logout is available
-    const profileBtn = page.locator('nav').locator('button').filter({ has: page.locator('.pi-user') }).first();
+    const profileBtn = page
+      .locator('nav')
+      .locator('button')
+      .filter({ has: page.locator('.pi-user') })
+      .first();
     await expect(profileBtn).toBeVisible();
     await profileBtn.click();
     const logoutBtn = page.getByRole('button', { name: 'Logout' });
@@ -64,7 +68,11 @@ test.describe('E2E: Auth Flow (mock)', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Open submenu again and ensure Logout is still available
-    const profileBtn2 = page.locator('nav').locator('button').filter({ has: page.locator('.pi-user') }).first();
+    const profileBtn2 = page
+      .locator('nav')
+      .locator('button')
+      .filter({ has: page.locator('.pi-user') })
+      .first();
     await expect(profileBtn2).toBeVisible();
     await profileBtn2.click();
     const logoutBtn2 = page.getByRole('button', { name: 'Logout' });

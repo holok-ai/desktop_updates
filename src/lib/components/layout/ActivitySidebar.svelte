@@ -64,7 +64,8 @@
     // Also handle storage changes (in case of multi-window)
     const onStorage = (e: StorageEvent) => {
       if (e.key === APP_THEME_MODE_STORAGE_KEY && e.newValue) {
-        const next = e.newValue === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
+        const next =
+          e.newValue === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
         if (currentMode !== next) {
           currentMode = next;
           modeStore.set(next);
@@ -130,9 +131,14 @@
   aria-label="Main sidebar"
 >
   <div class="sidebar-header flex justify-center items-center h-16">
-    <img src={currentMode === APP_THEME_MODE.DARK ? logoWhite : logoBlue} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
+    <img
+      src={currentMode === APP_THEME_MODE.DARK ? logoWhite : logoBlue}
+      alt="Holokai Logo"
+      class="w-[160px] h-[80px] {isCollapsed && 'hidden'}"
+    />
     <button
-      class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed && 'p-0'}"
+      class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
+        'p-0'}"
       onclick={toggle}
       aria-label="Collapse/Expand Sidebar"
     >
@@ -151,17 +157,23 @@
   </ul>
   <div class="flex flex-col items-center justify-center">
     {#if $isAuthenticated}
-      <div class="flex flex-col items-center justify-center w-full relative transition-all duration-300">
+      <div
+        class="flex flex-col items-center justify-center w-full relative transition-all duration-300"
+      >
         <button
           class="bg-[#474747] transition-all duration-200 w-full flex items-center justify-start gap-3 cursor-pointer rounded-lg py-3 px-4"
           tabindex="0"
           aria-haspopup="true"
           aria-expanded={showProfileMenu}
-          onclick={() => showProfileMenu = !showProfileMenu}
+          onclick={() => (showProfileMenu = !showProfileMenu)}
         >
           <span class="flex items-center gap-3">
             {#if !isCollapsed}
-              <i class={showProfileMenu ? 'pi pi-chevron-up text-white' : 'pi pi-chevron-down text-white'}></i>
+              <i
+                class={showProfileMenu
+                  ? 'pi pi-chevron-up text-white'
+                  : 'pi pi-chevron-down text-white'}
+              ></i>
             {/if}
             {#key showProfileMenu}
               <i class="pi pi-user text-white"></i>
@@ -174,18 +186,29 @@
 
         {#if showProfileMenu && !isCollapsed}
           <div class="w-full mt-2 gap-2 flex flex-col">
-            <button class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]" onclick={() => { showProfileMenu = false; push(ROUTE.SETTINGS); }}>
+            <button
+              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
+              onclick={() => {
+                showProfileMenu = false;
+                push(ROUTE.SETTINGS);
+              }}
+            >
               <i class="pi pi-cog"></i>
               <span>Settings</span>
             </button>
-            <button class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]" onclick={handleLogout}>
+            <button
+              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
+              onclick={handleLogout}
+            >
               <i class="pi pi-sign-out"></i>
               <span>Logout</span>
             </button>
           </div>
         {/if}
         {#if isCollapsed}
-          <span class="text-xs text-[var(--text-primary)] text-center">{$currentUser?.name ?? 'User'}</span>
+          <span class="text-xs text-[var(--text-primary)] text-center"
+            >{$currentUser?.name ?? 'User'}</span
+          >
         {/if}
       </div>
     {/if}

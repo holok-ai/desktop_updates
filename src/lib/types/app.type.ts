@@ -1,4 +1,4 @@
-import type { APP_THEME_MODE } from "../constants/app.constant.js";
+import type { APP_THEME_MODE } from '../constants/app.constant.js';
 
 export type AppThemeMode = (typeof APP_THEME_MODE)[keyof typeof APP_THEME_MODE];
 
