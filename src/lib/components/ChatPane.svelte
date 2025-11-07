@@ -5,14 +5,19 @@
   import { outboxService } from '$lib/services/outbox.service';
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
+  import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
+  import MessageVersionHistory from './MessageVersionHistory.svelte';
 
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
     composer?: import('svelte').Snippet<
-      [{ sendMessage: (message: string) => Promise<void>; isStreaming: boolean }]
+      [{ 
+        sendMessage: (message: string) => Promise<void>; 
+        isStreaming: boolean;
+      }]
     >;
   }
 
@@ -24,6 +29,7 @@
   let isStreaming = $state(false);
   let error = $state('');
   let isOnline = $state(true);
+  let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Initialize message transmitter
@@ -145,6 +151,77 @@
     }
   }
 
+  async function handleEditAndRegenerate(messageId: string, newContent: string) {
+    if (!thread) return;
+
+    try {
+      const result = await threadService.updateMessage(thread.id, messageId, newContent);
+      if (!result.success) {
+        error = result.error;
+        return;
+      }
+
+      // Use the message returned from backend which has isEdited flag set
+      const updatedMessage = result.message;
+      messages = messages.map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              content: updatedMessage.content,
+              isEdited: updatedMessage.isEdited ?? true,
+              editedAt: updatedMessage.editedAt ?? Date.now(),
+              versions: updatedMessage.versions
+            }
+          : message
+      );
+
+      const deleteResult = await threadService.deleteMessagesAfter(thread.id, messageId);
+      if (!deleteResult.success) {
+        error = deleteResult.error;
+        return;
+      }
+
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex !== -1) {
+        messages = messages.slice(0, messageIndex + 1);
+      }
+
+      // Regenerate the AI response
+      isStreaming = true;
+      setupTokenListener();
+      const request = {
+        messages: [{ role: 'user', content: newContent }],
+        streaming: true,
+        model: 'llama3:latest',
+      };
+
+      const chatResult = await window.electronAPI.chat.chat(request);
+
+      if (!chatResult.success) {
+        error = chatResult.error || 'Chat failed';
+        console.error('Chat failed:', chatResult.error);
+      } else {
+        await transmitter.handleAssistantResponse(responseText, thread, newContent);
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Error editing message:', err);
+    } finally {
+      isStreaming = false;
+    }
+  }
+
+  function handleEdit(messageId: string, newContent: string) {
+    handleEditAndRegenerate(messageId, newContent);
+  }
+
+  function handleShowVersions(messageId: string) {
+    const message = messages.find((m) => m.id === messageId);
+    if (message) {
+      showVersionsFor = { messageId, content: message.content };
+    }
+  }
+
   // Cleanup on unmount
   async function cleanup() {
     window.electronAPI.chat.offToken();
@@ -199,7 +276,13 @@
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
         {#each messages as m (m.id)}
-          <MessageBubble message={m} onRetry={retryMessage} />
+          <MessageBubble
+            message={m}
+            onRetry={retryMessage}
+            onEdit={handleEdit}
+            onShowVersions={handleShowVersions}
+            {isStreaming}
+          />
         {/each}
       {/if}
 
@@ -219,6 +302,16 @@
       {/if}
     </div>
   </div>
+
+  <!-- Version History Modal -->
+  {#if showVersionsFor && thread}
+    <MessageVersionHistory
+      threadId={thread.id}
+      messageId={showVersionsFor.messageId}
+      currentContent={showVersionsFor.content}
+      onClose={() => showVersionsFor = undefined}
+    />
+  {/if}
 {/if}
 
 <style>
