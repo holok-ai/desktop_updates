@@ -20,4 +20,8 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
+  editedAt?: number;
+  originalMessageId?: string;
+  isEdited?: boolean;
+  versions?: MessageVersion[];
 };

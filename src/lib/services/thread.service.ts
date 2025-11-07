@@ -48,6 +48,14 @@ class ThreadService {
     return window.electronAPI.thread.getMessages(id);
   }
 
+  async moveToProject(
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ): Promise<Thread> {
+    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
+  }
+
 	async appendMessage(
 		threadId: string,
 		payload: {
@@ -129,14 +137,6 @@ class ThreadService {
 			| { success: true; thread: Thread }
 			| { success: false; error: string };
 	}
-
-  async moveToProject(
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { privacyMode?: string; contextHandling?: string },
-  ): Promise<Thread> {
-    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
-  }
 }
 
 export const threadService = new ThreadService();

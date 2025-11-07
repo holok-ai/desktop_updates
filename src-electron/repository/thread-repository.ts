@@ -160,24 +160,6 @@ export class ThreadRepository {
     return { ...message };
   }
 
-  /**
-   * Duplicate an existing message within the same thread by message id.
-   * Preserves exact content and metadata. Only user prompts may be duplicated.
-   */
-  public duplicateMessage(threadId: string, messageId: string): Message {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    const original = thread.messages.find((m) => m.id === messageId);
-    if (!original) throw new Error(`Message not found: ${messageId}`);
-    if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
-    // Use appendMessage to preserve idempotency and size checks
-    return this.appendMessage(threadId, {
-      role: 'user',
-      content: original.content,
-      metadata: original.metadata,
-    });
-  }
-
   public addUserPrompt(
     threadId: string | null | undefined,
     prompt: string,

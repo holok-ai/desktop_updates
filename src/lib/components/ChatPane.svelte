@@ -19,6 +19,7 @@
         sendMessage: (message: string) => Promise<void>; 
         isStreaming: boolean;
       }]
+    >;
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
@@ -29,6 +30,9 @@
   let isStreaming = $state(false);
   let error = $state('');
   let isOnline = $state(true);
+  let toast = $state('');
+  let toastTimeout: number | null = null;
+  let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
@@ -79,6 +83,13 @@
 
     console.log('Chat service initialized!');
     chatServiceCreated = true;
+  }
+
+  function showToast(message: string, ms = 2500) {
+    toast = message;
+    if (toastTimeout) window.clearTimeout(toastTimeout);
+    // @ts-ignore - window.setTimeout returns number in browser
+    toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
   // Setup token listener for streaming responses
@@ -284,6 +295,10 @@
 
     {#if error}
       <div class="error-banner">{error}</div>
+    {/if}
+
+    {#if toast}
+      <div class="toast">{toast}</div>
     {/if}
 
     <div class="messages">
