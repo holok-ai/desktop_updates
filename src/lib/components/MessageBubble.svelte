@@ -2,6 +2,7 @@
   import { MESSAGE_STATUS } from '$lib/constants/status.constant';
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
 
   interface Props {
     message: Message;
@@ -109,7 +110,9 @@
       </div>
     </div>
   {:else}
-    <div class="message-content">{message.content}</div>
+    <div class="message-content">
+      <MarkdownRenderer content={message.content} enableCopy={true} />
+    </div>
   {/if}
   <div class="message-footer">
     <span class="message-meta">

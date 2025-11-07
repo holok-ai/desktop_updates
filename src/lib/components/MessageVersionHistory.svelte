@@ -143,6 +143,7 @@
   }
 
   .close-button {
+    outline: none;
     background: transparent;
     border: none;
     font-size: 2rem;
