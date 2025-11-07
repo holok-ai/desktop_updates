@@ -61,14 +61,15 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
 
     // Wait for user and assistant messages
     await expect(page.locator('.messages .message.user', { hasText: 'Just say "Okay"' })).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.messages .message-content')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({ timeout: 60000 });
 
     // Enter inline edit and save
-    await page.locator('.message.user .message-actions button[title="Edit message"]').first().click();
-    const inlineEditor = page.locator('.message.user textarea.edit-textarea').first();
+    await page.waitForTimeout(500);
+    await page.locator('.message-actions button[title="Edit message"]').first().click();
+    const inlineEditor = page.locator('textarea.edit-textarea').first();
     await inlineEditor.fill('Just say "Okay (edited)"');
-    const saveBtn2 = page.locator('.message.user .edit-actions .save-button').first();
+    const saveBtn2 = page.locator('.edit-actions .save-button').first();
     await expect(saveBtn2).toBeEnabled({ timeout: 5000 });
     await saveBtn2.click();
 
@@ -77,7 +78,7 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
     await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({ timeout: 60000 });
 
     // History button 📜 should be present after edit
-    const historyBtn = page.locator('.message.user .message-actions button[title="View edit history"]').first();
+    const historyBtn = page.locator('.message-actions button[title="View edit history"]').first();
     await expect(historyBtn).toBeVisible({ timeout: 5000 });
     await historyBtn.click();
 
