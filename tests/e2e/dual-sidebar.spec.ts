@@ -17,7 +17,10 @@ test.describe('E2E: Dual Sidebar', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -94,5 +97,3 @@ test.describe('E2E: Dual Sidebar', () => {
     await expect(confirmCreate).toBeVisible();
   });
 });
-
-

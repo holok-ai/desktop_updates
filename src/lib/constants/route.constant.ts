@@ -3,6 +3,5 @@ export const ROUTE = {
   THREADS: '/threads',
   SETTINGS: '/settings',
   GUIDE: '/guide',
-  LOGIN: '/login'
+  LOGIN: '/login',
 } as const;
-

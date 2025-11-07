@@ -17,7 +17,10 @@ test.describe('E2E: Settings', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -45,7 +48,11 @@ test.describe('E2E: Settings', () => {
     }
 
     // Open Settings via sidebar profile submenu
-    const profileButton = page.locator('nav').locator('button').filter({ has: page.locator('.pi-user') }).first();
+    const profileButton = page
+      .locator('nav')
+      .locator('button')
+      .filter({ has: page.locator('.pi-user') })
+      .first();
     await expect(profileButton).toBeVisible();
     await profileButton.click();
 
@@ -58,21 +65,25 @@ test.describe('E2E: Settings', () => {
     await expect(heading).toBeVisible();
 
     // Determine current theme and click opposite radio (Dark/Light)
-    const isDarkBefore = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    const isDarkBefore = await page.evaluate(() =>
+      document.documentElement.classList.contains('dark'),
+    );
     const target = isDarkBefore ? 'light' : 'dark';
     await page.locator(`input[type="radio"][name="theme"][value="${target}"]`).check();
 
     // Theme should update immediately
     await page.waitForTimeout(100);
-    const isDarkAfter = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    const isDarkAfter = await page.evaluate(() =>
+      document.documentElement.classList.contains('dark'),
+    );
     expect(isDarkAfter).toBe(!isDarkBefore);
 
     // Reload and verify persistence via startup logic
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
-    const isDarkAfterReload = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    const isDarkAfterReload = await page.evaluate(() =>
+      document.documentElement.classList.contains('dark'),
+    );
     expect(isDarkAfterReload).toBe(isDarkAfter);
   });
 });
-
-

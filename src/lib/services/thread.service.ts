@@ -28,27 +28,25 @@ class ThreadService {
     return allThreads;
   }
 
-	async create(data: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> {
-		return window.electronAPI.thread.create(data);
-	}
+  async create(data: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> {
+    return window.electronAPI.thread.create(data);
+  }
 
-	async update(id: string, updates: Partial<Thread>): Promise<Thread> {
-		return window.electronAPI.thread.update(id, updates);
-	}
+  async update(id: string, updates: Partial<Thread>): Promise<Thread> {
+    return window.electronAPI.thread.update(id, updates);
+  }
 
-	async delete(id: string): Promise<boolean> {
-		return window.electronAPI.thread.delete(id);
-	}
+  async delete(id: string): Promise<boolean> {
+    return window.electronAPI.thread.delete(id);
+  }
 
-	async softDelete(id: string): Promise<boolean> {
-		return window.electronAPI.thread.softDelete(id);
-	}
+  async softDelete(id: string): Promise<boolean> {
+    return window.electronAPI.thread.softDelete(id);
+  }
 
-	async getMessages(
-		id: string,
-	): Promise<Message[]> {
-		return window.electronAPI.thread.getMessages(id);
-	}
+  async getMessages(id: string): Promise<Message[]> {
+    return window.electronAPI.thread.getMessages(id);
+  }
 
 	async appendMessage(
 		threadId: string,

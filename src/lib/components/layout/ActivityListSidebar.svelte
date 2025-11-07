@@ -20,8 +20,20 @@
   let selectedThreadId: string | null = $state(null);
 
   const navigationOptions: SidebarActivity[] = [
-    { id: 'new-thread', label: 'New Thread', shortLabel: 'New', icon: 'pi pi-pen-to-square', onClick: () => push(`${ROUTE.THREADS}?create`) },
-    { id: 'search-thread', label: 'Search Thread', shortLabel: 'Search', icon: 'pi pi-search', onClick: () => push(`${ROUTE.THREADS}?search`) },
+    {
+      id: 'new-thread',
+      label: 'New Thread',
+      shortLabel: 'New',
+      icon: 'pi pi-pen-to-square',
+      onClick: () => push(`${ROUTE.THREADS}?create`),
+    },
+    {
+      id: 'search-thread',
+      label: 'Search Thread',
+      shortLabel: 'Search',
+      icon: 'pi pi-search',
+      onClick: () => push(`${ROUTE.THREADS}?search`),
+    },
   ];
 
   onMount(async () => {
@@ -34,8 +46,9 @@
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
-        try { window.localStorage.setItem('lastThreadId', tid); }
-        catch (error) {
+        try {
+          window.localStorage.setItem('lastThreadId', tid);
+        } catch (error) {
           console.error('Failed to set lastThreadId', error);
         }
       } else {
@@ -70,8 +83,7 @@
     selectedThreadId = item.id;
     try {
       window.localStorage.setItem('lastThreadId', item.id);
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Failed to set lastThreadId', error);
     }
 
@@ -98,7 +110,11 @@
     const todayStart = startOfDay(now).getTime();
     const oneDayMs = 24 * 60 * 60 * 1000;
 
-    const toItem = (id: string, label: string): SidebarActivity => ({ id, label, route: ROUTE.THREADS });
+    const toItem = (id: string, label: string): SidebarActivity => ({
+      id,
+      label,
+      route: ROUTE.THREADS,
+    });
 
     const sorted = [...$threads].sort((a, b) => {
       const aTime = new Date((a as any).updatedAt ?? a.createdAt).getTime();
@@ -151,13 +167,17 @@
   }
 </script>
 
-<aside class="activity-list-sidebar transition-all duration-300 {isCollapsed && 'collapsed'}" aria-label="Activity list sidebar">
+<aside
+  class="activity-list-sidebar transition-all duration-300 {isCollapsed && 'collapsed'}"
+  aria-label="Activity list sidebar"
+>
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
       <span class="activity-title">{'Organization Name'}</span>
     {/if}
     <button
-      class="{!isCollapsed && 'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
+      class="{!isCollapsed &&
+        'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
       onclick={toggleSidebar}
       aria-label="Collapse/Expand Activity List"
     >
@@ -170,8 +190,20 @@
         {#each navigationOptions as item}
           <SidebarItem isSelected={false} {item} {isCollapsed} on:click={() => item.onClick?.()} />
         {/each}
-        <AccordionSection title="Agents" isSubsection={true} isSidebarCollapsed={isCollapsed} items={agentItems} selectedId={null} />
-        <AccordionSection title="Projects" isSubsection={true} isSidebarCollapsed={isCollapsed} items={projectItems} selectedId={null} />
+        <AccordionSection
+          title="Agents"
+          isSubsection={true}
+          isSidebarCollapsed={isCollapsed}
+          items={agentItems}
+          selectedId={null}
+        />
+        <AccordionSection
+          title="Projects"
+          isSubsection={true}
+          isSidebarCollapsed={isCollapsed}
+          items={projectItems}
+          selectedId={null}
+        />
         <AccordionSection
           title="Threads"
           isSidebarCollapsed={isCollapsed}
@@ -262,7 +294,9 @@
     padding: 1rem 0;
     margin: 0;
     gap: 0.5rem;
-    transition: padding 0.2s, gap 0.2s;
+    transition:
+      padding 0.2s,
+      gap 0.2s;
   }
 
   .activity-list-sidebar.collapsed .list-items {

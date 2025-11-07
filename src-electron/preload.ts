@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
+import type {
+  ChatRequest,
+  ChatRequestWithOptions,
+} from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode } from '$lib/types/app.type.js';
@@ -41,9 +44,7 @@ export interface ThreadAPI {
   softDelete: (id: string) => Promise<boolean>;
 
   // Get messages for a thread (persisted)
-  getMessages: (
-    id: string,
-  ) => Promise<Message[]>;
+  getMessages: (id: string) => Promise<Message[]>;
 
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;

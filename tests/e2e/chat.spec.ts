@@ -61,24 +61,28 @@ test.describe('E2E: Chat prompt/response', () => {
       await page.getByLabel('Title').fill(threadName);
       await page.getByLabel('Description').fill('testing chat');
       await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(
+        0,
+      );
     }
 
     // Switch back to Threads activity and select the created thread from the grouped list
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    
+
     // Thread might be in Recent section or other grouped sections
     // Use .first() to handle strict mode violation (duplicate items)
     const threadItem = page.getByRole('menuitem', { name: threadName }).first();
-    if (await threadItem.count() === 0) {
+    if ((await threadItem.count()) === 0) {
       // Try to find by clicking through sections
-      const sections = page.locator('[role="button"]').filter({ hasText: /Recent|Yesterday|Last 7 Days/ });
-      if (await sections.count() > 0) {
+      const sections = page
+        .locator('[role="button"]')
+        .filter({ hasText: /Recent|Yesterday|Last 7 Days/ });
+      if ((await sections.count()) > 0) {
         await sections.first().click();
         await page.waitForTimeout(300);
       }
     }
-    
+
     await expect(threadItem).toBeVisible({ timeout: 5000 });
     await threadItem.click();
 
@@ -97,14 +101,14 @@ test.describe('E2E: Chat prompt/response', () => {
     ).toBeVisible({ timeout: 5000 });
 
     // Wait for assistant response to start streaming (message appears)
-    await expect(
-      page.locator('.messages .message.assistant .message-content'),
-    ).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
+      timeout: 30000,
+    });
 
     // Wait for streaming to complete by checking that the streaming indicator disappears
     // The .streaming class is removed when streaming completes
-    await expect(
-      page.locator('.messages .message.assistant.streaming'),
-    ).toBeHidden({ timeout: 60000 });
+    await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({
+      timeout: 60000,
+    });
   });
 });

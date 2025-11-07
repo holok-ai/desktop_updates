@@ -58,8 +58,8 @@ test.describe('E2E: Model selection on thread start', () => {
     } else {
       // Trigger route query to open dialog
       await page.evaluate(() => {
-        const base = (window as any).location.hash.startsWith('#') 
-          ? (window as any).location.hash.split('?')[0] 
+        const base = (window as any).location.hash.startsWith('#')
+          ? (window as any).location.hash.split('?')[0]
           : '#/threads';
         (window as any).location.hash = base + '?create=';
       });
@@ -110,7 +110,9 @@ test.describe('E2E: Model selection on thread start', () => {
     await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
 
     // Wait for dialog to close
-    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).not.toBeVisible({
+      timeout: 5000,
+    });
 
     // Wait for thread to appear in sidebar (as a menuitem in the threads accordion)
     // The thread should appear in the ActivityListSidebar
@@ -124,16 +126,18 @@ test.describe('E2E: Model selection on thread start', () => {
     await expect(textarea).toBeVisible({ timeout: 3000 });
     await textarea.fill('Just response "Okay"');
     await textarea.press('Enter');
-    
+
     // Wait for response to start
-    await expect(
-      page.locator('.messages .message.assistant .message-content'),
-    ).toBeVisible({ timeout: 30000 });
-    
+    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
+      timeout: 30000,
+    });
+
     // Wait for streaming to complete - check that streaming class is removed
     // If streaming doesn't complete, wait for a reasonable timeout and check if message exists
     try {
-      await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({ timeout: 60000 });
+      await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({
+        timeout: 60000,
+      });
     } catch {
       // If streaming doesn't stop, check if we have at least one assistant message
       // This handles cases where streaming indicator might not be removed properly

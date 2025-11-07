@@ -27,9 +27,11 @@
 
   let selectedModel: MokuModel | null = $state(null);
   let chooserInitial: { provider: string; id: string } | null = $state(null);
+  let newThreadPrompt = $state('');
 
   let selectedThread: Thread | null = $state(null);
   let messages: Message[] = $state([]);
+  let chatPaneRef: any = $state(null);
 
   onMount(async () => {
     await loadThreads();
@@ -49,6 +51,56 @@
         // ignore
       }
     }
+  });
+
+  // Handlers for events emitted by ChatPane component
+  function handleThreadCreated(e: CustomEvent<{ thread: Thread; tempId?: string }>) {
+    const detail = e.detail;
+    if (detail.tempId) threads.deleteThread(detail.tempId);
+    threads.addThread(detail.thread);
+    selectThread(detail.thread);
+    void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(detail.thread.id)}`);
+  }
+
+  function handleOpenNewThreadPrefill(e: CustomEvent<{ prompt: string }>) {
+    const d = e.detail;
+    openCreateDialog();
+    newThreadPrompt = d?.prompt ?? '';
+  }
+
+  // Fallback global listener for dispatches from renderer components
+  onMount(() => {
+    const winListener = (ev: Event) => {
+      const e = ev as CustomEvent;
+      const detail = e.detail as { prompt?: string } | undefined;
+      if (detail?.prompt) {
+        openCreateDialog();
+        newThreadPrompt = detail.prompt;
+      }
+    };
+    window.addEventListener('openNewThreadPrefill', winListener as any);
+    return () => window.removeEventListener('openNewThreadPrefill', winListener as any);
+  });
+
+  // Attach listeners directly to ChatPane DOM node (avoids typed on: event issues)
+  onMount(() => {
+    if (!chatPaneRef) return;
+    const onThreadCreated = (ev: Event) => handleThreadCreated(ev as any);
+    const onOpenPrefill = (ev: Event) => handleOpenNewThreadPrefill(ev as any);
+    try {
+      chatPaneRef.addEventListener('threadCreated', onThreadCreated as any);
+      chatPaneRef.addEventListener('openNewThreadPrefill', onOpenPrefill as any);
+    } catch {
+      // ignore if chatPaneRef is not a DOM node
+    }
+    return () => {
+      try {
+        chatPaneRef.removeEventListener('threadCreated', onThreadCreated as any);
+        chatPaneRef.removeEventListener('openNewThreadPrefill', onOpenPrefill as any);
+      } catch {
+        // ignore
+      }
+    };
   });
 
   // Refresh messages when the selected thread is updated elsewhere
@@ -112,6 +164,7 @@
     selectedModel = null;
     chooserInitial = null;
     formData.metadata = {};
+    newThreadPrompt = '';
     showDialog = true;
   }
 
@@ -148,30 +201,48 @@
       if (editingThread) {
         await threadService.update(editingThread.id, data);
       } else {
-        // Create an ephemeral thread for sidebar/selection (not persisted yet)
-        const tempId = `temp_${crypto.randomUUID()}`;
-        const tempThread: Thread = {
-          id: tempId,
-          title: data.title,
-          description: data.description,
-          status: THREAD_STATUS.ACTIVE,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          metadata: data.metadata ?? {},
-        } as Thread;
-        // Add to store and select it
-        threads.addThread(tempThread);
-        selectedThread = tempThread;
-        messages = [];
-        // Update URL so sidebar highlights the temp thread
-        void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
+        // If an initial prompt was provided, create thread + prompt atomically
+        if (newThreadPrompt && newThreadPrompt.trim()) {
+          try {
+            const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
+              title: data.title,
+              description: data.description,
+              model: selectedModel?.id,
+            });
+            const created = res.thread as Thread;
+            // Add to store and select it
+            threads.addThread(created);
+            selectThread(created);
+            // Update URL to select created thread
+            void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
+          } catch (e) {
+            console.error('Failed to create thread with prompt:', e);
+          }
+        } else {
+          // Create an ephemeral thread for sidebar/selection (not persisted yet)
+          const tempId = `temp_${crypto.randomUUID()}`;
+          const tempThread: Thread = {
+            id: tempId,
+            title: data.title,
+            description: data.description,
+            status: THREAD_STATUS.ACTIVE,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            metadata: data.metadata ?? {},
+          } as Thread;
+          // Add to store and select it
+          threads.addThread(tempThread);
+          selectedThread = tempThread;
+          messages = [];
+          // Update URL so sidebar highlights the temp thread
+          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
+        }
       }
       showDialog = false;
     } catch (error) {
       console.error('Failed to save thread:', error);
     }
   }
-
 </script>
 
 <div class="threads-page">
@@ -189,17 +260,7 @@
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane thread={selectedThread} {messages} on:threadCreated={(e) => {
-          const detail = (e as CustomEvent).detail as { thread: Thread; tempId?: string };
-          // Replace temp thread if present
-          if (detail.tempId) {
-            threads.deleteThread(detail.tempId);
-          }
-          threads.addThread(detail.thread);
-          selectThread(detail.thread);
-          // Update URL so sidebar selection stays in sync on first creation
-          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(detail.thread.id)}`);
-        }}>
+        <ChatPane bind:this={chatPaneRef} thread={selectedThread} {messages}>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} />
@@ -265,6 +326,16 @@
         />
       </div>
 
+      <div class="form-group">
+        <label for="initial-prompt">Initial Prompt</label>
+        <textarea
+          id="initial-prompt"
+          bind:value={newThreadPrompt}
+          rows="6"
+          placeholder="Enter the prompt to run in the new thread"
+        ></textarea>
+      </div>
+
       <div class="dialog-actions">
         <button class="text-white" onclick={() => (showDialog = false)}>Cancel</button>
         <button
@@ -304,7 +375,10 @@
     margin-top: 1rem;
   }
 
-  .threads-grid { display: flex; gap: 1rem }
+  .threads-grid {
+    display: flex;
+    gap: 1rem;
+  }
 
   /* Dialog styles */
   .dialog-overlay {
