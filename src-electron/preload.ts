@@ -185,10 +185,17 @@ export interface ProjectAPI {
   getById: (id: string) => Promise<Project | null>;
 
   // Create a new project
-  create: (data: { name: string; description?: string; metadata?: Record<string, unknown> }) => Promise<Project>;
+  create: (data: {
+    name: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<Project>;
 
   // Update an existing project
-  update: (id: string, updates: { name?: string; description?: string; metadata?: Record<string, unknown> }) => Promise<Project>;
+  update: (
+    id: string,
+    updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
+  ) => Promise<Project>;
 
   // Delete a project
   delete: (id: string, options?: { deleteThreads?: boolean }) => Promise<boolean>;
@@ -794,8 +801,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     create: (data: { name: string; description?: string; metadata?: Record<string, unknown> }) =>
       ipcRenderer.invoke('project:create', data),
 
-    update: (id: string, updates: { name?: string; description?: string; metadata?: Record<string, unknown> }) =>
-      ipcRenderer.invoke('project:update', id, updates),
+    update: (
+      id: string,
+      updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
+    ) => ipcRenderer.invoke('project:update', id, updates),
 
     delete: (id: string, options?: { deleteThreads?: boolean }) =>
       ipcRenderer.invoke('project:delete', id, options),
@@ -822,7 +831,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     onProjectDeleted: (callback: (projectId: string) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: string): void => callback(projectId);
+      const subscription = (_event: IpcRendererEvent, projectId: string): void =>
+        callback(projectId);
       ipcRenderer.on('project:deleted', subscription);
 
       return (): void => {

@@ -34,7 +34,14 @@
       label: 'New Thread',
       shortLabel: 'New',
       icon: 'pi pi-pen-to-square',
-      onClick: () => push(`${ROUTE.THREADS}?create`),
+      onClick: () => push(`${ROUTE.THREADS}?createThread`),
+    },
+    {
+      id: 'new-project',
+      label: 'New Project',
+      shortLabel: 'New',
+      icon: 'pi pi-folder-plus',
+      onClick: () => push(`${ROUTE.PROJECTS}?createProject`),
     },
     {
       id: 'search-thread',
@@ -77,8 +84,9 @@
       const pid = params.get('projectId');
       if (pid) {
         selectedProjectId = pid;
-        try { window.localStorage.setItem('lastProjectId', pid); }
-        catch (error) {
+        try {
+          window.localStorage.setItem('lastProjectId', pid);
+        } catch (error) {
           console.error('Failed to set lastProjectId', error);
         }
       } else {

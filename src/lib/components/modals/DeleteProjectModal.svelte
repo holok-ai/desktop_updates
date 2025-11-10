@@ -63,7 +63,13 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal-overlay" onclick={handleCancel} onkeydown={handleKeydown} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="modal-content warning" onclick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="modal-title" tabindex="0">
+    <div
+      class="modal-content warning"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-labelledby="modal-title"
+      tabindex="0"
+    >
       <div class="warning-icon">⚠️</div>
       <h2 id="modal-title">Delete Project</h2>
 
@@ -73,7 +79,10 @@
 
       {#if threadCount > 0}
         <div class="thread-info">
-          <p>This project contains <strong>{threadCount} thread{threadCount !== 1 ? 's' : ''}</strong>.</p>
+          <p>
+            This project contains <strong>{threadCount} thread{threadCount !== 1 ? 's' : ''}</strong
+            >.
+          </p>
 
           <label class="checkbox-label">
             <input type="checkbox" bind:checked={deleteThreads} disabled={isDeleting} />
@@ -81,9 +90,7 @@
           </label>
 
           {#if !deleteThreads}
-            <p class="info-note">
-              If unchecked, threads will be unassigned from this project.
-            </p>
+            <p class="info-note">If unchecked, threads will be unassigned from this project.</p>
           {:else}
             <p class="warning-note">
               ⚠️ This will permanently delete all threads. This action cannot be undone.
@@ -188,13 +195,13 @@
     margin-bottom: 12px;
   }
 
-  .checkbox-label input[type="checkbox"] {
+  .checkbox-label input[type='checkbox'] {
     width: 16px;
     height: 16px;
     cursor: pointer;
   }
 
-  .checkbox-label input[type="checkbox"]:disabled {
+  .checkbox-label input[type='checkbox']:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
@@ -279,4 +286,3 @@
     font-size: 11px;
   }
 </style>
-

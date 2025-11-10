@@ -20,8 +20,10 @@ function createProjectStore(): ProjectStore {
         const updated = [...projects, project];
         // Sort by updatedAt, newest first
         return updated.sort((a, b) => {
-          const aTime = typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
-          const bTime = typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
+          const aTime =
+            typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
+          const bTime =
+            typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
           return bTime - aTime;
         });
       });
@@ -36,4 +38,3 @@ function createProjectStore(): ProjectStore {
 }
 
 export const projects = createProjectStore();
-

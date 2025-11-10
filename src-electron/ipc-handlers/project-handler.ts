@@ -53,7 +53,7 @@ export function registerProjectHandlers(): void {
     'project:create',
     (
       _event,
-      data: { name: string; description?: string; metadata?: Record<string, unknown> }
+      data: { name: string; description?: string; metadata?: Record<string, unknown> },
     ): Promise<RendererProject> => {
       const perfLog = logPerformance('project:create');
       projectLog.info('Create called', { name: data.name });
@@ -70,7 +70,7 @@ export function registerProjectHandlers(): void {
       const project = projectRepository.createProject(
         data.name.trim(),
         data.description?.trim(),
-        data.metadata
+        data.metadata,
       );
       const rp = toRendererProject(project);
       if (!rp) throw new Error('Failed to convert created project');
@@ -78,7 +78,7 @@ export function registerProjectHandlers(): void {
       broadcast('project:created', rp);
       perfLog.end({ projectId: project.id });
       return Promise.resolve(rp);
-    }
+    },
   );
 
   // Update/rename project
@@ -87,7 +87,7 @@ export function registerProjectHandlers(): void {
     (
       _event,
       id: string,
-      updates: { name?: string; description?: string; metadata?: Record<string, unknown> }
+      updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
     ): Promise<RendererProject> => {
       const perfLog = logPerformance('project:update');
       projectLog.info('Update called', { projectId: id, updates });
@@ -113,7 +113,7 @@ export function registerProjectHandlers(): void {
       broadcast('project:updated', rp);
       perfLog.end({ projectId: id });
       return Promise.resolve(rp);
-    }
+    },
   );
 
   // Delete project
@@ -137,32 +137,28 @@ export function registerProjectHandlers(): void {
       if (options?.deleteThreads) {
         // Delete all threads associated with this project
         const threads = threadRepository.listThreads();
-        const projectThreads = threads.filter(
-          (t) => t.metadata?.projectId === id
-        );
+        const projectThreads = threads.filter((t) => t.metadata?.projectId === id);
 
         for (const thread of projectThreads) {
           threadRepository.softDeleteThread(thread.id);
         }
-        projectLog.info('Deleted associated threads', { 
-          projectId: id, 
-          threadCount: projectThreads.length 
+        projectLog.info('Deleted associated threads', {
+          projectId: id,
+          threadCount: projectThreads.length,
         });
       } else {
         // Unassign threads from project (set projectId to undefined)
         const threads = threadRepository.listThreads();
-        const projectThreads = threads.filter(
-          (t) => t.metadata?.projectId === id
-        );
+        const projectThreads = threads.filter((t) => t.metadata?.projectId === id);
 
         for (const thread of projectThreads) {
           const newMetadata = { ...thread.metadata };
           delete newMetadata.projectId;
           threadRepository.updateThreadMetadata(thread.id, newMetadata);
         }
-        projectLog.info('Unassigned threads from project', { 
-          projectId: id, 
-          threadCount: projectThreads.length 
+        projectLog.info('Unassigned threads from project', {
+          projectId: id,
+          threadCount: projectThreads.length,
         });
       }
 
@@ -172,20 +168,15 @@ export function registerProjectHandlers(): void {
       }
       perfLog.end({ projectId: id, deleted });
       return Promise.resolve(deleted);
-    }
+    },
   );
 
   // Get threads for a project
-  ipcMain.handle(
-    'project:getThreads',
-    (_event, projectId: string): Promise<number> => {
-      const threads = threadRepository.listThreads();
-      const projectThreads = threads.filter(
-        (t) => t.metadata?.projectId === projectId
-      );
-      return Promise.resolve(projectThreads.length);
-    }
-  );
+  ipcMain.handle('project:getThreads', (_event, projectId: string): Promise<number> => {
+    const threads = threadRepository.listThreads();
+    const projectThreads = threads.filter((t) => t.metadata?.projectId === projectId);
+    return Promise.resolve(projectThreads.length);
+  });
 
   projectLog.info('Handlers registered');
 }
@@ -199,4 +190,3 @@ export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:getThreads');
   projectLog.info('Handlers unregistered');
 }
-

@@ -56,7 +56,7 @@ export class ProjectService {
 
   public async updateProject(
     id: string,
-    updates: { name?: string; description?: string }
+    updates: { name?: string; description?: string },
   ): Promise<Project> {
     try {
       const project = await window.electronAPI.project.update(id, updates);
@@ -96,4 +96,3 @@ export class ProjectService {
 }
 
 export const projectService = ProjectService.getInstance();
-

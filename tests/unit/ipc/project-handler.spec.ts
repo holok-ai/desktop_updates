@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ipcMain } from 'electron';
-import { registerProjectHandlers, unregisterProjectHandlers } from '../../../src-electron/ipc-handlers/project-handler';
+import {
+  registerProjectHandlers,
+  unregisterProjectHandlers,
+} from '../../../src-electron/ipc-handlers/project-handler';
 import { projectRepository } from '../../../src-electron/repository/project-repository';
 
 vi.mock('electron', () => ({
@@ -66,7 +69,7 @@ describe('Project IPC Handlers', () => {
   describe('project:getAll handler', () => {
     it('should return all projects', async () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:getAll'
+        (call: any) => call[0] === 'project:getAll',
       );
       const handler = handleCall[1];
 
@@ -84,7 +87,7 @@ describe('Project IPC Handlers', () => {
   describe('project:create handler', () => {
     it('should create a new project', async () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:create'
+        (call: any) => call[0] === 'project:create',
       );
       const handler = handleCall[1];
 
@@ -101,7 +104,7 @@ describe('Project IPC Handlers', () => {
 
     it('should throw error if name is missing', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:create'
+        (call: any) => call[0] === 'project:create',
       );
       const handler = handleCall[1];
 
@@ -112,7 +115,7 @@ describe('Project IPC Handlers', () => {
   describe('project:update handler', () => {
     it('should update a project', async () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:update'
+        (call: any) => call[0] === 'project:update',
       );
       const handler = handleCall[1];
 
@@ -125,22 +128,20 @@ describe('Project IPC Handlers', () => {
 
     it('should throw error if name is empty', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:update'
+        (call: any) => call[0] === 'project:update',
       );
       const handler = handleCall[1];
 
       const project = projectRepository.createProject('Test Project');
 
-      expect(() => handler(null, project.id, { name: '' })).toThrow(
-        'Project name cannot be empty'
-      );
+      expect(() => handler(null, project.id, { name: '' })).toThrow('Project name cannot be empty');
     });
   });
 
   describe('project:delete handler', () => {
     it('should soft delete a project', async () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:delete'
+        (call: any) => call[0] === 'project:delete',
       );
       const handler = handleCall[1];
 
@@ -154,7 +155,7 @@ describe('Project IPC Handlers', () => {
 
     it('should return false for non-existent project', async () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
-        (call: any) => call[0] === 'project:delete'
+        (call: any) => call[0] === 'project:delete',
       );
       const handler = handleCall[1];
 
@@ -164,4 +165,3 @@ describe('Project IPC Handlers', () => {
     });
   });
 });
-
