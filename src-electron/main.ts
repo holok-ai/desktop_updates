@@ -9,6 +9,7 @@ import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
+import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -213,6 +214,9 @@ function registerIpcHandlers(): void {
 
   // Register chat-related IPC handlers
   registerChatHandlers();
+
+  // Register file upload/download IPC handlers
+  registerFileHandlers();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {

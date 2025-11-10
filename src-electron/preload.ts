@@ -7,6 +7,7 @@ import type { ProviderConfig } from './services/chat/factories/ChatProviderFacto
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
+import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
 
 /**
  * Preload Script with Context Bridge
@@ -311,6 +312,45 @@ export interface ChatAPI {
 }
 
 /**
+ * File API for file upload and management
+ */
+export interface FileAPI {
+  // Upload file to storage
+  upload: (payload: {
+    threadId: string;
+    fileBuffer: Buffer;
+    filename: string;
+    mimeType: string;
+  }) => Promise<{
+    success: boolean;
+    attachment?: Attachment;
+    error?: string;
+  }>;
+
+  // Get file by ID
+  get: (payload: {
+    threadId: string;
+    fileId: string;
+  }) => Promise<{ success: boolean; buffer?: Buffer; error?: string }>;
+
+  // Delete file
+  delete: (payload: {
+    threadId: string;
+    fileId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+
+  // Validate file before upload
+  validate: (payload: {
+    filename: string;
+    mimeType: string;
+    size: number;
+  }) => Promise<FileValidationResult>;
+
+  // Listen for upload progress events
+  onUploadProgress: (callback: (data: { fileId: string; progress: number }) => void) => () => void;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
@@ -321,6 +361,7 @@ export interface ElectronAPI {
   thread: ThreadAPI;
   system: SystemAPI;
   log: LogAPI;
+  file: FileAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -583,6 +624,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
     debug: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:debug', message, ...params),
   } as LogAPI,
+
+  /**
+   * File API Implementation
+   * Handles file upload, download, and validation
+   */
+  file: {
+    upload: (payload: {
+      threadId: string;
+      fileBuffer: Buffer;
+      filename: string;
+      mimeType: string;
+    }) => ipcRenderer.invoke('file:upload', payload),
+
+    get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
+
+    delete: (payload: { threadId: string; fileId: string }) =>
+      ipcRenderer.invoke('file:delete', payload),
+
+    validate: (payload: { filename: string; mimeType: string; size: number }) =>
+      ipcRenderer.invoke('file:validate', payload),
+
+    onUploadProgress: (
+      callback: (data: { fileId: string; progress: number }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { fileId: string; progress: number },
+      ): void => callback(data);
+      ipcRenderer.on('file:uploadProgress', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('file:uploadProgress', subscription);
+      };
+    },
+  } as FileAPI,
 
   /**
    * Menu Command Listener

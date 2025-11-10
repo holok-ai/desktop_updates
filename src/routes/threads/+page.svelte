@@ -263,7 +263,7 @@
         <ChatPane bind:this={chatPaneRef} thread={selectedThread} {messages}>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
-              <Composer {sendMessage} {isStreaming} />
+              <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />
             {/if}
           {/snippet}
         </ChatPane>

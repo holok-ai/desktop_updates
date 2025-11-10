@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Thread } from '../../../src-electron/preload';
+import type { Thread } from '../../../src-electron/preload.js';
 
 interface ThreadStore {
   subscribe: (run: (value: Thread[]) => void) => () => void;
