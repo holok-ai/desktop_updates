@@ -7,15 +7,16 @@ export interface MessageVersion {
 
 export interface Message {
   id: string;
+  clientMessageId?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;
   status?: MessageStatus;
   retryCount?: number;
   error?: string;
-  clientMessageId?: string;
   editedAt?: number;
   originalMessageId?: string;
   isEdited?: boolean;
   versions?: MessageVersion[];
+  metadata?: Record<string, unknown>;
 };
