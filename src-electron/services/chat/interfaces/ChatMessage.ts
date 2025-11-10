@@ -1,9 +1,12 @@
+import type { Attachment } from '../../../../src-shared/types/attachment.types.js';
+
 /**
  * Represents a single message in a chat conversation
  */
 export interface ChatMessage {
   role: string;
   content: string;
+  attachments?: Attachment[]; // Optional file attachments for multi-modal support
 }
 
 /**

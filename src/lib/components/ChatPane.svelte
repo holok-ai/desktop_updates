@@ -112,13 +112,13 @@
   }
 
   // Send message and handle streaming response
-  async function sendMessage(userMessage: string) {
+  async function sendMessage(userMessage: string, attachments: any[] = []) {
     if (!chatServiceCreated) {
       error = 'Chat service not initialized';
       return;
     }
 
-    if (!userMessage.trim()) return;
+    if (!userMessage.trim() && attachments.length === 0) return;
 
     error = '';
 

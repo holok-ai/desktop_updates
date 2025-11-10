@@ -21,7 +21,8 @@ vi.mock('electron', () => {
   } as any;
 
   const contextBridge = { exposeInMainWorld: vi.fn() };
-  return { ipcMain, BrowserWindow, contextBridge };
+  const app = { getPath: () => '/tmp' };
+  return { ipcMain, BrowserWindow, contextBridge, app };
 });
 
 // Import after mocks

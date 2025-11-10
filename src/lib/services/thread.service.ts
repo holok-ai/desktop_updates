@@ -1,6 +1,6 @@
-import type { Thread } from '../../../src-electron/preload';
-import { threads } from '../stores/thread.store';
-import type { Message } from '$lib/types/thread.type';
+import type { Thread } from '../../../src-electron/preload.js';
+import { threads } from '../stores/thread.store.js';
+import type { Message } from '$lib/types/thread.type.js';
 
 class ThreadService {
   constructor() {

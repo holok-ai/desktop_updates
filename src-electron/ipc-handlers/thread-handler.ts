@@ -466,17 +466,15 @@ export function registerThreadHandlers(): void {
           },
           thread: rt,
         } as const);
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          if (e.message === 'MESSAGE_TOO_LARGE') {
-            return Promise.resolve({
-              success: false,
-              status: 413,
-              error: 'MESSAGE_TOO_LARGE',
-              thread_id: threadId,
-            });
-          }
-          return Promise.resolve({ success: false, status: 400, error: e.message });
+      } catch (e) {
+        const err = e as Error;
+        if (err.message === 'MESSAGE_TOO_LARGE') {
+          return Promise.resolve({
+            success: false,
+            status: 413,
+            error: 'MESSAGE_TOO_LARGE',
+            thread_id: threadId,
+          });
         }
         return Promise.resolve({ success: false, status: 400, error: String(e) });
       }

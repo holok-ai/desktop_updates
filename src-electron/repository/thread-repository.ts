@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
+import { fileStorageService } from '../services/file-storage.service.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -17,7 +19,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   createdAt: number;
-  metadata?: Record<string, unknown>;
+  metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
   editedAt?: number;
@@ -262,6 +264,12 @@ export class ThreadRepository {
   }
 
   public deleteThread(threadId: string): boolean {
+    // Delete associated files before deleting thread
+    fileStorageService.deleteThreadFiles(threadId).catch((error) => {
+      console.error('[ThreadRepository] Failed to delete thread files:', error);
+      // Continue with thread deletion even if file deletion fails
+    });
+
     const deleted = this.threadsById.delete(threadId);
     if (deleted) this.saveToDisk();
     return deleted;
@@ -270,6 +278,13 @@ export class ThreadRepository {
   public softDeleteThread(threadId: string): boolean {
     const thread = this.threadsById.get(threadId);
     if (!thread) return false;
+
+    // Delete associated files on soft delete as well
+    fileStorageService.deleteThreadFiles(threadId).catch((error) => {
+      console.error('[ThreadRepository] Failed to delete thread files:', error);
+      // Continue with soft delete even if file deletion fails
+    });
+
     thread.deletedAt = Date.now();
     thread.metadata = { ...thread.metadata, status: 'deleted' };
     thread.updatedAt = Date.now();

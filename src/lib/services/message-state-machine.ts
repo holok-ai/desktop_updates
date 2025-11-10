@@ -6,7 +6,8 @@
 // local snapshot persistence (localStorage), retry scheduling, and a
 // subscription API for UI components to observe per-message state changes.
 
-import { threadService } from '$lib/services/thread.service';
+import { threadService } from '$lib/services/thread.service.js';
+import type { Message } from '$lib/types/thread.type.js';
 
 type UUID = string;
 
@@ -351,7 +352,7 @@ export class MessageStateMachine {
       complete: [],
       archived: [],
     };
-    return allowed?.[from]?.includes(to) ?? false;
+    return allowed[from].includes(to);
   }
 
   private isTransientError(code?: number): boolean {
@@ -384,7 +385,7 @@ export class MessageStateMachine {
       // Attempt to find the original message content from the thread repository via service
       const msgs = await threadService.getMessages(snap.threadId);
       const orig = msgs.find(
-        (m) => m.clientMessageId === snap.clientMessageId || m.id === snap.clientMessageId,
+        (m: Message) => m.clientMessageId === snap.clientMessageId || m.id === snap.clientMessageId,
       );
       if (!orig) {
         console.warn('performRetry: original message not found for', snap.clientMessageId);

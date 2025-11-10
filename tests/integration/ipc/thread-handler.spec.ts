@@ -51,7 +51,8 @@ vi.mock('electron', () => {
     ],
   };
 
-  return { ipcMain, contextBridge, BrowserWindow };
+  const app = { getPath: () => '/tmp' };
+  return { ipcMain, contextBridge, BrowserWindow, app };
 });
 
 // Import after mocks
