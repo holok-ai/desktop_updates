@@ -36,7 +36,7 @@ async function resetProjects(page: Page) {
     if (!api) return;
     const existing = await api.project.getAll();
     await Promise.all(
-      existing.map((project) => api.project.delete(project.id, { deleteThreads: true }))
+      existing.map((project) => api.project.delete(project.id, { deleteThreads: true })),
     );
     globalThis.localStorage?.removeItem('lastProjectId');
   });
@@ -105,7 +105,10 @@ test.describe('E2E: Project Management', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -227,4 +230,3 @@ test.describe('E2E: Project Management', () => {
     await expect(page.getByRole('heading', { name: firstProjectName, level: 1 })).toBeVisible();
   });
 });
-

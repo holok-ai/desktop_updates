@@ -37,14 +37,20 @@
           description: projectDescription.trim() || undefined,
         });
       } else {
-        await projectService.createProject(projectName.trim(), projectDescription.trim() || undefined);
+        await projectService.createProject(
+          projectName.trim(),
+          projectDescription.trim() || undefined,
+        );
       }
-      
+
       projectName = '';
       projectDescription = '';
       show = false;
     } catch (err) {
-      error = err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} project`;
+      error =
+        err instanceof Error
+          ? err.message
+          : `Failed to ${isEditMode ? 'update' : 'create'} project`;
     } finally {
       isSubmitting = false;
     }
@@ -70,9 +76,20 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal-overlay" onclick={handleCancel} onkeydown={handleKeydown} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="modal-content" onclick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="modal-title" tabindex="0">
+    <div
+      class="modal-content"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-labelledby="modal-title"
+      tabindex="0"
+    >
       <h2 id="modal-title">{isEditMode ? 'Edit Project' : 'Create New Project'}</h2>
-      <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+      <form
+        onsubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
         <div class="form-group">
           <label for="project-name">Project Name *</label>
           <!-- svelte-ignore a11y_autofocus -->
@@ -102,7 +119,12 @@
         {/if}
 
         <div class="modal-actions">
-          <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isSubmitting}>
+          <button
+            type="button"
+            class="btn-secondary"
+            onclick={handleCancel}
+            disabled={isSubmitting}
+          >
             Cancel
           </button>
           <button type="submit" class="btn-primary" disabled={isSubmitting || !projectName.trim()}>
@@ -259,4 +281,3 @@
     font-size: 11px;
   }
 </style>
-

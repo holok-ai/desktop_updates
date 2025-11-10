@@ -165,7 +165,11 @@
 </div>
 
 <ProjectFormModal bind:show={showFormModal} bind:project={projectToEdit} />
-<DeleteProjectModal bind:show={showDeleteModal} bind:project={projectToDelete} on:deleted={handleDeleteSuccess} />
+<DeleteProjectModal
+  bind:show={showDeleteModal}
+  bind:project={projectToDelete}
+  on:deleted={handleDeleteSuccess}
+/>
 
 <style>
   .projects-page {

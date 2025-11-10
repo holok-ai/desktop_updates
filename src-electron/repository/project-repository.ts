@@ -24,7 +24,11 @@ export class ProjectRepository {
     this.loadFromDisk();
   }
 
-  public createProject(name: string, description?: string, metadata?: Record<string, unknown>): Project {
+  public createProject(
+    name: string,
+    description?: string,
+    metadata?: Record<string, unknown>,
+  ): Project {
     const now = Date.now();
     const project: Project = {
       id: generateId('proj_'),
@@ -51,7 +55,10 @@ export class ProjectRepository {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  public updateProject(projectId: string, updates: Partial<Pick<Project, 'name' | 'description' | 'metadata'>>): Project {
+  public updateProject(
+    projectId: string,
+    updates: Partial<Pick<Project, 'name' | 'description' | 'metadata'>>,
+  ): Project {
     const project = this.projectsById.get(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
 
@@ -153,4 +160,3 @@ export class ProjectRepository {
 
 export const projectRepository = new ProjectRepository();
 export default ProjectRepository;
-
