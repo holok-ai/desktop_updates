@@ -69,8 +69,8 @@ export class ProjectService {
 
   public async deleteProject(id: string, deleteThreads = false): Promise<boolean> {
     try {
-      const isDeleted = await window.electronAPI.project.delete(id, { deleteThreads });
-      return isDeleted;
+      const isprojectDeleted = await window.electronAPI.project.delete(id, { deleteThreads });
+      return isprojectDeleted;
     } catch (error) {
       console.error('Failed to delete project:', error);
       throw error;
