@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
-import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';

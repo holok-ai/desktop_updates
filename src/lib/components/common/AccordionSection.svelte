@@ -1,8 +1,8 @@
 <script lang="ts">
-  import SidebarItem from "./SidebarItem.svelte";
-  import { createEventDispatcher } from "svelte";
-  import { slide } from "svelte/transition";
-  import type { SidebarActivity } from "$lib/types/sidebar.type";
+  import SidebarItem from './SidebarItem.svelte';
+  import { createEventDispatcher } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import type { SidebarActivity } from '$lib/types/sidebar.type';
 
   const dispatch = createEventDispatcher();
 
@@ -23,7 +23,7 @@
   }
 
   function onClick(item: SidebarActivity) {
-    dispatch("click", item);
+    dispatch('click', item);
   }
 </script>
 
@@ -52,7 +52,6 @@
     {/if}
   {/key}
 </div>
-
 
 <style>
   .accordion-header {

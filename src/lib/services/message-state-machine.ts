@@ -1,3 +1,6 @@
+/* eslint-disable security/detect-object-injection */
+/* eslint-disable prefer-destructuring */
+/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 // MessageStateMachine: front-end FSM for message lifecycle transitions
 // Implements a lightweight, testable state machine with in-memory actors,
 // local snapshot persistence (localStorage), retry scheduling, and a
@@ -45,13 +48,30 @@ type Subscriber = (snap: MessageStateSnapshot) => void;
 const RETRY_BACKOFF_MS = [3000, 6000]; // two automatic retries (3s, 6s) => <=10s total
 const STORAGE_KEY_PREFIX = 'msm:snapshot:';
 
-function storageKey(threadId: string, clientMessageId: string) {
+type ChatResult = { success?: boolean; status?: number; error?: string } | undefined;
+
+type Metadata = Record<string, unknown> & { model?: unknown };
+
+function storageKey(threadId: string, clientMessageId: string): string {
   return `${STORAGE_KEY_PREFIX}${threadId}:${clientMessageId}`;
 }
 
 function nowIso(): string {
   return new Date().toISOString();
 }
+
+function getModelFromMetadata(metadata?: Metadata): string {
+  if (metadata !== undefined && metadata !== null && typeof metadata.model === 'string') {
+    return metadata.model;
+  }
+  return 'llama3:latest';
+}
+
+type ElectronAPIType = {
+  chat?: { chat: (req: unknown) => Promise<ChatResult> };
+  log?: { info: (tag: string, payload?: unknown) => void };
+  messageStateMachine?: unknown;
+};
 
 export class MessageStateMachine {
   private snapshots: Map<string, MessageStateSnapshot> = new Map();
@@ -63,7 +83,9 @@ export class MessageStateMachine {
     // Return in-memory snapshot if present. Loading from IndexedDB is async; callers
     // that need durable load should call `loadSnapshotAsync`.
     const existing = this.snapshots.get(clientMessageId);
-    if (existing) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     return null;
   }
 
@@ -73,7 +95,6 @@ export class MessageStateMachine {
     this.emitToSubscribers(snap.clientMessageId, snap);
     // fire-and-forget async persistence
     void this.writeSnapshotIndexedDB(snap).catch((e) => {
-      // eslint-disable-next-line no-console
       console.error('MessageStateMachine: failed to write snapshot to IndexedDB', e);
     });
   }
@@ -84,7 +105,7 @@ export class MessageStateMachine {
     clientMessageId: string,
   ): Promise<MessageStateSnapshot | null> {
     try {
-      const key = `${threadId}:${clientMessageId}`;
+      const key = storageKey(threadId, clientMessageId);
       const db = await this.openDB();
       return await new Promise((resolve, reject) => {
         try {
@@ -93,17 +114,19 @@ export class MessageStateMachine {
           const req = store.get(key);
           req.onsuccess = () => {
             const val = req.result as { id: string; snap?: MessageStateSnapshot } | undefined;
-            if (!val || !val.snap) return resolve(null);
+            if (!val?.snap) {
+              resolve(null);
+              return;
+            }
             this.snapshots.set(clientMessageId, val.snap);
             resolve(val.snap ?? null);
           };
-          req.onerror = () => reject(req.error);
+          req.onerror = () => reject(req.error ?? new Error('IDB request error'));
         } catch (e) {
-          reject(e);
+          reject(e instanceof Error ? e : new Error(String(e)));
         }
       });
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error('loadSnapshotAsync failed', e);
       return null;
     }
@@ -120,15 +143,15 @@ export class MessageStateMachine {
           }
         };
         req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onerror = () => reject(req.error ?? new Error('IDB request error'));
       } catch (e) {
-        reject(e);
+        reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
   }
 
   private async writeSnapshotIndexedDB(snap: MessageStateSnapshot): Promise<void> {
-    const key = `${snap.threadId}:${snap.clientMessageId}`;
+    const key = storageKey(snap.threadId, snap.clientMessageId);
     const db = await this.openDB();
     await new Promise<void>((resolve, reject) => {
       try {
@@ -137,9 +160,9 @@ export class MessageStateMachine {
         const payload = { id: key, snap };
         const req = store.put(payload);
         req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        req.onerror = () => reject(req.error ?? new Error('IDB write error'));
       } catch (e) {
-        reject(e);
+        reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
   }
@@ -165,39 +188,53 @@ export class MessageStateMachine {
 
   // Subscribe to state updates for a specific message
   public subscribe(clientMessageId: string, cb: Subscriber): () => void {
-    if (!this.subscribers.has(clientMessageId)) this.subscribers.set(clientMessageId, new Set());
-    const set = this.subscribers.get(clientMessageId)!;
+    if (!this.subscribers.has(clientMessageId)) {
+      this.subscribers.set(clientMessageId, new Set());
+    }
+    const set = this.subscribers.get(clientMessageId);
+    if (set === undefined) {
+      // Defensive: should not happen, but ensure we return a no-op unsubscribe
+      return () => {};
+    }
     set.add(cb);
     // If snapshot exists, notify immediately
     const snap = this.snapshots.get(clientMessageId);
-    if (snap) cb(snap);
+    if (snap !== undefined) {
+      cb(snap);
+    }
     return () => set.delete(cb);
   }
 
-  private emitToSubscribers(clientMessageId: string, snap: MessageStateSnapshot) {
+  private emitToSubscribers(clientMessageId: string, snap: MessageStateSnapshot): void {
     const set = this.subscribers.get(clientMessageId);
-    if (!set) return;
-    for (const cb of Array.from(set)) cb({ ...snap });
+    if (set === undefined) {
+      return;
+    }
+    for (const cb of Array.from(set)) {
+      cb({ ...snap });
+    }
   }
 
   // Handle an external event (ACK/FAIL/RETRY_TRIGGER/CONFIRM/ARCHIVE)
   public handleEvent(evt: ExternalEvent): void {
-    const clientMessageId = evt.clientMessageId;
+    const { clientMessageId } = evt;
     const existing = this.snapshots.get(clientMessageId);
-    if (!existing) {
+    if (existing === undefined) {
       // No local snapshot — nothing to reconcile locally (could load from storage if desired)
-      // eslint-disable-next-line no-console
       console.warn('MessageStateMachine: received event for unknown message', evt);
       return;
     }
 
-    // Dedupe with sequenceId if present
-    const sequenceId = (evt as any).sequenceId;
+    // Dedupe with sequenceId if present (only ACK and FAIL carry sequenceId)
+    let sequenceId: string | number | undefined;
+    if (evt.type === 'ACK' || evt.type === 'FAIL') {
+      sequenceId = evt.sequenceId;
+    }
     if (sequenceId !== undefined && existing.lastSequenceId !== undefined) {
       try {
         // numeric or string comparison: coerce to Number when possible
         const seqNum = Number(sequenceId);
-        const prevNum = Number(existing.lastSequenceId as any);
+        const prevNum = Number(existing.lastSequenceId as unknown);
         if (!Number.isNaN(seqNum) && !Number.isNaN(prevNum) && seqNum <= prevNum) {
           return; // stale event
         }
@@ -207,30 +244,32 @@ export class MessageStateMachine {
     }
 
     switch (evt.type) {
-      case 'ACK':
+      case 'ACK': {
+        const { sequenceId: ackSeq, serverMessageId } = evt;
         this.transitionTo(existing, 'sent', {
-          lastSequenceId: (evt as any).sequenceId,
-          metadata: { serverMessageId: (evt as any).serverMessageId },
+          lastSequenceId: ackSeq,
+          metadata: { serverMessageId },
         });
         break;
+      }
       case 'FAIL': {
-        const errorCode = (evt as any).errorCode as number | undefined;
+        const { errorCode, errorMessage, sequenceId: seqId } = evt;
         if (this.isTransientError(errorCode)) {
           // mark failed then schedule automatic retry
           this.transitionTo(existing, 'failed', {
-            lastSequenceId: (evt as any).sequenceId,
+            lastSequenceId: seqId,
             metadata: {
-              errorCode: (evt as any).errorCode,
-              errorMessage: (evt as any).errorMessage,
+              errorCode,
+              errorMessage,
             },
           });
-          this.scheduleAutomaticRetry(existing);
+          void this.scheduleAutomaticRetry(existing);
         } else {
           this.transitionTo(existing, 'failed', {
-            lastSequenceId: (evt as any).sequenceId,
+            lastSequenceId: seqId,
             metadata: {
-              errorCode: (evt as any).errorCode,
-              errorMessage: (evt as any).errorMessage,
+              errorCode,
+              errorMessage,
             },
           });
         }
@@ -238,7 +277,7 @@ export class MessageStateMachine {
       }
       case 'RETRY_TRIGGER':
         this.transitionTo(existing, 'retrying');
-        this.performRetry(existing);
+        void this.performRetry(existing);
         break;
       case 'CONFIRM':
         this.transitionTo(existing, 'complete');
@@ -255,10 +294,9 @@ export class MessageStateMachine {
     base: MessageStateSnapshot,
     newState: MessageStatus,
     opts?: { lastSequenceId?: string | number; metadata?: Record<string, unknown> },
-  ) {
+  ): void {
     // Guard illegal transitions
     if (!this.isAllowedTransition(base.state, newState)) {
-      // eslint-disable-next-line no-console
       console.warn(`Illegal transition attempted: ${base.state} -> ${newState}`);
       return;
     }
@@ -270,18 +308,22 @@ export class MessageStateMachine {
       attemptCount: base.attemptCount ?? 0,
       lastSequenceId: opts?.lastSequenceId ?? base.lastSequenceId,
       changedAt: nowIso(),
-      metadata: { ...(base.metadata ?? {}), ...(opts?.metadata ?? {}) },
+      metadata: opts?.metadata
+        ? { ...(base.metadata ?? {}), ...(opts.metadata ?? {}) }
+        : base.metadata,
     };
 
     // If moving into retrying via an automatic path, increment attemptCount
-    if (newState === 'retrying') snap.attemptCount = (base.attemptCount ?? 0) + 1;
+    if (newState === 'retrying') {
+      snap.attemptCount = (base.attemptCount ?? 0) + 1;
+    }
 
     this.persistSnapshot(snap);
 
     // side effects: compute duration from previous state's changedAt when available
     let durationMs: number | undefined;
     try {
-      if (base.changedAt) {
+      if (typeof base.changedAt === 'string' && base.changedAt.length > 0) {
         const prevTs = Date.parse(base.changedAt);
         durationMs = Date.now() - prevTs;
       }
@@ -292,8 +334,10 @@ export class MessageStateMachine {
 
     // cancel any existing retry timer when leaving retrying or failed
     if (this.retryTimers.has(snap.clientMessageId) && newState !== 'retrying') {
-      const t = this.retryTimers.get(snap.clientMessageId)!;
-      clearTimeout(t);
+      const t = this.retryTimers.get(snap.clientMessageId);
+      if (typeof t === 'number') {
+        clearTimeout(t);
+      }
       this.retryTimers.delete(snap.clientMessageId);
     }
   }
@@ -307,16 +351,18 @@ export class MessageStateMachine {
       complete: [],
       archived: [],
     };
-    return allowed[from].includes(to);
+    return allowed?.[from]?.includes(to) ?? false;
   }
 
   private isTransientError(code?: number): boolean {
-    if (typeof code !== 'number') return false;
+    if (typeof code !== 'number') {
+      return false;
+    }
     // Common transient codes
     return [502, 503, 504, 429].includes(code);
   }
 
-  private scheduleAutomaticRetry(snap: MessageStateSnapshot) {
+  private scheduleAutomaticRetry(snap: MessageStateSnapshot): void {
     const attempts = snap.attemptCount ?? 0;
     if (attempts >= RETRY_BACKOFF_MS.length) {
       // exhausted automatic retries
@@ -333,20 +379,20 @@ export class MessageStateMachine {
     this.retryTimers.set(snap.clientMessageId, timer);
   }
 
-  private async performRetry(snap: MessageStateSnapshot) {
+  private async performRetry(snap: MessageStateSnapshot): Promise<void> {
     try {
       // Attempt to find the original message content from the thread repository via service
       const msgs = await threadService.getMessages(snap.threadId);
       const orig = msgs.find(
-        (m: any) => m.clientMessageId === snap.clientMessageId || m.id === snap.clientMessageId,
+        (m) => m.clientMessageId === snap.clientMessageId || m.id === snap.clientMessageId,
       );
       if (!orig) {
         console.warn('performRetry: original message not found for', snap.clientMessageId);
         return;
       }
 
-      const content = orig.content as string;
-      const model = (snap.metadata && (snap.metadata as any).model) || 'llama3:latest';
+      const content = String(orig.content ?? '');
+      const model = getModelFromMetadata(snap.metadata);
 
       const request = {
         messages: [{ role: 'user', content }],
@@ -356,23 +402,40 @@ export class MessageStateMachine {
 
       // Fire the chat request; server should emit ACK/FAIL events that will be handled
       // by the FSM via IPC. If the chat call itself fails synchronously, mark as FAIL.
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore window electron api exists at runtime
-      const result = await (window as any).electronAPI.chat.chat(request);
-      if (!result || (result as any).success !== true) {
-        const failure = (result as any) || {};
+      // Call through electronAPI only if available
+      const maybeApi = (window as unknown as { electronAPI?: ElectronAPIType }).electronAPI;
+      if (maybeApi === undefined || typeof maybeApi.chat?.chat !== 'function') {
+        // Treat as failure if API not available
         this.handleEvent({
           type: 'FAIL',
           clientMessageId: snap.clientMessageId,
           threadId: snap.threadId,
-          errorCode: failure.status ?? 0,
-          errorMessage: failure.error ?? 'retry_failed',
+          errorMessage: 'chat_api_unavailable',
+        });
+        return;
+      }
+
+      const result = await maybeApi.chat.chat(request);
+      if (result?.success !== true) {
+        const failure = result ?? {};
+        this.handleEvent({
+          type: 'FAIL',
+          clientMessageId: snap.clientMessageId,
+          threadId: snap.threadId,
+          errorCode:
+            typeof (failure as { status?: number }).status === 'number'
+              ? (failure as { status?: number }).status
+              : 0,
+          errorMessage:
+            typeof (failure as { error?: string }).error === 'string'
+              ? (failure as { error?: string }).error
+              : 'retry_failed',
         });
       }
       // otherwise, assume server will emit ACK and FSM will reconcile
     } catch (e) {
       // On unexpected errors, transition to failed and do not schedule more retries here
-      // eslint-disable-next-line no-console
+
       console.error('performRetry error', e);
       this.handleEvent({
         type: 'FAIL',
@@ -391,7 +454,7 @@ export class MessageStateMachine {
     next?: MessageStatus,
     snap?: MessageStateSnapshot,
     durationMs?: number,
-  ) {
+  ): void {
     const key = `${prev ?? 'unknown'}->${next ?? 'unknown'}`;
     const prevCount = this.transitionCounts.get(key) ?? 0;
     this.transitionCounts.set(key, prevCount + 1);
@@ -403,8 +466,9 @@ export class MessageStateMachine {
 
     // Emit lightweight logs to main process via the existing logging bridge
     try {
-      if ((window as any).electronAPI && (window as any).electronAPI.log) {
-        (window as any).electronAPI.log.info('telemetry:state.transition', {
+      const maybeApi = (window as unknown as { electronAPI?: ElectronAPIType }).electronAPI;
+      if (maybeApi && typeof maybeApi.log?.info === 'function') {
+        maybeApi.log.info('telemetry:state.transition', {
           prev,
           next,
           clientMessageId: snap?.clientMessageId,
@@ -413,8 +477,7 @@ export class MessageStateMachine {
           durationMs,
         });
       } else {
-        // eslint-disable-next-line no-console
-        console.debug('telemetry: state.transition', {
+        console.warn('telemetry: state.transition', {
           prev,
           next,
           clientMessageId: snap?.clientMessageId,
@@ -424,15 +487,19 @@ export class MessageStateMachine {
         });
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.debug('emitTelemetryTransition failed', e);
+      console.warn('emitTelemetryTransition failed', e instanceof Error ? e : String(e));
     }
   }
 
   // Expose in-memory metrics snapshot for tests / debugging
-  public getMetrics() {
+  public getMetrics(): {
+    counts: Record<string, number>;
+    durations: Record<string, { count: number; avgMs: number }>;
+  } {
     const counts: Record<string, number> = {};
-    for (const [k, v] of this.transitionCounts.entries()) counts[k] = v;
+    for (const [k, v] of this.transitionCounts.entries()) {
+      counts[k] = v;
+    }
     const durations: Record<string, { count: number; avgMs: number }> = {};
     for (const [k, arr] of this.transitionDurationsMs.entries()) {
       const sum = arr.reduce((s, n) => s + n, 0);
@@ -446,7 +513,10 @@ export const messageStateMachine = new MessageStateMachine();
 
 // Expose for E2E tests to simulate server events
 try {
-  if (typeof window !== 'undefined') (window as any).messageStateMachine = messageStateMachine;
+  if (typeof window !== 'undefined') {
+    (window as unknown as { messageStateMachine?: MessageStateMachine }).messageStateMachine =
+      messageStateMachine;
+  }
 } catch {
   // ignore in non-browser contexts
 }

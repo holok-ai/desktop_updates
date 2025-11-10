@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { MessageStateMachine } from '../../src/lib/services/message-state-machine';
+
 // Provide a lightweight in-memory IndexedDB mock for unit tests (node env lacks indexedDB)
 class MockIDBRequest {
   onsuccess: (() => void) | null = null;
@@ -73,8 +75,6 @@ class MockIDBFactory {
 if (typeof (globalThis as any).indexedDB === 'undefined') {
   (globalThis as any).indexedDB = new MockIDBFactory();
 }
-import { MessageStateMachine } from '$lib/services/message-state-machine';
-import { threadService } from '$lib/services/thread.service';
 
 describe('MessageStateMachine', () => {
   let msm: MessageStateMachine;
@@ -160,10 +160,8 @@ describe('MessageStateMachine', () => {
     const start = Date.now();
     let loaded = null as any;
     while (Date.now() - start < 2000) {
-      // eslint-disable-next-line no-await-in-loop
       loaded = await msm2.loadSnapshotAsync(threadId, clientId);
       if (loaded) break;
-      // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, 50));
     }
     if (!loaded) {

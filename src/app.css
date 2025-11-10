@@ -15,24 +15,24 @@
   --sidebar-secondary-collapsed: 48px;
 
   /* Light theme (defaults) */
-  --surface-sidebar-primary: #EEEEEE;
-  --surface-sidebar-secondary: #EEEEEE;
-  --surface-main: #FFFFFF;
-  --surface-card: #F3F4F6;
+  --surface-sidebar-primary: #eeeeee;
+  --surface-sidebar-secondary: #eeeeee;
+  --surface-main: #ffffff;
+  --surface-card: #f3f4f6;
   --surface-hover: rgba(59, 130, 246, 0.06);
-  --border-sidebar: #E5E7EB;
+  --border-sidebar: #e5e7eb;
   --border-active: #3b82f6;
   --border-card: #929395;
-  --background-primary-active: #0F2239;
+  --background-primary-active: #0f2239;
 
   --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-active: #FFFFFF;
+  --text-secondary: #4b5563;
+  --text-active: #ffffff;
 
   --sidebar-secondary-box-shadow: 0px 3px 6px 0px #00000040;
 
-  --input-background: #FFFFFF;
-  --input-border: #A3A3A3;
+  --input-background: #ffffff;
+  --input-border: #a3a3a3;
 
   color-scheme: light;
   color: var(--text-primary);
@@ -76,7 +76,7 @@ button {
   font-weight: 500;
   font-family: inherit;
   background-color: #1a1a1a;
-  color: #FFF;
+  color: #fff;
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -92,9 +92,9 @@ button:focus-visible {
 
 /* Dark theme overrides */
 .dark {
-  --surface-sidebar-primary: #1B1B1B;
-  --surface-sidebar-secondary: #1B1B1B;
-  --surface-main: #1B1B1B;
+  --surface-sidebar-primary: #1b1b1b;
+  --surface-sidebar-secondary: #1b1b1b;
+  --surface-main: #1b1b1b;
   --surface-card: #1f2937;
   --surface-hover: rgba(59, 130, 246, 0.1);
   --border-sidebar: #1f2937;
@@ -115,11 +115,21 @@ button:focus-visible {
 /* Using explicit theme toggling via .dark class; no media query overrides needed */
 
 /* Form */
-h1, h2, h3, h4, h5, h6, label, span, p {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+label,
+span,
+p {
   color: var(--text-primary);
 }
 
-input, textarea, select {
+input,
+textarea,
+select {
   background: var(--input-background);
   border: 1px solid var(--input-border);
   color: var(--text-primary);
