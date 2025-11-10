@@ -6,8 +6,10 @@ vi.mock('electron-store', () => {
     default: class MockStore {
       store: Record<string, any>;
       path = '/tmp/settings.json';
+      private defaults: Record<string, any>;
       constructor(opts: any) {
-        this.store = { ...(opts?.defaults || {}) };
+        this.defaults = { ...(opts?.defaults || {}) };
+        this.store = { ...this.defaults };
       }
       get(key: string, fallback?: any) {
         return this.store[key] ?? fallback;
@@ -16,7 +18,8 @@ vi.mock('electron-store', () => {
         this.store[key] = value;
       }
       clear() {
-        this.store = {};
+        // restore to defaults (behaviour expected by SettingsService.resetToDefaults)
+        this.store = { ...this.defaults };
       }
     },
   };

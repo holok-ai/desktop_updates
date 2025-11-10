@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
   import type { Thread } from '../../../src-electron/preload';
+  import { messageStateMachine } from '$lib/services/message-state-machine';
+  import type { MessageStatus } from '$lib/services/message-state-machine';
   import { threadService } from '$lib/services/thread.service';
 
   type Message = {
@@ -8,6 +10,9 @@
     role: 'user' | 'assistant' | 'system';
     content: string;
     createdAt: number;
+    clientMessageId?: string;
+    status?: MessageStatus;
+    attemptCount?: number;
   };
 
   interface Props {
@@ -18,6 +23,15 @@
     >;
   }
 
+  function retryMessage(clientMessageId: string) {
+    if (!thread) return;
+    try {
+      messageStateMachine.handleEvent({ type: 'RETRY_TRIGGER', clientMessageId, threadId: thread.id });
+    } catch (e) {
+      console.error('Failed to trigger retry', e);
+    }
+  }
+
   let { thread = null, messages = [], composer }: Props = $props();
 
   // State management
@@ -25,6 +39,9 @@
   let responseText = $state('');
   let isStreaming = $state(false);
   let error = $state('');
+  let stateUnsubs: Map<string, () => void> = new Map();
+  let ipcUnsubOnMessageError: (() => void) | null = null;
+  let statusMetadataByClientId: Map<string, Record<string, unknown>> = new Map();
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Initialize chat service on mount
@@ -92,11 +109,18 @@
 
         const userMsg: Message = {
           id: persisted.message.id,
+          clientMessageId: clientMessageId,
           role: 'user',
           content: userMessage,
           createdAt: persisted.message.createdAt,
         };
         messages = [...messages, userMsg];
+        // register initial sending state for this message
+        try {
+          messageStateMachine.createSending(thread.id, clientMessageId, { provider: 'ollama', model: 'llama3:latest' });
+        } catch (e) {
+          console.error('Failed to create sending snapshot', e);
+        }
       } catch (e) {
         error = e instanceof Error ? e.message : 'Failed to append message';
         return;
@@ -110,7 +134,29 @@
         createdAt: Date.now(),
       };
       messages = [...messages, userMsg];
+      // If we have a temp thread id (when thread exists as temp) register sending state
+      if (thread && typeof thread.id === 'string') {
+        try {
+          messageStateMachine.createSending(thread.id, clientMessageId, { provider: 'ollama', model: 'llama3:latest' });
+        } catch (e) {
+          console.error('Failed to create sending snapshot', e);
+        }
+      }
     }
+
+    // subscribe to state changes for this clientMessageId and update UI message status
+    const unsubscribe = messageStateMachine.subscribe(clientMessageId, (snap) => {
+      const idx = messages.findIndex((m) => m.clientMessageId === clientMessageId || m.id === clientMessageId);
+      if (idx === -1) return;
+      const m = messages[idx];
+      const updated: Message = { ...m, status: snap.state, attemptCount: snap.attemptCount };
+      messages = [...messages.slice(0, idx), updated, ...messages.slice(idx + 1)];
+      statusMetadataByClientId.set(clientMessageId, snap.metadata ?? {});
+    });
+
+    // remember to unsubscribe on cleanup
+    if (!stateUnsubs) stateUnsubs = new Map();
+    stateUnsubs.set(clientMessageId, unsubscribe);
 
     try {
       const request = {
@@ -191,11 +237,34 @@
   async function cleanup() {
     window.electronAPI.chat.offToken();
     await window.electronAPI.chat.close();
+    // unsubscribe any state subscriptions
+    try {
+      for (const unsub of Array.from(stateUnsubs.values())) unsub();
+    } catch (e) {
+      // ignore
+    }
+    stateUnsubs.clear();
+    // remove ipc listeners
+    if (ipcUnsubOnMessageError) ipcUnsubOnMessageError();
   }
 
   // Lifecycle hooks
   onMount(() => {
     initializeChatService();
+
+    // Listen for message error events from main process and forward to FSM
+    try {
+      ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
+        const clientId = evt?.client_message_id ?? evt?.clientMessageId;
+        const threadId = evt?.thread_id ?? evt?.threadId ?? (thread ? thread.id : undefined);
+        const errorObj = evt?.error ?? {};
+        if (typeof clientId === 'string' && clientId.length > 0 && typeof threadId === 'string') {
+          messageStateMachine.handleEvent({ type: 'FAIL', clientMessageId: clientId, threadId, errorCode: (errorObj as any).code, errorMessage: (errorObj as any).message });
+        }
+      });
+    } catch (e) {
+      // ignore if API not available
+    }
 
     return () => {
       cleanup();
@@ -228,9 +297,26 @@
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
         {#each messages as m (m.id)}
-          <div class="message {m.role}">
+          <div class="message {m.role}" data-client-id={m.clientMessageId ?? m.id} data-thread-id={thread.id}>
             <div class="message-content">{m.content}</div>
-            <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
+            <div class="message-meta-row">
+              <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
+              <div class="message-status">
+                {#if m.status === 'sending'}
+                  <span class="status-spinner" title="Sending">●</span>
+                {:else if m.status === 'retrying'}
+                  <span class="status-spinner" title="Retrying (automatic)">⟳</span>
+                  {#if m.attemptCount}
+                    <span class="status-attempt">{m.attemptCount}</span>
+                  {/if}
+                {:else if m.status === 'sent'}
+                  <span class="status-sent" title="Sent">✔</span>
+                {:else if m.status === 'failed'}
+                  <span class="status-failed" title={(statusMetadataByClientId.get(m.clientMessageId ?? m.id) as any)?.errorMessage ?? 'Failed'}>✖</span>
+                  <button class="status-action" onclick={() => retryMessage(m.clientMessageId ?? m.id)}>Retry</button>
+                {/if}
+              </div>
+            </div>
           </div>
         {/each}
       {/if}
@@ -318,6 +404,49 @@
     font-size: 0.75rem;
     color: #666;
     margin-top: 0.25rem;
+  }
+
+  .message-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .message-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+
+  .status-spinner {
+    animation: pulse 1s linear infinite;
+    color: #2563eb;
+    font-weight: 700;
+  }
+
+  .status-sent {
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  .status-failed {
+    color: #ef4444;
+    font-weight: 700;
+  }
+
+  .status-action {
+    background: transparent;
+    border: 1px solid #d1d5db;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .status-attempt {
+    font-size: 0.75rem;
+    color: #374151;
   }
 
   .composer {
