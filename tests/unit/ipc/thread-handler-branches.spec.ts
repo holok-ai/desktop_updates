@@ -23,7 +23,8 @@ vi.mock('electron', () => {
 
   const contextBridge = { exposeInMainWorld: vi.fn() };
   const ipcRenderer = { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() };
-  return { ipcMain, BrowserWindow, contextBridge, ipcRenderer };
+  const app = { getPath: () => '/tmp' };
+  return { ipcMain, BrowserWindow, contextBridge, ipcRenderer, app };
 });
 
 // Import after mocks
