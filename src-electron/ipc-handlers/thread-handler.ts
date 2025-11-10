@@ -4,7 +4,11 @@ import { mokuService } from '../services/moku.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type ThreadRepository from '../repository/thread-repository.js';
-import type { Thread as InternalThread, ThreadMetadata } from '../repository/thread-repository.js';
+import type {
+  Thread as InternalThread,
+  ThreadMetadata,
+  Message as InternalMessage,
+} from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
@@ -173,7 +177,7 @@ export function registerThreadHandlers(): void {
   try {
     const existing = threadRepository.listThreads();
     if (!existing || existing.length === 0) initializeSampleData();
-  } catch (e) {
+  } catch (_e) {
     // ignore initialization errors in test environments
   }
 
@@ -256,7 +260,17 @@ export function registerThreadHandlers(): void {
       }
 
       try {
-        const msg = threadRepository.duplicateMessage(threadId, messageId);
+        // Inline duplicate logic to avoid calling potentially untyped exported helper in tests
+        const threadObj = threadRepository.loadThread(threadId);
+        if (!threadObj) throw new Error(`Thread not found: ${threadId}`);
+        const original = threadObj.messages.find((m) => m.id === messageId);
+        if (!original) throw new Error(`Message not found: ${messageId}`);
+        if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
+        const msg: InternalMessage = threadRepository.appendMessage(threadId, {
+          role: 'user',
+          content: original.content,
+          metadata: original.metadata,
+        });
         const rt = toRendererThread(threadRepository.loadThread(threadId));
         if (!rt) throw new Error('Failed to convert thread after duplicate');
 
@@ -272,16 +286,19 @@ export function registerThreadHandlers(): void {
           message: { id: msg.id, role: msg.role, content: msg.content, createdAt: msg.createdAt },
           thread: rt,
         } as const);
-      } catch (e) {
-        const err = e as Error;
-        if (err.message === 'CAN_ONLY_DUPLICATE_USER_PROMPTS')
-          return Promise.resolve({
-            success: false,
-            status: 400,
-            error: err.message,
-            thread_id: threadId,
-          });
-        return Promise.resolve({ success: false, status: 400, error: err.message });
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          if (e.message === 'CAN_ONLY_DUPLICATE_USER_PROMPTS') {
+            return Promise.resolve({
+              success: false,
+              status: 400,
+              error: e.message,
+              thread_id: threadId,
+            });
+          }
+          return Promise.resolve({ success: false, status: 400, error: e.message });
+        }
+        return Promise.resolve({ success: false, status: 400, error: String(e) });
       }
     },
   );
@@ -333,16 +350,15 @@ export function registerThreadHandlers(): void {
         if (s === 'active' || s === 'archived' || s === 'deleted') newMetadata.status = s;
       }
 
-      const updatedThreadObj: ThreadRepository extends any ? any : any = {
-        ...existing,
-        title: typeof updates.title === 'string' ? updates.title : existing.title,
-        metadata: newMetadata,
-        // keep messages
-        messages: existing.messages,
-        updatedAt: Date.now(),
-      };
       const updated: ReturnType<(typeof threadRepository)['saveThread']> =
-        threadRepository.saveThread(updatedThreadObj);
+        threadRepository.saveThread({
+          ...existing,
+          title: typeof updates.title === 'string' ? updates.title : existing.title,
+          metadata: newMetadata,
+          // keep messages
+          messages: existing.messages,
+          updatedAt: Date.now(),
+        });
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
       broadcast('thread:updated', rt);
@@ -418,7 +434,7 @@ export function registerThreadHandlers(): void {
       }
 
       try {
-        const msg = threadRepository.appendMessage(threadId, {
+        const msg: InternalMessage = threadRepository.appendMessage(threadId, {
           role: payload.role,
           content: payload.content,
           metadata: payload.metadata,
@@ -446,17 +462,19 @@ export function registerThreadHandlers(): void {
           },
           thread: rt,
         } as const);
-      } catch (e) {
-        const err = e as Error;
-        if (err.message === 'MESSAGE_TOO_LARGE') {
-          return Promise.resolve({
-            success: false,
-            status: 413,
-            error: 'MESSAGE_TOO_LARGE',
-            thread_id: threadId,
-          });
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          if (e.message === 'MESSAGE_TOO_LARGE') {
+            return Promise.resolve({
+              success: false,
+              status: 413,
+              error: 'MESSAGE_TOO_LARGE',
+              thread_id: threadId,
+            });
+          }
+          return Promise.resolve({ success: false, status: 400, error: e.message });
         }
-        return Promise.resolve({ success: false, status: 400, error: err.message });
+        return Promise.resolve({ success: false, status: 400, error: String(e) });
       }
     },
   );

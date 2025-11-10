@@ -403,7 +403,7 @@
     // unsubscribe any state subscriptions
     try {
       for (const unsub of Array.from(stateUnsubs.values())) unsub();
-    } catch (e) {
+    } catch {
       // ignore
     }
     stateUnsubs.clear();
@@ -431,7 +431,7 @@
           });
         }
       });
-    } catch (e) {
+    } catch {
       // ignore if API not available
     }
 
