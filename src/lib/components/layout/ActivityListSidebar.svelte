@@ -47,8 +47,9 @@
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
-        try { window.localStorage.setItem('lastThreadId', tid); }
-        catch (error) {
+        try {
+          window.localStorage.setItem('lastThreadId', tid);
+        } catch (error) {
           console.error('Failed to set lastThreadId', error);
         }
       } else {
@@ -199,13 +200,17 @@
   }
 </script>
 
-<aside class="activity-list-sidebar transition-all duration-300 {isCollapsed && 'collapsed'}" aria-label="Activity list sidebar">
+<aside
+  class="activity-list-sidebar transition-all duration-300 {isCollapsed && 'collapsed'}"
+  aria-label="Activity list sidebar"
+>
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
       <span class="activity-title">{'Organization Name'}</span>
     {/if}
     <button
-      class="{!isCollapsed && 'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
+      class="{!isCollapsed &&
+        'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
       onclick={toggleSidebar}
       aria-label="Collapse/Expand Activity List"
     >
@@ -218,7 +223,13 @@
         {#each navigationOptions as item}
           <SidebarItem isSelected={false} {item} {isCollapsed} on:click={() => item.onClick?.()} />
         {/each}
-        <AccordionSection title="Agents" isSubsection={true} isSidebarCollapsed={isCollapsed} items={agentItems} selectedId={null} />
+        <AccordionSection
+          title="Agents"
+          isSubsection={true}
+          isSidebarCollapsed={isCollapsed}
+          items={agentItems}
+          selectedId={null}
+        />
         <AccordionSection
           title="Projects"
           isSubsection={true}
@@ -330,7 +341,9 @@
     padding: 1rem 0;
     margin: 0;
     gap: 0.5rem;
-    transition: padding 0.2s, gap 0.2s;
+    transition:
+      padding 0.2s,
+      gap 0.2s;
   }
 
   .activity-list-sidebar.collapsed .list-items {

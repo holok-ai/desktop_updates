@@ -1,4 +1,4 @@
-import type { RoutePath } from "./route.type";
+import type { RoutePath } from './route.type';
 
 export interface SidebarActivity {
   id: string;

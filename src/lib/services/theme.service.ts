@@ -31,5 +31,3 @@ export function persistTheme(theme: AppThemeMode): void {
     // ignore storage failures
   }
 }
-
-

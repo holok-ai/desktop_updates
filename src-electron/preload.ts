@@ -563,6 +563,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       },
     ) => ipcRenderer.invoke('thread:appendMessage', threadId, payload),
 
+    // Duplicate an existing message in-thread (run again)
+    duplicateMessage: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:duplicateMessage', threadId, messageId),
+
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
     ) => {

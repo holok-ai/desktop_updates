@@ -53,8 +53,8 @@
           onclick={(e) => {
             e.stopPropagation();
             menuOpen = !menuOpen;
-          }}
-        >⋯</button>
+          }}>⋯</button
+        >
         {#if menuOpen}
           <div
             class="menu"
@@ -71,8 +71,8 @@
               onclick={() => {
                 menuOpen = false;
                 dispatch('delete', item);
-              }}
-            >Delete thread</button>
+              }}>Delete thread</button
+            >
           </div>
         {/if}
       {/if}
@@ -93,11 +93,12 @@
     background-color: var(--background-primary-active, #0f2239);
     color: var(--text-active, #ffffff);
 
-    span, .icon-button {
+    span,
+    .icon-button {
       color: var(--text-active);
     }
   }
-  .icon-button { 
+  .icon-button {
     background: transparent;
     border: none;
     color: var(--text-primary);
@@ -130,6 +131,6 @@
     cursor: pointer;
   }
   .menu-item:hover {
-    background: rgba(255,255,255,0.06);
+    background: rgba(255, 255, 255, 0.06);
   }
 </style>
