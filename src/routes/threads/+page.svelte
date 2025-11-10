@@ -72,7 +72,7 @@
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
-      if (params.has('create') && !showDialog) {
+      if (params.has('createThread') && !showDialog) {
         openCreateDialog();
         void replace(ROUTE.THREADS);
       }

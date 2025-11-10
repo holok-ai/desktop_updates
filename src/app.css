@@ -18,8 +18,11 @@
   --surface-sidebar-primary: #EEEEEE;
   --surface-sidebar-secondary: #EEEEEE;
   --surface-main: #FFFFFF;
+  --surface-ground: #FFFFFF;
   --surface-card: #F3F4F6;
+  --surface-overlay: #F3F4F6;
   --surface-hover: rgba(59, 130, 246, 0.06);
+  --surface-border: #E5E7EB;
   --border-sidebar: #E5E7EB;
   --border-active: #3b82f6;
   --border-card: #929395;
@@ -28,6 +31,11 @@
   --text-primary: #111827;
   --text-secondary: #4B5563;
   --text-active: #FFFFFF;
+
+  --primary-color: #3b82f6;
+  --error-color: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --modal-overlay: rgba(0, 0, 0, 0.5);
 
   --sidebar-secondary-box-shadow: 0px 3px 6px 0px #00000040;
 
@@ -95,8 +103,11 @@ button:focus-visible {
   --surface-sidebar-primary: #1B1B1B;
   --surface-sidebar-secondary: #1B1B1B;
   --surface-main: #1B1B1B;
+  --surface-ground: #1f2937;
   --surface-card: #1f2937;
+  --surface-overlay: #374151;
   --surface-hover: rgba(59, 130, 246, 0.1);
+  --surface-border: #374151;
   --border-sidebar: #1f2937;
   --border-card: #253142;
   --border-active: #3b82f6;
@@ -104,8 +115,13 @@ button:focus-visible {
   --text-primary: #f9fafb;
   --text-secondary: #9ca3af;
 
-  --input-background: #474747;
-  --input-border: #474747;
+  --primary-color: #3b82f6;
+  --error-color: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.15);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+
+  --input-background: #374151;
+  --input-border: #4B5563;
 
   --sidebar-secondary-box-shadow: 0px 3px 6px 0px #00000040;
 
