@@ -4,20 +4,29 @@
   import SidebarItem from '../common/SidebarItem.svelte';
   import AccordionSection from '../common/AccordionSection.svelte';
   import { threadService } from '$lib/services/thread.service';
+  import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
+  import { projects } from '$lib/stores/project.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
+  import type { RoutePath } from '$lib/types/route.type';
+  import type { Project } from '$lib/types/project.type';
+  import type { Thread } from '../../../../src-electron/preload';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
 
   let isCollapsed = $state(false);
   let agentItems = $state<SidebarActivity[]>([]);
-  let projectItems = $state<SidebarActivity[]>([]);
+  let lastActivityId: string | null = null;
+
   let threadItems = $state<SidebarActivity[]>([]);
   let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
-  let lastActivityId: string | null = null;
   let selectedThreadId: string | null = $state(null);
+
+  let projectItems = $state<SidebarActivity[]>([]);
+  let groupedProjectSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
+  let selectedProjectId: string | null = $state(null);
 
   const navigationOptions: SidebarActivity[] = [
     {
@@ -38,11 +47,14 @@
 
   onMount(async () => {
     await getThreadItems();
+    await getProjectItems();
   });
 
   $effect(() => {
     const unsub = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
+
+      // Handle thread selection
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
@@ -60,6 +72,24 @@
           selectedThreadId = null;
         }
       }
+
+      // Handle project selection
+      const pid = params.get('projectId');
+      if (pid) {
+        selectedProjectId = pid;
+        try { window.localStorage.setItem('lastProjectId', pid); }
+        catch (error) {
+          console.error('Failed to set lastProjectId', error);
+        }
+      } else {
+        // Fallback to last selected from localStorage
+        try {
+          const last = window.localStorage.getItem('lastProjectId');
+          selectedProjectId = last;
+        } catch {
+          selectedProjectId = null;
+        }
+      }
     });
     return unsub;
   });
@@ -68,14 +98,16 @@
     if (lastActivityId === activity?.id) return;
 
     agentItems = getAgentItems();
-    projectItems = getProjectItems();
 
     lastActivityId = activity?.id ?? null;
   });
 
   $effect(() => {
     threadItems = $threads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-    groupedThreadSections = groupThreadsByTime();
+    groupedThreadSections = getGroupByTime($threads, ROUTE.THREADS);
+
+    projectItems = $projects.map((p) => ({ id: p.id, label: p.name, route: ROUTE.PROJECTS }));
+    groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
   });
 
   function select(item: { id: string; label: string }) {
@@ -87,8 +119,29 @@
       console.error('Failed to set lastThreadId', error);
     }
 
-    if ((item as SidebarActivity).route === ROUTE.THREADS) {
-      push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
+    const route = (item as SidebarActivity).route;
+
+    switch (route) {
+      case ROUTE.THREADS:
+        selectedThreadId = item.id;
+        try {
+          window.localStorage.setItem('lastThreadId', item.id);
+        } catch (error) {
+          console.error('Failed to set lastThreadId', error);
+        }
+        push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
+        break;
+      case ROUTE.PROJECTS:
+        selectedProjectId = item.id;
+        try {
+          window.localStorage.setItem('lastProjectId', item.id);
+        } catch (error) {
+          console.error('Failed to set lastProjectId', error);
+        }
+        push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(item.id)}`);
+        break;
+      default:
+        break;
     }
   }
 
@@ -96,7 +149,7 @@
     isCollapsed = !isCollapsed;
   }
 
-  function groupThreadsByTime() {
+  function getGroupByTime(items: Project[] | Thread[], route: RoutePath) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
@@ -116,7 +169,7 @@
       route: ROUTE.THREADS,
     });
 
-    const sorted = [...$threads].sort((a, b) => {
+    const sorted = [...items].sort((a, b) => {
       const aTime = new Date((a as any).updatedAt ?? a.createdAt).getTime();
       const bTime = new Date((b as any).updatedAt ?? b.createdAt).getTime();
       return bTime - aTime;
@@ -127,7 +180,7 @@
       const cStart = startOfDay(created).getTime();
       const diffDays = Math.floor((todayStart - cStart) / oneDayMs);
 
-      const item = toItem(t.id, t.title);
+      const item = toItem(t.id, (t as Thread).title ?? (t as Project).name);
       if (diffDays === 0) sections.Recent.push(item);
       else if (diffDays === 1) sections.Yesterday.push(item);
       else if (diffDays <= 7) sections['Last 7 Days'].push(item);
@@ -151,11 +204,12 @@
     ];
   }
 
-  function getProjectItems() {
-    return [
-      { id: 'project-1', label: 'Moku Web 2.0' },
-      { id: 'project-2', label: 'Holokai Desktop' },
-    ];
+  async function getProjectItems() {
+    try {
+      await projectService.loadProjects();
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
   }
 
   async function getThreadItems() {
@@ -202,7 +256,8 @@
           isSubsection={true}
           isSidebarCollapsed={isCollapsed}
           items={projectItems}
-          selectedId={null}
+          selectedId={activity?.id === 'projects' ? selectedProjectId : null}
+          on:click={(e) => select(e.detail)}
         />
         <AccordionSection
           title="Threads"
@@ -249,6 +304,19 @@
                 console.error('Failed to delete thread', err);
               }
             }}
+          />
+        {/each}
+      {/if}
+      {#if activity?.id === 'projects'}
+        {#each groupedProjectSections as section}
+          <AccordionSection
+            title={section.title}
+            isSidebarCollapsed={isCollapsed}
+            isSubsection={true}
+            items={section.items}
+            showActions={false}
+            selectedId={selectedProjectId}
+            on:click={(e) => select(e.detail)}
           />
         {/each}
       {/if}

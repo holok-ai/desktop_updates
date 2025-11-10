@@ -158,6 +158,51 @@ export interface Thread {
 }
 
 /**
+ * Project Interface
+ *
+ * Defines the structure of a project object.
+ */
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Project API
+ *
+ * Project-related operations for organizing threads.
+ */
+export interface ProjectAPI {
+  // Get all projects
+  getAll: () => Promise<Project[]>;
+
+  // Get a single project by ID
+  getById: (id: string) => Promise<Project | null>;
+
+  // Create a new project
+  create: (data: { name: string; description?: string; metadata?: Record<string, unknown> }) => Promise<Project>;
+
+  // Update an existing project
+  update: (id: string, updates: { name?: string; description?: string; metadata?: Record<string, unknown> }) => Promise<Project>;
+
+  // Delete a project
+  delete: (id: string, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+
+  // Get thread count for a project
+  getThreads: (projectId: string) => Promise<number>;
+
+  // Listen to project events
+  onProjectCreated: (callback: (project: Project) => void) => () => void;
+  onProjectUpdated: (callback: (project: Project) => void) => () => void;
+  onProjectDeleted: (callback: (projectId: string) => void) => () => void;
+}
+
+/**
  * Settings API
  *
  * Application settings management.
@@ -422,6 +467,7 @@ export interface ElectronAPI {
   settings: SettingsAPI;
   models: ModelsAPI;
   thread: ThreadAPI;
+  project: ProjectAPI;
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
@@ -736,6 +782,54 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as FileAPI,
+
+  /**
+   * Project API Implementation
+   */
+  project: {
+    getAll: () => ipcRenderer.invoke('project:getAll'),
+
+    getById: (id: string) => ipcRenderer.invoke('project:getById', id),
+
+    create: (data: { name: string; description?: string; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('project:create', data),
+
+    update: (id: string, updates: { name?: string; description?: string; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('project:update', id, updates),
+
+    delete: (id: string, options?: { deleteThreads?: boolean }) =>
+      ipcRenderer.invoke('project:delete', id, options),
+
+    getThreads: (projectId: string) => ipcRenderer.invoke('project:getThreads', projectId),
+
+    // Event listeners with cleanup function
+    onProjectCreated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:created', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:created', subscription);
+      };
+    },
+
+    onProjectUpdated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:updated', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:updated', subscription);
+      };
+    },
+
+    onProjectDeleted: (callback: (projectId: string) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, projectId: string): void => callback(projectId);
+      ipcRenderer.on('project:deleted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:deleted', subscription);
+      };
+    },
+  } as ProjectAPI,
 
   /**
    * Menu Command Listener

@@ -6,6 +6,7 @@ import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { registerProjectHandlers } from './ipc-handlers/project-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
@@ -97,6 +98,16 @@ function createMenu(): void {
             // Send message to renderer to open new thread dialog
             if (mainWindow) {
               mainWindow.webContents.send('menu:new-thread');
+            }
+          },
+        },
+        {
+          label: 'New Project...',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => {
+            // Send message to renderer to open new project dialog
+            if (mainWindow) {
+              mainWindow.webContents.send('menu:new-project');
             }
           },
         },
@@ -205,6 +216,9 @@ function registerIpcHandlers(): void {
 
   // Register thread-related IPC handlers
   registerThreadHandlers();
+
+  // Register project-related IPC handlers
+  registerProjectHandlers();
 
   // Register models (Moku) handlers
   registerModelsHandlers();
