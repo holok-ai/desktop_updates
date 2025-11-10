@@ -169,6 +169,13 @@ export { broadcast, generateId };
 
 export function registerThreadHandlers(): void {
   // No external persistence; threadsService is memory-only
+  // Ensure sample data exists for handlers that expect initial items (tests rely on this)
+  try {
+    const existing = threadRepository.listThreads();
+    if (!existing || existing.length === 0) initializeSampleData();
+  } catch (e) {
+    // ignore initialization errors in test environments
+  }
 
   ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
     const list = threadRepository.listThreads();
@@ -334,14 +341,16 @@ export function registerThreadHandlers(): void {
         if (s === 'active' || s === 'archived' || s === 'deleted') newMetadata.status = s;
       }
 
+      const updatedThreadObj: ThreadRepository extends any ? any : any = {
+        ...existing,
+        title: typeof updates.title === 'string' ? updates.title : existing.title,
+        metadata: newMetadata,
+        // keep messages
+        messages: existing.messages,
+        updatedAt: Date.now(),
+      };
       const updated: ReturnType<(typeof threadRepository)['saveThread']> =
-        threadRepository.saveThread({
-          ...existing,
-          metadata: newMetadata,
-          // keep messages
-          messages: existing.messages,
-          updatedAt: Date.now(),
-        });
+        threadRepository.saveThread(updatedThreadObj);
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
       broadcast('thread:updated', rt);

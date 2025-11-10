@@ -17,4 +17,5 @@ export interface Message {
   editedAt?: number;
   originalMessageId?: string;
   isEdited?: boolean;
+  versions?: MessageVersion[];
 };

@@ -129,6 +129,16 @@ export interface ThreadAPI {
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
   ) => () => void;
+  // Listen for message error events (e.g., delivery/provider errors)
+  onMessageError: (
+    callback: (evt: {
+      thread_id?: string;
+      message_id?: string;
+      client_message_id?: string;
+      timestamp?: string;
+      error?: Record<string, unknown>;
+    }) => void,
+  ) => () => void;
 }
 
 /**
@@ -554,6 +564,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('message:persisted', subscription);
       return (): void => {
         ipcRenderer.removeListener('message:persisted', subscription);
+      };
+    },
+    // Listen for message error events forwarded from main process
+    onMessageError: (
+      callback: (evt: {
+        thread_id?: string;
+        message_id?: string;
+        client_message_id?: string;
+        timestamp?: string;
+        error?: Record<string, unknown>;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          thread_id?: string;
+          message_id?: string;
+          client_message_id?: string;
+          timestamp?: string;
+          error?: Record<string, unknown>;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('message:error', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('message:error', subscription);
       };
     },
   } as ThreadAPI,
