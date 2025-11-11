@@ -111,8 +111,22 @@
   });
 
   $effect(() => {
-    threadItems = $threads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-    groupedThreadSections = getGroupByTime($threads, ROUTE.THREADS);
+    // Filter threads based on current view
+    let filteredThreads = $threads;
+    if (activity?.id === 'projects' && selectedProjectId) {
+      // When viewing a project, show only threads in that project
+      filteredThreads = $threads.filter(
+        (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
+      );
+    } else if (activity?.id === 'threads') {
+      // When viewing threads, show only threads without a project (general history)
+      filteredThreads = $threads.filter(
+        (t) => !(t.metadata?.projectId as string | undefined),
+      );
+    }
+
+    threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
+    groupedThreadSections = getGroupByTime(filteredThreads, ROUTE.THREADS);
 
     projectItems = $projects.map((p) => ({ id: p.id, label: p.name, route: ROUTE.PROJECTS }));
     groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);

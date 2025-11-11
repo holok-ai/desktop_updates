@@ -106,6 +106,7 @@ button:focus-visible {
   --surface-ground: #1f2937;
   --surface-card: #1f2937;
   --surface-overlay: #374151;
+  --surface-ground: #1f2937;
   --surface-hover: rgba(59, 130, 246, 0.1);
   --surface-border: #374151;
   --border-sidebar: #1f2937;
