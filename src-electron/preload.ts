@@ -43,6 +43,13 @@ export interface ThreadAPI {
   // Soft delete a thread (deletedAt timestamp)
   softDelete: (id: string) => Promise<boolean>;
 
+  // Move thread to/from a project
+  moveToProject: (
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ) => Promise<Thread>;
+
   // Get messages for a thread (persisted)
   getMessages: (id: string) => Promise<Message[]>;
 
@@ -511,6 +518,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('thread:update', id, updates),
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
+
+    moveToProject: (
+      threadId: string,
+      targetProjectId: string | null,
+      options?: { privacyMode?: string; contextHandling?: string },
+    ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
 
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 

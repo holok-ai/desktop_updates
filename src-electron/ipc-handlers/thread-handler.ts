@@ -553,6 +553,76 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Move thread to/from project
+  ipcMain.handle(
+    'thread:moveToProject',
+    (
+      _event,
+      threadId: string,
+      targetProjectId: string | null,
+      options?: { privacyMode?: string; contextHandling?: string },
+    ): Promise<RendererThread> => {
+      const auth = getAuthService();
+
+      if (!auth.isAuthenticated()) {
+        throw new Error('Authentication required');
+      }
+
+      const thread = threadRepository.loadThread(threadId);
+      if (!thread) {
+        throw new Error(`Thread not found: ${threadId}`);
+      }
+
+      const currentUser = auth.getUser();
+      const ownerId = (thread.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        throw new Error('THREAD_ACCESS_DENIED');
+      }
+
+      const currentProjectId = (thread.metadata?.projectId as string | undefined) ?? undefined;
+
+      // If moving to the same project, no-op
+      if (currentProjectId === targetProjectId) {
+        const rt = toRendererThread(thread);
+        if (!rt) throw new Error('Failed to convert thread');
+        return Promise.resolve(rt);
+      }
+
+      // Update thread metadata with new project assignment
+      const newMetadata: ThreadMetadata = { ...thread.metadata };
+      if (targetProjectId === null) {
+        // Moving to general history - remove projectId
+        delete newMetadata.projectId;
+      } else {
+        // Moving to a project - set projectId
+        newMetadata.projectId = targetProjectId;
+      }
+
+      // Handle privacy mode if provided
+      if (options?.privacyMode) {
+        newMetadata.privacyMode = options.privacyMode;
+      }
+
+      // Handle context/memory transition if provided
+      if (options?.contextHandling) {
+        newMetadata.contextHandling = options.contextHandling;
+      }
+
+      const updated = threadRepository.updateThreadMetadata(threadId, newMetadata);
+      const rt = toRendererThread(updated);
+      if (!rt) throw new Error('Failed to convert updated thread');
+
+      broadcast('thread:updated', rt);
+      threadLog.info('Thread moved', {
+        threadId,
+        fromProject: currentProjectId ?? 'general',
+        toProject: targetProjectId ?? 'general',
+      });
+
+      return Promise.resolve(rt);
+    },
+  );
+
   threadLog.info('Handlers registered');
 }
 
@@ -562,5 +632,6 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
   ipcMain.removeHandler('thread:delete');
+  ipcMain.removeHandler('thread:moveToProject');
   threadLog.info('Handlers unregistered');
 }
