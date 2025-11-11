@@ -1,4 +1,4 @@
-import type { APP_THEME_MODE } from '../constants/app.constant.js';
+import { APP_THEME_MODE } from '../constants/app.constant.js';
 
 export type AppThemeMode = (typeof APP_THEME_MODE)[keyof typeof APP_THEME_MODE];
 
@@ -11,3 +11,11 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
 }
+
+// Runtime helper (used by tests and runtime defaults)
+export const defaultAppSettings: AppSettings = {
+  mokuWebUrl: '',
+  mokuApiUrl: '',
+  theme: APP_THEME_MODE.LIGHT as AppThemeMode,
+  autoUpdate: false,
+};
