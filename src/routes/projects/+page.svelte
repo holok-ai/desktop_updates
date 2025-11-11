@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { querystring, replace } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
+  import { threads } from '$lib/stores/thread.store';
   import { projectService } from '$lib/services/project.service';
-  import type { Project } from '../../../src-electron/preload';
+  import { threadService } from '$lib/services/thread.service';
+  import type { Project, Thread } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
   import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
@@ -15,11 +17,35 @@
   let projectToEdit: Project | null = $state(null);
   let projectToDelete: Project | null = $state(null);
   let threadCount = $state(0);
+  let threadsLoading = $state(false);
 
   onMount(async () => {
     isLoading = true;
+    let offUpdated: (() => void) | null = null;
+    let offDeleted: (() => void) | null = null;
     try {
       await projectService.loadProjects();
+      // Ensure threads are loaded for listing in project view
+      try {
+        await threadService.getAll();
+      } catch (e) {
+        console.error('Failed to load threads:', e);
+      }
+      // Keep threadCount in sync with live updates
+      try {
+        offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
+          if (selectedProject) {
+            await loadThreadCount(selectedProject.id);
+          }
+        });
+        offDeleted = window.electronAPI.thread.onThreadDeleted(async () => {
+          if (selectedProject) {
+            await loadThreadCount(selectedProject.id);
+          }
+        });
+      } catch {
+        // ignore if IPC not available
+      }
 
       const params = new URLSearchParams((window as any).location?.search ?? '');
       if (!params.get('projectId') && !params.get('createProject')) {
@@ -42,6 +68,14 @@
     } finally {
       isLoading = false;
     }
+    return () => {
+      try {
+        if (offUpdated) offUpdated();
+        if (offDeleted) offDeleted();
+      } catch {
+        // ignore
+      }
+    };
   });
 
   $effect(() => {
@@ -60,6 +94,8 @@
         if (found) {
           selectedProject = found;
           loadThreadCount(found.id);
+          // Ensure threads list is fresh when switching projects
+          // No special refresh loop; list reacts to $threads via IPC updates
         } else {
           // Project not found (possibly deleted), clear selection
           selectedProject = null;
@@ -70,6 +106,16 @@
       }
     });
     return unsubscribe;
+  });
+
+  // Keep threads fresh on first load
+  onMount(async () => {
+    try {
+      threadsLoading = true;
+      await threadService.getAll();
+    } finally {
+      threadsLoading = false;
+    }
   });
 
   async function loadThreadCount(projectId: string) {
@@ -104,6 +150,46 @@
     selectedProject = null;
     window.localStorage.removeItem('lastProjectId');
     replace(ROUTE.PROJECTS);
+  }
+
+  // Project threads list (reactive without $derived)
+  let projectThreads: Thread[] = $state([]);
+
+  $effect(() => {
+    if (!selectedProject) {
+      projectThreads = [];
+      return;
+    }
+    const pid = selectedProject.id;
+    const filtered = $threads
+      .filter((t) => (t.metadata?.projectId as string | undefined) === pid)
+      .sort((a, b) => {
+        const at = new Date((a as any).updatedAt ?? a.createdAt).getTime();
+        const bt = new Date((b as any).updatedAt ?? b.createdAt).getTime();
+        return bt - at;
+      });
+    projectThreads = filtered;
+  });
+
+  // Debug: verify selection and filtering react when switching projects
+  $effect(() => {
+    // Logs will appear in renderer DevTools (Cmd+Opt+I)
+    try {
+      console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.name);
+      console.log(
+        '[Projects] projectThreads:',
+        projectThreads.map((t) => ({
+          id: t.id,
+          title: t.title,
+          pid: (t.metadata as any)?.projectId,
+        })),
+      );
+    } catch {
+      // ignore
+    }
+  });
+  function openThread(threadId: string) {
+    replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
   }
 </script>
 
@@ -152,12 +238,33 @@
 
       <div class="project-content">
         <h3>Project Threads</h3>
-        {#if threadCount === 0}
+        {#if threadsLoading}
           <div class="empty-threads">
-            <p>No threads in this project yet</p>
+            <p>Loading threads...</p>
+          </div>
+        {:else if projectThreads.length === 0}
+          <div class="empty-threads">
+            <p>
+              {#if threadCount > 0}
+                No visible threads found yet. Try switching views or reopening Threads.
+              {:else}
+                No threads in this project yet
+              {/if}
+            </p>
           </div>
         {:else}
-          <p>This project contains {threadCount} thread{threadCount !== 1 ? 's' : ''}</p>
+          <ul class="thread-list">
+            {#each projectThreads as t}
+              <li>
+                <button class="thread-item" onclick={() => openThread(t.id)} title={t.title}>
+                  <span class="thread-title">{t.title || 'Untitled'}</span>
+                  <span class="thread-updated">
+                    {new Date((t as any).updatedAt ?? t.createdAt).toLocaleString()}
+                  </span>
+                </button>
+              </li>
+            {/each}
+          </ul>
         {/if}
       </div>
     </div>
@@ -324,6 +431,53 @@
   .project-content p {
     margin: 0;
     color: var(--text-secondary);
+  }
+
+  .thread-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .thread-item {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+    text-align: left;
+  }
+
+  .thread-item:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
+  }
+
+  .thread-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .thread-updated {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .empty-threads {
