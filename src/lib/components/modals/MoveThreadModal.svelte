@@ -58,7 +58,9 @@
 
     const currentProjectId = getCurrentProjectId();
     const targetProjectId =
-      typeof selectedProjectId === 'string' && selectedProjectId.length > 0 ? selectedProjectId : null;
+      typeof selectedProjectId === 'string' && selectedProjectId.length > 0
+        ? selectedProjectId
+        : null;
     if (currentProjectId === targetProjectId) {
       // No change, just close
       show = false;
@@ -388,4 +390,3 @@
     font-size: 11px;
   }
 </style>
-

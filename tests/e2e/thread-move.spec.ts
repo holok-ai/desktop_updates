@@ -95,7 +95,7 @@ test.describe('E2E: Move thread between projects and general history', () => {
     await page.getByRole('menuitem', { name: 'Threads' }).click();
     await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
     // Move button visible
-  const moveBtn = page.getByRole('button', { name: 'Move thread to project' });
+    const moveBtn = page.getByRole('button', { name: 'Move thread to project' });
     await expect(moveBtn).toBeVisible({ timeout: 5000 });
     await moveBtn.click();
 
@@ -104,7 +104,10 @@ test.describe('E2E: Move thread between projects and general history', () => {
     // Select project
     await page.selectOption('#project-select', { label: projectName });
     // Confirm move
-  await page.locator('.modal-content').getByRole('button', { name: 'Move Thread', exact: true }).click();
+    await page
+      .locator('.modal-content')
+      .getByRole('button', { name: 'Move Thread', exact: true })
+      .click();
     // Modal closes
     await expect(page.getByRole('heading', { name: 'Move Thread' })).toHaveCount(0);
 
@@ -129,8 +132,11 @@ test.describe('E2E: Move thread between projects and general history', () => {
     await moveBtn.click();
     await expect(page.getByRole('heading', { name: 'Move Thread' })).toBeVisible();
     // Choose General History
-  await page.selectOption('#project-select', { label: 'General History (Unscoped)' });
-  await page.locator('.modal-content').getByRole('button', { name: 'Move Thread', exact: true }).click();
+    await page.selectOption('#project-select', { label: 'General History (Unscoped)' });
+    await page
+      .locator('.modal-content')
+      .getByRole('button', { name: 'Move Thread', exact: true })
+      .click();
     await expect(page.getByRole('heading', { name: 'Move Thread' })).toHaveCount(0);
 
     // Verify project count decreased and general history contains the thread again
@@ -144,5 +150,3 @@ test.describe('E2E: Move thread between projects and general history', () => {
     await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
   });
 });
-
-

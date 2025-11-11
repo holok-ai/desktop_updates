@@ -120,9 +120,7 @@
       );
     } else if (activity?.id === 'threads') {
       // When viewing threads, show only threads without a project (general history)
-      filteredThreads = $threads.filter(
-        (t) => !(t.metadata?.projectId as string | undefined),
-      );
+      filteredThreads = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
     }
 
     threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
