@@ -81,7 +81,6 @@ describe('SettingsService (unit)', () => {
     // reset to defaults
     svc.resetToDefaults();
     expect(svc.getTheme()).toBe('light');
-    // Some environments may not include additional defaults; ensure theme is reset at minimum.
   });
 
   it('getSetting and setSetting generic behavior', async () => {
