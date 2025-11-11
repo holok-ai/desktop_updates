@@ -1,5 +1,9 @@
 import type { MessageStatus } from "./status.type.ts";
 
+export interface MessageVersion {
+  content: string;
+  editedAt: number;
+}
 
 export interface Message {
   id: string;
@@ -10,4 +14,7 @@ export interface Message {
   retryCount?: number;
   error?: string;
   clientMessageId?: string;
+  editedAt?: number;
+  originalMessageId?: string;
+  isEdited?: boolean;
 };

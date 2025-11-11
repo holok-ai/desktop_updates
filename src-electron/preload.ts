@@ -96,6 +96,34 @@ export interface ThreadAPI {
     | { success: false; status: number; error: string; thread_id?: string }
   >;
 
+  // Update message (edit)
+  updateMessage: (
+    threadId: string,
+    messageId: string,
+    newContent: string,
+  ) => Promise<
+    | { success: true; message: Message; thread: Thread }
+    | { success: false; error: string }
+  >;
+
+  // Get message versions
+  getMessageVersions: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<
+    | { success: true; versions: Array<{ content: string; editedAt: number }> }
+    | { success: false; error: string }
+  >;
+
+  // Delete messages after a specific message
+  deleteMessagesAfter: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<
+    | { success: true; thread: Thread }
+    | { success: false; error: string }
+  >;
+
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -505,6 +533,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         client_message_id?: string;
       },
     ) => ipcRenderer.invoke('thread:appendMessage', threadId, payload),
+
+    updateMessage: (threadId: string, messageId: string, newContent: string) =>
+      ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
+
+    getMessageVersions: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
+
+    deleteMessagesAfter: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
 
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,

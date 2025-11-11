@@ -91,6 +91,46 @@ class ThreadService {
 		}
 		return { success: false, status: failure.status, error: failure.error, threadId: threadIdCamel };
 	}
+
+	async updateMessage(
+		threadId: string,
+		messageId: string,
+		newContent: string,
+	): Promise<
+		| { success: true; message: Message; thread: Thread }
+		| { success: false; error: string }
+	> {
+		const res: unknown = await window.electronAPI.thread.updateMessage(threadId, messageId, newContent);
+		return res as
+			| { success: true; message: Message; thread: Thread }
+			| { success: false; error: string };
+	}
+
+	async getMessageVersions(
+		threadId: string,
+		messageId: string,
+	): Promise<
+		| { success: true; versions: Array<{ content: string; editedAt: number }> }
+		| { success: false; error: string }
+	> {
+		const res: unknown = await window.electronAPI.thread.getMessageVersions(threadId, messageId);
+		return res as
+			| { success: true; versions: Array<{ content: string; editedAt: number }> }
+			| { success: false; error: string };
+	}
+
+	async deleteMessagesAfter(
+		threadId: string,
+		messageId: string,
+	): Promise<
+		| { success: true; thread: Thread }
+		| { success: false; error: string }
+	> {
+		const res: unknown = await window.electronAPI.thread.deleteMessagesAfter(threadId, messageId);
+		return res as
+			| { success: true; thread: Thread }
+			| { success: false; error: string };
+	}
 }
 
 export const threadService = new ThreadService();
