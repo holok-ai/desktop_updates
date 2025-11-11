@@ -5,6 +5,7 @@ describe('thread-handler helper functions', () => {
     // ensure electron is mocked before importing the module
     vi.resetModules();
     vi.doMock('electron', () => ({
+      app: { getPath: () => '/tmp' },
       BrowserWindow: { getAllWindows: () => [] },
       contextBridge: { exposeInMainWorld: vi.fn() },
       ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
@@ -19,6 +20,7 @@ describe('thread-handler helper functions', () => {
     const win = { webContents: { send: vi.fn() } } as any;
     vi.resetModules();
     vi.doMock('electron', () => ({
+      app: { getPath: () => '/tmp' },
       BrowserWindow: { getAllWindows: () => [win] },
       contextBridge: { exposeInMainWorld: vi.fn() },
       ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },

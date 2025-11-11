@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.resetModules();
 vi.doMock('electron', () => ({
+  app: { getPath: () => '/tmp' },
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
   BrowserWindow: { getAllWindows: () => [] },
   contextBridge: { exposeInMainWorld: vi.fn() },

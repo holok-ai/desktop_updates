@@ -2,19 +2,11 @@
   import { onMount, createEventDispatcher, tick } from 'svelte';
   import type { Thread } from '../../../src-electron/preload';
   import { messageStateMachine } from '$lib/services/message-state-machine';
-  import type { MessageStatus } from '$lib/services/message-state-machine';
   import { threadService } from '$lib/services/thread.service';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
 
-  type Message = {
-    id: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    createdAt: number;
-    clientMessageId?: string;
-    status?: MessageStatus;
-    attemptCount?: number;
-  };
+  import type { Message } from '$lib/types/thread.type';
+  import AttachmentPreview from './AttachmentPreview.svelte';
 
   interface Props {
     thread?: Thread | null;
@@ -235,13 +227,13 @@
   }
 
   // Send message and handle streaming response
-  async function sendMessage(userMessage: string) {
+  async function sendMessage(userMessage: string, attachments: any[] = []) {
     if (!chatServiceCreated) {
       error = 'Chat service not initialized';
       return;
     }
 
-    if (!userMessage.trim()) return;
+    if (!userMessage.trim() && attachments.length === 0) return;
 
     error = '';
     isStreaming = true;
@@ -256,7 +248,11 @@
         const persisted = await threadService.appendMessage(thread.id, {
           role: 'user',
           content: userMessage,
-          metadata: { provider: 'ollama', model: 'llama3:latest' },
+          metadata: {
+            provider: 'ollama',
+            model: 'llama3:latest',
+            attachments: attachments.length > 0 ? attachments : undefined,
+          },
           clientMessageId: clientMessageId,
         });
 
@@ -274,6 +270,9 @@
           role: 'user',
           content: userMessage,
           createdAt: persisted.message.createdAt,
+          metadata:
+            (persisted.message as any).metadata ||
+            (attachments.length > 0 ? { attachments } : undefined),
         };
         messages = [...messages, userMsg];
         // register initial sending state for this message
@@ -296,6 +295,7 @@
         role: 'user',
         content: userMessage,
         createdAt: Date.now(),
+        metadata: attachments.length > 0 ? { attachments } : undefined,
       };
       messages = [...messages, userMsg];
       // If we have a temp thread id (when thread exists as temp) register sending state
@@ -399,6 +399,32 @@
       console.error('Error sending message:', err);
     } finally {
       isStreaming = false;
+    }
+  }
+
+  /**
+   * Download attachment
+   */
+  async function downloadAttachment(threadId: string, fileId: string, filename: string) {
+    try {
+      const result = await window.electronAPI.file.get({ threadId, fileId });
+
+      if (result.success && result.buffer) {
+        // Create blob and trigger download
+        // Convert Buffer to Uint8Array for Blob compatibility
+        const uint8Array = new Uint8Array(result.buffer as any);
+        const blob = new Blob([uint8Array]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        console.error('Failed to download file:', result.error);
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
     }
   }
 
@@ -543,6 +569,21 @@
               </div>
             {:else}
               <div class="message-content">{m.content}</div>
+
+              <!-- Display attachments if present -->
+              {#if m.metadata?.attachments && m.metadata.attachments.length > 0}
+                <div class="message-attachments">
+                  {#each m.metadata.attachments as attachment}
+                    <AttachmentPreview
+                      {attachment}
+                      mode="history"
+                      onDownload={() =>
+                        thread && downloadAttachment(thread.id, attachment.id, attachment.filename)}
+                    />
+                  {/each}
+                </div>
+              {/if}
+
               <div class="message-meta">{new Date(m.createdAt).toLocaleString()}</div>
               <div class="message-status">
                 {#if m.status === 'sending'}
@@ -941,6 +982,13 @@
   .status-attempt {
     font-size: 0.75rem;
     color: #374151;
+  }
+
+  .message-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
   }
 
   .composer {
