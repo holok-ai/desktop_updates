@@ -178,7 +178,11 @@
       console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.name);
       console.log(
         '[Projects] projectThreads:',
-        projectThreads.map((t) => ({ id: t.id, title: t.title, pid: (t.metadata as any)?.projectId })),
+        projectThreads.map((t) => ({
+          id: t.id,
+          title: t.title,
+          pid: (t.metadata as any)?.projectId,
+        })),
       );
     } catch {
       // ignore
@@ -450,7 +454,9 @@
     border-radius: 8px;
     color: var(--text-primary);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
     text-align: left;
   }
 

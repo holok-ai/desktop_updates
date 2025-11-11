@@ -667,7 +667,7 @@
 
 <MoveThreadModal
   bind:show={showMoveModal}
-  bind:thread={thread}
+  bind:thread
   on:moved={(e) => {
     const { projectId } = e.detail;
     void threadService.getAll();
