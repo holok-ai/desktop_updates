@@ -28,8 +28,13 @@ vi.mock('electron', () => {
 
   // @ts-ignore
   globalThis.__mock_ipcMain = ipcMain;
+  const app = {
+    getPath: (name: string) => `/mock/${name}`,
+    on: vi.fn(),
+    whenReady: async () => Promise.resolve(),
+  } as any;
 
-  return { ipcMain, BrowserWindow };
+  return { app, ipcMain, BrowserWindow };
 });
 
 // Mock electron-log
