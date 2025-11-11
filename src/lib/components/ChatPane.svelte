@@ -4,6 +4,7 @@
   import { messageStateMachine } from '$lib/services/message-state-machine';
   import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
+  import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import AttachmentPreview from './AttachmentPreview.svelte';
   import FileErrorBanner from './FileErrorBanner.svelte';
 
@@ -16,12 +17,12 @@
   }
 
   function retryMessage(clientMessageId: string) {
-    if (!thread) return;
+    if (!currentThread) return;
     try {
       messageStateMachine.handleEvent({
         type: 'RETRY_TRIGGER',
         clientMessageId,
-        threadId: thread.id,
+        threadId: currentThread.id,
       });
     } catch (e) {
       console.error('Failed to trigger retry', e);
@@ -29,6 +30,14 @@
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
+
+  // Reactive thread state that updates when backend sends updates
+  let currentThread = $state(thread);
+
+  // Watch for prop changes
+  $effect(() => {
+    currentThread = thread;
+  });
 
   // State management
   let chatServiceCreated = $state(false);
@@ -243,10 +252,13 @@
     // If thread exists, persist user message immediately (idempotent)
     // If no thread yet, defer persistence until after response (atomic save)
     const clientMessageId = crypto.randomUUID();
-    const isTemp = !!thread && typeof thread.id === 'string' && thread.id.startsWith('temp_');
-    if (thread && !isTemp) {
+    const isTemp =
+      !!currentThread &&
+      typeof currentThread.id === 'string' &&
+      currentThread.id.startsWith('temp_');
+    if (currentThread && !isTemp) {
       try {
-        const persisted = await threadService.appendMessage(thread.id, {
+        const persisted = await threadService.appendMessage(currentThread.id, {
           role: 'user',
           content: userMessage,
           metadata: {
@@ -278,7 +290,7 @@
         messages = [...messages, userMsg];
         // register initial sending state for this message
         try {
-          messageStateMachine.createSending(thread.id, clientMessageId, {
+          messageStateMachine.createSending(currentThread.id, clientMessageId, {
             provider: 'ollama',
             model: 'llama3:latest',
           });
@@ -300,9 +312,9 @@
       };
       messages = [...messages, userMsg];
       // If we have a temp thread id (when thread exists as temp) register sending state
-      if (thread && typeof thread.id === 'string') {
+      if (currentThread && typeof currentThread.id === 'string') {
         try {
-          messageStateMachine.createSending(thread.id, clientMessageId, {
+          messageStateMachine.createSending(currentThread.id, clientMessageId, {
             provider: 'ollama',
             model: 'llama3:latest',
           });
@@ -342,9 +354,9 @@
         console.error('Chat failed:', result.error);
       } else {
         // After streaming completes
-        if (thread && !isTemp) {
+        if (currentThread && !isTemp) {
           // Append assistant response to existing thread
-          const assistantPersist = await threadService.appendMessage(thread.id, {
+          const assistantPersist = await threadService.appendMessage(currentThread.id, {
             role: 'assistant',
             content: responseText,
             metadata: { provider: 'ollama', model: 'llama3:latest' },
@@ -374,7 +386,7 @@
             null,
             userMessage,
             [{ text: responseText, model: 'llama3:latest' }],
-            { title: thread?.title ?? '', description: thread?.description ?? '' },
+            { title: currentThread?.title ?? '', description: currentThread?.description ?? '' },
           );
           // Replace local messages with canonical saved ones
           messages = [
@@ -392,7 +404,7 @@
             })),
           ];
           // Notify parent to adopt the new thread
-          dispatch('threadCreated', { thread: saved.thread, tempId: thread?.id });
+          dispatch('threadCreated', { thread: saved.thread, tempId: currentThread?.id });
         }
       }
     } catch (err) {
@@ -564,11 +576,27 @@
   onMount(() => {
     initializeChatService();
 
+    // Listen for thread updates from backend
+    let unsubThreadUpdated: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.thread?.onThreadUpdated) {
+        unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
+          // Only update if it's our current thread
+          if (currentThread && updatedThread.id === currentThread.id) {
+            currentThread = updatedThread;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
     // Listen for message error events from main process and forward to FSM
     try {
       ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
         const clientId = evt?.client_message_id ?? evt?.clientMessageId;
-        const threadId = evt?.thread_id ?? evt?.threadId ?? (thread ? thread.id : undefined);
+        const threadId =
+          evt?.thread_id ?? evt?.threadId ?? (currentThread ? currentThread.id : undefined);
         const errorObj = evt?.error ?? {};
         if (typeof clientId === 'string' && clientId.length > 0 && typeof threadId === 'string') {
           messageStateMachine.handleEvent({
@@ -585,25 +613,34 @@
     }
 
     return () => {
+      if (unsubThreadUpdated) unsubThreadUpdated();
       cleanup();
     };
   });
 
   // Watch for thread changes to reinitialize if needed
   $effect(() => {
-    if (thread && !chatServiceCreated) {
+    if (currentThread && !chatServiceCreated) {
       initializeChatService();
     }
   });
 </script>
 
-{#if !thread}
+{#if !currentThread}
   <div class="chat-pane empty">Select a thread to open chat</div>
 {:else}
   <div class="chat-pane">
     <div class="chat-header">
-      <h2>{thread.title}</h2>
-      <div class="meta">{thread.description}</div>
+      <h2>
+        {currentThread.title || 'New Thread'}
+        {#if $isThreadGeneratingTitle(currentThread.id)}
+          <span class="title-generating" aria-live="polite">
+            <span class="generating-dots">...</span>
+            <span class="sr-only">Generating title</span>
+          </span>
+        {/if}
+      </h2>
+      <div class="meta">{currentThread.description}</div>
     </div>
 
     {#if error}
@@ -683,16 +720,16 @@
               {#if m.metadata?.attachments && m.metadata.attachments.length > 0}
                 <div class="message-attachments">
                   {#each m.metadata.attachments as attachment}
-                    {#await thread ? getInlinePreviewUrl(thread.id, attachment.id, attachment.size) : undefined}
+                    {#await currentThread ? getInlinePreviewUrl(currentThread.id, attachment.id, attachment.size) : undefined}
                       <AttachmentPreview
                         {attachment}
                         mode="history"
                         onPreview={() =>
-                          thread &&
-                          previewAttachment(thread.id, attachment.id, attachment.filename)}
+                          currentThread &&
+                          previewAttachment(currentThread.id, attachment.id, attachment.filename)}
                         onDownload={() =>
-                          thread &&
-                          downloadAttachment(thread.id, attachment.id, attachment.filename)}
+                          currentThread &&
+                          downloadAttachment(currentThread.id, attachment.id, attachment.filename)}
                       />
                     {:then inlineUrl}
                       <AttachmentPreview
@@ -700,11 +737,11 @@
                         mode="history"
                         inlinePreviewUrl={inlineUrl}
                         onPreview={() =>
-                          thread &&
-                          previewAttachment(thread.id, attachment.id, attachment.filename)}
+                          currentThread &&
+                          previewAttachment(currentThread.id, attachment.id, attachment.filename)}
                         onDownload={() =>
-                          thread &&
-                          downloadAttachment(thread.id, attachment.id, attachment.filename)}
+                          currentThread &&
+                          downloadAttachment(currentThread.id, attachment.id, attachment.filename)}
                       />
                     {/await}
                   {/each}
@@ -845,7 +882,45 @@
 
   .chat-header h2 {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
+
+  .title-generating {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-tertiary, #9ca3af);
+    font-weight: normal;
+  }
+
+  .generating-dots {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
   .icon-button {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid transparent;

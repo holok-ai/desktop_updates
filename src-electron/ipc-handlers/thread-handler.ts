@@ -507,10 +507,36 @@ export function registerThreadHandlers(): void {
   ipcMain.handle(
     'thread:addAssistantResponse',
     (_event, threadId: string, response: string, model?: string) => {
+      // Check if title generation will happen
+      const threadBefore = threadRepository.loadThread(threadId);
+      let willGenerateTitle = false;
+
+      if (threadBefore) {
+        const assistantCount =
+          threadBefore.messages?.filter((m) => m.role === 'assistant').length || 0;
+        const needsTitle = !threadBefore.title || threadBefore.title.trim() === '';
+        willGenerateTitle = assistantCount === 0 && needsTitle;
+
+        if (willGenerateTitle) {
+          threadLog.debug(`[thread-handler] Title generation will trigger for thread ${threadId}`);
+          broadcast('thread:titleGenerationStarted', { threadId });
+        }
+      }
+
+      // Add the assistant response (this may trigger auto-title generation)
       const msg = threadRepository.addAssistantResponse(threadId, response, model);
       const threadObj = threadRepository.loadThread(threadId);
       const thread = toRendererThread(threadObj);
       if (!thread) throw new Error('Failed to convert thread after assistant response');
+
+      // If title was generated, emit completion event
+      if (willGenerateTitle && thread.title) {
+        threadLog.debug(
+          `[thread-handler] Title generation completed for thread ${threadId}: "${thread.title}"`,
+        );
+        broadcast('thread:titleGenerationFinished', { threadId, title: thread.title });
+      }
+
       broadcast('thread:updated', thread);
       return Promise.resolve({
         id: msg.id,
@@ -531,9 +557,30 @@ export function registerThreadHandlers(): void {
       responses: { text: string; model?: string }[],
       opts: { title?: string; description?: string } = {},
     ) => {
+      // Check if title generation will happen (only for new threads with responses)
+      let willGenerateTitle = false;
+      if ((!threadId || !threadRepository.loadThread(threadId)) && responses.length > 0) {
+        const hasTitle = opts.title && opts.title.trim() !== '';
+        willGenerateTitle = !hasTitle;
+
+        if (willGenerateTitle) {
+          threadLog.debug('[thread-handler] Title generation will trigger for new thread');
+          // Note: we don't have threadId yet, will emit finished event after creation
+        }
+      }
+
       const res = threadRepository.savePromptAndResponses(threadId, prompt, responses, opts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread after savePromptAndResponses');
+
+      // If title was generated for new thread, emit completion event
+      if (willGenerateTitle && rt.title) {
+        threadLog.debug(
+          `[thread-handler] Title generation completed for thread ${rt.id}: "${rt.title}"`,
+        );
+        broadcast('thread:titleGenerationFinished', { threadId: rt.id, title: rt.title });
+      }
+
       const promptMessage = {
         id: res.promptMessage.id,
         role: res.promptMessage.role,
