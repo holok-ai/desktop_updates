@@ -8,7 +8,6 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { fileStorageService } from '../services/file-storage.service.js';
 import { fileValidationService } from '../services/file-validation.service.js';
 import { fileAccessTokenService } from '../services/file-access-token.service.js';
-import { fileAuditService } from '../services/file-audit.service.js';
 import { fileTypeDetectorService } from '../services/file-type-detector.service.js';
 import type { Attachment, FileValidationResult } from '../../src-shared/types/attachment.types.js';
 import log from '../utils/logger.js';
@@ -293,13 +292,6 @@ async function handleFilePreview(
     if (!fileStorageService.fileExists(threadId, fileId)) {
       log.warn('[FileHandler] File not found for preview', { threadId, fileId });
 
-      // Log failed attempt
-      fileAuditService.logPreview(userId, fileId, 'unknown', {
-        threadId,
-        success: false,
-        errorMessage: 'File not found',
-      });
-
       return {
         success: false,
         error: 'File not found or has been deleted',
@@ -339,14 +331,6 @@ async function handleFilePreview(
 
     // Generate access token
     const tokenData = fileAccessTokenService.generateToken(fileId, userId, 'preview');
-
-    // Log successful preview access
-    fileAuditService.logPreview(userId, fileId, filename, {
-      threadId,
-      fileSize,
-      mimeType: fileTypeInfo.mimeType,
-      success: true,
-    });
 
     log.info('[FileHandler] Preview token generated', {
       threadId,
@@ -417,13 +401,6 @@ async function handleFileDownload(
     if (!fileStorageService.fileExists(threadId, fileId)) {
       log.warn('[FileHandler] File not found for download', { threadId, fileId });
 
-      // Log failed attempt
-      fileAuditService.logDownload(userId, fileId, 'unknown', {
-        threadId,
-        success: false,
-        errorMessage: 'File not found',
-      });
-
       return {
         success: false,
         error: 'File not found or has been deleted',
@@ -449,14 +426,6 @@ async function handleFileDownload(
 
     // Generate access token
     const tokenData = fileAccessTokenService.generateToken(fileId, userId, 'download');
-
-    // Log successful download access
-    fileAuditService.logDownload(userId, fileId, filename, {
-      threadId,
-      fileSize,
-      mimeType: fileTypeInfo.mimeType,
-      success: true,
-    });
 
     log.info('[FileHandler] Download token generated', {
       threadId,

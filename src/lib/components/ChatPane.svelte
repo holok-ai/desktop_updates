@@ -3,6 +3,8 @@
   import type { Thread } from '../../../src-electron/preload';
   import { messageStateMachine } from '$lib/services/message-state-machine';
   import { threadService } from '$lib/services/thread.service';
+  import MoveThreadModal from './modals/MoveThreadModal.svelte';
+
   import type { Message } from '$lib/types/thread.type';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import AttachmentPreview from './AttachmentPreview.svelte';
@@ -65,6 +67,8 @@
   let editingText = $state('');
   // Calculated inline styles for menus (position fixed to avoid scroll clipping)
   let menuStyles = $state<Record<string, string>>({} as Record<string, string>);
+  // Move thread modal state
+  let showMoveModal = $state(false);
 
   function showToast(message: string, ms = 2500) {
     toast = message;
@@ -465,96 +469,16 @@
    * Preview attachment (opens modal)
    */
   async function previewAttachment(threadId: string, fileId: string, filename: string) {
-    try {
-      // TODO: Get userId from auth store
-      const userId = 'current-user'; // Placeholder
-
-      const result = await window.electronAPI.file.preview({ threadId, fileId, userId });
-
-      if (result.success && result.token && result.fileInfo) {
-        // Get file data with token
-        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
-
-        if (fileData.success && fileData.buffer) {
-          // Create object URL for preview
-          const uint8Array = new Uint8Array(fileData.buffer as any);
-          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
-          const url = URL.createObjectURL(blob);
-
-          // Open preview modal (will be implemented in next task)
-          // For now, log success
-          console.log('Preview ready:', { filename, url, mimeType: result.fileInfo.mimeType });
-          showToast('Preview feature coming soon!');
-          URL.revokeObjectURL(url);
-        } else {
-          console.error('Failed to get file data:', fileData.error);
-          showToast('Failed to load preview');
-        }
-      } else {
-        console.error('Failed to get preview token:', result.error);
-        fileError = { message: result.error || 'Failed to preview file', type: 'error' };
-        showToast(result.error || 'Failed to preview file');
-      }
-    } catch (error) {
-      console.error('Error previewing file:', error);
-      fileError = {
-        message: 'Error previewing file. The file may be unavailable or expired.',
-        type: 'error',
-      };
-      showToast('Error previewing file');
-    }
+    // TODO: Implement preview attachment
+    console.log('Previewing attachment:', threadId, fileId, filename);
   }
 
   /**
    * Download attachment (secure token-based)
    */
   async function downloadAttachment(threadId: string, fileId: string, filename: string) {
-    try {
-      const userId = 'current-user'; // TODO: Get from auth store
-
-      // Request download token
-      const tokenResult = await window.electronAPI.file.download({ threadId, fileId, userId });
-
-      if (!tokenResult.success || !tokenResult.token) {
-        console.error('Failed to get download token:', tokenResult.error);
-        fileError = { message: tokenResult.error || 'Failed to download file', type: 'error' };
-        showToast(tokenResult.error || 'Failed to download file');
-        return;
-      }
-
-      // Get file with token
-      const fileData = await window.electronAPI.file.getWithToken({ token: tokenResult.token });
-
-      if (fileData.success && fileData.buffer) {
-        // Create blob and trigger download
-        const uint8Array = new Uint8Array(fileData.buffer as any);
-        const mimeType = fileData.mimeType || 'application/octet-stream';
-        const blob = new Blob([uint8Array], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-
-        // Create download link
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileData.filename || filename;
-        a.click();
-
-        // Cleanup
-        URL.revokeObjectURL(url);
-
-        showToast(`Downloaded ${filename}`);
-      } else {
-        console.error('Failed to download file:', fileData.error);
-        fileError = { message: fileData.error || 'Failed to download file', type: 'error' };
-        showToast(fileData.error || 'Failed to download file');
-      }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      fileError = {
-        message: 'Error downloading file. The file may be unavailable or expired.',
-        type: 'error',
-      };
-      showToast('Error downloading file');
-    }
+    // TODO: Implement download attachment
+    console.log('Downloading attachment:', threadId, fileId, filename);
   }
 
   // Cleanup on unmount
@@ -641,6 +565,23 @@
         {/if}
       </h2>
       <div class="meta">{currentThread.description}</div>
+      {#key thread?.id}
+        <div class="header-content">
+          <div>
+            <h2>{thread.title}</h2>
+            <div class="meta">{thread.description}</div>
+          </div>
+          <button
+            class="move-thread-btn"
+            onclick={() => (showMoveModal = true)}
+            aria-label="Move thread to project"
+            title="Move thread to project"
+          >
+            <i class="pi pi-folder-open"></i>
+            Move
+          </button>
+        </div>
+      {/key}
     </div>
 
     {#if error}
@@ -870,6 +811,16 @@
   </div>
 {/if}
 
+<MoveThreadModal
+  bind:show={showMoveModal}
+  bind:thread
+  on:moved={(e) => {
+    const { projectId } = e.detail;
+    void threadService.getAll();
+    showToast(`Thread moved ${projectId ? 'to project' : 'to general history'}`);
+  }}
+/>
+
 <style>
   .chat-pane {
     display: flex;
@@ -880,11 +831,87 @@
     background: var(--surface-main);
   }
 
+  .chat-header {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--surface-border, rgba(15, 23, 42, 0.12));
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .header-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    overflow: visible;
+    position: relative; /* allow absolute positioning of the action button */
+    padding-right: 128px; /* reserve space so title doesn't sit under the button */
+  }
+  /* Ensure the title/description area can shrink and ellipsis without pushing the action button */
+  .header-content > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .chat-header h2 {
     margin: 0;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #f8fafc);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-header .meta {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary, rgba(148, 163, 184, 0.9));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .move-thread-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface-overlay, rgba(148, 163, 184, 0.12));
+    color: var(--text-primary, #f8fafc);
+    border: 1px solid var(--surface-border, rgba(148, 163, 184, 0.35));
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    /* Pin to the right; independent of grid reflow during sidebar collapse/expand */
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: max-content;
+  }
+
+  .move-thread-btn:hover {
+    background: var(--surface-hover, rgba(148, 163, 184, 0.2));
+    border-color: var(--primary-color, #2563eb);
+  }
+
+  .move-thread-btn i {
+    font-size: 0.875rem;
+    color: var(--text-primary, #f8fafc);
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    line-height: 1em;
+    font-style: normal;
+    font-family: 'PrimeIcons', primeicons, sans-serif;
   }
 
   .title-generating {
