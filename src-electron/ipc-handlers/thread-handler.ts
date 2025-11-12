@@ -12,6 +12,7 @@ import type {
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
+import { GUID } from '../../src/lib/types/app.type.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -26,9 +27,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
     title:
       t.title && t.title.length > 0
         ? t.title
-        : typeof t.metadata?.title === 'string'
-          ? t.metadata.title
-          : '',
+        : t.metadata?.title ?? '',
     description: t.metadata?.description ?? '',
     // Normalize status from metadata if present and valid, otherwise default to 'active'
     status: (() => {
@@ -198,7 +197,7 @@ export function registerThreadHandlers(): void {
       } else if (!options?.includeProjectOnly) {
         // When viewing general threads, exclude threads from project_only projects
         filtered = list.filter((t) => {
-          const projectId = t.metadata?.projectId as string | undefined;
+          const projectId = t.metadata?.projectId as GUID | undefined;
           if (!projectId) return true; // Include threads not in any project
           const project = projectRepository.getProject(projectId);
           // Exclude if project has project_only privacy mode
@@ -227,8 +226,8 @@ export function registerThreadHandlers(): void {
     ): Promise<{ id: string; role: string; content: string; createdAt: number }[]> => {
       // Privacy enforcement hook (no-op without caller context)
       const t0 = threadRepository.loadThread(id);
-      if (t0 && typeof t0.metadata?.projectId === 'string') {
-        const proj = projectRepository.getProject(t0.metadata.projectId);
+      if (t0 && t0.metadata?.projectId) {
+        const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
         if (proj && proj.privacyMode === 'project_only') {
           // In future, enforce caller/project context here
         }
@@ -456,7 +455,7 @@ export function registerThreadHandlers(): void {
 
       // Privacy enforcement hook (no-op without caller context)
       if (typeof internal.metadata?.projectId === 'string') {
-        const proj = projectRepository.getProject(internal.metadata.projectId);
+        const proj = projectRepository.getProject(internal.metadata.projectId as GUID);
         if (proj && proj.privacyMode === 'project_only') {
           // In future, enforce caller/project context here
         }
