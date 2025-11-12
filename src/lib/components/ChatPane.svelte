@@ -4,7 +4,9 @@
   import { messageStateMachine } from '$lib/services/message-state-machine';
   import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
+  import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import AttachmentPreview from './AttachmentPreview.svelte';
+  import FileErrorBanner from './FileErrorBanner.svelte';
 
   interface Props {
     thread?: Thread | null;
@@ -15,12 +17,12 @@
   }
 
   function retryMessage(clientMessageId: string) {
-    if (!thread) return;
+    if (!currentThread) return;
     try {
       messageStateMachine.handleEvent({
         type: 'RETRY_TRIGGER',
         clientMessageId,
-        threadId: thread.id,
+        threadId: currentThread.id,
       });
     } catch (e) {
       console.error('Failed to trigger retry', e);
@@ -28,6 +30,14 @@
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
+
+  // Reactive thread state that updates when backend sends updates
+  let currentThread = $state(thread);
+
+  // Watch for prop changes
+  $effect(() => {
+    currentThread = thread;
+  });
 
   // State management
   let chatServiceCreated = $state(false);
@@ -46,6 +56,10 @@
   let openMenuForId = $state<string | null>(null);
   let toast = $state('');
   let toastTimeout: number | null = null;
+  // Cache for inline preview URLs (small images)
+  let inlinePreviewUrls = $state<Map<string, string>>(new Map());
+  // File error state
+  let fileError = $state<{ message: string; type: 'error' | 'warning' } | null>(null);
   // Inline edit state
   let editingMessageId = $state<string | null>(null);
   let editingText = $state('');
@@ -238,10 +252,13 @@
     // If thread exists, persist user message immediately (idempotent)
     // If no thread yet, defer persistence until after response (atomic save)
     const clientMessageId = crypto.randomUUID();
-    const isTemp = !!thread && typeof thread.id === 'string' && thread.id.startsWith('temp_');
-    if (thread && !isTemp) {
+    const isTemp =
+      !!currentThread &&
+      typeof currentThread.id === 'string' &&
+      currentThread.id.startsWith('temp_');
+    if (currentThread && !isTemp) {
       try {
-        const persisted = await threadService.appendMessage(thread.id, {
+        const persisted = await threadService.appendMessage(currentThread.id, {
           role: 'user',
           content: userMessage,
           metadata: {
@@ -273,7 +290,7 @@
         messages = [...messages, userMsg];
         // register initial sending state for this message
         try {
-          messageStateMachine.createSending(thread.id, clientMessageId, {
+          messageStateMachine.createSending(currentThread.id, clientMessageId, {
             provider: 'ollama',
             model: 'llama3:latest',
           });
@@ -295,9 +312,9 @@
       };
       messages = [...messages, userMsg];
       // If we have a temp thread id (when thread exists as temp) register sending state
-      if (thread && typeof thread.id === 'string') {
+      if (currentThread && typeof currentThread.id === 'string') {
         try {
-          messageStateMachine.createSending(thread.id, clientMessageId, {
+          messageStateMachine.createSending(currentThread.id, clientMessageId, {
             provider: 'ollama',
             model: 'llama3:latest',
           });
@@ -337,9 +354,9 @@
         console.error('Chat failed:', result.error);
       } else {
         // After streaming completes
-        if (thread && !isTemp) {
+        if (currentThread && !isTemp) {
           // Append assistant response to existing thread
-          const assistantPersist = await threadService.appendMessage(thread.id, {
+          const assistantPersist = await threadService.appendMessage(currentThread.id, {
             role: 'assistant',
             content: responseText,
             metadata: { provider: 'ollama', model: 'llama3:latest' },
@@ -369,7 +386,7 @@
             null,
             userMessage,
             [{ text: responseText, model: 'llama3:latest' }],
-            { title: thread?.title ?? '', description: thread?.description ?? '' },
+            { title: currentThread?.title ?? '', description: currentThread?.description ?? '' },
           );
           // Replace local messages with canonical saved ones
           messages = [
@@ -387,7 +404,7 @@
             })),
           ];
           // Notify parent to adopt the new thread
-          dispatch('threadCreated', { thread: saved.thread, tempId: thread?.id });
+          dispatch('threadCreated', { thread: saved.thread, tempId: currentThread?.id });
         }
       }
     } catch (err) {
@@ -399,28 +416,144 @@
   }
 
   /**
-   * Download attachment
+   * Get inline preview URL for small images (<500KB)
+   */
+  async function getInlinePreviewUrl(
+    threadId: string,
+    fileId: string,
+    fileSize: number,
+  ): Promise<string | undefined> {
+    const MAX_INLINE_SIZE = 500 * 1024; // 500KB
+
+    // Check cache first
+    const cacheKey = `${threadId}:${fileId}`;
+    if (inlinePreviewUrls.has(cacheKey)) {
+      return inlinePreviewUrls.get(cacheKey);
+    }
+
+    // Only generate inline preview for small files
+    if (fileSize > MAX_INLINE_SIZE) {
+      return undefined;
+    }
+
+    try {
+      const userId = 'current-user'; // TODO: Get from auth store
+
+      const result = await window.electronAPI.file.preview({ threadId, fileId, userId });
+
+      if (result.success && result.token && result.fileInfo?.canInlinePreview) {
+        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
+
+        if (fileData.success && fileData.buffer) {
+          const uint8Array = new Uint8Array(fileData.buffer as any);
+          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
+          const url = URL.createObjectURL(blob);
+
+          // Cache the URL
+          inlinePreviewUrls.set(cacheKey, url);
+          return url;
+        }
+      }
+    } catch (error) {
+      console.error('Error generating inline preview:', error);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Preview attachment (opens modal)
+   */
+  async function previewAttachment(threadId: string, fileId: string, filename: string) {
+    try {
+      // TODO: Get userId from auth store
+      const userId = 'current-user'; // Placeholder
+
+      const result = await window.electronAPI.file.preview({ threadId, fileId, userId });
+
+      if (result.success && result.token && result.fileInfo) {
+        // Get file data with token
+        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
+
+        if (fileData.success && fileData.buffer) {
+          // Create object URL for preview
+          const uint8Array = new Uint8Array(fileData.buffer as any);
+          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
+          const url = URL.createObjectURL(blob);
+
+          // Open preview modal (will be implemented in next task)
+          // For now, log success
+          console.log('Preview ready:', { filename, url, mimeType: result.fileInfo.mimeType });
+          showToast('Preview feature coming soon!');
+          URL.revokeObjectURL(url);
+        } else {
+          console.error('Failed to get file data:', fileData.error);
+          showToast('Failed to load preview');
+        }
+      } else {
+        console.error('Failed to get preview token:', result.error);
+        fileError = { message: result.error || 'Failed to preview file', type: 'error' };
+        showToast(result.error || 'Failed to preview file');
+      }
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      fileError = {
+        message: 'Error previewing file. The file may be unavailable or expired.',
+        type: 'error',
+      };
+      showToast('Error previewing file');
+    }
+  }
+
+  /**
+   * Download attachment (secure token-based)
    */
   async function downloadAttachment(threadId: string, fileId: string, filename: string) {
     try {
-      const result = await window.electronAPI.file.get({ threadId, fileId });
+      const userId = 'current-user'; // TODO: Get from auth store
 
-      if (result.success && result.buffer) {
+      // Request download token
+      const tokenResult = await window.electronAPI.file.download({ threadId, fileId, userId });
+
+      if (!tokenResult.success || !tokenResult.token) {
+        console.error('Failed to get download token:', tokenResult.error);
+        fileError = { message: tokenResult.error || 'Failed to download file', type: 'error' };
+        showToast(tokenResult.error || 'Failed to download file');
+        return;
+      }
+
+      // Get file with token
+      const fileData = await window.electronAPI.file.getWithToken({ token: tokenResult.token });
+
+      if (fileData.success && fileData.buffer) {
         // Create blob and trigger download
-        // Convert Buffer to Uint8Array for Blob compatibility
-        const uint8Array = new Uint8Array(result.buffer as any);
-        const blob = new Blob([uint8Array]);
+        const uint8Array = new Uint8Array(fileData.buffer as any);
+        const mimeType = fileData.mimeType || 'application/octet-stream';
+        const blob = new Blob([uint8Array], { type: mimeType });
         const url = URL.createObjectURL(blob);
+
+        // Create download link
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = fileData.filename || filename;
         a.click();
+
+        // Cleanup
         URL.revokeObjectURL(url);
+
+        showToast(`Downloaded ${filename}`);
       } else {
-        console.error('Failed to download file:', result.error);
+        console.error('Failed to download file:', fileData.error);
+        fileError = { message: fileData.error || 'Failed to download file', type: 'error' };
+        showToast(fileData.error || 'Failed to download file');
       }
     } catch (error) {
       console.error('Error downloading file:', error);
+      fileError = {
+        message: 'Error downloading file. The file may be unavailable or expired.',
+        type: 'error',
+      };
+      showToast('Error downloading file');
     }
   }
 
@@ -443,11 +576,27 @@
   onMount(() => {
     initializeChatService();
 
+    // Listen for thread updates from backend
+    let unsubThreadUpdated: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.thread?.onThreadUpdated) {
+        unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
+          // Only update if it's our current thread
+          if (currentThread && updatedThread.id === currentThread.id) {
+            currentThread = updatedThread;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
     // Listen for message error events from main process and forward to FSM
     try {
       ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
         const clientId = evt?.client_message_id ?? evt?.clientMessageId;
-        const threadId = evt?.thread_id ?? evt?.threadId ?? (thread ? thread.id : undefined);
+        const threadId =
+          evt?.thread_id ?? evt?.threadId ?? (currentThread ? currentThread.id : undefined);
         const errorObj = evt?.error ?? {};
         if (typeof clientId === 'string' && clientId.length > 0 && typeof threadId === 'string') {
           messageStateMachine.handleEvent({
@@ -464,29 +613,46 @@
     }
 
     return () => {
+      if (unsubThreadUpdated) unsubThreadUpdated();
       cleanup();
     };
   });
 
   // Watch for thread changes to reinitialize if needed
   $effect(() => {
-    if (thread && !chatServiceCreated) {
+    if (currentThread && !chatServiceCreated) {
       initializeChatService();
     }
   });
 </script>
 
-{#if !thread}
+{#if !currentThread}
   <div class="chat-pane empty">Select a thread to open chat</div>
 {:else}
   <div class="chat-pane">
     <div class="chat-header">
-      <h2>{thread.title}</h2>
-      <div class="meta">{thread.description}</div>
+      <h2>
+        {currentThread.title || 'New Thread'}
+        {#if $isThreadGeneratingTitle(currentThread.id)}
+          <span class="title-generating" aria-live="polite">
+            <span class="generating-dots">...</span>
+            <span class="sr-only">Generating title</span>
+          </span>
+        {/if}
+      </h2>
+      <div class="meta">{currentThread.description}</div>
     </div>
 
     {#if error}
       <div class="error-banner">{error}</div>
+    {/if}
+
+    {#if fileError}
+      <FileErrorBanner
+        error={fileError.message}
+        type={fileError.type}
+        onDismiss={() => (fileError = null)}
+      />
     {/if}
 
     {#if toast}
@@ -550,17 +716,34 @@
               </div>
             {:else}
               <div class="message-content">{m.content}</div>
-
               <!-- Display attachments if present -->
               {#if m.metadata?.attachments && m.metadata.attachments.length > 0}
                 <div class="message-attachments">
                   {#each m.metadata.attachments as attachment}
-                    <AttachmentPreview
-                      {attachment}
-                      mode="history"
-                      onDownload={() =>
-                        thread && downloadAttachment(thread.id, attachment.id, attachment.filename)}
-                    />
+                    {#await currentThread ? getInlinePreviewUrl(currentThread.id, attachment.id, attachment.size) : undefined}
+                      <AttachmentPreview
+                        {attachment}
+                        mode="history"
+                        onPreview={() =>
+                          currentThread &&
+                          previewAttachment(currentThread.id, attachment.id, attachment.filename)}
+                        onDownload={() =>
+                          currentThread &&
+                          downloadAttachment(currentThread.id, attachment.id, attachment.filename)}
+                      />
+                    {:then inlineUrl}
+                      <AttachmentPreview
+                        {attachment}
+                        mode="history"
+                        inlinePreviewUrl={inlineUrl}
+                        onPreview={() =>
+                          currentThread &&
+                          previewAttachment(currentThread.id, attachment.id, attachment.filename)}
+                        onDownload={() =>
+                          currentThread &&
+                          downloadAttachment(currentThread.id, attachment.id, attachment.filename)}
+                      />
+                    {/await}
                   {/each}
                 </div>
               {/if}
@@ -699,7 +882,45 @@
 
   .chat-header h2 {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
+
+  .title-generating {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-tertiary, #9ca3af);
+    font-weight: normal;
+  }
+
+  .generating-dots {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
   .icon-button {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid transparent;

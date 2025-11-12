@@ -29,7 +29,15 @@ function createThreadStore(): ThreadStore {
       });
     },
     updateThread: (updatedThread: Thread): void => {
-      update((threads) => threads.map((t) => (t.id === updatedThread.id ? updatedThread : t)));
+      update((threads) => {
+        const updated = threads.map((t) => {
+          if (t.id === updatedThread.id) {
+            return updatedThread;
+          }
+          return t;
+        });
+        return updated;
+      });
     },
     deleteThread: (threadId: string): void => {
       update((threads) => threads.filter((t) => t.id !== threadId));
@@ -38,3 +46,19 @@ function createThreadStore(): ThreadStore {
 }
 
 export const threads = createThreadStore();
+
+// Initialize listener for backend thread updates
+export function initThreadUpdateListener(): () => void {
+  try {
+    if (typeof window.electronAPI?.thread?.onThreadUpdated === 'function') {
+      return window.electronAPI.thread.onThreadUpdated((updatedThread) => {
+        threads.updateThread(updatedThread);
+      });
+    } else {
+      console.warn('[thread.store] onThreadUpdated function not available');
+    }
+  } catch (e) {
+    console.error('Failed to initialize thread update listener:', e);
+  }
+  return () => {}; // Return no-op cleanup function
+}

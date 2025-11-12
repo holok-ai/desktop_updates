@@ -51,6 +51,11 @@ export interface ThreadAPI {
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
   onThreadDeleted: (callback: (threadId: string) => void) => () => void;
+  // Listen to title generation events
+  onTitleGenerationStarted: (callback: (data: { threadId: string }) => void) => () => void;
+  onTitleGenerationFinished: (
+    callback: (data: { threadId: string; title: string }) => void,
+  ) => () => void;
   // Add user prompt (creates thread if id null)
   addUserPrompt: (
     threadId: string | null,
@@ -346,6 +351,41 @@ export interface FileAPI {
     size: number;
   }) => Promise<FileValidationResult>;
 
+  // Request preview token for secure file access
+  preview: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
+    success: boolean;
+    token?: string;
+    fileInfo?: {
+      filename: string;
+      mimeType: string;
+      size: number;
+      isPreviewable: boolean;
+      canInlinePreview: boolean;
+    };
+    error?: string;
+  }>;
+
+  // Request download token for secure file access
+  download: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
+    success: boolean;
+    token?: string;
+    fileInfo?: {
+      filename: string;
+      mimeType: string;
+      size: number;
+    };
+    error?: string;
+  }>;
+
+  // Get file with token (secure retrieval)
+  getWithToken: (payload: { token: string }) => Promise<{
+    success: boolean;
+    buffer?: Buffer;
+    filename?: string;
+    mimeType?: string;
+    error?: string;
+  }>;
+
   // Listen for upload progress events
   onUploadProgress: (callback: (data: { fileId: string; progress: number }) => void) => () => void;
 }
@@ -532,6 +572,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('thread:deleted', subscription);
       };
     },
+
+    onTitleGenerationStarted: (callback: (data: { threadId: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: { threadId: string }): void =>
+        callback(data);
+      ipcRenderer.on('thread:titleGenerationStarted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:titleGenerationStarted', subscription);
+      };
+    },
+
+    onTitleGenerationFinished: (
+      callback: (data: { threadId: string; title: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { threadId: string; title: string },
+      ): void => callback(data);
+      ipcRenderer.on('thread:titleGenerationFinished', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:titleGenerationFinished', subscription);
+      };
+    },
+
     addUserPrompt: (
       threadId: string | null,
       prompt: string,
@@ -644,6 +709,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     validate: (payload: { filename: string; mimeType: string; size: number }) =>
       ipcRenderer.invoke('file:validate', payload),
+
+    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:preview', payload),
+
+    download: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:download', payload),
+
+    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
 
     onUploadProgress: (
       callback: (data: { fileId: string; progress: number }) => void,
