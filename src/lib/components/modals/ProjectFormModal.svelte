@@ -1,8 +1,8 @@
 <script lang="ts">
   import { projectService } from '$lib/services/project.service';
-  import type { Project } from '../../../../src-electron/preload';
+  import type { Project } from '$lib/types/project.type';
 
-  let { show = $bindable(false), project = $bindable<Project | null>(null) } = $props();
+  let { show = $bindable(false), project = $bindable<Project | null>(null) }: { show: boolean; project: Project | null } = $props();
 
   let projectName = $state('');
   let projectDescription = $state('');
@@ -13,7 +13,7 @@
 
   $effect(() => {
     if (project) {
-      projectName = project.name;
+      projectName = project.title;
       projectDescription = project.description || '';
     } else {
       projectName = '';
@@ -33,7 +33,7 @@
     try {
       if (isEditMode && project) {
         await projectService.updateProject(project.id, {
-          name: projectName.trim(),
+          title: projectName.trim(),
           description: projectDescription.trim() || undefined,
         });
       } else {

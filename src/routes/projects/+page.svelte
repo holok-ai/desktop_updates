@@ -5,10 +5,12 @@
   import { threads } from '$lib/stores/thread.store';
   import { projectService } from '$lib/services/project.service';
   import { threadService } from '$lib/services/thread.service';
-  import type { Project, Thread } from '../../../src-electron/preload';
+  import type { Project } from '$lib/types/project.type.js';
   import { ROUTE } from '$lib/constants/route.constant';
   import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
   import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
+  import type { Thread } from '../../../src-electron/preload';
+  import type { GUID } from '$lib/types/app.type.js';
 
   let selectedProject: Project | null = $state(null);
   let isLoading = $state(true);
@@ -118,7 +120,7 @@
     }
   });
 
-  async function loadThreadCount(projectId: string) {
+  async function loadThreadCount(projectId: GUID) {
     try {
       threadCount = await projectService.getThreadCount(projectId);
     } catch (error) {
@@ -162,7 +164,7 @@
     }
     const pid = selectedProject.id;
     const filtered = $threads
-      .filter((t) => (t.metadata?.projectId as string | undefined) === pid)
+      .filter((t) => t.metadata?.projectId === pid)
       .sort((a, b) => {
         const at = new Date((a as any).updatedAt ?? a.createdAt).getTime();
         const bt = new Date((b as any).updatedAt ?? b.createdAt).getTime();
@@ -175,7 +177,7 @@
   $effect(() => {
     // Logs will appear in renderer DevTools (Cmd+Opt+I)
     try {
-      console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.name);
+      console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.title);
       console.log(
         '[Projects] projectThreads:',
         projectThreads.map((t) => ({
@@ -206,7 +208,7 @@
     <div class="project-detail">
       <div class="project-header">
         <div class="project-info">
-          <h1>{selectedProject.name}</h1>
+          <h1>{selectedProject.title}</h1>
           {#if selectedProject.description}
             <p class="description">{selectedProject.description}</p>
           {/if}

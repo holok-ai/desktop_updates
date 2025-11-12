@@ -126,7 +126,7 @@
     threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
     groupedThreadSections = getGroupByTime(filteredThreads, ROUTE.THREADS);
 
-    projectItems = $projects.map((p) => ({ id: p.id, label: p.name, route: ROUTE.PROJECTS }));
+    projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
     groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
   });
 
@@ -190,7 +190,7 @@
       const cStart = startOfDay(created).getTime();
       const diffDays = Math.floor((todayStart - cStart) / oneDayMs);
 
-      const item = toItem(t.id, (t as Thread).title ?? (t as Project).name);
+      const item = toItem(t.id, (t as Thread).title ?? (t as Project).title);
       if (diffDays === 0) sections.Recent.push(item);
       else if (diffDays === 1) sections.Yesterday.push(item);
       else if (diffDays <= 7) sections['Last 7 Days'].push(item);

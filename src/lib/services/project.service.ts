@@ -45,9 +45,9 @@ export class ProjectService {
     }
   }
 
-  public async createProject(name: string, description?: string): Promise<Project> {
+  public async createProject(title: string, description?: string): Promise<Project> {
     try {
-      const project = await window.electronAPI.project.create({ name, description });
+      const project = await window.electronAPI.project.create({ title, description });
       return project;
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -56,8 +56,8 @@ export class ProjectService {
   }
 
   public async updateProject(
-    id: string,
-    updates: { name?: string; description?: string },
+    id: GUID,
+    updates: { title?: string; description?: string },
   ): Promise<Project> {
     try {
       const project = await window.electronAPI.project.update(id, updates);
@@ -68,7 +68,7 @@ export class ProjectService {
     }
   }
 
-  public async deleteProject(id: string, deleteThreads = false): Promise<boolean> {
+  public async deleteProject(id: GUID, deleteThreads = false): Promise<boolean> {
     try {
       const isprojectDeleted = await window.electronAPI.project.delete(id, { deleteThreads });
       return isprojectDeleted;
@@ -78,7 +78,7 @@ export class ProjectService {
     }
   }
 
-  public async getThreadCount(projectId: string): Promise<number> {
+  public async getThreadCount(projectId: GUID): Promise<number> {
     try {
       const count = await window.electronAPI.project.getThreads(projectId);
       return count;
