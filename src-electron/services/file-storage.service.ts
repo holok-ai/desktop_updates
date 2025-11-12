@@ -12,6 +12,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import type { Attachment } from '../../src-shared/types/attachment.types.js';
 import log from '../utils/logger.js';
+import { fileAccessTokenService } from './file-access-token.service.js';
 
 export class FileStorageService {
   private readonly baseStoragePath: string;
@@ -225,6 +226,147 @@ export class FileStorageService {
       });
       return null;
     }
+  }
+
+  /**
+   * Get file with token-based access (secure retrieval)
+   * Returns file buffer and metadata if token is valid
+   */
+  async getFileWithToken(
+    token: string,
+  ): Promise<{ buffer: Buffer; filename: string; mimeType: string } | null> {
+    try {
+      // Validate token
+      const payload = fileAccessTokenService.validateToken(token);
+
+      if (!payload) {
+        log.warn('[FileStorageService] Invalid or expired token', { token });
+        return null;
+      }
+
+      // Extract fileId and userId from payload
+      // fileId format: "threadId/fileId" or just "fileId" (we need to find it)
+      const { fileId, userId } = payload;
+
+      // Find the file (search across all thread directories)
+      const fileInfo = await this.findFileById(fileId);
+
+      if (!fileInfo) {
+        log.warn('[FileStorageService] File not found for token', { fileId, userId });
+        return null;
+      }
+
+      // Read file buffer
+      const buffer = await fs.promises.readFile(fileInfo.filePath);
+
+      log.info('[FileStorageService] File retrieved with token', {
+        fileId,
+        userId,
+        action: payload.action,
+        size: buffer.length,
+      });
+
+      // Optionally revoke token after use (one-time access)
+      // fileAccessTokenService.revokeToken(token);
+
+      return {
+        buffer,
+        filename: fileInfo.filename,
+        mimeType: fileInfo.mimeType,
+      };
+    } catch (error) {
+      log.error('[FileStorageService] Failed to retrieve file with token', {
+        token,
+        error,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Find file by ID across all thread directories
+   * Returns file path and metadata if found
+   */
+  private async findFileById(
+    fileId: string,
+  ): Promise<{ filePath: string; filename: string; mimeType: string } | null> {
+    try {
+      // Check if base storage path exists
+      if (!fs.existsSync(this.baseStoragePath)) {
+        return null;
+      }
+
+      // Read all thread directories
+      const threadDirs = await fs.promises.readdir(this.baseStoragePath);
+
+      for (const threadDir of threadDirs) {
+        const threadPath = path.join(this.baseStoragePath, threadDir);
+
+        // Skip if not a directory
+        const stats = await fs.promises.stat(threadPath);
+        if (!stats.isDirectory()) {
+          continue;
+        }
+
+        // Find file in this thread directory
+        const files = await fs.promises.readdir(threadPath);
+        const matchingFile = files.find((file) => file.startsWith(fileId));
+
+        if (matchingFile) {
+          const filePath = path.join(threadPath, matchingFile);
+          const extension = path.extname(matchingFile);
+
+          // Derive MIME type from extension
+          const mimeType = this.getMimeTypeFromExtension(extension);
+
+          return {
+            filePath,
+            filename: matchingFile,
+            mimeType,
+          };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      log.error('[FileStorageService] Error finding file by ID', {
+        fileId,
+        error,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get MIME type from file extension
+   */
+  private getMimeTypeFromExtension(extension: string): string {
+    const extToMime: Record<string, string> = {
+      // Images
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+
+      // Documents
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.md': 'text/markdown',
+
+      // Data
+      '.json': 'application/json',
+      '.csv': 'text/csv',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+
+      // Archives
+      '.zip': 'application/zip',
+      '.tar': 'application/x-tar',
+    };
+
+    return extToMime[extension.toLowerCase()] || 'application/octet-stream';
   }
 
   /**

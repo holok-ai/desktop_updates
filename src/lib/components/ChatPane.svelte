@@ -7,6 +7,7 @@
 
   import type { Message } from '$lib/types/thread.type';
   import AttachmentPreview from './AttachmentPreview.svelte';
+  import FileErrorBanner from './FileErrorBanner.svelte';
 
   interface Props {
     thread?: Thread | null;
@@ -48,6 +49,10 @@
   let openMenuForId = $state<string | null>(null);
   let toast = $state('');
   let toastTimeout: number | null = null;
+  // Cache for inline preview URLs (small images)
+  let inlinePreviewUrls = $state<Map<string, string>>(new Map());
+  // File error state
+  let fileError = $state<{ message: string; type: 'error' | 'warning' } | null>(null);
   // Inline edit state
   let editingMessageId = $state<string | null>(null);
   let editingText = $state('');
@@ -403,29 +408,65 @@
   }
 
   /**
-   * Download attachment
+   * Get inline preview URL for small images (<500KB)
    */
-  async function downloadAttachment(threadId: string, fileId: string, filename: string) {
-    try {
-      const result = await window.electronAPI.file.get({ threadId, fileId });
+  async function getInlinePreviewUrl(
+    threadId: string,
+    fileId: string,
+    fileSize: number,
+  ): Promise<string | undefined> {
+    const MAX_INLINE_SIZE = 500 * 1024; // 500KB
 
-      if (result.success && result.buffer) {
-        // Create blob and trigger download
-        // Convert Buffer to Uint8Array for Blob compatibility
-        const uint8Array = new Uint8Array(result.buffer as any);
-        const blob = new Blob([uint8Array]);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        console.error('Failed to download file:', result.error);
+    // Check cache first
+    const cacheKey = `${threadId}:${fileId}`;
+    if (inlinePreviewUrls.has(cacheKey)) {
+      return inlinePreviewUrls.get(cacheKey);
+    }
+
+    // Only generate inline preview for small files
+    if (fileSize > MAX_INLINE_SIZE) {
+      return undefined;
+    }
+
+    try {
+      const userId = 'current-user'; // TODO: Get from auth store
+
+      const result = await window.electronAPI.file.preview({ threadId, fileId, userId });
+
+      if (result.success && result.token && result.fileInfo?.canInlinePreview) {
+        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
+
+        if (fileData.success && fileData.buffer) {
+          const uint8Array = new Uint8Array(fileData.buffer as any);
+          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
+          const url = URL.createObjectURL(blob);
+
+          // Cache the URL
+          inlinePreviewUrls.set(cacheKey, url);
+          return url;
+        }
       }
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('Error generating inline preview:', error);
     }
+
+    return undefined;
+  }
+
+  /**
+   * Preview attachment (opens modal)
+   */
+  async function previewAttachment(threadId: string, fileId: string, filename: string) {
+    // TODO: Implement preview attachment
+    console.log('Previewing attachment:', threadId, fileId, filename);
+  }
+
+  /**
+   * Download attachment (secure token-based)
+   */
+  async function downloadAttachment(threadId: string, fileId: string, filename: string) {
+    // TODO: Implement download attachment
+    console.log('Downloading attachment:', threadId, fileId, filename);
   }
 
   // Cleanup on unmount
@@ -508,6 +549,14 @@
       <div class="error-banner">{error}</div>
     {/if}
 
+    {#if fileError}
+      <FileErrorBanner
+        error={fileError.message}
+        type={fileError.type}
+        onDismiss={() => (fileError = null)}
+      />
+    {/if}
+
     {#if toast}
       <div class="toast">{toast}</div>
     {/if}
@@ -569,17 +618,34 @@
               </div>
             {:else}
               <div class="message-content">{m.content}</div>
-
               <!-- Display attachments if present -->
               {#if m.metadata?.attachments && m.metadata.attachments.length > 0}
                 <div class="message-attachments">
                   {#each m.metadata.attachments as attachment}
-                    <AttachmentPreview
-                      {attachment}
-                      mode="history"
-                      onDownload={() =>
-                        thread && downloadAttachment(thread.id, attachment.id, attachment.filename)}
-                    />
+                    {#await thread ? getInlinePreviewUrl(thread.id, attachment.id, attachment.size) : undefined}
+                      <AttachmentPreview
+                        {attachment}
+                        mode="history"
+                        onPreview={() =>
+                          thread &&
+                          previewAttachment(thread.id, attachment.id, attachment.filename)}
+                        onDownload={() =>
+                          thread &&
+                          downloadAttachment(thread.id, attachment.id, attachment.filename)}
+                      />
+                    {:then inlineUrl}
+                      <AttachmentPreview
+                        {attachment}
+                        mode="history"
+                        inlinePreviewUrl={inlineUrl}
+                        onPreview={() =>
+                          thread &&
+                          previewAttachment(thread.id, attachment.id, attachment.filename)}
+                        onDownload={() =>
+                          thread &&
+                          downloadAttachment(thread.id, attachment.id, attachment.filename)}
+                      />
+                    {/await}
                   {/each}
                 </div>
               {/if}
