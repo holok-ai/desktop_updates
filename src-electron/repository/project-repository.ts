@@ -140,8 +140,10 @@ export class ProjectRepository {
           title: p.title,
           description: p.description,
           metadata: p.metadata ? { ...p.metadata } : undefined,
-          createdAt: p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
-          updatedAt: p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
+          createdAt:
+            p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
+          updatedAt:
+            p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
           deletedAt,
         });
       }

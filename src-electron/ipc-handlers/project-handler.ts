@@ -35,9 +35,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:getAll', (): Promise<Project[]> => {
     const perfLog = logPerformance('project:getAll');
     const list = projectRepository.listProjects();
-    const mapped = list
-      .map((p) => toRendererProject(p))
-      .filter((x): x is Project => x !== null);
+    const mapped = list.map((p) => toRendererProject(p)).filter((x): x is Project => x !== null);
     perfLog.end({ count: mapped.length });
     return Promise.resolve(mapped);
   });
