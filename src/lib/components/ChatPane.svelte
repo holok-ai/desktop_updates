@@ -568,8 +568,8 @@
       {#key thread?.id}
         <div class="header-content">
           <div>
-            <h2>{thread.title}</h2>
-            <div class="meta">{thread.description}</div>
+            <h2>{thread?.title}</h2>
+            <div class="meta">{thread?.description}</div>
           </div>
           <button
             class="move-thread-btn"
