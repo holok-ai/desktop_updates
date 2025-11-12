@@ -5,9 +5,10 @@ import type {
 } from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
-import type { AppThemeMode } from '$lib/types/app.type.js';
+import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type { Project } from '$lib/types/project.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -60,6 +61,13 @@ export interface ThreadAPI {
 
   // Soft delete a thread (deletedAt timestamp)
   softDelete: (id: string) => Promise<boolean>;
+
+  // Move thread to/from a project
+  moveToProject: (
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ) => Promise<Thread>;
 
   // Get messages for a thread (persisted)
   getMessages: (id: string) => Promise<Message[]>;
@@ -149,6 +157,43 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * Project API
+ *
+ * Project-related operations for organizing threads.
+ */
+export interface ProjectAPI {
+  // Get all projects
+  getAll: () => Promise<Project[]>;
+
+  // Get a single project by ID
+  getById: (id: GUID) => Promise<Project | null>;
+
+  // Create a new project
+  create: (data: {
+    title: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<Project>;
+
+  // Update an existing project
+  update: (
+    id: GUID,
+    updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+  ) => Promise<Project>;
+
+  // Delete a project
+  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+
+  // Get thread count for a project
+  getThreads: (projectId: GUID) => Promise<number>;
+
+  // Listen to project events
+  onProjectCreated: (callback: (project: Project) => void) => () => void;
+  onProjectUpdated: (callback: (project: Project) => void) => () => void;
+  onProjectDeleted: (callback: (projectId: GUID) => void) => () => void;
 }
 
 /**
@@ -416,6 +461,7 @@ export interface ElectronAPI {
   settings: SettingsAPI;
   models: ModelsAPI;
   thread: ThreadAPI;
+  project: ProjectAPI;
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
@@ -561,6 +607,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     undoRename: (threadId: string) => ipcRenderer.invoke('thread:undoRename', threadId),
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
+
+    moveToProject: (
+      threadId: string,
+      targetProjectId: string | null,
+      options?: { privacyMode?: string; contextHandling?: string },
+    ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
 
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
@@ -711,6 +763,57 @@ contextBridge.exposeInMainWorld('electronAPI', {
     debug: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:debug', message, ...params),
   } as LogAPI,
+
+  /**
+   * Project API Implementation
+   */
+  project: {
+    getAll: () => ipcRenderer.invoke('project:getAll'),
+
+    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
+
+    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('project:create', data),
+
+    update: (
+      id: GUID,
+      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+    ) => ipcRenderer.invoke('project:update', id, updates),
+
+    delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
+      ipcRenderer.invoke('project:delete', id, options),
+
+    getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
+
+    // Event listeners with cleanup function
+    onProjectCreated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:created', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:created', subscription);
+      };
+    },
+
+    onProjectUpdated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:updated', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:updated', subscription);
+      };
+    },
+
+    onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void =>
+        callback(projectId);
+      ipcRenderer.on('project:deleted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:deleted', subscription);
+      };
+    },
+  } as ProjectAPI,
 
   /**
    * File API Implementation

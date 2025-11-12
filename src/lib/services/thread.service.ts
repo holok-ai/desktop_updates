@@ -102,6 +102,14 @@ class ThreadService {
       threadId: threadIdCamel,
     };
   }
+
+  async moveToProject(
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ): Promise<Thread> {
+    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
+  }
 }
 
 export const threadService = new ThreadService();

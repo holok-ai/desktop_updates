@@ -4,22 +4,31 @@
   import SidebarItem from '../common/SidebarItem.svelte';
   import AccordionSection from '../common/AccordionSection.svelte';
   import { threadService } from '$lib/services/thread.service';
+  import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
+  import { projects } from '$lib/stores/project.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
+  import type { RoutePath } from '$lib/types/route.type';
+  import type { Project } from '$lib/types/project.type';
+  import type { Thread } from '../../../../src-electron/preload';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
 
   let isCollapsed = $state(false);
   let agentItems = $state<SidebarActivity[]>([]);
-  let projectItems = $state<SidebarActivity[]>([]);
+  let lastActivityId: string | null = null;
+
   let threadItems = $state<SidebarActivity[]>([]);
   let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
-  let lastActivityId: string | null = null;
   let selectedThreadId: string | null = $state(null);
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
+
+  let projectItems = $state<SidebarActivity[]>([]);
+  let groupedProjectSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
+  let selectedProjectId: string | null = $state(null);
 
   const navigationOptions: SidebarActivity[] = [
     {
@@ -27,7 +36,14 @@
       label: 'New Thread',
       shortLabel: 'New',
       icon: 'pi pi-pen-to-square',
-      onClick: () => push(`${ROUTE.THREADS}?create`),
+      onClick: () => push(`${ROUTE.THREADS}?createThread`),
+    },
+    {
+      id: 'new-project',
+      label: 'New Project',
+      shortLabel: 'New',
+      icon: 'pi pi-folder-plus',
+      onClick: () => push(`${ROUTE.PROJECTS}?createProject`),
     },
     {
       id: 'search-thread',
@@ -40,11 +56,14 @@
 
   onMount(async () => {
     await getThreadItems();
+    await getProjectItems();
   });
 
   $effect(() => {
     const unsub = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
+
+      // Handle thread selection
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
@@ -62,6 +81,25 @@
           selectedThreadId = null;
         }
       }
+
+      // Handle project selection
+      const pid = params.get('projectId');
+      if (pid) {
+        selectedProjectId = pid;
+        try {
+          window.localStorage.setItem('lastProjectId', pid);
+        } catch (error) {
+          console.error('Failed to set lastProjectId', error);
+        }
+      } else {
+        // Fallback to last selected from localStorage
+        try {
+          const last = window.localStorage.getItem('lastProjectId');
+          selectedProjectId = last;
+        } catch {
+          selectedProjectId = null;
+        }
+      }
     });
     return unsub;
   });
@@ -70,27 +108,56 @@
     if (lastActivityId === activity?.id) return;
 
     agentItems = getAgentItems();
-    projectItems = getProjectItems();
 
     lastActivityId = activity?.id ?? null;
   });
 
   $effect(() => {
-    threadItems = $threads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-    groupedThreadSections = groupThreadsByTime();
+    // Filter threads based on current view
+    let filteredThreads = $threads;
+    if (activity?.id === 'projects' && selectedProjectId) {
+      // When viewing a project, show only threads in that project
+      filteredThreads = $threads.filter(
+        (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
+      );
+    } else if (activity?.id === 'threads') {
+      // When viewing threads, show only threads without a project (general history)
+      filteredThreads = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
+    }
+
+    threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
+    groupedThreadSections = getGroupByTime(filteredThreads, ROUTE.THREADS);
+
+    projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
+    groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
   });
 
   function select(item: { id: string; label: string }) {
     dispatch('select', item);
-    selectedThreadId = item.id;
-    try {
-      window.localStorage.setItem('lastThreadId', item.id);
-    } catch (error) {
-      console.error('Failed to set lastThreadId', error);
-    }
 
-    if ((item as SidebarActivity).route === ROUTE.THREADS) {
-      push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
+    const route = (item as SidebarActivity).route;
+
+    switch (route) {
+      case ROUTE.THREADS:
+        selectedThreadId = item.id;
+        try {
+          window.localStorage.setItem('lastThreadId', item.id);
+        } catch (error) {
+          console.error('Failed to set lastThreadId', error);
+        }
+        push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
+        break;
+      case ROUTE.PROJECTS:
+        selectedProjectId = item.id;
+        try {
+          window.localStorage.setItem('lastProjectId', item.id);
+        } catch (error) {
+          console.error('Failed to set lastProjectId', error);
+        }
+        push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(item.id)}`);
+        break;
+      default:
+        break;
     }
   }
 
@@ -98,7 +165,7 @@
     isCollapsed = !isCollapsed;
   }
 
-  function groupThreadsByTime() {
+  function getGroupByTime(items: Project[] | Thread[], route: RoutePath) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
@@ -112,13 +179,9 @@
     const todayStart = startOfDay(now).getTime();
     const oneDayMs = 24 * 60 * 60 * 1000;
 
-    const toItem = (id: string, label: string): SidebarActivity => ({
-      id,
-      label,
-      route: ROUTE.THREADS,
-    });
+    const toItem = (id: string, label: string): SidebarActivity => ({ id, label, route });
 
-    const sorted = [...$threads].sort((a, b) => {
+    const sorted = [...items].sort((a, b) => {
       const aTime = new Date((a as any).updatedAt ?? a.createdAt).getTime();
       const bTime = new Date((b as any).updatedAt ?? b.createdAt).getTime();
       return bTime - aTime;
@@ -129,7 +192,7 @@
       const cStart = startOfDay(created).getTime();
       const diffDays = Math.floor((todayStart - cStart) / oneDayMs);
 
-      const item = toItem(t.id, t.title);
+      const item = toItem(t.id, (t as Thread).title ?? (t as Project).title);
       if (diffDays === 0) sections.Recent.push(item);
       else if (diffDays === 1) sections.Yesterday.push(item);
       else if (diffDays <= 7) sections['Last 7 Days'].push(item);
@@ -153,11 +216,12 @@
     ];
   }
 
-  function getProjectItems() {
-    return [
-      { id: 'project-1', label: 'Moku Web 2.0' },
-      { id: 'project-2', label: 'Holokai Desktop' },
-    ];
+  async function getProjectItems() {
+    try {
+      await projectService.loadProjects();
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
   }
 
   async function getThreadItems() {
@@ -244,7 +308,8 @@
           isSubsection={true}
           isSidebarCollapsed={isCollapsed}
           items={projectItems}
-          selectedId={null}
+          selectedId={activity?.id === 'projects' ? selectedProjectId : null}
+          on:click={(e) => select(e.detail)}
         />
         <AccordionSection
           title="Threads"
@@ -295,6 +360,19 @@
                 console.error('Failed to delete thread', err);
               }
             }}
+          />
+        {/each}
+      {/if}
+      {#if activity?.id === 'projects'}
+        {#each groupedProjectSections as section}
+          <AccordionSection
+            title={section.title}
+            isSidebarCollapsed={isCollapsed}
+            isSubsection={true}
+            items={section.items}
+            showActions={false}
+            selectedId={selectedProjectId}
+            on:click={(e) => select(e.detail)}
           />
         {/each}
       {/if}
@@ -435,7 +513,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75);
+    background: var(--modal-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -443,20 +521,19 @@
   }
 
   .dialog {
-    background: white;
-    border-radius: 0.5rem;
+    background: var(--surface-main);
     padding: 2rem;
-    width: 90%;
-    max-width: 500px;
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+    min-width: 500px;
+    max-width: 90%;
+    border: 1px solid var(--border-sidebar);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
   .dialog h2 {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #000;
+    color: var(--text-primary);
     margin: 0 0 1.5rem 0;
   }
 
@@ -468,38 +545,38 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #000;
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
   }
 
   .form-group input {
     width: 100%;
     padding: 0.75rem;
-    background: white;
-    border: 1px solid #d1d5db;
+    background: var(--input-background);
+    border: 1px solid var(--input-border);
     border-radius: 0.5rem;
-    color: #000;
+    color: var(--text-primary);
     font-size: 0.875rem;
   }
 
   .form-group input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 
   .form-group input::placeholder {
-    color: #9ca3af;
+    color: var(--text-secondary);
   }
 
   .char-counter {
     margin-top: 0.5rem;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
   }
 
   .char-counter.warning {
-    color: #f59e0b;
+    color: var(--error-color);
   }
 
   .dialog-actions {
@@ -520,16 +597,16 @@
   }
 
   .dialog-actions button.text-white {
-    background: #1f2937;
-    color: white;
+    background: var(--surface-card);
+    color: var(--text-primary);
   }
 
   .dialog-actions button.text-white:hover {
-    background: #374151;
+    background: var(--surface-overlay);
   }
 
   .dialog-actions button.primary {
-    background: #3b82f6;
+    background: var(--primary-color);
     color: white;
   }
 
@@ -544,5 +621,9 @@
 
   .mb-6 {
     margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    color: var(--text-primary);
   }
 </style>
