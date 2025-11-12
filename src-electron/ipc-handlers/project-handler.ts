@@ -4,7 +4,7 @@ import { threadRepository } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
-import type { Project } from '../../src/lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '../../src/lib/types/project.type.js';
 import { GUID } from '../../src/lib/types/app.type.js';
 
 const projectLog = createScopedLogger('project');
@@ -12,14 +12,16 @@ const projectLog = createScopedLogger('project');
 function toRendererProject(p: Project | null): Project | null {
   if (!p) return null;
 
+  const projectId = p.id;
   return {
-    id: p.id,
+    id: projectId,
     title: p.title,
     description: p.description,
     createdAt: new Date(p.createdAt.toISOString()),
     updatedAt: new Date(p.updatedAt.toISOString()),
     deletedAt: p.deletedAt ? new Date(p.deletedAt.toISOString()) : null,
     metadata: p.metadata ? { ...p.metadata } : undefined,
+    privacyMode: p.privacyMode ?? 'default',
   };
 }
 
@@ -42,7 +44,7 @@ export function registerProjectHandlers(): void {
 
   // Get project by ID
   ipcMain.handle('project:getById', (_event, id: GUID): Promise<Project | null> => {
-    projectLog.info('Get project by id', { projectId: id });
+    projectLog.info('Get project by id', { projectId: String(id) });
     const project = projectRepository.getProject(id);
     return Promise.resolve(toRendererProject(project));
   });
@@ -52,7 +54,12 @@ export function registerProjectHandlers(): void {
     'project:create',
     (
       _event,
-      data: { title: string; description?: string; metadata?: Record<string, unknown> },
+      data: {
+        title: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+        privacyMode?: ProjectPrivacyMode;
+      },
     ): Promise<Project> => {
       const perfLog = logPerformance('project:create');
       projectLog.info('Create called', { title: data.title });
@@ -66,11 +73,15 @@ export function registerProjectHandlers(): void {
         throw new Error('Project title is required');
       }
 
-      const project = projectRepository.createProject(
+      let project = projectRepository.createProject(
         data.title.trim(),
         data.description?.trim(),
         data.metadata,
       );
+      // Set privacy mode if provided (defaults to 'default')
+      if (data.privacyMode && data.privacyMode !== project.privacyMode) {
+        project = projectRepository.updateProject(project.id, { privacyMode: data.privacyMode });
+      }
       const rp = toRendererProject(project);
       if (!rp) throw new Error('Failed to convert created project');
 
@@ -86,10 +97,15 @@ export function registerProjectHandlers(): void {
     (
       _event,
       id: GUID,
-      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+      updates: {
+        title?: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+        privacyMode?: ProjectPrivacyMode;
+      },
     ): Promise<Project> => {
       const perfLog = logPerformance('project:update');
-      projectLog.info('Update called', { projectId: id, updates });
+      projectLog.info('Update called');
 
       const auth = getAuthService();
       if (!auth.isAuthenticated()) {
@@ -104,12 +120,22 @@ export function registerProjectHandlers(): void {
       if (updates.title !== undefined) updateData.title = updates.title.trim();
       if (updates.description !== undefined) updateData.description = updates.description.trim();
       if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
+      if (updates.privacyMode !== undefined) updateData.privacyMode = updates.privacyMode;
 
+      const before = projectRepository.getProject(id);
       const updated = projectRepository.updateProject(id, updateData);
       const rp = toRendererProject(updated);
       if (!rp) throw new Error('Failed to convert updated project');
 
       broadcast('project:updated', rp);
+      if (before && updates.privacyMode !== undefined && updates.privacyMode !== before.privacyMode) {
+        projectLog.info('Privacy mode changed', {
+          projectId: String(id),
+          from: before.privacyMode,
+          to: updates.privacyMode,
+          event: 'privacy_mode_changed',
+        });
+      }
       perfLog.end({ projectId: id });
       return Promise.resolve(rp);
     },
@@ -120,7 +146,7 @@ export function registerProjectHandlers(): void {
     'project:delete',
     (_event, id: GUID, options?: { deleteThreads?: boolean }): Promise<boolean> => {
       const perfLog = logPerformance('project:delete');
-      projectLog.info('Delete called', { projectId: id, options });
+      projectLog.info('Delete called', { projectId: String(id), options });
 
       const auth = getAuthService();
       if (!auth.isAuthenticated()) {
@@ -142,7 +168,7 @@ export function registerProjectHandlers(): void {
           threadRepository.softDeleteThread(thread.id);
         }
         projectLog.info('Deleted associated threads', {
-          projectId: id,
+          projectId: String(id),
           threadCount: projectThreads.length,
         });
       } else {
@@ -156,7 +182,7 @@ export function registerProjectHandlers(): void {
           threadRepository.updateThreadMetadata(thread.id, newMetadata);
         }
         projectLog.info('Unassigned threads from project', {
-          projectId: id,
+          projectId: String(id),
           threadCount: projectThreads.length,
         });
       }

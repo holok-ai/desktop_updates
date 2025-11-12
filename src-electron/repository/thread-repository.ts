@@ -204,7 +204,15 @@ export class ThreadRepository {
   public updateThreadMetadata(threadId: string, updates: Partial<ThreadMetadata>): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    thread.metadata = { ...thread.metadata, ...updates };
+    const merged: ThreadMetadata = { ...thread.metadata, ...updates };
+    // Support explicit deletions: if a key exists in updates with value undefined, remove it
+    for (const key of Object.keys(updates)) {
+      if (updates[key as keyof typeof updates] === undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete merged[key as keyof typeof merged];
+      }
+    }
+    thread.metadata = merged;
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
     this.saveToDisk();

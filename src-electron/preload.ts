@@ -8,7 +8,7 @@ import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
-import type { Project } from '$lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '$lib/types/project.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -27,8 +27,10 @@ import type { Project } from '$lib/types/project.type.js';
  * Each API group should have a clear, limited set of functions.
  */
 export interface ThreadAPI {
-  // Get all threads
-  getAll: () => Promise<Thread[]>;
+  // Get all threads with optional privacy filtering
+  getAll: (options?: { projectId?: string | null; includeProjectOnly?: boolean }) => Promise<
+    Thread[]
+  >;
 
   // Get a single thread by ID
   getById: (id: string) => Promise<Thread | null>;
@@ -154,12 +156,18 @@ export interface ProjectAPI {
     title: string;
     description?: string;
     metadata?: Record<string, unknown>;
+    privacyMode?: ProjectPrivacyMode;
   }) => Promise<Project>;
 
   // Update an existing project
   update: (
     id: GUID,
-    updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+    updates: {
+      title?: string;
+      description?: string;
+      metadata?: Record<string, unknown>;
+      privacyMode?: ProjectPrivacyMode;
+    },
   ) => Promise<Project>;
 
   // Delete a project
@@ -569,7 +577,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Thread API Implementation
    */
   thread: {
-    getAll: () => ipcRenderer.invoke('thread:getAll'),
+    getAll: (options?: { projectId?: string | null; includeProjectOnly?: boolean }) =>
+      ipcRenderer.invoke('thread:getAll', options),
 
     getById: (id: string) => ipcRenderer.invoke('thread:getById', id),
 
@@ -720,12 +729,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
 
-    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
+    create: (data: {
+      title: string;
+      description?: string;
+      metadata?: Record<string, unknown>;
+      privacyMode?: ProjectPrivacyMode;
+    }) =>
       ipcRenderer.invoke('project:create', data),
 
     update: (
       id: GUID,
-      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+      updates: {
+        title?: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+        privacyMode?: ProjectPrivacyMode;
+      },
     ) => ipcRenderer.invoke('project:update', id, updates),
 
     delete: (id: GUID, options?: { deleteThreads?: boolean }) =>

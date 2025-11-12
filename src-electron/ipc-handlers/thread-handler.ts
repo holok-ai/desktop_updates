@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
+import { projectRepository } from '../repository/project-repository.js';
 import { mokuService } from '../services/moku.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
@@ -181,13 +182,36 @@ export function registerThreadHandlers(): void {
     // ignore initialization errors in test environments
   }
 
-  ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
-    const list = threadRepository.listThreads();
-    const mapped = list
-      .map((t) => toRendererThread(t))
-      .filter((x): x is RendererThread => x !== null);
-    return Promise.resolve(mapped);
-  });
+  ipcMain.handle(
+    'thread:getAll',
+    (
+      _event,
+      options?: { projectId?: string | null; includeProjectOnly?: boolean },
+    ): Promise<RendererThread[]> => {
+      const list = threadRepository.listThreads();
+      let filtered = list;
+
+      // Privacy mode filtering
+      if (options?.projectId) {
+        // When viewing a specific project, only show threads from that project
+        filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
+      } else if (!options?.includeProjectOnly) {
+        // When viewing general threads, exclude threads from project_only projects
+        filtered = list.filter((t) => {
+          const projectId = t.metadata?.projectId as string | undefined;
+          if (!projectId) return true; // Include threads not in any project
+          const project = projectRepository.getProject(projectId);
+          // Exclude if project has project_only privacy mode
+          return !project || project.privacyMode !== 'project_only';
+        });
+      }
+
+      const mapped = filtered
+        .map((t) => toRendererThread(t))
+        .filter((x): x is RendererThread => x !== null);
+      return Promise.resolve(mapped);
+    },
+  );
 
   ipcMain.handle('thread:getById', (_event, id: string): Promise<RendererThread | null> => {
     const t = threadRepository.loadThread(id);
@@ -201,6 +225,14 @@ export function registerThreadHandlers(): void {
       _event,
       id: string,
     ): Promise<{ id: string; role: string; content: string; createdAt: number }[]> => {
+      // Privacy enforcement hook (no-op without caller context)
+      const t0 = threadRepository.loadThread(id);
+      if (t0 && typeof t0.metadata?.projectId === 'string') {
+        const proj = projectRepository.getProject(t0.metadata.projectId);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
+      }
       const t = threadRepository.loadThread(id);
       if (!t) return Promise.resolve([]);
       const items = t.messages
@@ -422,6 +454,14 @@ export function registerThreadHandlers(): void {
         });
       }
 
+      // Privacy enforcement hook (no-op without caller context)
+      if (typeof internal.metadata?.projectId === 'string') {
+        const proj = projectRepository.getProject(internal.metadata.projectId);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
+      }
+
       // Ownership check if thread has userId
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
@@ -589,8 +629,8 @@ export function registerThreadHandlers(): void {
       // Update thread metadata with new project assignment
       const newMetadata: ThreadMetadata = { ...thread.metadata };
       if (targetProjectId === null) {
-        // Moving to general history - remove projectId
-        delete newMetadata.projectId;
+        // Moving to general history - remove projectId using explicit undefined (handled in repo)
+        (newMetadata as Record<string, unknown>).projectId = undefined;
       } else {
         // Moving to a project - set projectId
         newMetadata.projectId = targetProjectId;

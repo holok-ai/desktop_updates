@@ -22,8 +22,11 @@ class ThreadService {
     });
   }
 
-  async getAll(): Promise<Thread[]> {
-    const allThreads = await window.electronAPI.thread.getAll();
+  async getAll(options?: {
+    projectId?: string | null;
+    includeProjectOnly?: boolean;
+  }): Promise<Thread[]> {
+    const allThreads = await window.electronAPI.thread.getAll(options);
     threads.setThreads(allThreads);
     return allThreads;
   }

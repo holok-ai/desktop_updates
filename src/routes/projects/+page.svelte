@@ -12,7 +12,7 @@
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
 
-  let selectedProject: Project | null = $state(null);
+  let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
   let showFormModal = $state(false);
   let showDeleteModal = $state(false);
@@ -21,55 +21,66 @@
   let threadCount = $state(0);
   let threadsLoading = $state(false);
 
-  onMount(async () => {
+  // Derive selectedProject from store so it auto-updates
+  const selectedProject = $derived(
+    selectedProjectId ? $projects.find((p) => p.id === selectedProjectId) ?? null : null,
+  );
+
+  onMount(() => {
     isLoading = true;
     let offUpdated: (() => void) | null = null;
     let offDeleted: (() => void) | null = null;
-    try {
-      await projectService.loadProjects();
-      // Ensure threads are loaded for listing in project view
-      try {
-        await threadService.getAll();
-      } catch (e) {
-        console.error('Failed to load threads:', e);
-      }
-      // Keep threadCount in sync with live updates
-      try {
-        offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
-          if (selectedProject) {
-            await loadThreadCount(selectedProject.id);
-          }
-        });
-        offDeleted = window.electronAPI.thread.onThreadDeleted(async () => {
-          if (selectedProject) {
-            await loadThreadCount(selectedProject.id);
-          }
-        });
-      } catch {
-        // ignore if IPC not available
-      }
 
-      const params = new URLSearchParams((window as any).location?.search ?? '');
-      if (!params.get('projectId') && !params.get('createProject')) {
-        // If no projectId in URL, restore last selected from localStorage
+    // Run async initialization
+    (async () => {
+      try {
+        await projectService.loadProjects();
+        // Load all threads including project_only ones for project views
         try {
-          const last = window.localStorage.getItem('lastProjectId');
-          if (last) {
-            const found = $projects.find((p) => p.id === last);
-            if (found) {
-              selectedProject = found;
-              void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
-            }
-          }
-        } catch {
-          // ignore
+          await threadService.getAll({ includeProjectOnly: true });
+        } catch (e) {
+          console.error('Failed to load threads:', e);
         }
+        // Keep threadCount in sync with live updates
+        try {
+          offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
+            if (selectedProject) {
+              await loadThreadCount(selectedProject.id);
+            }
+          });
+          offDeleted = window.electronAPI.thread.onThreadDeleted(async () => {
+            if (selectedProject) {
+              await loadThreadCount(selectedProject.id);
+            }
+          });
+        } catch {
+          // ignore if IPC not available
+        }
+
+        const params = new URLSearchParams((window as any).location?.search ?? '');
+        if (!params.get('projectId') && !params.get('createProject')) {
+          // If no projectId in URL, restore last selected from localStorage
+          try {
+            const last = window.localStorage.getItem('lastProjectId');
+            if (last) {
+              const found = $projects.find((p) => p.id === last);
+              if (found) {
+                selectedProjectId = last;
+                void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        isLoading = false;
       }
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    } finally {
-      isLoading = false;
-    }
+    })();
+
+    // Return cleanup function synchronously
     return () => {
       try {
         if (offUpdated) offUpdated();
@@ -90,21 +101,21 @@
         void replace(ROUTE.PROJECTS);
       }
 
-      const projectId = params.get('projectId');
+      const projectId = params.get('projectId') as GUID | null;
       if (projectId) {
         const found = $projects.find((project) => project.id === projectId);
         if (found) {
-          selectedProject = found;
-          loadThreadCount(found.id);
+          selectedProjectId = projectId;
+          loadThreadCount(projectId);
           // Ensure threads list is fresh when switching projects
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {
           // Project not found (possibly deleted), clear selection
-          selectedProject = null;
+          selectedProjectId = null;
           replace(ROUTE.PROJECTS);
         }
       } else {
-        selectedProject = null;
+        selectedProjectId = null;
       }
     });
     return unsubscribe;
@@ -149,7 +160,7 @@
   }
 
   function handleDeleteSuccess() {
-    selectedProject = null;
+    selectedProjectId = null;
     window.localStorage.removeItem('lastProjectId');
     replace(ROUTE.PROJECTS);
   }
@@ -173,23 +184,6 @@
     projectThreads = filtered;
   });
 
-  // Debug: verify selection and filtering react when switching projects
-  $effect(() => {
-    // Logs will appear in renderer DevTools (Cmd+Opt+I)
-    try {
-      console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.title);
-      console.log(
-        '[Projects] projectThreads:',
-        projectThreads.map((t) => ({
-          id: t.id,
-          title: t.title,
-          pid: (t.metadata as any)?.projectId,
-        })),
-      );
-    } catch {
-      // ignore
-    }
-  });
   function openThread(threadId: string) {
     replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
   }
@@ -227,6 +221,14 @@
         <div class="stat-card">
           <div class="stat-label">Threads</div>
           <div class="stat-value">{threadCount}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Privacy</div>
+          <div class="stat-value">
+            <span class={selectedProject.privacyMode === 'project_only' ? 'badge danger' : 'badge'}>
+              {selectedProject.privacyMode === 'project_only' ? 'Project Only' : 'Default'}
+            </span>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Created</div>
@@ -490,5 +492,21 @@
 
   .empty-threads p {
     margin: 0;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .badge.danger {
+    background: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.35);
+    color: #ff6b6b;
   }
 </style>

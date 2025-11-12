@@ -777,7 +777,8 @@
   bind:thread
   on:moved={(e) => {
     const { projectId } = e.detail;
-    void threadService.getAll();
+    // Reload all threads - filtering happens in UI/sidebar
+    void threadService.getAll({ includeProjectOnly: true });
     showToast(`Thread moved ${projectId ? 'to project' : 'to general history'}`);
   }}
 />
