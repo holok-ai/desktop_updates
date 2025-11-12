@@ -1,4 +1,4 @@
-import type { GUID } from "./app.type.js";
+import type { GUID } from './app.type.js';
 
 export interface Project {
   id: GUID;
