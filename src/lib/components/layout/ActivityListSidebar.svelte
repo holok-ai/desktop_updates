@@ -124,7 +124,7 @@
       filteredThreads = $threads.filter((t) => {
         const projectId = t.metadata?.projectId as string | undefined;
         if (!projectId) return true; // Include threads not in any project
-        
+
         const project = $projects.find((p) => p.id === projectId);
         // If project not found, include it (might not be loaded yet or might be deleted)
         // If project found, only include if it's NOT project_only mode

@@ -2,7 +2,10 @@
   import { projectService } from '$lib/services/project.service';
   import type { Project, ProjectPrivacyMode } from '$lib/types/project.type';
 
-  let { show = $bindable(false), project = $bindable<Project | null>(null) }: { show: boolean; project: Project | null } = $props();
+  let {
+    show = $bindable(false),
+    project = $bindable<Project | null>(null),
+  }: { show: boolean; project: Project | null } = $props();
 
   let projectName = $state('');
   let projectDescription = $state('');
@@ -187,7 +190,8 @@
             {/each}
           </div>
           <div class="privacy-hint">
-            Changes apply in under 2 seconds across all threads. Organization policy may limit your options.
+            Changes apply in under 2 seconds across all threads. Organization policy may limit your
+            options.
           </div>
         </div>
 

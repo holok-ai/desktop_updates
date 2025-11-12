@@ -84,10 +84,10 @@ describe('IPC: thread-handler', () => {
   it('getAll accepts optional options parameter', async () => {
     const list1 = await ipcMain.__invoke('thread:getAll', { includeProjectOnly: true });
     expect(Array.isArray(list1)).toBe(true);
-    
+
     const list2 = await ipcMain.__invoke('thread:getAll', { includeProjectOnly: false });
     expect(Array.isArray(list2)).toBe(true);
-    
+
     const list3 = await ipcMain.__invoke('thread:getAll', { projectId: 'test-id' });
     expect(Array.isArray(list3)).toBe(true);
   });

@@ -12,11 +12,6 @@ export interface Project {
   privacyMode: ProjectPrivacyMode;
 }
 
-export type ProjectCreateInput = Omit<
-  Project,
-  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
->;
+export type ProjectCreateInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
 
-export type ProjectUpdateInput = Partial<
-  Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
->;
+export type ProjectUpdateInput = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt'>>;

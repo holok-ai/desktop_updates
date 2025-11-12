@@ -24,10 +24,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
     id: t.id,
-    title:
-      t.title && t.title.length > 0
-        ? t.title
-        : t.metadata?.title ?? '',
+    title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
     description: t.metadata?.description ?? '',
     // Normalize status from metadata if present and valid, otherwise default to 'active'
     status: (() => {

@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { GUID } from '../../src/lib/types/app.type.js';
-import type { Project } from '../../src/lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '../../src/lib/types/project.type.js';
 
 export class ProjectRepository {
   private readonly projectsById: Map<GUID, Project> = new Map();
@@ -15,15 +16,16 @@ export class ProjectRepository {
     title: string,
     description?: string,
     metadata?: Record<string, unknown>,
+    privacyMode?: ProjectPrivacyMode,
   ): Project {
     const project: Project = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       title,
       description,
       metadata: metadata ? { ...metadata } : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
-      privacyMode: 'default',
+      privacyMode: privacyMode ?? 'default',
     };
     this.projectsById.set(project.id, project);
     this.saveToDisk();
@@ -88,11 +90,13 @@ export class ProjectRepository {
 
   private cloneProject(project: Project): Project {
     return {
-      id: crypto.randomUUID(),
+      id: project.id,
       title: project.title,
       description: project.description,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt:
+        project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt),
+      updatedAt:
+        project.updatedAt instanceof Date ? project.updatedAt : new Date(project.updatedAt),
       deletedAt: project.deletedAt ?? null,
       metadata: project.metadata ? { ...project.metadata } : undefined,
       privacyMode: project.privacyMode ?? 'default',
@@ -144,8 +148,10 @@ export class ProjectRepository {
           title: p.title,
           description: p.description,
           metadata: p.metadata ? { ...p.metadata } : undefined,
-          createdAt: p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
-          updatedAt: p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
+          createdAt:
+            p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
+          updatedAt:
+            p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
           deletedAt: deletedAt,
           privacyMode: p.privacyMode ?? 'default',
         });

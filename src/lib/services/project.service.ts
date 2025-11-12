@@ -72,10 +72,7 @@ export class ProjectService {
     }
   }
 
-  public async setPrivacyMode(
-    id: GUID,
-    mode: ProjectPrivacyMode,
-  ): Promise<Project> {
+  public async setPrivacyMode(id: GUID, mode: ProjectPrivacyMode): Promise<Project> {
     try {
       const project = await window.electronAPI.project.update(id, { privacyMode: mode });
       return project;

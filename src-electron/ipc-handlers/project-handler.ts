@@ -73,15 +73,12 @@ export function registerProjectHandlers(): void {
         throw new Error('Project title is required');
       }
 
-      let project = projectRepository.createProject(
+      const project = projectRepository.createProject(
         data.title.trim(),
         data.description?.trim(),
         data.metadata,
+        data.privacyMode,
       );
-      // Set privacy mode if provided (defaults to 'default')
-      if (data.privacyMode && data.privacyMode !== project.privacyMode) {
-        project = projectRepository.updateProject(project.id, { privacyMode: data.privacyMode });
-      }
       const rp = toRendererProject(project);
       if (!rp) throw new Error('Failed to convert created project');
 
@@ -128,7 +125,11 @@ export function registerProjectHandlers(): void {
       if (!rp) throw new Error('Failed to convert updated project');
 
       broadcast('project:updated', rp);
-      if (before && updates.privacyMode !== undefined && updates.privacyMode !== before.privacyMode) {
+      if (
+        before &&
+        updates.privacyMode !== undefined &&
+        updates.privacyMode !== before.privacyMode
+      ) {
         projectLog.info('Privacy mode changed', {
           projectId: String(id),
           from: before.privacyMode,

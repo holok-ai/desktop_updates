@@ -28,9 +28,10 @@ import type { Project, ProjectPrivacyMode } from '$lib/types/project.type.js';
  */
 export interface ThreadAPI {
   // Get all threads with optional privacy filtering
-  getAll: (options?: { projectId?: string | null; includeProjectOnly?: boolean }) => Promise<
-    Thread[]
-  >;
+  getAll: (options?: {
+    projectId?: string | null;
+    includeProjectOnly?: boolean;
+  }) => Promise<Thread[]>;
 
   // Get a single thread by ID
   getById: (id: string) => Promise<Thread | null>;
@@ -734,8 +735,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       description?: string;
       metadata?: Record<string, unknown>;
       privacyMode?: ProjectPrivacyMode;
-    }) =>
-      ipcRenderer.invoke('project:create', data),
+    }) => ipcRenderer.invoke('project:create', data),
 
     update: (
       id: GUID,
@@ -772,8 +772,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: GUID): void =>
-        callback(projectId);
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
       ipcRenderer.on('project:deleted', subscription);
 
       return (): void => {

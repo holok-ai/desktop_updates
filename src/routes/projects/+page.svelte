@@ -23,7 +23,7 @@
 
   // Derive selectedProject from store so it auto-updates
   const selectedProject = $derived(
-    selectedProjectId ? $projects.find((p) => p.id === selectedProjectId) ?? null : null,
+    selectedProjectId ? ($projects.find((p) => p.id === selectedProjectId) ?? null) : null,
   );
 
   onMount(() => {
