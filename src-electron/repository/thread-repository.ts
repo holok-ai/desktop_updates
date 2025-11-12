@@ -21,10 +21,26 @@ export interface Message {
   deletedAt?: number | null;
 }
 
+/**
+ * Title history entry for tracking rename operations
+ */
+export interface TitleHistoryEntry {
+  /** The new title after this rename */
+  title: string;
+  /** Timestamp when the rename occurred (epoch ms) */
+  timestamp: number;
+  /** The previous title before this rename */
+  previousTitle: string;
+  /** Optional: User ID who performed the rename */
+  userId?: string;
+}
+
 export interface ThreadMetadata {
   title?: string;
   description?: string;
   model?: string;
+  /** History of title changes for audit and undo functionality */
+  titleHistory?: TitleHistoryEntry[];
   [key: string]: unknown;
 }
 
@@ -268,6 +284,112 @@ export class ThreadRepository {
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
     this.saveToDisk();
+    return this.cloneThread(thread);
+  }
+
+  /**
+   * Rename a thread with title history tracking
+   * @param threadId - The thread ID to rename
+   * @param newTitle - The new title (will be validated)
+   * @param userId - Optional user ID who performed the rename
+   * @returns The updated thread
+   * @throws Error if thread not found or title is invalid
+   */
+  public renameThread(threadId: string, newTitle: string, userId?: string): Thread {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    // Basic validation (more comprehensive validation should be done by TitleValidationService)
+    const trimmedTitle = newTitle.trim();
+    if (trimmedTitle.length === 0) {
+      throw new Error('TITLE_EMPTY');
+    }
+    if (trimmedTitle.length > 200) {
+      throw new Error('TITLE_TOO_LONG');
+    }
+
+    // Don't do anything if title hasn't changed
+    if (thread.title === trimmedTitle) {
+      return this.cloneThread(thread);
+    }
+
+    const previousTitle = thread.title;
+    const now = Date.now();
+
+    // Create title history entry
+    const historyEntry: TitleHistoryEntry = {
+      title: trimmedTitle,
+      timestamp: now,
+      previousTitle,
+      userId,
+    };
+
+    // Initialize titleHistory if it doesn't exist
+    const titleHistory = Array.isArray(thread.metadata?.titleHistory)
+      ? [...thread.metadata.titleHistory]
+      : [];
+
+    // Add new entry to history
+    titleHistory.push(historyEntry);
+
+    // Update thread
+    thread.title = trimmedTitle;
+    thread.metadata = {
+      ...thread.metadata,
+      title: trimmedTitle,
+      titleHistory,
+    };
+    thread.updatedAt = now;
+
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    log.info(
+      `[ThreadRepository] ✅ Renamed thread ${threadId}: "${previousTitle}" → "${trimmedTitle}"`,
+    );
+
+    return this.cloneThread(thread);
+  }
+
+  /**
+   * Undo the most recent rename operation for a thread
+   * @param threadId - The thread ID to undo rename
+   * @returns The updated thread with previous title restored
+   * @throws Error if thread not found or no rename history available
+   */
+  public undoRenameThread(threadId: string): Thread {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const titleHistory = thread.metadata?.titleHistory;
+    if (!Array.isArray(titleHistory) || titleHistory.length === 0) {
+      throw new Error('NO_RENAME_HISTORY');
+    }
+
+    // Get the most recent rename entry
+    const lastEntry = titleHistory[titleHistory.length - 1];
+    const previousTitle = lastEntry.previousTitle;
+
+    // Remove the last entry from history
+    const updatedHistory = titleHistory.slice(0, -1);
+
+    // Update thread with previous title
+    const now = Date.now();
+    thread.title = previousTitle;
+    thread.metadata = {
+      ...thread.metadata,
+      title: previousTitle,
+      titleHistory: updatedHistory,
+    };
+    thread.updatedAt = now;
+
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    log.info(
+      `[ThreadRepository] ↩️  Undid rename for thread ${threadId}: "${lastEntry.title}" → "${previousTitle}"`,
+    );
+
     return this.cloneThread(thread);
   }
 

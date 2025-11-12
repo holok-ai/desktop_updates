@@ -38,6 +38,23 @@ export interface ThreadAPI {
   // Update an existing thread
   update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
 
+  // Rename a thread with validation and title history tracking
+  renameThread: (
+    threadId: string,
+    newTitle: string,
+  ) => Promise<
+    | { success: true; thread: Thread }
+    | { success: false; status: number; error: string; code?: string }
+  >;
+
+  // Undo the most recent rename operation
+  undoRename: (
+    threadId: string,
+  ) => Promise<
+    | { success: true; thread: Thread }
+    | { success: false; status: number; error: string; code?: string }
+  >;
+
   // Delete a thread
   delete: (id: string) => Promise<boolean>;
 
@@ -537,6 +554,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
+
+    renameThread: (threadId: string, newTitle: string) =>
+      ipcRenderer.invoke('thread:renameThread', threadId, newTitle),
+
+    undoRename: (threadId: string) => ipcRenderer.invoke('thread:undoRename', threadId),
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
 

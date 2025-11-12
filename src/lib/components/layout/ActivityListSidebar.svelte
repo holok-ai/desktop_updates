@@ -3,6 +3,7 @@
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import SidebarItem from '../common/SidebarItem.svelte';
   import AccordionSection from '../common/AccordionSection.svelte';
+  import ThreadTitleEditor from '../ThreadTitleEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
@@ -18,6 +19,8 @@
   let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let lastActivityId: string | null = null;
   let selectedThreadId: string | null = $state(null);
+  let renamingThreadId: string | null = $state(null);
+  let renamingThreadTitle: string = $state('');
 
   const navigationOptions: SidebarActivity[] = [
     {
@@ -165,6 +168,46 @@
       console.error('Failed to load threads:', error);
     }
   }
+
+  /**
+   * Handle rename thread action
+   */
+  function handleRenameStart(item: { id: string; label: string }) {
+    renamingThreadId = item.id;
+    renamingThreadTitle = item.label;
+  }
+
+  /**
+   * Save renamed thread title
+   */
+  async function handleRenameSave(newTitle: string) {
+    if (!renamingThreadId) return;
+
+    try {
+      const result = await window.electronAPI.thread.renameThread(renamingThreadId, newTitle);
+
+      if (result.success) {
+        // Thread store will be updated via thread:updated event listener
+        renamingThreadId = null;
+        renamingThreadTitle = '';
+      } else {
+        // Show error to user
+        console.error('Failed to rename thread:', result.error);
+        throw new Error(result.error || 'Failed to rename thread');
+      }
+    } catch (error) {
+      console.error('Error renaming thread:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel rename operation
+   */
+  function handleRenameCancel() {
+    renamingThreadId = null;
+    renamingThreadTitle = '';
+  }
 </script>
 
 <aside
@@ -237,24 +280,51 @@
             showActions={true}
             selectedId={selectedThreadId}
             on:click={(e) => select(e.detail)}
-            on:delete={async (e) => {
-              const item = e.detail as { id: string };
-              if (item?.id?.startsWith('temp_')) {
-                threads.deleteThread(item.id);
-                return;
-              }
-              try {
-                await threadService.softDelete(item.id);
-              } catch (err) {
-                console.error('Failed to delete thread', err);
-              }
-            }}
+          on:rename={(e) => {
+            const item = e.detail as { id: string; label: string };
+            handleRenameStart(item);
+          }}
+          on:delete={async (e) => {
+            const item = e.detail as { id: string };
+            if (item?.id?.startsWith('temp_')) {
+              threads.deleteThread(item.id);
+              return;
+            }
+            try {
+              await threadService.softDelete(item.id);
+            } catch (err) {
+              console.error('Failed to delete thread', err);
+            }
+          }}
           />
         {/each}
       {/if}
     </ul>
   </div>
 </aside>
+
+<!-- Rename thread editor overlay -->
+{#if renamingThreadId}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="rename-overlay"
+    onclick={handleRenameCancel}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Rename thread dialog"
+    tabindex="-1"
+  >
+    <div class="rename-container" onclick={(e) => e.stopPropagation()} role="document">
+      <ThreadTitleEditor
+        threadId={renamingThreadId}
+        currentTitle={renamingThreadTitle}
+        onSave={handleRenameSave}
+        onCancel={handleRenameCancel}
+      />
+    </div>
+  </div>
+{/if}
 
 <style>
   .activity-list-sidebar {
@@ -320,5 +390,31 @@
   .sidebar-scroll::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
+  }
+
+  .rename-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+
+  .rename-container {
+    max-width: 600px;
+    width: 90%;
+    padding: 1rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rename-overlay {
+      backdrop-filter: none;
+    }
   }
 </style>

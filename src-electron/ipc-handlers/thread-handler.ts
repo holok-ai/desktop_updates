@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
 import { mokuService } from '../services/moku.service.js';
+import { titleValidationService } from '../services/title-validation.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type ThreadRepository from '../repository/thread-repository.js';
@@ -366,6 +367,189 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Rename thread with validation and title history tracking
+  ipcMain.handle(
+    'thread:renameThread',
+    (
+      _event,
+      threadId: string,
+      newTitle: string,
+    ): Promise<
+      | { success: true; thread: RendererThread }
+      | { success: false; status: number; error: string; code?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+        });
+      }
+
+      // Ownership check
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      try {
+        // Get all existing thread titles for duplicate checking
+        const allThreads = threadRepository.listThreads();
+        const existingTitles = allThreads.filter((t) => t.id !== threadId).map((t) => t.title);
+
+        // Validate the new title
+        const validation = titleValidationService.validate(
+          newTitle,
+          existingTitles,
+          internal.title,
+        );
+
+        if (!validation.valid) {
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: validation.error || 'Invalid title',
+            code: validation.code,
+          });
+        }
+
+        // Rename the thread (uses sanitized title from validation)
+        const sanitizedTitle = validation.sanitizedTitle || newTitle;
+        const userId = currentUser?.id;
+        const updated = threadRepository.renameThread(threadId, sanitizedTitle, userId);
+
+        const rt = toRendererThread(updated);
+        if (!rt) throw new Error('Failed to convert thread after rename');
+
+        // Broadcast the update
+        broadcast('thread:updated', rt);
+
+        threadLog.info(`Thread ${threadId} renamed to "${sanitizedTitle}"`);
+
+        return Promise.resolve({
+          success: true,
+          thread: rt,
+        });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error(`Failed to rename thread ${threadId}:`, err);
+
+        // Map repository errors to appropriate status codes
+        if (err.message === 'TITLE_EMPTY' || err.message === 'TITLE_TOO_LONG') {
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: err.message,
+            code: err.message,
+          });
+        }
+
+        return Promise.resolve({
+          success: false,
+          status: 500,
+          error: err.message || 'Failed to rename thread',
+        });
+      }
+    },
+  );
+
+  // Undo the most recent rename operation
+  ipcMain.handle(
+    'thread:undoRename',
+    (
+      _event,
+      threadId: string,
+    ): Promise<
+      | { success: true; thread: RendererThread }
+      | { success: false; status: number; error: string; code?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+        });
+      }
+
+      // Ownership check
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      try {
+        // Undo the rename
+        const updated = threadRepository.undoRenameThread(threadId);
+
+        const rt = toRendererThread(updated);
+        if (!rt) throw new Error('Failed to convert thread after undo rename');
+
+        // Broadcast the update
+        broadcast('thread:updated', rt);
+
+        threadLog.info(`Undo rename for thread ${threadId}, restored title: "${updated.title}"`);
+
+        return Promise.resolve({
+          success: true,
+          thread: rt,
+        });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error(`Failed to undo rename for thread ${threadId}:`, err);
+
+        // Map repository errors
+        if (err.message === 'NO_RENAME_HISTORY') {
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: 'No rename history available',
+            code: 'NO_RENAME_HISTORY',
+          });
+        }
+
+        return Promise.resolve({
+          success: false,
+          status: 500,
+          error: err.message || 'Failed to undo rename',
+        });
+      }
+    },
+  );
+
   ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
     const deleted = threadRepository.deleteThread(id);
     if (deleted) broadcast('thread:deleted', id);
@@ -606,6 +790,8 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:getById');
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
+  ipcMain.removeHandler('thread:renameThread');
+  ipcMain.removeHandler('thread:undoRename');
   ipcMain.removeHandler('thread:delete');
   threadLog.info('Handlers unregistered');
 }
