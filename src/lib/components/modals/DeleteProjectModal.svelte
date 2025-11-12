@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { projectService } from '$lib/services/project.service';
-  import type { Project } from '../../../../src-electron/preload';
+  import type { Project } from '$lib/types/project.type';
 
-  let { show = $bindable(false), project = $bindable<Project | null>(null) } = $props();
+  let { show = $bindable(false), project = $bindable<Project | null>(null) }: { show: boolean; project: Project | null } = $props();
 
   const dispatch = createEventDispatcher();
 
@@ -74,7 +74,7 @@
       <h2 id="modal-title">Delete Project</h2>
 
       <p class="warning-text">
-        Are you sure you want to delete <strong>{project.name}</strong>?
+        Are you sure you want to delete <strong>{project.title}</strong>?
       </p>
 
       {#if threadCount > 0}

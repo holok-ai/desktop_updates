@@ -4,13 +4,14 @@
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
-  import type { Project } from '../../../../src-electron/preload';
+  import type { Project } from '$lib/types/project.type';
+  import type { GUID } from '$lib/types/app.type';
 
-  let { show = $bindable(false), thread = $bindable<Thread | null>(null) } = $props();
+  let { show = $bindable(false), thread = $bindable<Thread | null>(null) }: { show: boolean; thread: Thread | null } = $props();
 
   const dispatch = createEventDispatcher();
 
-  let selectedProjectId = $state<string | null>(null);
+  let selectedProjectId = $state<GUID | null>(null);
   let isMoving = $state(false);
   let error = $state('');
   let showPrivacyConfirmation = $state(false);
@@ -20,7 +21,7 @@
   $effect(() => {
     if (show && thread) {
       // Initialize selected project to current project or null
-      selectedProjectId = (thread.metadata?.projectId as string | undefined) ?? null;
+      selectedProjectId = thread.metadata?.projectId as GUID | null;
       // Load projects if not already loaded
       if ($projects.length === 0) {
         void projectService.loadProjects();
@@ -28,9 +29,9 @@
     }
   });
 
-  function getCurrentProjectId(): string | null {
+  function getCurrentProjectId(): GUID | null {
     if (!thread) return null;
-    return (thread.metadata?.projectId as string | undefined) ?? null;
+    return (thread.metadata?.projectId as GUID | undefined) ?? null;
   }
 
   function getCurrentProject(): Project | null {
@@ -57,10 +58,7 @@
     if (!thread) return;
 
     const currentProjectId = getCurrentProjectId();
-    const targetProjectId =
-      typeof selectedProjectId === 'string' && selectedProjectId.length > 0
-        ? selectedProjectId
-        : null;
+    const targetProjectId = selectedProjectId;
     if (currentProjectId === targetProjectId) {
       // No change, just close
       show = false;
@@ -138,7 +136,7 @@
           >
             <option value="">General History (Unscoped)</option>
             {#each $projects as project}
-              <option value={project.id}>{project.name}</option>
+              <option value={project.id}>{project.title}</option>
             {/each}
           </select>
         </div>

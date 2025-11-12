@@ -175,26 +175,26 @@ export interface ProjectAPI {
   getAll: () => Promise<Project[]>;
 
   // Get a single project by ID
-  getById: (id: string) => Promise<Project | null>;
+  getById: (id: GUID) => Promise<Project | null>;
 
   // Create a new project
   create: (data: {
-    name: string;
+    title: string;
     description?: string;
     metadata?: Record<string, unknown>;
   }) => Promise<Project>;
 
   // Update an existing project
   update: (
-    id: string,
-    updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
+    id: GUID,
+    updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
   ) => Promise<Project>;
 
   // Delete a project
-  delete: (id: string, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<boolean>;
 
   // Get thread count for a project
-  getThreads: (projectId: string) => Promise<number>;
+  getThreads: (projectId: GUID) => Promise<number>;
 
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
@@ -795,20 +795,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   project: {
     getAll: () => ipcRenderer.invoke('project:getAll'),
 
-    getById: (id: string) => ipcRenderer.invoke('project:getById', id),
+    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
 
-    create: (data: { name: string; description?: string; metadata?: Record<string, unknown> }) =>
+    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
       ipcRenderer.invoke('project:create', data),
 
     update: (
-      id: string,
-      updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
+      id: GUID,
+      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
     ) => ipcRenderer.invoke('project:update', id, updates),
 
-    delete: (id: string, options?: { deleteThreads?: boolean }) =>
+    delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
       ipcRenderer.invoke('project:delete', id, options),
 
-    getThreads: (projectId: string) => ipcRenderer.invoke('project:getThreads', projectId),
+    getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
 
     // Event listeners with cleanup function
     onProjectCreated: (callback: (project: Project) => void): (() => void) => {
@@ -829,8 +829,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
 
-    onProjectDeleted: (callback: (projectId: string) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: string): void =>
+    onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void =>
         callback(projectId);
       ipcRenderer.on('project:deleted', subscription);
 
