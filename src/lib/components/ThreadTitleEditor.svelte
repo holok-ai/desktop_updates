@@ -13,14 +13,7 @@
     autoFocus?: boolean;
   }
 
-  let {
-    threadId,
-    currentTitle,
-    onSave,
-    onCancel,
-    maxLength = 200,
-    autoFocus = true,
-  }: Props = $props();
+  let { currentTitle, onSave, onCancel, maxLength = 200, autoFocus = true }: Props = $props();
 
   // State
   let editedTitle = $state(currentTitle);
@@ -437,4 +430,3 @@
     }
   }
 </style>
-

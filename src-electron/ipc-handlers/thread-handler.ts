@@ -46,7 +46,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
 
 function broadcast(channel: string, ...args: unknown[]): void {
   BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send(channel, ...(args as [unknown]));
+    window.webContents.send(channel, ...args);
   });
 }
 
@@ -527,24 +527,31 @@ export function registerThreadHandlers(): void {
           success: true,
           thread: rt,
         });
-      } catch (error) {
-        const err = error as Error;
-        threadLog.error(`Failed to undo rename for thread ${threadId}:`, err);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
 
-        // Map repository errors
-        if (err.message === 'NO_RENAME_HISTORY') {
+          // Map repository errors
+          if (e.message === 'NO_RENAME_HISTORY') {
+            return Promise.resolve({
+              success: false,
+              status: 400,
+              error: 'No rename history available',
+              code: 'NO_RENAME_HISTORY',
+            });
+          }
+
           return Promise.resolve({
             success: false,
-            status: 400,
-            error: 'No rename history available',
-            code: 'NO_RENAME_HISTORY',
+            status: 500,
+            error: e.message || 'Failed to undo rename',
           });
         }
-
+        threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
         return Promise.resolve({
           success: false,
           status: 500,
-          error: err.message || 'Failed to undo rename',
+          error: String(e) || 'Failed to undo rename',
         });
       }
     },

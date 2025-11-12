@@ -3,7 +3,6 @@
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import SidebarItem from '../common/SidebarItem.svelte';
   import AccordionSection from '../common/AccordionSection.svelte';
-  import ThreadTitleEditor from '../ThreadTitleEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
@@ -280,22 +279,22 @@
             showActions={true}
             selectedId={selectedThreadId}
             on:click={(e) => select(e.detail)}
-          on:rename={(e) => {
-            const item = e.detail as { id: string; label: string };
-            handleRenameStart(item);
-          }}
-          on:delete={async (e) => {
-            const item = e.detail as { id: string };
-            if (item?.id?.startsWith('temp_')) {
-              threads.deleteThread(item.id);
-              return;
-            }
-            try {
-              await threadService.softDelete(item.id);
-            } catch (err) {
-              console.error('Failed to delete thread', err);
-            }
-          }}
+            on:rename={(e) => {
+              const item = e.detail as { id: string; label: string };
+              handleRenameStart(item);
+            }}
+            on:delete={async (e) => {
+              const item = e.detail as { id: string };
+              if (item?.id?.startsWith('temp_')) {
+                threads.deleteThread(item.id);
+                return;
+              }
+              try {
+                await threadService.softDelete(item.id);
+              } catch (err) {
+                console.error('Failed to delete thread', err);
+              }
+            }}
           />
         {/each}
       {/if}
@@ -303,25 +302,63 @@
   </div>
 </aside>
 
-<!-- Rename thread editor overlay -->
+<!-- Rename thread modal dialog -->
 {#if renamingThreadId}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
-    class="rename-overlay"
+    class="dialog-overlay"
     onclick={handleRenameCancel}
+    tabindex="0"
     role="dialog"
-    aria-modal="true"
     aria-label="Rename thread dialog"
-    tabindex="-1"
   >
-    <div class="rename-container" onclick={(e) => e.stopPropagation()} role="document">
-      <ThreadTitleEditor
-        threadId={renamingThreadId}
-        currentTitle={renamingThreadTitle}
-        onSave={handleRenameSave}
-        onCancel={handleRenameCancel}
-      />
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div
+      class="dialog"
+      onclick={(e) => e.stopPropagation()}
+      tabindex="0"
+      role="button"
+      data-testid="thread-title-editor"
+    >
+      <h2 class="mb-6">Rename Thread</h2>
+
+      <div class="form-group">
+        <label for="rename-title">Title</label>
+        <input
+          id="rename-title"
+          type="text"
+          bind:value={renamingThreadTitle}
+          placeholder="Enter thread title"
+          maxlength="200"
+          aria-label="Thread title input"
+          data-testid="title-input"
+        />
+        <div
+          class="char-counter"
+          class:warning={renamingThreadTitle.length > 180}
+          data-testid="char-counter"
+        >
+          {200 - renamingThreadTitle.length} characters remaining
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button
+          class="text-white"
+          onclick={handleRenameCancel}
+          aria-label="Cancel rename"
+          data-testid="cancel-button">Cancel</button
+        >
+        <button
+          class="primary"
+          onclick={() => handleRenameSave(renamingThreadTitle)}
+          disabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
+          aria-label="Save new thread title"
+          data-testid="save-button"
+        >
+          Save
+        </button>
+      </div>
     </div>
   </div>
 {/if}
@@ -392,29 +429,120 @@
     border-radius: 3px;
   }
 
-  .rename-overlay {
+  .dialog-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    backdrop-filter: blur(2px);
   }
 
-  .rename-container {
-    max-width: 600px;
+  .dialog {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 2rem;
     width: 90%;
-    padding: 1rem;
+    max-width: 500px;
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .rename-overlay {
-      backdrop-filter: none;
-    }
+  .dialog h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #000;
+    margin: 0 0 1.5rem 0;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    color: #000;
+    font-size: 0.875rem;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .form-group input::placeholder {
+    color: #9ca3af;
+  }
+
+  .char-counter {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .char-counter.warning {
+    color: #f59e0b;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .dialog-actions button {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+  }
+
+  .dialog-actions button.text-white {
+    background: #1f2937;
+    color: white;
+  }
+
+  .dialog-actions button.text-white:hover {
+    background: #374151;
+  }
+
+  .dialog-actions button.primary {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .dialog-actions button.primary:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .dialog-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .mb-6 {
+    margin-bottom: 1.5rem;
   }
 </style>
