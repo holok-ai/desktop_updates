@@ -11,3 +11,5 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
 }
+
+export type GUID = ReturnType<typeof crypto.randomUUID>;

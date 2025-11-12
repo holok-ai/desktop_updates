@@ -18,6 +18,7 @@
   let activities: SidebarActivity[] = [
     { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
+    { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
   ];
   let selected = $state(activities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
@@ -33,7 +34,12 @@
 
   function syncSelectedWithLocation(path: string) {
     const normalized = typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME;
-    const next = normalized.startsWith(ROUTE.THREADS) ? 'threads' : 'home';
+    let next = 'home';
+    if (normalized.startsWith(ROUTE.THREADS)) {
+      next = 'threads';
+    } else if (normalized.startsWith(ROUTE.PROJECTS)) {
+      next = 'projects';
+    }
     if (selected !== next) {
       selected = next;
       const activity = activities.find((a) => a.id === next)!;
