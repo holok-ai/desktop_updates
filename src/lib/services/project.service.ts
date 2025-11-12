@@ -1,5 +1,6 @@
+import type { GUID } from '$lib/types/app.type';
 import { projects } from '../stores/project.store';
-import type { Project } from '../../../src-electron/preload';
+import type { Project } from '../types/project.type.js';
 
 export class ProjectService {
   private static instance: ProjectService | null = null;
@@ -28,7 +29,7 @@ export class ProjectService {
     this.unsubscribes.push(unsubUpdated);
 
     // Listen for project deleted events
-    const unsubDeleted = window.electronAPI.project.onProjectDeleted((projectId: string) => {
+    const unsubDeleted = window.electronAPI.project.onProjectDeleted((projectId: GUID) => {
       projects.deleteProject(projectId);
     });
     this.unsubscribes.push(unsubDeleted);

@@ -4,20 +4,21 @@ import { threadRepository } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
-import type { Project as InternalProject } from '../repository/project-repository.js';
-import type { Project as RendererProject } from '../preload.js';
+import type { Project } from '../../src/lib/types/project.type.js';
+import { GUID } from '../../src/lib/types/app.type.js';
 
 const projectLog = createScopedLogger('project');
 
-function toRendererProject(p: InternalProject | null): RendererProject | null {
+function toRendererProject(p: Project | null): Project | null {
   if (!p) return null;
+
   return {
     id: p.id,
-    name: p.name,
+    title: p.title,
     description: p.description,
-    createdAt: new Date(p.createdAt),
-    updatedAt: new Date(p.updatedAt),
-    deletedAt: p.deletedAt ? new Date(p.deletedAt) : null,
+    createdAt: new Date(p.createdAt.toISOString()),
+    updatedAt: new Date(p.updatedAt.toISOString()),
+    deletedAt: p.deletedAt ? new Date(p.deletedAt.toISOString()) : null,
     metadata: p.metadata ? { ...p.metadata } : undefined,
   };
 }
@@ -31,18 +32,18 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 export function registerProjectHandlers(): void {
   // Get all projects
-  ipcMain.handle('project:getAll', (): Promise<RendererProject[]> => {
+  ipcMain.handle('project:getAll', (): Promise<Project[]> => {
     const perfLog = logPerformance('project:getAll');
     const list = projectRepository.listProjects();
     const mapped = list
       .map((p) => toRendererProject(p))
-      .filter((x): x is RendererProject => x !== null);
+      .filter((x): x is Project => x !== null);
     perfLog.end({ count: mapped.length });
     return Promise.resolve(mapped);
   });
 
   // Get project by ID
-  ipcMain.handle('project:getById', (_event, id: string): Promise<RendererProject | null> => {
+  ipcMain.handle('project:getById', (_event, id: GUID): Promise<Project | null> => {
     projectLog.info('Get project by id', { projectId: id });
     const project = projectRepository.getProject(id);
     return Promise.resolve(toRendererProject(project));
@@ -53,22 +54,22 @@ export function registerProjectHandlers(): void {
     'project:create',
     (
       _event,
-      data: { name: string; description?: string; metadata?: Record<string, unknown> },
-    ): Promise<RendererProject> => {
+      data: { title: string; description?: string; metadata?: Record<string, unknown> },
+    ): Promise<Project> => {
       const perfLog = logPerformance('project:create');
-      projectLog.info('Create called', { name: data.name });
+      projectLog.info('Create called', { title: data.title });
 
       const auth = getAuthService();
       if (!auth.isAuthenticated()) {
         throw new Error('Authentication required');
       }
 
-      if (!data.name || data.name.trim().length === 0) {
-        throw new Error('Project name is required');
+      if (!data.title || data.title.trim().length === 0) {
+        throw new Error('Project title is required');
       }
 
       const project = projectRepository.createProject(
-        data.name.trim(),
+        data.title.trim(),
         data.description?.trim(),
         data.metadata,
       );
@@ -86,9 +87,9 @@ export function registerProjectHandlers(): void {
     'project:update',
     (
       _event,
-      id: string,
-      updates: { name?: string; description?: string; metadata?: Record<string, unknown> },
-    ): Promise<RendererProject> => {
+      id: GUID,
+      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+    ): Promise<Project> => {
       const perfLog = logPerformance('project:update');
       projectLog.info('Update called', { projectId: id, updates });
 
@@ -97,12 +98,12 @@ export function registerProjectHandlers(): void {
         throw new Error('Authentication required');
       }
 
-      if (updates.name !== undefined && updates.name.trim().length === 0) {
-        throw new Error('Project name cannot be empty');
+      if (updates.title !== undefined && updates.title.trim().length === 0) {
+        throw new Error('Project title cannot be empty');
       }
 
       const updateData: Parameters<typeof projectRepository.updateProject>[1] = {};
-      if (updates.name !== undefined) updateData.name = updates.name.trim();
+      if (updates.title !== undefined) updateData.title = updates.title.trim();
       if (updates.description !== undefined) updateData.description = updates.description.trim();
       if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
 
@@ -119,7 +120,7 @@ export function registerProjectHandlers(): void {
   // Delete project
   ipcMain.handle(
     'project:delete',
-    (_event, id: string, options?: { deleteThreads?: boolean }): Promise<boolean> => {
+    (_event, id: GUID, options?: { deleteThreads?: boolean }): Promise<boolean> => {
       const perfLog = logPerformance('project:delete');
       projectLog.info('Delete called', { projectId: id, options });
 
@@ -172,7 +173,7 @@ export function registerProjectHandlers(): void {
   );
 
   // Get threads for a project
-  ipcMain.handle('project:getThreads', (_event, projectId: string): Promise<number> => {
+  ipcMain.handle('project:getThreads', (_event, projectId: GUID): Promise<number> => {
     const threads = threadRepository.listThreads();
     const projectThreads = threads.filter((t) => t.metadata?.projectId === projectId);
     return Promise.resolve(projectThreads.length);
