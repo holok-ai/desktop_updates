@@ -1,6 +1,8 @@
+import type { GUID } from "./app.type.js";
+
 export interface Project {
-  id: string;
-  name: string;
+  id: GUID;
+  title: string;
   description?: string;
   createdAt: Date;
   updatedAt: Date;

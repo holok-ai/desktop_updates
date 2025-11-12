@@ -1,49 +1,36 @@
-import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
-  deletedAt?: number | null;
-  metadata?: Record<string, unknown>;
-}
-
-function generateId(prefix = ''): string {
-  return `${prefix}${randomUUID()}`;
-}
+import type { GUID } from '../../src/lib/types/app.type.js';
+import type { Project } from '../../src/lib/types/project.type.js';
 
 export class ProjectRepository {
-  private readonly projectsById: Map<string, Project> = new Map();
+  private readonly projectsById: Map<GUID, Project> = new Map();
 
   constructor() {
     this.loadFromDisk();
   }
 
   public createProject(
-    name: string,
+    title: string,
     description?: string,
     metadata?: Record<string, unknown>,
   ): Project {
-    const now = Date.now();
+    const id: GUID = crypto.randomUUID();
     const project: Project = {
-      id: generateId('proj_'),
-      name,
+      id,
+      title,
       description,
       metadata: metadata ? { ...metadata } : undefined,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-    this.projectsById.set(project.id, project);
+    this.projectsById.set(id, project);
     this.saveToDisk();
     return this.cloneProject(project);
   }
 
-  public getProject(projectId: string): Project | null {
+  public getProject(projectId: GUID): Project | null {
     const project = this.projectsById.get(projectId);
     return project ? this.cloneProject(project) : null;
   }
@@ -52,41 +39,41 @@ export class ProjectRepository {
     return Array.from(this.projectsById.values())
       .filter((p) => !p.deletedAt)
       .map((p) => this.cloneProject(p))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   public updateProject(
-    projectId: string,
-    updates: Partial<Pick<Project, 'name' | 'description' | 'metadata'>>,
+    projectId: GUID,
+    updates: Partial<Pick<Project, 'title' | 'description' | 'metadata'>>,
   ): Project {
     const project = this.projectsById.get(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
 
-    if (updates.name !== undefined) project.name = updates.name;
+    if (updates.title !== undefined) project.title = updates.title;
     if (updates.description !== undefined) project.description = updates.description;
     if (updates.metadata !== undefined) {
       project.metadata = { ...project.metadata, ...updates.metadata };
     }
 
-    project.updatedAt = Date.now();
-    this.projectsById.set(project.id, project);
+    project.updatedAt = new Date();
+    this.projectsById.set(projectId, project);
     this.saveToDisk();
     return this.cloneProject(project);
   }
 
-  public deleteProject(projectId: string): boolean {
+  public deleteProject(projectId: GUID): boolean {
     const deleted = this.projectsById.delete(projectId);
     if (deleted) this.saveToDisk();
     return deleted;
   }
 
-  public softDeleteProject(projectId: string): boolean {
+  public softDeleteProject(projectId: GUID): boolean {
     const project = this.projectsById.get(projectId);
     if (!project) return false;
 
-    project.deletedAt = Date.now();
-    project.updatedAt = Date.now();
-    this.projectsById.set(project.id, project);
+    project.deletedAt = new Date();
+    project.updatedAt = new Date();
+    this.projectsById.set(projectId, project);
     this.saveToDisk();
     return true;
   }
@@ -99,10 +86,10 @@ export class ProjectRepository {
   private cloneProject(project: Project): Project {
     return {
       id: project.id,
-      name: project.name,
+      title: project.title,
       description: project.description,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
+      createdAt: new Date(),
+      updatedAt: new Date(),
       deletedAt: project.deletedAt ?? null,
       metadata: project.metadata ? { ...project.metadata } : undefined,
     };
@@ -141,15 +128,21 @@ export class ProjectRepository {
       const projects = Array.isArray(parsed.projects) ? parsed.projects : [];
       this.projectsById.clear();
       for (const p of projects) {
-        if (typeof p.id !== 'string' || typeof p.name !== 'string') continue;
+        if (typeof p.id !== 'string' || typeof p.title !== 'string') continue;
+        let deletedAt: Date | null = null;
+        if (p.deletedAt instanceof Date) {
+          deletedAt = p.deletedAt;
+        } else if (p.deletedAt) {
+          deletedAt = new Date(p.deletedAt);
+        }
         this.projectsById.set(p.id, {
           id: p.id,
-          name: p.name,
+          title: p.title,
           description: p.description,
           metadata: p.metadata ? { ...p.metadata } : undefined,
-          createdAt: p.createdAt ?? Date.now(),
-          updatedAt: p.updatedAt ?? Date.now(),
-          deletedAt: p.deletedAt ?? null,
+          createdAt: p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
+          updatedAt: p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
+          deletedAt,
         });
       }
     } catch {

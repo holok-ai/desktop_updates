@@ -5,9 +5,10 @@ import type {
 } from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
-import type { AppThemeMode } from '$lib/types/app.type.js';
+import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type { Project } from '$lib/types/project.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -137,21 +138,6 @@ export interface Thread {
 }
 
 /**
- * Project Interface
- *
- * Defines the structure of a project object.
- */
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date | null;
-  metadata?: Record<string, unknown>;
-}
-
-/**
  * Project API
  *
  * Project-related operations for organizing threads.
@@ -185,7 +171,7 @@ export interface ProjectAPI {
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
   onProjectUpdated: (callback: (project: Project) => void) => () => void;
-  onProjectDeleted: (callback: (projectId: string) => void) => () => void;
+  onProjectDeleted: (callback: (projectId: GUID) => void) => () => void;
 }
 
 /**
