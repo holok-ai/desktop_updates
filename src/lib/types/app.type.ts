@@ -19,3 +19,5 @@ export const defaultAppSettings: AppSettings = {
   theme: APP_THEME_MODE.LIGHT as AppThemeMode,
   autoUpdate: false,
 };
+
+export type GUID = ReturnType<typeof crypto.randomUUID>;

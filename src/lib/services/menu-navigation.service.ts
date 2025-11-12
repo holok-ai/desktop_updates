@@ -31,7 +31,13 @@ export class MenuNavigationService {
           // Navigate to threads create using the existing navigate helper so tests
           // can intercept via `globalThis.__routerPush` without requiring the
           // SPA router to be present during unit tests.
-          void this.navigate(routePaths.THREADS, { create: '' });
+          this.navigate(routePaths.THREADS, { createThread: '' });
+        },
+      },
+      {
+        channel: 'menu:new-project',
+        handler: () => {
+          this.navigate(routePaths.PROJECTS, { createProject: '' });
         },
       },
       {
@@ -43,19 +49,19 @@ export class MenuNavigationService {
       {
         channel: 'menu:settings',
         handler: () => {
-          void this.navigate(routePaths.SETTINGS);
+          this.navigate(routePaths.SETTINGS);
         },
       },
       {
         channel: 'menu:getting-started',
         handler: () => {
-          void this.navigate(routePaths.HOME);
+          this.navigate(routePaths.HOME);
         },
       },
       {
         channel: 'menu:users-guide',
         handler: () => {
-          void this.navigate(routePaths.GUIDE);
+          this.navigate(routePaths.GUIDE);
         },
       },
     ];
