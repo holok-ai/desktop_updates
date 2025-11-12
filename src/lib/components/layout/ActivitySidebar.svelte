@@ -249,7 +249,12 @@
       title="Projects"
       isSidebarCollapsed={isCollapsed}
       items={[
-        { id: 'create-project', label: 'Create Project', icon: 'pi pi-plus', route: ROUTE.PROJECTS },
+        {
+          id: 'create-project',
+          label: 'Create Project',
+          icon: 'pi pi-plus',
+          route: ROUTE.PROJECTS,
+        },
         ...projectActivities,
       ]}
       customIcon="pi pi-folder"
@@ -323,5 +328,4 @@
     @apply flex flex-col gap-4 mt-8;
     flex: 1;
   }
-
 </style>

@@ -126,7 +126,7 @@
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
-      
+
       // Track current project from localStorage (set by sidebar when project is selected)
       try {
         const lastProjectId = window.localStorage.getItem('lastProjectId');
@@ -134,7 +134,7 @@
       } catch {
         currentProjectId = null;
       }
-      
+
       if (params.has('createThread') && !showDialog) {
         openCreateDialog();
         void replace(ROUTE.THREADS);
@@ -147,7 +147,7 @@
           // If we're in projects activity, only show threads from selected project
           // If we're in threads activity, only show threads without a project
           const threadProjectId = (found.metadata?.projectId as string | undefined) ?? null;
-          
+
           // Check if we're in projects context (project selected) or threads context (general)
           // We determine this by checking if there's a selected project in localStorage
           if (currentProjectId) {
@@ -169,7 +169,8 @@
               selectThread(found);
               errorMessage = null;
             } else {
-              errorMessage = 'This thread belongs to a project. Please access it from the project view.';
+              errorMessage =
+                'This thread belongs to a project. Please access it from the project view.';
               selectedThread = null;
               messages = [];
               setTimeout(() => {

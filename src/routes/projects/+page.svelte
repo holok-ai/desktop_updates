@@ -26,7 +26,7 @@
     isLoading = true;
     let offUpdated: (() => void) | null = null;
     let offDeleted: (() => void) | null = null;
-    
+
     void (async () => {
       try {
         await projectService.loadProjects();
@@ -74,7 +74,7 @@
         isLoading = false;
       }
     })();
-    
+
     return () => {
       try {
         if (offUpdated) offUpdated();

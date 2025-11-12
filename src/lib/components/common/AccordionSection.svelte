@@ -6,15 +6,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection, customIcon } = $props<{
-    title: string;
-    isSidebarCollapsed: boolean;
-    items: SidebarActivity[];
-    showActions?: boolean;
-    selectedId?: string | null;
-    isSubsection?: boolean;
-    customIcon?: string;
-  }>();
+  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection, customIcon } =
+    $props<{
+      title: string;
+      isSidebarCollapsed: boolean;
+      items: SidebarActivity[];
+      showActions?: boolean;
+      selectedId?: string | null;
+      isSubsection?: boolean;
+      customIcon?: string;
+    }>();
 
   let isCollapsed = $state(false);
 

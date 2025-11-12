@@ -134,7 +134,9 @@ describe('Project IPC Handlers', () => {
 
       const project = projectRepository.createProject('Test Project');
 
-      expect(() => handler(null, project.id, { title: '' })).toThrow('Project title cannot be empty');
+      expect(() => handler(null, project.id, { title: '' })).toThrow(
+        'Project title cannot be empty',
+      );
     });
   });
 

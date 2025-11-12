@@ -2,7 +2,10 @@
   import { projectService } from '$lib/services/project.service';
   import type { Project } from '$lib/types/project.type';
 
-  let { show = $bindable(false), project = $bindable<Project | null>(null) }: { show: boolean; project: Project | null } = $props();
+  let {
+    show = $bindable(false),
+    project = $bindable<Project | null>(null),
+  }: { show: boolean; project: Project | null } = $props();
 
   let projectName = $state('');
   let projectDescription = $state('');

@@ -71,9 +71,12 @@ async function clickModalSubmit(page: Page) {
 
 async function selectProjectInSidebar(page: Page, name: string) {
   // Click on the Projects accordion header to expand it if needed
-  const accordionHeader = page.locator('li[role="menuitem"]').filter({ hasText: 'Projects' }).first();
+  const accordionHeader = page
+    .locator('li[role="menuitem"]')
+    .filter({ hasText: 'Projects' })
+    .first();
   await expect(accordionHeader).toBeVisible({ timeout: 5000 });
-  
+
   // Check if the Projects accordion content is visible by looking for "Create Project" text
   // which is unique to the Projects accordion
   const createProjectItem = page.getByRole('menuitem', { name: 'Create Project' });
@@ -84,10 +87,13 @@ async function selectProjectInSidebar(page: Page, name: string) {
     // Wait for the accordion content to appear
     await expect(createProjectItem).toBeVisible({ timeout: 3000 });
   }
-  
+
   // Find and click the project item
   // Scope to the Projects accordion by finding the accordion-content that contains "Create Project"
-  const projectsAccordionContent = page.locator('.accordion-content').filter({ hasText: 'Create Project' }).first();
+  const projectsAccordionContent = page
+    .locator('.accordion-content')
+    .filter({ hasText: 'Create Project' })
+    .first();
   const projectItem = projectsAccordionContent.getByRole('menuitem', { name }).first();
   await expect(projectItem).toBeVisible({ timeout: 5000 });
   await projectItem.click();
@@ -297,15 +303,17 @@ test.describe('E2E: Project Management', () => {
     // Verify threads are filtered in the sidebar (ActivityListSidebar)
     // Threads should appear in the secondary sidebar when project is selected
     const sidebar = page.locator('.activity-list-sidebar');
-    
+
     // Wait for Thread 1 to appear (it should be visible for project 1)
     // Threads are displayed as menuitems in accordion sections
     // Use first() to handle cases where there might be multiple matches
-    await expect(sidebar.getByRole('menuitem', { name: 'Thread 1' }).first()).toBeVisible({ timeout: 5000 });
-    
+    await expect(sidebar.getByRole('menuitem', { name: 'Thread 1' }).first()).toBeVisible({
+      timeout: 5000,
+    });
+
     const thread1Visible = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
     const thread2Visible = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
-    
+
     // Thread 1 should be visible, Thread 2 should not be visible
     expect(thread1Visible).toBeGreaterThan(0);
     expect(thread2Visible).toBe(0);
@@ -318,12 +326,14 @@ test.describe('E2E: Project Management', () => {
     await page.waitForTimeout(800);
 
     // Wait for Thread 2 to appear (it should be visible for project 2)
-    await expect(sidebar.getByRole('menuitem', { name: 'Thread 2' }).first()).toBeVisible({ timeout: 5000 });
+    await expect(sidebar.getByRole('menuitem', { name: 'Thread 2' }).first()).toBeVisible({
+      timeout: 5000,
+    });
 
     // Verify threads are filtered for project 2
     const thread1VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
     const thread2VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
-    
+
     // Thread 2 should be visible, Thread 1 should not be visible
     expect(thread2VisibleAfter).toBeGreaterThan(0);
     expect(thread1VisibleAfter).toBe(0);
@@ -358,7 +368,7 @@ test.describe('E2E: Project Management', () => {
 
     // Should show error message or redirect
     const errorBanner = page.locator('.error-banner');
-    const hasError = await errorBanner.count() > 0;
+    const hasError = (await errorBanner.count()) > 0;
     const isRedirected = !(await page.getByRole('heading', { name: projectName }).count());
 
     expect(hasError || isRedirected).toBeTruthy();

@@ -47,9 +47,9 @@
     },
   ];
 
-onMount(async () => {
-  await getThreadItems();
-});
+  onMount(async () => {
+    await getThreadItems();
+  });
 
   $effect(() => {
     const unsub = querystring.subscribe((qs: string | undefined) => {
@@ -119,9 +119,7 @@ onMount(async () => {
     let filteredThreads = $threads;
 
     if (selectedProjectId) {
-      filteredThreads = $threads.filter(
-        (t) => t.metadata?.projectId === selectedProjectId,
-      );
+      filteredThreads = $threads.filter((t) => t.metadata?.projectId === selectedProjectId);
     } else if (activity?.id === 'threads') {
       filteredThreads = $threads.filter((t) => !t.metadata?.projectId);
     }
