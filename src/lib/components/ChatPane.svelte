@@ -453,96 +453,16 @@
    * Preview attachment (opens modal)
    */
   async function previewAttachment(threadId: string, fileId: string, filename: string) {
-    try {
-      // TODO: Get userId from auth store
-      const userId = 'current-user'; // Placeholder
-
-      const result = await window.electronAPI.file.preview({ threadId, fileId, userId });
-
-      if (result.success && result.token && result.fileInfo) {
-        // Get file data with token
-        const fileData = await window.electronAPI.file.getWithToken({ token: result.token });
-
-        if (fileData.success && fileData.buffer) {
-          // Create object URL for preview
-          const uint8Array = new Uint8Array(fileData.buffer as any);
-          const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
-          const url = URL.createObjectURL(blob);
-
-          // Open preview modal (will be implemented in next task)
-          // For now, log success
-          console.log('Preview ready:', { filename, url, mimeType: result.fileInfo.mimeType });
-          showToast('Preview feature coming soon!');
-          URL.revokeObjectURL(url);
-        } else {
-          console.error('Failed to get file data:', fileData.error);
-          showToast('Failed to load preview');
-        }
-      } else {
-        console.error('Failed to get preview token:', result.error);
-        fileError = { message: result.error || 'Failed to preview file', type: 'error' };
-        showToast(result.error || 'Failed to preview file');
-      }
-    } catch (error) {
-      console.error('Error previewing file:', error);
-      fileError = {
-        message: 'Error previewing file. The file may be unavailable or expired.',
-        type: 'error',
-      };
-      showToast('Error previewing file');
-    }
+    // TODO: Implement preview attachment
+    console.log('Previewing attachment:', threadId, fileId, filename);
   }
 
   /**
    * Download attachment (secure token-based)
    */
   async function downloadAttachment(threadId: string, fileId: string, filename: string) {
-    try {
-      const userId = 'current-user'; // TODO: Get from auth store
-
-      // Request download token
-      const tokenResult = await window.electronAPI.file.download({ threadId, fileId, userId });
-
-      if (!tokenResult.success || !tokenResult.token) {
-        console.error('Failed to get download token:', tokenResult.error);
-        fileError = { message: tokenResult.error || 'Failed to download file', type: 'error' };
-        showToast(tokenResult.error || 'Failed to download file');
-        return;
-      }
-
-      // Get file with token
-      const fileData = await window.electronAPI.file.getWithToken({ token: tokenResult.token });
-
-      if (fileData.success && fileData.buffer) {
-        // Create blob and trigger download
-        const uint8Array = new Uint8Array(fileData.buffer as any);
-        const mimeType = fileData.mimeType || 'application/octet-stream';
-        const blob = new Blob([uint8Array], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-
-        // Create download link
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileData.filename || filename;
-        a.click();
-
-        // Cleanup
-        URL.revokeObjectURL(url);
-
-        showToast(`Downloaded ${filename}`);
-      } else {
-        console.error('Failed to download file:', fileData.error);
-        fileError = { message: fileData.error || 'Failed to download file', type: 'error' };
-        showToast(fileData.error || 'Failed to download file');
-      }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      fileError = {
-        message: 'Error downloading file. The file may be unavailable or expired.',
-        type: 'error',
-      };
-      showToast('Error downloading file');
-    }
+    // TODO: Implement download attachment
+    console.log('Downloading attachment:', threadId, fileId, filename);
   }
 
   // Cleanup on unmount
