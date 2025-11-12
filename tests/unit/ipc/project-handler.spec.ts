@@ -79,7 +79,7 @@ describe('Project IPC Handlers', () => {
       const result = await handler();
 
       expect(result).toHaveLength(2);
-      expect(result[0].name).toBeDefined();
+      expect(result[0].title).toBeDefined();
       expect(result[0].createdAt).toBeInstanceOf(Date);
     });
   });
@@ -92,23 +92,23 @@ describe('Project IPC Handlers', () => {
       const handler = handleCall[1];
 
       const result = await handler(null, {
-        name: 'New Project',
+        title: 'New Project',
         description: 'Test description',
       });
 
       expect(result.id).toMatch(/^proj_/);
-      expect(result.name).toBe('New Project');
+      expect(result.title).toBe('New Project');
       expect(result.description).toBe('Test description');
       expect(result.createdAt).toBeInstanceOf(Date);
     });
 
-    it('should throw error if name is missing', () => {
+    it('should throw error if title is missing', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:create',
       );
       const handler = handleCall[1];
 
-      expect(() => handler(null, { name: '' })).toThrow('Project name is required');
+      expect(() => handler(null, { title: '' })).toThrow('Project title is required');
     });
   });
 
@@ -119,14 +119,14 @@ describe('Project IPC Handlers', () => {
       );
       const handler = handleCall[1];
 
-      const project = projectRepository.createProject('Original Name');
+      const project = projectRepository.createProject('Original title');
 
-      const result = await handler(null, project.id, { name: 'Updated Name' });
+      const result = await handler(null, project.id, { title: 'Updated title' });
 
-      expect(result.name).toBe('Updated Name');
+      expect(result.title).toBe('Updated title');
     });
 
-    it('should throw error if name is empty', () => {
+    it('should throw error if title is empty', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:update',
       );
@@ -134,7 +134,7 @@ describe('Project IPC Handlers', () => {
 
       const project = projectRepository.createProject('Test Project');
 
-      expect(() => handler(null, project.id, { name: '' })).toThrow('Project name cannot be empty');
+      expect(() => handler(null, project.id, { title: '' })).toThrow('Project title cannot be empty');
     });
   });
 
