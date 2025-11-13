@@ -28,9 +28,9 @@
 </script>
 
 <div class="w-full flex-col {isSidebarCollapsed ? 'hidden' : 'flex'}">
-  <button class="accordion-header text-[#666666] dark:text-[#A3A3A3]" onclick={toggleCollapse}>
+  <button class="accordion-header" onclick={toggleCollapse}>
     <i class="pi pi-angle-down arrow" class:rotate={!isCollapsed}></i>
-    <span class="text-[#666666] dark:text-[#A3A3A3]">{title}</span>
+    <span class="accordion-title">{title}</span>
   </button>
 
   {#key isCollapsed}
@@ -57,9 +57,9 @@
   .accordion-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     cursor: pointer;
-    padding: 0.5rem 0.75rem;
+    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
     background: transparent;
     border: none;
     transition: color 0.2s ease;
@@ -67,14 +67,21 @@
     top: 0;
     z-index: 1;
     background-color: var(--surface-sidebar-secondary);
+    color: #fff;
+  }
+
+  .accordion-header:focus {
+    outline: none;
   }
 
   .accordion-header:hover {
-    color: var(--text-primary);
+    background-color: var(--background-primary-hover);
+  }
 
-    span {
-      color: var(--text-primary);
-    }
+  .accordion-title {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   .arrow {

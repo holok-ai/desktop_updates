@@ -57,19 +57,20 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  // Get status color
-  const statusColor = $derived(
-    attachment.status === 'success'
-      ? 'text-green-600'
-      : attachment.status === 'failed'
-        ? 'text-red-600'
-        : 'text-blue-600',
-  );
+  const STATUS_CLASS = {
+    success: 'status-success',
+    failed: 'status-failed',
+    uploading: 'status-progress',
+  } as const;
 
-  // Get status icon
-  const statusIcon = $derived(
-    attachment.status === 'success' ? '✓' : attachment.status === 'failed' ? '✗' : '⟳',
-  );
+  const STATUS_ICON = {
+    success: '✓',
+    failed: '✗',
+    uploading: '⟳',
+  } as const;
+
+  const statusClass = $derived(STATUS_CLASS[attachment.status] ?? STATUS_CLASS.uploading);
+  const statusIcon = $derived(STATUS_ICON[attachment.status] ?? STATUS_ICON.uploading);
 </script>
 
 <div
@@ -83,53 +84,51 @@
     <button
       type="button"
       onclick={() => onPreview?.()}
-      class="inline-preview-button mb-2 rounded-lg overflow-hidden border border-gray-300 w-full p-0 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+      class="inline-preview-button"
       aria-label={`Click to preview ${attachment.filename} in full size`}
     >
       <img
         src={inlinePreviewUrl}
         alt={attachment.filename}
-        class="max-w-full max-h-64 object-contain mx-auto cursor-pointer hover:opacity-90 transition-opacity"
+        class="inline-preview-image"
         loading="lazy"
       />
     </button>
   {/if}
 
   <!-- Compact Attachment Info -->
-  <div
-    class="attachment-preview flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
-  >
+  <div class="attachment-preview">
     <!-- Thumbnail or Icon -->
-    <div class="flex-shrink-0">
+    <div class="attachment-thumbnail">
       {#if isImage && !shouldShowInline && attachment.url}
         <img
           src={attachment.url}
           alt={attachment.filename}
-          class="w-12 h-12 object-cover rounded"
+          class="thumbnail-image"
         />
       {:else if isImage && !shouldShowInline && inlinePreviewUrl}
         <img
           src={inlinePreviewUrl}
           alt={attachment.filename}
-          class="w-12 h-12 object-cover rounded"
+          class="thumbnail-image"
         />
       {:else}
-        <div class="w-12 h-12 flex items-center justify-center text-3xl bg-gray-100 rounded">
+        <div class="thumbnail-placeholder">
           {getFileIcon(attachment.mimeType)}
         </div>
       {/if}
     </div>
 
     <!-- File Info -->
-    <div class="flex-1 min-w-0">
-      <div class="flex items-center gap-2">
-        <p class="text-sm font-medium text-gray-900 truncate" title={attachment.filename}>
+    <div class="attachment-info">
+      <div class="attachment-header">
+        <p class="attachment-filename" title={attachment.filename}>
           {attachment.filename}
         </p>
         {#if attachment.status !== 'success'}
           <span
             id={`attachment-status-${attachment.id}`}
-            class={`text-xs ${statusColor}`}
+            class={`attachment-status ${statusClass}`}
             role="status"
             aria-live="polite"
           >
@@ -138,26 +137,26 @@
           </span>
         {/if}
       </div>
-      <p class="text-xs text-gray-500">
+      <p class="attachment-meta">
         {formatFileSize(attachment.size)}
         {#if attachment.status === 'uploading'}
-          <span class="ml-1 text-blue-600">• Uploading...</span>
+          <span class="attachment-meta-highlight">• Uploading...</span>
         {/if}
       </p>
       {#if attachment.error}
-        <p class="text-xs text-red-600 mt-1" role="alert" aria-live="assertive">
+        <p class="attachment-error" role="alert" aria-live="assertive">
           {attachment.error}
         </p>
       {/if}
       {#if mode === 'history' && attachment.status === 'success' && !attachment.localPath}
-        <p class="text-xs text-yellow-600 mt-1" role="status" aria-live="polite">
+        <p class="attachment-warning" role="status" aria-live="polite">
           ⚠️ File may no longer be available
         </p>
       {/if}
     </div>
 
     <!-- Actions -->
-    <div class="flex-shrink-0 flex items-center gap-2">
+    <div class="attachment-actions">
       {#if mode === 'preview' && onRemove}
         <button
           type="button"
@@ -168,12 +167,12 @@
               onRemove?.();
             }
           }}
-          class="p-1 text-gray-400 hover:text-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded"
+          class="attachment-action attachment-action-remove"
           aria-label={`Remove ${attachment.filename} (Press Delete or Backspace)`}
           title="Remove (Delete/Backspace)"
         >
           <svg
-            class="w-5 h-5"
+            class="attachment-action-icon"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -200,12 +199,12 @@
                 onPreview?.();
               }
             }}
-            class="p-1 text-gray-400 hover:text-purple-600 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 rounded"
+            class="attachment-action attachment-action-preview"
             aria-label={`Preview ${attachment.filename} (Press Enter)`}
             title="Preview (Enter)"
           >
             <svg
-              class="w-5 h-5"
+              class="attachment-action-icon"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -236,12 +235,12 @@
                 onDownload?.();
               }
             }}
-            class="p-1 text-gray-400 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            class="attachment-action attachment-action-download"
             aria-label={`Download ${attachment.filename} (Press Enter)`}
             title="Download (Enter)"
           >
             <svg
-              class="w-5 h-5"
+              class="attachment-action-icon"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -266,18 +265,172 @@
     max-width: 600px;
   }
 
-  .attachment-preview {
-    max-width: 100%;
-  }
-
   .inline-preview-button {
-    background: #f9fafb;
+    display: block;
+    width: 100%;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    background: var(--surface-100);
+    transition: background 0.2s ease;
     cursor: pointer;
   }
 
-  .inline-preview-button img {
+  .inline-preview-button:hover {
+    background: var(--surface-hover);
+  }
+
+  .inline-preview-image {
     display: block;
+    max-width: 100%;
+    max-height: 16rem;
+    object-fit: contain;
     margin: 0 auto;
     pointer-events: none;
+  }
+
+  .attachment-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--content-padding);
+    padding: var(--inline-spacing) var(--content-padding);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    background: var(--surface-card);
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .attachment-preview:hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-border);
+  }
+
+  .attachment-thumbnail {
+    flex-shrink: 0;
+  }
+
+  .thumbnail-image {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+  }
+
+  .thumbnail-placeholder {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: var(--surface-100);
+    border-radius: var(--border-radius);
+  }
+
+  .attachment-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .attachment-header {
+    display: flex;
+    align-items: center;
+    gap: var(--inline-spacing);
+  }
+
+  .attachment-filename {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attachment-status {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .status-success {
+    color: var(--green-500);
+  }
+
+  .status-progress {
+    color: var(--primary-color);
+  }
+
+  .status-failed {
+    color: var(--red-500);
+  }
+
+  .attachment-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: calc(var(--inline-spacing) / 2) 0 0;
+  }
+
+  .attachment-meta-highlight {
+    color: var(--primary-color);
+    margin-left: var(--inline-spacing);
+  }
+
+  .attachment-error {
+    font-size: 12px;
+    color: var(--error-color);
+    margin-top: calc(var(--inline-spacing) / 2);
+  }
+
+  .attachment-warning {
+    font-size: 12px;
+    color: var(--yellow-600);
+    margin-top: calc(var(--inline-spacing) / 2);
+  }
+
+  .attachment-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--inline-spacing);
+  }
+
+  .attachment-action {
+    background: transparent;
+    border: none;
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .attachment-action:hover {
+    color: var(--primary-color);
+  }
+
+  .attachment-action-remove {
+    color: var(--red-500);
+  }
+
+  .attachment-action-remove:hover {
+    color: var(--red-400);
+  }
+
+  .attachment-action-preview {
+    color: var(--primary-color);
+  }
+
+  .attachment-action-download {
+    color: var(--primary-color);
+  }
+
+  .attachment-action-icon {
+    width: 20px;
+    height: 20px;
   }
 </style>

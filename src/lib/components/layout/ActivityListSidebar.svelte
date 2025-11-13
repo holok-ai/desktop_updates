@@ -7,7 +7,7 @@
   import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';
-  import { ROUTE } from '$lib/constants/route.constant';
+import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
   import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';
@@ -168,7 +168,9 @@
     isCollapsed = !isCollapsed;
   }
 
-  function getGroupByTime(items: Project[] | Thread[]) {
+  type RouteValue = (typeof ROUTE)[keyof typeof ROUTE];
+
+  function getGroupByTime(items: Project[] | Thread[], route: RouteValue = ROUTE.THREADS) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
@@ -185,7 +187,7 @@
     const toItem = (id: string, label: string): SidebarActivity => ({
       id,
       label,
-      route: ROUTE.THREADS,
+      route,
     });
 
     const sorted = [...items].sort((a, b) => {
@@ -246,7 +248,7 @@
 >
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
-      <span class="activity-title">{'Organization Name'}</span>
+      <span class="activity-title text-white">{'Organization Name'}</span>
     {/if}
     <button
       class="{!isCollapsed &&
@@ -346,10 +348,10 @@
 <style>
   .activity-list-sidebar {
     box-shadow: var(--sidebar-secondary-box-shadow);
-    width: var(--sidebar-secondary-width, 280px);
-    background: var(--surface-sidebar-secondary, #0f172a);
-    color: var(--text-primary, #fff);
-    border-right: 1px solid var(--border-sidebar, #1f2937);
+    width: var(--sidebar-secondary-width);
+    background: var(--surface-sidebar-secondary);
+    color: var(--text-primary);
+    border-right: 1px solid var(--border-sidebar);
     transition: all 0.3s ease;
     height: 100vh;
     display: flex;
@@ -361,11 +363,10 @@
   .activity-title {
     flex: 1;
     font-weight: 600;
-    font-size: 1rem;
-    color: var(--text-primary, #fff);
+    font-size: 16px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
   }
   .activity-list-sidebar.collapsed .activity-title,
   .activity-list-sidebar.collapsed span {
@@ -378,9 +379,9 @@
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    padding: 1rem 0;
+    padding: var(--content-padding) 0;
     margin: 0;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     transition:
       padding 0.2s,
       gap 0.2s;
@@ -389,7 +390,7 @@
   .activity-list-sidebar.collapsed .list-items {
     align-items: center;
     justify-content: flex-start;
-    padding-top: 0.5rem;
+    padding-top: var(--inline-spacing);
   }
   .sidebar-scroll {
     flex: 1;
@@ -397,7 +398,7 @@
     overflow-x: hidden;
     min-height: 0; /* important for flex scroll containers */
     will-change: transform; /* prevents visual flicker during collapse */
-    scrollbar-color: rgba(255, 255, 255, 0.7) transparent;
+    scrollbar-color: color-mix(in srgb, var(--surface-0) 70%, transparent) transparent;
   }
 
   .sidebar-scroll::-webkit-scrollbar {
@@ -405,7 +406,7 @@
   }
 
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--surface-0) 25%, transparent);
     border-radius: 3px;
   }
 </style>
