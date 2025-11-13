@@ -16,6 +16,7 @@
   }>();
 
   let isCollapsed = $state(false);
+  let openMenuId = $state<string | null>(null); // Track which item's menu is open
 
   function toggleCollapse() {
     // debounce a bit to avoid double click jitter
@@ -23,7 +24,13 @@
   }
 
   function onClick(item: SidebarActivity) {
+    openMenuId = null; // Close any open menu when clicking an item
     dispatch('click', item);
+  }
+
+  function handleMenuToggle(itemId: string) {
+    // If clicking the same menu, close it; otherwise open the new one
+    openMenuId = openMenuId === itemId ? null : itemId;
   }
 </script>
 
@@ -44,8 +51,10 @@
             isHidden={false}
             isSelected={selectedId === item.id}
             {showActions}
+            menuOpen={openMenuId === item.id}
             on:click={() => onClick(item)}
             on:delete={() => dispatch('delete', item)}
+            on:menuToggle={() => handleMenuToggle(item.id)}
           />
         {/each}
       </div>

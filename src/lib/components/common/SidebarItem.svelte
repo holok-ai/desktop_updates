@@ -1,16 +1,25 @@
 <script lang="ts">
   import type { SidebarActivity } from '$lib/types/sidebar.type';
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
 
   const dispatch = createEventDispatcher();
 
-  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection } = $props<{
+  const {
+    isSelected,
+    isHidden,
+    item,
+    isCollapsed,
+    showActions,
+    isSubsection,
+    menuOpen = false,
+  } = $props<{
     isSelected: boolean;
     isHidden?: boolean;
     item: SidebarActivity;
     isCollapsed: boolean;
     showActions?: boolean;
     isSubsection?: boolean;
+    menuOpen?: boolean;
   }>();
 
   function onClick(item: SidebarActivity) {
@@ -21,7 +30,39 @@
     if (e.key === 'Enter' || e.key === ' ') onClick(item);
   }
 
-  let menuOpen = $state(false);
+  let menuElement = $state<HTMLDivElement | null>(null);
+
+  function handleMenuButtonClick(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch('menuToggle');
+  }
+
+  // Close menu when clicking outside
+  function handleClickOutside(event: MouseEvent) {
+    if (menuOpen && menuElement && !menuElement.contains(event.target as Node)) {
+      const target = event.target as HTMLElement;
+      // Don't close if clicking the menu button itself (it has its own toggle)
+      if (!target.closest('.icon-button')) {
+        dispatch('menuToggle'); // Close the menu by toggling it
+      }
+    }
+  }
+
+  // Close menu on Escape key
+  function handleEscapeKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && menuOpen) {
+      dispatch('menuToggle');
+    }
+  }
+
+  onMount(() => {
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  });
 </script>
 
 <div
@@ -47,29 +88,20 @@
     {#if !isCollapsed}
       <span class="text-sm leading-none truncate flex-1">{item.label}</span>
       {#if showActions}
-        <button
-          class="icon-button"
-          title="More"
-          onclick={(e) => {
-            e.stopPropagation();
-            menuOpen = !menuOpen;
-          }}>⋯</button
-        >
+        <button class="icon-button" title="More" onclick={handleMenuButtonClick}>⋯</button>
         {#if menuOpen}
+          <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
           <div
+            bind:this={menuElement}
             class="menu"
             role="menu"
             tabindex="0"
             onclick={(e) => e.stopPropagation()}
-            onkeydown={(e) => {
-              if (e.key === 'Escape') menuOpen = false;
-            }}
           >
             <button
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
                 dispatch('delete', item);
               }}>Delete thread</button
             >
