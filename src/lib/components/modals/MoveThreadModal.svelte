@@ -7,7 +7,10 @@
   import type { Project } from '$lib/types/project.type';
   import type { GUID } from '$lib/types/app.type';
 
-  let { show = $bindable(false), thread = $bindable<Thread | null>(null) }: { show: boolean; thread: Thread | null } = $props();
+  let {
+    show = $bindable(false),
+    thread = $bindable<Thread | null>(null),
+  }: { show: boolean; thread: Thread | null } = $props();
 
   const dispatch = createEventDispatcher();
 
