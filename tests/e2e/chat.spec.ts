@@ -87,7 +87,7 @@ test.describe('E2E: Chat prompt/response', () => {
     await threadItem.click();
 
     // Compose a prompt
-    const prompt = 'Hello';
+    const prompt = 'Just say "Okay"';
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
     await expect(textarea).toBeVisible({ timeout: 3000 });
     await textarea.fill(prompt);
