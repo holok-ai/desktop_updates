@@ -9,7 +9,6 @@
   import { projects } from '$lib/stores/project.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
-  import type { RoutePath } from '$lib/types/route.type';
   import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';
 
@@ -169,7 +168,7 @@
     isCollapsed = !isCollapsed;
   }
 
-  function getGroupByTime(items: Project[] | Thread[], route: RoutePath) {
+  function getGroupByTime(items: Project[] | Thread[]) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
