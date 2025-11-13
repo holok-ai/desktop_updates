@@ -2,8 +2,10 @@ import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import log from 'electron-log';
 import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
+import { titleGeneratorService } from '../services/title-generator.service.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -206,6 +208,64 @@ export class ThreadRepository {
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
     }
+
+    // Check if this is the first assistant response and thread needs a title
+    const assistantMessageCount = thread.messages.filter((m) => m.role === 'assistant').length;
+    const isFirstResponse = assistantMessageCount === 0;
+    const needsTitle = !thread.title || thread.title.trim() === '';
+
+    log.info(
+      `[ThreadRepository] Auto-title check for thread ${threadId}: assistantCount=${assistantMessageCount}, isFirst=${isFirstResponse}, needsTitle=${needsTitle}, currentTitle="${thread.title}"`,
+    );
+
+    // Auto-generate title from first user prompt if this is the first response
+    if (isFirstResponse && needsTitle) {
+      const firstUserPrompt = thread.messages.find((m) => m.role === 'user');
+      log.info(
+        `[ThreadRepository] Found first user prompt: ${firstUserPrompt ? `"${firstUserPrompt.content.substring(0, 50)}..."` : 'NONE'}`,
+      );
+
+      if (firstUserPrompt && firstUserPrompt.content) {
+        try {
+          // Get existing titles for uniqueness checking
+          const existingTitles = Array.from(this.threadsById.values())
+            .filter((t) => t.id !== threadId)
+            .map((t) => t.title);
+
+          // Generate and ensure unique title
+          const candidateTitle = titleGeneratorService.generateTitle(firstUserPrompt.content);
+          log.info(`[ThreadRepository] Generated candidate title: "${candidateTitle}"`);
+
+          const uniqueTitle = titleGeneratorService.ensureUniqueTitle(
+            candidateTitle,
+            existingTitles,
+          );
+
+          // Update thread title
+          thread.title = uniqueTitle;
+          thread.metadata = { ...thread.metadata, title: uniqueTitle };
+          thread.updatedAt = Date.now();
+          this.threadsById.set(thread.id, thread);
+
+          // IMPORTANT: Save to disk immediately
+          this.saveToDisk();
+
+          log.info(
+            `[ThreadRepository] ✅ Auto-generated title for thread ${threadId}: "${uniqueTitle}"`,
+          );
+        } catch (error) {
+          log.error('[ThreadRepository] ❌ Failed to generate title:', error);
+          // Continue without title - addMessage will still work
+        }
+      } else {
+        log.warn(`[ThreadRepository] ⚠️ Cannot generate title - no user prompt found`);
+      }
+    } else {
+      log.info(
+        `[ThreadRepository] Skipping auto-title: isFirst=${isFirstResponse}, needsTitle=${needsTitle}`,
+      );
+    }
+
     return this.addMessage(threadId, 'assistant', response);
   }
 

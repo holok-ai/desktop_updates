@@ -105,29 +105,33 @@ describe('main.ts extra branches (devtools toggle and second-instance)', () => {
     expect(capturedTemplate).toBeTruthy();
     const fileMenu = capturedTemplate[0];
     const helpMenu = capturedTemplate[1];
-    const devtoolsItem = fileMenu.submenu[5];
+    const clickMenuItemByLabel = (menu: any, label: string) => {
+      const item = menu?.submenu?.find((s: any) => s && s.label === label);
+      if (item && typeof item.click === 'function') item.click();
+      return item;
+    };
 
     // First click with isDevToolsOpened() === false -> openDevTools on createdWindow
     expect(createdWindow).toBeTruthy();
-    devtoolsItem.click();
+    clickMenuItemByLabel(fileMenu, 'Developer Tools');
     expect(createdWindow.webContents.openDevTools).toHaveBeenCalled();
 
     // Flip isDevToolsOpened to true and click again -> closeDevTools branch on same window
     createdWindow.webContents.isDevToolsOpened = vi.fn(() => true);
-    devtoolsItem.click();
+    clickMenuItemByLabel(fileMenu, 'Developer Tools');
     expect(createdWindow.webContents.closeDevTools).toHaveBeenCalled();
 
     // Also cover menu sends when mainWindow exists
-    fileMenu.submenu[0].click(); // New Thread
-    fileMenu.submenu[1].click(); // Refresh
-    fileMenu.submenu[3].click(); // Settings
+    clickMenuItemByLabel(fileMenu, 'New Thread...');
+    clickMenuItemByLabel(fileMenu, 'Refresh');
+    clickMenuItemByLabel(fileMenu, 'Settings...');
     expect(createdWindow.webContents.send).toHaveBeenCalledWith('menu:new-thread');
     expect(createdWindow.webContents.send).toHaveBeenCalledWith('menu:refresh');
     expect(createdWindow.webContents.send).toHaveBeenCalledWith('menu:settings');
 
     // Help menu items when mainWindow exists
-    helpMenu.submenu[0].click(); // Getting Started
-    helpMenu.submenu[1].click(); // Users Guide
+    clickMenuItemByLabel(helpMenu, 'Getting Started');
+    clickMenuItemByLabel(helpMenu, 'Users Guide');
     expect(createdWindow.webContents.send).toHaveBeenCalledWith('menu:getting-started');
     expect(createdWindow.webContents.send).toHaveBeenCalledWith('menu:users-guide');
 

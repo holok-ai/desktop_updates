@@ -11,7 +11,7 @@
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
-
+  import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
@@ -26,6 +26,14 @@
   }
 
   let { thread = null, messages = [], composer }: Props = $props();
+
+  // Reactive thread state that updates when backend sends updates
+  let currentThread = $state(thread);
+
+  // Watch for prop changes
+  $effect(() => {
+    currentThread = thread;
+  });
 
   // State management
   let chatServiceCreated = $state(false);
@@ -160,7 +168,7 @@
         console.error('Chat failed:', result.error);
       } else {
         // After streaming completes, handle assistant response
-        await transmitter.handleAssistantResponse(responseText, thread, userMessage);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -266,20 +274,45 @@
     outboxService.init();
     initializeChatService();
 
+    // Listen for thread updates from backend
+    let unsubThreadUpdated: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.thread?.onThreadUpdated) {
+        unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
+          // Only update if it's our current thread
+          if (currentThread && updatedThread.id === currentThread.id) {
+            currentThread = updatedThread;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
+    // Listen for message error events from main process
+    try {
+      window.electronAPI.thread.onMessageError((evt: any) => {
+        // TODO: Handle message errors with new transmitter pattern if needed
+        console.error('Message error:', evt);
+      });
+    } catch {
+      // ignore if API not available
+    }
     return () => {
+      if (unsubThreadUpdated) unsubThreadUpdated();
       cleanup();
     };
   });
 
   // Watch for thread changes to reinitialize if needed
   $effect(() => {
-    if (thread && !chatServiceCreated) {
+    if (currentThread && !chatServiceCreated) {
       initializeChatService();
     }
   });
 </script>
 
-{#if !thread}
+{#if !currentThread}
   <div class="chat-pane empty">Select a thread to open chat</div>
 {:else}
   <div class="chat-pane">
@@ -287,8 +320,16 @@
       {#key thread?.id}
         <div class="header-content">
           <div>
-            <h2>{thread.title}</h2>
-            <div class="meta">{thread.description}</div>
+            <h2>
+              {currentThread.title || 'New Thread'}
+              {#if $isThreadGeneratingTitle(currentThread.id)}
+                <span class="title-generating" aria-live="polite">
+                  <span class="generating-dots">...</span>
+                  <span class="sr-only">Generating title</span>
+                </span>
+              {/if}
+            </h2>
+            <div class="meta">{currentThread.description}</div>
           </div>
           <button
             class="move-thread-btn"
@@ -321,7 +362,7 @@
             onRetry={retryMessage}
             onEdit={handleEdit}
             onShowVersions={handleShowVersions}
-            threadId={thread?.id}
+            threadId={currentThread?.id}
             {isStreaming}
             on:copied={(event) => showToast(event.detail.message)}
           />
@@ -403,6 +444,9 @@
 
   .chat-header h2 {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary, #f8fafc);
@@ -457,6 +501,41 @@
     font-style: normal;
     font-family: 'PrimeIcons', primeicons, sans-serif;
   }
+
+  .title-generating {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-tertiary, #9ca3af);
+    font-weight: normal;
+  }
+
+  .generating-dots {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
   .toast {
     position: absolute;
     right: 1rem;

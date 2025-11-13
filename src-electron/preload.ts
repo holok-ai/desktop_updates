@@ -59,6 +59,11 @@ export interface ThreadAPI {
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
   onThreadDeleted: (callback: (threadId: string) => void) => () => void;
+  // Listen to title generation events
+  onTitleGenerationStarted: (callback: (data: { threadId: string }) => void) => () => void;
+  onTitleGenerationFinished: (
+    callback: (data: { threadId: string; title: string }) => void,
+  ) => () => void;
   // Add user prompt (creates thread if id null)
   addUserPrompt: (
     threadId: string | null,
@@ -643,6 +648,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('thread:deleted', subscription);
       };
     },
+
+    onTitleGenerationStarted: (callback: (data: { threadId: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: { threadId: string }): void =>
+        callback(data);
+      ipcRenderer.on('thread:titleGenerationStarted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:titleGenerationStarted', subscription);
+      };
+    },
+
+    onTitleGenerationFinished: (
+      callback: (data: { threadId: string; title: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { threadId: string; title: string },
+      ): void => callback(data);
+      ipcRenderer.on('thread:titleGenerationFinished', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:titleGenerationFinished', subscription);
+      };
+    },
+
     addUserPrompt: (
       threadId: string | null,
       prompt: string,

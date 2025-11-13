@@ -4,6 +4,8 @@ import { mount } from 'svelte';
 import { applyTheme } from '$lib/services/theme.service';
 import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
 import type { AppThemeMode } from '$lib/types/app.type';
+import { initTitleGenerationListeners } from '$lib/stores/titleGeneration.store';
+import { initThreadUpdateListener } from '$lib/stores/thread.store';
 import App from './App.svelte';
 
 // Apply persisted theme before mounting to avoid flash
@@ -24,6 +26,12 @@ async function bootstrap(): Promise<void> {
   } catch {
     applyTheme(APP_THEME_MODE.LIGHT);
   }
+
+  // Initialize title generation event listeners
+  initTitleGenerationListeners();
+
+  // Initialize thread update listener for reactive thread list updates
+  initThreadUpdateListener();
 
   const appElement = document.getElementById('app');
   if (appElement === null) {
