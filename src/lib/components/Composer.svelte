@@ -255,6 +255,7 @@
       rows={3}
       disabled={isStreaming}
       aria-label="Message input. Press Enter to send, Shift+Enter for new line"
+      data-testid="message-input"
       aria-describedby="composer-help-text"
       onkeydown={(e) => {
         // Send on Enter (without Shift). Allow Shift+Enter for newline.
@@ -399,8 +400,9 @@
   }
 
   .composer textarea:disabled {
-    background-color: #f5f5f5;
+    opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
   }
 
   .actions {

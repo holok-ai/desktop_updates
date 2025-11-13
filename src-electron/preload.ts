@@ -109,6 +109,30 @@ export interface ThreadAPI {
     | { success: false; status: number; error: string; thread_id?: string }
   >;
 
+  // Update message (edit)
+  updateMessage: (
+    threadId: string,
+    messageId: string,
+    newContent: string,
+  ) => Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  >;
+
+  // Get message versions
+  getMessageVersions: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<
+    | { success: true; versions: Array<{ content: string; editedAt: number }> }
+    | { success: false; error: string }
+  >;
+
+  // Delete messages after a specific message
+  deleteMessagesAfter: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -655,9 +679,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       },
     ) => ipcRenderer.invoke('thread:appendMessage', threadId, payload),
 
-    // Duplicate an existing message in-thread (run again)
-    duplicateMessage: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:duplicateMessage', threadId, messageId),
+    updateMessage: (threadId: string, messageId: string, newContent: string) =>
+      ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
+
+    getMessageVersions: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
+
+    deleteMessagesAfter: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
 
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -723,65 +752,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   } as LogAPI,
 
   /**
-   * Project API Implementation
-   */
-  project: {
-    getAll: () => ipcRenderer.invoke('project:getAll'),
-
-    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
-
-    create: (data: {
-      title: string;
-      description?: string;
-      metadata?: Record<string, unknown>;
-      privacyMode?: ProjectPrivacyMode;
-    }) => ipcRenderer.invoke('project:create', data),
-
-    update: (
-      id: GUID,
-      updates: {
-        title?: string;
-        description?: string;
-        metadata?: Record<string, unknown>;
-        privacyMode?: ProjectPrivacyMode;
-      },
-    ) => ipcRenderer.invoke('project:update', id, updates),
-
-    delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
-      ipcRenderer.invoke('project:delete', id, options),
-
-    getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
-
-    // Event listeners with cleanup function
-    onProjectCreated: (callback: (project: Project) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
-      ipcRenderer.on('project:created', subscription);
-
-      return (): void => {
-        ipcRenderer.removeListener('project:created', subscription);
-      };
-    },
-
-    onProjectUpdated: (callback: (project: Project) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
-      ipcRenderer.on('project:updated', subscription);
-
-      return (): void => {
-        ipcRenderer.removeListener('project:updated', subscription);
-      };
-    },
-
-    onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
-      ipcRenderer.on('project:deleted', subscription);
-
-      return (): void => {
-        ipcRenderer.removeListener('project:deleted', subscription);
-      };
-    },
-  } as ProjectAPI,
-
-  /**
    * File API Implementation
    * Handles file upload, download, and validation
    */
@@ -824,6 +794,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as FileAPI,
+
+  /**
+   * Project API Implementation
+   */
+  project: {
+    getAll: () => ipcRenderer.invoke('project:getAll'),
+
+    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
+
+    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('project:create', data),
+
+    update: (
+      id: GUID,
+      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+    ) => ipcRenderer.invoke('project:update', id, updates),
+
+    delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
+      ipcRenderer.invoke('project:delete', id, options),
+
+    getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
+
+    // Event listeners with cleanup function
+    onProjectCreated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:created', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:created', subscription);
+      };
+    },
+
+    onProjectUpdated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:updated', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:updated', subscription);
+      };
+    },
+
+    onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
+      ipcRenderer.on('project:deleted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:deleted', subscription);
+      };
+    },
+  } as ProjectAPI,
 
   /**
    * Menu Command Listener
