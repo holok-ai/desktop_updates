@@ -463,71 +463,6 @@ export function registerThreadHandlers(): void {
     },
   );
 
-  // Update message (edit)
-  ipcMain.handle(
-    'thread:updateMessage',
-    async (
-      _event,
-      threadId: string,
-      messageId: string,
-      newContent: string,
-    ): Promise<
-      | { success: true; message: Message; thread: RendererThread }
-      | { success: false; error: string }
-    > => {
-      threadLog.info('[IPC] thread:updateMessage called', { threadId, messageId });
-
-      try {
-        const updatedMessage = threadRepository.updateMessage(threadId, messageId, newContent);
-        const thread = threadRepository.loadThread(threadId);
-        const rt = thread ? toRendererThread(thread) : null;
-
-        if (!rt) throw new Error('Failed to load thread after update');
-
-        broadcast('thread:updated', rt);
-        broadcast('message:updated', {
-          thread_id: threadId,
-          message_id: messageId,
-          timestamp: new Date(updatedMessage.editedAt ?? Date.now()).toISOString(),
-        });
-
-        return Promise.resolve({
-          success: true as const,
-          message: updatedMessage,
-          thread: rt,
-        });
-      } catch (error) {
-        const err = error as Error;
-        threadLog.error('[IPC] Error updating message:', err);
-        return Promise.resolve({ success: false, error: err.message });
-      }
-    },
-  );
-
-  // Get message versions
-  ipcMain.handle(
-    'thread:getMessageVersions',
-    async (
-      _event,
-      threadId: string,
-      messageId: string,
-    ): Promise<
-      | { success: true; versions: MessageVersion[] }
-      | { success: false; error: string }
-    > => {
-      threadLog.info('[IPC] thread:getMessageVersions called', { threadId, messageId });
-
-      try {
-        const versions = threadRepository.getMessageVersions(threadId, messageId);
-        return Promise.resolve({ success: true, versions });
-      } catch (error) {
-        const err = error as Error;
-        threadLog.error('[IPC] Error getting message versions:', err);
-        return Promise.resolve({ success: false, error: err.message });
-      }
-    },
-  );
-
   // Delete messages after a specific message
   ipcMain.handle(
     'thread:deleteMessagesAfter',
@@ -689,37 +624,6 @@ export function registerThreadHandlers(): void {
       } catch (error) {
         const err = error as Error;
         threadLog.error('[IPC] Error getting message versions:', err);
-        return Promise.resolve({ success: false, error: err.message });
-      }
-    },
-  );
-
-  // Delete messages after a specific message
-  ipcMain.handle(
-    'thread:deleteMessagesAfter',
-    async (
-      _event,
-      threadId: string,
-      messageId: string,
-    ): Promise<
-      | { success: true; thread: RendererThread }
-      | { success: false; error: string }
-    > => {
-      threadLog.info('[IPC] thread:deleteMessagesAfter called', { threadId, messageId });
-
-      try {
-        threadRepository.deleteMessagesAfter(threadId, messageId);
-        const thread = threadRepository.loadThread(threadId);
-        const rt = thread ? toRendererThread(thread) : null;
-
-        if (!rt) throw new Error('Failed to load thread after deletion');
-
-        broadcast('thread:updated', rt);
-
-        return Promise.resolve({ success: true, thread: rt });
-      } catch (error) {
-        const err = error as Error;
-        threadLog.error('[IPC] Error deleting messages after:', err);
         return Promise.resolve({ success: false, error: err.message });
       }
     },
