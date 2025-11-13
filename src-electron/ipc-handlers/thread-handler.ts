@@ -7,7 +7,8 @@ import type ThreadRepository from '../repository/thread-repository.js';
 import type {
   Thread as InternalThread,
   ThreadMetadata,
-  Message as InternalMessage,
+  Message,
+  MessageVersion,
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
@@ -195,21 +196,26 @@ export function registerThreadHandlers(): void {
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle(
-    'thread:getMessages',
-    (
-      _event,
-      id: string,
-    ): Promise<{ id: string; role: string; content: string; createdAt: number }[]> => {
-      const t = threadRepository.loadThread(id);
-      if (!t) return Promise.resolve([]);
-      const items = t.messages
-        .filter((m) => !m.deletedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt }));
-      return Promise.resolve(items);
-    },
-  );
+  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
+    const t = threadRepository.loadThread(id);
+    if (!t) return Promise.resolve([]);
+    const items = t.messages
+      .filter((m) => !m.deletedAt)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+        isEdited: m.isEdited,
+        editedAt: m.editedAt,
+        versions: m.versions,
+        clientMessageId: m.clientMessageId,
+        deletedAt: m.deletedAt,
+      }));
+    return Promise.resolve(items);
+  });
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(
@@ -266,7 +272,7 @@ export function registerThreadHandlers(): void {
         const original = threadObj.messages.find((m) => m.id === messageId);
         if (!original) throw new Error(`Message not found: ${messageId}`);
         if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
-        const msg: InternalMessage = threadRepository.appendMessage(threadId, {
+        const msg: Message = threadRepository.appendMessage(threadId, {
           role: 'user',
           content: original.content,
           metadata: original.metadata,
@@ -434,7 +440,7 @@ export function registerThreadHandlers(): void {
       }
 
       try {
-        const msg: InternalMessage = threadRepository.appendMessage(threadId, {
+        const msg: Message = threadRepository.appendMessage(threadId, {
           role: payload.role,
           content: payload.content,
           metadata: payload.metadata,
@@ -598,6 +604,34 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Delete messages after a specific message
+  ipcMain.handle(
+    'thread:deleteMessagesAfter',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+    ): Promise<{ success: true; thread: RendererThread } | { success: false; error: string }> => {
+      threadLog.info('[IPC] thread:deleteMessagesAfter called', { threadId, messageId });
+
+      try {
+        threadRepository.deleteMessagesAfter(threadId, messageId);
+        const thread = threadRepository.loadThread(threadId);
+        const rt = thread ? toRendererThread(thread) : null;
+
+        if (!rt) throw new Error('Failed to load thread after deletion');
+
+        broadcast('thread:updated', rt);
+
+        return Promise.resolve({ success: true, thread: rt });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error('[IPC] Error deleting messages after:', err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
+    },
+  );
+
   // Move thread to/from project
   ipcMain.handle(
     'thread:moveToProject',
@@ -665,6 +699,70 @@ export function registerThreadHandlers(): void {
       });
 
       return Promise.resolve(rt);
+    },
+  );
+
+  // Update message (edit)
+  ipcMain.handle(
+    'thread:updateMessage',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+      newContent: string,
+    ): Promise<
+      | { success: true; message: Message; thread: RendererThread }
+      | { success: false; error: string }
+    > => {
+      threadLog.info('[IPC] thread:updateMessage called', { threadId, messageId });
+
+      try {
+        const updatedMessage = threadRepository.updateMessage(threadId, messageId, newContent);
+        const thread = threadRepository.loadThread(threadId);
+        const rt = thread ? toRendererThread(thread) : null;
+
+        if (!rt) throw new Error('Failed to load thread after update');
+
+        broadcast('thread:updated', rt);
+        broadcast('message:updated', {
+          thread_id: threadId,
+          message_id: messageId,
+          timestamp: new Date(updatedMessage.editedAt ?? Date.now()).toISOString(),
+        });
+
+        return Promise.resolve({
+          success: true as const,
+          message: updatedMessage,
+          thread: rt,
+        });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error('[IPC] Error updating message:', err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
+    },
+  );
+
+  // Get message versions
+  ipcMain.handle(
+    'thread:getMessageVersions',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+    ): Promise<
+      { success: true; versions: MessageVersion[] } | { success: false; error: string }
+    > => {
+      threadLog.info('[IPC] thread:getMessageVersions called', { threadId, messageId });
+
+      try {
+        const versions = threadRepository.getMessageVersions(threadId, messageId);
+        return Promise.resolve({ success: true, versions });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error('[IPC] Error getting message versions:', err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
     },
   );
 

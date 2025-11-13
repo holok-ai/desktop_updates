@@ -10,6 +10,11 @@ import { titleGeneratorService } from '../services/title-generator.service.js';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
 
+export interface MessageVersion {
+  content: string;
+  editedAt: number;
+}
+
 export interface Message {
   id: UUID;
   title: string;
@@ -19,6 +24,9 @@ export interface Message {
   metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
+  editedAt?: number;
+  versions?: MessageVersion[];
+  isEdited?: boolean;
 }
 
 export interface ThreadMetadata {
@@ -359,6 +367,85 @@ export class ThreadRepository {
     this.threadsById.set(thread.id, thread);
     this.saveToDisk();
     return this.cloneThread(thread);
+  }
+
+  public updateMessage(threadId: string, messageId: string, newContent: string): Message {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const message = thread.messages.find((m) => m.id === messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+
+    if (message.role !== 'user') {
+      throw new Error('Only user messages can be edited');
+    }
+
+    if (!message.versions) {
+      message.versions = [];
+    }
+    message.versions.push({
+      content: message.content,
+      editedAt: message.editedAt ?? message.createdAt,
+    });
+
+    message.content = newContent;
+    message.editedAt = Date.now();
+    message.isEdited = true;
+
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    return {
+      ...message,
+      isEdited: true,
+      editedAt: message.editedAt,
+      versions: message.versions ? [...message.versions] : [],
+    };
+  }
+
+  public getMessageVersions(threadId: string, messageId: string): MessageVersion[] {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const message = thread.messages.find((m) => m.id === messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+
+    return message.versions ? [...message.versions] : [];
+  }
+
+  public markSubsequentMessagesAsOldPrompt(threadId: string, messageId: string): void {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const messageIndex = thread.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) throw new Error(`Message not found: ${messageId}`);
+
+    // Mark all subsequent messages as based on old prompt version
+    const subsequentMessages = thread.messages.slice(messageIndex + 1);
+    for (const msg of subsequentMessages) {
+      if (!msg.metadata) msg.metadata = {};
+      msg.metadata.basedOnOldPrompt = true;
+      msg.metadata.originalPromptId = messageId;
+    }
+
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+  }
+
+  public deleteMessagesAfter(threadId: string, messageId: string): void {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const messageIndex = thread.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) throw new Error(`Message not found: ${messageId}`);
+
+    // Remove all messages after the specified message
+    thread.messages = thread.messages.slice(0, messageIndex + 1);
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
   }
 
   private cloneThread(thread: Thread): Thread {
