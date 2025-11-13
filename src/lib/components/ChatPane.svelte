@@ -9,6 +9,7 @@
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
 
   interface Props {
@@ -330,7 +331,9 @@
       <!-- Show streaming response in real-time -->
       {#if isStreaming && responseText}
         <div class="message assistant streaming">
-          <div class="message-content">{responseText}</div>
+          <div class="message-content">
+            <MarkdownRenderer content={responseText} enableCopy={true} />
+          </div>
           <div class="message-meta">Streaming... ●</div>
         </div>
       {/if}

@@ -2,6 +2,7 @@
   import { MESSAGE_STATUS } from '$lib/constants/status.constant';
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
   import { createEventDispatcher } from 'svelte';
   import type { Attachment } from '../../../src-shared/types/attachment.types';
   import AttachmentPreview from './AttachmentPreview.svelte';
@@ -191,7 +192,9 @@
       </div>
     </div>
   {:else}
-    <div class="message-content">{message.content}</div>
+    <div class="message-content">
+      <MarkdownRenderer content={message.content} enableCopy={true} />
+    </div>
   {/if}
   <div class="message-footer">
     <span class="message-meta">
@@ -207,9 +210,11 @@
       </span>
     {/if}
     <div class="message-actions">
-      <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
-        📋
-      </button>
+      {#if message.status !== MESSAGE_STATUS.SENDING}
+        <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
+          📋
+        </button>
+      {/if}
       {#if message.role === 'user' && onEdit && message.status !== MESSAGE_STATUS.SENDING}
         <button
           class="action-button"
