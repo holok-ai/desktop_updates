@@ -468,6 +468,85 @@ async deleteThread(accessToken: string, threadId: string): Promise<boolean>
 - **Returns**: Boolean indicating success
 - **Warning**: Permanently removes thread and all associated data
 
+#### 10. **updateMessage(accessToken, threadId, messageId, newContent)**
+
+Update a user message and store version history.
+
+```typescript
+async updateMessage(
+  accessToken: string,
+  threadId: string,
+  messageId: string,
+  newContent: string
+): Promise<Message>
+```
+
+- **HTTP Method**: `PATCH`
+- **Endpoint**: `/api/threads/${threadId}/messages/${messageId}`
+- **Headers**: `Authorization: Bearer ${accessToken}`
+- **Body**:
+  ```json
+  {
+    "content": "Updated message content"
+  }
+  ```
+- **Returns**: Updated message object with version tracking
+- **Restriction**: Only user messages can be edited
+- **Side Effects**: 
+  - Stores previous version in `versions` array
+  - Sets `editedAt` timestamp
+  - Sets `isEdited` flag to true
+- **Used in**: Message editing feature (ChatPane.svelte, MessageBubble.svelte)
+
+#### 11. **getMessageVersions(accessToken, threadId, messageId)**
+
+Retrieve version history for an edited message.
+
+```typescript
+async getMessageVersions(
+  accessToken: string,
+  threadId: string,
+  messageId: string
+): Promise<MessageVersion[]>
+```
+
+- **HTTP Method**: `GET`
+- **Endpoint**: `/api/threads/${threadId}/messages/${messageId}/versions`
+- **Headers**: `Authorization: Bearer ${accessToken}`
+- **Returns**: Array of message versions
+- **Response**:
+  ```json
+  [
+    {
+      "content": "Original message content",
+      "editedAt": 1234567890000
+    },
+    {
+      "content": "First edit",
+      "editedAt": 1234567900000
+    }
+  ]
+  ```
+
+#### 12. **deleteMessagesAfter(accessToken, threadId, messageId)**
+
+Delete all messages after a specific message (used when regenerating after edit).
+
+```typescript
+async deleteMessagesAfter(
+  accessToken: string,
+  threadId: string,
+  messageId: string
+): Promise<Thread>
+```
+
+- **HTTP Method**: `DELETE`
+- **Endpoint**: `/api/threads/${threadId}/messages/${messageId}/after`
+- **Headers**: `Authorization: Bearer ${accessToken}`
+- **Returns**: Updated thread object
+- **Purpose**: Removes all messages after the specified message (inclusive of messages created after it)
+- **Used in**: Message regeneration flow after editing a prompt
+
 ### Implementation Example
 
 ```typescript
@@ -546,15 +625,32 @@ All methods should handle common HTTP errors:
 - **401 Unauthorized**: Access token invalid or expired
   - Call `authService.getAccessToken()` to refresh
   - Retry request once
+  - If refresh fails, throw authentication error
 - **403 Forbidden**: User doesn't have permission
   - Throw error for handler to catch
 - **404 Not Found**: Resource doesn't exist
   - Return `null` for get operations
   - Throw error for update/delete operations
+- **409 Conflict**: Concurrent modification (e.g., thread updated by another process)
+  - Reload resource from API
+  - Retry operation once
+  - If conflict persists, throw error
 - **413 Payload Too Large**: Message exceeds size limit
   - Throw specific `MESSAGE_TOO_LARGE` error
+  - **Note**: 8KB limit applies to `content` field only, attachments stored separately
+- **429 Too Many Requests**: Rate limiting
+  - Implement exponential backoff
+  - Retry after delay: `delay = baseDelay * (2 ^ retryCount)`
+  - Max retries: 3
 - **500 Internal Server Error**: Server-side issue
   - Log error and throw
+  - Consider retry for idempotent operations
+- **Network Timeout**: Request timeout
+  - Retry once for read operations
+  - For write operations, check idempotency before retry
+- **Partial Failures**: Handle gracefully
+  - If thread created but message append fails, return partial result
+  - Log error for manual recovery
 
 ### Type Definitions
 
@@ -592,6 +688,14 @@ export interface Message {
   };
   clientMessageId?: string;
   deletedAt?: number | null;
+  editedAt?: number;  // epoch ms - timestamp of last edit
+  versions?: MessageVersion[];  // Array of previous versions for edited messages
+  isEdited?: boolean;  // Flag indicating if message was edited
+}
+
+export interface MessageVersion {
+  content: string;
+  editedAt: number;  // epoch ms
 }
 ```
 
@@ -607,6 +711,8 @@ The `ThreadRepository` (src-electron/repository/thread-repository.ts) should imp
 2. **Lazy loading**: Only load data from API when requested and not in cache
 3. **Write-through**: All mutations (create/update/delete) call API then update cache
 4. **Separate message caching**: Messages cached independently by threadId for efficient loading
+5. **Cache invalidation**: Refresh cache when data may be stale or after mutations
+6. **Optimistic updates**: Update cache optimistically, rollback on API failure
 
 ### Cache Structure
 
@@ -847,6 +953,106 @@ private async getAccessToken(): Promise<string> {
 }
 ```
 
+**updateMessage(threadId, messageId, newContent)**
+```typescript
+public async updateMessage(
+  threadId: string,
+  messageId: string,
+  newContent: string
+): Promise<Message> {
+  const accessToken = await this.getAccessToken();
+
+  // Update via API
+  const updatedMessage = await mokuService.updateMessage(
+    accessToken,
+    threadId,
+    messageId,
+    newContent
+  );
+
+  // Update cache
+  const messages = this.messagesByThreadId.get(threadId) || [];
+  const index = messages.findIndex((m) => m.id === messageId);
+  if (index !== -1) {
+    messages[index] = updatedMessage;
+    this.messagesByThreadId.set(threadId, messages);
+  }
+
+  // Update thread timestamp
+  const thread = this.threadsById.get(threadId);
+  if (thread) {
+    thread.updatedAt = Date.now();
+    this.threadsById.set(threadId, thread);
+  }
+
+  return { ...updatedMessage };
+}
+```
+
+**getMessageVersions(threadId, messageId)**
+```typescript
+public async getMessageVersions(
+  threadId: string,
+  messageId: string
+): Promise<MessageVersion[]> {
+  // Check cache first
+  const messages = this.messagesByThreadId.get(threadId);
+  const message = messages?.find((m) => m.id === messageId);
+  if (message?.versions) {
+    return [...message.versions];
+  }
+
+  // Not in cache, fetch from API
+  const accessToken = await this.getAccessToken();
+  const versions = await mokuService.getMessageVersions(
+    accessToken,
+    threadId,
+    messageId
+  );
+
+  // Update cache if message exists
+  if (message) {
+    message.versions = versions;
+    const index = messages!.findIndex((m) => m.id === messageId);
+    if (index !== -1) {
+      messages![index] = message;
+      this.messagesByThreadId.set(threadId, messages!);
+    }
+  }
+
+  return versions;
+}
+```
+
+**deleteMessagesAfter(threadId, messageId)**
+```typescript
+public async deleteMessagesAfter(
+  threadId: string,
+  messageId: string
+): Promise<Thread> {
+  const accessToken = await this.getAccessToken();
+
+  // Delete via API
+  const updatedThread = await mokuService.deleteMessagesAfter(
+    accessToken,
+    threadId,
+    messageId
+  );
+
+  // Update cache
+  this.threadsById.set(threadId, updatedThread);
+
+  // Remove deleted messages from cache
+  const messages = this.messagesByThreadId.get(threadId) || [];
+  const messageIndex = messages.findIndex((m) => m.id === messageId);
+  if (messageIndex !== -1) {
+    this.messagesByThreadId.set(threadId, messages.slice(0, messageIndex + 1));
+  }
+
+  return this.cloneThread(updatedThread);
+}
+```
+
 ### Cache Management
 
 ```typescript
@@ -856,6 +1062,34 @@ public clearCache(): void {
   this.messagesByThreadId.clear();
   this.idempotencyIndex.clear();
   this.cacheLoaded = false;
+}
+
+// Invalidate specific thread (force reload from API)
+public async invalidateThread(threadId: string): Promise<void> {
+  this.threadsById.delete(threadId);
+  this.messagesByThreadId.delete(threadId);
+  // Reload from API on next access
+}
+
+// Invalidate thread list (force reload all threads)
+public invalidateThreadList(): void {
+  this.cacheLoaded = false;
+  // Will reload on next listThreads() call
+}
+
+// Refresh thread from API (bypass cache)
+public async refreshThread(threadId: string): Promise<Thread | null> {
+  const accessToken = await this.getAccessToken();
+  const thread = await mokuService.getThread(accessToken, threadId);
+  
+  if (thread) {
+    this.threadsById.set(thread.id, thread);
+    if (thread.messages) {
+      this.messagesByThreadId.set(thread.id, [...thread.messages]);
+    }
+  }
+  
+  return thread ? this.cloneThread(thread) : null;
 }
 ```
 
@@ -1060,6 +1294,43 @@ public class DesktopThreadController {
         threadService.deleteThread(threadId, authentication);
         return ResponseEntity.ok().build();
     }
+
+    @PatchMapping("/{threadId}/messages/{messageId}")
+    @Operation(summary = "Update a user message")
+    public ResponseEntity<MessageDTO> updateMessage(
+            @PathVariable UUID threadId,
+            @PathVariable UUID messageId,
+            @Valid @RequestBody UpdateMessageRequestDTO request,
+            Authentication authentication) {
+        log.info("Update message request: threadId={}, messageId={}, user={}", 
+                threadId, messageId, authentication.getName());
+        MessageDTO message = threadService.updateMessage(threadId, messageId, request, authentication);
+        return ResponseEntity.ok(message);
+    }
+
+    @GetMapping("/{threadId}/messages/{messageId}/versions")
+    @Operation(summary = "Get message version history")
+    public ResponseEntity<List<MessageVersionDTO>> getMessageVersions(
+            @PathVariable UUID threadId,
+            @PathVariable UUID messageId,
+            Authentication authentication) {
+        log.info("Get message versions request: threadId={}, messageId={}, user={}", 
+                threadId, messageId, authentication.getName());
+        List<MessageVersionDTO> versions = threadService.getMessageVersions(threadId, messageId, authentication);
+        return ResponseEntity.ok(versions);
+    }
+
+    @DeleteMapping("/{threadId}/messages/{messageId}/after")
+    @Operation(summary = "Delete messages after a specific message")
+    public ResponseEntity<ThreadDetailDTO> deleteMessagesAfter(
+            @PathVariable UUID threadId,
+            @PathVariable UUID messageId,
+            Authentication authentication) {
+        log.info("Delete messages after request: threadId={}, messageId={}, user={}", 
+                threadId, messageId, authentication.getName());
+        ThreadDetailDTO thread = threadService.deleteMessagesAfter(threadId, messageId, authentication);
+        return ResponseEntity.ok(thread);
+    }
 }
 ```
 
@@ -1137,6 +1408,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -1382,6 +1654,123 @@ public class DesktopThreadService {
         log.info("Permanently deleted thread: threadId={}", threadId);
     }
 
+    @Transactional
+    public MessageDTO updateMessage(UUID threadId, UUID messageId, UpdateMessageRequestDTO request, Authentication authentication) {
+        User user = userService.getUserFromAuthentication(authentication);
+
+        DesktopThread thread = threadRepository.findById(threadId)
+                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
+
+        // Authorization check
+        if (!thread.getUserId().equals(user.getId())) {
+            throw new SecurityException("Access denied to thread: " + threadId);
+        }
+
+        DesktopMessage message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new EntityNotFoundException("Message not found: " + messageId));
+
+        // Only user messages can be edited
+        if (!"user".equals(message.getRole())) {
+            throw new IllegalArgumentException("Only user messages can be edited");
+        }
+
+        // Store previous version
+        if (message.getVersions() == null) {
+            message.setVersions(new ArrayList<>());
+        }
+        message.getVersions().add(Map.of(
+            "content", message.getContent(),
+            "editedAt", message.getEditedAt() != null ? message.getEditedAt().toEpochMilli() : message.getCreatedAt().toEpochMilli()
+        ));
+
+        // Update message
+        message.setContent(request.getContent());
+        message.setEditedAt(Instant.now());
+        message.setIsEdited(true);
+
+        message = messageRepository.save(message);
+
+        // Update thread timestamp
+        thread.setUpdatedAt(Instant.now());
+        threadRepository.save(thread);
+
+        log.info("Updated message: messageId={}, threadId={}", messageId, threadId);
+
+        return toMessageDTO(message);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MessageVersionDTO> getMessageVersions(UUID threadId, UUID messageId, Authentication authentication) {
+        User user = userService.getUserFromAuthentication(authentication);
+
+        DesktopThread thread = threadRepository.findById(threadId)
+                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
+
+        // Authorization check
+        if (!thread.getUserId().equals(user.getId())) {
+            throw new SecurityException("Access denied to thread: " + threadId);
+        }
+
+        DesktopMessage message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new EntityNotFoundException("Message not found: " + messageId));
+
+        if (message.getVersions() == null || message.getVersions().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return message.getVersions().stream()
+                .map(v -> MessageVersionDTO.builder()
+                        .content((String) v.get("content"))
+                        .editedAt(((Number) v.get("editedAt")).longValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ThreadDetailDTO deleteMessagesAfter(UUID threadId, UUID messageId, Authentication authentication) {
+        User user = userService.getUserFromAuthentication(authentication);
+
+        DesktopThread thread = threadRepository.findById(threadId)
+                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
+
+        // Authorization check
+        if (!thread.getUserId().equals(user.getId())) {
+            throw new SecurityException("Access denied to thread: " + threadId);
+        }
+
+        DesktopMessage message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new EntityNotFoundException("Message not found: " + messageId));
+
+        // Get all messages after this one
+        List<DesktopMessage> allMessages = messageRepository.findByThreadIdAndDeletedAtIsNullOrderByCreatedAtAsc(threadId);
+        List<DesktopMessage> toDelete = new ArrayList<>();
+        boolean found = false;
+
+        for (DesktopMessage m : allMessages) {
+            if (m.getId().equals(messageId)) {
+                found = true;
+                continue;
+            }
+            if (found) {
+                toDelete.add(m);
+            }
+        }
+
+        // Soft delete messages
+        for (DesktopMessage m : toDelete) {
+            m.setDeletedAt(Instant.now());
+            messageRepository.save(m);
+        }
+
+        // Update thread timestamp
+        thread.setUpdatedAt(Instant.now());
+        threadRepository.save(thread);
+
+        log.info("Deleted {} messages after messageId={} in threadId={}", toDelete.size(), messageId, threadId);
+
+        return toThreadDetailDTO(thread);
+    }
+
     // DTO conversion methods
     private ThreadSummaryDTO toThreadSummaryDTO(DesktopThread thread) {
         return ThreadSummaryDTO.builder()
@@ -1412,6 +1801,16 @@ public class DesktopThreadService {
     }
 
     private MessageDTO toMessageDTO(DesktopMessage message) {
+        List<MessageVersionDTO> versions = null;
+        if (message.getVersions() != null && !message.getVersions().isEmpty()) {
+            versions = message.getVersions().stream()
+                    .map(v -> MessageVersionDTO.builder()
+                            .content((String) v.get("content"))
+                            .editedAt(((Number) v.get("editedAt")).longValue())
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
         return MessageDTO.builder()
                 .id(message.getId())
                 .threadId(message.getThreadId())
@@ -1421,6 +1820,9 @@ public class DesktopThreadService {
                 .metadata(message.getMetadata())
                 .clientMessageId(message.getClientMessageId())
                 .deletedAt(message.getDeletedAt() != null ? message.getDeletedAt().toEpochMilli() : null)
+                .editedAt(message.getEditedAt() != null ? message.getEditedAt().toEpochMilli() : null)
+                .versions(versions)
+                .isEdited(message.getIsEdited())
                 .build();
     }
 }
@@ -1564,6 +1966,16 @@ public class DesktopMessage {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<Map<String, Object>> versions;  // Array of previous versions
+
+    @Column(name = "is_edited")
+    private Boolean isEdited;
+
+    @Column(name = "edited_at")
+    private Instant editedAt;
 }
 ```
 
@@ -1650,6 +2062,9 @@ public class MessageDTO {
     private Map<String, Object> metadata;
     private String clientMessageId;
     private Long deletedAt;
+    private Long editedAt;  // epoch milliseconds
+    private List<MessageVersionDTO> versions;  // Array of previous versions
+    private Boolean isEdited;  // Flag indicating if message was edited
 }
 ```
 
@@ -1743,6 +2158,37 @@ public class MoveThreadRequestDTO {
 }
 ```
 
+```java
+package ai.holok.moku.dto.desktop;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class UpdateMessageRequestDTO {
+    @NotBlank
+    private String content;
+}
+```
+
+```java
+package ai.holok.moku.dto.desktop;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class MessageVersionDTO {
+    private String content;
+    private Long editedAt;  // epoch milliseconds
+}
+```
+
 ---
 
 ### Database Schema
@@ -1808,6 +2254,9 @@ CREATE TABLE desktop_messages (
     client_message_id VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
+    versions JSONB,
+    is_edited BOOLEAN DEFAULT FALSE,
+    edited_at TIMESTAMP,
 
     CONSTRAINT desktop_messages_role_check CHECK (role IN ('user', 'assistant', 'system')),
     CONSTRAINT fk_desktop_messages_thread FOREIGN KEY (thread_id) REFERENCES desktop_threads(id) ON DELETE CASCADE
@@ -1826,6 +2275,9 @@ COMMENT ON COLUMN desktop_messages.metadata IS 'Flexible metadata storage (model
 COMMENT ON COLUMN desktop_messages.client_message_id IS 'Client-provided ID for idempotency';
 COMMENT ON COLUMN desktop_messages.created_at IS 'Timestamp when message was created';
 COMMENT ON COLUMN desktop_messages.deleted_at IS 'Soft delete timestamp (NULL if not deleted)';
+COMMENT ON COLUMN desktop_messages.versions IS 'Array of previous message versions (JSONB array)';
+COMMENT ON COLUMN desktop_messages.is_edited IS 'Flag indicating if message was edited';
+COMMENT ON COLUMN desktop_messages.edited_at IS 'Timestamp of last edit';
 
 -- ============================================================================
 -- End of migration
@@ -1922,16 +2374,16 @@ The application uses different TypeScript interfaces at different layers:
 ```typescript
 interface Thread {
   id: string;
-  title: string;
-  metadata: ThreadMetadata;  // Required object
-  messages: Message[];       // Includes full message array
-  createdAt: number;         // Epoch milliseconds
-  updatedAt: number;         // Epoch milliseconds
+  title: string;              // Top-level field (primary source of truth)
+  metadata: ThreadMetadata;    // Required object
+  messages: Message[];        // Includes full message array
+  createdAt: number;          // Epoch milliseconds
+  updatedAt: number;          // Epoch milliseconds
   deletedAt?: number | null;
 }
 
 interface ThreadMetadata {
-  title?: string;
+  title?: string;             // Legacy field - prefer top-level title
   description?: string;
   model?: string;
   projectId?: string;
@@ -1940,6 +2392,8 @@ interface ThreadMetadata {
   [key: string]: unknown;
 }
 ```
+
+**Note**: The `title` field exists at both the top level and in `metadata`. The top-level `title` is the primary source of truth. The `metadata.title` is legacy and should be migrated. The `toRendererThread()` function prioritizes top-level `title` over `metadata.title`.
 
 ### IPC/Renderer Thread (src-electron/preload.ts, used by frontend)
 ```typescript
@@ -1960,6 +2414,7 @@ interface Thread {
 ```typescript
 interface Message {
   id: string;
+  title: string;              // Thread title (duplicated for convenience)
   threadId: string;          // Reference to parent thread
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -1967,8 +2422,18 @@ interface Message {
   metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
+  editedAt?: number;         // Epoch milliseconds - timestamp of last edit
+  versions?: MessageVersion[]; // Array of previous versions for edited messages
+  isEdited?: boolean;        // Flag indicating if message was edited
+}
+
+interface MessageVersion {
+  content: string;
+  editedAt: number;          // Epoch milliseconds
 }
 ```
+
+**Note**: The `title` field in Message is a convenience field that duplicates the thread title. It's not required in API responses but may be present in backend storage.
 
 ### Frontend Message (src/lib/types/thread.type.ts)
 ```typescript
@@ -1978,11 +2443,23 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;         // Epoch milliseconds
-  status?: MessageStatus;    // Frontend-specific state
-  attemptCount?: number;     // Frontend-specific retry tracking
+  status?: MessageStatus;    // Frontend-specific state (not sent to API)
+  retryCount?: number;       // Frontend-specific retry tracking (not sent to API)
+  error?: string;            // Frontend-specific error display (not sent to API)
+  originalMessageId?: string; // Frontend-specific reference (not sent to API)
+  editedAt?: number;         // Epoch milliseconds - timestamp of last edit
+  isEdited?: boolean;        // Flag indicating if message was edited
+  versions?: MessageVersion[]; // Array of previous versions for edited messages
   metadata?: MessageMetadata;
 }
+
+interface MessageVersion {
+  content: string;
+  editedAt: number;          // Epoch milliseconds
+}
 ```
+
+**Note**: Fields marked as "not sent to API" are frontend-only and should be stripped before making API calls. Use a transformation layer to convert frontend messages to API format.
 
 ### MessageMetadata (src-shared/types/attachment.types.ts)
 ```typescript
@@ -2012,5 +2489,35 @@ interface MessageMetadata {
 - Prevents duplicate messages on retry/network issues
 
 ### Size Limits
-- Message content limited to 8KB
-- Validation happens in `appendMessage`
+- Message content limited to 8KB (applies to `content` field only)
+- Attachments are stored separately and not counted toward the 8KB limit
+- Validation happens in `appendMessage` (both client-side and server-side)
+
+### ID Format Migration
+
+**Current Implementation**: Uses prefixed IDs like `thread_abc123` (from `generateId('thread_')`)
+**Moku API**: Uses UUID format (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+
+**Migration Strategy**:
+1. **Phase 1**: Update `generateId()` to use `randomUUID()` instead of prefixed format
+2. **Phase 2**: Add ID conversion layer if needed during transition
+3. **Phase 3**: Migrate existing threads to UUID format on first sync to Moku API
+4. **Note**: Ensure thread IDs are consistent between local cache and Moku API
+
+### Frontend Field Filtering
+
+When sending messages to the Moku API, frontend-specific fields must be stripped:
+
+**Frontend-only fields** (not sent to API):
+- `status` - Frontend state ('sending', 'sent', 'failed')
+- `retryCount` - Frontend retry tracking
+- `error` - Frontend error display
+- `originalMessageId` - Frontend reference
+
+**Implementation**:
+```typescript
+function toApiMessage(frontendMessage: Message): ApiMessage {
+  const { status, retryCount, error, originalMessageId, ...apiMessage } = frontendMessage;
+  return apiMessage;
+}
+```
