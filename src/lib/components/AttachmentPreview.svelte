@@ -101,17 +101,9 @@
     <!-- Thumbnail or Icon -->
     <div class="attachment-thumbnail">
       {#if isImage && !shouldShowInline && attachment.url}
-        <img
-          src={attachment.url}
-          alt={attachment.filename}
-          class="thumbnail-image"
-        />
+        <img src={attachment.url} alt={attachment.filename} class="thumbnail-image" />
       {:else if isImage && !shouldShowInline && inlinePreviewUrl}
-        <img
-          src={inlinePreviewUrl}
-          alt={attachment.filename}
-          class="thumbnail-image"
-        />
+        <img src={inlinePreviewUrl} alt={attachment.filename} class="thumbnail-image" />
       {:else}
         <div class="thumbnail-placeholder">
           {getFileIcon(attachment.mimeType)}
@@ -297,7 +289,9 @@
     border: 1px solid var(--surface-border);
     border-radius: var(--border-radius);
     background: var(--surface-card);
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .attachment-preview:hover {

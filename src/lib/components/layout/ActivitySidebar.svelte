@@ -136,11 +136,7 @@
   aria-label="Main sidebar"
 >
   <div class="sidebar-header flex justify-center items-center h-16">
-    <img
-      src={logoWhite}
-      alt="Holokai Logo"
-      class="w-[160px] h-[80px] {isCollapsed && 'hidden'}"
-    />
+    <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
     <button
       class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
         'p-0'}"
@@ -201,10 +197,7 @@
               <i class="pi pi-cog"></i>
               <span>Settings</span>
             </button>
-            <button
-              class="profile-menu-button"
-              onclick={handleLogout}
-            >
+            <button class="profile-menu-button" onclick={handleLogout}>
               <i class="pi pi-sign-out"></i>
               <span>Logout</span>
             </button>
@@ -233,7 +226,9 @@
     background: transparent;
     color: var(--text-active);
     cursor: pointer;
-    transition: background 0.2s ease, transform 0.2s ease;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
   }
 
   .profile-trigger:focus {

@@ -107,9 +107,7 @@
   {:else}
     <section class="mb-6">
       <h2 class="mb-2">Connection</h2>
-      <div
-        class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
         <div class="form-group">
           <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
           <input
@@ -138,9 +136,7 @@
 
     <section class="mb-6">
       <h2 class="mb-2">Appearance</h2>
-      <div
-        class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
         <div class="form-group">
           <span class="block text-sm font-medium mb-1">Theme</span>
           <div class="flex items-center gap-6">
@@ -169,9 +165,7 @@
 
     <section class="mb-6">
       <h2 class="mb-2">Updates</h2>
-      <div
-        class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
         <div class="text-sm">
           <span class="font-medium">Current Version:</span>
           {appVersion}

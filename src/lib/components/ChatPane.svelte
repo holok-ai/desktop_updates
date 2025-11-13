@@ -545,8 +545,7 @@
     color: var(--text-primary);
     padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
     border-radius: var(--border-radius);
-    box-shadow: 0 var(--inline-spacing) calc(var(--inline-spacing) * 3) 0
-      var(--surface-main);
+    box-shadow: 0 var(--inline-spacing) calc(var(--inline-spacing) * 3) 0 var(--surface-main);
   }
 
   .error-banner {

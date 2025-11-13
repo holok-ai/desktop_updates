@@ -108,11 +108,7 @@
           <option value={m.provider + '::' + m.id}>{m.title} — {m.provider}</option>
         {/each}
       </select>
-      <button
-        class="model-confirm"
-        onclick={confirm}
-        disabled={!selectedKey || disabled}
-      >
+      <button class="model-confirm" onclick={confirm} disabled={!selectedKey || disabled}>
         Use
       </button>
     </div>

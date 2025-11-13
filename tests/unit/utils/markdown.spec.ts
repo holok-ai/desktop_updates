@@ -183,7 +183,7 @@ describe('Markdown and Syntax Highlighting', () => {
       const start = performance.now();
       marked.parse(largeContent);
       const duration = performance.now() - start;
-      
+
       // Should parse in less than 100ms for 5k chars
       expect(duration).toBeLessThan(100);
     });
@@ -193,10 +193,9 @@ describe('Markdown and Syntax Highlighting', () => {
       const start = performance.now();
       hljs.highlightAuto(largeCode);
       const duration = performance.now() - start;
-      
+
       // Should highlight in less than 100ms (relaxed for CI)
       expect(duration).toBeLessThan(100);
     });
   });
 });
-

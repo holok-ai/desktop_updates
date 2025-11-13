@@ -337,10 +337,7 @@
       </div>
 
       <div class="dialog-actions">
-        <button
-          class="dialog-button dialog-button-cancel"
-          onclick={() => (showDialog = false)}
-        >
+        <button class="dialog-button dialog-button-cancel" onclick={() => (showDialog = false)}>
           Cancel
         </button>
         <button

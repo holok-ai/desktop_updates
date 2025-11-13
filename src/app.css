@@ -19,21 +19,21 @@
   /* Holokai light theme variables */
   --holokai-sidebar-primary-light-color: #091320;
   --holokai-sidebar-item-hover-light-color: #33667e71;
-  --holokai-sidebar-item-active-light-color: #2D85AD;
-  --holokai-sidebar-background-light-color: #F2F1EC;
+  --holokai-sidebar-item-active-light-color: #2d85ad;
+  --holokai-sidebar-background-light-color: #f2f1ec;
 
   /* Holokai secondary sidebar light theme variables - same dark tone as primary */
-  --holokai-sidebar-secondary-light-color: #0A1624;
+  --holokai-sidebar-secondary-light-color: #0a1624;
   --holokai-sidebar-secondary-item-hover-light-color: #33667e71;
-  --holokai-sidebar-secondary-item-active-light-color: #2D85AD;
+  --holokai-sidebar-secondary-item-active-light-color: #2d85ad;
 
   /* Holokai dark theme variables */
-  --holokai-sidebar-primary-dark-color: #1B1B1B;
+  --holokai-sidebar-primary-dark-color: #1b1b1b;
   --holokai-sidebar-item-hover-dark-color: #113241;
   --holokai-sidebar-item-active-dark-color: #113241;
 
   /* Holokai secondary sidebar dark theme variables - same dark tone as primary */
-  --holokai-sidebar-secondary-dark-color: #1B1B1B;
+  --holokai-sidebar-secondary-dark-color: #1b1b1b;
   --holokai-sidebar-secondary-item-hover-dark-color: #113241;
   --holokai-sidebar-secondary-item-active-dark-color: #113241;
 
@@ -75,8 +75,8 @@ html:not(.dark) {
   --error-bg: color-mix(in srgb, var(--red-100) 35%, transparent);
   --modal-overlay: var(--maskbg);
 
-  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3)
-    0 color-mix(in srgb, var(--surface-900) 15%, transparent);
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 15%, transparent);
 
   --input-background: var(--surface-0);
   --input-border: var(--surface-border);
@@ -112,8 +112,8 @@ html.dark,
   --input-background: var(--surface-700);
   --input-border: var(--surface-600);
 
-  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3)
-    0 color-mix(in srgb, var(--surface-900) 40%, transparent);
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 40%, transparent);
 
   color-scheme: dark;
   color: var(--text-primary);

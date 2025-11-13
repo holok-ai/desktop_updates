@@ -7,7 +7,7 @@
   import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';
-import { ROUTE } from '$lib/constants/route.constant';
+  import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
   import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';

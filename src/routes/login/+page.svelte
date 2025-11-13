@@ -38,11 +38,7 @@
     <h1>Holokai Desktop</h1>
     <p>Sign in to continue</p>
 
-    <button
-      onclick={handleLogin}
-      disabled={isLoading}
-      class="login-primary"
-    >
+    <button onclick={handleLogin} disabled={isLoading} class="login-primary">
       {isLoading ? 'Redirecting...' : 'Login'}
     </button>
 
@@ -65,11 +61,7 @@
       </label>
     </div>
 
-    <button
-      onclick={handleMockLogin}
-      disabled={isMockLoading}
-      class="mock-button"
-    >
+    <button onclick={handleMockLogin} disabled={isMockLoading} class="mock-button">
       {isMockLoading ? 'Signing in...' : 'Sign In (Mock)'}
     </button>
 
