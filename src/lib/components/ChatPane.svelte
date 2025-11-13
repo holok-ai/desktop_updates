@@ -796,8 +796,9 @@
     padding: 1rem 0;
     border-bottom: 1px solid var(--surface-border, rgba(15, 23, 42, 0.12));
     position: sticky;
-    top: 0;
+    top: -31px;
     z-index: 5;
+    background: var(--surface-main);
   }
 
   .header-content {

@@ -753,8 +753,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: GUID): void =>
-        callback(projectId);
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
       ipcRenderer.on('project:deleted', subscription);
 
       return (): void => {
