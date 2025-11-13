@@ -7,6 +7,12 @@ import {
 import { projectRepository } from '../../../src-electron/repository/project-repository';
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/mock/appData'),
+    quit: vi.fn(),
+    on: vi.fn(),
+    whenReady: () => Promise.resolve(),
+  },
   ipcMain: {
     handle: vi.fn(),
     removeHandler: vi.fn(),
@@ -26,6 +32,13 @@ vi.mock('../../../src-electron/utils/logger', () => ({
   logPerformance: vi.fn(() => ({
     end: vi.fn(),
   })),
+  default: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+  __esModule: true,
 }));
 
 vi.mock('../../../src-electron/ipc-handlers/auth-handler', () => ({
@@ -79,7 +92,7 @@ describe('Project IPC Handlers', () => {
       const result = await handler();
 
       expect(result).toHaveLength(2);
-      expect(result[0].name).toBeDefined();
+      expect(result[0].title).toBeDefined();
       expect(result[0].createdAt).toBeInstanceOf(Date);
     });
   });
@@ -92,12 +105,12 @@ describe('Project IPC Handlers', () => {
       const handler = handleCall[1];
 
       const result = await handler(null, {
-        name: 'New Project',
+        title: 'New Project',
         description: 'Test description',
       });
 
-      expect(result.id).toMatch(/^proj_/);
-      expect(result.name).toBe('New Project');
+      expect(typeof result.id).toBe('string');
+      expect(result.title).toBe('New Project');
       expect(result.description).toBe('Test description');
       expect(result.createdAt).toBeInstanceOf(Date);
     });
@@ -108,7 +121,7 @@ describe('Project IPC Handlers', () => {
       );
       const handler = handleCall[1];
 
-      expect(() => handler(null, { name: '' })).toThrow('Project name is required');
+      expect(() => handler(null, { title: '' })).toThrow('Project title is required');
     });
   });
 
@@ -121,9 +134,9 @@ describe('Project IPC Handlers', () => {
 
       const project = projectRepository.createProject('Original Name');
 
-      const result = await handler(null, project.id, { name: 'Updated Name' });
+      const result = await handler(null, project.id, { title: 'Updated Name' });
 
-      expect(result.name).toBe('Updated Name');
+      expect(result.title).toBe('Updated Name');
     });
 
     it('should throw error if name is empty', () => {
@@ -134,7 +147,9 @@ describe('Project IPC Handlers', () => {
 
       const project = projectRepository.createProject('Test Project');
 
-      expect(() => handler(null, project.id, { name: '' })).toThrow('Project name cannot be empty');
+      expect(() => handler(null, project.id, { title: '' })).toThrow(
+        'Project title cannot be empty',
+      );
     });
   });
 

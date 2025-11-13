@@ -44,7 +44,6 @@
   let toastTimeout: number | null = null;
   let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
-  let ipcUnsubOnMessageError: (() => void) | null = null;
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Initialize message transmitter
@@ -149,7 +148,7 @@
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
       isStreaming = false;
-        return;
+      return;
     }
 
     try {
@@ -291,7 +290,7 @@
 
     // Listen for message error events from main process
     try {
-      ipcUnsubOnMessageError = window.electronAPI.thread.onMessageError((evt: any) => {
+      window.electronAPI.thread.onMessageError((evt: any) => {
         // TODO: Handle message errors with new transmitter pattern if needed
         console.error('Message error:', evt);
       });
@@ -317,21 +316,19 @@
 {:else}
   <div class="chat-pane">
     <div class="chat-header">
-      <h2>
-        {currentThread.title || 'New Thread'}
-        {#if $isThreadGeneratingTitle(currentThread.id)}
-          <span class="title-generating" aria-live="polite">
-            <span class="generating-dots">...</span>
-            <span class="sr-only">Generating title</span>
-          </span>
-        {/if}
-      </h2>
-      <div class="meta">{currentThread.description}</div>
       {#key thread?.id}
         <div class="header-content">
           <div>
-            <h2>{thread?.title}</h2>
-            <div class="meta">{thread?.description}</div>
+            <h2>
+              {currentThread.title || 'New Thread'}
+              {#if $isThreadGeneratingTitle(currentThread.id)}
+                <span class="title-generating" aria-live="polite">
+                  <span class="generating-dots">...</span>
+                  <span class="sr-only">Generating title</span>
+                </span>
+              {/if}
+            </h2>
+            <div class="meta">{currentThread.description}</div>
           </div>
           <button
             class="move-thread-btn"
