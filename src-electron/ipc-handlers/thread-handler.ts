@@ -215,6 +215,98 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Duplicate message (Run again) — create a new user prompt from existing user message
+  ipcMain.handle(
+    'thread:duplicateMessage',
+    (
+      _event,
+      threadId: string,
+      messageId: string,
+    ): Promise<
+      | {
+          success: true;
+          message: { id: string; role: string; content: string; createdAt: number };
+          thread: RendererThread;
+        }
+      | { success: false; status: number; error: string; thread_id?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+          thread_id: threadId,
+        });
+      }
+
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+          thread_id: threadId,
+        });
+      }
+
+      try {
+        // Inline duplicate logic to avoid calling potentially untyped exported helper in tests
+        const threadObj = threadRepository.loadThread(threadId);
+        if (!threadObj) throw new Error(`Thread not found: ${threadId}`);
+        const original = threadObj.messages.find((m) => m.id === messageId);
+        if (!original) throw new Error(`Message not found: ${messageId}`);
+        if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
+        const msg: Message = threadRepository.appendMessage(threadId, {
+          role: 'user',
+          content: original.content,
+          metadata: original.metadata,
+        });
+        const rt = toRendererThread(threadRepository.loadThread(threadId));
+        if (!rt) throw new Error('Failed to convert thread after duplicate');
+
+        broadcast('thread:updated', rt);
+        broadcast('message:persisted', {
+          thread_id: threadId,
+          message_id: msg.id,
+          timestamp: new Date(msg.createdAt).toISOString(),
+        });
+
+        return Promise.resolve({
+          success: true,
+          message: { id: msg.id, role: msg.role, content: msg.content, createdAt: msg.createdAt },
+          thread: rt,
+        } as const);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          if (e.message === 'CAN_ONLY_DUPLICATE_USER_PROMPTS') {
+            return Promise.resolve({
+              success: false,
+              status: 400,
+              error: e.message,
+              thread_id: threadId,
+            });
+          }
+          return Promise.resolve({ success: false, status: 400, error: e.message });
+        }
+        return Promise.resolve({ success: false, status: 400, error: String(e) });
+      }
+    },
+  );
+
   ipcMain.handle(
     'thread:create',
     async (
