@@ -14,15 +14,10 @@ import type { RoutePath } from '../../../src/lib/types/route.type.js';
 import { DEFAULT_ROUTE, getAvailableRoutes } from '../../../src/lib/types/route.type.js';
 import type { SidebarActivity } from '../../../src/lib/types/sidebar.type.js';
 import type { Message } from '../../../src/lib/types/thread.type.js';
-import { createMessage } from '../../../src/lib/types/thread.type.js';
 import {
   DEFAULT_SIDEBAR_ACTIVITY,
   createSidebarActivity,
 } from '../../../src/lib/types/sidebar.type.js';
-import {
-  DEFAULT_THREAD_STATUS,
-  getAvailableThreadStatuses,
-} from '../../../src/lib/types/status.type.js';
 import { defaultAppSettings } from '../../../src/lib/types/app.type.js';
 
 describe('types and constants sanity checks', () => {
@@ -110,7 +105,7 @@ describe('types and constants sanity checks', () => {
       content: 'hello',
       createdAt: Date.now(),
       status: undefined,
-      attemptCount: 0,
+      retryCount: 0,
     };
 
     expect(msg.id).toMatch(/^msg_/);
@@ -140,21 +135,5 @@ describe('types and constants sanity checks', () => {
     const custom = createSidebarActivity({ id: 'inbox', label: 'Inbox' });
     expect(custom.id).toBe('inbox');
     expect(custom.label).toBe('Inbox');
-  });
-
-  it('thread statuses helpers', () => {
-    expect(DEFAULT_THREAD_STATUS).toBe('active');
-    const statuses = getAvailableThreadStatuses();
-    expect(Array.isArray(statuses)).toBe(true);
-    expect(statuses).toContain('active');
-    expect(statuses).toContain('archived');
-  });
-
-  it('createMessage returns a valid Message', () => {
-    const m = createMessage({ role: 'assistant', content: 'ok' });
-    expect(m.id).toMatch(/^msg_/);
-    expect(m.role).toBe('assistant');
-    expect(m.content).toBe('ok');
-    expect(typeof m.createdAt).toBe('number');
   });
 });

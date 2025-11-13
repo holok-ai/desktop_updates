@@ -9,7 +9,6 @@
   import { projects } from '$lib/stores/project.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
-  import type { RoutePath } from '$lib/types/route.type';
   import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';
 
@@ -132,6 +131,12 @@
 
   function select(item: { id: string; label: string }) {
     dispatch('select', item);
+    selectedThreadId = item.id;
+    try {
+      window.localStorage.setItem('lastThreadId', item.id);
+    } catch (error) {
+      console.error('Failed to set lastThreadId', error);
+    }
 
     const route = (item as SidebarActivity).route;
 
@@ -163,7 +168,7 @@
     isCollapsed = !isCollapsed;
   }
 
-  function getGroupByTime(items: Project[] | Thread[], route: RoutePath) {
+  function getGroupByTime(items: Project[] | Thread[]) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
@@ -177,7 +182,11 @@
     const todayStart = startOfDay(now).getTime();
     const oneDayMs = 24 * 60 * 60 * 1000;
 
-    const toItem = (id: string, label: string): SidebarActivity => ({ id, label, route });
+    const toItem = (id: string, label: string): SidebarActivity => ({
+      id,
+      label,
+      route: ROUTE.THREADS,
+    });
 
     const sorted = [...items].sort((a, b) => {
       const aTime = new Date((a as any).updatedAt ?? a.createdAt).getTime();
