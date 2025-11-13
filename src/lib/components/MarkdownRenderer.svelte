@@ -102,19 +102,50 @@
       // Sanitize to prevent XSS while allowing necessary HTML
       return DOMPurify.sanitize(rawHtml, {
         ALLOWED_TAGS: [
-          'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
-          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-          'ul', 'ol', 'li',
+          'p',
+          'br',
+          'strong',
+          'em',
+          'u',
+          's',
+          'code',
+          'pre',
+          'h1',
+          'h2',
+          'h3',
+          'h4',
+          'h5',
+          'h6',
+          'ul',
+          'ol',
+          'li',
           'blockquote',
-          'a', 'img',
-          'table', 'thead', 'tbody', 'tr', 'th', 'td',
-          'div', 'span', 'button',
-          'del', 'ins',
+          'a',
+          'img',
+          'table',
+          'thead',
+          'tbody',
+          'tr',
+          'th',
+          'td',
+          'div',
+          'span',
+          'button',
+          'del',
+          'ins',
         ],
         ALLOWED_ATTR: [
-          'href', 'target', 'rel', 'src', 'alt', 'title',
-          'class', 'id', 'data-code', 'aria-label',
-          'style' // For inline styles if needed
+          'href',
+          'target',
+          'rel',
+          'src',
+          'alt',
+          'title',
+          'class',
+          'id',
+          'data-code',
+          'aria-label',
+          'style', // For inline styles if needed
         ],
       });
     } catch (error) {
@@ -160,7 +191,7 @@
         setTimeout(() => {
           if (copyText) copyText.textContent = 'Copy';
         }, 2000);
-      }
+      },
     );
   }
 
@@ -169,8 +200,10 @@
 
   function showVariableTooltip(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    if (!target.classList.contains('hljs-variable') && 
-        !target.classList.contains('hljs-template-variable')) {
+    if (
+      !target.classList.contains('hljs-variable') &&
+      !target.classList.contains('hljs-template-variable')
+    ) {
       return;
     }
 
@@ -184,13 +217,13 @@
     const tooltip = document.createElement('div');
     tooltip.className = 'variable-tooltip';
     tooltip.textContent = `Variable: ${varName} (No definition found)`;
-    
+
     // Position tooltip
     const rect = target.getBoundingClientRect();
     tooltip.style.position = 'fixed';
     tooltip.style.top = `${rect.bottom + 5}px`;
     tooltip.style.left = `${rect.left}px`;
-    
+
     document.body.appendChild(tooltip);
     activeTooltip = tooltip;
 
@@ -535,4 +568,3 @@
     white-space: nowrap;
   }
 </style>
-

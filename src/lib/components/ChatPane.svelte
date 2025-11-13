@@ -489,7 +489,6 @@
     border-width: 0;
   }
 
-
   .chat-header .meta {
     margin-top: 0.25rem;
     font-size: 0.875rem;

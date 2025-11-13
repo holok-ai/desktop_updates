@@ -9,6 +9,7 @@ This document analyzes the thread-related methods used in the application, compa
 The following methods are currently implemented in `ThreadRepository` and exposed via IPC handlers:
 
 ### 1. **listThreads()** - GET /threads
+
 - **Purpose**: Load all thread summaries
 - **Returns**: Array of threads with basic info (id, title, metadata, createdAt, updatedAt)
 - **Filters**: Excludes soft-deleted threads
@@ -17,12 +18,14 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - project-handler.ts:138, 150, 175
 
 ### 2. **loadThread(threadId)** - GET /threads/:threadId
+
 - **Purpose**: Get single thread with all data
 - **Returns**: Complete thread object including messages
 - **Used in**:
   - thread-handler.ts:193, 204, 242, 264, 274, 341, 415, 444, 511, 569
 
 ### 3. **getMessages(threadId)** - GET /threads/:threadId/messages
+
 - **Purpose**: Load all messages for a specific thread
 - **Returns**: Array of messages sorted by createdAt (ascending)
 - **Filters**: Excludes soft-deleted messages
@@ -30,6 +33,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:204 (filters messages from loaded thread)
 
 ### 4. **appendMessage(threadId, payload)** - POST /threads/:threadId/messages
+
 - **Purpose**: Append a new message to a thread
 - **Payload**: `{ role, content, metadata?, clientMessageId? }`
 - **Returns**: Created message object + updated thread
@@ -41,6 +45,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:269, 437
 
 ### 5. **createThread(metadata)** - POST /threads
+
 - **Purpose**: Create a new thread
 - **Payload**: `{ title?, metadata? }`
 - **Returns**: Created thread object
@@ -48,6 +53,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:329
 
 ### 6. **saveThread(thread)** - PATCH /threads/:threadId
+
 - **Purpose**: Update thread metadata and properties
 - **Payload**: Partial thread updates (title, metadata, status)
 - **Returns**: Updated thread object
@@ -55,6 +61,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:354
 
 ### 7. **updateThreadMetadata(threadId, updates)** - PATCH /threads/:threadId/metadata
+
 - **Purpose**: Update only thread metadata fields
 - **Payload**: Partial metadata object
 - **Returns**: Updated thread object
@@ -63,6 +70,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - project-handler.ts:156
 
 ### 8. **deleteThread(threadId)** - DELETE /threads/:threadId
+
 - **Purpose**: Permanently delete a thread
 - **Returns**: Boolean success
 - **Side effects**: Deletes associated files
@@ -70,6 +78,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:370
 
 ### 9. **softDeleteThread(threadId)** - POST /threads/:threadId/soft-delete
+
 - **Purpose**: Mark thread as deleted without removing data
 - **Side effects**:
   - Sets deletedAt timestamp
@@ -80,12 +89,14 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - project-handler.ts:142
 
 ### 10. **duplicateMessage(threadId, messageId)** - POST /threads/:threadId/messages/:messageId/duplicate
+
 - **Purpose**: Create a copy of an existing user message
 - **Returns**: New message object
 - **Restriction**: Only user messages can be duplicated
 - **Status**: ⚠️ Logic exists but method not directly called (inlined in handler)
 
 ### 11. **addUserPrompt(threadId, prompt, opts)** - POST /threads/:threadId/user-prompt
+
 - **Purpose**: Add user prompt and optionally create thread
 - **Payload**: `{ prompt, title?, description?, model? }`
 - **Returns**: Thread + message object
@@ -94,6 +105,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:492
 
 ### 12. **addAssistantResponse(threadId, response, model)** - POST /threads/:threadId/assistant-response
+
 - **Purpose**: Add assistant response to thread
 - **Payload**: `{ response, model? }`
 - **Returns**: Message object
@@ -102,6 +114,7 @@ The following methods are currently implemented in `ThreadRepository` and expose
   - thread-handler.ts:510
 
 ### 13. **savePromptAndResponses(threadId, prompt, responses, opts)** - POST /threads/:threadId/prompt-and-responses
+
 - **Purpose**: Atomically save user prompt and multiple assistant responses
 - **Payload**: `{ prompt, responses: [{ text, model? }], title?, description? }`
 - **Returns**: Thread + prompt message + response messages array
@@ -183,9 +196,14 @@ The current 13 methods can be reduced to 9 essential methods by eliminating redu
 #### Replacement Pattern for Eliminated Methods
 
 **Old Method 11: `addUserPrompt()`**
+
 ```javascript
 // OLD: Atomic operation
-const res = await window.electronAPI.thread.addUserPrompt(null, prompt, { title, description, model });
+const res = await window.electronAPI.thread.addUserPrompt(null, prompt, {
+  title,
+  description,
+  model,
+});
 
 // NEW: Two-step pattern
 const thread = await threadService.create({ title, description, metadata: { model } });
@@ -193,6 +211,7 @@ await threadService.appendMessage(thread.id, { role: 'user', content: prompt });
 ```
 
 **Old Method 12: `addAssistantResponse()`**
+
 ```javascript
 // OLD: Special method
 await window.electronAPI.thread.addAssistantResponse(threadId, response, model);
@@ -201,18 +220,19 @@ await window.electronAPI.thread.addAssistantResponse(threadId, response, model);
 await threadService.appendMessage(threadId, {
   role: 'assistant',
   content: response,
-  metadata: { model }
+  metadata: { model },
 });
 ```
 
 **Old Method 13: `savePromptAndResponses()`**
+
 ```javascript
 // OLD: Atomic operation
 const saved = await window.electronAPI.thread.savePromptAndResponses(
   null,
   userMessage,
   [{ text: responseText, model: 'llama3:latest' }],
-  { title, description }
+  { title, description },
 );
 
 // NEW: Sequential operations
@@ -491,7 +511,7 @@ export class MokuService {
     const response = await fetch(`${this.mokuApiBaseUrl}/api/threads`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
@@ -511,19 +531,16 @@ export class MokuService {
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
-    }
+    },
   ): Promise<{ message: Message; thread: Thread }> {
-    const response = await fetch(
-      `${this.mokuApiBaseUrl}/api/threads/${threadId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const response = await fetch(`${this.mokuApiBaseUrl}/api/threads/${threadId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
     if (!response.ok) {
       if (response.status === 413) {
@@ -564,8 +581,8 @@ export interface ThreadSummary {
   title: string;
   description?: string;
   status: 'active' | 'archived' | 'deleted';
-  createdAt: number;  // epoch ms
-  updatedAt: number;  // epoch ms
+  createdAt: number; // epoch ms
+  updatedAt: number; // epoch ms
   metadata?: {
     model?: string;
     projectId?: string;
@@ -583,7 +600,7 @@ export interface Message {
   threadId: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;  // epoch ms
+  createdAt: number; // epoch ms
   metadata?: {
     model?: string;
     provider?: string;
@@ -629,6 +646,7 @@ export class ThreadRepository {
 #### Read Operations (Cache-first)
 
 **listThreads()**
+
 ```typescript
 public async listThreads(): Promise<Thread[]> {
   // If cache not loaded, fetch all threads from API
@@ -658,6 +676,7 @@ private async loadThreadsFromApi(): Promise<void> {
 ```
 
 **loadThread(threadId)**
+
 ```typescript
 public async loadThread(threadId: string): Promise<Thread | null> {
   // Check cache first
@@ -682,6 +701,7 @@ public async loadThread(threadId: string): Promise<Thread | null> {
 ```
 
 **getMessages(threadId)**
+
 ```typescript
 public async getMessages(threadId: string): Promise<Message[]> {
   // Check if messages are cached
@@ -709,6 +729,7 @@ public async getMessages(threadId: string): Promise<Message[]> {
 #### Write Operations (Write-through)
 
 **createThread(metadata)**
+
 ```typescript
 public async createThread(metadata: ThreadMetadata): Promise<Thread> {
   const accessToken = await this.getAccessToken();
@@ -729,6 +750,7 @@ public async createThread(metadata: ThreadMetadata): Promise<Thread> {
 ```
 
 **appendMessage(threadId, payload)**
+
 ```typescript
 public async appendMessage(
   threadId: string,
@@ -775,6 +797,7 @@ public async appendMessage(
 ```
 
 **updateThreadMetadata(threadId, updates)**
+
 ```typescript
 public async updateThreadMetadata(
   threadId: string,
@@ -795,6 +818,7 @@ public async updateThreadMetadata(
 ```
 
 **softDeleteThread(threadId)**
+
 ```typescript
 public async softDeleteThread(threadId: string): Promise<boolean> {
   const accessToken = await this.getAccessToken();
@@ -817,6 +841,7 @@ public async softDeleteThread(threadId: string): Promise<boolean> {
 ```
 
 **deleteThread(threadId)**
+
 ```typescript
 public async deleteThread(threadId: string): Promise<boolean> {
   const accessToken = await this.getAccessToken();
@@ -872,6 +897,7 @@ public clearCache(): void {
 ### Flow Diagrams
 
 **First List Request:**
+
 ```
 Frontend → IPC Handler → ThreadRepository.listThreads()
                          ↓ (cache empty)
@@ -881,6 +907,7 @@ Frontend → IPC Handler → ThreadRepository.listThreads()
 ```
 
 **Subsequent List Request:**
+
 ```
 Frontend → IPC Handler → ThreadRepository.listThreads()
                          ↓ (cache loaded)
@@ -888,6 +915,7 @@ Frontend → IPC Handler → ThreadRepository.listThreads()
 ```
 
 **Create Thread:**
+
 ```
 Frontend → IPC Handler → ThreadRepository.createThread()
                          ↓
@@ -898,6 +926,7 @@ Frontend → IPC Handler → ThreadRepository.createThread()
 ```
 
 **Get Messages (first time):**
+
 ```
 Frontend → IPC Handler → ThreadRepository.getMessages(threadId)
                          ↓ (messages not cached)
@@ -1848,6 +1877,7 @@ DROP TABLE IF EXISTS desktop_threads CASCADE;
 ```
 
 5. **Testing**: Test migration on local/dev database before production:
+
 ```bash
 # Validate migration
 ./gradlew flywayValidate
@@ -1861,6 +1891,7 @@ DROP TABLE IF EXISTS desktop_threads CASCADE;
 
 6. **Dependencies**: Ensure `users` table exists before running this migration
 7. **Baseline**: If adding to existing database, may need to baseline:
+
 ```bash
 ./gradlew flywayBaseline
 ```
@@ -1919,14 +1950,15 @@ WHERE table_name IN ('desktop_threads', 'desktop_messages')
 The application uses different TypeScript interfaces at different layers:
 
 ### Backend Internal Thread (src-electron/repository/thread-repository.ts)
+
 ```typescript
 interface Thread {
   id: string;
   title: string;
-  metadata: ThreadMetadata;  // Required object
-  messages: Message[];       // Includes full message array
-  createdAt: number;         // Epoch milliseconds
-  updatedAt: number;         // Epoch milliseconds
+  metadata: ThreadMetadata; // Required object
+  messages: Message[]; // Includes full message array
+  createdAt: number; // Epoch milliseconds
+  updatedAt: number; // Epoch milliseconds
   deletedAt?: number | null;
 }
 
@@ -1942,28 +1974,30 @@ interface ThreadMetadata {
 ```
 
 ### IPC/Renderer Thread (src-electron/preload.ts, used by frontend)
+
 ```typescript
 interface Thread {
   id: string;
-  title: string;             // Flattened from metadata
-  description: string;       // Flattened from metadata
-  status: ThreadStatus;      // Flattened from metadata
-  createdAt: Date;           // Date objects (converted from epoch ms)
-  updatedAt: Date;           // Date objects
-  metadata?: Record<string, unknown>;  // Optional catch-all for other fields
+  title: string; // Flattened from metadata
+  description: string; // Flattened from metadata
+  status: ThreadStatus; // Flattened from metadata
+  createdAt: Date; // Date objects (converted from epoch ms)
+  updatedAt: Date; // Date objects
+  metadata?: Record<string, unknown>; // Optional catch-all for other fields
 }
 ```
 
 **Note**: The `toRendererThread()` function in thread-handler.ts converts between these representations.
 
 ### Backend Internal Message (src-electron/repository/thread-repository.ts)
+
 ```typescript
 interface Message {
   id: string;
-  threadId: string;          // Reference to parent thread
+  threadId: string; // Reference to parent thread
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;         // Epoch milliseconds
+  createdAt: number; // Epoch milliseconds
   metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
@@ -1971,25 +2005,27 @@ interface Message {
 ```
 
 ### Frontend Message (src/lib/types/thread.type.ts)
+
 ```typescript
 interface Message {
   id: string;
   clientMessageId?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;         // Epoch milliseconds
-  status?: MessageStatus;    // Frontend-specific state
-  attemptCount?: number;     // Frontend-specific retry tracking
+  createdAt: number; // Epoch milliseconds
+  status?: MessageStatus; // Frontend-specific state
+  attemptCount?: number; // Frontend-specific retry tracking
   metadata?: MessageMetadata;
 }
 ```
 
 ### MessageMetadata (src-shared/types/attachment.types.ts)
+
 ```typescript
 interface MessageMetadata {
   attachments?: Attachment[];
-  provider?: string;         // e.g., 'ollama', 'anthropic'
-  model?: string;            // e.g., 'llama3:latest', 'claude-3-opus'
+  provider?: string; // e.g., 'ollama', 'anthropic'
+  model?: string; // e.g., 'llama3:latest', 'claude-3-opus'
   [key: string]: unknown;
 }
 ```
@@ -1999,18 +2035,22 @@ interface MessageMetadata {
 ## Additional Considerations
 
 ### Authorization
+
 - All operations require authentication checks
 - Thread ownership validation via metadata.userId
 - Project access validation for move operations
 
 ### File Management
+
 - Thread deletion (hard and soft) should clean up associated files
 - File storage is handled via `fileStorageService`
 
 ### Idempotency
+
 - `appendMessage` supports idempotency via `clientMessageId`
 - Prevents duplicate messages on retry/network issues
 
 ### Size Limits
+
 - Message content limited to 8KB
 - Validation happens in `appendMessage`
