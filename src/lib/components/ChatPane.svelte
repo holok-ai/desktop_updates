@@ -224,6 +224,9 @@
   function setupTokenListener() {
     responseText = ''; // Clear previous response
 
+    // Remove any existing token listeners to prevent duplicates
+    window.electronAPI.chat.offToken();
+
     window.electronAPI.chat.onToken((token: string) => {
       console.log(token);
       // Force reactivity by creating a new string reference
