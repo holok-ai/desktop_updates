@@ -1,4 +1,5 @@
-import type { MessageStatus } from "./status.type.ts";
+import type { MessageMetadata } from '$shared/types/attachment.types.js';
+import type { MessageStatus } from './status.type.ts';
 
 export interface MessageVersion {
   content: string;
@@ -7,14 +8,16 @@ export interface MessageVersion {
 
 export interface Message {
   id: string;
+  clientMessageId?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;
   status?: MessageStatus;
   retryCount?: number;
   error?: string;
-  clientMessageId?: string;
   editedAt?: number;
   originalMessageId?: string;
   isEdited?: boolean;
-};
+  versions?: MessageVersion[];
+  metadata?: MessageMetadata;
+}

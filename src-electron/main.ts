@@ -5,10 +5,12 @@ import { fileURLToPath } from 'node:url';
 import log, { createScopedLogger } from './utils/logger.js';
 import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
-import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { registerProjectHandlers } from './ipc-handlers/project-handler.js';
+import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
+import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -96,6 +98,16 @@ function createMenu(): void {
             // Send message to renderer to open new thread dialog
             if (mainWindow) {
               mainWindow.webContents.send('menu:new-thread');
+            }
+          },
+        },
+        {
+          label: 'New Project...',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => {
+            // Send message to renderer to open new project dialog
+            if (mainWindow) {
+              mainWindow.webContents.send('menu:new-project');
             }
           },
         },
@@ -205,6 +217,9 @@ function registerIpcHandlers(): void {
   // Register thread-related IPC handlers
   registerThreadHandlers();
 
+  // Register project-related IPC handlers
+  registerProjectHandlers();
+
   // Register models (Moku) handlers
   registerModelsHandlers();
 
@@ -213,6 +228,9 @@ function registerIpcHandlers(): void {
 
   // Register chat-related IPC handlers
   registerChatHandlers();
+
+  // Register file upload/download IPC handlers
+  registerFileHandlers();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
@@ -229,6 +247,12 @@ function registerIpcHandlers(): void {
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
     protocolLog.debug('[Renderer]', message, ...params);
+  });
+
+  // Forward backend error events (from services or tests) to renderer
+  ipcMain.on('backend:error', (_event, payload: Record<string, unknown>) => {
+    protocolLog.warn('[Backend] forwarding error event', payload);
+    broadcast('message:error', payload);
   });
 }
 

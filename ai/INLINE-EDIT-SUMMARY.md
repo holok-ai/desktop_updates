@@ -1,11 +1,13 @@
 # Inline Message Editing - Implementation Summary
 
 ## Overview
+
 Messages can now be edited directly inline by clicking the edit button (✎) on user messages. The message content transforms into an editable textarea right in place, with Save & Cancel buttons appearing below.
 
 ## User Experience
 
 ### How to Edit a Message
+
 1. **Click the edit button (✎)** on any user message
 2. **Message transforms** into an editable textarea
 3. **Make your changes** directly in the message
@@ -17,6 +19,7 @@ Messages can now be edited directly inline by clicking the edit button (✎) on 
    - Pressing `Escape` key
 
 ### What Happens After Saving
+
 - Message is updated with your changes
 - "✎ Edited" indicator appears next to timestamp
 - All messages after the edited one are deleted
@@ -26,16 +29,20 @@ Messages can now be edited directly inline by clicking the edit button (✎) on 
 ## Technical Implementation
 
 ### Component: MessageBubble
+
 **Location:** `src/lib/components/MessageBubble.svelte`
 
 #### State Management
+
 ```typescript
-let isEditingInline = $state(false);  // Tracks if message is being edited
-let editedContent = $state('');       // Stores temporary edit content
+let isEditingInline = $state(false); // Tracks if message is being edited
+let editedContent = $state(''); // Stores temporary edit content
 ```
 
 #### Edit Mode UI
+
 When `isEditingInline` is true:
+
 - Message content replaced with `<textarea>`
 - Textarea auto-sizes based on content (min 3 rows)
 - Focused automatically with `autofocus` attribute
@@ -43,6 +50,7 @@ When `isEditingInline` is true:
 - Action buttons appear below textarea
 
 #### Keyboard Shortcuts
+
 ```typescript
 onkeydown={(e) => {
   if (e.key === 'Escape') {
@@ -55,6 +63,7 @@ onkeydown={(e) => {
 ```
 
 #### Visual Design
+
 - **Edit Textarea**: Blue border (2px #646cff), focus shadow
 - **Save Button**: Primary blue button, disabled when empty
 - **Cancel Button**: Gray secondary button
@@ -62,9 +71,11 @@ onkeydown={(e) => {
 - **Auto-height**: Textarea grows/shrinks with content
 
 ### Component: ChatPane
+
 **Location:** `src/lib/components/ChatPane.svelte`
 
 #### Edit Flow Handler
+
 ```typescript
 function handleEdit(messageId: string, newContent: string) {
   handleEditAndRegenerate(messageId, newContent);
@@ -72,6 +83,7 @@ function handleEdit(messageId: string, newContent: string) {
 ```
 
 #### Edit and Regenerate Process
+
 1. **Update message** in backend via `threadService.updateMessage()`
 2. **Update UI state** - mark message as edited
 3. **Delete subsequent messages** via `threadService.deleteMessagesAfter()`
@@ -80,6 +92,7 @@ function handleEdit(messageId: string, newContent: string) {
 6. **Handle streaming** - use existing token listener
 
 ### Props Flow
+
 ```
 ChatPane
   └─> onEdit={(messageId, newContent) => handleEdit()}
@@ -92,13 +105,14 @@ ChatPane
 ## Styling Details
 
 ### Edit Textarea
+
 ```css
 .edit-textarea {
   width: 100%;
   padding: 0.5rem;
-  border: 2px solid #646cff;        /* Blue border */
+  border: 2px solid #646cff; /* Blue border */
   border-radius: 6px;
-  font-family: inherit;              /* Match message font */
+  font-family: inherit; /* Match message font */
   font-size: inherit;
   resize: vertical;
   min-height: 60px;
@@ -107,22 +121,23 @@ ChatPane
 
 .edit-textarea:focus {
   outline: none;
-  border-color: #535bf2;             /* Darker blue on focus */
-  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);  /* Glow effect */
+  border-color: #535bf2; /* Darker blue on focus */
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1); /* Glow effect */
 }
 ```
 
 ### Action Buttons
+
 ```css
 .save-button {
-  background: #646cff;    /* Primary brand color */
+  background: #646cff; /* Primary brand color */
   color: white;
   padding: 0.375rem 0.75rem;
   font-weight: 500;
 }
 
 .cancel-button {
-  background: #f0f0f0;    /* Neutral gray */
+  background: #f0f0f0; /* Neutral gray */
   color: #333;
   border: 1px solid #ccc;
 }
@@ -131,6 +146,7 @@ ChatPane
 ## Advantages of Inline Editing
 
 ### UX Benefits
+
 1. **Contextual** - Edit exactly where the message appears
 2. **Clear visual state** - Blue border makes edit mode obvious
 3. **Fast** - No navigation to different input area
@@ -138,6 +154,7 @@ ChatPane
 5. **Discoverable** - Edit button visible on hover/focus
 
 ### Technical Benefits
+
 1. **Simpler state** - No global edit mode in ChatPane
 2. **Isolated logic** - All edit UI in MessageBubble component
 3. **Better encapsulation** - Each message manages its own edit state
@@ -182,4 +199,3 @@ ChatPane
 - ✅ Version history button appears
 - ✅ Streaming works after edit
 - ✅ Offline state handled correctly
-

@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Thread } from '../../../src-electron/preload';
+import type { Thread } from '../../../src-electron/preload.js';
 
 interface ThreadStore {
   subscribe: (run: (value: Thread[]) => void) => () => void;
@@ -20,8 +20,10 @@ function createThreadStore(): ThreadStore {
         const updated = [...threads, thread];
         // Sort by createdAt, newest first (matching server-side sort)
         return updated.sort((a, b) => {
-          const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
-          const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
+          const aTime =
+            typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
+          const bTime =
+            typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
           return bTime - aTime;
         });
       });

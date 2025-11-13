@@ -17,7 +17,10 @@ test.describe('Optimistic Message Rendering', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -35,23 +38,22 @@ test.describe('Optimistic Message Rendering', () => {
     const testMessage = 'X'.repeat(9000);
     await page.fill('[data-testid="message-input"]', testMessage);
     await page.click('[data-testid="send-button"]');
-    
+
     // Verify message appears optimistically
     await page.waitForSelector(`text=${testMessage}`, { timeout: 100 });
-    
+
     // Wait for failure status (after timeout)
     const failedIndicator = await page.waitForSelector('.status-failed', { timeout: 12000 });
     expect(failedIndicator).toBeTruthy();
-    
+
     // Verify retry button is visible
     const retryButton = await page.locator('button:has-text("Retry")');
     await expect(retryButton).toBeVisible();
-    
+
     // Click retry button
     await retryButton.click();
-    
+
     // Verify message fails again (oversized) after retry
     await page.waitForSelector('.status-failed', { timeout: 12000 });
   });
 });
-

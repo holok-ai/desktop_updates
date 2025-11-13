@@ -39,7 +39,13 @@
 
 <div class="modal-overlay" onclick={onClose} role="presentation">
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-content" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+  <div
+    class="modal-content"
+    onclick={(e) => e.stopPropagation()}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
     <div class="modal-header">
       <h3>Edit History</h3>
       <button class="close-button" onclick={onClose} aria-label="Close">×</button>

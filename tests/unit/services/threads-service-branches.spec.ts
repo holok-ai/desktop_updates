@@ -75,7 +75,9 @@ describe('ThreadRepository branches (error paths)', () => {
   it('replaceMessages replaces messages when thread exists', () => {
     const t = svc.createThread({ title: 'r' });
     svc.addMessage(t.id, 'user', 'old');
-    const newMsgs = [{ id: 'x', role: 'assistant' as const, content: 'n1', createdAt: Date.now(), title: 'x' }];
+    const newMsgs = [
+      { id: 'x', role: 'assistant' as const, content: 'n1', createdAt: Date.now(), title: 'x' },
+    ];
     const updated = svc.replaceMessages(t.id, newMsgs);
     expect(updated.messages).toHaveLength(1);
     expect(updated.messages[0].content).toBe('n1');

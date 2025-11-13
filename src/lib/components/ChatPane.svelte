@@ -10,15 +10,18 @@
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
+  import MoveThreadModal from './modals/MoveThreadModal.svelte';
 
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
     composer?: import('svelte').Snippet<
-      [{ 
-        sendMessage: (message: string) => Promise<void>; 
-        isStreaming: boolean;
-      }]
+      [
+        {
+          sendMessage: (message: string) => Promise<void>;
+          isStreaming: boolean;
+        },
+      ]
     >;
   }
 
@@ -30,6 +33,9 @@
   let isStreaming = $state(false);
   let error = $state('');
   let isOnline = $state(true);
+  let toast = $state('');
+  let toastTimeout: number | null = null;
+  let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
@@ -37,9 +43,14 @@
   const transmitter = new MessageTransmitter({
     onMessageUpdate: (update) => {
       messages = messages.map((message) =>
-        message.id === update.messageId 
-          ? { ...message, status: update.status, error: update.error, retryCount: update.retryCount ?? message.retryCount } 
-          : message
+        message.id === update.messageId
+          ? {
+              ...message,
+              status: update.status,
+              error: update.error,
+              retryCount: update.retryCount ?? message.retryCount,
+            }
+          : message,
       );
     },
     onMessagesReplace: (newMessages) => {
@@ -50,7 +61,7 @@
     },
     onThreadCreated: (newThread, tempId) => {
       dispatch('threadCreated', { thread: newThread, tempId });
-    }
+    },
   });
 
   // Subscribe to network status and process queue only on offline->online transition
@@ -82,6 +93,13 @@
     chatServiceCreated = true;
   }
 
+  function showToast(message: string, ms = 2500) {
+    toast = message;
+    if (toastTimeout) window.clearTimeout(toastTimeout);
+    // @ts-ignore - window.setTimeout returns number in browser
+    toastTimeout = window.setTimeout(() => (toast = ''), ms);
+  }
+
   // Setup token listener for streaming responses
   function setupTokenListener() {
     responseText = ''; // Clear previous response
@@ -104,13 +122,13 @@
   }
 
   // Send message and handle streaming response
-  async function sendMessage(userMessage: string) {
+  async function sendMessage(userMessage: string, attachments: any[] = []) {
     if (!chatServiceCreated) {
       error = 'Chat service not initialized';
       return;
     }
 
-    if (!userMessage.trim()) return;
+    if (!userMessage.trim() && attachments.length === 0) return;
 
     error = '';
 
@@ -171,9 +189,9 @@
               content: updatedMessage.content,
               isEdited: updatedMessage.isEdited ?? true,
               editedAt: updatedMessage.editedAt ?? Date.now(),
-              versions: updatedMessage.versions
+              versions: updatedMessage.versions,
             }
-          : message
+          : message,
       );
 
       const deleteResult = await threadService.deleteMessagesAfter(thread.id, messageId);
@@ -236,8 +254,10 @@
       setupTokenListener,
       getResponseText: () => responseText,
       chat: (request) => window.electronAPI.chat.chat(request),
-      setStreaming: (streaming) => { isStreaming = streaming; },
-      offToken: () => window.electronAPI.chat.offToken()
+      setStreaming: (streaming) => {
+        isStreaming = streaming;
+      },
+      offToken: () => window.electronAPI.chat.offToken(),
     });
   }
 
@@ -264,12 +284,31 @@
 {:else}
   <div class="chat-pane">
     <div class="chat-header">
-      <h2>{thread.title}</h2>
-      <div class="meta">{thread.description}</div>
+      {#key thread?.id}
+        <div class="header-content">
+          <div>
+            <h2>{thread.title}</h2>
+            <div class="meta">{thread.description}</div>
+          </div>
+          <button
+            class="move-thread-btn"
+            onclick={() => (showMoveModal = true)}
+            aria-label="Move thread to project"
+            title="Move thread to project"
+          >
+            <i class="pi pi-folder-open"></i>
+            Move
+          </button>
+        </div>
+      {/key}
     </div>
 
     {#if error}
       <div class="error-banner">{error}</div>
+    {/if}
+
+    {#if toast}
+      <div class="toast">{toast}</div>
     {/if}
 
     <div class="messages">
@@ -282,7 +321,9 @@
             onRetry={retryMessage}
             onEdit={handleEdit}
             onShowVersions={handleShowVersions}
+            threadId={thread?.id}
             {isStreaming}
+            on:copied={(event) => showToast(event.detail.message)}
           />
         {/each}
       {/if}
@@ -312,10 +353,20 @@
       threadId={thread.id}
       messageId={showVersionsFor.messageId}
       currentContent={showVersionsFor.content}
-      onClose={() => showVersionsFor = undefined}
+      onClose={() => (showVersionsFor = undefined)}
     />
   {/if}
 {/if}
+
+<MoveThreadModal
+  bind:show={showMoveModal}
+  bind:thread
+  on:moved={(e) => {
+    const { projectId } = e.detail;
+    void threadService.getAll();
+    showToast(`Thread moved ${projectId ? 'to project' : 'to general history'}`);
+  }}
+/>
 
 <style>
   .chat-pane {
@@ -327,8 +378,94 @@
     background: var(--surface-main);
   }
 
+  .chat-header {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--surface-border, rgba(15, 23, 42, 0.12));
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .header-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    overflow: visible;
+    position: relative; /* allow absolute positioning of the action button */
+    padding-right: 128px; /* reserve space so title doesn't sit under the button */
+  }
+  /* Ensure the title/description area can shrink and ellipsis without pushing the action button */
+  .header-content > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .chat-header h2 {
     margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #f8fafc);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-header .meta {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary, rgba(148, 163, 184, 0.9));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .move-thread-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface-overlay, rgba(148, 163, 184, 0.12));
+    color: var(--text-primary, #f8fafc);
+    border: 1px solid var(--surface-border, rgba(148, 163, 184, 0.35));
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    /* Pin to the right; independent of grid reflow during sidebar collapse/expand */
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: max-content;
+  }
+
+  .move-thread-btn:hover {
+    background: var(--surface-hover, rgba(148, 163, 184, 0.2));
+    border-color: var(--primary-color, #2563eb);
+  }
+
+  .move-thread-btn i {
+    font-size: 0.875rem;
+    color: var(--text-primary, #f8fafc);
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    line-height: 1em;
+    font-style: normal;
+    font-family: 'PrimeIcons', primeicons, sans-serif;
+  }
+  .toast {
+    position: absolute;
+    right: 1rem;
+    top: 3.5rem;
+    background: #111827;
+    color: #fff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
   .error-banner {

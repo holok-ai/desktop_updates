@@ -1,9 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { ChatRequest, ChatRequestWithOptions } from './services/chat/interfaces/ChatMessage.js';
+import type {
+  ChatRequest,
+  ChatRequestWithOptions,
+} from './services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
 import type { ThreadStatus } from '$lib/types/status.type.js';
-import type { AppThemeMode } from '$lib/types/app.type.js';
+import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
+import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type { Project } from '$lib/types/project.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -40,10 +45,15 @@ export interface ThreadAPI {
   // Soft delete a thread (deletedAt timestamp)
   softDelete: (id: string) => Promise<boolean>;
 
+  // Move thread to/from a project
+  moveToProject: (
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ) => Promise<Thread>;
+
   // Get messages for a thread (persisted)
-  getMessages: (
-    id: string,
-  ) => Promise<Message[]>;
+  getMessages: (id: string) => Promise<Message[]>;
 
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
@@ -102,8 +112,7 @@ export interface ThreadAPI {
     messageId: string,
     newContent: string,
   ) => Promise<
-    | { success: true; message: Message; thread: Thread }
-    | { success: false; error: string }
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
   >;
 
   // Get message versions
@@ -119,14 +128,21 @@ export interface ThreadAPI {
   deleteMessagesAfter: (
     threadId: string,
     messageId: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; error: string }
-  >;
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
 
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
+  ) => () => void;
+  // Listen for message error events (e.g., delivery/provider errors)
+  onMessageError: (
+    callback: (evt: {
+      thread_id?: string;
+      message_id?: string;
+      client_message_id?: string;
+      timestamp?: string;
+      error?: Record<string, unknown>;
+    }) => void,
   ) => () => void;
 }
 
@@ -143,6 +159,43 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * Project API
+ *
+ * Project-related operations for organizing threads.
+ */
+export interface ProjectAPI {
+  // Get all projects
+  getAll: () => Promise<Project[]>;
+
+  // Get a single project by ID
+  getById: (id: GUID) => Promise<Project | null>;
+
+  // Create a new project
+  create: (data: {
+    title: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }) => Promise<Project>;
+
+  // Update an existing project
+  update: (
+    id: GUID,
+    updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+  ) => Promise<Project>;
+
+  // Delete a project
+  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+
+  // Get thread count for a project
+  getThreads: (projectId: GUID) => Promise<number>;
+
+  // Listen to project events
+  onProjectCreated: (callback: (project: Project) => void) => () => void;
+  onProjectUpdated: (callback: (project: Project) => void) => () => void;
+  onProjectDeleted: (callback: (projectId: GUID) => void) => () => void;
 }
 
 /**
@@ -328,6 +381,80 @@ export interface ChatAPI {
 }
 
 /**
+ * File API for file upload and management
+ */
+export interface FileAPI {
+  // Upload file to storage
+  upload: (payload: {
+    threadId: string;
+    fileBuffer: Buffer;
+    filename: string;
+    mimeType: string;
+  }) => Promise<{
+    success: boolean;
+    attachment?: Attachment;
+    error?: string;
+  }>;
+
+  // Get file by ID
+  get: (payload: {
+    threadId: string;
+    fileId: string;
+  }) => Promise<{ success: boolean; buffer?: Buffer; error?: string }>;
+
+  // Delete file
+  delete: (payload: {
+    threadId: string;
+    fileId: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+
+  // Validate file before upload
+  validate: (payload: {
+    filename: string;
+    mimeType: string;
+    size: number;
+  }) => Promise<FileValidationResult>;
+
+  // Request preview token for secure file access
+  preview: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
+    success: boolean;
+    token?: string;
+    fileInfo?: {
+      filename: string;
+      mimeType: string;
+      size: number;
+      isPreviewable: boolean;
+      canInlinePreview: boolean;
+    };
+    error?: string;
+  }>;
+
+  // Request download token for secure file access
+  download: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
+    success: boolean;
+    token?: string;
+    fileInfo?: {
+      filename: string;
+      mimeType: string;
+      size: number;
+    };
+    error?: string;
+  }>;
+
+  // Get file with token (secure retrieval)
+  getWithToken: (payload: { token: string }) => Promise<{
+    success: boolean;
+    buffer?: Buffer;
+    filename?: string;
+    mimeType?: string;
+    error?: string;
+  }>;
+
+  // Listen for upload progress events
+  onUploadProgress: (callback: (data: { fileId: string; progress: number }) => void) => () => void;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
@@ -336,8 +463,10 @@ export interface ElectronAPI {
   settings: SettingsAPI;
   models: ModelsAPI;
   thread: ThreadAPI;
+  project: ProjectAPI;
   system: SystemAPI;
   log: LogAPI;
+  file: FileAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -476,6 +605,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
 
+    moveToProject: (
+      threadId: string,
+      targetProjectId: string | null,
+      options?: { privacyMode?: string; contextHandling?: string },
+    ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
+
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
     getMessages: (id: string) => ipcRenderer.invoke('thread:getMessages', id),
@@ -555,6 +690,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('message:persisted', subscription);
       };
     },
+    // Listen for message error events forwarded from main process
+    onMessageError: (
+      callback: (evt: {
+        thread_id?: string;
+        message_id?: string;
+        client_message_id?: string;
+        timestamp?: string;
+        error?: Record<string, unknown>;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          thread_id?: string;
+          message_id?: string;
+          client_message_id?: string;
+          timestamp?: string;
+          error?: Record<string, unknown>;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('message:error', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('message:error', subscription);
+      };
+    },
   } as ThreadAPI,
 
   /**
@@ -580,6 +740,100 @@ contextBridge.exposeInMainWorld('electronAPI', {
     debug: (message: string, ...params: unknown[]): void =>
       ipcRenderer.send('log:debug', message, ...params),
   } as LogAPI,
+
+  /**
+   * File API Implementation
+   * Handles file upload, download, and validation
+   */
+  file: {
+    upload: (payload: {
+      threadId: string;
+      fileBuffer: Buffer;
+      filename: string;
+      mimeType: string;
+    }) => ipcRenderer.invoke('file:upload', payload),
+
+    get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
+
+    delete: (payload: { threadId: string; fileId: string }) =>
+      ipcRenderer.invoke('file:delete', payload),
+
+    validate: (payload: { filename: string; mimeType: string; size: number }) =>
+      ipcRenderer.invoke('file:validate', payload),
+
+    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:preview', payload),
+
+    download: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:download', payload),
+
+    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
+
+    onUploadProgress: (
+      callback: (data: { fileId: string; progress: number }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { fileId: string; progress: number },
+      ): void => callback(data);
+      ipcRenderer.on('file:uploadProgress', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('file:uploadProgress', subscription);
+      };
+    },
+  } as FileAPI,
+
+  /**
+   * Project API Implementation
+   */
+  project: {
+    getAll: () => ipcRenderer.invoke('project:getAll'),
+
+    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
+
+    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('project:create', data),
+
+    update: (
+      id: GUID,
+      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+    ) => ipcRenderer.invoke('project:update', id, updates),
+
+    delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
+      ipcRenderer.invoke('project:delete', id, options),
+
+    getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
+
+    // Event listeners with cleanup function
+    onProjectCreated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:created', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:created', subscription);
+      };
+    },
+
+    onProjectUpdated: (callback: (project: Project) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, project: Project): void => callback(project);
+      ipcRenderer.on('project:updated', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:updated', subscription);
+      };
+    },
+
+    onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
+      ipcRenderer.on('project:deleted', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('project:deleted', subscription);
+      };
+    },
+  } as ProjectAPI,
 
   /**
    * Menu Command Listener

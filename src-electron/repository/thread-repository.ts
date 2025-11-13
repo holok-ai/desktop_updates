@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
+import { fileStorageService } from '../services/file-storage.service.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -17,7 +19,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   createdAt: number;
-  metadata?: Record<string, unknown>;
+  metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
   editedAt?: number;
@@ -73,7 +75,13 @@ export class ThreadRepository {
     const now = Date.now();
     const existing = this.threadsById.get(thread.id);
     const toSave: Thread = existing
-      ? { ...existing, title: typeof thread.title === 'string' ? thread.title : existing.title, metadata: { ...thread.metadata }, messages: [...thread.messages], updatedAt: now }
+      ? {
+          ...existing,
+          title: typeof thread.title === 'string' ? thread.title : existing.title,
+          metadata: { ...thread.metadata },
+          messages: [...thread.messages],
+          updatedAt: now,
+        }
       : { ...thread, createdAt: thread.createdAt ?? now, updatedAt: now };
     this.threadsById.set(toSave.id, toSave);
     this.saveToDisk();
@@ -95,7 +103,13 @@ export class ThreadRepository {
   public addMessage(threadId: string, role: MessageRole, content: string): Message {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    const message: Message = { id: generateId('msg_'), title: thread.title, role, content, createdAt: Date.now() };
+    const message: Message = {
+      id: generateId('msg_'),
+      title: thread.title,
+      role,
+      content,
+      createdAt: Date.now(),
+    };
     thread.messages.push(message);
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
@@ -105,7 +119,12 @@ export class ThreadRepository {
 
   public appendMessage(
     threadId: string,
-    payload: { role: MessageRole; content: string; metadata?: Record<string, unknown>; clientMessageId?: string },
+    payload: {
+      role: MessageRole;
+      content: string;
+      metadata?: Record<string, unknown>;
+      clientMessageId?: string;
+    },
   ): Message {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
@@ -141,6 +160,24 @@ export class ThreadRepository {
     return { ...message };
   }
 
+  /**
+   * Duplicate an existing message within the same thread by message id.
+   * Preserves exact content and metadata. Only user prompts may be duplicated.
+   */
+  public duplicateMessage(threadId: string, messageId: string): Message {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+    const original = thread.messages.find((m) => m.id === messageId);
+    if (!original) throw new Error(`Message not found: ${messageId}`);
+    if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
+    // Use appendMessage to preserve idempotency and size checks
+    return this.appendMessage(threadId, {
+      role: 'user',
+      content: original.content,
+      metadata: original.metadata,
+    });
+  }
+
   public addUserPrompt(
     threadId: string | null | undefined,
     prompt: string,
@@ -148,7 +185,11 @@ export class ThreadRepository {
   ): { thread: Thread; message: Message } {
     let tid = threadId;
     if (!tid) {
-      const th = this.createThread({ title: opts.title, description: opts.description, model: opts.model });
+      const th = this.createThread({
+        title: opts.title,
+        description: opts.description,
+        model: opts.model,
+      });
       tid = th.id;
     }
     const message = this.addMessage(tid, 'user', prompt);
@@ -223,6 +264,12 @@ export class ThreadRepository {
   }
 
   public deleteThread(threadId: string): boolean {
+    // Delete associated files before deleting thread
+    fileStorageService.deleteThreadFiles(threadId).catch((error) => {
+      console.error('[ThreadRepository] Failed to delete thread files:', error);
+      // Continue with thread deletion even if file deletion fails
+    });
+
     const deleted = this.threadsById.delete(threadId);
     if (deleted) this.saveToDisk();
     return deleted;
@@ -231,6 +278,13 @@ export class ThreadRepository {
   public softDeleteThread(threadId: string): boolean {
     const thread = this.threadsById.get(threadId);
     if (!thread) return false;
+
+    // Delete associated files on soft delete as well
+    fileStorageService.deleteThreadFiles(threadId).catch((error) => {
+      console.error('[ThreadRepository] Failed to delete thread files:', error);
+      // Continue with soft delete even if file deletion fails
+    });
+
     thread.deletedAt = Date.now();
     thread.metadata = { ...thread.metadata, status: 'deleted' };
     thread.updatedAt = Date.now();
@@ -286,7 +340,7 @@ export class ThreadRepository {
       ...message,
       isEdited: true,
       editedAt: message.editedAt,
-      versions: message.versions ? [...message.versions] : []
+      versions: message.versions ? [...message.versions] : [],
     };
   }
 
@@ -335,7 +389,15 @@ export class ThreadRepository {
   }
 
   private cloneThread(thread: Thread): Thread {
-    return { id: thread.id, title: thread.title, metadata: { ...thread.metadata }, messages: thread.messages.map((m) => ({ ...m })), createdAt: thread.createdAt, updatedAt: thread.updatedAt, deletedAt: thread.deletedAt ?? null };
+    return {
+      id: thread.id,
+      title: thread.title,
+      metadata: { ...thread.metadata },
+      messages: thread.messages.map((m) => ({ ...m })),
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      deletedAt: thread.deletedAt ?? null,
+    };
   }
 
   private getStorePath(): string | null {
@@ -400,4 +462,3 @@ export class ThreadRepository {
 export const threadRepository = new ThreadRepository();
 
 export default ThreadRepository;
-

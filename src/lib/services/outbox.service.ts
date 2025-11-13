@@ -20,7 +20,9 @@ const TIMEOUT_MS = 10000;
 
 class OutboxService {
   private db: IDBDatabase | null = null;
-  private pendingMessages: Writable<Map<string, PendingMessage>> = writable<Map<string, PendingMessage>>(new Map<string, PendingMessage>());
+  private pendingMessages: Writable<Map<string, PendingMessage>> = writable<
+    Map<string, PendingMessage>
+  >(new Map<string, PendingMessage>());
   private retryTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   async init(): Promise<void> {
@@ -122,7 +124,7 @@ class OutboxService {
   async updateMessageStatus(
     messageId: string,
     status: MessageStatus,
-    error?: string
+    error?: string,
   ): Promise<void> {
     if (status === MESSAGE_STATUS.SENT) {
       await this.removePendingMessage(messageId);
@@ -143,7 +145,7 @@ class OutboxService {
   scheduleRetry(
     messageId: string,
     retryFn: () => Promise<void>,
-    delay: number = RETRY_DELAY
+    delay: number = RETRY_DELAY,
   ): void {
     // Clear existing timer
     const existingTimer = this.retryTimers.get(messageId);
@@ -217,4 +219,3 @@ class OutboxService {
 }
 
 export const outboxService = new OutboxService();
-
