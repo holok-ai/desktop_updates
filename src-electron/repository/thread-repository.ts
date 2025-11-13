@@ -340,7 +340,7 @@ export class ThreadRepository {
       ...message,
       isEdited: true,
       editedAt: message.editedAt,
-      versions: message.versions ? [...message.versions] : []
+      versions: message.versions ? [...message.versions] : [],
     };
   }
 

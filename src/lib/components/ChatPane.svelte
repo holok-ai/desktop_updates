@@ -15,10 +15,12 @@
     thread?: Thread | null;
     messages?: Message[];
     composer?: import('svelte').Snippet<
-      [{ 
-        sendMessage: (message: string) => Promise<void>; 
-        isStreaming: boolean;
-      }]
+      [
+        {
+          sendMessage: (message: string) => Promise<void>;
+          isStreaming: boolean;
+        },
+      ]
     >;
   }
 
@@ -40,9 +42,14 @@
   const transmitter = new MessageTransmitter({
     onMessageUpdate: (update) => {
       messages = messages.map((message) =>
-        message.id === update.messageId 
-          ? { ...message, status: update.status, error: update.error, retryCount: update.retryCount ?? message.retryCount } 
-          : message
+        message.id === update.messageId
+          ? {
+              ...message,
+              status: update.status,
+              error: update.error,
+              retryCount: update.retryCount ?? message.retryCount,
+            }
+          : message,
       );
     },
     onMessagesReplace: (newMessages) => {
@@ -53,7 +60,7 @@
     },
     onThreadCreated: (newThread, tempId) => {
       dispatch('threadCreated', { thread: newThread, tempId });
-    }
+    },
   });
 
   // Subscribe to network status and process queue only on offline->online transition
@@ -181,9 +188,9 @@
               content: updatedMessage.content,
               isEdited: updatedMessage.isEdited ?? true,
               editedAt: updatedMessage.editedAt ?? Date.now(),
-              versions: updatedMessage.versions
+              versions: updatedMessage.versions,
             }
-          : message
+          : message,
       );
 
       const deleteResult = await threadService.deleteMessagesAfter(thread.id, messageId);
@@ -246,8 +253,10 @@
       setupTokenListener,
       getResponseText: () => responseText,
       chat: (request) => window.electronAPI.chat.chat(request),
-      setStreaming: (streaming) => { isStreaming = streaming; },
-      offToken: () => window.electronAPI.chat.offToken()
+      setStreaming: (streaming) => {
+        isStreaming = streaming;
+      },
+      offToken: () => window.electronAPI.chat.offToken(),
     });
   }
 
@@ -341,7 +350,7 @@
       threadId={thread.id}
       messageId={showVersionsFor.messageId}
       currentContent={showVersionsFor.content}
-      onClose={() => showVersionsFor = undefined}
+      onClose={() => (showVersionsFor = undefined)}
     />
   {/if}
 {/if}

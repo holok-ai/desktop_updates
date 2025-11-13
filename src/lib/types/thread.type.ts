@@ -1,5 +1,5 @@
-import type { MessageMetadata } from "$shared/types/attachment.types.js";
-import type { MessageStatus } from "./status.type.ts";
+import type { MessageMetadata } from '$shared/types/attachment.types.js';
+import type { MessageStatus } from './status.type.ts';
 
 export interface MessageVersion {
   content: string;
@@ -20,4 +20,4 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
-};
+}

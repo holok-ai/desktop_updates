@@ -41,12 +41,14 @@ This document describes the implementation of optimistic message rendering in th
 ## User Experience
 
 ### Happy Path
+
 1. User types message and clicks Send
 2. Message appears immediately with "Sending..." status (opacity 0.5)
 3. Within 2s, status updates to "Sent" with full opacity
 4. Timestamp shows local time
 
 ### Failure Path
+
 1. Message fails to send after 10s timeout
 2. Status changes to "Failed" with red warning icon
 3. Retry button appears inline
@@ -54,6 +56,7 @@ This document describes the implementation of optimistic message rendering in th
 5. Original timestamp and content preserved
 
 ### Offline Mode
+
 1. Network service detects offline status
 2. Message renders with "Offline" status
 3. Added to pending queue in IndexedDB
@@ -102,10 +105,12 @@ Schedule retry (if < max retries)
 ## Testing
 
 ### Unit Tests
+
 - `tests/unit/services/outbox.service.spec.ts`: Outbox CRUD, retry logic
 - `tests/unit/services/network.service.spec.ts`: Online/offline detection
 
 ### E2E Tests
+
 - `tests/e2e/optimistic-rendering.spec.ts`:
   - Scenario 1: Display Message Instantly (< 100ms)
   - Scenario 2: Message Send Failure (timeout + retry)
@@ -115,12 +120,14 @@ Schedule retry (if < max retries)
 ## Configuration
 
 ### Constants (in `outbox.service.ts`)
+
 - `MAX_RETRIES`: 3
 - `RETRY_DELAY`: 2000ms (2s between retries)
 - `TIMEOUT_MS`: 10000ms (10s timeout)
 - `DB_NAME`: 'HolokaiOutbox'
 
 ### Status Indicators
+
 - ● (sending) - Pulsing dot
 - ✓ (sent) - Checkmark
 - ⚠ (failed) - Warning triangle
@@ -144,4 +151,3 @@ Schedule retry (if < max retries)
 ## Migration Notes
 
 No data migration required. Existing messages without status field default to 'sent'. New messages automatically include status tracking.
-

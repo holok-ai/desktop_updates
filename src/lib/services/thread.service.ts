@@ -56,87 +56,98 @@ class ThreadService {
     return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
   }
 
-	async appendMessage(
-		threadId: string,
-		payload: {
-			role: 'user' | 'assistant' | 'system';
-			content: string;
-			metadata?: Record<string, unknown>;
-			clientMessageId?: string;
-		},
-	): Promise<
-		| { success: true; message: { id: string; role: string; content: string; createdAt: number }; thread: Thread }
-		| { success: false; status: number; error: string; threadId?: string }
-	> {
-		type AppendWire = {
-			role: 'user' | 'assistant' | 'system';
-			content: string;
-			metadata?: Record<string, unknown>;
-		} & Record<string, unknown>;
-		const wirePayload: AppendWire = {
-			role: payload.role,
-			content: payload.content,
-			metadata: payload.metadata,
-		};
-		if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
-			(wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
-		}
-		const res: unknown = await window.electronAPI.thread.appendMessage(threadId, wirePayload);
-		if (typeof res === 'object' && res !== null && (res as { success?: boolean }).success === true) {
-			return res as {
-				success: true;
-				message: { id: string; role: string; content: string; createdAt: number };
-				thread: Thread;
-			};
-		}
-		const failure = res as { status: number; error: string } & Record<string, unknown>;
-		let threadIdCamel: string | undefined;
-		const maybeThreadId = (failure as Record<string, unknown>).thread_id;
-		if (typeof maybeThreadId === 'string') {
-			threadIdCamel = maybeThreadId;
-		}
-		return { success: false, status: failure.status, error: failure.error, threadId: threadIdCamel };
-	}
+  async appendMessage(
+    threadId: string,
+    payload: {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      metadata?: Record<string, unknown>;
+      clientMessageId?: string;
+    },
+  ): Promise<
+    | {
+        success: true;
+        message: { id: string; role: string; content: string; createdAt: number };
+        thread: Thread;
+      }
+    | { success: false; status: number; error: string; threadId?: string }
+  > {
+    type AppendWire = {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      metadata?: Record<string, unknown>;
+    } & Record<string, unknown>;
+    const wirePayload: AppendWire = {
+      role: payload.role,
+      content: payload.content,
+      metadata: payload.metadata,
+    };
+    if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
+      (wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
+    }
+    const res: unknown = await window.electronAPI.thread.appendMessage(threadId, wirePayload);
+    if (
+      typeof res === 'object' &&
+      res !== null &&
+      (res as { success?: boolean }).success === true
+    ) {
+      return res as {
+        success: true;
+        message: { id: string; role: string; content: string; createdAt: number };
+        thread: Thread;
+      };
+    }
+    const failure = res as { status: number; error: string } & Record<string, unknown>;
+    let threadIdCamel: string | undefined;
+    const maybeThreadId = (failure as Record<string, unknown>).thread_id;
+    if (typeof maybeThreadId === 'string') {
+      threadIdCamel = maybeThreadId;
+    }
+    return {
+      success: false,
+      status: failure.status,
+      error: failure.error,
+      threadId: threadIdCamel,
+    };
+  }
 
-	async updateMessage(
-		threadId: string,
-		messageId: string,
-		newContent: string,
-	): Promise<
-		| { success: true; message: Message; thread: Thread }
-		| { success: false; error: string }
-	> {
-		const res: unknown = await window.electronAPI.thread.updateMessage(threadId, messageId, newContent);
-		return res as
-			| { success: true; message: Message; thread: Thread }
-			| { success: false; error: string };
-	}
+  async updateMessage(
+    threadId: string,
+    messageId: string,
+    newContent: string,
+  ): Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  > {
+    const res: unknown = await window.electronAPI.thread.updateMessage(
+      threadId,
+      messageId,
+      newContent,
+    );
+    return res as
+      | { success: true; message: Message; thread: Thread }
+      | { success: false; error: string };
+  }
 
-	async getMessageVersions(
-		threadId: string,
-		messageId: string,
-	): Promise<
-		| { success: true; versions: Array<{ content: string; editedAt: number }> }
-		| { success: false; error: string }
-	> {
-		const res: unknown = await window.electronAPI.thread.getMessageVersions(threadId, messageId);
-		return res as
-			| { success: true; versions: Array<{ content: string; editedAt: number }> }
-			| { success: false; error: string };
-	}
+  async getMessageVersions(
+    threadId: string,
+    messageId: string,
+  ): Promise<
+    | { success: true; versions: Array<{ content: string; editedAt: number }> }
+    | { success: false; error: string }
+  > {
+    const res: unknown = await window.electronAPI.thread.getMessageVersions(threadId, messageId);
+    return res as
+      | { success: true; versions: Array<{ content: string; editedAt: number }> }
+      | { success: false; error: string };
+  }
 
-	async deleteMessagesAfter(
-		threadId: string,
-		messageId: string,
-	): Promise<
-		| { success: true; thread: Thread }
-		| { success: false; error: string }
-	> {
-		const res: unknown = await window.electronAPI.thread.deleteMessagesAfter(threadId, messageId);
-		return res as
-			| { success: true; thread: Thread }
-			| { success: false; error: string };
-	}
+  async deleteMessagesAfter(
+    threadId: string,
+    messageId: string,
+  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
+    const res: unknown = await window.electronAPI.thread.deleteMessagesAfter(threadId, messageId);
+    return res as { success: true; thread: Thread } | { success: false; error: string };
+  }
 }
 
 export const threadService = new ThreadService();

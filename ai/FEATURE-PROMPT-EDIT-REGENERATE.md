@@ -1,6 +1,7 @@
 # Feature: Edit Prompt and Regenerate AI Response
 
 ## Overview
+
 This feature allows users to edit previously sent prompts and regenerate AI responses, providing the ability to refine questions without starting a new thread.
 
 ## Implementation Summary
@@ -8,6 +9,7 @@ This feature allows users to edit previously sent prompts and regenerate AI resp
 ### 1. Data Model Updates
 
 #### Frontend (`src/lib/types/thread.type.ts`)
+
 - Added `MessageVersion` interface to store message edit history
 - Extended `Message` interface with:
   - `editedAt?: number` - timestamp of last edit
@@ -16,6 +18,7 @@ This feature allows users to edit previously sent prompts and regenerate AI resp
   - `isEdited?: boolean` - flag indicating if message was edited
 
 #### Backend (`src-electron/repository/thread-repository.ts`)
+
 - Added `MessageVersion` interface
 - Extended `Message` interface with version tracking fields
 - Implemented new methods:
@@ -27,6 +30,7 @@ This feature allows users to edit previously sent prompts and regenerate AI resp
 ### 2. Backend Implementation
 
 #### Repository Methods (`src-electron/repository/thread-repository.ts`)
+
 ```typescript
 // Updates message content and stores previous version
 updateMessage(threadId, messageId, newContent): Message
@@ -39,13 +43,17 @@ deleteMessagesAfter(threadId, messageId): void
 ```
 
 #### IPC Handlers (`src-electron/ipc-handlers/thread-handler.ts`)
+
 Added three new IPC handlers:
+
 - `thread:updateMessage` - handles message editing
 - `thread:getMessageVersions` - retrieves version history
 - `thread:deleteMessagesAfter` - cleans up subsequent messages
 
 #### Preload API (`src-electron/preload.ts`)
+
 Extended `ThreadAPI` interface with:
+
 - `updateMessage()`
 - `getMessageVersions()`
 - `deleteMessagesAfter()`
@@ -53,7 +61,9 @@ Extended `ThreadAPI` interface with:
 ### 3. Frontend Services
 
 #### Thread Service (`src/lib/services/thread.service.ts`)
+
 Added three new methods matching the IPC handlers:
+
 - `updateMessage()` - calls IPC to update message
 - `getMessageVersions()` - fetches version history
 - `deleteMessagesAfter()` - removes subsequent messages
@@ -61,7 +71,9 @@ Added three new methods matching the IPC handlers:
 ### 4. UI Components
 
 #### MessageBubble (`src/lib/components/MessageBubble.svelte`)
+
 Enhanced with **inline editing**:
+
 - **Edit button** (✎) - appears on user messages
 - **Inline edit mode** - textarea replaces message content when editing
 - **Edit actions** - Save & Regenerate and Cancel buttons
@@ -78,10 +90,13 @@ Enhanced with **inline editing**:
   - `editedContent` - stores temporary edit content
 
 #### Composer (`src/lib/components/Composer.svelte`)
+
 No changes required - editing happens inline in MessageBubble, not in the Composer.
 
 #### ChatPane (`src/lib/components/ChatPane.svelte`)
+
 Core edit flow orchestration:
+
 - **State management**:
   - `showVersionsFor` - controls version history modal
 - **New functions**:
@@ -94,7 +109,9 @@ Core edit flow orchestration:
   - Coordinates message deletion and AI regeneration
 
 #### MessageVersionHistory (`src/lib/components/MessageVersionHistory.svelte`)
+
 New modal component showing:
+
 - List of all previous versions
 - Version numbers and timestamps
 - Previous content for each version
@@ -127,49 +144,55 @@ New modal component showing:
 ### 6. Key Features Implemented
 
 ✅ **Inline Edit Functionality**
+
 - Only user messages can be edited
 - Edit button (✎) visible on user messages
 - Click to edit directly in the message bubble
 - Textarea auto-expands with content
 
 ✅ **Version History**
+
 - All edits stored with timestamps
 - Previous versions accessible via modal
 - Non-destructive - all history preserved
 
 ✅ **Response Regeneration**
+
 - Automatic after edit submission
 - Streaming support maintained
 - Old responses removed to avoid confusion
 
 ✅ **UI Indicators**
+
 - "✎ Edited" label on edited messages
 - Edit mode banner in composer
 - Visual distinction for edited content
 
 ✅ **Keyboard Shortcuts**
+
 - `Escape` to cancel inline edit
 - `Ctrl/⌘+Enter` to save and regenerate
 - Standard `Enter` for new messages in composer
 
 ✅ **Error Handling**
+
 - Graceful failure messages
 - Validation for edit permissions
 - Offline support maintained
 
 ### 7. Acceptance Criteria Status
 
-| Criteria | Status | Implementation |
-|----------|--------|----------------|
-| Load prompt into input for editing | ✅ | Inline editing with textarea in MessageBubble |
-| Generate new AI response | ✅ | handleEditAndRegenerate() with streaming |
-| Display edited prompt with indicator | ✅ | "✎ Edited" label in MessageBubble |
-| Show both original and new responses | ✅ | Version history modal |
-| Visual flag for old context messages | ⚠️ | Infrastructure ready, UI pending |
-| Edit action <2s roundtrip | ✅ | Optimistic UI updates |
-| Undo support for 30s | ⚠️ | Not implemented (future enhancement) |
-| Labeled in light/dark themes | ✅ | CSS variables used |
-| Keyboard shortcuts | ✅ | Escape to cancel, Ctrl/⌘+Enter to save |
+| Criteria                             | Status | Implementation                                |
+| ------------------------------------ | ------ | --------------------------------------------- |
+| Load prompt into input for editing   | ✅     | Inline editing with textarea in MessageBubble |
+| Generate new AI response             | ✅     | handleEditAndRegenerate() with streaming      |
+| Display edited prompt with indicator | ✅     | "✎ Edited" label in MessageBubble             |
+| Show both original and new responses | ✅     | Version history modal                         |
+| Visual flag for old context messages | ⚠️     | Infrastructure ready, UI pending              |
+| Edit action <2s roundtrip            | ✅     | Optimistic UI updates                         |
+| Undo support for 30s                 | ⚠️     | Not implemented (future enhancement)          |
+| Labeled in light/dark themes         | ✅     | CSS variables used                            |
+| Keyboard shortcuts                   | ✅     | Escape to cancel, Ctrl/⌘+Enter to save        |
 
 ### 8. Technical Notes
 
@@ -181,7 +204,8 @@ New modal component showing:
 
 **IPC Communication**: All edit operations go through proper IPC channels with success/error handling.
 
-**Accessibility**: 
+**Accessibility**:
+
 - ARIA labels on buttons
 - Keyboard navigation support
 - Modal with proper roles
@@ -197,22 +221,26 @@ New modal component showing:
 ### 10. Testing Recommendations
 
 **Unit Tests**:
+
 - Repository methods for version management
 - IPC handler success/error paths
 - Frontend service methods
 
 **Integration Tests**:
+
 - Edit flow end-to-end
 - Version history retrieval
 - Message deletion after edit
 
 **E2E Tests**:
+
 - User edits message and sees regenerated response
 - Version history modal displays correctly
 - Edit mode cancellation works
 - Keyboard shortcuts function properly
 
 **Manual Testing**:
+
 - Edit multiple messages in same thread
 - Test offline behavior during edit
 - Verify streaming works after edit
@@ -221,28 +249,34 @@ New modal component showing:
 ## Files Modified
 
 ### Backend
+
 - `src-electron/repository/thread-repository.ts`
 - `src-electron/ipc-handlers/thread-handler.ts`
 - `src-electron/preload.ts`
 
 ### Frontend Services
+
 - `src/lib/services/thread.service.ts`
 
 ### Components
+
 - `src/lib/components/MessageBubble.svelte`
 - `src/lib/components/Composer.svelte`
 - `src/lib/components/ChatPane.svelte`
 - `src/lib/components/MessageVersionHistory.svelte` (new)
 
 ### Pages
+
 - `src/routes/threads/+page.svelte`
 
 ### Types
+
 - `src/lib/types/thread.type.ts`
 
 ## Dependencies
 
 No new external dependencies added. Feature uses existing:
+
 - Svelte 5 reactivity
 - Electron IPC
 - Existing threading infrastructure
@@ -260,4 +294,3 @@ No new external dependencies added. Feature uses existing:
 - **Edit Latency**: < 100ms for local operations; network latency for AI regeneration
 - **Memory Usage**: Negligible increase from version tracking
 - **Storage Growth**: Linear with number of edits (acceptable for typical usage)
-

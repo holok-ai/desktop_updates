@@ -26,7 +26,7 @@ describe('NetworkService', () => {
 
   it('should emit online event when connection restored', async () => {
     const onlineEvent = new Event('online');
-    
+
     let isOnlineValue = false;
     networkService.isOnline.subscribe((value) => {
       isOnlineValue = value;
@@ -35,14 +35,14 @@ describe('NetworkService', () => {
     window.dispatchEvent(onlineEvent);
 
     // Wait for event to propagate
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(isOnlineValue).toBe(true);
   });
 
   it('should emit offline event when connection lost', async () => {
     const offlineEvent = new Event('offline');
-    
+
     let isOfflineValue = false;
     networkService.isOffline.subscribe((value) => {
       isOfflineValue = value;
@@ -51,9 +51,8 @@ describe('NetworkService', () => {
     window.dispatchEvent(offlineEvent);
 
     // Wait for event to propagate
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(isOfflineValue).toBe(true);
   });
 });
-

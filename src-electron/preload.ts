@@ -112,8 +112,7 @@ export interface ThreadAPI {
     messageId: string,
     newContent: string,
   ) => Promise<
-    | { success: true; message: Message; thread: Thread }
-    | { success: false; error: string }
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
   >;
 
   // Get message versions
@@ -129,10 +128,7 @@ export interface ThreadAPI {
   deleteMessagesAfter: (
     threadId: string,
     messageId: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; error: string }
-  >;
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
 
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
@@ -830,8 +826,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     onProjectDeleted: (callback: (projectId: GUID) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, projectId: GUID): void =>
-        callback(projectId);
+      const subscription = (_event: IpcRendererEvent, projectId: GUID): void => callback(projectId);
       ipcRenderer.on('project:deleted', subscription);
 
       return (): void => {

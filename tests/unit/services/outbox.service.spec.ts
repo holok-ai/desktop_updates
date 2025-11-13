@@ -156,4 +156,3 @@ describe('OutboxService', () => {
     expect(outboxService.getPendingMessage('test-msg-8')).toBeUndefined();
   });
 });
-

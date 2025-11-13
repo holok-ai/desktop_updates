@@ -177,7 +177,11 @@
         }}
       ></textarea>
       <div class="edit-actions">
-        <button class="save-button" onclick={handleSaveEdit} disabled={!editedContent.trim() || isStreaming}>
+        <button
+          class="save-button"
+          onclick={handleSaveEdit}
+          disabled={!editedContent.trim() || isStreaming}
+        >
           {isStreaming ? 'Sending...' : 'Save & Regenerate'}
         </button>
         <button class="cancel-button" onclick={handleCancelEdit} disabled={isStreaming}>
@@ -207,12 +211,22 @@
         📋
       </button>
       {#if message.role === 'user' && onEdit && message.status !== MESSAGE_STATUS.SENDING}
-        <button class="action-button" onclick={handleEdit} aria-label="Edit message" title="Edit message">
+        <button
+          class="action-button"
+          onclick={handleEdit}
+          aria-label="Edit message"
+          title="Edit message"
+        >
           ✎
         </button>
       {/if}
       {#if message.isEdited}
-        <button class="action-button" onclick={handleShowVersions} aria-label="View edit history" title="View edit history">
+        <button
+          class="action-button"
+          onclick={handleShowVersions}
+          aria-label="View edit history"
+          title="View edit history"
+        >
           📜
         </button>
       {/if}
@@ -381,7 +395,9 @@
     font-size: 0.85rem;
     cursor: pointer;
     color: inherit;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .copy-button:hover {
@@ -559,4 +575,3 @@
     max-width: 600px;
   }
 </style>
-

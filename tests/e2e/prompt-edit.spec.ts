@@ -20,7 +20,10 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
     } catch {
       try {
         const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({ executablePath: electronExec, args: ['dist-electron/main.js'] });
+        app = await electron.launch({
+          executablePath: electronExec,
+          args: ['dist-electron/main.js'],
+        });
       } catch {
         test.skip(true, 'Electron failed to launch in this environment');
       }
@@ -44,7 +47,9 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
       await page.getByLabel('Title').fill(threadName);
       await page.getByLabel('Description').fill('testing version history');
       await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(
+        0,
+      );
     }
 
     // Switch back to Threads and select the thread
@@ -60,9 +65,13 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
     await composer.press('Enter');
 
     // Wait for user and assistant messages
-    await expect(page.locator('.messages .message.user', { hasText: 'Just say "Okay"' })).toBeVisible({ timeout: 5000 });
+    await expect(
+      page.locator('.messages .message.user', { hasText: 'Just say "Okay"' }),
+    ).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.messages .message-content')).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({ timeout: 60000 });
+    await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({
+      timeout: 60000,
+    });
 
     // Enter inline edit and save
     await page.waitForTimeout(500);
@@ -75,7 +84,9 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
 
     // Wait for regenerated response streaming to complete
     await page.waitForTimeout(500);
-    await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({ timeout: 60000 });
+    await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({
+      timeout: 60000,
+    });
 
     // History button 📜 should be present after edit
     const historyBtn = page.locator('.message-actions button[title="View edit history"]').first();
@@ -96,5 +107,3 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
     await expect(modal).toBeHidden();
   });
 });
-
-

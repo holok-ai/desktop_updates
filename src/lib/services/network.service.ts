@@ -2,7 +2,7 @@ import { writable, derived, type Readable } from 'svelte/store';
 
 class NetworkService {
   private onlineStore = writable(navigator.onLine);
-  
+
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.handleOnline);
@@ -39,4 +39,3 @@ class NetworkService {
 }
 
 export const networkService = new NetworkService();
-

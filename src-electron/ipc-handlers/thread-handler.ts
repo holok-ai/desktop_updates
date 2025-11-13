@@ -4,7 +4,12 @@ import { mokuService } from '../services/moku.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type ThreadRepository from '../repository/thread-repository.js';
-import type { Thread as InternalThread, ThreadMetadata, Message, MessageVersion } from '../repository/thread-repository.js';
+import type {
+  Thread as InternalThread,
+  ThreadMetadata,
+  Message,
+  MessageVersion,
+} from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
@@ -191,29 +196,26 @@ export function registerThreadHandlers(): void {
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle(
-    'thread:getMessages',
-    (_event, id: string): Promise<Message[]> => {
-      const t = threadRepository.loadThread(id);
-      if (!t) return Promise.resolve([]);
-      const items = t.messages
-        .filter((m) => !m.deletedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((m) => ({
-          id: m.id,
-          title: m.title,
-          role: m.role,
-          content: m.content,
-          createdAt: m.createdAt,
-          isEdited: m.isEdited,
-          editedAt: m.editedAt,
-          versions: m.versions,
-          clientMessageId: m.clientMessageId,
-          deletedAt: m.deletedAt,
-        }));
-      return Promise.resolve(items);
-    },
-  );
+  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
+    const t = threadRepository.loadThread(id);
+    if (!t) return Promise.resolve([]);
+    const items = t.messages
+      .filter((m) => !m.deletedAt)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+        isEdited: m.isEdited,
+        editedAt: m.editedAt,
+        versions: m.versions,
+        clientMessageId: m.clientMessageId,
+        deletedAt: m.deletedAt,
+      }));
+    return Promise.resolve(items);
+  });
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(
@@ -562,10 +564,7 @@ export function registerThreadHandlers(): void {
       _event,
       threadId: string,
       messageId: string,
-    ): Promise<
-      | { success: true; thread: RendererThread }
-      | { success: false; error: string }
-    > => {
+    ): Promise<{ success: true; thread: RendererThread } | { success: false; error: string }> => {
       threadLog.info('[IPC] thread:deleteMessagesAfter called', { threadId, messageId });
 
       try {
@@ -705,8 +704,7 @@ export function registerThreadHandlers(): void {
       threadId: string,
       messageId: string,
     ): Promise<
-      | { success: true; versions: MessageVersion[] }
-      | { success: false; error: string }
+      { success: true; versions: MessageVersion[] } | { success: false; error: string }
     > => {
       threadLog.info('[IPC] thread:getMessageVersions called', { threadId, messageId });
 

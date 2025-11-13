@@ -46,7 +46,7 @@ export class MessageTransmitter {
    */
   async persistMessage(message: Message, threadId: string): Promise<boolean> {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), outboxService.getTimeout())
+      setTimeout(() => reject(new Error('Timeout')), outboxService.getTimeout()),
     );
 
     try {
@@ -74,11 +74,11 @@ export class MessageTransmitter {
       // Schedule retry if possible
       if (outboxService.canRetry(message.id)) {
         const retryCount = (message.retryCount ?? 0) + 1;
-        this.callbacks.onMessageUpdate({ 
-          messageId: message.id, 
-          status: MESSAGE_STATUS.FAILED, 
+        this.callbacks.onMessageUpdate({
+          messageId: message.id,
+          status: MESSAGE_STATUS.FAILED,
           error: errorMsg,
-          retryCount 
+          retryCount,
         });
 
         outboxService.scheduleRetry(message.id, async () => {
@@ -94,7 +94,9 @@ export class MessageTransmitter {
    */
   addOptimisticMessage(content: string, isOnline: boolean): Message {
     const clientMessageId = crypto.randomUUID();
-    const initialStatus: MessageStatus = isOnline ? MESSAGE_STATUS.SENDING : MESSAGE_STATUS.PENDING_OFFLINE;
+    const initialStatus: MessageStatus = isOnline
+      ? MESSAGE_STATUS.SENDING
+      : MESSAGE_STATUS.PENDING_OFFLINE;
 
     const userMsg: Message = {
       id: clientMessageId,
@@ -113,13 +115,10 @@ export class MessageTransmitter {
   /**
    * Send user message and handle persistence
    */
-  async sendUserMessage(
-    userMsg: Message,
-    thread: Thread | null,
-    isOnline: boolean
-  ): Promise<void> {
+  async sendUserMessage(userMsg: Message, thread: Thread | null, isOnline: boolean): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    const isPermanent = thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
+    const isPermanent =
+      thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
     // Add to outbox for resilience
     if (thread !== null && isPermanent) {
@@ -143,10 +142,11 @@ export class MessageTransmitter {
   async handleAssistantResponse(
     responseText: string,
     thread: Thread | null,
-    userMessage: string
+    userMessage: string,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    const isPermanent = thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
+    const isPermanent =
+      thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
     if (thread !== null && isPermanent) {
       // Append assistant response to existing thread
@@ -184,17 +184,19 @@ export class MessageTransmitter {
           createdAt: saved.promptMessage.createdAt,
           status: MESSAGE_STATUS.SENT,
         },
-        ...saved.responseMessages.map((m): Message => ({
-          id: m.id,
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-          createdAt: m.createdAt,
-          status: MESSAGE_STATUS.SENT,
-        })),
+        ...saved.responseMessages.map(
+          (m): Message => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            createdAt: m.createdAt,
+            status: MESSAGE_STATUS.SENT,
+          }),
+        ),
       ];
 
       this.callbacks.onMessagesReplace(newMessages);
-      
+
       if (this.callbacks.onThreadCreated !== undefined) {
         this.callbacks.onThreadCreated(saved.thread, thread?.id);
       }
@@ -210,10 +212,14 @@ export class MessageTransmitter {
     chatHandler: {
       setupTokenListener: () => void;
       getResponseText: () => string;
-      chat: (request: { messages: Array<{ role: string; content: string }>; streaming: boolean; model: string }) => Promise<{ success: boolean; error?: string }>;
+      chat: (request: {
+        messages: Array<{ role: string; content: string }>;
+        streaming: boolean;
+        model: string;
+      }) => Promise<{ success: boolean; error?: string }>;
       setStreaming: (streaming: boolean) => void;
       offToken: () => void;
-    }
+    },
   ): Promise<void> {
     if (thread === null) {
       return;
@@ -224,21 +230,21 @@ export class MessageTransmitter {
         this.updateMessageStatus(messageId, MESSAGE_STATUS.SENDING);
         // eslint-disable-next-line @typescript-eslint/naming-convention
         const wasSuccessful = await this.persistMessage(pendingMsg.message, pendingMsg.threadId);
-        
+
         if (wasSuccessful) {
           // After persisting the user message, trigger assistant response
           try {
             chatHandler.setStreaming(true);
             chatHandler.setupTokenListener();
-            
+
             const request = {
               messages: [{ role: 'user', content: pendingMsg.message.content }],
               streaming: true,
               model: 'llama3:latest',
             };
-            
+
             const result = await chatHandler.chat(request);
-            
+
             if (result.success) {
               const responseText = chatHandler.getResponseText();
               const assistantPersist = await threadService.appendMessage(thread.id, {
@@ -252,7 +258,9 @@ export class MessageTransmitter {
                 id: assistantPersist.success ? assistantPersist.message.id : crypto.randomUUID(),
                 role: 'assistant',
                 content: responseText,
-                createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
+                createdAt: assistantPersist.success
+                  ? assistantPersist.message.createdAt
+                  : Date.now(),
                 status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
               };
 
