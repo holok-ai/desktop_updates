@@ -106,6 +106,30 @@ export interface ThreadAPI {
     | { success: false; status: number; error: string; thread_id?: string }
   >;
 
+  // Update message (edit)
+  updateMessage: (
+    threadId: string,
+    messageId: string,
+    newContent: string,
+  ) => Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  >;
+
+  // Get message versions
+  getMessageVersions: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<
+    | { success: true; versions: Array<{ content: string; editedAt: number }> }
+    | { success: false; error: string }
+  >;
+
+  // Delete messages after a specific message
+  deleteMessagesAfter: (
+    threadId: string,
+    messageId: string,
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -645,9 +669,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       },
     ) => ipcRenderer.invoke('thread:appendMessage', threadId, payload),
 
-    // Duplicate an existing message in-thread (run again)
-    duplicateMessage: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:duplicateMessage', threadId, messageId),
+    updateMessage: (threadId: string, messageId: string, newContent: string) =>
+      ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
+
+    getMessageVersions: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
+
+    deleteMessagesAfter: (threadId: string, messageId: string) =>
+      ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
 
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -713,6 +742,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
   } as LogAPI,
 
   /**
+   * File API Implementation
+   * Handles file upload, download, and validation
+   */
+  file: {
+    upload: (payload: {
+      threadId: string;
+      fileBuffer: Buffer;
+      filename: string;
+      mimeType: string;
+    }) => ipcRenderer.invoke('file:upload', payload),
+
+    get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
+
+    delete: (payload: { threadId: string; fileId: string }) =>
+      ipcRenderer.invoke('file:delete', payload),
+
+    validate: (payload: { filename: string; mimeType: string; size: number }) =>
+      ipcRenderer.invoke('file:validate', payload),
+
+    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:preview', payload),
+
+    download: (payload: { threadId: string; fileId: string; userId: string }) =>
+      ipcRenderer.invoke('file:download', payload),
+
+    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
+
+    onUploadProgress: (
+      callback: (data: { fileId: string; progress: number }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { fileId: string; progress: number },
+      ): void => callback(data);
+      ipcRenderer.on('file:uploadProgress', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('file:uploadProgress', subscription);
+      };
+    },
+  } as FileAPI,
+
+  /**
    * Project API Implementation
    */
   project: {
@@ -761,50 +834,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as ProjectAPI,
-
-  /**
-   * File API Implementation
-   * Handles file upload, download, and validation
-   */
-  file: {
-    upload: (payload: {
-      threadId: string;
-      fileBuffer: Buffer;
-      filename: string;
-      mimeType: string;
-    }) => ipcRenderer.invoke('file:upload', payload),
-
-    get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
-
-    delete: (payload: { threadId: string; fileId: string }) =>
-      ipcRenderer.invoke('file:delete', payload),
-
-    validate: (payload: { filename: string; mimeType: string; size: number }) =>
-      ipcRenderer.invoke('file:validate', payload),
-
-    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:preview', payload),
-
-    download: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:download', payload),
-
-    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
-
-    onUploadProgress: (
-      callback: (data: { fileId: string; progress: number }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: { fileId: string; progress: number },
-      ): void => callback(data);
-      ipcRenderer.on('file:uploadProgress', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('file:uploadProgress', subscription);
-      };
-    },
-  } as FileAPI,
 
   /**
    * Menu Command Listener

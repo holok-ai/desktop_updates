@@ -1,5 +1,10 @@
-import type { MessageStatus } from '$lib/services/message-state-machine.js';
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
+import type { MessageStatus } from './status.type.ts';
+
+export interface MessageVersion {
+  content: string;
+  editedAt: number;
+}
 
 export interface Message {
   id: string;
@@ -8,26 +13,11 @@ export interface Message {
   content: string;
   createdAt: number;
   status?: MessageStatus;
-  attemptCount?: number;
+  retryCount?: number;
+  error?: string;
+  editedAt?: number;
+  originalMessageId?: string;
+  isEdited?: boolean;
+  versions?: MessageVersion[];
   metadata?: MessageMetadata;
-}
-
-// Runtime helper to create a canonical message
-export function createMessage(params: {
-  id?: string;
-  role?: Message['role'];
-  content?: string;
-  status?: MessageStatus;
-  metadata?: MessageMetadata;
-}): Message {
-  const now = Date.now();
-  return {
-    id: params.id ?? `msg_${Math.random().toString(36).slice(2, 9)}`,
-    role: params.role ?? 'user',
-    content: params.content ?? '',
-    createdAt: now,
-    status: params.status,
-    attemptCount: 0,
-    metadata: params.metadata,
-  };
 }

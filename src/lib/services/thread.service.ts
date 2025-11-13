@@ -48,6 +48,14 @@ class ThreadService {
     return window.electronAPI.thread.getMessages(id);
   }
 
+  async moveToProject(
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { privacyMode?: string; contextHandling?: string },
+  ): Promise<Thread> {
+    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
+  }
+
   async appendMessage(
     threadId: string,
     payload: {
@@ -103,12 +111,42 @@ class ThreadService {
     };
   }
 
-  async moveToProject(
+  async updateMessage(
     threadId: string,
-    targetProjectId: string | null,
-    options?: { privacyMode?: string; contextHandling?: string },
-  ): Promise<Thread> {
-    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
+    messageId: string,
+    newContent: string,
+  ): Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  > {
+    const res: unknown = await window.electronAPI.thread.updateMessage(
+      threadId,
+      messageId,
+      newContent,
+    );
+    return res as
+      | { success: true; message: Message; thread: Thread }
+      | { success: false; error: string };
+  }
+
+  async getMessageVersions(
+    threadId: string,
+    messageId: string,
+  ): Promise<
+    | { success: true; versions: Array<{ content: string; editedAt: number }> }
+    | { success: false; error: string }
+  > {
+    const res: unknown = await window.electronAPI.thread.getMessageVersions(threadId, messageId);
+    return res as
+      | { success: true; versions: Array<{ content: string; editedAt: number }> }
+      | { success: false; error: string };
+  }
+
+  async deleteMessagesAfter(
+    threadId: string,
+    messageId: string,
+  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
+    const res: unknown = await window.electronAPI.thread.deleteMessagesAfter(threadId, messageId);
+    return res as { success: true; thread: Thread } | { success: false; error: string };
   }
 }
 

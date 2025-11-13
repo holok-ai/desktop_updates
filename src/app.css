@@ -20,10 +20,10 @@
   --surface-main: #ffffff;
   --surface-ground: #ffffff;
   --surface-card: #f3f4f6;
-  --surface-overlay: #f3f4f6;
   --surface-hover: rgba(59, 130, 246, 0.06);
-  --surface-border: #e5e7eb;
   --border-sidebar: #e5e7eb;
+  --surface-border: #e5e7eb;
+  --surface-overlay: #f3f4f6;
   --border-active: #3b82f6;
   --border-card: #929395;
   --background-primary-active: #0f2239;
