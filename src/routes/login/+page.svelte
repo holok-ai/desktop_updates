@@ -38,7 +38,7 @@
     <h1>Holokai Desktop</h1>
     <p>Sign in to continue</p>
 
-    <button onclick={handleLogin} disabled={isLoading} class="primary-button">
+    <button onclick={handleLogin} disabled={isLoading} class="login-primary">
       {isLoading ? 'Redirecting...' : 'Login'}
     </button>
 
@@ -75,66 +75,80 @@
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(
+      135deg,
+      var(--primary-400) 0%,
+      var(--purple-500, var(--primary-600)) 100%
+    );
   }
 
   .login-card {
-    background: white;
-    color: #333;
-    padding: 3rem;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    padding: calc(var(--content-padding) * 2.4);
+    border-radius: calc(var(--border-radius) * 2);
+    box-shadow: 0 calc(var(--content-padding) * 2) calc(var(--content-padding) * 4)
+      color-mix(in srgb, var(--surface-900) 18%, transparent);
     max-width: 400px;
     width: 100%;
   }
 
   h1 {
     margin-bottom: 0.5rem;
-    color: #333;
+    color: var(--text-primary);
   }
 
   .provider-select {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    margin: 2rem 0;
+    gap: calc(var(--inline-spacing) * 1.5);
+    margin: calc(var(--content-padding) * 1.6) 0;
   }
 
   label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     cursor: pointer;
+    color: var(--text-primary);
   }
 
   button {
     width: 100%;
-    padding: 1rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
+    font-size: 16px;
     font-weight: 600;
+  }
+
+  .login-primary {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border: 1px solid var(--primary-color);
+    margin-bottom: calc(var(--content-padding) * 1.2);
+    padding: var(--inline-spacing) calc(var(--content-padding) * 1.2);
+    border-radius: var(--border-radius);
     cursor: pointer;
+    transition: all 0.2s;
   }
 
-  .primary-button {
-    background: #667eea;
-    color: white;
-    margin-bottom: 1.5rem;
-  }
-
-  .primary-button:hover:not(:disabled) {
-    background: #5568d3;
+  .login-primary:hover:not(:disabled) {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
   }
 
   .mock-button {
-    background: #e0e0e0;
-    color: #333;
-    margin-top: 1rem;
+    background: var(--surface-100);
+    color: var(--text-primary);
+    border: 1px solid var(--surface-border);
+    margin-top: var(--content-padding);
+    padding: var(--inline-spacing) calc(var(--content-padding) * 1.2);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s;
   }
 
   .mock-button:hover:not(:disabled) {
-    background: #d0d0d0;
+    background: var(--surface-hover);
+    border-color: var(--surface-border);
   }
 
   button:disabled {
@@ -144,7 +158,7 @@
 
   .divider {
     text-align: center;
-    margin: 1.5rem 0;
+    margin: calc(var(--content-padding) * 1.2) 0;
     position: relative;
   }
 
@@ -155,7 +169,7 @@
     top: 50%;
     width: 40%;
     height: 1px;
-    background: #ddd;
+    background: var(--surface-border);
   }
 
   .divider::before {
@@ -167,16 +181,16 @@
   }
 
   .divider span {
-    background: white;
-    padding: 0 1rem;
-    color: #999;
-    font-size: 0.875rem;
+    background: var(--surface-card);
+    padding: 0 var(--content-padding);
+    color: var(--text-secondary);
+    font-size: 14px;
   }
 
   .note {
-    margin-top: 1rem;
-    font-size: 0.875rem;
-    color: #666;
+    margin-top: var(--content-padding);
+    font-size: 14px;
+    color: var(--text-secondary);
     text-align: center;
   }
 </style>

@@ -415,14 +415,15 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    border-left: 1px solid #e5e7eb;
-    padding: 1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    padding: var(--content-padding);
     background: var(--surface-main);
   }
 
   .chat-header {
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--surface-border, rgba(15, 23, 42, 0.12));
+    padding: var(--content-padding) 0;
+    border-bottom: 1px solid var(--surface-border);
     position: sticky;
     top: 0;
     z-index: 5;
@@ -432,7 +433,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
+    gap: var(--content-padding);
     overflow: visible;
     position: relative; /* allow absolute positioning of the action button */
     padding-right: 128px; /* reserve space so title doesn't sit under the button */
@@ -450,7 +451,7 @@
     gap: 0.5rem;
     font-size: 1.25rem;
     font-weight: 600;
-    color: var(--text-primary, #f8fafc);
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -491,9 +492,9 @@
   }
 
   .chat-header .meta {
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary, rgba(148, 163, 184, 0.9));
+    margin-top: calc(var(--inline-spacing) / 2);
+    font-size: 14px;
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -502,13 +503,13 @@
   .move-thread-btn {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--surface-overlay, rgba(148, 163, 184, 0.12));
-    color: var(--text-primary, #f8fafc);
-    border: 1px solid var(--surface-border, rgba(148, 163, 184, 0.35));
-    border-radius: 6px;
-    font-size: 0.875rem;
+    gap: var(--inline-spacing);
+    padding: var(--inline-spacing) var(--content-padding);
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -522,13 +523,13 @@
   }
 
   .move-thread-btn:hover {
-    background: var(--surface-hover, rgba(148, 163, 184, 0.2));
-    border-color: var(--primary-color, #2563eb);
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
   }
 
   .move-thread-btn i {
-    font-size: 0.875rem;
-    color: var(--text-primary, #f8fafc);
+    font-size: 14px;
+    color: var(--text-primary);
     display: inline-block;
     width: 1em;
     height: 1em;
@@ -573,41 +574,41 @@
 
   .toast {
     position: absolute;
-    right: 1rem;
-    top: 3.5rem;
-    background: #111827;
-    color: #fff;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    right: var(--content-padding);
+    top: calc(var(--content-padding) * 3);
+    background: var(--surface-main);
+    color: var(--text-primary);
+    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
+    border-radius: var(--border-radius);
+    box-shadow: 0 var(--inline-spacing) calc(var(--inline-spacing) * 3) 0 var(--surface-main);
   }
 
   .error-banner {
-    background-color: #fee;
-    color: #c00;
-    padding: 0.5rem;
-    border-radius: 4px;
-    margin: 0.5rem 0;
+    background: var(--error-bg);
+    color: var(--error-color);
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    margin: var(--inline-spacing) 0;
   }
 
   .messages {
     flex: 1;
     overflow: auto;
-    margin-top: 1rem;
-    padding-right: 0.5rem;
+    margin-top: var(--content-padding);
+    padding-right: var(--inline-spacing);
   }
 
   .composer {
-    margin-top: 1rem;
+    margin-top: var(--content-padding);
   }
 
   .message-content {
     background: var(--surface-card);
-    padding: 0.5rem;
-    border-radius: 6px;
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
   }
 
   .no-messages {
-    color: #6b7280;
+    color: var(--text-secondary);
   }
 </style>
