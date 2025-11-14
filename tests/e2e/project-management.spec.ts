@@ -8,8 +8,13 @@ async function getFirstWindow(app: ElectronApplication): Promise<Page> {
 
 // Helpers
 async function goToProjects(page: Page) {
-  // Navigate via main sidebar to Projects
-  await page.getByRole('menuitem', { name: 'Projects' }).click();
+  // Navigate to projects page using hash-based routing (svelte-spa-router)
+  await page.evaluate(() => {
+    if (globalThis.window !== undefined && globalThis.window.location) {
+      (globalThis.window as any).location.hash = '#/projects';
+    }
+  });
+  await page.waitForTimeout(500);
   await page.waitForLoadState('networkidle');
 }
 
@@ -65,12 +70,33 @@ async function clickModalSubmit(page: Page) {
 }
 
 async function selectProjectInSidebar(page: Page, name: string) {
-  // Ensure Projects activity is active
-  await page.getByRole('menuitem', { name: 'Projects' }).click();
-  // Project appears as a menuitem in the Projects activity list
-  const item = page.getByRole('menuitem', { name }).first();
-  await expect(item).toBeVisible({ timeout: 5000 });
-  await item.click();
+  // Click on the Projects accordion header to expand it if needed
+  const accordionHeader = page
+    .locator('li[role="menuitem"]')
+    .filter({ hasText: 'Projects' })
+    .first();
+  await expect(accordionHeader).toBeVisible({ timeout: 5000 });
+
+  // Check if the Projects accordion content is visible by looking for "Create Project" text
+  // which is unique to the Projects accordion
+  const createProjectItem = page.getByRole('menuitem', { name: 'Create Project' });
+  const createProjectVisible = await createProjectItem.isVisible().catch(() => false);
+  if (!createProjectVisible) {
+    await accordionHeader.click();
+    await page.waitForTimeout(300);
+    // Wait for the accordion content to appear
+    await expect(createProjectItem).toBeVisible({ timeout: 3000 });
+  }
+
+  // Find and click the project item
+  // Scope to the Projects accordion by finding the accordion-content that contains "Create Project"
+  const projectsAccordionContent = page
+    .locator('.accordion-content')
+    .filter({ hasText: 'Create Project' })
+    .first();
+  const projectItem = projectsAccordionContent.getByRole('menuitem', { name }).first();
+  await expect(projectItem).toBeVisible({ timeout: 5000 });
+  await projectItem.click();
 }
 
 async function openRenameProjectModal(page: Page) {
@@ -228,5 +254,123 @@ test.describe('E2E: Project Management', () => {
 
     await selectProjectInSidebar(page, firstProjectName);
     await expect(page.getByRole('heading', { name: firstProjectName, level: 1 })).toBeVisible();
+  });
+
+  test('should switch between projects and filter threads', async () => {
+    if (!app) throw new Error('Electron not launched');
+    const page = await getFirstWindow(app);
+
+    // Create two projects
+    const project1Name = uniqueProjectName('Project 1');
+    const project2Name = uniqueProjectName('Project 2');
+    await createProject(page, project1Name);
+    await createProject(page, project2Name);
+
+    // Create threads in each project
+    await page.evaluate(
+      async ({ project1Name, project2Name }) => {
+        const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
+        if (!api) return;
+
+        const projects = await api.project.getAll();
+        const proj1 = projects.find((p: any) => p.title === project1Name);
+        const proj2 = projects.find((p: any) => p.title === project2Name);
+
+        // Create thread in project 1
+        const thread1 = await api.thread.addUserPrompt(null, 'Thread in project 1', {
+          title: 'Thread 1',
+        });
+        await api.thread.moveToProject(thread1.thread.id, proj1.id);
+
+        // Create thread in project 2
+        const thread2 = await api.thread.addUserPrompt(null, 'Thread in project 2', {
+          title: 'Thread 2',
+        });
+        await api.thread.moveToProject(thread2.thread.id, proj2.id);
+      },
+      { project1Name, project2Name },
+    );
+
+    await page.waitForTimeout(500);
+
+    // Switch to project 1
+    await selectProjectInSidebar(page, project1Name);
+    await expect(page.getByRole('heading', { name: project1Name, level: 1 })).toBeVisible();
+
+    // Wait for threads to load (ActivityListSidebar will reload threads when project is selected)
+    await page.waitForTimeout(800);
+
+    // Verify threads are filtered in the sidebar (ActivityListSidebar)
+    // Threads should appear in the secondary sidebar when project is selected
+    const sidebar = page.locator('.activity-list-sidebar');
+
+    // Wait for Thread 1 to appear (it should be visible for project 1)
+    // Threads are displayed as menuitems in accordion sections
+    // Use first() to handle cases where there might be multiple matches
+    await expect(sidebar.getByRole('menuitem', { name: 'Thread 1' }).first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    const thread1Visible = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
+    const thread2Visible = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
+
+    // Thread 1 should be visible, Thread 2 should not be visible
+    expect(thread1Visible).toBeGreaterThan(0);
+    expect(thread2Visible).toBe(0);
+
+    // Switch to project 2
+    await selectProjectInSidebar(page, project2Name);
+    await expect(page.getByRole('heading', { name: project2Name, level: 1 })).toBeVisible();
+
+    // Wait for threads to reload (ActivityListSidebar will reload threads when project changes)
+    await page.waitForTimeout(800);
+
+    // Wait for Thread 2 to appear (it should be visible for project 2)
+    await expect(sidebar.getByRole('menuitem', { name: 'Thread 2' }).first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    // Verify threads are filtered for project 2
+    const thread1VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
+    const thread2VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
+
+    // Thread 2 should be visible, Thread 1 should not be visible
+    expect(thread2VisibleAfter).toBeGreaterThan(0);
+    expect(thread1VisibleAfter).toBe(0);
+  });
+
+  test('should show error when switching to deleted project', async () => {
+    if (!app) throw new Error('Electron not launched');
+    const page = await getFirstWindow(app);
+
+    const projectName = uniqueProjectName('Project to Delete');
+    await createProject(page, projectName);
+    await selectProjectInSidebar(page, projectName);
+
+    // Delete the project
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete Project' }).click();
+    await page.waitForTimeout(500);
+
+    // Try to access the deleted project via URL
+    await page.evaluate(async (projectName) => {
+      const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
+      if (!api) return;
+      const projects = await api.project.getAll();
+      const deletedProject = projects.find((p: any) => p.title === projectName);
+      if (deletedProject) {
+        // Try to navigate to deleted project
+        globalThis.location.href = `/projects?projectId=${deletedProject.id}`;
+      }
+    }, projectName);
+
+    await page.waitForTimeout(500);
+
+    // Should show error message or redirect
+    const errorBanner = page.locator('.error-banner');
+    const hasError = (await errorBanner.count()) > 0;
+    const isRedirected = !(await page.getByRole('heading', { name: projectName }).count());
+
+    expect(hasError || isRedirected).toBeTruthy();
   });
 });

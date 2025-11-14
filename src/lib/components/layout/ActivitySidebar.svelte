@@ -2,13 +2,17 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { currentUser, isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
-  import { push, location } from 'svelte-spa-router';
+  import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import { SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
   import SidebarItem from '../common/SidebarItem.svelte';
+  import AccordionSection from '../common/AccordionSection.svelte';
+  import { projects } from '$lib/stores/project.store';
+  import { projectService } from '$lib/services/project.service';
+  import type { Project } from '$lib/types/project.type';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
@@ -17,11 +21,12 @@
   let activities: SidebarActivity[] = [
     { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
-    { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
   ];
   let selected = $state(activities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showProfileMenu = $state(false);
+  let selectedProjectId = $state<string | null>(null);
+  let projectActivities = $state<SidebarActivity[]>([]);
 
   async function handleLogout() {
     try {
@@ -37,7 +42,9 @@
     if (normalized.startsWith(ROUTE.THREADS)) {
       next = 'threads';
     } else if (normalized.startsWith(ROUTE.PROJECTS)) {
-      next = 'projects';
+      // Projects is now an accordion, not a separate activity
+      // Keep current selection or default to home
+      return;
     }
     if (selected !== next) {
       selected = next;
@@ -53,6 +60,14 @@
 
     const stored = localStorage.getItem(APP_THEME_MODE_STORAGE_KEY);
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
+
+    void (async () => {
+      try {
+        await projectService.loadProjects();
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      }
+    })();
 
     // React to theme changes applied elsewhere (e.g., Settings page)
     const html = document.documentElement;
@@ -106,10 +121,80 @@
     return unsubscribe;
   });
 
+  $effect(() => {
+    projectActivities = $projects.map((project) => ({
+      id: project.id,
+      label: project.title,
+      icon: 'pi pi-folder',
+      route: ROUTE.PROJECTS,
+    }));
+  });
+
+  $effect(() => {
+    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+      const pid = params.get('projectId');
+      if (pid) {
+        selectedProjectId = pid;
+      } else {
+        if (typeof window !== 'undefined') {
+          try {
+            selectedProjectId = window.localStorage.getItem('lastProjectId');
+          } catch {
+            selectedProjectId = null;
+          }
+        } else {
+          selectedProjectId = null;
+        }
+      }
+    });
+    return unsubscribe;
+  });
+
   function handleNavigate(activity: SidebarActivity) {
     selected = activity.id;
     dispatch('select', activity);
     if (activity.route) push(activity.route);
+  }
+
+  function handleProjectSelect(project: Project) {
+    selectedProjectId = project.id;
+    try {
+      window.localStorage.setItem('lastProjectId', project.id);
+    } catch (error) {
+      console.error('Failed to set lastProjectId', error);
+    }
+    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+  }
+
+  function handleCreateProject() {
+    push(`${ROUTE.PROJECTS}?createProject`);
+  }
+
+  function handleProjectAccordionClick(item: SidebarActivity) {
+    if (item.id === 'create-project') {
+      handleCreateProject();
+      return;
+    }
+    // If clicking the same project, deselect it
+    if (item.id === selectedProjectId) {
+      handleDeselectProject();
+      return;
+    }
+    const project = $projects.find((p) => p.id === item.id);
+    if (project) {
+      handleProjectSelect(project);
+    }
+  }
+
+  function handleDeselectProject() {
+    selectedProjectId = null;
+    try {
+      window.localStorage.removeItem('lastProjectId');
+    } catch (error) {
+      console.error('Failed to remove lastProjectId', error);
+    }
+    push(ROUTE.PROJECTS);
   }
 
   function toggle() {
@@ -155,6 +240,23 @@
         on:click={() => handleNavigate(activity)}
       />
     {/each}
+    <AccordionSection
+      title="Projects"
+      isSidebarCollapsed={isCollapsed}
+      items={[
+        {
+          id: 'create-project',
+          label: 'Create Project',
+          icon: 'pi pi-plus',
+          route: ROUTE.PROJECTS,
+        },
+        ...projectActivities,
+      ]}
+      customIcon="pi pi-folder"
+      selectedId={selectedProjectId ?? undefined}
+      isSubsection={false}
+      on:click={(event) => handleProjectAccordionClick(event.detail)}
+    />
   </ul>
   <div class="flex flex-col items-center justify-center">
     {#if $isAuthenticated}

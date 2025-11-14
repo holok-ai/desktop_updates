@@ -32,6 +32,8 @@
   let selectedThread: Thread | null = $state(null);
   let messages: Message[] = $state([]);
   let chatPaneRef: any = $state(null);
+  let currentProjectId: string | null = $state(null);
+  let errorMessage = $state<string | null>(null);
 
   onMount(async () => {
     await loadThreads();
@@ -124,6 +126,15 @@
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
+
+      // Track current project from localStorage (set by sidebar when project is selected)
+      try {
+        const lastProjectId = window.localStorage.getItem('lastProjectId');
+        currentProjectId = lastProjectId;
+      } catch {
+        currentProjectId = null;
+      }
+
       if (params.has('createThread') && !showDialog) {
         openCreateDialog();
         void replace(ROUTE.THREADS);
@@ -132,7 +143,48 @@
       if (threadId) {
         const found = $threads.find((thread) => thread.id === threadId);
         if (found) {
-          selectThread(found);
+          // Verify thread belongs to current project context
+          // If we're in projects activity, only show threads from selected project
+          // If we're in threads activity, only show threads without a project
+          const threadProjectId = (found.metadata?.projectId as string | undefined) ?? null;
+
+          // Check if we're in projects context (project selected) or threads context (general)
+          // We determine this by checking if there's a selected project in localStorage
+          if (currentProjectId) {
+            // In project context - only show threads that belong to this project
+            if (threadProjectId === currentProjectId) {
+              selectThread(found);
+              errorMessage = null;
+            } else {
+              errorMessage = 'This thread does not belong to the current project.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => {
+                errorMessage = null;
+              }, 5000);
+            }
+          } else {
+            // In general/global context - only show threads without a project
+            if (threadProjectId === null) {
+              selectThread(found);
+              errorMessage = null;
+            } else {
+              errorMessage =
+                'This thread belongs to a project. Please access it from the project view.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => {
+                errorMessage = null;
+              }, 5000);
+            }
+          }
+        } else {
+          errorMessage = 'Thread not found. It may have been deleted.';
+          selectedThread = null;
+          messages = [];
+          setTimeout(() => {
+            errorMessage = null;
+          }, 5000);
         }
       }
     });
@@ -250,6 +302,16 @@
   <div class="header">
     <h1>Threads</h1>
   </div>
+
+  {#if errorMessage && selectedThread}
+    <div class="error-banner" role="alert">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>{errorMessage}</span>
+      <button class="error-close" onclick={() => (errorMessage = null)} aria-label="Dismiss error">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  {/if}
 
   {#if isLoading}
     <div class="loading">Loading threads...</div>
@@ -481,5 +543,42 @@
   .dialog-button-primary:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: var(--error-color, #ef4444);
+    color: white;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .error-banner i {
+    font-size: 1.1rem;
+  }
+
+  .error-banner span {
+    flex: 1;
+  }
+
+  .error-close {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .error-close:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 </style>

@@ -20,6 +20,7 @@
   let projectToDelete: Project | null = $state(null);
   let threadCount = $state(0);
   let threadsLoading = $state(false);
+  let errorMessage = $state<string | null>(null);
 
   // Derive selectedProject from store so it auto-updates
   const selectedProject = $derived(
@@ -80,7 +81,6 @@
       }
     })();
 
-    // Return cleanup function synchronously
     return () => {
       try {
         if (offUpdated) offUpdated();
@@ -137,6 +137,7 @@
     } catch (error) {
       console.error('Failed to load thread count:', error);
       threadCount = 0;
+      errorMessage = `Failed to load thread count: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
@@ -183,13 +184,18 @@
       });
     projectThreads = filtered;
   });
-
-  function openThread(threadId: string) {
-    replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
-  }
 </script>
 
 <div class="projects-page">
+  {#if errorMessage}
+    <div class="error-banner" role="alert">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>{errorMessage}</span>
+      <button class="error-close" onclick={() => (errorMessage = null)} aria-label="Dismiss error">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  {/if}
   {#if isLoading}
     <div class="loading">Loading projects...</div>
   {:else if !selectedProject}
@@ -240,13 +246,13 @@
         </div>
       </div>
 
-      <div class="project-content">
-        <h3>Project Threads</h3>
-        {#if threadsLoading}
-          <div class="empty-threads">
-            <p>Loading threads...</p>
-          </div>
-        {:else if projectThreads.length === 0}
+      {#if threadsLoading}
+        <div class="empty-threads">
+          <p>Loading threads...</p>
+        </div>
+      {:else if projectThreads.length === 0}
+        <div class="project-content">
+          <h3>Project Threads</h3>
           <div class="empty-threads">
             <p>
               {#if threadCount > 0}
@@ -256,21 +262,8 @@
               {/if}
             </p>
           </div>
-        {:else}
-          <ul class="thread-list">
-            {#each projectThreads as t}
-              <li>
-                <button class="thread-item" onclick={() => openThread(t.id)} title={t.title}>
-                  <span class="thread-title">{t.title || 'Untitled'}</span>
-                  <span class="thread-updated">
-                    {new Date((t as any).updatedAt ?? t.createdAt).toLocaleString()}
-                  </span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -437,53 +430,6 @@
     color: var(--text-secondary);
   }
 
-  .thread-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .thread-item {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition:
-      background 0.15s ease,
-      border-color 0.15s ease;
-    text-align: left;
-  }
-
-  .thread-item:hover {
-    background: var(--surface-hover);
-    border-color: var(--primary-color);
-  }
-
-  .thread-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .thread-updated {
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
   .empty-threads {
     text-align: center;
     padding: 2rem;
@@ -494,6 +440,42 @@
     margin: 0;
   }
 
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: var(--error-color, #ef4444);
+    color: white;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .error-banner i {
+    font-size: 1.1rem;
+  }
+
+  .error-banner span {
+    flex: 1;
+  }
+
+  .error-close {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .error-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
   .badge {
     display: inline-block;
     padding: 4px 10px;

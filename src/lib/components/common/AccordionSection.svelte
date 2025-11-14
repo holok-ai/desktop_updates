@@ -6,14 +6,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection } = $props<{
-    title: string;
-    isSidebarCollapsed: boolean;
-    items: SidebarActivity[];
-    showActions?: boolean;
-    selectedId?: string | null;
-    isSubsection?: boolean;
-  }>();
+  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection, customIcon } =
+    $props<{
+      title: string;
+      isSidebarCollapsed: boolean;
+      items: SidebarActivity[];
+      showActions?: boolean;
+      selectedId?: string | null;
+      isSubsection?: boolean;
+      customIcon?: string;
+    }>();
 
   let isCollapsed = $state(false);
 
@@ -27,14 +29,36 @@
   }
 </script>
 
-<div class="w-full flex-col {isSidebarCollapsed ? 'hidden' : 'flex'}">
-  <button class="accordion-header" onclick={toggleCollapse}>
-    <i class="pi pi-angle-down arrow" class:rotate={!isCollapsed}></i>
-    <span class="accordion-title">{title}</span>
-  </button>
+<div class="w-full flex-col">
+  <li
+    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-800"
+    tabindex="0"
+    role="menuitem"
+    aria-label={title}
+    onclick={toggleCollapse}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') toggleCollapse();
+    }}
+    title={isSidebarCollapsed ? title : undefined}
+  >
+    {#if customIcon}
+      <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
+        <i class="{customIcon} text-base leading-none"></i>
+      </div>
+      {#if !isSidebarCollapsed}
+        <span class="text-sm leading-none truncate flex-1">{title}</span>
+        <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
+      {/if}
+    {:else}
+      <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
+      {#if !isSidebarCollapsed}
+        <span class="text-sm leading-none truncate flex-1">{title}</span>
+      {/if}
+    {/if}
+  </li>
 
   {#key isCollapsed}
-    {#if !isCollapsed}
+    {#if !isCollapsed && !isSidebarCollapsed}
       <div class="accordion-content gap-1 flex flex-col" transition:slide={{ duration: 200 }}>
         {#each items as item (item.id)}
           <SidebarItem
@@ -55,40 +79,10 @@
 </div>
 
 <style>
-  .accordion-header {
-    display: flex;
-    align-items: center;
-    gap: var(--inline-spacing);
-    cursor: pointer;
-    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
-    background: transparent;
-    border: none;
-    transition: color 0.2s ease;
-    position: sticky; /* keep header visible while scrolling long lists */
-    top: 0;
-    z-index: 1;
-    background-color: var(--surface-sidebar-secondary);
-    color: #fff;
-  }
-
-  .accordion-header:focus {
-    outline: none;
-  }
-
-  .accordion-header:hover {
-    background-color: var(--background-primary-hover);
-  }
-
-  .accordion-title {
-    color: #fff;
-    font-size: 14px;
-    font-weight: 500;
-  }
-
   .arrow {
     transition: transform 0.25s ease;
-    display: inline-block; /* ensure rotate doesn't affect layout */
-    flex-shrink: 0; /* prevent disappearing when container shrinks */
+    display: inline-block;
+    flex-shrink: 0;
   }
 
   .arrow.rotate {
@@ -97,6 +91,6 @@
 
   .accordion-content {
     will-change: height;
-    overflow-anchor: none; /* avoid scroll jump when expanding/collapsing */
+    overflow-anchor: none;
   }
 </style>

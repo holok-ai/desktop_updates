@@ -95,11 +95,11 @@ describe('ProjectRepository', () => {
   });
 
   describe('updateProject', () => {
-    it('should update project name', () => {
-      const project = repository.createProject('Old Name');
-      const updated = repository.updateProject(project.id, { title: 'New Name' });
+    it('should update project title', () => {
+      const project = repository.createProject('Old title');
+      const updated = repository.updateProject(project.id, { title: 'New title' });
 
-      expect(updated.title).toBe('New Name');
+      expect(updated.title).toBe('New title');
     });
 
     it('should update project description', () => {
@@ -132,13 +132,13 @@ describe('ProjectRepository', () => {
       const originalUpdatedAt = project.updatedAt;
 
       // Wait a bit to ensure timestamp difference
-      const updated = repository.updateProject(project.id, { name: 'Updated Name' });
+      const updated = repository.updateProject(project.id, { title: 'Updated title' });
       expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
     });
 
     it('should throw error for non-existent project', () => {
       expect(() => {
-        repository.updateProject('non-existent-id', { name: 'New Name' });
+        repository.updateProject('non-existent-id', { title: 'New title' });
       }).toThrow('Project not found');
     });
   });
@@ -201,7 +201,7 @@ describe('ProjectRepository', () => {
       const project = repository.createProject('Test Project');
       const retrieved = repository.getProject(project.id);
 
-      retrieved!.title = 'Modified Name';
+      retrieved!.title = 'Modified title';
 
       const retrievedAgain = repository.getProject(project.id);
       expect(retrievedAgain?.title).toBe('Test Project');
@@ -212,7 +212,7 @@ describe('ProjectRepository', () => {
       const list1 = repository.listProjects();
       const list2 = repository.listProjects();
 
-      list1[0].title = 'Modified';
+      list1[0].title = 'Modified title';
 
       expect(list2[0].title).toBe('Test Project');
     });

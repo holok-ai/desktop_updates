@@ -131,7 +131,7 @@ describe('Project IPC Handlers', () => {
       expect(result.privacyMode).toBe('project_only');
     });
 
-    it('should throw error if name is missing', () => {
+    it('should throw error if title is missing', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:create',
       );
@@ -148,7 +148,7 @@ describe('Project IPC Handlers', () => {
       );
       const handler = handleCall[1];
 
-      const project = projectRepository.createProject('Original Name');
+      const project = projectRepository.createProject('Original title');
 
       const result = await handler(null, project.id, { title: 'Updated Name' });
 
@@ -169,7 +169,7 @@ describe('Project IPC Handlers', () => {
       expect(result.privacyMode).toBe('project_only');
     });
 
-    it('should throw error if name is empty', () => {
+    it('should throw error if title is empty', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:update',
       );
