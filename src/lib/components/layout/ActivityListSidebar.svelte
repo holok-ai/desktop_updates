@@ -3,6 +3,7 @@
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import SidebarItem from '../common/SidebarItem.svelte';
   import AccordionSection from '../common/AccordionSection.svelte';
+  import ThreadListItem from '../common/ThreadListItem.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
@@ -20,7 +21,6 @@
   let lastActivityId: string | null = null;
 
   let threadItems = $state<SidebarActivity[]>([]);
-  let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let selectedThreadId: string | null = $state(null);
 
   let projectItems = $state<SidebarActivity[]>([]);
@@ -109,21 +109,24 @@
     lastActivityId = activity?.id ?? null;
   });
 
+  let filteredThreads = $state<Thread[]>([]);
+
   $effect(() => {
     // Filter threads based on current view
-    let filteredThreads = $threads;
+    let threadsToShow = $threads;
     if (activity?.id === 'projects' && selectedProjectId) {
       // When viewing a project, show only threads in that project
-      filteredThreads = $threads.filter(
+      threadsToShow = $threads.filter(
         (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
       );
     } else if (activity?.id === 'threads') {
       // When viewing threads, show only threads without a project (general history)
-      filteredThreads = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
+      threadsToShow = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
     }
 
-    threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-    groupedThreadSections = getGroupByTime(filteredThreads, ROUTE.THREADS);
+    filteredThreads = threadsToShow;
+
+    threadItems = threadsToShow.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
 
     projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
     groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
@@ -302,29 +305,28 @@
         />
       {/if}
       {#if activity?.id === 'threads'}
-        {#each groupedThreadSections as section}
-          <AccordionSection
-            title={section.title}
-            isSidebarCollapsed={isCollapsed}
-            isSubsection={true}
-            items={section.items}
-            showActions={true}
-            selectedId={selectedThreadId}
-            on:click={(e) => select(e.detail)}
-            on:delete={async (e) => {
-              const item = e.detail as { id: string };
-              if (item?.id?.startsWith('temp_')) {
-                threads.deleteThread(item.id);
-                return;
-              }
-              try {
-                await threadService.softDelete(item.id);
-              } catch (err) {
-                console.error('Failed to delete thread', err);
-              }
-            }}
-          />
-        {/each}
+        {#if !isCollapsed}
+          {#each filteredThreads as thread (thread.id)}
+            <ThreadListItem
+              {thread}
+              isSelected={selectedThreadId === thread.id}
+              showActions={true}
+              on:click={(e) => select(e.detail)}
+              on:delete={async (e) => {
+                const item = e.detail as { id: string };
+                if (item?.id?.startsWith('temp_')) {
+                  threads.deleteThread(item.id);
+                  return;
+                }
+                try {
+                  await threadService.softDelete(item.id);
+                } catch (err) {
+                  console.error('Failed to delete thread', err);
+                }
+              }}
+            />
+          {/each}
+        {/if}
       {/if}
       {#if activity?.id === 'projects'}
         {#each groupedProjectSections as section}
