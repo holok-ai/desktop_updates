@@ -45,6 +45,7 @@
             isSelected={selectedId === item.id}
             {showActions}
             on:click={() => onClick(item)}
+            on:rename={() => dispatch('rename', item)}
             on:delete={() => dispatch('delete', item)}
           />
         {/each}

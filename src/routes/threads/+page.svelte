@@ -142,7 +142,8 @@
   async function loadThreads() {
     isLoading = true;
     try {
-      await threadService.getAll();
+      // Load all threads - filtering happens in UI/sidebar
+      await threadService.getAll({ includeProjectOnly: true });
     } catch (error) {
       console.error('Failed to load threads:', error);
     } finally {

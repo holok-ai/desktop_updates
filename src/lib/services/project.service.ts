@@ -1,6 +1,6 @@
 import type { GUID } from '$lib/types/app.type';
 import { projects } from '../stores/project.store';
-import type { Project } from '../types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '../types/project.type.js';
 
 export class ProjectService {
   private static instance: ProjectService | null = null;
@@ -45,9 +45,13 @@ export class ProjectService {
     }
   }
 
-  public async createProject(title: string, description?: string): Promise<Project> {
+  public async createProject(
+    title: string,
+    description?: string,
+    privacyMode?: ProjectPrivacyMode,
+  ): Promise<Project> {
     try {
-      const project = await window.electronAPI.project.create({ title, description });
+      const project = await window.electronAPI.project.create({ title, description, privacyMode });
       return project;
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -57,13 +61,23 @@ export class ProjectService {
 
   public async updateProject(
     id: GUID,
-    updates: { title?: string; description?: string },
+    updates: { title?: string; description?: string; privacyMode?: ProjectPrivacyMode },
   ): Promise<Project> {
     try {
       const project = await window.electronAPI.project.update(id, updates);
       return project;
     } catch (error) {
       console.error('Failed to update project:', error);
+      throw error;
+    }
+  }
+
+  public async setPrivacyMode(id: GUID, mode: ProjectPrivacyMode): Promise<Project> {
+    try {
+      const project = await window.electronAPI.project.update(id, { privacyMode: mode });
+      return project;
+    } catch (error) {
+      console.error('Failed to set privacy mode:', error);
       throw error;
     }
   }
