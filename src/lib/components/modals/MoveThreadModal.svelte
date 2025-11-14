@@ -23,8 +23,9 @@
 
   $effect(() => {
     if (show && thread) {
-      // Initialize selected project to current project or null
-      selectedProjectId = thread.metadata?.projectId as GUID | null;
+      // Initialize selected project to current project or default to General History
+      const current = thread.metadata?.projectId as GUID | null;
+      selectedProjectId = current;
       // Load projects if not already loaded
       if ($projects.length === 0) {
         void projectService.loadProjects();

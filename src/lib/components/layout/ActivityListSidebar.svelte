@@ -112,16 +112,25 @@
   });
 
   $effect(() => {
-    // Filter threads based on current view
+    // Filter threads based on current view and privacy mode
     let filteredThreads = $threads;
     if (activity?.id === 'projects' && selectedProjectId) {
       // When viewing a project, show only threads in that project
       filteredThreads = $threads.filter(
         (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
       );
-    } else if (activity?.id === 'threads') {
-      // When viewing threads, show only threads without a project (general history)
-      filteredThreads = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
+    } else if (activity?.id === 'threads' || activity?.id === 'home') {
+      // When viewing general threads or home, show threads from default mode projects + threads without projects
+      // Exclude threads from project_only projects
+      filteredThreads = $threads.filter((t) => {
+        const projectId = t.metadata?.projectId as string | undefined;
+        if (!projectId) return true; // Include threads not in any project
+
+        const project = $projects.find((p) => p.id === projectId);
+        // If project not found, include it (might not be loaded yet or might be deleted)
+        // If project found, only include if it's NOT project_only mode
+        return !project || project.privacyMode !== 'project_only';
+      });
     }
 
     threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
@@ -235,7 +244,8 @@
 
   async function getThreadItems() {
     try {
-      await threadService.getAll();
+      // Load all threads (including project_only) - filtering happens in UI
+      await threadService.getAll({ includeProjectOnly: true });
     } catch (error) {
       console.error('Failed to load threads:', error);
     }

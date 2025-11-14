@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
+import { projectRepository } from '../repository/project-repository.js';
 import { mokuService } from '../services/moku.service.js';
 import { titleValidationService } from '../services/title-validation.service.js';
 
@@ -13,6 +14,7 @@ import type {
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
+import { GUID } from '../../src/lib/types/app.type.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -24,12 +26,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
     id: t.id,
-    title:
-      t.title && t.title.length > 0
-        ? t.title
-        : typeof t.metadata?.title === 'string'
-          ? t.metadata.title
-          : '',
+    title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
     description: t.metadata?.description ?? '',
     // Normalize status from metadata if present and valid, otherwise default to 'active'
     status: (() => {
@@ -183,13 +180,36 @@ export function registerThreadHandlers(): void {
     // ignore initialization errors in test environments
   }
 
-  ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
-    const list = threadRepository.listThreads();
-    const mapped = list
-      .map((t) => toRendererThread(t))
-      .filter((x): x is RendererThread => x !== null);
-    return Promise.resolve(mapped);
-  });
+  ipcMain.handle(
+    'thread:getAll',
+    (
+      _event,
+      options?: { projectId?: string | null; includeProjectOnly?: boolean },
+    ): Promise<RendererThread[]> => {
+      const list = threadRepository.listThreads();
+      let filtered = list;
+
+      // Privacy mode filtering
+      if (options?.projectId) {
+        // When viewing a specific project, only show threads from that project
+        filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
+      } else if (!options?.includeProjectOnly) {
+        // When viewing general threads, exclude threads from project_only projects
+        filtered = list.filter((t) => {
+          const projectId = t.metadata?.projectId as GUID | undefined;
+          if (!projectId) return true; // Include threads not in any project
+          const project = projectRepository.getProject(projectId);
+          // Exclude if project has project_only privacy mode
+          return !project || project.privacyMode !== 'project_only';
+        });
+      }
+
+      const mapped = filtered
+        .map((t) => toRendererThread(t))
+        .filter((x): x is RendererThread => x !== null);
+      return Promise.resolve(mapped);
+    },
+  );
 
   ipcMain.handle('thread:getById', (_event, id: string): Promise<RendererThread | null> => {
     const t = threadRepository.loadThread(id);
@@ -197,26 +217,29 @@ export function registerThreadHandlers(): void {
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
-    const t = threadRepository.loadThread(id);
-    if (!t) return Promise.resolve([]);
-    const items = t.messages
-      .filter((m) => !m.deletedAt)
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((m) => ({
-        id: m.id,
-        title: m.title,
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-        isEdited: m.isEdited,
-        editedAt: m.editedAt,
-        versions: m.versions,
-        clientMessageId: m.clientMessageId,
-        deletedAt: m.deletedAt,
-      }));
-    return Promise.resolve(items);
-  });
+  ipcMain.handle(
+    'thread:getMessages',
+    (
+      _event,
+      id: string,
+    ): Promise<Message[]> => {
+      // Privacy enforcement hook (no-op without caller context)
+      const t0 = threadRepository.loadThread(id);
+      if (t0 && t0.metadata?.projectId) {
+        const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
+      }
+      const t = threadRepository.loadThread(id);
+      if (!t) return Promise.resolve([]);
+      const items: Message[] = t.messages
+        .filter((m) => !m.deletedAt)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((m) => ({ ...m }));
+      return Promise.resolve(items);
+    },
+  );
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(
@@ -619,6 +642,14 @@ export function registerThreadHandlers(): void {
         });
       }
 
+      // Privacy enforcement hook (no-op without caller context)
+      if (typeof internal.metadata?.projectId === 'string') {
+        const proj = projectRepository.getProject(internal.metadata.projectId as GUID);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
+      }
+
       // Ownership check if thread has userId
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
@@ -861,8 +892,8 @@ export function registerThreadHandlers(): void {
       // Update thread metadata with new project assignment
       const newMetadata: ThreadMetadata = { ...thread.metadata };
       if (targetProjectId === null) {
-        // Moving to general history - remove projectId
-        delete newMetadata.projectId;
+        // Moving to general history - remove projectId using explicit undefined (handled in repo)
+        (newMetadata as Record<string, unknown>).projectId = undefined;
       } else {
         // Moving to a project - set projectId
         newMetadata.projectId = targetProjectId;
