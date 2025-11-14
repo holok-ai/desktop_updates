@@ -70,9 +70,23 @@
               type="button"
               onclick={() => {
                 menuOpen = false;
-                dispatch('delete', item);
-              }}>Delete thread</button
+                dispatch('rename', item);
+              }}
+              aria-label="Rename thread"
             >
+              <i class="pi pi-pencil"></i> Rename
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              onclick={() => {
+                menuOpen = false;
+                dispatch('delete', item);
+              }}
+              aria-label="Delete thread"
+            >
+              <i class="pi pi-trash"></i> Delete
+            </button>
           </div>
         {/if}
       {/if}
@@ -121,7 +135,9 @@
     min-width: 160px;
   }
   .menu-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     text-align: left;
     padding: 0.5rem 0.75rem;
@@ -129,8 +145,13 @@
     border: none;
     color: var(--text-primary);
     cursor: pointer;
+    font-size: 0.875rem;
+    border-radius: 0.25rem;
   }
   .menu-item:hover {
     background: rgba(255, 255, 255, 0.06);
+  }
+  .menu-item i {
+    font-size: 0.875rem;
   }
 </style>
