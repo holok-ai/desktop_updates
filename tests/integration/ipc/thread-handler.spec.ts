@@ -81,6 +81,17 @@ describe('IPC: thread-handler', () => {
     expect(list.length).toBeGreaterThanOrEqual(0);
   });
 
+  it('getAll accepts optional options parameter', async () => {
+    const list1 = await ipcMain.__invoke('thread:getAll', { includeProjectOnly: true });
+    expect(Array.isArray(list1)).toBe(true);
+
+    const list2 = await ipcMain.__invoke('thread:getAll', { includeProjectOnly: false });
+    expect(Array.isArray(list2)).toBe(true);
+
+    const list3 = await ipcMain.__invoke('thread:getAll', { projectId: 'test-id' });
+    expect(Array.isArray(list3)).toBe(true);
+  });
+
   it('create returns new thread and broadcasts created event', async () => {
     const created = await ipcMain.__invoke('thread:create', {
       title: 'x',

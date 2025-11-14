@@ -12,7 +12,7 @@
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
 
-  let selectedProject: Project | null = $state(null);
+  let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
   let showFormModal = $state(false);
   let showDeleteModal = $state(false);
@@ -22,17 +22,23 @@
   let threadsLoading = $state(false);
   let errorMessage = $state<string | null>(null);
 
+  // Derive selectedProject from store so it auto-updates
+  const selectedProject = $derived(
+    selectedProjectId ? ($projects.find((p) => p.id === selectedProjectId) ?? null) : null,
+  );
+
   onMount(() => {
     isLoading = true;
     let offUpdated: (() => void) | null = null;
     let offDeleted: (() => void) | null = null;
 
-    void (async () => {
+    // Run async initialization
+    (async () => {
       try {
         await projectService.loadProjects();
-        // Ensure threads are loaded for listing in project view
+        // Load all threads including project_only ones for project views
         try {
-          await threadService.getAll();
+          await threadService.getAll({ includeProjectOnly: true });
         } catch (e) {
           console.error('Failed to load threads:', e);
         }
@@ -60,7 +66,7 @@
             if (last) {
               const found = $projects.find((p) => p.id === last);
               if (found) {
-                selectedProject = found;
+                selectedProjectId = last;
                 void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
               }
             }
@@ -95,37 +101,21 @@
         void replace(ROUTE.PROJECTS);
       }
 
-      const projectId = params.get('projectId');
+      const projectId = params.get('projectId') as GUID | null;
       if (projectId) {
-        try {
-          const found = $projects.find((project) => project.id === projectId);
-          if (found) {
-            selectedProject = found;
-            errorMessage = null;
-            void loadThreadCount(found.id);
-            // Ensure threads list is fresh when switching projects
-            // No special refresh loop; list reacts to $threads via IPC updates
-          } else {
-            // Project not found (possibly deleted), clear selection
-            errorMessage = `Project not found. It may have been deleted.`;
-            selectedProject = null;
-            replace(ROUTE.PROJECTS);
-            // Clear error after 5 seconds
-            setTimeout(() => {
-              errorMessage = null;
-            }, 5000);
-          }
-        } catch (error) {
-          errorMessage = `Failed to switch to project: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          selectedProject = null;
-          // Clear error after 5 seconds
-          setTimeout(() => {
-            errorMessage = null;
-          }, 5000);
+        const found = $projects.find((project) => project.id === projectId);
+        if (found) {
+          selectedProjectId = projectId;
+          loadThreadCount(projectId);
+          // Ensure threads list is fresh when switching projects
+          // No special refresh loop; list reacts to $threads via IPC updates
+        } else {
+          // Project not found (possibly deleted), clear selection
+          selectedProjectId = null;
+          replace(ROUTE.PROJECTS);
         }
       } else {
-        selectedProject = null;
-        errorMessage = null;
+        selectedProjectId = null;
       }
     });
     return unsubscribe;
@@ -171,7 +161,7 @@
   }
 
   function handleDeleteSuccess() {
-    selectedProject = null;
+    selectedProjectId = null;
     window.localStorage.removeItem('lastProjectId');
     replace(ROUTE.PROJECTS);
   }
@@ -237,6 +227,14 @@
         <div class="stat-card">
           <div class="stat-label">Threads</div>
           <div class="stat-value">{threadCount}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Privacy</div>
+          <div class="stat-value">
+            <span class={selectedProject.privacyMode === 'project_only' ? 'badge danger' : 'badge'}>
+              {selectedProject.privacyMode === 'project_only' ? 'Project Only' : 'Default'}
+            </span>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Created</div>
@@ -477,5 +475,20 @@
 
   .error-close:hover {
     background: rgba(255, 255, 255, 0.2);
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .badge.danger {
+    background: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.35);
+    color: #ff6b6b;
   }
 </style>

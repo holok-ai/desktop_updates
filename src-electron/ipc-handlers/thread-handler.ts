@@ -1,6 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
+import { projectRepository } from '../repository/project-repository.js';
 import { mokuService } from '../services/moku.service.js';
+import { titleValidationService } from '../services/title-validation.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type ThreadRepository from '../repository/thread-repository.js';
@@ -12,6 +14,7 @@ import type {
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
+import { GUID } from '../../src/lib/types/app.type.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -23,12 +26,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
     id: t.id,
-    title:
-      t.title && t.title.length > 0
-        ? t.title
-        : typeof t.metadata?.title === 'string'
-          ? t.metadata.title
-          : '',
+    title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
     description: t.metadata?.description ?? '',
     // Normalize status from metadata if present and valid, otherwise default to 'active'
     status: (() => {
@@ -46,7 +44,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
 
 function broadcast(channel: string, ...args: unknown[]): void {
   BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send(channel, ...(args as [unknown]));
+    window.webContents.send(channel, ...args);
   });
 }
 
@@ -182,13 +180,36 @@ export function registerThreadHandlers(): void {
     // ignore initialization errors in test environments
   }
 
-  ipcMain.handle('thread:getAll', (): Promise<RendererThread[]> => {
-    const list = threadRepository.listThreads();
-    const mapped = list
-      .map((t) => toRendererThread(t))
-      .filter((x): x is RendererThread => x !== null);
-    return Promise.resolve(mapped);
-  });
+  ipcMain.handle(
+    'thread:getAll',
+    (
+      _event,
+      options?: { projectId?: string | null; includeProjectOnly?: boolean },
+    ): Promise<RendererThread[]> => {
+      const list = threadRepository.listThreads();
+      let filtered = list;
+
+      // Privacy mode filtering
+      if (options?.projectId) {
+        // When viewing a specific project, only show threads from that project
+        filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
+      } else if (!options?.includeProjectOnly) {
+        // When viewing general threads, exclude threads from project_only projects
+        filtered = list.filter((t) => {
+          const projectId = t.metadata?.projectId as GUID | undefined;
+          if (!projectId) return true; // Include threads not in any project
+          const project = projectRepository.getProject(projectId);
+          // Exclude if project has project_only privacy mode
+          return !project || project.privacyMode !== 'project_only';
+        });
+      }
+
+      const mapped = filtered
+        .map((t) => toRendererThread(t))
+        .filter((x): x is RendererThread => x !== null);
+      return Promise.resolve(mapped);
+    },
+  );
 
   ipcMain.handle('thread:getById', (_event, id: string): Promise<RendererThread | null> => {
     const t = threadRepository.loadThread(id);
@@ -196,26 +217,29 @@ export function registerThreadHandlers(): void {
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
-    const t = threadRepository.loadThread(id);
-    if (!t) return Promise.resolve([]);
-    const items = t.messages
-      .filter((m) => !m.deletedAt)
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((m) => ({
-        id: m.id,
-        title: m.title,
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-        isEdited: m.isEdited,
-        editedAt: m.editedAt,
-        versions: m.versions,
-        clientMessageId: m.clientMessageId,
-        deletedAt: m.deletedAt,
-      }));
-    return Promise.resolve(items);
-  });
+  ipcMain.handle(
+    'thread:getMessages',
+    (
+      _event,
+      id: string,
+    ): Promise<Message[]> => {
+      // Privacy enforcement hook (no-op without caller context)
+      const t0 = threadRepository.loadThread(id);
+      if (t0 && t0.metadata?.projectId) {
+        const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
+      }
+      const t = threadRepository.loadThread(id);
+      if (!t) return Promise.resolve([]);
+      const items: Message[] = t.messages
+        .filter((m) => !m.deletedAt)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((m) => ({ ...m }));
+      return Promise.resolve(items);
+    },
+  );
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(
@@ -372,6 +396,196 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Rename thread with validation and title history tracking
+  ipcMain.handle(
+    'thread:renameThread',
+    (
+      _event,
+      threadId: string,
+      newTitle: string,
+    ): Promise<
+      | { success: true; thread: RendererThread }
+      | { success: false; status: number; error: string; code?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+        });
+      }
+
+      // Ownership check
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      try {
+        // Get all existing thread titles for duplicate checking
+        const allThreads = threadRepository.listThreads();
+        const existingTitles = allThreads.filter((t) => t.id !== threadId).map((t) => t.title);
+
+        // Validate the new title
+        const validation = titleValidationService.validate(
+          newTitle,
+          existingTitles,
+          internal.title,
+        );
+
+        if (!validation.valid) {
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: validation.error || 'Invalid title',
+            code: validation.code,
+          });
+        }
+
+        // Rename the thread (uses sanitized title from validation)
+        const sanitizedTitle = validation.sanitizedTitle || newTitle;
+        const userId = currentUser?.id;
+        const updated = threadRepository.renameThread(threadId, sanitizedTitle, userId);
+
+        const rt = toRendererThread(updated);
+        if (!rt) throw new Error('Failed to convert thread after rename');
+
+        // Broadcast the update
+        broadcast('thread:updated', rt);
+
+        threadLog.info(`Thread ${threadId} renamed to "${sanitizedTitle}"`);
+
+        return Promise.resolve({
+          success: true,
+          thread: rt,
+        });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error(`Failed to rename thread ${threadId}:`, err);
+
+        // Map repository errors to appropriate status codes
+        if (err.message === 'TITLE_EMPTY' || err.message === 'TITLE_TOO_LONG') {
+          return Promise.resolve({
+            success: false,
+            status: 400,
+            error: err.message,
+            code: err.message,
+          });
+        }
+
+        return Promise.resolve({
+          success: false,
+          status: 500,
+          error: err.message || 'Failed to rename thread',
+        });
+      }
+    },
+  );
+
+  // Undo the most recent rename operation
+  ipcMain.handle(
+    'thread:undoRename',
+    (
+      _event,
+      threadId: string,
+    ): Promise<
+      | { success: true; thread: RendererThread }
+      | { success: false; status: number; error: string; code?: string }
+    > => {
+      const auth = getAuthService();
+
+      // Authorization check
+      if (!auth.isAuthenticated()) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      const currentUser = auth.getUser();
+      const internal = threadRepository.loadThread(threadId);
+      if (!internal) {
+        return Promise.resolve({
+          success: false,
+          status: 404,
+          error: 'THREAD_NOT_FOUND',
+        });
+      }
+
+      // Ownership check
+      const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
+      if (ownerId && currentUser && ownerId !== currentUser.id) {
+        return Promise.resolve({
+          success: false,
+          status: 403,
+          error: 'THREAD_ACCESS_DENIED',
+        });
+      }
+
+      try {
+        // Undo the rename
+        const updated = threadRepository.undoRenameThread(threadId);
+
+        const rt = toRendererThread(updated);
+        if (!rt) throw new Error('Failed to convert thread after undo rename');
+
+        // Broadcast the update
+        broadcast('thread:updated', rt);
+
+        threadLog.info(`Undo rename for thread ${threadId}, restored title: "${updated.title}"`);
+
+        return Promise.resolve({
+          success: true,
+          thread: rt,
+        });
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
+
+          // Map repository errors
+          if (e.message === 'NO_RENAME_HISTORY') {
+            return Promise.resolve({
+              success: false,
+              status: 400,
+              error: 'No rename history available',
+              code: 'NO_RENAME_HISTORY',
+            });
+          }
+
+          return Promise.resolve({
+            success: false,
+            status: 500,
+            error: e.message || 'Failed to undo rename',
+          });
+        }
+        threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
+        return Promise.resolve({
+          success: false,
+          status: 500,
+          error: String(e) || 'Failed to undo rename',
+        });
+      }
+    },
+  );
+
   ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
     const deleted = threadRepository.deleteThread(id);
     if (deleted) broadcast('thread:deleted', id);
@@ -426,6 +640,14 @@ export function registerThreadHandlers(): void {
           error: 'THREAD_NOT_FOUND',
           thread_id: threadId,
         });
+      }
+
+      // Privacy enforcement hook (no-op without caller context)
+      if (typeof internal.metadata?.projectId === 'string') {
+        const proj = projectRepository.getProject(internal.metadata.projectId as GUID);
+        if (proj && proj.privacyMode === 'project_only') {
+          // In future, enforce caller/project context here
+        }
       }
 
       // Ownership check if thread has userId
@@ -513,10 +735,36 @@ export function registerThreadHandlers(): void {
   ipcMain.handle(
     'thread:addAssistantResponse',
     (_event, threadId: string, response: string, model?: string) => {
+      // Check if title generation will happen
+      const threadBefore = threadRepository.loadThread(threadId);
+      let willGenerateTitle = false;
+
+      if (threadBefore) {
+        const assistantCount =
+          threadBefore.messages?.filter((m) => m.role === 'assistant').length || 0;
+        const needsTitle = !threadBefore.title || threadBefore.title.trim() === '';
+        willGenerateTitle = assistantCount === 0 && needsTitle;
+
+        if (willGenerateTitle) {
+          threadLog.debug(`[thread-handler] Title generation will trigger for thread ${threadId}`);
+          broadcast('thread:titleGenerationStarted', { threadId });
+        }
+      }
+
+      // Add the assistant response (this may trigger auto-title generation)
       const msg = threadRepository.addAssistantResponse(threadId, response, model);
       const threadObj = threadRepository.loadThread(threadId);
       const thread = toRendererThread(threadObj);
       if (!thread) throw new Error('Failed to convert thread after assistant response');
+
+      // If title was generated, emit completion event
+      if (willGenerateTitle && thread.title) {
+        threadLog.debug(
+          `[thread-handler] Title generation completed for thread ${threadId}: "${thread.title}"`,
+        );
+        broadcast('thread:titleGenerationFinished', { threadId, title: thread.title });
+      }
+
       broadcast('thread:updated', thread);
       return Promise.resolve({
         id: msg.id,
@@ -537,9 +785,30 @@ export function registerThreadHandlers(): void {
       responses: { text: string; model?: string }[],
       opts: { title?: string; description?: string } = {},
     ) => {
+      // Check if title generation will happen (only for new threads with responses)
+      let willGenerateTitle = false;
+      if ((!threadId || !threadRepository.loadThread(threadId)) && responses.length > 0) {
+        const hasTitle = opts.title && opts.title.trim() !== '';
+        willGenerateTitle = !hasTitle;
+
+        if (willGenerateTitle) {
+          threadLog.debug('[thread-handler] Title generation will trigger for new thread');
+          // Note: we don't have threadId yet, will emit finished event after creation
+        }
+      }
+
       const res = threadRepository.savePromptAndResponses(threadId, prompt, responses, opts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread after savePromptAndResponses');
+
+      // If title was generated for new thread, emit completion event
+      if (willGenerateTitle && rt.title) {
+        threadLog.debug(
+          `[thread-handler] Title generation completed for thread ${rt.id}: "${rt.title}"`,
+        );
+        broadcast('thread:titleGenerationFinished', { threadId: rt.id, title: rt.title });
+      }
+
       const promptMessage = {
         id: res.promptMessage.id,
         role: res.promptMessage.role,
@@ -623,8 +892,8 @@ export function registerThreadHandlers(): void {
       // Update thread metadata with new project assignment
       const newMetadata: ThreadMetadata = { ...thread.metadata };
       if (targetProjectId === null) {
-        // Moving to general history - remove projectId
-        delete newMetadata.projectId;
+        // Moving to general history - remove projectId using explicit undefined (handled in repo)
+        (newMetadata as Record<string, unknown>).projectId = undefined;
       } else {
         // Moving to a project - set projectId
         newMetadata.projectId = targetProjectId;
@@ -727,6 +996,8 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:getById');
   ipcMain.removeHandler('thread:create');
   ipcMain.removeHandler('thread:update');
+  ipcMain.removeHandler('thread:renameThread');
+  ipcMain.removeHandler('thread:undoRename');
   ipcMain.removeHandler('thread:delete');
   ipcMain.removeHandler('thread:moveToProject');
   threadLog.info('Handlers unregistered');

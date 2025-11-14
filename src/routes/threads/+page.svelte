@@ -194,7 +194,8 @@
   async function loadThreads() {
     isLoading = true;
     try {
-      await threadService.getAll();
+      // Load all threads - filtering happens in UI/sidebar
+      await threadService.getAll({ includeProjectOnly: true });
     } catch (error) {
       console.error('Failed to load threads:', error);
     } finally {
@@ -399,9 +400,11 @@
       </div>
 
       <div class="dialog-actions">
-        <button class="text-white" onclick={() => (showDialog = false)}>Cancel</button>
+        <button class="dialog-button dialog-button-cancel" onclick={() => (showDialog = false)}>
+          Cancel
+        </button>
         <button
-          class="primary"
+          class="dialog-button dialog-button-primary"
           onclick={handleSave}
           disabled={!editingThread && !selectedModel}
           aria-disabled={!editingThread && !selectedModel}
@@ -429,8 +432,8 @@
   .loading,
   .empty {
     text-align: center;
-    padding: 3rem;
-    color: #666;
+    padding: calc(var(--content-padding) * 2.5);
+    color: var(--text-secondary);
   }
 
   .empty button {
@@ -439,7 +442,7 @@
 
   .threads-grid {
     display: flex;
-    gap: 1rem;
+    gap: var(--content-padding);
   }
 
   /* Dialog styles */
@@ -449,7 +452,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: color-mix(in srgb, var(--surface-900) 70%, transparent);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -457,13 +460,14 @@
   }
 
   .dialog {
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
+    background: var(--surface-card);
+    padding: calc(var(--content-padding) * 1.6);
+    border-radius: calc(var(--border-radius) * 2);
     min-width: 500px;
     max-width: 90%;
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--surface-border);
+    box-shadow: 0 calc(var(--content-padding) * 2) calc(var(--content-padding) * 4)
+      color-mix(in srgb, var(--surface-900) 18%, transparent);
   }
 
   .form-group {
@@ -472,7 +476,7 @@
 
   .form-group label {
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--inline-spacing);
     font-weight: 500;
   }
 
@@ -480,43 +484,65 @@
   .form-group textarea,
   .form-group select {
     width: 100%;
-    padding: 0.75rem;
-    border-radius: 6px;
+    padding: calc(var(--inline-spacing) * 1.5);
+    border-radius: var(--border-radius);
     font-family: inherit;
-    font-size: 1rem;
+    font-size: 16px;
   }
 
   .form-group input:focus,
   .form-group textarea:focus,
   .form-group select:focus {
     outline: none;
-    border-color: #646cff;
-  }
-
-  .dialog {
-    background: var(--surface-main);
-    border: 1px solid var(--border-sidebar);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--primary-color);
   }
 
   .dialog-actions {
     display: flex;
-    gap: 1rem;
+    gap: var(--content-padding);
     justify-content: flex-end;
-    margin-top: 2rem;
+    margin-top: calc(var(--content-padding) * 1.6);
   }
 
   .dialog-actions button {
-    padding: 0.75rem 1.5rem;
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
   }
 
-  .primary {
-    background: #646cff;
-    color: white;
+  .dialog-button {
+    min-width: 120px;
+    border-radius: var(--border-radius);
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
   }
 
-  .primary:hover {
-    background: #535bf2;
+  .dialog-button-cancel {
+    background: transparent;
+    color: var(--text-primary);
+    border-color: var(--surface-border);
+  }
+
+  .dialog-button-cancel:hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-border);
+  }
+
+  .dialog-button-primary {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border-color: var(--primary-color);
+  }
+
+  .dialog-button-primary:hover:not(:disabled) {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
+  }
+
+  .dialog-button-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .error-banner {

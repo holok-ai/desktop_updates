@@ -87,9 +87,13 @@ describe('main.ts menu branches with null mainWindow', () => {
     const helpMenu = capturedTemplate[1];
 
     // These should be safe no-ops with mainWindow null, but executing covers the false branch
-    helpMenu.submenu[0].click();
-    helpMenu.submenu[1].click();
-    fileMenu.submenu[5].click(); // DevTools toggle (no-op)
+    const clickMenuItemByLabel = (menu: any, label: string) => {
+      const item = menu?.submenu?.find((s: any) => s && s.label === label);
+      if (item && typeof item.click === 'function') item.click();
+    };
+    clickMenuItemByLabel(helpMenu, 'Getting Started');
+    clickMenuItemByLabel(helpMenu, 'Users Guide');
+    clickMenuItemByLabel(fileMenu, 'Developer Tools'); // DevTools toggle (no-op)
 
     // Ensure no errors and that webContents.send wasn't called on any non-existent window
     // (No assertions needed beyond not throwing and capturedTemplate defined)

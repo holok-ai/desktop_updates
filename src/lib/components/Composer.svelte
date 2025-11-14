@@ -257,6 +257,7 @@
       aria-label="Message input. Press Enter to send, Shift+Enter for new line"
       data-testid="message-input"
       aria-describedby="composer-help-text"
+      class="composer-textarea"
       onkeydown={(e) => {
         // Send on Enter (without Shift). Allow Shift+Enter for newline.
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -273,7 +274,7 @@
 
   <div class="actions">
     <button
-      class="primary"
+      class="composer-send"
       type="button"
       onclick={send}
       disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
@@ -302,15 +303,15 @@
   .composer {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: calc(var(--inline-spacing) * 1.5);
     position: relative;
     transition: all 0.2s ease;
   }
 
   .composer.dragging {
-    border: 2px dashed #646cff;
-    border-radius: 8px;
-    background-color: #f5f5ff;
+    border: 2px dashed var(--primary-color);
+    border-radius: var(--border-radius);
+    background-color: color-mix(in srgb, var(--primary-color) 8%, var(--surface-card));
   }
 
   .drag-overlay {
@@ -319,13 +320,13 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(100, 108, 255, 0.1);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10;
-    border-radius: 8px;
+    border-radius: var(--border-radius);
     pointer-events: none;
   }
 
@@ -333,8 +334,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
-    color: #646cff;
+    gap: var(--content-padding);
+    color: var(--primary-color);
     font-weight: 500;
   }
 
@@ -344,39 +345,38 @@
   }
 
   .drag-message p {
-    font-size: 1.125rem;
+    font-size: 18px;
     margin: 0;
   }
 
   .attachments-preview {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
   }
 
   .input-container {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     align-items: flex-start;
   }
 
   .attach-button {
     flex-shrink: 0;
-    padding: 0.5rem;
-    background: transparent;
-    border: 1px solid var(--border-sidebar);
-    border-radius: 6px;
-    cursor: pointer;
-    color: #646cff;
-    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--surface-border);
+    color: var(--primary-color);
+    background: var(--surface-card);
+    transition: all 0.2s;
   }
 
   .attach-button:hover:not(:disabled) {
-    background: #f5f5ff;
-    border-color: #646cff;
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
   }
 
   .attach-button:disabled {
@@ -389,17 +389,18 @@
     height: 20px;
   }
 
-  .composer textarea {
+  .composer-textarea {
     flex: 1;
     width: 100%;
-    padding: 0.5rem;
-    border-radius: 6px;
-    border: 1px solid var(--border-sidebar);
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--surface-border);
     font-family: inherit;
     resize: vertical;
+    min-height: 120px;
   }
 
-  .composer textarea:disabled {
+  .composer-textarea:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
@@ -409,22 +410,24 @@
     text-align: right;
   }
 
-  .primary {
-    background: #646cff;
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    border: none;
+  .composer-send {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border: 1px solid var(--primary-color);
+    padding: var(--inline-spacing) var(--content-padding);
+    border-radius: var(--border-radius);
+    font-weight: 600;
     cursor: pointer;
-    font-weight: 500;
+    transition: all 0.2s;
   }
 
-  .primary:hover:not(:disabled) {
-    background: #535bf2;
+  .composer-send:hover:not(:disabled) {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
   }
 
-  .primary:disabled {
-    background: #ccc;
+  .composer-send:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
   }
 </style>

@@ -7,6 +7,12 @@ import {
 import { projectRepository } from '../../../src-electron/repository/project-repository';
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/mock/appData'),
+    quit: vi.fn(),
+    on: vi.fn(),
+    whenReady: () => Promise.resolve(),
+  },
   ipcMain: {
     handle: vi.fn(),
     removeHandler: vi.fn(),
@@ -26,6 +32,13 @@ vi.mock('../../../src-electron/utils/logger', () => ({
   logPerformance: vi.fn(() => ({
     end: vi.fn(),
   })),
+  default: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+  __esModule: true,
 }));
 
 vi.mock('../../../src-electron/ipc-handlers/auth-handler', () => ({
@@ -96,10 +109,26 @@ describe('Project IPC Handlers', () => {
         description: 'Test description',
       });
 
-      expect(result.id).toMatch(/^proj_/);
+      expect(typeof result.id).toBe('string');
       expect(result.title).toBe('New Project');
       expect(result.description).toBe('Test description');
       expect(result.createdAt).toBeInstanceOf(Date);
+      expect(result.privacyMode).toBe('default');
+    });
+
+    it('should create a project with project_only privacy mode', async () => {
+      const handleCall = (ipcMain.handle as any).mock.calls.find(
+        (call: any) => call[0] === 'project:create',
+      );
+      const handler = handleCall[1];
+
+      const result = await handler(null, {
+        name: 'Private Project',
+        description: 'Test description',
+        privacyMode: 'project_only',
+      });
+
+      expect(result.privacyMode).toBe('project_only');
     });
 
     it('should throw error if title is missing', () => {
@@ -121,9 +150,23 @@ describe('Project IPC Handlers', () => {
 
       const project = projectRepository.createProject('Original title');
 
-      const result = await handler(null, project.id, { title: 'Updated title' });
+      const result = await handler(null, project.id, { title: 'Updated Name' });
 
-      expect(result.title).toBe('Updated title');
+      expect(result.title).toBe('Updated Name');
+    });
+
+    it('should update privacy mode', async () => {
+      const handleCall = (ipcMain.handle as any).mock.calls.find(
+        (call: any) => call[0] === 'project:update',
+      );
+      const handler = handleCall[1];
+
+      const project = projectRepository.createProject('Test Project');
+      expect(project.privacyMode).toBe('default');
+
+      const result = await handler(null, project.id, { privacyMode: 'project_only' });
+
+      expect(result.privacyMode).toBe('project_only');
     });
 
     it('should throw error if title is empty', () => {

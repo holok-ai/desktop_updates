@@ -92,25 +92,30 @@ describe('main.ts menu branches', () => {
     const fileMenu = capturedTemplate[0];
     const helpMenu = capturedTemplate[1];
 
+    const clickMenuItemByLabel = (menu: any, label: string) => {
+      const item = menu?.submenu?.find((s: any) => s && s.label === label);
+      if (item && typeof item.click === 'function') item.click();
+    };
+
     // New Thread
-    fileMenu.submenu[0].click();
+    clickMenuItemByLabel(fileMenu, 'New Thread...');
     // Refresh
-    fileMenu.submenu[1].click();
+    clickMenuItemByLabel(fileMenu, 'Refresh');
     // Settings
-    fileMenu.submenu[3].click();
-    // DevTools toggle open (no-op since mainWindow is null)
-    fileMenu.submenu[5].click();
+    clickMenuItemByLabel(fileMenu, 'Settings...');
+    // Developer Tools toggle (no-op since mainWindow is null)
+    clickMenuItemByLabel(fileMenu, 'Developer Tools');
 
     // Help menu clicks (no-op sends)
-    helpMenu.submenu[0].click();
-    helpMenu.submenu[1].click();
+    clickMenuItemByLabel(helpMenu, 'Getting Started');
+    clickMenuItemByLabel(helpMenu, 'Users Guide');
 
     // About
-    helpMenu.submenu[3].click();
+    clickMenuItemByLabel(helpMenu, 'About');
     expect(electronMock.dialog.showMessageBox).toHaveBeenCalled();
 
     // Exit
-    fileMenu.submenu[7].click();
+    clickMenuItemByLabel(fileMenu, 'Exit');
     expect(electronMock.app.quit).toHaveBeenCalled();
   });
 });

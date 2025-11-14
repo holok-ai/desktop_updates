@@ -2,8 +2,10 @@ import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import log from 'electron-log';
 import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
+import { titleGeneratorService } from '../services/title-generator.service.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -27,10 +29,26 @@ export interface Message {
   isEdited?: boolean;
 }
 
+/**
+ * Title history entry for tracking rename operations
+ */
+export interface TitleHistoryEntry {
+  /** The new title after this rename */
+  title: string;
+  /** Timestamp when the rename occurred (epoch ms) */
+  timestamp: number;
+  /** The previous title before this rename */
+  previousTitle: string;
+  /** Optional: User ID who performed the rename */
+  userId?: string;
+}
+
 export interface ThreadMetadata {
   title?: string;
   description?: string;
   model?: string;
+  /** History of title changes for audit and undo functionality */
+  titleHistory?: TitleHistoryEntry[];
   [key: string]: unknown;
 }
 
@@ -206,16 +224,188 @@ export class ThreadRepository {
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
     }
+
+    // Check if this is the first assistant response and thread needs a title
+    const assistantMessageCount = thread.messages.filter((m) => m.role === 'assistant').length;
+    const isFirstResponse = assistantMessageCount === 0;
+    const needsTitle = !thread.title || thread.title.trim() === '';
+
+    log.info(
+      `[ThreadRepository] Auto-title check for thread ${threadId}: assistantCount=${assistantMessageCount}, isFirst=${isFirstResponse}, needsTitle=${needsTitle}, currentTitle="${thread.title}"`,
+    );
+
+    // Auto-generate title from first user prompt if this is the first response
+    if (isFirstResponse && needsTitle) {
+      const firstUserPrompt = thread.messages.find((m) => m.role === 'user');
+      log.info(
+        `[ThreadRepository] Found first user prompt: ${firstUserPrompt ? `"${firstUserPrompt.content.substring(0, 50)}..."` : 'NONE'}`,
+      );
+
+      if (firstUserPrompt && firstUserPrompt.content) {
+        try {
+          // Get existing titles for uniqueness checking
+          const existingTitles = Array.from(this.threadsById.values())
+            .filter((t) => t.id !== threadId)
+            .map((t) => t.title);
+
+          // Generate and ensure unique title
+          const candidateTitle = titleGeneratorService.generateTitle(firstUserPrompt.content);
+          log.info(`[ThreadRepository] Generated candidate title: "${candidateTitle}"`);
+
+          const uniqueTitle = titleGeneratorService.ensureUniqueTitle(
+            candidateTitle,
+            existingTitles,
+          );
+
+          // Update thread title
+          thread.title = uniqueTitle;
+          thread.metadata = { ...thread.metadata, title: uniqueTitle };
+          thread.updatedAt = Date.now();
+          this.threadsById.set(thread.id, thread);
+
+          // IMPORTANT: Save to disk immediately
+          this.saveToDisk();
+
+          log.info(
+            `[ThreadRepository] ✅ Auto-generated title for thread ${threadId}: "${uniqueTitle}"`,
+          );
+        } catch (error) {
+          log.error('[ThreadRepository] ❌ Failed to generate title:', error);
+          // Continue without title - addMessage will still work
+        }
+      } else {
+        log.warn(`[ThreadRepository] ⚠️ Cannot generate title - no user prompt found`);
+      }
+    } else {
+      log.info(
+        `[ThreadRepository] Skipping auto-title: isFirst=${isFirstResponse}, needsTitle=${needsTitle}`,
+      );
+    }
+
     return this.addMessage(threadId, 'assistant', response);
   }
 
   public updateThreadMetadata(threadId: string, updates: Partial<ThreadMetadata>): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    thread.metadata = { ...thread.metadata, ...updates };
+    const merged: ThreadMetadata = { ...thread.metadata, ...updates };
+    // Support explicit deletions: if a key exists in updates with value undefined, remove it
+    for (const key of Object.keys(updates)) {
+      if (updates[key as keyof typeof updates] === undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete merged[key as keyof typeof merged];
+      }
+    }
+    thread.metadata = merged;
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
     this.saveToDisk();
+    return this.cloneThread(thread);
+  }
+
+  /**
+   * Rename a thread with title history tracking
+   * @param threadId - The thread ID to rename
+   * @param newTitle - The new title (will be validated)
+   * @param userId - Optional user ID who performed the rename
+   * @returns The updated thread
+   * @throws Error if thread not found or title is invalid
+   */
+  public renameThread(threadId: string, newTitle: string, userId?: string): Thread {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    // Basic validation (more comprehensive validation should be done by TitleValidationService)
+    const trimmedTitle = newTitle.trim();
+    if (trimmedTitle.length === 0) {
+      throw new Error('TITLE_EMPTY');
+    }
+    if (trimmedTitle.length > 200) {
+      throw new Error('TITLE_TOO_LONG');
+    }
+
+    // Don't do anything if title hasn't changed
+    if (thread.title === trimmedTitle) {
+      return this.cloneThread(thread);
+    }
+
+    const previousTitle = thread.title;
+    const now = Date.now();
+
+    // Create title history entry
+    const historyEntry: TitleHistoryEntry = {
+      title: trimmedTitle,
+      timestamp: now,
+      previousTitle,
+      userId,
+    };
+
+    // Initialize titleHistory if it doesn't exist
+    const titleHistory = Array.isArray(thread.metadata?.titleHistory)
+      ? [...thread.metadata.titleHistory]
+      : [];
+
+    // Add new entry to history
+    titleHistory.push(historyEntry);
+
+    // Update thread
+    thread.title = trimmedTitle;
+    thread.metadata = {
+      ...thread.metadata,
+      title: trimmedTitle,
+      titleHistory,
+    };
+    thread.updatedAt = now;
+
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    log.info(
+      `[ThreadRepository] ✅ Renamed thread ${threadId}: "${previousTitle}" → "${trimmedTitle}"`,
+    );
+
+    return this.cloneThread(thread);
+  }
+
+  /**
+   * Undo the most recent rename operation for a thread
+   * @param threadId - The thread ID to undo rename
+   * @returns The updated thread with previous title restored
+   * @throws Error if thread not found or no rename history available
+   */
+  public undoRenameThread(threadId: string): Thread {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const titleHistory = thread.metadata?.titleHistory;
+    if (!Array.isArray(titleHistory) || titleHistory.length === 0) {
+      throw new Error('NO_RENAME_HISTORY');
+    }
+
+    // Get the most recent rename entry
+    const lastEntry = titleHistory[titleHistory.length - 1];
+    const previousTitle = lastEntry.previousTitle;
+
+    // Remove the last entry from history
+    const updatedHistory = titleHistory.slice(0, -1);
+
+    // Update thread with previous title
+    const now = Date.now();
+    thread.title = previousTitle;
+    thread.metadata = {
+      ...thread.metadata,
+      title: previousTitle,
+      titleHistory: updatedHistory,
+    };
+    thread.updatedAt = now;
+
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    log.info(
+      `[ThreadRepository] ↩️  Undid rename for thread ${threadId}: "${lastEntry.title}" → "${previousTitle}"`,
+    );
+
     return this.cloneThread(thread);
   }
 
