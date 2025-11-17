@@ -24,6 +24,16 @@ describe('thread.service', () => {
     const result = await threadService.getAll();
     expect(result).toEqual(list);
     expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(undefined);
+  });
+
+  it('getAll accepts optional options parameter', async () => {
+    const list = [sample('1'), sample('2')];
+    const spy = vi.spyOn(window.electronAPI.thread, 'getAll').mockResolvedValue(list);
+    const options = { includeProjectOnly: true };
+    const result = await threadService.getAll(options);
+    expect(result).toEqual(list);
+    expect(spy).toHaveBeenCalledWith(options);
   });
 
   it('create delegates to electronAPI', async () => {

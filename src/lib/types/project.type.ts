@@ -1,4 +1,5 @@
 import type { GUID } from './app.type.js';
+export type ProjectPrivacyMode = 'default' | 'project_only';
 
 export interface Project {
   id: GUID;
@@ -8,7 +9,9 @@ export interface Project {
   updatedAt: Date;
   deletedAt?: Date | null;
   metadata?: Record<string, unknown>;
+  privacyMode: ProjectPrivacyMode;
 }
 
 export type ProjectCreateInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
+
 export type ProjectUpdateInput = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt'>>;

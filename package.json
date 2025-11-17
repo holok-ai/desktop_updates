@@ -31,7 +31,7 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build:prod && playwright test",
-    "test:e2e:specific-file": "npm run build:prod && playwright test tests/e2e/prompt-edit.spec.ts"
+    "test:e2e:spec": "npm run build:prod && playwright test tests/e2e/thread.service.spec.ts"
   },
   "keywords": [
     "electron",
@@ -56,6 +56,7 @@
     "playwright": "^1.56.1",
     "primeicons": "^7.0.0",
     "prismjs": "^1.30.0",
+    "primeng": "^17.18.11",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4"
   },

@@ -107,9 +107,7 @@
   {:else}
     <section class="mb-6">
       <h2 class="mb-2">Connection</h2>
-      <div
-        class="rounded-lg p-4 bg-white dark:bg-black border border-gray-200 dark:border-none space-y-4"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
         <div class="form-group">
           <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
           <input
@@ -117,7 +115,7 @@
             type="url"
             bind:value={settings.mokuWebUrl}
             placeholder="https://moku.holokai.com"
-            class="w-full p-2 rounded border bg-white dark:bg-black"
+            class="w-full p-2 rounded border bg-transparent"
           />
           <small class="text-xs text-gray-500">URL of the Moku web application</small>
         </div>
@@ -129,7 +127,7 @@
             type="url"
             bind:value={settings.mokuApiUrl}
             placeholder="https://api.moku.holokai.com"
-            class="w-full p-2 rounded border bg-white dark:bg-black"
+            class="w-full p-2 rounded border bg-transparent"
           />
           <small class="text-xs text-gray-500">URL of the Moku API server</small>
         </div>
@@ -138,9 +136,7 @@
 
     <section class="mb-6">
       <h2 class="mb-2">Appearance</h2>
-      <div
-        class="rounded-lg p-4 bg-white dark:bg-black border border-gray-200 dark:border-none space-y-4"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
         <div class="form-group">
           <span class="block text-sm font-medium mb-1">Theme</span>
           <div class="flex items-center gap-6">
@@ -169,9 +165,7 @@
 
     <section class="mb-6">
       <h2 class="mb-2">Updates</h2>
-      <div
-        class="rounded-lg p-4 bg-white dark:bg-black border border-gray-200 dark:border-none space-y-3"
-      >
+      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
         <div class="text-sm">
           <span class="font-medium">Current Version:</span>
           {appVersion}

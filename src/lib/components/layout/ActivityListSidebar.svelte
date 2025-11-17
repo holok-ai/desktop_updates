@@ -5,11 +5,10 @@
   import AccordionSection from '../common/AccordionSection.svelte';
   import ThreadListItem from '../common/ThreadListItem.svelte';
   import { threadService } from '$lib/services/thread.service';
-  import { projectService } from '$lib/services/project.service';
   import { threads } from '$lib/stores/thread.store';
-  import { projects } from '$lib/stores/project.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
+  import { projects } from '$lib/stores/project.store';
   import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';
 
@@ -21,10 +20,11 @@
   let lastActivityId: string | null = null;
 
   let threadItems = $state<SidebarActivity[]>([]);
+  let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let selectedThreadId: string | null = $state(null);
+  let renamingThreadId: string | null = $state(null);
+  let renamingThreadTitle: string = $state('');
 
-  let projectItems = $state<SidebarActivity[]>([]);
-  let groupedProjectSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let selectedProjectId: string | null = $state(null);
 
   const navigationOptions: SidebarActivity[] = [
@@ -53,7 +53,6 @@
 
   onMount(async () => {
     await getThreadItems();
-    await getProjectItems();
   });
 
   $effect(() => {
@@ -111,25 +110,62 @@
 
   let filteredThreads = $state<Thread[]>([]);
 
+  // $effect(() => {
+  //   // Filter threads based on current view
+  //   let threadsToShow = $threads;
+  //   if (activity?.id === 'projects' && selectedProjectId) {
+  //     // When viewing a project, show only threads in that project
+  //     threadsToShow = $threads.filter(
+  //       (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
+  //     );
+  //   } else if (activity?.id === 'threads') {
+  //     // When viewing threads, show only threads without a project (general history)
+  //     threadsToShow = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
+  //   }
+
+  //   filteredThreads = threadsToShow;
+
+  //   threadItems = threadsToShow.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
+
+  //   projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
+  //   groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
+  // });
+
+  let lastSelectedProjectId: string | null = $state(null);
   $effect(() => {
-    // Filter threads based on current view
-    let threadsToShow = $threads;
+    // Reload threads when project selection changes to ensure we have the latest data
+    if (selectedProjectId !== lastSelectedProjectId && selectedProjectId !== null) {
+      lastSelectedProjectId = selectedProjectId;
+      void getThreadItems();
+    } else if (selectedProjectId === null) {
+      lastSelectedProjectId = null;
+    }
+  });
+
+  $effect(() => {
+    // Filter threads based on current view and privacy mode
+    let filteredThreads = $threads;
     if (activity?.id === 'projects' && selectedProjectId) {
       // When viewing a project, show only threads in that project
-      threadsToShow = $threads.filter(
+      filteredThreads = $threads.filter(
         (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
       );
-    } else if (activity?.id === 'threads') {
-      // When viewing threads, show only threads without a project (general history)
-      threadsToShow = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
+    } else if (activity?.id === 'threads' || activity?.id === 'home') {
+      // When viewing general threads or home, show threads from default mode projects + threads without projects
+      // Exclude threads from project_only projects
+      filteredThreads = $threads.filter((t) => {
+        const projectId = t.metadata?.projectId as string | undefined;
+        if (!projectId) return true; // Include threads not in any project
+
+        const project = $projects.find((p) => p.id === projectId);
+        // If project not found, include it (might not be loaded yet or might be deleted)
+        // If project found, only include if it's NOT project_only mode
+        return !project || project.privacyMode !== 'project_only';
+      });
     }
 
-    filteredThreads = threadsToShow;
-
-    threadItems = threadsToShow.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-
-    projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
-    groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
+    threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
+    groupedThreadSections = getGroupByTime(filteredThreads);
   });
 
   function select(item: { id: string; label: string }) {
@@ -171,7 +207,9 @@
     isCollapsed = !isCollapsed;
   }
 
-  function getGroupByTime(items: Project[] | Thread[]) {
+  type RouteValue = (typeof ROUTE)[keyof typeof ROUTE];
+
+  function getGroupByTime(items: Project[] | Thread[], route: RouteValue = ROUTE.THREADS) {
     const sections: Record<string, SidebarActivity[]> = {
       Recent: [],
       Yesterday: [],
@@ -188,7 +226,7 @@
     const toItem = (id: string, label: string): SidebarActivity => ({
       id,
       label,
-      route: ROUTE.THREADS,
+      route,
     });
 
     const sorted = [...items].sort((a, b) => {
@@ -202,7 +240,7 @@
       const cStart = startOfDay(created).getTime();
       const diffDays = Math.floor((todayStart - cStart) / oneDayMs);
 
-      const item = toItem(t.id, (t as Thread).title ?? (t as Project).title);
+      const item = toItem(t.id, (t as Thread).title ?? 'Untitled');
       if (diffDays === 0) sections.Recent.push(item);
       else if (diffDays === 1) sections.Yesterday.push(item);
       else if (diffDays <= 7) sections['Last 7 Days'].push(item);
@@ -226,20 +264,53 @@
     ];
   }
 
-  async function getProjectItems() {
-    try {
-      await projectService.loadProjects();
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    }
-  }
-
   async function getThreadItems() {
     try {
-      await threadService.getAll();
+      // Load all threads (including project_only) - filtering happens in UI
+      await threadService.getAll({ includeProjectOnly: true });
     } catch (error) {
       console.error('Failed to load threads:', error);
     }
+  }
+
+  /**
+   * Handle rename thread action
+   */
+  function handleRenameStart(item: { id: string; label: string }) {
+    renamingThreadId = item.id;
+    renamingThreadTitle = item.label;
+  }
+
+  /**
+   * Save renamed thread title
+   */
+  async function handleRenameSave(newTitle: string) {
+    if (!renamingThreadId) return;
+
+    try {
+      const result = await window.electronAPI.thread.renameThread(renamingThreadId, newTitle);
+
+      if (result.success) {
+        // Thread store will be updated via thread:updated event listener
+        renamingThreadId = null;
+        renamingThreadTitle = '';
+      } else {
+        // Show error to user
+        console.error('Failed to rename thread:', result.error);
+        throw new Error(result.error || 'Failed to rename thread');
+      }
+    } catch (error) {
+      console.error('Error renaming thread:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel rename operation
+   */
+  function handleRenameCancel() {
+    renamingThreadId = null;
+    renamingThreadTitle = '';
   }
 </script>
 
@@ -249,7 +320,7 @@
 >
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
-      <span class="activity-title">{'Organization Name'}</span>
+      <span class="activity-title text-white">{'Organization Name'}</span>
     {/if}
     <button
       class="{!isCollapsed &&
@@ -272,14 +343,6 @@
           isSidebarCollapsed={isCollapsed}
           items={agentItems}
           selectedId={null}
-        />
-        <AccordionSection
-          title="Projects"
-          isSubsection={true}
-          isSidebarCollapsed={isCollapsed}
-          items={projectItems}
-          selectedId={activity?.id === 'projects' ? selectedProjectId : null}
-          on:click={(e) => select(e.detail)}
         />
         <AccordionSection
           title="Threads"
@@ -328,30 +391,109 @@
           {/each}
         {/if}
       {/if}
-      {#if activity?.id === 'projects'}
-        {#each groupedProjectSections as section}
-          <AccordionSection
-            title={section.title}
-            isSidebarCollapsed={isCollapsed}
-            isSubsection={true}
-            items={section.items}
-            showActions={false}
-            selectedId={selectedProjectId}
-            on:click={(e) => select(e.detail)}
-          />
-        {/each}
+      {#if selectedProjectId}
+        {#if groupedThreadSections.length === 0}
+          <div class="empty-state">
+            <p>No threads in this project yet.</p>
+          </div>
+        {:else}
+          {#each groupedThreadSections as section}
+            <AccordionSection
+              title={section.title}
+              isSidebarCollapsed={isCollapsed}
+              isSubsection={true}
+              items={section.items}
+              showActions={true}
+              selectedId={selectedThreadId}
+              on:click={(e: { detail: { id: string; label: string } }) => select(e.detail)}
+              on:delete={async (e: CustomEvent<{ id: string }>) => {
+                const item = e.detail;
+                if (item?.id?.startsWith('temp_')) {
+                  threads.deleteThread(item.id);
+                  return;
+                }
+                try {
+                  await threadService.softDelete(item.id);
+                } catch (err) {
+                  console.error('Failed to delete thread', err);
+                }
+              }}
+            />
+          {/each}
+        {/if}
       {/if}
     </ul>
   </div>
 </aside>
 
+<!-- Rename thread modal dialog -->
+{#if renamingThreadId}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div
+    class="dialog-overlay"
+    onclick={handleRenameCancel}
+    tabindex="0"
+    role="dialog"
+    aria-label="Rename thread dialog"
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div
+      class="dialog"
+      onclick={(e) => e.stopPropagation()}
+      tabindex="0"
+      role="button"
+      data-testid="thread-title-editor"
+    >
+      <h2 class="mb-6">Rename Thread</h2>
+
+      <div class="form-group">
+        <label for="rename-title">Title</label>
+        <input
+          id="rename-title"
+          type="text"
+          bind:value={renamingThreadTitle}
+          placeholder="Enter thread title"
+          maxlength="200"
+          aria-label="Thread title input"
+          data-testid="title-input"
+        />
+        <div
+          class="char-counter"
+          class:warning={renamingThreadTitle.length > 180}
+          data-testid="char-counter"
+        >
+          {200 - renamingThreadTitle.length} characters remaining
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button
+          class="text-white"
+          onclick={handleRenameCancel}
+          aria-label="Cancel rename"
+          data-testid="cancel-button">Cancel</button
+        >
+        <button
+          class="primary"
+          onclick={() => handleRenameSave(renamingThreadTitle)}
+          disabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
+          aria-label="Save new thread title"
+          data-testid="save-button"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .activity-list-sidebar {
     box-shadow: var(--sidebar-secondary-box-shadow);
-    width: var(--sidebar-secondary-width, 280px);
-    background: var(--surface-sidebar-secondary, #0f172a);
-    color: var(--text-primary, #fff);
-    border-right: 1px solid var(--border-sidebar, #1f2937);
+    width: var(--sidebar-secondary-width);
+    background: var(--surface-sidebar-secondary);
+    color: var(--text-primary);
+    border-right: 1px solid var(--border-sidebar);
     transition: all 0.3s ease;
     height: 100vh;
     display: flex;
@@ -363,11 +505,10 @@
   .activity-title {
     flex: 1;
     font-weight: 600;
-    font-size: 1rem;
-    color: var(--text-primary, #fff);
+    font-size: 16px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
   }
   .activity-list-sidebar.collapsed .activity-title,
   .activity-list-sidebar.collapsed span {
@@ -380,9 +521,9 @@
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    padding: 1rem 0;
+    padding: var(--content-padding) 0;
     margin: 0;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     transition:
       padding 0.2s,
       gap 0.2s;
@@ -391,7 +532,7 @@
   .activity-list-sidebar.collapsed .list-items {
     align-items: center;
     justify-content: flex-start;
-    padding-top: 0.5rem;
+    padding-top: var(--inline-spacing);
   }
   .sidebar-scroll {
     flex: 1;
@@ -399,7 +540,7 @@
     overflow-x: hidden;
     min-height: 0; /* important for flex scroll containers */
     will-change: transform; /* prevents visual flicker during collapse */
-    scrollbar-color: rgba(255, 255, 255, 0.7) transparent;
+    scrollbar-color: color-mix(in srgb, var(--surface-0) 70%, transparent) transparent;
   }
 
   .sidebar-scroll::-webkit-scrollbar {
@@ -407,7 +548,132 @@
   }
 
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--surface-0) 25%, transparent);
     border-radius: 3px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 1.5rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--modal-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .dialog {
+    background: var(--surface-main);
+    padding: 2rem;
+    border-radius: 12px;
+    min-width: 500px;
+    max-width: 90%;
+    border: 1px solid var(--border-sidebar);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .dialog h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 1.5rem 0;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--input-background);
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .form-group input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .char-counter {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .char-counter.warning {
+    color: var(--error-color);
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .dialog-actions button {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+  }
+
+  .dialog-actions button.text-white {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+
+  .dialog-actions button.text-white:hover {
+    background: var(--surface-overlay);
+  }
+
+  .dialog-actions button.primary {
+    background: var(--primary-color);
+    color: white;
+  }
+
+  .dialog-actions button.primary:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .dialog-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .mb-6 {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    color: var(--text-primary);
   }
 </style>

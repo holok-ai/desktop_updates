@@ -12,7 +12,7 @@
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
 
-  let selectedProject: Project | null = $state(null);
+  let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
   let showFormModal = $state(false);
   let showDeleteModal = $state(false);
@@ -20,56 +20,67 @@
   let projectToDelete: Project | null = $state(null);
   let threadCount = $state(0);
   let threadsLoading = $state(false);
+  let errorMessage = $state<string | null>(null);
 
-  onMount(async () => {
+  // Derive selectedProject from store so it auto-updates
+  const selectedProject = $derived(
+    selectedProjectId ? ($projects.find((p) => p.id === selectedProjectId) ?? null) : null,
+  );
+
+  onMount(() => {
     isLoading = true;
     let offUpdated: (() => void) | null = null;
     let offDeleted: (() => void) | null = null;
-    try {
-      await projectService.loadProjects();
-      // Ensure threads are loaded for listing in project view
-      try {
-        await threadService.getAll();
-      } catch (e) {
-        console.error('Failed to load threads:', e);
-      }
-      // Keep threadCount in sync with live updates
-      try {
-        offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
-          if (selectedProject) {
-            await loadThreadCount(selectedProject.id);
-          }
-        });
-        offDeleted = window.electronAPI.thread.onThreadDeleted(async () => {
-          if (selectedProject) {
-            await loadThreadCount(selectedProject.id);
-          }
-        });
-      } catch {
-        // ignore if IPC not available
-      }
 
-      const params = new URLSearchParams((window as any).location?.search ?? '');
-      if (!params.get('projectId') && !params.get('createProject')) {
-        // If no projectId in URL, restore last selected from localStorage
+    // Run async initialization
+    (async () => {
+      try {
+        await projectService.loadProjects();
+        // Load all threads including project_only ones for project views
         try {
-          const last = window.localStorage.getItem('lastProjectId');
-          if (last) {
-            const found = $projects.find((p) => p.id === last);
-            if (found) {
-              selectedProject = found;
-              void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
-            }
-          }
-        } catch {
-          // ignore
+          await threadService.getAll({ includeProjectOnly: true });
+        } catch (e) {
+          console.error('Failed to load threads:', e);
         }
+        // Keep threadCount in sync with live updates
+        try {
+          offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
+            if (selectedProject) {
+              await loadThreadCount(selectedProject.id);
+            }
+          });
+          offDeleted = window.electronAPI.thread.onThreadDeleted(async () => {
+            if (selectedProject) {
+              await loadThreadCount(selectedProject.id);
+            }
+          });
+        } catch {
+          // ignore if IPC not available
+        }
+
+        const params = new URLSearchParams((window as any).location?.search ?? '');
+        if (!params.get('projectId') && !params.get('createProject')) {
+          // If no projectId in URL, restore last selected from localStorage
+          try {
+            const last = window.localStorage.getItem('lastProjectId');
+            if (last) {
+              const found = $projects.find((p) => p.id === last);
+              if (found) {
+                selectedProjectId = last;
+                void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        isLoading = false;
       }
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    } finally {
-      isLoading = false;
-    }
+    })();
+
     return () => {
       try {
         if (offUpdated) offUpdated();
@@ -90,21 +101,21 @@
         void replace(ROUTE.PROJECTS);
       }
 
-      const projectId = params.get('projectId');
+      const projectId = params.get('projectId') as GUID | null;
       if (projectId) {
         const found = $projects.find((project) => project.id === projectId);
         if (found) {
-          selectedProject = found;
-          loadThreadCount(found.id);
+          selectedProjectId = projectId;
+          loadThreadCount(projectId);
           // Ensure threads list is fresh when switching projects
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {
           // Project not found (possibly deleted), clear selection
-          selectedProject = null;
+          selectedProjectId = null;
           replace(ROUTE.PROJECTS);
         }
       } else {
-        selectedProject = null;
+        selectedProjectId = null;
       }
     });
     return unsubscribe;
@@ -126,6 +137,7 @@
     } catch (error) {
       console.error('Failed to load thread count:', error);
       threadCount = 0;
+      errorMessage = `Failed to load thread count: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
@@ -149,7 +161,7 @@
   }
 
   function handleDeleteSuccess() {
-    selectedProject = null;
+    selectedProjectId = null;
     window.localStorage.removeItem('lastProjectId');
     replace(ROUTE.PROJECTS);
   }
@@ -172,30 +184,18 @@
       });
     projectThreads = filtered;
   });
-
-  // Debug: verify selection and filtering react when switching projects
-  $effect(() => {
-    // Logs will appear in renderer DevTools (Cmd+Opt+I)
-    try {
-      console.log('[Projects] selectedProject:', selectedProject?.id, selectedProject?.title);
-      console.log(
-        '[Projects] projectThreads:',
-        projectThreads.map((t) => ({
-          id: t.id,
-          title: t.title,
-          pid: (t.metadata as any)?.projectId,
-        })),
-      );
-    } catch {
-      // ignore
-    }
-  });
-  function openThread(threadId: string) {
-    replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
-  }
 </script>
 
 <div class="projects-page">
+  {#if errorMessage}
+    <div class="error-banner" role="alert">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>{errorMessage}</span>
+      <button class="error-close" onclick={() => (errorMessage = null)} aria-label="Dismiss error">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  {/if}
   {#if isLoading}
     <div class="loading">Loading projects...</div>
   {:else if !selectedProject}
@@ -229,6 +229,14 @@
           <div class="stat-value">{threadCount}</div>
         </div>
         <div class="stat-card">
+          <div class="stat-label">Privacy</div>
+          <div class="stat-value">
+            <span class={selectedProject.privacyMode === 'project_only' ? 'badge danger' : 'badge'}>
+              {selectedProject.privacyMode === 'project_only' ? 'Project Only' : 'Default'}
+            </span>
+          </div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">Created</div>
           <div class="stat-value">{new Date(selectedProject.createdAt).toLocaleDateString()}</div>
         </div>
@@ -238,13 +246,13 @@
         </div>
       </div>
 
-      <div class="project-content">
-        <h3>Project Threads</h3>
-        {#if threadsLoading}
-          <div class="empty-threads">
-            <p>Loading threads...</p>
-          </div>
-        {:else if projectThreads.length === 0}
+      {#if threadsLoading}
+        <div class="empty-threads">
+          <p>Loading threads...</p>
+        </div>
+      {:else if projectThreads.length === 0}
+        <div class="project-content">
+          <h3>Project Threads</h3>
           <div class="empty-threads">
             <p>
               {#if threadCount > 0}
@@ -254,21 +262,8 @@
               {/if}
             </p>
           </div>
-        {:else}
-          <ul class="thread-list">
-            {#each projectThreads as t}
-              <li>
-                <button class="thread-item" onclick={() => openThread(t.id)} title={t.title}>
-                  <span class="thread-title">{t.title || 'Untitled'}</span>
-                  <span class="thread-updated">
-                    {new Date((t as any).updatedAt ?? t.createdAt).toLocaleString()}
-                  </span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -435,53 +430,6 @@
     color: var(--text-secondary);
   }
 
-  .thread-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .thread-item {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition:
-      background 0.15s ease,
-      border-color 0.15s ease;
-    text-align: left;
-  }
-
-  .thread-item:hover {
-    background: var(--surface-hover);
-    border-color: var(--primary-color);
-  }
-
-  .thread-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .thread-updated {
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
   .empty-threads {
     text-align: center;
     padding: 2rem;
@@ -490,5 +438,57 @@
 
   .empty-threads p {
     margin: 0;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: var(--error-color, #ef4444);
+    color: white;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .error-banner i {
+    font-size: 1.1rem;
+  }
+
+  .error-banner span {
+    flex: 1;
+  }
+
+  .error-close {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .error-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .badge.danger {
+    background: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.35);
+    color: #ff6b6b;
   }
 </style>

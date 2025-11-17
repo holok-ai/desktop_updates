@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { GUID } from '../../src/lib/types/app.type.js';
-import type { Project } from '../../src/lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '../../src/lib/types/project.type.js';
 
 export class ProjectRepository {
   private readonly projectsById: Map<GUID, Project> = new Map();
@@ -15,17 +16,18 @@ export class ProjectRepository {
     title: string,
     description?: string,
     metadata?: Record<string, unknown>,
+    privacyMode?: ProjectPrivacyMode,
   ): Project {
-    const id: GUID = crypto.randomUUID();
     const project: Project = {
-      id,
+      id: randomUUID(),
       title,
       description,
       metadata: metadata ? { ...metadata } : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
+      privacyMode: privacyMode ?? 'default',
     };
-    this.projectsById.set(id, project);
+    this.projectsById.set(project.id, project);
     this.saveToDisk();
     return this.cloneProject(project);
   }
@@ -44,7 +46,7 @@ export class ProjectRepository {
 
   public updateProject(
     projectId: GUID,
-    updates: Partial<Pick<Project, 'title' | 'description' | 'metadata'>>,
+    updates: Partial<Pick<Project, 'title' | 'description' | 'metadata' | 'privacyMode'>>,
   ): Project {
     const project = this.projectsById.get(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
@@ -53,6 +55,9 @@ export class ProjectRepository {
     if (updates.description !== undefined) project.description = updates.description;
     if (updates.metadata !== undefined) {
       project.metadata = { ...project.metadata, ...updates.metadata };
+    }
+    if (updates.privacyMode !== undefined) {
+      project.privacyMode = updates.privacyMode;
     }
 
     project.updatedAt = new Date();
@@ -88,10 +93,13 @@ export class ProjectRepository {
       id: project.id,
       title: project.title,
       description: project.description,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt:
+        project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt),
+      updatedAt:
+        project.updatedAt instanceof Date ? project.updatedAt : new Date(project.updatedAt),
       deletedAt: project.deletedAt ?? null,
       metadata: project.metadata ? { ...project.metadata } : undefined,
+      privacyMode: project.privacyMode ?? 'default',
     };
   }
 
@@ -108,7 +116,7 @@ export class ProjectRepository {
     try {
       const storePath = this.getStorePath();
       if (!storePath) return;
-      const payload = { version: 1, projects: Array.from(this.projectsById.values()) };
+      const payload = { version: 2, projects: Array.from(this.projectsById.values()) };
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       fs.writeFileSync(storePath, JSON.stringify(payload), 'utf-8');
     } catch {
@@ -144,7 +152,8 @@ export class ProjectRepository {
             p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt ?? Date.now()),
           updatedAt:
             p.updatedAt instanceof Date ? p.updatedAt : new Date(p.updatedAt ?? Date.now()),
-          deletedAt,
+          deletedAt: deletedAt,
+          privacyMode: p.privacyMode ?? 'default',
         });
       }
     } catch {
