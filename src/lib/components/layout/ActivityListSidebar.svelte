@@ -9,7 +9,6 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
-  import type { Project } from '$lib/types/project.type';
   import type { Thread } from '../../../../src-electron/preload';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
@@ -20,7 +19,6 @@
   let lastActivityId: string | null = null;
 
   let threadItems = $state<SidebarActivity[]>([]);
-  let groupedThreadSections = $state<{ title: string; items: SidebarActivity[] }[]>([]);
   let selectedThreadId: string | null = $state(null);
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
@@ -88,7 +86,7 @@
           console.error('Failed to set lastProjectId', error);
         }
       } else {
-        // Fallback to last selected from localStorage
+        // Fallback to last selected project regardless of view, so selection persists across tabs
         try {
           const last = window.localStorage.getItem('lastProjectId');
           selectedProjectId = last;
@@ -110,27 +108,6 @@
 
   let filteredThreads = $state<Thread[]>([]);
 
-  // $effect(() => {
-  //   // Filter threads based on current view
-  //   let threadsToShow = $threads;
-  //   if (activity?.id === 'projects' && selectedProjectId) {
-  //     // When viewing a project, show only threads in that project
-  //     threadsToShow = $threads.filter(
-  //       (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
-  //     );
-  //   } else if (activity?.id === 'threads') {
-  //     // When viewing threads, show only threads without a project (general history)
-  //     threadsToShow = $threads.filter((t) => !(t.metadata?.projectId as string | undefined));
-  //   }
-
-  //   filteredThreads = threadsToShow;
-
-  //   threadItems = threadsToShow.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-
-  //   projectItems = $projects.map((p) => ({ id: p.id, label: p.title, route: ROUTE.PROJECTS }));
-  //   groupedProjectSections = getGroupByTime($projects, ROUTE.PROJECTS);
-  // });
-
   let lastSelectedProjectId: string | null = $state(null);
   $effect(() => {
     // Reload threads when project selection changes to ensure we have the latest data
@@ -143,17 +120,20 @@
   });
 
   $effect(() => {
+    const isThreadsView = activity?.route === ROUTE.THREADS || activity?.id === 'threads';
+    const isHomeView = activity?.route === ROUTE.HOME || activity?.id === 'home';
+
     // Filter threads based on current view and privacy mode
-    let filteredThreads = $threads;
-    if (activity?.id === 'projects' && selectedProjectId) {
-      // When viewing a project, show only threads in that project
-      filteredThreads = $threads.filter(
+    let visibleThreads = $threads;
+    if (selectedProjectId) {
+      // Whenever a project is selected, show only its threads (for both home + projects view)
+      visibleThreads = $threads.filter(
         (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
       );
-    } else if (activity?.id === 'threads' || activity?.id === 'home') {
+    } else if (isThreadsView || isHomeView) {
       // When viewing general threads or home, show threads from default mode projects + threads without projects
       // Exclude threads from project_only projects
-      filteredThreads = $threads.filter((t) => {
+      visibleThreads = $threads.filter((t) => {
         const projectId = t.metadata?.projectId as string | undefined;
         if (!projectId) return true; // Include threads not in any project
 
@@ -164,8 +144,8 @@
       });
     }
 
-    threadItems = filteredThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
-    groupedThreadSections = getGroupByTime(filteredThreads);
+    filteredThreads = visibleThreads;
+    threadItems = visibleThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
   });
 
   function select(item: { id: string; label: string }) {
@@ -207,56 +187,6 @@
     isCollapsed = !isCollapsed;
   }
 
-  type RouteValue = (typeof ROUTE)[keyof typeof ROUTE];
-
-  function getGroupByTime(items: Project[] | Thread[], route: RouteValue = ROUTE.THREADS) {
-    const sections: Record<string, SidebarActivity[]> = {
-      Recent: [],
-      Yesterday: [],
-      'Last 7 Days': [],
-      'Last 30 Days': [],
-      Older: [],
-    };
-
-    const now = new Date();
-    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const todayStart = startOfDay(now).getTime();
-    const oneDayMs = 24 * 60 * 60 * 1000;
-
-    const toItem = (id: string, label: string): SidebarActivity => ({
-      id,
-      label,
-      route,
-    });
-
-    const sorted = [...items].sort((a, b) => {
-      const aTime = new Date((a as any).updatedAt ?? a.createdAt).getTime();
-      const bTime = new Date((b as any).updatedAt ?? b.createdAt).getTime();
-      return bTime - aTime;
-    });
-
-    for (const t of sorted) {
-      const created = new Date((t as any).updatedAt ?? t.createdAt);
-      const cStart = startOfDay(created).getTime();
-      const diffDays = Math.floor((todayStart - cStart) / oneDayMs);
-
-      const item = toItem(t.id, (t as Thread).title ?? 'Untitled');
-      if (diffDays === 0) sections.Recent.push(item);
-      else if (diffDays === 1) sections.Yesterday.push(item);
-      else if (diffDays <= 7) sections['Last 7 Days'].push(item);
-      else if (diffDays <= 30) sections['Last 30 Days'].push(item);
-      else sections.Older.push(item);
-    }
-
-    return [
-      { title: 'Recent', items: sections.Recent },
-      { title: 'Yesterday', items: sections.Yesterday },
-      { title: 'Last 7 Days', items: sections['Last 7 Days'] },
-      { title: 'Last 30 Days', items: sections['Last 30 Days'] },
-      { title: 'Older', items: sections.Older },
-    ].filter((s) => s.items.length > 0);
-  }
-
   function getAgentItems() {
     return [
       { id: 'agent-1', label: 'Assistant Bot' },
@@ -288,7 +218,10 @@
     if (!renamingThreadId) return;
 
     try {
-      const result = await window.electronAPI.thread.renameThread(renamingThreadId, newTitle);
+      const result = await (window.electronAPI.thread as any).renameThread(
+        renamingThreadId,
+        newTitle,
+      );
 
       if (result.success) {
         // Thread store will be updated via thread:updated event listener
@@ -333,41 +266,43 @@
   </div>
   <div class="sidebar-scroll flex-1 overflow-y-auto">
     <ul class="list-items">
-      {#if activity?.id === 'home'}
+      {#if activity?.route === ROUTE.HOME || activity?.id === 'home'}
         {#each navigationOptions as item}
           <SidebarItem isSelected={false} {item} {isCollapsed} on:click={() => item.onClick?.()} />
         {/each}
-        <AccordionSection
-          title="Agents"
-          isSubsection={true}
-          isSidebarCollapsed={isCollapsed}
-          items={agentItems}
-          selectedId={null}
-        />
-        <AccordionSection
-          title="Threads"
-          isSidebarCollapsed={isCollapsed}
-          items={threadItems}
-          isSubsection={true}
-          showActions={true}
-          selectedId={activity?.id === 'threads' ? selectedThreadId : null}
-          on:click={(e) => select(e.detail)}
-          on:delete={async (e) => {
-            const item = e.detail as { id: string };
-            if (item?.id?.startsWith('temp_')) {
-              // Remove ephemeral thread locally
-              threads.deleteThread(item.id);
-              return;
-            }
-            try {
-              await threadService.softDelete(item.id);
-            } catch (err) {
-              console.error('Failed to delete thread', err);
-            }
-          }}
-        />
+        {#if !isCollapsed}
+          <AccordionSection
+            title="Agents"
+            isSubsection={true}
+            isSidebarCollapsed={isCollapsed}
+            items={agentItems}
+            selectedId={null}
+          />
+          <AccordionSection
+            title="Threads"
+            isSidebarCollapsed={isCollapsed}
+            items={threadItems}
+            isSubsection={true}
+            showActions={true}
+            selectedId={activity?.id === 'threads' ? selectedThreadId : null}
+            on:click={(e) => select(e.detail)}
+            on:delete={async (e) => {
+              const item = e.detail as { id: string };
+              if (item?.id?.startsWith('temp_')) {
+                // Remove ephemeral thread locally
+                threads.deleteThread(item.id);
+                return;
+              }
+              try {
+                await threadService.softDelete(item.id);
+              } catch (err) {
+                console.error('Failed to delete thread', err);
+              }
+            }}
+          />
+        {/if}
       {/if}
-      {#if activity?.id === 'threads'}
+      {#if activity?.route === ROUTE.THREADS || activity?.id === 'threads'}
         {#if !isCollapsed}
           {#each filteredThreads as thread (thread.id)}
             <ThreadListItem
@@ -375,6 +310,10 @@
               isSelected={selectedThreadId === thread.id}
               showActions={true}
               on:click={(e) => select(e.detail)}
+              on:rename={(e) => {
+                const item = e.detail as { id: string; label: string };
+                handleRenameStart(item);
+              }}
               on:delete={async (e) => {
                 const item = e.detail as { id: string };
                 if (item?.id?.startsWith('temp_')) {
@@ -391,23 +330,24 @@
           {/each}
         {/if}
       {/if}
-      {#if selectedProjectId}
-        {#if groupedThreadSections.length === 0}
+      {#if (activity?.route === ROUTE.PROJECTS || activity?.id === 'projects') && selectedProjectId}
+        {#if filteredThreads.length === 0}
           <div class="empty-state">
             <p>No threads in this project yet.</p>
           </div>
-        {:else}
-          {#each groupedThreadSections as section}
-            <AccordionSection
-              title={section.title}
-              isSidebarCollapsed={isCollapsed}
-              isSubsection={true}
-              items={section.items}
+        {:else if !isCollapsed}
+          {#each filteredThreads as thread (thread.id)}
+            <ThreadListItem
+              {thread}
+              isSelected={selectedThreadId === thread.id}
               showActions={true}
-              selectedId={selectedThreadId}
-              on:click={(e: { detail: { id: string; label: string } }) => select(e.detail)}
-              on:delete={async (e: CustomEvent<{ id: string }>) => {
-                const item = e.detail;
+              on:click={(e) => select(e.detail)}
+              on:rename={(e) => {
+                const item = e.detail as { id: string; label: string };
+                handleRenameStart(item);
+              }}
+              on:delete={async (e) => {
+                const item = e.detail as { id: string };
                 if (item?.id?.startsWith('temp_')) {
                   threads.deleteThread(item.id);
                   return;

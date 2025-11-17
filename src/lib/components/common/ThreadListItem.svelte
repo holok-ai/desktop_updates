@@ -22,9 +22,12 @@
 
   function formatDate(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    return `${month}/${day}`;
+
+    // Automatically uses the user's browser locale
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'numeric',
+      day: 'numeric'
+    }).format(d);
   }
 
   function getModelName(thread: Thread): string {
@@ -58,7 +61,7 @@
             title="Edit"
             onclick={(e) => {
               e.stopPropagation();
-              // TODO: Implement edit
+              dispatch('rename', { id: thread.id, label: thread.title });
             }}
           >
             <i class="pi pi-pencil"></i>
@@ -69,10 +72,9 @@
         </div>
       {/if}
     </div>
-    <div class="thread-description">{thread.description}</div>
     <div class="thread-meta">
-      <span class="thread-date">{formatDate(thread.createdAt)}</span>
-      <span class="thread-model">{getModelName(thread)}</span>
+      <span>{formatDate(thread.createdAt)}</span>
+      <span>{getModelName(thread)}</span>
     </div>
   </div>
 </div>
@@ -95,15 +97,6 @@
     margin: 0.125rem 0.5rem;
   }
 
-  .thread-description {
-    font-size: 9pt;
-    color: var(--text-primary, #fff);
-    line-height: 1.4;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .thread-item:hover {
     background-color: rgba(255, 255, 255, 0.05);
   }
@@ -124,7 +117,7 @@
   .thread-title {
     font-size: 11pt;
     font-weight: 600;
-    color: var(--text-primary, #fff);
+    color: #fff;
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -136,16 +129,8 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: var(--text-secondary, #a3a3a3);
+    color: #fff;
     line-height: 1.4;
-  }
-
-  .thread-date {
-    font-size: 9pt;
-  }
-
-  .thread-model {
-    font-size: 9pt;
   }
 
   .thread-actions {
@@ -164,7 +149,7 @@
   .action-button {
     background: transparent;
     border: none;
-    color: var(--text-primary, #fff);
+    color: #fff;
     cursor: pointer;
     padding: 0.25rem;
     display: flex;
