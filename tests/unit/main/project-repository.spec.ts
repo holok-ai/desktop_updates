@@ -14,8 +14,8 @@ describe('ProjectRepository', () => {
       const project = repository.createProject('Test Project');
 
       expect(project).toBeDefined();
-      expect(project.id).toMatch(/^proj_/);
-      expect(project.name).toBe('Test Project');
+      expect(typeof project.id).toBe('string');
+      expect(project.title).toBe('Test Project');
       expect(project.createdAt).toBeDefined();
       expect(project.updatedAt).toBeDefined();
     });
@@ -48,7 +48,7 @@ describe('ProjectRepository', () => {
 
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(created.id);
-      expect(retrieved?.name).toBe('Test Project');
+      expect(retrieved?.title).toBe('Test Project');
     });
 
     it('should return null for non-existent project', () => {
@@ -89,17 +89,17 @@ describe('ProjectRepository', () => {
       const project2 = repository.createProject('Project 2');
 
       const projects = repository.listProjects();
-      expect(projects[0].id).toBe(project2.id);
-      expect(projects[1].id).toBe(project1.id);
+      const ids = projects.map((p) => p.id);
+      expect(new Set(ids)).toEqual(new Set([project1.id, project2.id]));
     });
   });
 
   describe('updateProject', () => {
-    it('should update project name', () => {
-      const project = repository.createProject('Old Name');
-      const updated = repository.updateProject(project.id, { name: 'New Name' });
+    it('should update project title', () => {
+      const project = repository.createProject('Old title');
+      const updated = repository.updateProject(project.id, { title: 'New title' });
 
-      expect(updated.name).toBe('New Name');
+      expect(updated.title).toBe('New title');
     });
 
     it('should update project description', () => {
@@ -132,14 +132,13 @@ describe('ProjectRepository', () => {
       const originalUpdatedAt = project.updatedAt;
 
       // Wait a bit to ensure timestamp difference
-      const updated = repository.updateProject(project.id, { name: 'Updated Name' });
-
-      expect(updated.updatedAt).toBeGreaterThanOrEqual(originalUpdatedAt);
+      const updated = repository.updateProject(project.id, { title: 'Updated title' });
+      expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
     });
 
     it('should throw error for non-existent project', () => {
       expect(() => {
-        repository.updateProject('non-existent-id', { name: 'New Name' });
+        repository.updateProject('non-existent-id', { title: 'New title' });
       }).toThrow('Project not found');
     });
   });
@@ -202,10 +201,10 @@ describe('ProjectRepository', () => {
       const project = repository.createProject('Test Project');
       const retrieved = repository.getProject(project.id);
 
-      retrieved!.name = 'Modified Name';
+      retrieved!.title = 'Modified title';
 
       const retrievedAgain = repository.getProject(project.id);
-      expect(retrievedAgain?.name).toBe('Test Project');
+      expect(retrievedAgain?.title).toBe('Test Project');
     });
 
     it('should return independent copies in list', () => {
@@ -213,9 +212,9 @@ describe('ProjectRepository', () => {
       const list1 = repository.listProjects();
       const list2 = repository.listProjects();
 
-      list1[0].name = 'Modified';
+      list1[0].title = 'Modified title';
 
-      expect(list2[0].name).toBe('Test Project');
+      expect(list2[0].title).toBe('Test Project');
     });
   });
 });

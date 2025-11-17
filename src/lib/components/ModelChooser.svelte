@@ -108,7 +108,9 @@
           <option value={m.provider + '::' + m.id}>{m.title} — {m.provider}</option>
         {/each}
       </select>
-      <button class="confirm" onclick={confirm} disabled={!selectedKey || disabled}> Use </button>
+      <button class="model-confirm" onclick={confirm} disabled={!selectedKey || disabled}>
+        Use
+      </button>
     </div>
   {/if}
 </div>
@@ -116,30 +118,45 @@
 <style>
   .model-chooser {
     display: block;
-    margin: 0.5rem 0;
+    margin: var(--inline-spacing) 0;
   }
   .control {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--inline-spacing);
     align-items: center;
   }
   select {
-    padding: 0.4rem;
-    border-radius: 6px;
-    border: 1px solid #d0d0d0;
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-primary);
   }
-  .confirm {
-    background: #646cff;
-    color: #fff;
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    border: none;
+  .model-confirm {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border: 1px solid var(--primary-color);
+    padding: var(--inline-spacing) calc(var(--inline-spacing) * 2);
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .model-confirm:hover:not(:disabled) {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
+  }
+
+  .model-confirm:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .loading {
-    color: #6b7280;
+    color: var(--text-secondary);
   }
   .error {
-    color: #b91c1c;
+    color: var(--error-color);
   }
   .sr-only {
     position: absolute !important;

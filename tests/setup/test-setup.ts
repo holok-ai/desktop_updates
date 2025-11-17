@@ -67,6 +67,96 @@ if (typeof G.ResizeObserver === 'undefined') {
   G.ResizeObserver = ResizeObserverStub as unknown as ResizeObserverConstructorLike;
 }
 
+// Lightweight in-memory IndexedDB polyfill for unit tests
+// Provides minimal API used by services: open, onupgradeneeded, onsuccess,
+// transaction(...).objectStore(...).{put,getAll,delete,clear}
+if (typeof (globalThis as any).indexedDB === 'undefined') {
+  (globalThis as any).indexedDB = (() => {
+    type Store = Map<any, any>;
+    const dbs = new Map<string, { version: number; stores: Map<string, Store> }>();
+
+    function open(name: string, version = 1) {
+      const request: any = {};
+      // emulate async behavior
+      Promise.resolve().then(() => {
+        let entry = dbs.get(name);
+        const isNew = !entry;
+        if (!entry) {
+          entry = { version, stores: new Map() };
+          dbs.set(name, entry);
+        } else if (version > entry.version) {
+          // upgrade path
+          entry.version = version;
+          if (typeof request.onupgradeneeded === 'function') {
+            request.result = makeDB(name);
+            request.onupgradeneeded({ target: request });
+          }
+        }
+
+        request.result = makeDB(name);
+        if (typeof request.onsuccess === 'function') request.onsuccess({ target: request });
+      });
+      return request;
+    }
+
+    function makeDB(name: string) {
+      const entry = dbs.get(name)!;
+      return {
+        name,
+        version: entry.version,
+        objectStoreNames: {
+          contains: (s: string) => entry.stores.has(s),
+        },
+        createObjectStore: (storeName: string, _opts?: any) => {
+          if (!entry.stores.has(storeName)) entry.stores.set(storeName, new Map());
+        },
+        transaction: (storeName: string, _mode: 'readonly' | 'readwrite') => {
+          const store = entry.stores.get(storeName) ?? new Map();
+          return {
+            objectStore: () => {
+              return {
+                put: (val: any) => {
+                  const key = val?.message?.id ?? val?.id;
+                  store.set(key, val);
+                  const req: any = {};
+                  Promise.resolve().then(() => req.onsuccess && req.onsuccess());
+                  return req;
+                },
+                getAll: () => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    req.result = Array.from(store.values());
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+                delete: (key: any) => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    store.delete(key);
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+                clear: () => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    store.clear();
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+              };
+            },
+          };
+        },
+      };
+    }
+
+    return { open };
+  })();
+}
+
 // -------------------------------------------------------------
 // window.electronAPI stub (Context Bridge)
 // -------------------------------------------------------------

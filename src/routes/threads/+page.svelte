@@ -32,6 +32,8 @@
   let selectedThread: Thread | null = $state(null);
   let messages: Message[] = $state([]);
   let chatPaneRef: any = $state(null);
+  let currentProjectId: string | null = $state(null);
+  let errorMessage = $state<string | null>(null);
 
   onMount(async () => {
     await loadThreads();
@@ -124,6 +126,15 @@
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
+
+      // Track current project from localStorage (set by sidebar when project is selected)
+      try {
+        const lastProjectId = window.localStorage.getItem('lastProjectId');
+        currentProjectId = lastProjectId;
+      } catch {
+        currentProjectId = null;
+      }
+
       if (params.has('createThread') && !showDialog) {
         openCreateDialog();
         void replace(ROUTE.THREADS);
@@ -132,7 +143,48 @@
       if (threadId) {
         const found = $threads.find((thread) => thread.id === threadId);
         if (found) {
-          selectThread(found);
+          // Verify thread belongs to current project context
+          // If we're in projects activity, only show threads from selected project
+          // If we're in threads activity, only show threads without a project
+          const threadProjectId = (found.metadata?.projectId as string | undefined) ?? null;
+
+          // Check if we're in projects context (project selected) or threads context (general)
+          // We determine this by checking if there's a selected project in localStorage
+          if (currentProjectId) {
+            // In project context - only show threads that belong to this project
+            if (threadProjectId === currentProjectId) {
+              selectThread(found);
+              errorMessage = null;
+            } else {
+              errorMessage = 'This thread does not belong to the current project.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => {
+                errorMessage = null;
+              }, 5000);
+            }
+          } else {
+            // In general/global context - only show threads without a project
+            if (threadProjectId === null) {
+              selectThread(found);
+              errorMessage = null;
+            } else {
+              errorMessage =
+                'This thread belongs to a project. Please access it from the project view.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => {
+                errorMessage = null;
+              }, 5000);
+            }
+          }
+        } else {
+          errorMessage = 'Thread not found. It may have been deleted.';
+          selectedThread = null;
+          messages = [];
+          setTimeout(() => {
+            errorMessage = null;
+          }, 5000);
         }
       }
     });
@@ -142,7 +194,8 @@
   async function loadThreads() {
     isLoading = true;
     try {
-      await threadService.getAll();
+      // Load all threads - filtering happens in UI/sidebar
+      await threadService.getAll({ includeProjectOnly: true });
     } catch (error) {
       console.error('Failed to load threads:', error);
     } finally {
@@ -250,6 +303,16 @@
     <h1>Threads</h1>
   </div>
 
+  {#if errorMessage && selectedThread}
+    <div class="error-banner" role="alert">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>{errorMessage}</span>
+      <button class="error-close" onclick={() => (errorMessage = null)} aria-label="Dismiss error">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  {/if}
+
   {#if isLoading}
     <div class="loading">Loading threads...</div>
   {:else if $threads.length === 0}
@@ -337,9 +400,11 @@
       </div>
 
       <div class="dialog-actions">
-        <button class="text-white" onclick={() => (showDialog = false)}>Cancel</button>
+        <button class="dialog-button dialog-button-cancel" onclick={() => (showDialog = false)}>
+          Cancel
+        </button>
         <button
-          class="primary"
+          class="dialog-button dialog-button-primary"
           onclick={handleSave}
           disabled={!editingThread && !selectedModel}
           aria-disabled={!editingThread && !selectedModel}
@@ -367,8 +432,8 @@
   .loading,
   .empty {
     text-align: center;
-    padding: 3rem;
-    color: #666;
+    padding: calc(var(--content-padding) * 2.5);
+    color: var(--text-secondary);
   }
 
   .empty button {
@@ -377,7 +442,7 @@
 
   .threads-grid {
     display: flex;
-    gap: 1rem;
+    gap: var(--content-padding);
   }
 
   /* Dialog styles */
@@ -387,7 +452,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: color-mix(in srgb, var(--surface-900) 70%, transparent);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -395,13 +460,14 @@
   }
 
   .dialog {
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
+    background: var(--surface-card);
+    padding: calc(var(--content-padding) * 1.6);
+    border-radius: calc(var(--border-radius) * 2);
     min-width: 500px;
     max-width: 90%;
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--surface-border);
+    box-shadow: 0 calc(var(--content-padding) * 2) calc(var(--content-padding) * 4)
+      color-mix(in srgb, var(--surface-900) 18%, transparent);
   }
 
   .form-group {
@@ -410,7 +476,7 @@
 
   .form-group label {
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--inline-spacing);
     font-weight: 500;
   }
 
@@ -418,42 +484,101 @@
   .form-group textarea,
   .form-group select {
     width: 100%;
-    padding: 0.75rem;
-    border-radius: 6px;
+    padding: calc(var(--inline-spacing) * 1.5);
+    border-radius: var(--border-radius);
     font-family: inherit;
-    font-size: 1rem;
+    font-size: 16px;
   }
 
   .form-group input:focus,
   .form-group textarea:focus,
   .form-group select:focus {
     outline: none;
-    border-color: #646cff;
-  }
-
-  .dialog {
-    background: var(--surface-main);
-    border: 1px solid var(--border-sidebar);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--primary-color);
   }
 
   .dialog-actions {
     display: flex;
-    gap: 1rem;
+    gap: var(--content-padding);
     justify-content: flex-end;
-    margin-top: 2rem;
+    margin-top: calc(var(--content-padding) * 1.6);
   }
 
   .dialog-actions button {
-    padding: 0.75rem 1.5rem;
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
   }
 
-  .primary {
-    background: #646cff;
+  .dialog-button {
+    min-width: 120px;
+    border-radius: var(--border-radius);
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+
+  .dialog-button-cancel {
+    background: transparent;
+    color: var(--text-primary);
+    border-color: var(--surface-border);
+  }
+
+  .dialog-button-cancel:hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-border);
+  }
+
+  .dialog-button-primary {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border-color: var(--primary-color);
+  }
+
+  .dialog-button-primary:hover:not(:disabled) {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
+  }
+
+  .dialog-button-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: var(--error-color, #ef4444);
     color: white;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
   }
 
-  .primary:hover {
-    background: #535bf2;
+  .error-banner i {
+    font-size: 1.1rem;
+  }
+
+  .error-banner span {
+    flex: 1;
+  }
+
+  .error-close {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .error-close:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 </style>
