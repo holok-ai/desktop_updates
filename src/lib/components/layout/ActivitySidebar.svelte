@@ -27,6 +27,15 @@
   let showProfileMenu = $state(false);
   let selectedProjectId = $state<string | null>(null);
   let projectActivities = $state<SidebarActivity[]>([]);
+  let openMenuId = $state<string | null>(null); // Track which item's menu is open
+
+  function handleMenuToggle(item: { id: string } | null) {
+    if (!item) {
+      openMenuId = null;
+      return;
+    }
+    openMenuId = openMenuId === item.id ? null : item.id;
+  }
 
   async function handleLogout() {
     try {
@@ -172,6 +181,7 @@
   }
 
   function handleProjectAccordionClick(item: SidebarActivity) {
+    openMenuId = null; // Close any open menu when clicking on a project
     if (item.id === 'create-project') {
       handleCreateProject();
       return;
@@ -255,7 +265,9 @@
       customIcon="pi pi-folder"
       selectedId={selectedProjectId ?? undefined}
       isSubsection={false}
+      {openMenuId}
       on:click={(event) => handleProjectAccordionClick(event.detail)}
+      on:toggleMenu={(e) => handleMenuToggle(e.detail)}
     />
   </ul>
   <div class="flex flex-col items-center justify-center">

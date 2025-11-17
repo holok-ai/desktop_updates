@@ -217,29 +217,23 @@ export function registerThreadHandlers(): void {
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle(
-    'thread:getMessages',
-    (
-      _event,
-      id: string,
-    ): Promise<Message[]> => {
-      // Privacy enforcement hook (no-op without caller context)
-      const t0 = threadRepository.loadThread(id);
-      if (t0 && t0.metadata?.projectId) {
-        const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
-        if (proj && proj.privacyMode === 'project_only') {
-          // In future, enforce caller/project context here
-        }
+  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
+    // Privacy enforcement hook (no-op without caller context)
+    const t0 = threadRepository.loadThread(id);
+    if (t0 && t0.metadata?.projectId) {
+      const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
+      if (proj && proj.privacyMode === 'project_only') {
+        // In future, enforce caller/project context here
       }
-      const t = threadRepository.loadThread(id);
-      if (!t) return Promise.resolve([]);
-      const items: Message[] = t.messages
-        .filter((m) => !m.deletedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((m) => ({ ...m }));
-      return Promise.resolve(items);
-    },
-  );
+    }
+    const t = threadRepository.loadThread(id);
+    if (!t) return Promise.resolve([]);
+    const items: Message[] = t.messages
+      .filter((m) => !m.deletedAt)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((m) => ({ ...m }));
+    return Promise.resolve(items);
+  });
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(

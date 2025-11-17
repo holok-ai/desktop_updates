@@ -263,6 +263,14 @@ export default [
     },
   },
 
+  // MarkdownRenderer - {@html} is safe here due to DOMPurify sanitization
+  {
+    files: ['**/MarkdownRenderer.svelte'],
+    rules: {
+      'svelte/no-at-html-tags': 'off',
+    },
+  },
+
   // Test files - relaxed rules
   {
     files: ['**/*.spec.ts', '**/*.test.ts', '**/tests/**/*.ts'],

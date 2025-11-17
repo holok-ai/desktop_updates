@@ -112,8 +112,9 @@
   function setupTokenListener() {
     responseText = ''; // Clear previous response
 
-    // Prevent duplicate subscriptions across multiple sends
+    // Remove any existing token listeners to prevent duplicates
     window.electronAPI.chat.offToken();
+
     window.electronAPI.chat.onToken((token: string) => {
       console.log(token);
       // Force reactivity by creating a new string reference
@@ -425,8 +426,9 @@
     padding: var(--content-padding) 0;
     border-bottom: 1px solid var(--surface-border);
     position: sticky;
-    top: 0;
+    top: -31px;
     z-index: 5;
+    background: var(--surface-main);
   }
 
   .header-content {

@@ -6,16 +6,25 @@
 
   const dispatch = createEventDispatcher();
 
-  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection, customIcon } =
-    $props<{
-      title: string;
-      isSidebarCollapsed: boolean;
-      items: SidebarActivity[];
-      showActions?: boolean;
-      selectedId?: string | null;
-      isSubsection?: boolean;
-      customIcon?: string;
-    }>();
+  const {
+    title,
+    isSidebarCollapsed,
+    items,
+    showActions,
+    selectedId,
+    isSubsection,
+    customIcon,
+    openMenuId,
+  } = $props<{
+    title: string;
+    isSidebarCollapsed: boolean;
+    items: SidebarActivity[];
+    showActions?: boolean;
+    selectedId?: string | null;
+    isSubsection?: boolean;
+    customIcon?: string;
+    openMenuId?: string | null;
+  }>();
 
   let isCollapsed = $state(false);
 
@@ -25,7 +34,12 @@
   }
 
   function onClick(item: SidebarActivity) {
+    dispatch('toggleMenu', null); // Close any open menu when clicking an item
     dispatch('click', item);
+  }
+
+  function handleMenuToggle(item: SidebarActivity) {
+    dispatch('toggleMenu', item);
   }
 </script>
 
@@ -68,9 +82,11 @@
             isHidden={false}
             isSelected={selectedId === item.id}
             {showActions}
+            isMenuOpen={openMenuId === item.id}
             on:click={() => onClick(item)}
             on:rename={() => dispatch('rename', item)}
             on:delete={() => dispatch('delete', item)}
+            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
           />
         {/each}
       </div>

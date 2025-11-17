@@ -4,14 +4,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection } = $props<{
-    isSelected: boolean;
-    isHidden?: boolean;
-    item: SidebarActivity;
-    isCollapsed: boolean;
-    showActions?: boolean;
-    isSubsection?: boolean;
-  }>();
+  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection, isMenuOpen } =
+    $props<{
+      isSelected: boolean;
+      isHidden?: boolean;
+      item: SidebarActivity;
+      isCollapsed: boolean;
+      showActions?: boolean;
+      isSubsection?: boolean;
+      isMenuOpen?: boolean;
+    }>();
 
   function onClick(item: SidebarActivity) {
     dispatch('click', item);
@@ -21,7 +23,10 @@
     if (e.key === 'Enter' || e.key === ' ') onClick(item);
   }
 
-  let menuOpen = $state(false);
+  function toggleMenu(e: Event) {
+    e.stopPropagation();
+    dispatch('toggleMenu', item);
+  }
 </script>
 
 <div
@@ -47,29 +52,25 @@
     {#if !isCollapsed}
       <span class="text-sm leading-none truncate flex-1 text-white">{item.label}</span>
       {#if showActions}
-        <button
-          class="icon-button"
-          title="More"
-          onclick={(e) => {
-            e.stopPropagation();
-            menuOpen = !menuOpen;
-          }}>⋯</button
-        >
-        {#if menuOpen}
+        <button class="icon-button" title="More" onclick={toggleMenu}>⋯</button>
+        {#if isMenuOpen}
           <div
             class="menu"
             role="menu"
             tabindex="0"
             onclick={(e) => e.stopPropagation()}
             onkeydown={(e) => {
-              if (e.key === 'Escape') menuOpen = false;
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                dispatch('toggleMenu', item);
+              }
             }}
           >
             <button
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
+                dispatch('toggleMenu', item); // Close menu
                 dispatch('rename', item);
               }}
               aria-label="Rename thread"
@@ -80,7 +81,7 @@
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
+                dispatch('toggleMenu', item); // Close menu
                 dispatch('delete', item);
               }}
               aria-label="Delete thread"
