@@ -1,26 +1,19 @@
 <script lang="ts">
   import type { SidebarActivity } from '$lib/types/sidebar.type';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
 
-  const {
-    isSelected,
-    isHidden,
-    item,
-    isCollapsed,
-    showActions,
-    isSubsection,
-    menuOpen = false,
-  } = $props<{
-    isSelected: boolean;
-    isHidden?: boolean;
-    item: SidebarActivity;
-    isCollapsed: boolean;
-    showActions?: boolean;
-    isSubsection?: boolean;
-    menuOpen?: boolean;
-  }>();
+  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection, isMenuOpen } =
+    $props<{
+      isSelected: boolean;
+      isHidden?: boolean;
+      item: SidebarActivity;
+      isCollapsed: boolean;
+      showActions?: boolean;
+      isSubsection?: boolean;
+      isMenuOpen?: boolean;
+    }>();
 
   function onClick(item: SidebarActivity) {
     dispatch('click', item);
@@ -30,39 +23,10 @@
     if (e.key === 'Enter' || e.key === ' ') onClick(item);
   }
 
-  let menuElement = $state<HTMLDivElement | null>(null);
-
-  function handleMenuButtonClick(e: MouseEvent) {
+  function toggleMenu(e: Event) {
     e.stopPropagation();
-    dispatch('menuToggle');
+    dispatch('toggleMenu', item);
   }
-
-  // Close menu when clicking outside
-  function handleClickOutside(event: MouseEvent) {
-    if (menuOpen && menuElement && !menuElement.contains(event.target as Node)) {
-      const target = event.target as HTMLElement;
-      // Don't close if clicking the menu button itself (it has its own toggle)
-      if (!target.closest('.icon-button')) {
-        dispatch('menuToggle'); // Close the menu by toggling it
-      }
-    }
-  }
-
-  // Close menu on Escape key
-  function handleEscapeKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && menuOpen) {
-      dispatch('menuToggle');
-    }
-  }
-
-  onMount(() => {
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscapeKey);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
-  });
 </script>
 
 <div
@@ -88,21 +52,25 @@
     {#if !isCollapsed}
       <span class="text-sm leading-none truncate flex-1 text-white">{item.label}</span>
       {#if showActions}
-        <button class="icon-button" title="More" onclick={handleMenuButtonClick}>⋯</button>
-        {#if menuOpen}
-          <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <button class="icon-button" title="More" onclick={toggleMenu}>⋯</button>
+        {#if isMenuOpen}
           <div
-            bind:this={menuElement}
             class="menu"
             role="menu"
             tabindex="0"
             onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                dispatch('toggleMenu', item);
+              }
+            }}
           >
             <button
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
+                dispatch('toggleMenu', item); // Close menu
                 dispatch('rename', item);
               }}
               aria-label="Rename thread"
@@ -113,7 +81,7 @@
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
+                dispatch('toggleMenu', item); // Close menu
                 dispatch('delete', item);
               }}
               aria-label="Delete thread"

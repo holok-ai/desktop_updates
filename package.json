@@ -107,6 +107,9 @@
     "typescript": "^5.9.3",
     "vite": "^7.1.12"
   },
+  "overrides": {
+    "js-yaml": "^4.1.0"
+  },
   "build": {
     "appId": "com.holokai.desktop.svelte",
     "productName": "Holokai Desktop",
