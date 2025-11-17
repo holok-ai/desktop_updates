@@ -50,7 +50,10 @@
         <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
       {/if}
     {:else}
-      <i class="pi pi-angle-down arrow text-base leading-none text-white" class:rotate={!isCollapsed}></i>
+      <i
+        class="pi pi-angle-down arrow text-base leading-none text-white"
+        class:rotate={!isCollapsed}
+      ></i>
       {#if !isSidebarCollapsed}
         <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
       {/if}

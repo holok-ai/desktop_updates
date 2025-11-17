@@ -26,7 +26,7 @@
     // Automatically uses the user's browser locale
     return new Intl.DateTimeFormat(undefined, {
       month: 'numeric',
-      day: 'numeric'
+      day: 'numeric',
     }).format(d);
   }
 
