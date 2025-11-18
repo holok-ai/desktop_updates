@@ -11,6 +11,7 @@
   import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
+  import { storageService } from '$lib/services/storage.service';
 
   let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
@@ -62,7 +63,7 @@
         if (!params.get('projectId') && !params.get('createProject')) {
           // If no projectId in URL, restore last selected from localStorage
           try {
-            const last = window.localStorage.getItem('lastProjectId');
+            const last = storageService.getLastProjectId();
             if (last) {
               const found = $projects.find((p) => p.id === last);
               if (found) {
@@ -162,7 +163,7 @@
 
   function handleDeleteSuccess() {
     selectedProjectId = null;
-    window.localStorage.removeItem('lastProjectId');
+    storageService.removeLastProjectId();
     replace(ROUTE.PROJECTS);
   }
 

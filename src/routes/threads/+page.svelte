@@ -11,6 +11,7 @@
   import type { MokuModel } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
+  import { storageService } from '$lib/services/storage.service';
 
   let isLoading = $state(true);
   let showDialog = $state(false);
@@ -41,7 +42,7 @@
     const params = new URLSearchParams((window as any).location?.search ?? '');
     if (!params.get('threadId')) {
       try {
-        const last = window.localStorage.getItem('lastThreadId');
+        const last = storageService.getLastThreadId();
         if (last) {
           const found = $threads.find((t) => t.id === last);
           if (found) {
@@ -129,7 +130,7 @@
 
       // Track current project from localStorage (set by sidebar when project is selected)
       try {
-        const lastProjectId = window.localStorage.getItem('lastProjectId');
+        const lastProjectId = storageService.getLastProjectId();
         currentProjectId = lastProjectId;
       } catch {
         currentProjectId = null;
@@ -232,11 +233,7 @@
         console.error('Failed to load messages:', e);
       }
     })();
-    try {
-      window.localStorage.setItem('lastThreadId', thread.id);
-    } catch {
-      // ignore
-    }
+    storageService.setLastThreadId(thread.id);
   }
 
   async function handleSave() {
