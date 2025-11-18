@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { threads } from '../../lib/stores/thread.store';
+  import { projects } from '$lib/stores/project.store';
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
@@ -164,18 +165,25 @@
               }, 5000);
             }
           } else {
-            // In general/global context - only show threads without a project
+            // In general/global context - allow threads without a project or from non-isolated projects
             if (threadProjectId === null) {
               selectThread(found);
               errorMessage = null;
             } else {
-              errorMessage =
-                'This thread belongs to a project. Please access it from the project view.';
-              selectedThread = null;
-              messages = [];
-              setTimeout(() => {
+              const project = $projects.find((p) => p.id === threadProjectId);
+              const isProjectOnly = project?.privacyMode === 'project_only';
+              if (!isProjectOnly) {
+                selectThread(found);
                 errorMessage = null;
-              }, 5000);
+              } else {
+                errorMessage =
+                  'This thread belongs to a project. Please access it from the project view.';
+                selectedThread = null;
+                messages = [];
+                setTimeout(() => {
+                  errorMessage = null;
+                }, 5000);
+              }
             }
           }
         } else {

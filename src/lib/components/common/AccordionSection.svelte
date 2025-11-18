@@ -45,7 +45,7 @@
 
 <div class="w-full flex-col">
   <li
-    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-800"
+    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)]"
     tabindex="0"
     role="menuitem"
     aria-label={title}
@@ -57,16 +57,19 @@
   >
     {#if customIcon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
-        <i class="{customIcon} text-base leading-none"></i>
+        <i class="{customIcon} text-base leading-none text-white"></i>
       </div>
       {#if !isSidebarCollapsed}
-        <span class="text-sm leading-none truncate flex-1">{title}</span>
+        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
         <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
       {/if}
     {:else}
-      <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
+      <i
+        class="pi pi-angle-down arrow text-base leading-none text-white"
+        class:rotate={!isCollapsed}
+      ></i>
       {#if !isSidebarCollapsed}
-        <span class="text-sm leading-none truncate flex-1">{title}</span>
+        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
       {/if}
     {/if}
   </li>
