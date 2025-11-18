@@ -15,7 +15,10 @@ class StorageService {
   private get<T>(key: string, defaultValue: T): T {
     try {
       const value = window.localStorage.getItem(key);
-      return value ? JSON.parse(value) : defaultValue;
+      if (value === null || value === undefined || value === '') {
+        return defaultValue;
+      }
+      return JSON.parse(value) as T;
     } catch (error) {
       console.error(`Failed to get ${key}:`, error);
       return defaultValue;
