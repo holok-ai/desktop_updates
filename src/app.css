@@ -16,35 +16,27 @@
   --sidebar-secondary-width: 280px;
   --sidebar-secondary-collapsed: 48px;
 
-  /* Light theme (defaults) */
-  --surface-sidebar-primary: #eeeeee;
-  --surface-sidebar-secondary: #eeeeee;
-  --surface-main: #ffffff;
-  --surface-ground: #ffffff;
-  --surface-card: #f3f4f6;
-  --surface-hover: rgba(59, 130, 246, 0.06);
-  --border-sidebar: #e5e7eb;
-  --surface-border: #e5e7eb;
-  --surface-overlay: #f3f4f6;
-  --border-active: #3b82f6;
-  --border-card: #929395;
-  --background-primary-active: #0f2239;
+  /* Holokai light theme variables */
+  --holokai-sidebar-primary-light-color: #091320;
+  --holokai-sidebar-item-hover-light-color: #33667e71;
+  --holokai-sidebar-item-active-light-color: #2d85ad;
+  --holokai-sidebar-background-light-color: #f2f1ec;
 
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-active: #ffffff;
+  /* Holokai secondary sidebar light theme variables - same dark tone as primary */
+  --holokai-sidebar-secondary-light-color: #0a1624;
+  --holokai-sidebar-secondary-item-hover-light-color: #33667e71;
+  --holokai-sidebar-secondary-item-active-light-color: #2d85ad;
 
-  --primary-color: #3b82f6;
-  --error-color: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.1);
-  --modal-overlay: rgba(0, 0, 0, 0.5);
+  /* Holokai dark theme variables */
+  --holokai-sidebar-primary-dark-color: #1b1b1b;
+  --holokai-sidebar-item-hover-dark-color: #113241;
+  --holokai-sidebar-item-active-dark-color: #113241;
 
-  --sidebar-secondary-box-shadow: 0px 3px 6px 0px #00000040;
+  /* Holokai secondary sidebar dark theme variables - same dark tone as primary */
+  --holokai-sidebar-secondary-dark-color: #1b1b1b;
+  --holokai-sidebar-secondary-item-hover-dark-color: #113241;
+  --holokai-sidebar-secondary-item-active-dark-color: #113241;
 
-  --input-background: #ffffff;
-  --input-border: #a3a3a3;
-
-  color-scheme: light;
   color: var(--text-primary);
   background-color: var(--surface-main);
 
@@ -52,6 +44,80 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root:not(.dark),
+html:not(.dark) {
+  color-scheme: light;
+
+  --surface-sidebar-primary: var(--holokai-sidebar-primary-light-color);
+  --surface-sidebar-secondary: var(--holokai-sidebar-secondary-light-color);
+  --holokai-sidebar-secondary-item-hover: var(--holokai-sidebar-secondary-item-hover-light-color);
+  --holokai-sidebar-secondary-item-active: var(--holokai-sidebar-secondary-item-active-light-color);
+  --surface-main: var(--holokai-sidebar-background-light-color);
+  --surface-ground: var(--holokai-sidebar-background-light-color);
+  --surface-card: var(--surface-0);
+  --surface-hover: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  --border-sidebar: var(--surface-200);
+  --surface-border: var(--surface-300);
+  --surface-overlay: var(--surface-0);
+  --border-active: var(--primary-color);
+  --border-card: var(--surface-300);
+  --background-primary-active: var(--holokai-sidebar-item-active-light-color);
+  --background-primary-hover: var(--holokai-sidebar-item-hover-light-color);
+
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-color-secondary);
+  --text-active: var(--primary-color-text);
+
+  --primary-color: var(--primary-500);
+  --error-color: var(--red-500);
+  --error-bg: color-mix(in srgb, var(--red-100) 35%, transparent);
+  --modal-overlay: var(--maskbg);
+
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 15%, transparent);
+
+  --input-background: var(--surface-0);
+  --input-border: var(--surface-border);
+}
+
+/* Dark theme overrides */
+html.dark,
+:root.dark {
+  --surface-sidebar-primary: var(--holokai-sidebar-primary-dark-color);
+  --surface-sidebar-secondary: var(--holokai-sidebar-secondary-dark-color);
+  --holokai-sidebar-secondary-item-hover: var(--holokai-sidebar-secondary-item-hover-dark-color);
+  --holokai-sidebar-secondary-item-active: var(--holokai-sidebar-secondary-item-active-dark-color);
+  --surface-main: var(--surface-900);
+  --surface-card: var(--surface-800);
+  --surface-overlay: var(--surface-700);
+  --surface-ground: var(--surface-900);
+  --surface-hover: color-mix(in srgb, var(--primary-color) 18%, transparent);
+  --surface-border: var(--surface-700);
+  --border-sidebar: var(--surface-800);
+  --border-card: var(--surface-700);
+  --border-active: var(--primary-color);
+  --background-primary-active: var(--holokai-sidebar-item-active-dark-color);
+  --background-primary-hover: var(--holokai-sidebar-item-hover-dark-color);
+
+  --text-primary: var(--surface-0);
+  --text-secondary: var(--surface-200);
+
+  --primary-color: var(--primary-500);
+  --error-color: var(--red-400);
+  --error-bg: color-mix(in srgb, var(--red-400) 20%, transparent);
+  --modal-overlay: color-mix(in srgb, var(--surface-900) 70%, transparent);
+
+  --input-background: var(--surface-700);
+  --input-border: var(--surface-600);
+
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 40%, transparent);
+
+  color-scheme: dark;
+  color: var(--text-primary);
+  background-color: var(--surface-main);
 }
 
 * {
@@ -98,36 +164,6 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
-}
-
-/* Dark theme overrides */
-.dark {
-  --surface-sidebar-primary: #1b1b1b;
-  --surface-sidebar-secondary: #1b1b1b;
-  --surface-main: #1b1b1b;
-  --surface-card: #1f2937;
-  --surface-overlay: #374151;
-  --surface-ground: #1f2937;
-  --surface-hover: rgba(59, 130, 246, 0.1);
-  --surface-border: #374151;
-  --border-sidebar: #1f2937;
-  --border-card: #253142;
-  --border-active: #3b82f6;
-
-  --text-primary: #f9fafb;
-  --text-secondary: #9ca3af;
-
-  --primary-color: #3b82f6;
-  --error-color: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.15);
-  --modal-overlay: rgba(0, 0, 0, 0.7);
-
-  --input-background: #374151;
-  --input-border: #4b5563;
-
-  --sidebar-secondary-box-shadow: 0px 3px 6px 0px #00000040;
-
-  color-scheme: dark;
 }
 
 /* Using explicit theme toggling via .dark class; no media query overrides needed */

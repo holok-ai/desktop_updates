@@ -2,15 +2,18 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { currentUser, isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
-  import { push, location } from 'svelte-spa-router';
+  import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import { SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
   import SidebarItem from '../common/SidebarItem.svelte';
+  import AccordionSection from '../common/AccordionSection.svelte';
+  import { projects } from '$lib/stores/project.store';
+  import { projectService } from '$lib/services/project.service';
+  import type { Project } from '$lib/types/project.type';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
-  const logoBlue = new URL('../../../assets/images/logo-blue.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -18,11 +21,21 @@
   let activities: SidebarActivity[] = [
     { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
-    { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
   ];
   let selected = $state(activities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showProfileMenu = $state(false);
+  let selectedProjectId = $state<string | null>(null);
+  let projectActivities = $state<SidebarActivity[]>([]);
+  let openMenuId = $state<string | null>(null); // Track which item's menu is open
+
+  function handleMenuToggle(item: { id: string } | null) {
+    if (!item) {
+      openMenuId = null;
+      return;
+    }
+    openMenuId = openMenuId === item.id ? null : item.id;
+  }
 
   async function handleLogout() {
     try {
@@ -38,7 +51,9 @@
     if (normalized.startsWith(ROUTE.THREADS)) {
       next = 'threads';
     } else if (normalized.startsWith(ROUTE.PROJECTS)) {
-      next = 'projects';
+      // Projects is now an accordion, not a separate activity
+      // Keep current selection or default to home
+      return;
     }
     if (selected !== next) {
       selected = next;
@@ -54,6 +69,14 @@
 
     const stored = localStorage.getItem(APP_THEME_MODE_STORAGE_KEY);
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
+
+    void (async () => {
+      try {
+        await projectService.loadProjects();
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      }
+    })();
 
     // React to theme changes applied elsewhere (e.g., Settings page)
     const html = document.documentElement;
@@ -107,10 +130,81 @@
     return unsubscribe;
   });
 
+  $effect(() => {
+    projectActivities = $projects.map((project) => ({
+      id: project.id,
+      label: project.title,
+      icon: 'pi pi-folder',
+      route: ROUTE.PROJECTS,
+    }));
+  });
+
+  $effect(() => {
+    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+      const pid = params.get('projectId');
+      if (pid) {
+        selectedProjectId = pid;
+      } else {
+        if (typeof window !== 'undefined') {
+          try {
+            selectedProjectId = window.localStorage.getItem('lastProjectId');
+          } catch {
+            selectedProjectId = null;
+          }
+        } else {
+          selectedProjectId = null;
+        }
+      }
+    });
+    return unsubscribe;
+  });
+
   function handleNavigate(activity: SidebarActivity) {
     selected = activity.id;
     dispatch('select', activity);
     if (activity.route) push(activity.route);
+  }
+
+  function handleProjectSelect(project: Project) {
+    selectedProjectId = project.id;
+    try {
+      window.localStorage.setItem('lastProjectId', project.id);
+    } catch (error) {
+      console.error('Failed to set lastProjectId', error);
+    }
+    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+  }
+
+  function handleCreateProject() {
+    push(`${ROUTE.PROJECTS}?createProject`);
+  }
+
+  function handleProjectAccordionClick(item: SidebarActivity) {
+    openMenuId = null; // Close any open menu when clicking on a project
+    if (item.id === 'create-project') {
+      handleCreateProject();
+      return;
+    }
+    // If clicking the same project, deselect it
+    if (item.id === selectedProjectId) {
+      handleDeselectProject();
+      return;
+    }
+    const project = $projects.find((p) => p.id === item.id);
+    if (project) {
+      handleProjectSelect(project);
+    }
+  }
+
+  function handleDeselectProject() {
+    selectedProjectId = null;
+    try {
+      window.localStorage.removeItem('lastProjectId');
+    } catch (error) {
+      console.error('Failed to remove lastProjectId', error);
+    }
+    push(ROUTE.PROJECTS);
   }
 
   function toggle() {
@@ -137,11 +231,7 @@
   aria-label="Main sidebar"
 >
   <div class="sidebar-header flex justify-center items-center h-16">
-    <img
-      src={currentMode === APP_THEME_MODE.DARK ? logoWhite : logoBlue}
-      alt="Holokai Logo"
-      class="w-[160px] h-[80px] {isCollapsed && 'hidden'}"
-    />
+    <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
     <button
       class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
         'p-0'}"
@@ -160,6 +250,25 @@
         on:click={() => handleNavigate(activity)}
       />
     {/each}
+    <AccordionSection
+      title="Projects"
+      isSidebarCollapsed={isCollapsed}
+      items={[
+        {
+          id: 'create-project',
+          label: 'Create Project',
+          icon: 'pi pi-plus',
+          route: ROUTE.PROJECTS,
+        },
+        ...projectActivities,
+      ]}
+      customIcon="pi pi-folder"
+      selectedId={selectedProjectId ?? undefined}
+      isSubsection={false}
+      {openMenuId}
+      on:click={(event) => handleProjectAccordionClick(event.detail)}
+      on:toggleMenu={(e) => handleMenuToggle(e.detail)}
+    />
   </ul>
   <div class="flex flex-col items-center justify-center">
     {#if $isAuthenticated}
@@ -167,25 +276,25 @@
         class="flex flex-col items-center justify-center w-full relative transition-all duration-300"
       >
         <button
-          class="bg-[#474747] transition-all duration-200 w-full flex items-center justify-start gap-3 cursor-pointer rounded-lg py-3 px-4"
+          class="profile-trigger"
           tabindex="0"
           aria-haspopup="true"
           aria-expanded={showProfileMenu}
           onclick={() => (showProfileMenu = !showProfileMenu)}
         >
-          <span class="flex items-center gap-3">
+          <span class="profile-trigger-content">
             {#if !isCollapsed}
               <i
                 class={showProfileMenu
-                  ? 'pi pi-chevron-up text-white'
-                  : 'pi pi-chevron-down text-white'}
+                  ? 'pi pi-chevron-up profile-trigger-icon'
+                  : 'pi pi-chevron-down profile-trigger-icon'}
               ></i>
             {/if}
             {#key showProfileMenu}
-              <i class="pi pi-user text-white"></i>
+              <i class="pi pi-user profile-trigger-icon"></i>
             {/key}
             {#if !isCollapsed}
-              <span class="text-base text-white">{$currentUser?.name ?? 'User'}</span>
+              <span class="profile-trigger-label">{$currentUser?.name ?? 'User'}</span>
             {/if}
           </span>
         </button>
@@ -193,7 +302,7 @@
         {#if showProfileMenu && !isCollapsed}
           <div class="w-full mt-2 gap-2 flex flex-col">
             <button
-              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
+              class="profile-menu-button"
               onclick={() => {
                 showProfileMenu = false;
                 push(ROUTE.SETTINGS);
@@ -202,10 +311,7 @@
               <i class="pi pi-cog"></i>
               <span>Settings</span>
             </button>
-            <button
-              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
-              onclick={handleLogout}
-            >
+            <button class="profile-menu-button" onclick={handleLogout}>
               <i class="pi pi-sign-out"></i>
               <span>Logout</span>
             </button>
@@ -222,6 +328,74 @@
 </nav>
 
 <style lang="postcss">
+  .profile-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--content-padding);
+    padding: calc(var(--inline-spacing) * 2) var(--content-padding);
+    border-radius: var(--border-radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-active);
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .profile-trigger:focus {
+    outline: none;
+  }
+
+  .profile-trigger:hover {
+    background: var(--background-primary-hover);
+  }
+
+  .profile-trigger-content {
+    display: flex;
+    align-items: center;
+    gap: var(--content-padding);
+    width: 100%;
+  }
+
+  .profile-trigger-icon {
+    color: #fff;
+    font-size: 16px;
+  }
+
+  .profile-trigger-label {
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .profile-menu-button {
+    display: flex;
+    align-items: center;
+    gap: var(--inline-spacing);
+    width: 100%;
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
+    background: transparent;
+    border: none;
+    color: #fff;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .profile-menu-button span {
+    color: #fff;
+  }
+
+  .profile-menu-button:focus {
+    outline: none;
+  }
+
+  .profile-menu-button:hover {
+    background: var(--background-primary-hover);
+  }
+
   .nav-icons {
     @apply flex flex-col gap-4 mt-8;
     flex: 1;

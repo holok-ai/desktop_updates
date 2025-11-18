@@ -4,14 +4,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection } = $props<{
-    isSelected: boolean;
-    isHidden?: boolean;
-    item: SidebarActivity;
-    isCollapsed: boolean;
-    showActions?: boolean;
-    isSubsection?: boolean;
-  }>();
+  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection, isMenuOpen } =
+    $props<{
+      isSelected: boolean;
+      isHidden?: boolean;
+      item: SidebarActivity;
+      isCollapsed: boolean;
+      showActions?: boolean;
+      isSubsection?: boolean;
+      isMenuOpen?: boolean;
+    }>();
 
   function onClick(item: SidebarActivity) {
     dispatch('click', item);
@@ -21,7 +23,10 @@
     if (e.key === 'Enter' || e.key === ' ') onClick(item);
   }
 
-  let menuOpen = $state(false);
+  function toggleMenu(e: Event) {
+    e.stopPropagation();
+    dispatch('toggleMenu', item);
+  }
 </script>
 
 <div
@@ -29,7 +34,7 @@
   class:hidden={isHidden}
 >
   <li
-    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-800"
+    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)]"
     class:active={isSelected}
     tabindex="0"
     role="menuitem"
@@ -40,39 +45,49 @@
   >
     {#if item.icon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
-        <i class="{item.icon} text-base leading-none"></i>
+        <i class="{item.icon} text-base leading-none text-white"></i>
       </div>
     {/if}
 
     {#if !isCollapsed}
-      <span class="text-sm leading-none truncate flex-1">{item.label}</span>
+      <span class="text-sm leading-none truncate flex-1 text-white">{item.label}</span>
       {#if showActions}
-        <button
-          class="icon-button"
-          title="More"
-          onclick={(e) => {
-            e.stopPropagation();
-            menuOpen = !menuOpen;
-          }}>⋯</button
-        >
-        {#if menuOpen}
+        <button class="icon-button" title="More" onclick={toggleMenu}>⋯</button>
+        {#if isMenuOpen}
           <div
             class="menu"
             role="menu"
             tabindex="0"
             onclick={(e) => e.stopPropagation()}
             onkeydown={(e) => {
-              if (e.key === 'Escape') menuOpen = false;
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                dispatch('toggleMenu', item);
+              }
             }}
           >
             <button
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
-                dispatch('delete', item);
-              }}>Delete thread</button
+                dispatch('toggleMenu', item); // Close menu
+                dispatch('rename', item);
+              }}
+              aria-label="Rename thread"
             >
+              <i class="pi pi-pencil"></i> Rename
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              onclick={() => {
+                dispatch('toggleMenu', item); // Close menu
+                dispatch('delete', item);
+              }}
+              aria-label="Delete thread"
+            >
+              <i class="pi pi-trash"></i> Delete
+            </button>
           </div>
         {/if}
       {/if}
@@ -90,18 +105,18 @@
 
 <style scoped>
   .active {
-    background-color: var(--background-primary-active, #0f2239);
-    color: var(--text-active, #ffffff);
+    background-color: var(--background-primary-active);
+    color: var(--text-active);
 
     span,
     .icon-button {
-      color: var(--text-active);
+      color: #fff;
     }
   }
   .icon-button {
     background: transparent;
     border: none;
-    color: var(--text-primary);
+    color: #fff;
     cursor: pointer;
     padding: 0;
 
@@ -113,24 +128,25 @@
     position: absolute;
     right: 8px;
     top: 36px;
-    background: var(--surface-sidebar-secondary, #0f172a);
-    border: 1px solid var(--border-card, #1f2937);
-    border-radius: 6px;
-    padding: 0.25rem;
+    background: var(--surface-main);
+    border-radius: var(--border-radius);
+    padding: calc(var(--inline-spacing) / 2);
     z-index: 20;
     min-width: 160px;
   }
   .menu-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     text-align: left;
-    padding: 0.5rem 0.75rem;
+    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
     background: transparent;
     border: none;
-    color: var(--text-primary);
+    outline: none;
+    color: #fff;
     cursor: pointer;
-  }
-  .menu-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    font-size: 0.875rem;
+    border-radius: 0.25rem;
   }
 </style>

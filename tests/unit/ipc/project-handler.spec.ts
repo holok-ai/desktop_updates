@@ -113,9 +113,25 @@ describe('Project IPC Handlers', () => {
       expect(result.title).toBe('New Project');
       expect(result.description).toBe('Test description');
       expect(result.createdAt).toBeInstanceOf(Date);
+      expect(result.privacyMode).toBe('default');
     });
 
-    it('should throw error if name is missing', () => {
+    it('should create a project with project_only privacy mode', async () => {
+      const handleCall = (ipcMain.handle as any).mock.calls.find(
+        (call: any) => call[0] === 'project:create',
+      );
+      const handler = handleCall[1];
+
+      const result = await handler(null, {
+        name: 'Private Project',
+        description: 'Test description',
+        privacyMode: 'project_only',
+      });
+
+      expect(result.privacyMode).toBe('project_only');
+    });
+
+    it('should throw error if title is missing', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:create',
       );
@@ -132,14 +148,28 @@ describe('Project IPC Handlers', () => {
       );
       const handler = handleCall[1];
 
-      const project = projectRepository.createProject('Original Name');
+      const project = projectRepository.createProject('Original title');
 
       const result = await handler(null, project.id, { title: 'Updated Name' });
 
       expect(result.title).toBe('Updated Name');
     });
 
-    it('should throw error if name is empty', () => {
+    it('should update privacy mode', async () => {
+      const handleCall = (ipcMain.handle as any).mock.calls.find(
+        (call: any) => call[0] === 'project:update',
+      );
+      const handler = handleCall[1];
+
+      const project = projectRepository.createProject('Test Project');
+      expect(project.privacyMode).toBe('default');
+
+      const result = await handler(null, project.id, { privacyMode: 'project_only' });
+
+      expect(result.privacyMode).toBe('project_only');
+    });
+
+    it('should throw error if title is empty', () => {
       const handleCall = (ipcMain.handle as any).mock.calls.find(
         (call: any) => call[0] === 'project:update',
       );

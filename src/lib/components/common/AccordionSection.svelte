@@ -6,13 +6,24 @@
 
   const dispatch = createEventDispatcher();
 
-  const { title, isSidebarCollapsed, items, showActions, selectedId, isSubsection } = $props<{
+  const {
+    title,
+    isSidebarCollapsed,
+    items,
+    showActions,
+    selectedId,
+    isSubsection,
+    customIcon,
+    openMenuId,
+  } = $props<{
     title: string;
     isSidebarCollapsed: boolean;
     items: SidebarActivity[];
     showActions?: boolean;
     selectedId?: string | null;
     isSubsection?: boolean;
+    customIcon?: string;
+    openMenuId?: string | null;
   }>();
 
   let isCollapsed = $state(false);
@@ -23,18 +34,48 @@
   }
 
   function onClick(item: SidebarActivity) {
+    dispatch('toggleMenu', null); // Close any open menu when clicking an item
     dispatch('click', item);
+  }
+
+  function handleMenuToggle(item: SidebarActivity) {
+    dispatch('toggleMenu', item);
   }
 </script>
 
-<div class="w-full flex-col {isSidebarCollapsed ? 'hidden' : 'flex'}">
-  <button class="accordion-header text-[#666666] dark:text-[#A3A3A3]" onclick={toggleCollapse}>
-    <i class="pi pi-angle-down arrow" class:rotate={!isCollapsed}></i>
-    <span class="text-[#666666] dark:text-[#A3A3A3]">{title}</span>
-  </button>
+<div class="w-full flex-col">
+  <li
+    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)]"
+    tabindex="0"
+    role="menuitem"
+    aria-label={title}
+    onclick={toggleCollapse}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') toggleCollapse();
+    }}
+    title={isSidebarCollapsed ? title : undefined}
+  >
+    {#if customIcon}
+      <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
+        <i class="{customIcon} text-base leading-none text-white"></i>
+      </div>
+      {#if !isSidebarCollapsed}
+        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
+        <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
+      {/if}
+    {:else}
+      <i
+        class="pi pi-angle-down arrow text-base leading-none text-white"
+        class:rotate={!isCollapsed}
+      ></i>
+      {#if !isSidebarCollapsed}
+        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
+      {/if}
+    {/if}
+  </li>
 
   {#key isCollapsed}
-    {#if !isCollapsed}
+    {#if !isCollapsed && !isSidebarCollapsed}
       <div class="accordion-content gap-1 flex flex-col" transition:slide={{ duration: 200 }}>
         {#each items as item (item.id)}
           <SidebarItem
@@ -44,8 +85,11 @@
             isHidden={false}
             isSelected={selectedId === item.id}
             {showActions}
+            isMenuOpen={openMenuId === item.id}
             on:click={() => onClick(item)}
+            on:rename={() => dispatch('rename', item)}
             on:delete={() => dispatch('delete', item)}
+            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
           />
         {/each}
       </div>
@@ -54,33 +98,10 @@
 </div>
 
 <style>
-  .accordion-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    padding: 0.5rem 0.75rem;
-    background: transparent;
-    border: none;
-    transition: color 0.2s ease;
-    position: sticky; /* keep header visible while scrolling long lists */
-    top: 0;
-    z-index: 1;
-    background-color: var(--surface-sidebar-secondary);
-  }
-
-  .accordion-header:hover {
-    color: var(--text-primary);
-
-    span {
-      color: var(--text-primary);
-    }
-  }
-
   .arrow {
     transition: transform 0.25s ease;
-    display: inline-block; /* ensure rotate doesn't affect layout */
-    flex-shrink: 0; /* prevent disappearing when container shrinks */
+    display: inline-block;
+    flex-shrink: 0;
   }
 
   .arrow.rotate {
@@ -89,6 +110,6 @@
 
   .accordion-content {
     will-change: height;
-    overflow-anchor: none; /* avoid scroll jump when expanding/collapsing */
+    overflow-anchor: none;
   }
 </style>
