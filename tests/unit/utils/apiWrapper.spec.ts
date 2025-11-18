@@ -1,13 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  wrapElectronCall,
-  wrapElectronCallWithFallback,
-} from '../../../src/lib/utils/apiWrapper';
+import { wrapElectronCall, wrapElectronCallWithFallback } from '../../../src/lib/utils/apiWrapper';
 
 describe('apiWrapper', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-});
+  });
 
   describe('wrapElectronCall', () => {
     it('returns the result of the operation', async () => {
@@ -23,7 +20,7 @@ describe('apiWrapper', () => {
       await expect(
         wrapElectronCall(async () => {
           throw error;
-        }, 'Exploded')
+        }, 'Exploded'),
       ).rejects.toBe(error);
       expect(spy).toHaveBeenCalledWith('Exploded:', error);
     });
@@ -54,7 +51,7 @@ describe('apiWrapper', () => {
           },
           'Custom log',
           { logger: customLogger },
-        )
+        ),
       ).rejects.toThrow('custom');
       expect(customLogger).toHaveBeenCalledTimes(1);
       expect(customLogger.mock.calls[0]?.[0]).toBe('Custom log:');

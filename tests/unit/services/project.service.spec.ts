@@ -69,4 +69,3 @@ describe('ProjectService', () => {
     expect(logger).toHaveBeenCalledWith('Failed to get thread count:', expect.any(Error));
   });
 });
-

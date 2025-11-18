@@ -68,5 +68,3 @@ export async function wrapElectronCallWithFallback<T>(
     return fallbackValue;
   }
 }
-
-
