@@ -24,6 +24,17 @@
   let renamingThreadTitle: string = $state('');
 
   let selectedProjectId: string | null = $state(null);
+  let openMenuId: string | null = $state(null); // Track which item's menu is open globally
+
+  function handleMenuToggle(item: { id: string } | null) {
+    if (!item) {
+      // Close any open menu
+      openMenuId = null;
+      return;
+    }
+    // If clicking the same menu, close it; otherwise open the new one
+    openMenuId = openMenuId === item.id ? null : item.id;
+  }
 
   const navigationOptions: SidebarActivity[] = [
     {
@@ -149,6 +160,7 @@
   });
 
   function select(item: { id: string; label: string }) {
+    openMenuId = null; // Close any open menu when selecting an item
     dispatch('select', item);
     selectedThreadId = item.id;
     try {
@@ -207,6 +219,7 @@
    * Handle rename thread action
    */
   function handleRenameStart(item: { id: string; label: string }) {
+    openMenuId = null; // Close any open menu
     renamingThreadId = item.id;
     renamingThreadTitle = item.label;
   }
@@ -277,6 +290,8 @@
             isSidebarCollapsed={isCollapsed}
             items={agentItems}
             selectedId={null}
+            {openMenuId}
+            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
           />
           <AccordionSection
             title="Threads"
@@ -285,7 +300,13 @@
             isSubsection={true}
             showActions={true}
             selectedId={activity?.id === 'threads' ? selectedThreadId : null}
+            {openMenuId}
             on:click={(e) => select(e.detail)}
+            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
+            on:rename={(e) => {
+              const item = e.detail as { id: string; label: string };
+              handleRenameStart(item);
+            }}
             on:delete={async (e) => {
               const item = e.detail as { id: string };
               if (item?.id?.startsWith('temp_')) {
@@ -341,13 +362,14 @@
               {thread}
               isSelected={selectedThreadId === thread.id}
               showActions={true}
-              on:click={(e) => select(e.detail)}
               on:rename={(e) => {
                 const item = e.detail as { id: string; label: string };
                 handleRenameStart(item);
               }}
-              on:delete={async (e) => {
-                const item = e.detail as { id: string };
+              on:click={(e: { detail: { id: string; label: string } }) => select(e.detail)}
+              on:toggleMenu={(e) => handleMenuToggle(e.detail)}
+              on:delete={async (e: CustomEvent<{ id: string }>) => {
+                const item = e.detail;
                 if (item?.id?.startsWith('temp_')) {
                   threads.deleteThread(item.id);
                   return;
