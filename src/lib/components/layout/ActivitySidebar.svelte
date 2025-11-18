@@ -5,7 +5,6 @@
   import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
-  import { SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
   import SidebarItem from '../common/SidebarItem.svelte';
@@ -13,6 +12,7 @@
   import { projects } from '$lib/stores/project.store';
   import { projectService } from '$lib/services/project.service';
   import type { Project } from '$lib/types/project.type';
+  import { storageService } from '$lib/services/storage.service';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
@@ -64,10 +64,9 @@
   }
 
   onMount(() => {
-    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-    if (saved !== null) isCollapsed = saved === 'true';
+    isCollapsed = storageService.getSidebarCollapsed();
 
-    const stored = localStorage.getItem(APP_THEME_MODE_STORAGE_KEY);
+    const stored = storageService.getThemeMode();
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
 
     void (async () => {
@@ -116,7 +115,7 @@
   });
 
   $effect(() => {
-    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isCollapsed));
+    storageService.setSidebarCollapsed(isCollapsed);
   });
 
   $effect(() => {
@@ -146,15 +145,7 @@
       if (pid) {
         selectedProjectId = pid;
       } else {
-        if (typeof window !== 'undefined') {
-          try {
-            selectedProjectId = window.localStorage.getItem('lastProjectId');
-          } catch {
-            selectedProjectId = null;
-          }
-        } else {
-          selectedProjectId = null;
-        }
+        selectedProjectId = storageService.getLastProjectId();
       }
     });
     return unsubscribe;
@@ -168,11 +159,7 @@
 
   function handleProjectSelect(project: Project) {
     selectedProjectId = project.id;
-    try {
-      window.localStorage.setItem('lastProjectId', project.id);
-    } catch (error) {
-      console.error('Failed to set lastProjectId', error);
-    }
+    storageService.setLastProjectId(project.id);
     push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
   }
 
@@ -199,11 +186,7 @@
 
   function handleDeselectProject() {
     selectedProjectId = null;
-    try {
-      window.localStorage.removeItem('lastProjectId');
-    } catch (error) {
-      console.error('Failed to remove lastProjectId', error);
-    }
+    storageService.removeLastProjectId();
     push(ROUTE.PROJECTS);
   }
 
@@ -220,7 +203,7 @@
     } else {
       html.classList.remove(APP_THEME_MODE.DARK);
     }
-    localStorage.setItem(APP_THEME_MODE_STORAGE_KEY, mode);
+    storageService.setThemeMode(mode);
   }
 </script>
 

@@ -10,6 +10,7 @@
   import { push, querystring } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
+  import { storageService } from '$lib/services/storage.service';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -72,38 +73,20 @@
       const tid = params.get('threadId');
       if (tid) {
         selectedThreadId = tid;
-        try {
-          window.localStorage.setItem('lastThreadId', tid);
-        } catch (error) {
-          console.error('Failed to set lastThreadId', error);
-        }
+        storageService.setLastThreadId(tid);
       } else {
         // Fallback to last selected from localStorage
-        try {
-          const last = window.localStorage.getItem('lastThreadId');
-          selectedThreadId = last;
-        } catch {
-          selectedThreadId = null;
-        }
+        selectedThreadId = storageService.getLastThreadId();
       }
 
       // Handle project selection
       const pid = params.get('projectId');
       if (pid) {
         selectedProjectId = pid;
-        try {
-          window.localStorage.setItem('lastProjectId', pid);
-        } catch (error) {
-          console.error('Failed to set lastProjectId', error);
-        }
+        storageService.setLastProjectId(pid);
       } else {
-        // Fallback to last selected project regardless of view, so selection persists across tabs
-        try {
-          const last = window.localStorage.getItem('lastProjectId');
-          selectedProjectId = last;
-        } catch {
-          selectedProjectId = null;
-        }
+        // Fallback to last selected from localStorage
+        selectedProjectId = storageService.getLastProjectId();
       }
     });
     return unsub;
@@ -163,31 +146,19 @@
     openMenuId = null; // Close any open menu when selecting an item
     dispatch('select', item);
     selectedThreadId = item.id;
-    try {
-      window.localStorage.setItem('lastThreadId', item.id);
-    } catch (error) {
-      console.error('Failed to set lastThreadId', error);
-    }
+    storageService.setLastThreadId(item.id);
 
     const route = (item as SidebarActivity).route;
 
     switch (route) {
       case ROUTE.THREADS:
         selectedThreadId = item.id;
-        try {
-          window.localStorage.setItem('lastThreadId', item.id);
-        } catch (error) {
-          console.error('Failed to set lastThreadId', error);
-        }
+        storageService.setLastThreadId(item.id);
         push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
         break;
       case ROUTE.PROJECTS:
         selectedProjectId = item.id;
-        try {
-          window.localStorage.setItem('lastProjectId', item.id);
-        } catch (error) {
-          console.error('Failed to set lastProjectId', error);
-        }
+        storageService.setLastProjectId(item.id);
         push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(item.id)}`);
         break;
       default:
