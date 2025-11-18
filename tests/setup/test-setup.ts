@@ -8,7 +8,6 @@ import { afterEach, vi } from 'vitest';
 import type { ElectronAPI, Thread, AuthState, UserProfile } from '../../src-electron/preload';
 import type { Project } from '../../src/lib/types/project.type';
 import type { GUID } from '../../src/lib/types/app.type';
-import type { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
 
 // Strongly-typed global helper for test environment
 interface ResizeObserverConstructorLike {
