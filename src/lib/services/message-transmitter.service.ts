@@ -1,9 +1,10 @@
-import type { Message } from '$lib/types/thread.type';
-import type { MessageStatus } from '$lib/types/status.type';
-import type { Thread } from '../../../src-electron/preload';
-import { threadService } from './thread.service';
-import { outboxService } from './outbox.service';
+import { wrapElectronCall } from '$lib/utils/apiWrapper';
 import { MESSAGE_STATUS } from '$lib/constants/status.constant';
+import type { MessageStatus } from '$lib/types/status.type';
+import type { Message } from '$lib/types/thread.type';
+import { outboxService } from './outbox.service';
+import { threadService } from './thread.service';
+import type { Thread } from '../../../src-electron/preload';
 
 export interface MessageUpdate {
   messageId: string;
@@ -243,7 +244,10 @@ export class MessageTransmitter {
               model: 'llama3:latest',
             };
 
-            const result = await chatHandler.chat(request);
+            const result = await wrapElectronCall(
+              () => chatHandler.chat(request),
+              'Error processing pending message',
+            );
 
             if (result.success) {
               const responseText = chatHandler.getResponseText();
@@ -266,8 +270,8 @@ export class MessageTransmitter {
 
               this.callbacks.onMessageAdd(assistantMsg);
             }
-          } catch (error) {
-            console.error('Error processing pending message:', error);
+          } catch {
+            // Logging handled in wrapElectronCall for consistent reporting
           } finally {
             chatHandler.setStreaming(false);
             chatHandler.offToken();
