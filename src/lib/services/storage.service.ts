@@ -1,7 +1,12 @@
 import type { AppThemeMode } from '$lib/types/app.type';
 import type { SidebarActivity } from '$lib/types/sidebar.type';
-import { APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
+import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
 import { SIDEBAR_STORAGE_KEY, SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
+
+type GetOptions<T> = {
+  coerce?: (value: string) => T | null;
+  migrate?: boolean;
+};
 
 class StorageService {
   private readonly KEYS = {
@@ -12,14 +17,32 @@ class StorageService {
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY
   } as const;
 
-  private get<T>(key: string, defaultValue: T): T {
+  private get<T>(key: string, defaultValue: T, options?: GetOptions<T>): T {
+    let raw: string | null;
     try {
-      const value = window.localStorage.getItem(key);
-      if (value === null || value === undefined || value === '') {
-        return defaultValue;
-      }
-      return JSON.parse(value) as T;
+      raw = globalThis.localStorage.getItem(key);
     } catch (error) {
+      console.error(`Failed to get ${key}:`, error);
+      return defaultValue;
+    }
+
+    if (raw === null || raw === undefined || raw === '') {
+      return defaultValue;
+    }
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch (error) {
+      const coerceFn = options?.coerce ?? null;
+      if (coerceFn !== null) {
+        const coerced = coerceFn(raw);
+        if (coerced !== null) {
+          if (options?.migrate !== false) {
+            this.set(key, coerced as unknown as T);
+          }
+          return coerced;
+        }
+      }
       console.error(`Failed to get ${key}:`, error);
       return defaultValue;
     }
@@ -27,7 +50,7 @@ class StorageService {
 
   private set<T>(key: string, value: T): boolean {
     try {
-      window.localStorage.setItem(key, JSON.stringify(value));
+      globalThis.localStorage.setItem(key, JSON.stringify(value));
       return true;
     } catch (error) {
       console.error(`Failed to set ${key}:`, error);
@@ -37,7 +60,7 @@ class StorageService {
 
   private remove(key: string): boolean {
     try {
-      window.localStorage.removeItem(key);
+      globalThis.localStorage.removeItem(key);
       return true;
     } catch (error) {
       console.error(`Failed to remove ${key}:`, error);
@@ -46,7 +69,9 @@ class StorageService {
   }
 
   getLastThreadId(): string | null {
-    return this.get(this.KEYS.LAST_THREAD_ID, null);
+    return this.get(this.KEYS.LAST_THREAD_ID, null, {
+      coerce: (raw) => raw,
+    });
   }
 
   setLastThreadId(id: string): boolean {
@@ -58,7 +83,9 @@ class StorageService {
   }
 
   getLastProjectId(): string | null {
-    return this.get(this.KEYS.LAST_PROJECT_ID, null);
+    return this.get(this.KEYS.LAST_PROJECT_ID, null, {
+      coerce: (raw) => raw,
+    });
   }
 
   setLastProjectId(id: string): boolean {
@@ -70,7 +97,14 @@ class StorageService {
   }
 
   getThemeMode(): AppThemeMode {
-    return this.get(this.KEYS.THEME_MODE, 'light' as AppThemeMode);
+    return this.get(this.KEYS.THEME_MODE, APP_THEME_MODE.LIGHT as AppThemeMode, {
+      coerce: (raw) => {
+        if (raw === APP_THEME_MODE.DARK || raw === APP_THEME_MODE.LIGHT) {
+          return raw as AppThemeMode;
+        }
+        return null;
+      },
+    });
   }
 
   setThemeMode(mode: AppThemeMode): boolean {
@@ -78,7 +112,17 @@ class StorageService {
   }
 
   getSidebarCollapsed(): boolean {
-    return this.get(this.KEYS.SIDEBAR_COLLAPSED, false);
+    return this.get(this.KEYS.SIDEBAR_COLLAPSED, false, {
+      coerce: (raw) => {
+        if (raw === 'true') {
+          return true;
+        }
+        if (raw === 'false') {
+          return false;
+        }
+        return null;
+      },
+    });
   }
 
   setSidebarCollapsed(collapsed: boolean): boolean {

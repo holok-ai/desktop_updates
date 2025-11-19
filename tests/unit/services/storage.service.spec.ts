@@ -41,9 +41,9 @@ describe('storage.service', () => {
       spy.mockRestore();
     });
 
-    it('should handle JSON parse errors gracefully', () => {
-      localStorage.setItem('lastThreadId', 'invalid-json-{');
-      expect(storageService.getLastThreadId()).toBeNull();
+    it('should coerce legacy string values even if not valid JSON', () => {
+      localStorage.setItem('lastThreadId', 'legacy-thread');
+      expect(storageService.getLastThreadId()).toBe('legacy-thread');
     });
 
     it('should handle remove errors gracefully', () => {
@@ -82,6 +82,11 @@ describe('storage.service', () => {
       spy.mockRestore();
     });
 
+    it('should coerce legacy project IDs stored as plain strings', () => {
+      localStorage.setItem('lastProjectId', 'legacy-project');
+      expect(storageService.getLastProjectId()).toBe('legacy-project');
+    });
+
     it('should handle remove errors gracefully', () => {
       storageService.setLastProjectId('project-456');
       const spy = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
@@ -111,6 +116,11 @@ describe('storage.service', () => {
       });
       expect(storageService.getThemeMode()).toBe(APP_THEME_MODE.LIGHT);
       spy.mockRestore();
+    });
+
+    it('should coerce legacy theme strings without JSON encoding', () => {
+      localStorage.setItem('holokai-app-color-mode', 'dark');
+      expect(storageService.getThemeMode()).toBe(APP_THEME_MODE.DARK);
     });
 
     it('should return false when setItem fails', () => {
