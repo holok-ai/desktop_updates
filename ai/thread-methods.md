@@ -512,7 +512,7 @@ async updateMessage(
   ```
 - **Returns**: Updated message object with version tracking
 - **Restriction**: Only user messages can be edited
-- **Side Effects**: 
+- **Side Effects**:
   - Stores previous version in `versions` array
   - Sets `editedAt` timestamp
   - Sets `isEdited` flag to true
@@ -705,14 +705,14 @@ export interface Message {
   };
   clientMessageId?: string;
   deletedAt?: number | null;
-  editedAt?: number;  // epoch ms - timestamp of last edit
-  versions?: MessageVersion[];  // Array of previous versions for edited messages
-  isEdited?: boolean;  // Flag indicating if message was edited
+  editedAt?: number; // epoch ms - timestamp of last edit
+  versions?: MessageVersion[]; // Array of previous versions for edited messages
+  isEdited?: boolean; // Flag indicating if message was edited
 }
 
 export interface MessageVersion {
   content: string;
-  editedAt: number;  // epoch ms
+  editedAt: number; // epoch ms
 }
 ```
 
@@ -979,6 +979,7 @@ private async getAccessToken(): Promise<string> {
 ```
 
 **updateMessage(threadId, messageId, newContent)**
+
 ```typescript
 public async updateMessage(
   threadId: string,
@@ -1015,6 +1016,7 @@ public async updateMessage(
 ```
 
 **getMessageVersions(threadId, messageId)**
+
 ```typescript
 public async getMessageVersions(
   threadId: string,
@@ -1050,6 +1052,7 @@ public async getMessageVersions(
 ```
 
 **deleteMessagesAfter(threadId, messageId)**
+
 ```typescript
 public async deleteMessagesAfter(
   threadId: string,
@@ -1106,14 +1109,14 @@ public invalidateThreadList(): void {
 public async refreshThread(threadId: string): Promise<Thread | null> {
   const accessToken = await this.getAccessToken();
   const thread = await mokuService.getThread(accessToken, threadId);
-  
+
   if (thread) {
     this.threadsById.set(thread.id, thread);
     if (thread.messages) {
       this.messagesByThreadId.set(thread.id, [...thread.messages]);
     }
   }
-  
+
   return thread ? this.cloneThread(thread) : null;
 }
 ```
@@ -1331,7 +1334,7 @@ public class DesktopThreadController {
             @PathVariable UUID messageId,
             @Valid @RequestBody UpdateMessageRequestDTO request,
             Authentication authentication) {
-        log.info("Update message request: threadId={}, messageId={}, user={}", 
+        log.info("Update message request: threadId={}, messageId={}, user={}",
                 threadId, messageId, authentication.getName());
         MessageDTO message = threadService.updateMessage(threadId, messageId, request, authentication);
         return ResponseEntity.ok(message);
@@ -1343,7 +1346,7 @@ public class DesktopThreadController {
             @PathVariable UUID threadId,
             @PathVariable UUID messageId,
             Authentication authentication) {
-        log.info("Get message versions request: threadId={}, messageId={}, user={}", 
+        log.info("Get message versions request: threadId={}, messageId={}, user={}",
                 threadId, messageId, authentication.getName());
         List<MessageVersionDTO> versions = threadService.getMessageVersions(threadId, messageId, authentication);
         return ResponseEntity.ok(versions);
@@ -1355,7 +1358,7 @@ public class DesktopThreadController {
             @PathVariable UUID threadId,
             @PathVariable UUID messageId,
             Authentication authentication) {
-        log.info("Delete messages after request: threadId={}, messageId={}, user={}", 
+        log.info("Delete messages after request: threadId={}, messageId={}, user={}",
                 threadId, messageId, authentication.getName());
         ThreadDetailDTO thread = threadService.deleteMessagesAfter(threadId, messageId, authentication);
         return ResponseEntity.ok(thread);
@@ -2406,11 +2409,11 @@ The application uses different TypeScript interfaces at different layers:
 ```typescript
 interface Thread {
   id: string;
-  title: string;              // Top-level field (primary source of truth)
-  metadata: ThreadMetadata;    // Required object
-  messages: Message[];        // Includes full message array
-  createdAt: number;          // Epoch milliseconds
-  updatedAt: number;          // Epoch milliseconds
+  title: string; // Top-level field (primary source of truth)
+  metadata: ThreadMetadata; // Required object
+  messages: Message[]; // Includes full message array
+  createdAt: number; // Epoch milliseconds
+  updatedAt: number; // Epoch milliseconds
   title: string;
   metadata: ThreadMetadata; // Required object
   messages: Message[]; // Includes full message array
@@ -2420,7 +2423,7 @@ interface Thread {
 }
 
 interface ThreadMetadata {
-  title?: string;             // Legacy field - prefer top-level title
+  title?: string; // Legacy field - prefer top-level title
   description?: string;
   model?: string;
   projectId?: string;
@@ -2453,8 +2456,8 @@ interface Thread {
 ```typescript
 interface Message {
   id: string;
-  title: string;              // Thread title (duplicated for convenience)
-  threadId: string;          // Reference to parent thread
+  title: string; // Thread title (duplicated for convenience)
+  threadId: string; // Reference to parent thread
   threadId: string; // Reference to parent thread
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -2462,14 +2465,14 @@ interface Message {
   metadata?: MessageMetadata;
   clientMessageId?: string;
   deletedAt?: number | null;
-  editedAt?: number;         // Epoch milliseconds - timestamp of last edit
+  editedAt?: number; // Epoch milliseconds - timestamp of last edit
   versions?: MessageVersion[]; // Array of previous versions for edited messages
-  isEdited?: boolean;        // Flag indicating if message was edited
+  isEdited?: boolean; // Flag indicating if message was edited
 }
 
 interface MessageVersion {
   content: string;
-  editedAt: number;          // Epoch milliseconds
+  editedAt: number; // Epoch milliseconds
 }
 ```
 
@@ -2483,13 +2486,13 @@ interface Message {
   clientMessageId?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;         // Epoch milliseconds
-  status?: MessageStatus;    // Frontend-specific state (not sent to API)
-  retryCount?: number;       // Frontend-specific retry tracking (not sent to API)
-  error?: string;            // Frontend-specific error display (not sent to API)
+  createdAt: number; // Epoch milliseconds
+  status?: MessageStatus; // Frontend-specific state (not sent to API)
+  retryCount?: number; // Frontend-specific retry tracking (not sent to API)
+  error?: string; // Frontend-specific error display (not sent to API)
   originalMessageId?: string; // Frontend-specific reference (not sent to API)
-  editedAt?: number;         // Epoch milliseconds - timestamp of last edit
-  isEdited?: boolean;        // Flag indicating if message was edited
+  editedAt?: number; // Epoch milliseconds - timestamp of last edit
+  isEdited?: boolean; // Flag indicating if message was edited
   versions?: MessageVersion[]; // Array of previous versions for edited messages
   createdAt: number; // Epoch milliseconds
   status?: MessageStatus; // Frontend-specific state
@@ -2499,7 +2502,7 @@ interface Message {
 
 interface MessageVersion {
   content: string;
-  editedAt: number;          // Epoch milliseconds
+  editedAt: number; // Epoch milliseconds
 }
 ```
 
@@ -2537,6 +2540,7 @@ interface MessageMetadata {
 - Prevents duplicate messages on retry/network issues
 
 ### Size Limits
+
 - Message content limited to 8KB (applies to `content` field only)
 - Attachments are stored separately and not counted toward the 8KB limit
 - Validation happens in `appendMessage` (both client-side and server-side)
@@ -2547,6 +2551,7 @@ interface MessageMetadata {
 **Moku API**: Uses UUID format (e.g., `550e8400-e29b-41d4-a716-446655440000`)
 
 **Migration Strategy**:
+
 1. **Phase 1**: Update `generateId()` to use `randomUUID()` instead of prefixed format
 2. **Phase 2**: Add ID conversion layer if needed during transition
 3. **Phase 3**: Migrate existing threads to UUID format on first sync to Moku API
@@ -2557,12 +2562,14 @@ interface MessageMetadata {
 When sending messages to the Moku API, frontend-specific fields must be stripped:
 
 **Frontend-only fields** (not sent to API):
+
 - `status` - Frontend state ('sending', 'sent', 'failed')
 - `retryCount` - Frontend retry tracking
 - `error` - Frontend error display
 - `originalMessageId` - Frontend reference
 
 **Implementation**:
+
 ```typescript
 function toApiMessage(frontendMessage: Message): ApiMessage {
   const { status, retryCount, error, originalMessageId, ...apiMessage } = frontendMessage;

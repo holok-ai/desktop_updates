@@ -163,7 +163,9 @@
     padding: calc(var(--inline-spacing) / 2);
     z-index: 20;
     min-width: 160px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
     animation: menuFadeIn 0.15s ease-out;
     backdrop-filter: blur(8px);
   }
@@ -248,11 +250,15 @@
 
   /* Dark mode specific adjustments */
   :global(html.dark) .menu {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
   /* Light mode specific adjustments */
   :global(html:not(.dark)) .menu {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 </style>
