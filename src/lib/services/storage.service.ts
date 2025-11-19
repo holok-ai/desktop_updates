@@ -1,7 +1,10 @@
 import type { AppThemeMode } from '$lib/types/app.type';
 import type { SidebarActivity } from '$lib/types/sidebar.type';
 import { APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
-import { SIDEBAR_STORAGE_KEY, SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
+import {
+  SIDEBAR_STORAGE_KEY,
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+} from '$lib/constants/sidebar.constant';
 
 class StorageService {
   private readonly KEYS = {
@@ -9,7 +12,7 @@ class StorageService {
     LAST_PROJECT_ID: 'lastProjectId',
     SIDEBAR_ACTIVITY: SIDEBAR_STORAGE_KEY,
     SIDEBAR_COLLAPSED: SIDEBAR_COLLAPSED_STORAGE_KEY,
-    THEME_MODE: APP_THEME_MODE_STORAGE_KEY
+    THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
   } as const;
 
   private get<T>(key: string, defaultValue: T): T {
@@ -95,4 +98,3 @@ class StorageService {
 }
 
 export const storageService = new StorageService();
-

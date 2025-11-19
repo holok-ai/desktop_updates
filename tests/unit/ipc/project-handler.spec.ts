@@ -123,7 +123,7 @@ describe('Project IPC Handlers', () => {
       const handler = handleCall[1];
 
       const result = await handler(null, {
-        name: 'Private Project',
+        title: 'Private Project',
         description: 'Test description',
         privacyMode: 'project_only',
       });

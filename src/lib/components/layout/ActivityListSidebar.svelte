@@ -11,6 +11,7 @@
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
   import { storageService } from '$lib/services/storage.service';
+  import BaseModal from '$lib/components/modals/BaseModal.svelte';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -23,6 +24,7 @@
   let selectedThreadId: string | null = $state(null);
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
+  let showRenameModal = $state(false);
 
   let selectedProjectId: string | null = $state(null);
   let openMenuId: string | null = $state(null); // Track which item's menu is open globally
@@ -193,24 +195,26 @@
     openMenuId = null; // Close any open menu
     renamingThreadId = item.id;
     renamingThreadTitle = item.label;
+    showRenameModal = true;
   }
 
   /**
    * Save renamed thread title
    */
-  async function handleRenameSave(newTitle: string) {
+  async function handleRenameSave() {
     if (!renamingThreadId) return;
 
     try {
       const result = await (window.electronAPI.thread as any).renameThread(
         renamingThreadId,
-        newTitle,
+        renamingThreadTitle,
       );
 
       if (result.success) {
         // Thread store will be updated via thread:updated event listener
         renamingThreadId = null;
         renamingThreadTitle = '';
+        showRenameModal = false;
       } else {
         // Show error to user
         console.error('Failed to rename thread:', result.error);
@@ -228,6 +232,7 @@
   function handleRenameCancel() {
     renamingThreadId = null;
     renamingThreadTitle = '';
+    showRenameModal = false;
   }
 </script>
 
@@ -360,65 +365,37 @@
 </aside>
 
 <!-- Rename thread modal dialog -->
-{#if renamingThreadId}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div
-    class="dialog-overlay"
-    onclick={handleRenameCancel}
-    tabindex="0"
-    role="dialog"
-    aria-label="Rename thread dialog"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div
-      class="dialog"
-      onclick={(e) => e.stopPropagation()}
-      tabindex="0"
-      role="button"
-      data-testid="thread-title-editor"
-    >
-      <h2 class="mb-6">Rename Thread</h2>
-
-      <div class="form-group">
-        <label for="rename-title">Title</label>
-        <input
-          id="rename-title"
-          type="text"
-          bind:value={renamingThreadTitle}
-          placeholder="Enter thread title"
-          maxlength="200"
-          aria-label="Thread title input"
-          data-testid="title-input"
-        />
-        <div
-          class="char-counter"
-          class:warning={renamingThreadTitle.length > 180}
-          data-testid="char-counter"
-        >
-          {200 - renamingThreadTitle.length} characters remaining
-        </div>
-      </div>
-
-      <div class="dialog-actions">
-        <button
-          class="text-white"
-          onclick={handleRenameCancel}
-          aria-label="Cancel rename"
-          data-testid="cancel-button">Cancel</button
-        >
-        <button
-          class="primary"
-          onclick={() => handleRenameSave(renamingThreadTitle)}
-          disabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
-          aria-label="Save new thread title"
-          data-testid="save-button"
-        >
-          Save
-        </button>
+<BaseModal
+  bind:show={showRenameModal}
+  title="Rename Thread"
+  submitLabel="Save"
+  cancelLabel="Cancel"
+  submitDisabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
+  oncancel={handleRenameCancel}
+  onsubmit={handleRenameSave}
+>
+  {#snippet content()}
+    <div class="form-group">
+      <label for="rename-title">Title</label>
+      <input
+        id="rename-title"
+        type="text"
+        bind:value={renamingThreadTitle}
+        placeholder="Enter thread title"
+        maxlength="200"
+        aria-label="Thread title input"
+        data-testid="title-input"
+      />
+      <div
+        class="char-counter"
+        class:warning={renamingThreadTitle.length > 180}
+        data-testid="char-counter"
+      >
+        {200 - renamingThreadTitle.length} characters remaining
       </div>
     </div>
-  </div>
-{/if}
+  {/snippet}
+</BaseModal>
 
 <style>
   .activity-list-sidebar {
@@ -490,36 +467,8 @@
     padding: 1.5rem;
     color: rgba(255, 255, 255, 0.7);
   }
-  .dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--modal-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
 
-  .dialog {
-    background: var(--surface-main);
-    padding: 2rem;
-    border-radius: 12px;
-    min-width: 500px;
-    max-width: 90%;
-    border: 1px solid var(--border-sidebar);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  }
-
-  .dialog h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 1.5rem 0;
-  }
-
+  /* Modal-specific form styles */
   .form-group {
     margin-bottom: 1.5rem;
   }
@@ -560,53 +509,5 @@
 
   .char-counter.warning {
     color: var(--error-color);
-  }
-
-  .dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 2rem;
-  }
-
-  .dialog-actions button {
-    padding: 0.625rem 1.25rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    border: none;
-  }
-
-  .dialog-actions button.text-white {
-    background: var(--surface-card);
-    color: var(--text-primary);
-  }
-
-  .dialog-actions button.text-white:hover {
-    background: var(--surface-overlay);
-  }
-
-  .dialog-actions button.primary {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  .dialog-actions button.primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .dialog-actions button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .mb-6 {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group label {
-    color: var(--text-primary);
   }
 </style>
