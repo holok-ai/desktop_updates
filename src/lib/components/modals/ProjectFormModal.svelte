@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
   import type { Project, ProjectPrivacyMode } from '$lib/types/project.type';
 
@@ -30,6 +31,16 @@
   ];
 
   const isEditMode = $derived(!!project);
+  const modalTitle = $derived(isEditMode ? 'Edit Project' : 'Create New Project');
+  const submitLabel = $derived(
+    isSubmitting
+      ? isEditMode
+        ? 'Saving...'
+        : 'Creating...'
+      : isEditMode
+        ? 'Save Changes'
+        : 'Create Project',
+  );
 
   let lastShownState = $state(false);
 
@@ -104,156 +115,93 @@
     error = '';
     show = false;
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      handleCancel();
-    } else if (event.key === 'Enter' && event.metaKey) {
-      handleSubmit();
-    }
-  }
 </script>
 
-{#if show}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-overlay" onclick={handleCancel} onkeydown={handleKeydown} role="presentation">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-labelledby="modal-title"
-      tabindex="0"
+<BaseModal
+  bind:show
+  title={modalTitle}
+  {error}
+  {isSubmitting}
+  {submitLabel}
+  submitDisabled={!projectName.trim()}
+  oncancel={handleCancel}
+  onsubmit={handleSubmit}
+>
+  {#snippet content()}
+    <form
+      onsubmit={(e) => {
+        e.preventDefault();
+        handleSubmit();
+      }}
     >
-      <h2 id="modal-title">{isEditMode ? 'Edit Project' : 'Create New Project'}</h2>
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-      >
-        <div class="form-group">
-          <label for="project-name">Project Name *</label>
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            id="project-name"
-            type="text"
-            bind:value={projectName}
-            placeholder="Enter project name"
-            disabled={isSubmitting}
-            autofocus
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="project-description">Description (optional)</label>
-          <textarea
-            id="project-description"
-            bind:value={projectDescription}
-            placeholder="Enter project description"
-            rows="3"
-            disabled={isSubmitting}
-          ></textarea>
-        </div>
-
-        <div class="form-group">
-          <span class="field-label">Privacy Mode</span>
-          <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
-            {#each privacyChoices as choice (choice.id)}
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <label
-                class="privacy-option"
-                class:active={privacyMode === choice.id}
-                class:disabled={isSubmitting}
-                aria-pressed={privacyMode === choice.id}
-                onclick={() => {
-                  if (!isSubmitting) {
-                    privacyMode = choice.id;
-                  }
-                }}
-              >
-                <input
-                  type="radio"
-                  name="privacy-mode"
-                  value={choice.id}
-                  bind:group={privacyMode}
-                  disabled={isSubmitting}
-                />
-                <div class="option-header">
-                  <span class="option-title">{choice.title}</span>
-                  {#if privacyMode === choice.id}
-                    <span class="option-badge">Selected</span>
-                  {/if}
-                </div>
-                <p class="option-description">{choice.description}</p>
-              </label>
-            {/each}
-          </div>
-          <div class="privacy-hint">
-            Changes apply in under 2 seconds across all threads. Organization policy may limit your
-            options.
-          </div>
-        </div>
-
-        {#if error}
-          <div class="error-message">{error}</div>
-        {/if}
-
-        <div class="modal-actions">
-          <button
-            type="button"
-            class="btn-secondary"
-            onclick={handleCancel}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
-          <button type="submit" class="btn-primary" disabled={isSubmitting || !projectName.trim()}>
-            {#if isSubmitting}
-              {isEditMode ? 'Saving...' : 'Creating...'}
-            {:else}
-              {isEditMode ? 'Save Changes' : 'Create Project'}
-            {/if}
-          </button>
-        </div>
-      </form>
-
-      <div class="hint">
-        Tip: Press <kbd>Esc</kbd> to cancel or <kbd>⌘+Enter</kbd> to submit
+      <div class="form-group">
+        <label for="project-name">Project Name *</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          id="project-name"
+          type="text"
+          bind:value={projectName}
+          placeholder="Enter project name"
+          disabled={isSubmitting}
+          autofocus
+        />
       </div>
-    </div>
-  </div>
-{/if}
+
+      <div class="form-group">
+        <label for="project-description">Description (optional)</label>
+        <textarea
+          id="project-description"
+          bind:value={projectDescription}
+          placeholder="Enter project description"
+          rows="3"
+          disabled={isSubmitting}
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <span class="field-label">Privacy Mode</span>
+        <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
+          {#each privacyChoices as choice (choice.id)}
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+            <label
+              class="privacy-option"
+              class:active={privacyMode === choice.id}
+              class:disabled={isSubmitting}
+              aria-pressed={privacyMode === choice.id}
+              onclick={() => {
+                if (!isSubmitting) {
+                  privacyMode = choice.id;
+                }
+              }}
+            >
+              <input
+                type="radio"
+                name="privacy-mode"
+                value={choice.id}
+                bind:group={privacyMode}
+                disabled={isSubmitting}
+              />
+              <div class="option-header">
+                <span class="option-title">{choice.title}</span>
+                {#if privacyMode === choice.id}
+                  <span class="option-badge">Selected</span>
+                {/if}
+              </div>
+              <p class="option-description">{choice.description}</p>
+            </label>
+          {/each}
+        </div>
+        <div class="privacy-hint">
+          Changes apply in under 2 seconds across all threads. Organization policy may limit your
+          options.
+        </div>
+      </div>
+    </form>
+  {/snippet}
+</BaseModal>
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--modal-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: var(--surface-ground);
-    border-radius: 8px;
-    padding: 24px;
-    max-width: 500px;
-    width: 90%;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  h2 {
-    margin: 0 0 20px 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
+  /* Component-specific styles only - modal infrastructure handled by BaseModal */
 
   .form-group {
     margin-bottom: 16px;
@@ -294,72 +242,6 @@
   textarea {
     resize: vertical;
     font-family: inherit;
-  }
-
-  .error-message {
-    padding: 10px 12px;
-    background: var(--error-bg);
-    border: 1px solid var(--error-color);
-    border-radius: 6px;
-    color: var(--error-color);
-    font-size: 14px;
-    margin-bottom: 16px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
-
-  button {
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-  }
-
-  .btn-secondary {
-    background: var(--surface-overlay);
-    color: var(--text-primary);
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-
-  .btn-primary {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .hint {
-    margin-top: 16px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  kbd {
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 3px;
-    padding: 2px 6px;
-    font-family: monospace;
-    font-size: 11px;
   }
 
   .field-label {

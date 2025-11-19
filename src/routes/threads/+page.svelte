@@ -13,6 +13,7 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
+  import BaseModal from '$lib/components/modals/BaseModal.svelte';
 
   let isLoading = $state(true);
   let showDialog = $state(false);
@@ -340,86 +341,69 @@
   {/if}
 </div>
 
-{#if showDialog}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="dialog-overlay" onclick={() => (showDialog = false)} tabindex="0" role="dialog">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="dialog" onclick={(e) => e.stopPropagation()} tabindex="0" role="button">
-      <h2 class="mb-6">{editingThread ? 'Edit Thread' : 'Create Thread'}</h2>
-
-      <div class="form-group">
-        <label for="title">Title</label>
-        <input
-          id="title"
-          type="text"
-          bind:value={formData.title}
-          placeholder="Enter thread title"
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="description">Description</label>
-        <textarea
-          id="description"
-          bind:value={formData.description}
-          placeholder="Enter thread description"
-          rows="4"
-        ></textarea>
-      </div>
-
-      <div class="form-group">
-        <label for="status">Status</label>
-        <select id="status" bind:value={formData.status}>
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <span>Model</span>
-        <ModelChooser
-          initialSelection={chooserInitial}
-          on:modelSelected={(e) => {
-            // e.detail is the selected MokuModel
-            const m = (e as CustomEvent).detail as any;
-            if (m) {
-              selectedModel = m;
-              formData.metadata = {
-                ...(formData.metadata ?? {}),
-                model: m.id,
-                provider: m.provider,
-              };
-            }
-          }}
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="initial-prompt">Initial Prompt</label>
-        <textarea
-          id="initial-prompt"
-          bind:value={newThreadPrompt}
-          rows="6"
-          placeholder="Enter the prompt to run in the new thread"
-        ></textarea>
-      </div>
-
-      <div class="dialog-actions">
-        <button class="dialog-button dialog-button-cancel" onclick={() => (showDialog = false)}>
-          Cancel
-        </button>
-        <button
-          class="dialog-button dialog-button-primary"
-          onclick={handleSave}
-          disabled={!editingThread && !selectedModel}
-          aria-disabled={!editingThread && !selectedModel}
-        >
-          {editingThread ? 'Confirm Update' : 'Confirm Create'}
-        </button>
-      </div>
+<BaseModal
+  bind:show={showDialog}
+  title={editingThread ? 'Edit Thread' : 'Create Thread'}
+  submitLabel={editingThread ? 'Confirm Update' : 'Confirm Create'}
+  cancelLabel="Cancel"
+  submitDisabled={!editingThread && !selectedModel}
+  oncancel={() => (showDialog = false)}
+  onsubmit={handleSave}
+>
+  {#snippet content()}
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input id="title" type="text" bind:value={formData.title} placeholder="Enter thread title" />
     </div>
-  </div>
-{/if}
+
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea
+        id="description"
+        bind:value={formData.description}
+        placeholder="Enter thread description"
+        rows="4"
+      ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="status">Status</label>
+      <select id="status" bind:value={formData.status}>
+        <option value="active">Active</option>
+        <option value="archived">Archived</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <span>Model</span>
+      <ModelChooser
+        initialSelection={chooserInitial}
+        on:modelSelected={(e) => {
+          // e.detail is the selected MokuModel
+          const m = (e as CustomEvent).detail as any;
+          if (m) {
+            selectedModel = m;
+            formData.metadata = {
+              ...(formData.metadata ?? {}),
+              model: m.id,
+              provider: m.provider,
+            };
+          }
+        }}
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="initial-prompt">Initial Prompt</label>
+      <textarea
+        id="initial-prompt"
+        bind:value={newThreadPrompt}
+        rows="6"
+        placeholder="Enter the prompt to run in the new thread"
+      ></textarea>
+    </div>
+  {/snippet}
+</BaseModal>
 
 <style>
   .threads-page {
@@ -450,31 +434,7 @@
     gap: var(--content-padding);
   }
 
-  /* Dialog styles */
-  .dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: color-mix(in srgb, var(--surface-900) 70%, transparent);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-
-  .dialog {
-    background: var(--surface-card);
-    padding: calc(var(--content-padding) * 1.6);
-    border-radius: calc(var(--border-radius) * 2);
-    min-width: 500px;
-    max-width: 90%;
-    border: 1px solid var(--surface-border);
-    box-shadow: 0 calc(var(--content-padding) * 2) calc(var(--content-padding) * 4)
-      color-mix(in srgb, var(--surface-900) 18%, transparent);
-  }
-
+  /* Form styles for modal content */
   .form-group {
     margin-bottom: 1.5rem;
   }
@@ -500,54 +460,6 @@
   .form-group select:focus {
     outline: none;
     border-color: var(--primary-color);
-  }
-
-  .dialog-actions {
-    display: flex;
-    gap: var(--content-padding);
-    justify-content: flex-end;
-    margin-top: calc(var(--content-padding) * 1.6);
-  }
-
-  .dialog-actions button {
-    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
-  }
-
-  .dialog-button {
-    min-width: 120px;
-    border-radius: var(--border-radius);
-    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid transparent;
-  }
-
-  .dialog-button-cancel {
-    background: transparent;
-    color: var(--text-primary);
-    border-color: var(--surface-border);
-  }
-
-  .dialog-button-cancel:hover {
-    background: var(--surface-hover);
-    border-color: var(--surface-border);
-  }
-
-  .dialog-button-primary {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-    border-color: var(--primary-color);
-  }
-
-  .dialog-button-primary:hover:not(:disabled) {
-    background: var(--primary-600);
-    border-color: var(--primary-600);
-  }
-
-  .dialog-button-primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   .error-banner {
