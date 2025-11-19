@@ -6,16 +6,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const {
-    title,
-    isSidebarCollapsed,
-    items,
-    showActions,
-    selectedId,
-    isSubsection,
-    customIcon,
-    openMenuId,
-  } = $props<{
+const {
+  title,
+  isSidebarCollapsed,
+  items,
+  showActions,
+  selectedId,
+  isSubsection,
+  customIcon,
+  openMenuId,
+} = $props<{
     title: string;
     isSidebarCollapsed: boolean;
     items: SidebarActivity[];
@@ -57,19 +57,16 @@
   >
     {#if customIcon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
-        <i class="{customIcon} text-base leading-none text-white"></i>
+        <i class="{customIcon} text-base leading-none accordion-icon"></i>
       </div>
       {#if !isSidebarCollapsed}
-        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
-        <i class="pi pi-angle-down arrow text-base leading-none" class:rotate={!isCollapsed}></i>
+        <span class="text-sm truncate flex-1 accordion-title">{title}</span>
+        <i class="pi pi-angle-down arrow text-base accordion-arrow" class:rotate={!isCollapsed}></i>
       {/if}
     {:else}
-      <i
-        class="pi pi-angle-down arrow text-base leading-none text-white"
-        class:rotate={!isCollapsed}
-      ></i>
+      <i class="pi pi-angle-down arrow text-base accordion-arrow" class:rotate={!isCollapsed}></i>
       {#if !isSidebarCollapsed}
-        <span class="text-sm leading-none truncate flex-1 text-white">{title}</span>
+        <span class="text-sm truncate flex-1 accordion-title">{title}</span>
       {/if}
     {/if}
   </li>
@@ -111,5 +108,11 @@
   .accordion-content {
     will-change: height;
     overflow-anchor: none;
+  }
+
+  .accordion-icon,
+  .accordion-title,
+  .accordion-arrow {
+    color: var(--sidebar-accordion-title-color, #fff);
   }
 </style>

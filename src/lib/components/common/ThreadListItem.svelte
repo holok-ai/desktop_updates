@@ -98,7 +98,7 @@
   }
 
   .thread-item:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
   }
 
   .thread-item.selected {
@@ -117,7 +117,7 @@
   .thread-title {
     font-size: 11pt;
     font-weight: 600;
-    color: #fff;
+    color: var(--thread-list-title-color, #fff);
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -129,7 +129,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: #fff;
+    color: var(--thread-list-meta-color, rgba(255, 255, 255, 0.7));
     line-height: 1.4;
   }
 
@@ -149,7 +149,7 @@
   .action-button {
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--thread-list-action-color, #fff);
     cursor: pointer;
     padding: 0.25rem;
     display: flex;
@@ -161,7 +161,7 @@
   }
 
   .action-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--thread-list-action-hover-bg, rgba(255, 255, 255, 0.1));
   }
 
   .action-button.edit {

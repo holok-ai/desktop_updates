@@ -30,7 +30,7 @@
 </script>
 
 <div
-  class="{isSubsection && 'px-4'} w-full transition-all duration-200 flex flex-col items-stretch"
+  class="{isSubsection && 'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch"
   class:hidden={isHidden}
 >
   <li
@@ -45,12 +45,12 @@
   >
     {#if item.icon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
-        <i class="{item.icon} text-base leading-none text-white"></i>
+        <i class="{item.icon} text-base leading-none sidebar-item-icon"></i>
       </div>
     {/if}
 
     {#if !isCollapsed}
-      <span class="text-sm leading-none truncate flex-1 text-white">{item.label}</span>
+      <span class="text-sm truncate flex-1 sidebar-item-label">{item.label}</span>
       {#if showActions}
         <button class="icon-button" title="More" onclick={toggleMenu}>⋯</button>
         {#if isMenuOpen}
@@ -105,48 +105,154 @@
 
 <style scoped>
   .active {
-    background-color: var(--background-primary-active);
-    color: var(--text-active);
-
-    span,
-    .icon-button {
-      color: #fff;
-    }
+    background-color: var(--sidebar-item-active-bg, var(--background-primary-active));
+    color: var(--sidebar-item-active-text-color, var(--text-active));
   }
+
+  .active .sidebar-item-label,
+  .active .sidebar-item-icon,
+  .active .icon-button {
+    color: var(--sidebar-item-active-text-color, var(--text-active));
+  }
+
+  .sidebar-item-icon {
+    color: var(--sidebar-item-icon-color, #fff);
+  }
+
+  .sidebar-item-label {
+    color: var(--sidebar-item-text-color, #fff);
+  }
+
   .icon-button {
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--sidebar-item-icon-color, #fff);
     cursor: pointer;
-    padding: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: 0.7;
+
+    &:hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+      opacity: 1;
+    }
 
     &:focus {
       outline: none;
+      background: var(--surface-hover);
+    }
+
+    &:active {
+      transform: scale(0.95);
     }
   }
+
   .menu {
     position: absolute;
     right: 8px;
     top: 36px;
-    background: var(--surface-main);
+    background: var(--sidebar-item-menu-background, var(--surface-main));
     border-radius: var(--border-radius);
     padding: calc(var(--inline-spacing) / 2);
     z-index: 20;
     min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    animation: menuFadeIn 0.15s ease-out;
+    backdrop-filter: blur(8px);
   }
+
+  @keyframes menuFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   .menu-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.625rem;
     width: 100%;
     text-align: left;
-    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
+    padding: 0.625rem 0.875rem;
     background: transparent;
     border: none;
     outline: none;
-    color: #fff;
+    color: var(--sidebar-item-menu-text-color, #fff);
     cursor: pointer;
     font-size: 0.875rem;
-    border-radius: 0.25rem;
+    font-weight: 400;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease;
+    position: relative;
+
+    i {
+      font-size: 0.875rem;
+      width: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &:hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--surface-hover);
+    }
+
+    &:first-child {
+      i {
+        color: var(--primary-color);
+      }
+
+      &:hover {
+        background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+        i {
+          color: var(--primary-color);
+        }
+      }
+    }
+
+    &:last-child {
+      i {
+        color: var(--error-color);
+      }
+
+      &:hover {
+        background: var(--error-bg);
+        i {
+          color: var(--error-color);
+        }
+      }
+    }
+  }
+
+  /* Dark mode specific adjustments */
+  :global(html.dark) .menu {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Light mode specific adjustments */
+  :global(html:not(.dark)) .menu {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 </style>
