@@ -138,7 +138,6 @@ Analysis of which backend methods are actually called from the frontend code:
 
 2. **threadService.getMessages(id)** - GET /threads/:threadId/messages
    - threads/+page.svelte:112, 177
-   - message-state-machine.ts:386
 
 3. **threadService.appendMessage(threadId, payload)** - POST /threads/:threadId/messages
    - ChatPane.svelte:253, 351

@@ -119,7 +119,7 @@ describe('preload API behavior', () => {
     const sample = { title: 't', description: '', status: 'active', metadata: {} };
     // @ts-ignore
     await (globalThis as any).electronAPI.thread.getAll();
-    expect(invokeSpy).toHaveBeenCalledWith('thread:getAll');
+    expect(invokeSpy).toHaveBeenCalledWith('thread:getAll', undefined);
 
     // @ts-ignore
     await (globalThis as any).electronAPI.thread.getById('id');
