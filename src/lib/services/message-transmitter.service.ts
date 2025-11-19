@@ -246,7 +246,7 @@ export class MessageTransmitter {
 
             const result = await wrapElectronCall(
               () => chatHandler.chat(request),
-              'Error processing pending message',
+              'Error sending chat message.',
             );
 
             if (result.success) {
