@@ -242,7 +242,7 @@
 >
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
-      <span class="activity-title text-white">{'Organization Name'}</span>
+      <span class="activity-title">{'Organization Name'}</span>
     {/if}
     <button
       class="{!isCollapsed &&
@@ -408,6 +408,18 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
+    --sidebar-item-text-color: #0a1624;
+    --sidebar-item-icon-color: #0a1624;
+    --sidebar-item-active-bg: rgba(10, 22, 36, 0.08);
+    --sidebar-item-active-text-color: #0a1624;
+    --sidebar-item-menu-text-color: #0a1624;
+    --sidebar-item-menu-background: #fff;
+    --sidebar-accordion-title-color: #0a1624;
+    --thread-list-title-color: #0a1624;
+    --thread-list-meta-color: rgba(10, 22, 36, 0.7);
+    --thread-list-hover-bg: rgba(10, 22, 36, 0.08);
+    --thread-list-action-color: #0a1624;
+    --thread-list-action-hover-bg: rgba(10, 22, 36, 0.12);
   }
   .activity-list-sidebar.collapsed {
     width: var(--sidebar-secondary-collapsed, 48px);
@@ -465,6 +477,26 @@
   .empty-state {
     text-align: center;
     padding: 1.5rem;
+    color: rgba(10, 22, 36, 0.6);
+  }
+  :global(html.dark) .activity-list-sidebar,
+  :global(:root.dark) .activity-list-sidebar {
+    --sidebar-item-text-color: #fff;
+    --sidebar-item-icon-color: #fff;
+    --sidebar-item-active-bg: rgba(255, 255, 255, 0.12);
+    --sidebar-item-active-text-color: #fff;
+    --sidebar-item-menu-text-color: #fff;
+    --sidebar-item-menu-background: var(--surface-main);
+    --sidebar-accordion-title-color: #fff;
+    --thread-list-title-color: #fff;
+    --thread-list-meta-color: rgba(255, 255, 255, 0.7);
+    --thread-list-hover-bg: rgba(255, 255, 255, 0.08);
+    --thread-list-action-color: #fff;
+    --thread-list-action-hover-bg: rgba(255, 255, 255, 0.12);
+  }
+
+  :global(html.dark) .activity-list-sidebar .empty-state,
+  :global(:root.dark) .activity-list-sidebar .empty-state {
     color: rgba(255, 255, 255, 0.7);
   }
 

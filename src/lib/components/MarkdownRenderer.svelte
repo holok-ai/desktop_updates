@@ -326,13 +326,13 @@
 
   /* Links */
   .markdown-content :global(a) {
-    color: #646cff;
+    color: var(--primary-color);
     text-decoration: underline;
     transition: color 0.2s;
   }
 
   .markdown-content :global(a:hover) {
-    color: #535bf2;
+    color: var(--syntax-function);
   }
 
   /* Lists */
@@ -355,24 +355,24 @@
 
   /* Blockquotes */
   .markdown-content :global(blockquote) {
-    border-left: 4px solid #646cff;
+    border-left: 4px solid var(--primary-color);
     padding-left: 1rem;
     margin: 1rem 0;
     color: var(--text-secondary);
     font-style: italic;
-    background: rgba(100, 108, 255, 0.05);
+    background: color-mix(in srgb, var(--primary-color) 5%, transparent);
     padding: 0.5rem 1rem;
     border-radius: 4px;
   }
 
   /* Inline code */
   .markdown-content :global(.inline-code) {
-    background: rgba(100, 108, 255, 0.15);
+    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
     padding: 0.15rem 0.4rem;
     border-radius: 3px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
     font-size: 0.9em;
-    color: #e01e5a;
+    color: var(--syntax-tag);
   }
 
   /* Code blocks wrapper */
@@ -382,7 +382,7 @@
     border-radius: 6px;
     overflow: hidden;
     background: var(--surface-card);
-    border: 1px solid var(--border-sidebar);
+    border: 1px solid var(--surface-border);
   }
 
   /* Code header */
@@ -391,8 +391,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
-    background: var(--surface-sidebar-primary);
-    border-bottom: 1px solid var(--border-sidebar);
+    background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-card));
+    border-bottom: 1px solid var(--surface-border);
   }
 
   .markdown-content :global(.code-lang) {
@@ -404,7 +404,7 @@
   }
 
   .markdown-content :global(.code-lang.inferred) {
-    color: #98c379;
+    color: var(--syntax-string);
     font-style: italic;
   }
 
@@ -430,14 +430,14 @@
   }
 
   .markdown-content :global(.copy-btn:focus) {
-    outline: 2px solid #646cff;
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
 
   .markdown-content :global(.copy-btn.copied) {
-    background: rgba(152, 195, 121, 0.2);
-    border-color: rgba(152, 195, 121, 0.5);
-    color: #98c379;
+    background: color-mix(in srgb, var(--syntax-string) 20%, transparent);
+    border-color: color-mix(in srgb, var(--syntax-string) 50%, transparent);
+    color: var(--syntax-string);
   }
 
   .markdown-content :global(.copy-icon) {
@@ -449,7 +449,7 @@
     margin: 0;
     padding: 1rem;
     overflow-x: auto;
-    background: var(--surface-sidebar-primary);
+    background: color-mix(in srgb, var(--text-primary) 3%, var(--surface-card));
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
     font-size: 0.875rem;
     line-height: 1.5;
@@ -514,21 +514,21 @@
 
   /* Error state */
   .markdown-content :global(.markdown-error) {
-    background: #fee;
-    border: 1px solid #fcc;
+    background: var(--error-bg);
+    border: 1px solid var(--error-color);
     border-radius: 6px;
     padding: 1rem;
     margin: 1rem 0;
   }
 
   .markdown-content :global(.markdown-error strong) {
-    color: #c00;
+    color: var(--error-color);
   }
 
   .markdown-content :global(.markdown-error pre) {
-    background: #fff;
+    background: var(--surface-card);
     padding: 0.5rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-sidebar);
     border-radius: 4px;
     margin-top: 0.5rem;
     font-size: 0.85rem;
@@ -547,7 +547,7 @@
 
   /* Focus indicators for accessibility */
   .markdown-content :global(*:focus-visible) {
-    outline: 2px solid #646cff;
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
     border-radius: 2px;
   }
@@ -562,7 +562,7 @@
     font-size: 0.75rem;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
     border: 1px solid var(--border-sidebar);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 6px color-mix(in srgb, var(--text-primary) 30%, transparent);
     z-index: 10000;
     pointer-events: none;
     white-space: nowrap;
