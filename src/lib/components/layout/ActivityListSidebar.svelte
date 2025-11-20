@@ -1,67 +1,36 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
-  import SidebarItem from '../common/SidebarItem.svelte';
-  import AccordionSection from '../common/AccordionSection.svelte';
   import ThreadListItem from '../common/ThreadListItem.svelte';
+  import ProjectListItem from '../common/ProjectListItem.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
+  import type { Project } from '$lib/types/project.type';
   import { storageService } from '$lib/services/storage.service';
   import BaseModal from '$lib/components/modals/BaseModal.svelte';
+  import { confirmNavigation } from '$lib/stores/navigation-guard.store';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
 
   let isCollapsed = $state(false);
-  let agentItems = $state<SidebarActivity[]>([]);
-  let lastActivityId: string | null = null;
-
-  let threadItems = $state<SidebarActivity[]>([]);
   let selectedThreadId: string | null = $state(null);
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
   let showRenameModal = $state(false);
 
   let selectedProjectId: string | null = $state(null);
-  let openMenuId: string | null = $state(null); // Track which item's menu is open globally
 
-  function handleMenuToggle(item: { id: string } | null) {
-    if (!item) {
-      // Close any open menu
-      openMenuId = null;
-      return;
-    }
-    // If clicking the same menu, close it; otherwise open the new one
-    openMenuId = openMenuId === item.id ? null : item.id;
-  }
-
-  const navigationOptions: SidebarActivity[] = [
-    {
-      id: 'new-thread',
-      label: 'New Thread',
-      shortLabel: 'New',
-      icon: 'pi pi-pen-to-square',
-      onClick: () => push(`${ROUTE.THREADS}?createThread`),
-    },
-    {
-      id: 'new-project',
-      label: 'New Project',
-      shortLabel: 'New',
-      icon: 'pi pi-folder-plus',
-      onClick: () => push(`${ROUTE.PROJECTS}?createProject`),
-    },
-    {
-      id: 'search-thread',
-      label: 'Search Thread',
-      shortLabel: 'Search',
-      icon: 'pi pi-search',
-      onClick: () => push(`${ROUTE.THREADS}?search`),
-    },
-  ];
+  const isThreadActivity = $derived(
+    activity?.route === ROUTE.THREADS || activity?.id === 'threads',
+  );
+  const isProjectsActivity = $derived(
+    activity?.route === ROUTE.PROJECTS || activity?.id === 'projects',
+  );
 
   onMount(async () => {
     await getThreadItems();
@@ -77,8 +46,8 @@
         selectedThreadId = tid;
         storageService.setLastThreadId(tid);
       } else {
-        // Fallback to last selected from localStorage
-        selectedThreadId = storageService.getLastThreadId();
+        // Clear selection when no threadId in URL
+        selectedThreadId = null;
       }
 
       // Handle project selection
@@ -87,46 +56,32 @@
         selectedProjectId = pid;
         storageService.setLastProjectId(pid);
       } else {
-        // Fallback to last selected from localStorage
-        selectedProjectId = storageService.getLastProjectId();
+        // Clear selection when no projectId in URL
+        selectedProjectId = null;
       }
     });
     return unsub;
   });
 
-  $effect(() => {
-    if (lastActivityId === activity?.id) return;
-
-    agentItems = getAgentItems();
-
-    lastActivityId = activity?.id ?? null;
-  });
-
   let filteredThreads = $state<Thread[]>([]);
+  const hasListItems = $derived(
+    isThreadActivity
+      ? filteredThreads.length > 0
+      : isProjectsActivity
+        ? $projects.length > 0
+        : false,
+  );
 
-  let lastSelectedProjectId: string | null = $state(null);
-  $effect(() => {
-    // Reload threads when project selection changes to ensure we have the latest data
-    if (selectedProjectId !== lastSelectedProjectId && selectedProjectId !== null) {
-      lastSelectedProjectId = selectedProjectId;
-      void getThreadItems();
-    } else if (selectedProjectId === null) {
-      lastSelectedProjectId = null;
-    }
-  });
+  let lastActivityId: string | null = $state(null);
+  let lastHasItemsState: boolean | null = $state(null);
 
   $effect(() => {
     const isThreadsView = activity?.route === ROUTE.THREADS || activity?.id === 'threads';
     const isHomeView = activity?.route === ROUTE.HOME || activity?.id === 'home';
 
-    // Filter threads based on current view and privacy mode
+    // Filter threads based on current view and privacy mode (no project filtering)
     let visibleThreads = $threads;
-    if (selectedProjectId) {
-      // Whenever a project is selected, show only its threads (for both home + projects view)
-      visibleThreads = $threads.filter(
-        (t) => (t.metadata?.projectId as string | undefined) === selectedProjectId,
-      );
-    } else if (isThreadsView || isHomeView) {
+    if (isThreadsView || isHomeView) {
       // When viewing general threads or home, show threads from default mode projects + threads without projects
       // Exclude threads from project_only projects
       visibleThreads = $threads.filter((t) => {
@@ -141,11 +96,19 @@
     }
 
     filteredThreads = visibleThreads;
-    threadItems = visibleThreads.map((t) => ({ id: t.id, label: t.title, route: ROUTE.THREADS }));
   });
 
-  function select(item: { id: string; label: string }) {
-    openMenuId = null; // Close any open menu when selecting an item
+  $effect(() => {
+    const currentActivityId = activity?.id ?? null;
+    if (currentActivityId !== lastActivityId || lastHasItemsState !== hasListItems) {
+      isCollapsed = !hasListItems;
+      lastActivityId = currentActivityId;
+      lastHasItemsState = hasListItems;
+    }
+  });
+
+  function select(item: { id: string; label: string; route?: string }) {
+    if (!confirmNavigation()) return;
     dispatch('select', item);
     selectedThreadId = item.id;
     storageService.setLastThreadId(item.id);
@@ -158,25 +121,25 @@
         storageService.setLastThreadId(item.id);
         push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
         break;
-      case ROUTE.PROJECTS:
-        selectedProjectId = item.id;
-        storageService.setLastProjectId(item.id);
-        push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(item.id)}`);
-        break;
       default:
         break;
     }
   }
 
-  function toggleSidebar() {
-    isCollapsed = !isCollapsed;
+  function selectProject(project: Project) {
+    if (!confirmNavigation()) return;
+    selectedProjectId = project.id;
+    storageService.setLastProjectId(project.id);
+    dispatch('select', {
+      id: project.id,
+      label: project.title,
+      route: ROUTE.PROJECTS,
+    });
+    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
   }
 
-  function getAgentItems() {
-    return [
-      { id: 'agent-1', label: 'Assistant Bot' },
-      { id: 'agent-2', label: 'Marketing Bot' },
-    ];
+  function toggleSidebar() {
+    isCollapsed = !isCollapsed;
   }
 
   async function getThreadItems() {
@@ -192,7 +155,6 @@
    * Handle rename thread action
    */
   function handleRenameStart(item: { id: string; label: string }) {
-    openMenuId = null; // Close any open menu
     renamingThreadId = item.id;
     renamingThreadTitle = item.label;
     showRenameModal = true;
@@ -255,58 +217,18 @@
   </div>
   <div class="sidebar-scroll flex-1 overflow-y-auto">
     <ul class="list-items">
-      {#if activity?.route === ROUTE.HOME || activity?.id === 'home'}
-        {#each navigationOptions as item}
-          <SidebarItem isSelected={false} {item} {isCollapsed} on:click={() => item.onClick?.()} />
-        {/each}
-        {#if !isCollapsed}
-          <AccordionSection
-            title="Agents"
-            isSubsection={true}
-            isSidebarCollapsed={isCollapsed}
-            items={agentItems}
-            selectedId={null}
-            {openMenuId}
-            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
-          />
-          <AccordionSection
-            title="Threads"
-            isSidebarCollapsed={isCollapsed}
-            items={threadItems}
-            isSubsection={true}
-            showActions={true}
-            selectedId={activity?.id === 'threads' ? selectedThreadId : null}
-            {openMenuId}
-            on:click={(e) => select(e.detail)}
-            on:toggleMenu={(e) => handleMenuToggle(e.detail)}
-            on:rename={(e) => {
-              const item = e.detail as { id: string; label: string };
-              handleRenameStart(item);
-            }}
-            on:delete={async (e) => {
-              const item = e.detail as { id: string };
-              if (item?.id?.startsWith('temp_')) {
-                // Remove ephemeral thread locally
-                threads.deleteThread(item.id);
-                return;
-              }
-              try {
-                await threadService.softDelete(item.id);
-              } catch (err) {
-                console.error('Failed to delete thread', err);
-              }
-            }}
-          />
-        {/if}
-      {/if}
-      {#if activity?.route === ROUTE.THREADS || activity?.id === 'threads'}
-        {#if !isCollapsed}
+      {#if isThreadActivity}
+        {#if filteredThreads.length === 0 && !isCollapsed}
+          <div class="empty-state">
+            <p>No threads available yet.</p>
+          </div>
+        {:else if !isCollapsed}
           {#each filteredThreads as thread (thread.id)}
             <ThreadListItem
               {thread}
               isSelected={selectedThreadId === thread.id}
               showActions={true}
-              on:click={(e) => select(e.detail)}
+              on:click={(e) => void select(e.detail)}
               on:rename={(e) => {
                 const item = e.detail as { id: string; label: string };
                 handleRenameStart(item);
@@ -326,34 +248,21 @@
             />
           {/each}
         {/if}
-      {/if}
-      {#if (activity?.route === ROUTE.PROJECTS || activity?.id === 'projects') && selectedProjectId}
-        {#if filteredThreads.length === 0}
+      {:else if isProjectsActivity}
+        {#if $projects.length === 0 && !isCollapsed}
           <div class="empty-state">
-            <p>No threads in this project yet.</p>
+            <p>No projects available yet.</p>
           </div>
         {:else if !isCollapsed}
-          {#each filteredThreads as thread (thread.id)}
-            <ThreadListItem
-              {thread}
-              isSelected={selectedThreadId === thread.id}
-              showActions={true}
-              on:rename={(e) => {
-                const item = e.detail as { id: string; label: string };
-                handleRenameStart(item);
-              }}
-              on:click={(e: { detail: { id: string; label: string } }) => select(e.detail)}
-              on:toggleMenu={(e) => handleMenuToggle(e.detail)}
-              on:delete={async (e: CustomEvent<{ id: string }>) => {
-                const item = e.detail;
-                if (item?.id?.startsWith('temp_')) {
-                  threads.deleteThread(item.id);
-                  return;
-                }
-                try {
-                  await threadService.softDelete(item.id);
-                } catch (err) {
-                  console.error('Failed to delete thread', err);
+          {#each $projects as project (project.id)}
+            <ProjectListItem
+              {project}
+              isSelected={selectedProjectId === project.id}
+              on:click={(e) => {
+                const item = e.detail as { id: string; label: string; route?: string };
+                const foundProject = $projects.find((p) => p.id === item.id);
+                if (foundProject) {
+                  selectProject(foundProject);
                 }
               }}
             />

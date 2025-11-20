@@ -19,19 +19,21 @@ async function goToProjects(page: Page) {
 }
 
 async function openCreateProjectModal(page: Page) {
-  // Use the Projects page CTA
-  const createBtn = page.getByRole('button', { name: 'Create New Project' });
-  if (await createBtn.count()) {
-    if (await createBtn.isVisible()) {
-      await createBtn.click();
-      return;
+  const inlineForm = page.locator('form.project-form');
+  if (await inlineForm.count()) {
+    await expect(inlineForm).toBeVisible({ timeout: 5000 });
+    return;
+  }
+
+  // Fallback: clear selection and reload Projects route to show creation panel
+  await page.evaluate(() => {
+    globalThis.localStorage?.removeItem('lastProjectId');
+    if (globalThis.window) {
+      (globalThis.window as any).location.hash = '#/projects';
     }
-  }
-  // Fallback: use quick action in secondary sidebar when on Home
-  const newProjectQuick = page.getByRole('menuitem', { name: 'New Project' });
-  if (await newProjectQuick.count()) {
-    await newProjectQuick.click();
-  }
+  });
+  await page.waitForTimeout(500);
+  await expect(page.locator('form.project-form')).toBeVisible({ timeout: 5000 });
 }
 
 async function resetProjects(page: Page) {
@@ -44,6 +46,7 @@ async function resetProjects(page: Page) {
       existing.map((project) => api.project.delete(project.id, { deleteThreads: true })),
     );
     globalThis.localStorage?.removeItem('lastProjectId');
+    globalThis.localStorage?.removeItem('lastThreadId');
   });
   await page.waitForTimeout(200);
 }
@@ -55,7 +58,12 @@ async function createProject(page: Page, name: string, description?: string) {
     await page.fill('textarea#project-description', description);
   }
   await clickModalSubmit(page);
-  await expect(page.locator('.modal-overlay')).toHaveCount(0);
+  const modalOverlay = page.locator('.modal-overlay');
+  if (await modalOverlay.count()) {
+    await expect(modalOverlay).toHaveCount(0);
+  } else {
+    await page.waitForTimeout(500);
+  }
 }
 
 function uniqueProjectName(label: string): string {
@@ -63,40 +71,58 @@ function uniqueProjectName(label: string): string {
 }
 
 async function clickModalSubmit(page: Page) {
-  // Target the submit button by type to avoid label changes (Creating.../Saving...)
-  const submit = page.locator('.modal-content button[type="submit"]').first();
-  await expect(submit).toBeVisible({ timeout: 5000 });
-  await submit.click();
+  const modalSubmit = page.locator('.modal-content button[type="submit"]').first();
+  if (await modalSubmit.count()) {
+    await expect(modalSubmit).toBeVisible({ timeout: 5000 });
+    await modalSubmit.click();
+    return;
+  }
+
+  const inlineSubmit = page.locator('form.project-form button.primary').first();
+  await expect(inlineSubmit).toBeVisible({ timeout: 5000 });
+  await inlineSubmit.click();
 }
 
 async function selectProjectInSidebar(page: Page, name: string) {
-  // Click on the Projects accordion header to expand it if needed
   const accordionHeader = page
     .locator('li[role="menuitem"]')
     .filter({ hasText: 'Projects' })
     .first();
   await expect(accordionHeader).toBeVisible({ timeout: 5000 });
 
-  // Check if the Projects accordion content is visible by looking for "Create Project" text
-  // which is unique to the Projects accordion
-  const createProjectItem = page.getByRole('menuitem', { name: 'Create Project' });
-  const createProjectVisible = await createProjectItem.isVisible().catch(() => false);
-  if (!createProjectVisible) {
+  const sidebar = page.locator('.activity-list-sidebar');
+  let projectItem = sidebar.getByRole('menuitem', { name }).first();
+  const visible = await projectItem.isVisible().catch(() => false);
+
+  if (!visible) {
     await accordionHeader.click();
     await page.waitForTimeout(300);
-    // Wait for the accordion content to appear
-    await expect(createProjectItem).toBeVisible({ timeout: 3000 });
+    projectItem = sidebar.getByRole('menuitem', { name }).first();
   }
 
-  // Find and click the project item
-  // Scope to the Projects accordion by finding the accordion-content that contains "Create Project"
-  const projectsAccordionContent = page
-    .locator('.accordion-content')
-    .filter({ hasText: 'Create Project' })
-    .first();
-  const projectItem = projectsAccordionContent.getByRole('menuitem', { name }).first();
   await expect(projectItem).toBeVisible({ timeout: 5000 });
   await projectItem.click();
+}
+
+async function createThreadForProject(
+  page: Page,
+  options: { projectName: string; threadTitle: string; prompt?: string },
+) {
+  return page.evaluate(async ({ projectName, threadTitle, prompt }) => {
+    const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
+    if (!api) return null;
+
+    const projects = await api.project.getAll();
+    const project = projects.find((p: any) => p.title === projectName);
+    if (!project) return null;
+
+    const res = await api.thread.addUserPrompt(null, prompt ?? `Prompt for ${threadTitle}`, {
+      title: threadTitle,
+    });
+    await api.thread.moveToProject(res.thread.id, project.id);
+
+    return { threadId: res.thread.id, projectId: project.id };
+  }, options);
 }
 
 async function openRenameProjectModal(page: Page) {
@@ -172,7 +198,7 @@ test.describe('E2E: Project Management', () => {
     const page = await getFirstWindow(app);
 
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create New Project' })).toBeVisible();
+    await expect(page.locator('form.project-form')).toBeVisible();
   });
 
   test('should create a new project', async () => {
@@ -193,13 +219,11 @@ test.describe('E2E: Project Management', () => {
 
     await openCreateProjectModal(page);
 
-    const submitButton = page.locator('.modal-content button[type="submit"]').first();
+    const submitButton = page.locator('form.project-form button.primary').first();
 
     await expect(submitButton).toBeDisabled();
-    // Ensure some element within modal has focus before sending Escape
-    await page.focus('input#project-name');
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.modal-overlay')).toHaveCount(0);
+    await page.fill('input#project-name', '  ');
+    await expect(submitButton).toBeDisabled();
   });
 
   test('should delete a project with confirmation', async () => {
@@ -239,8 +263,8 @@ test.describe('E2E: Project Management', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    await expect(page.getByText('Select a project from the sidebar to view details')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create New Project' })).toBeVisible();
+    await expect(page.locator('form.project-form')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create Project', exact: true })).toBeVisible();
   });
 
   test('should create project from empty state', async () => {
@@ -248,7 +272,7 @@ test.describe('E2E: Project Management', () => {
     const page = await getFirstWindow(app);
 
     const firstProjectName = uniqueProjectName('First Project');
-    await page.getByRole('button', { name: 'Create New Project' }).click();
+    await openCreateProjectModal(page);
     await page.fill('input#project-name', firstProjectName);
     await clickModalSubmit(page);
 
@@ -292,51 +316,100 @@ test.describe('E2E: Project Management', () => {
     );
 
     await page.waitForTimeout(500);
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
+    if (await loginBtn.count()) {
+      await expect(loginBtn).toBeVisible({ timeout: 5000 });
+      await loginBtn.click();
+      await page.waitForTimeout(800);
+    }
+    await goToProjects(page);
 
     // Switch to project 1
     await selectProjectInSidebar(page, project1Name);
     await expect(page.getByRole('heading', { name: project1Name, level: 1 })).toBeVisible();
 
-    // Wait for threads to load (ActivityListSidebar will reload threads when project is selected)
     await page.waitForTimeout(800);
 
-    // Verify threads are filtered in the sidebar (ActivityListSidebar)
-    // Threads should appear in the secondary sidebar when project is selected
-    const sidebar = page.locator('.activity-list-sidebar');
-
-    // Wait for Thread 1 to appear (it should be visible for project 1)
-    // Threads are displayed as menuitems in accordion sections
-    // Use first() to handle cases where there might be multiple matches
-    await expect(sidebar.getByRole('menuitem', { name: 'Thread 1' }).first()).toBeVisible({
-      timeout: 5000,
-    });
-
-    const thread1Visible = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
-    const thread2Visible = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
-
-    // Thread 1 should be visible, Thread 2 should not be visible
-    expect(thread1Visible).toBeGreaterThan(0);
-    expect(thread2Visible).toBe(0);
+    const projectThreadList = page.locator('.project-thread-list');
+    const project1Thread = projectThreadList.getByRole('menuitem', { name: 'Thread 1' }).first();
+    await expect(project1Thread).toBeVisible({ timeout: 5000 });
+    await expect(projectThreadList.getByRole('menuitem', { name: 'Thread 2' })).toHaveCount(0);
 
     // Switch to project 2
     await selectProjectInSidebar(page, project2Name);
     await expect(page.getByRole('heading', { name: project2Name, level: 1 })).toBeVisible();
 
-    // Wait for threads to reload (ActivityListSidebar will reload threads when project changes)
     await page.waitForTimeout(800);
 
-    // Wait for Thread 2 to appear (it should be visible for project 2)
-    await expect(sidebar.getByRole('menuitem', { name: 'Thread 2' }).first()).toBeVisible({
-      timeout: 5000,
+    const projectThreadList2 = page.locator('.project-thread-list');
+    const project2Thread = projectThreadList2.getByRole('menuitem', { name: 'Thread 2' }).first();
+    await expect(project2Thread).toBeVisible({ timeout: 5000 });
+    await expect(projectThreadList2.getByRole('menuitem', { name: 'Thread 1' })).toHaveCount(0);
+  });
+
+  test('should open project-only thread from project detail list', async () => {
+    if (!app) throw new Error('Electron not launched');
+    const page = await getFirstWindow(app);
+
+    const projectName = uniqueProjectName('Private Project');
+    const threadTitle = 'Private Thread';
+
+    await createProject(page, projectName);
+    const threadInfo = await createThreadForProject(page, {
+      projectName,
+      threadTitle,
+      prompt: 'Thread content for project-only test',
     });
 
-    // Verify threads are filtered for project 2
-    const thread1VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 1' }).count();
-    const thread2VisibleAfter = await sidebar.getByRole('menuitem', { name: 'Thread 2' }).count();
+    if (!threadInfo) {
+      throw new Error('Failed to create thread for project');
+    }
+    const threadId = threadInfo.threadId;
 
-    // Thread 2 should be visible, Thread 1 should not be visible
-    expect(thread2VisibleAfter).toBeGreaterThan(0);
-    expect(thread1VisibleAfter).toBe(0);
+    await page.evaluate(
+      async ({ projectName }) => {
+        const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
+        if (!api) return;
+        const projects = await api.project.getAll();
+        const project = projects.find((p: any) => p.title === projectName);
+        if (project) {
+          await api.project.update(project.id, { privacyMode: 'project_only' });
+        }
+      },
+      { projectName },
+    );
+
+    await page.waitForTimeout(500);
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const loginBtnReload = page.getByRole('button', { name: 'Sign In (Mock)' });
+    if (await loginBtnReload.count()) {
+      await expect(loginBtnReload).toBeVisible({ timeout: 5000 });
+      await loginBtnReload.click();
+      await page.waitForTimeout(800);
+    }
+    await goToProjects(page);
+
+    await selectProjectInSidebar(page, projectName);
+    await page.waitForTimeout(800);
+
+    const threadList = page.locator('.project-thread-list');
+
+    const projectThreadItem = threadList.getByRole('menuitem', { name: threadTitle }).first();
+    await expect(projectThreadItem).toBeVisible({ timeout: 5000 });
+    await projectThreadItem.click();
+
+    await page.waitForFunction(
+      ({ threadId }) => {
+        return globalThis.location.hash.includes(threadId);
+      },
+      { threadId },
+    );
+
+    await expect(page.getByTestId('message-input')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.error-banner')).toHaveCount(0);
   });
 
   test('should show error when switching to deleted project', async () => {

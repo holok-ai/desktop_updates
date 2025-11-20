@@ -8,17 +8,14 @@
   import { querystring, replace } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
-  import ModelChooser from '../../lib/components/ModelChooser.svelte';
   import type { MokuModel } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
-  import BaseModal from '$lib/components/modals/BaseModal.svelte';
+  import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
+  import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
 
   let isLoading = $state(true);
-  let showDialog = $state(false);
-  let editingThread: Thread | null = $state(null);
-
   let formData: Thread = $state({
     id: '',
     createdAt: new Date(),
@@ -37,25 +34,49 @@
   let chatPaneRef: any = $state(null);
   let currentProjectId: string | null = $state(null);
   let errorMessage = $state<string | null>(null);
+  let modelSelectionTouched = $state(false);
+  const isAddThreadView = $derived(!selectedThread);
+
+  function resetThreadForm(prefillPrompt = '') {
+    formData = {
+      id: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      title: '',
+      description: '',
+      status: THREAD_STATUS.ACTIVE,
+      metadata: {},
+    } as Thread;
+    selectedModel = null;
+    chooserInitial = null;
+    newThreadPrompt = prefillPrompt;
+    modelSelectionTouched = false;
+  }
+
+  function startThreadCreationFlow(prefillPrompt = '') {
+    resetThreadForm(prefillPrompt);
+    selectedThread = null;
+    storageService.removeLastThreadId();
+    replace(ROUTE.THREADS);
+  }
+
+  $effect(() => {
+    if (!isAddThreadView) {
+      clearUnsavedChanges('add-thread');
+      return;
+    }
+    const descriptionHasValue =
+      typeof formData.description === 'string' && formData.description.trim().length > 0;
+    const dirty =
+      formData.title.trim().length > 0 ||
+      descriptionHasValue ||
+      newThreadPrompt.trim().length > 0 ||
+      modelSelectionTouched;
+    setUnsavedChanges('add-thread', dirty);
+  });
 
   onMount(async () => {
     await loadThreads();
-    // If no threadId in URL, restore last selected from localStorage
-    const params = new URLSearchParams((window as any).location?.search ?? '');
-    if (!params.get('threadId')) {
-      try {
-        const last = storageService.getLastThreadId();
-        if (last) {
-          const found = $threads.find((t) => t.id === last);
-          if (found) {
-            selectThread(found);
-            void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(last)}`);
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
   });
 
   // Handlers for events emitted by ChatPane component
@@ -69,8 +90,7 @@
 
   function handleOpenNewThreadPrefill(e: CustomEvent<{ prompt: string }>) {
     const d = e.detail;
-    openCreateDialog();
-    newThreadPrompt = d?.prompt ?? '';
+    startThreadCreationFlow(d?.prompt ?? '');
   }
 
   // Fallback global listener for dispatches from renderer components
@@ -79,8 +99,7 @@
       const e = ev as CustomEvent;
       const detail = e.detail as { prompt?: string } | undefined;
       if (detail?.prompt) {
-        openCreateDialog();
-        newThreadPrompt = detail.prompt;
+        startThreadCreationFlow(detail.prompt);
       }
     };
     window.addEventListener('openNewThreadPrefill', winListener as any);
@@ -138,8 +157,8 @@
         currentProjectId = null;
       }
 
-      if (params.has('createThread') && !showDialog) {
-        openCreateDialog();
+      if (params.has('createThread')) {
+        startThreadCreationFlow();
         void replace(ROUTE.THREADS);
       }
       const threadId = params.get('threadId');
@@ -213,25 +232,8 @@
     }
   }
 
-  function openCreateDialog() {
-    editingThread = null;
-    formData = {
-      id: '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      title: '',
-      description: '',
-      status: THREAD_STATUS.ACTIVE,
-    };
-    // Reset model selection for new thread
-    selectedModel = null;
-    chooserInitial = null;
-    formData.metadata = {};
-    newThreadPrompt = '';
-    showDialog = true;
-  }
-
   function selectThread(thread: Thread) {
+    clearUnsavedChanges('add-thread');
     selectedThread = thread;
     messages = [];
     // Load persisted messages for this thread
@@ -257,47 +259,40 @@
         (data as any).metadata = merged;
       }
 
-      if (editingThread) {
-        await threadService.update(editingThread.id, data);
-      } else {
-        // If an initial prompt was provided, create thread + prompt atomically
-        if (newThreadPrompt && newThreadPrompt.trim()) {
-          try {
-            const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
-              title: data.title,
-              description: data.description,
-              model: selectedModel?.id,
-            });
-            const created = res.thread as Thread;
-            // Add to store and select it
-            threads.addThread(created);
-            selectThread(created);
-            // Update URL to select created thread
-            void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
-          } catch (e) {
-            console.error('Failed to create thread with prompt:', e);
-          }
-        } else {
-          // Create an ephemeral thread for sidebar/selection (not persisted yet)
-          const tempId = `temp_${crypto.randomUUID()}`;
-          const tempThread: Thread = {
-            id: tempId,
+      // If an initial prompt was provided, create thread + prompt atomically
+      if (newThreadPrompt && newThreadPrompt.trim()) {
+        try {
+          const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
             title: data.title,
             description: data.description,
-            status: THREAD_STATUS.ACTIVE,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            metadata: data.metadata ?? {},
-          } as Thread;
-          // Add to store and select it
-          threads.addThread(tempThread);
-          selectedThread = tempThread;
-          messages = [];
-          // Update URL so sidebar highlights the temp thread
-          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
+            model: selectedModel?.id,
+          });
+          const created = res.thread as Thread;
+          threads.addThread(created);
+          selectThread(created);
+          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
+        } catch (e) {
+          console.error('Failed to create thread with prompt:', e);
         }
+      } else {
+        // Create an ephemeral thread for sidebar/selection (not persisted yet)
+        const tempId = `temp_${crypto.randomUUID()}`;
+        const tempThread: Thread = {
+          id: tempId,
+          title: data.title,
+          description: data.description,
+          status: THREAD_STATUS.ACTIVE,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          metadata: data.metadata ?? {},
+        } as Thread;
+        threads.addThread(tempThread);
+        selectedThread = tempThread;
+        messages = [];
+        void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
       }
-      showDialog = false;
+      clearUnsavedChanges('add-thread');
+      resetThreadForm();
     } catch (error) {
       console.error('Failed to save thread:', error);
     }
@@ -307,6 +302,9 @@
 <div class="threads-page">
   <div class="header">
     <h1>Threads</h1>
+    {#if !isAddThreadView}
+      <button class="btn-primary" onclick={() => startThreadCreationFlow()}> + New Thread </button>
+    {/if}
   </div>
 
   {#if errorMessage && selectedThread}
@@ -321,11 +319,21 @@
 
   {#if isLoading}
     <div class="loading">Loading threads...</div>
-  {:else if $threads.length === 0}
-    <div class="empty">
-      <p>No threads yet. Create your first thread!</p>
-      <button onclick={openCreateDialog}>Create Thread</button>
-    </div>
+  {:else if isAddThreadView}
+    <ThreadCreatePanel
+      bind:formData
+      bind:selectedModel
+      bind:newThreadPrompt
+      {chooserInitial}
+      on:modelSelectionChange={(event) => {
+        const detail = (event as CustomEvent<{ model: MokuModel | null; isAuto: boolean }>).detail;
+        if (!detail?.isAuto) {
+          modelSelectionTouched = true;
+        }
+      }}
+      on:submit={() => handleSave()}
+      on:reset={() => resetThreadForm()}
+    />
   {:else}
     <div class="threads-grid">
       <div class="w-full">
@@ -341,74 +349,9 @@
   {/if}
 </div>
 
-<BaseModal
-  bind:show={showDialog}
-  title={editingThread ? 'Edit Thread' : 'Create Thread'}
-  submitLabel={editingThread ? 'Confirm Update' : 'Confirm Create'}
-  cancelLabel="Cancel"
-  submitDisabled={!editingThread && !selectedModel}
-  oncancel={() => (showDialog = false)}
-  onsubmit={handleSave}
->
-  {#snippet content()}
-    <div class="form-group">
-      <label for="title">Title</label>
-      <input id="title" type="text" bind:value={formData.title} placeholder="Enter thread title" />
-    </div>
-
-    <div class="form-group">
-      <label for="description">Description</label>
-      <textarea
-        id="description"
-        bind:value={formData.description}
-        placeholder="Enter thread description"
-        rows="4"
-      ></textarea>
-    </div>
-
-    <div class="form-group">
-      <label for="status">Status</label>
-      <select id="status" bind:value={formData.status}>
-        <option value="active">Active</option>
-        <option value="archived">Archived</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <span>Model</span>
-      <ModelChooser
-        initialSelection={chooserInitial}
-        on:modelSelected={(e) => {
-          // e.detail is the selected MokuModel
-          const m = (e as CustomEvent).detail as any;
-          if (m) {
-            selectedModel = m;
-            formData.metadata = {
-              ...(formData.metadata ?? {}),
-              model: m.id,
-              provider: m.provider,
-            };
-          }
-        }}
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="initial-prompt">Initial Prompt</label>
-      <textarea
-        id="initial-prompt"
-        bind:value={newThreadPrompt}
-        rows="6"
-        placeholder="Enter the prompt to run in the new thread"
-      ></textarea>
-    </div>
-  {/snippet}
-</BaseModal>
-
 <style>
   .threads-page {
     max-width: 1200px;
-    margin: 0 auto;
   }
 
   .header {
@@ -418,15 +361,10 @@
     margin-bottom: 2rem;
   }
 
-  .loading,
-  .empty {
+  .loading {
     text-align: center;
     padding: calc(var(--content-padding) * 2.5);
     color: var(--text-secondary);
-  }
-
-  .empty button {
-    margin-top: 1rem;
   }
 
   .threads-grid {
@@ -434,32 +372,19 @@
     gap: var(--content-padding);
   }
 
-  /* Form styles for modal content */
-  .form-group {
-    margin-bottom: 1.5rem;
+  .btn-primary {
+    background: var(--primary-color);
+    color: var(--primary-color-text);
+    border: none;
+    padding: 0.65rem 1.5rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
   }
 
-  .form-group label {
-    display: block;
-    margin-bottom: var(--inline-spacing);
-    font-weight: 500;
-  }
-
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    width: 100%;
-    padding: calc(var(--inline-spacing) * 1.5);
-    border-radius: var(--border-radius);
-    font-family: inherit;
-    font-size: 16px;
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus,
-  .form-group select:focus {
-    outline: none;
-    border-color: var(--primary-color);
+  .btn-primary:hover {
+    background: var(--primary-600, #2563eb);
   }
 
   .error-banner {
