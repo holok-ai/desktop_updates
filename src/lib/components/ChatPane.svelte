@@ -12,6 +12,8 @@
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
+  import { storageService } from '$lib/services/storage.service';
+
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
@@ -45,7 +47,36 @@
   let toastTimeout: number | null = null;
   let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
+  let showComments = $state(false);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+
+  // Load showComments preference from localStorage
+  onMount(() => {
+    try {
+      const saved = storageService.getShowComments();
+      showComments = saved ?? false;
+    } catch {
+      showComments = false;
+    }
+  });
+
+  // Toggle and persist showComments preference
+  // When hiding, also cancel any active comment editing
+  function toggleShowComments() {
+    const wasShowing = showComments;
+    showComments = !showComments;
+
+    // If hiding comments, cancel any active editing (will be handled by MessageBubble via prop)
+    if (wasShowing && !showComments) {
+      // The showComments prop change will trigger MessageBubble to cancel editing
+    }
+
+    try {
+      storageService.setShowComments(showComments);
+    } catch (error) {
+      console.error('Failed to save showComments preference:', error);
+    }
+  }
 
   // Initialize message transmitter
   const transmitter = new MessageTransmitter({
@@ -332,15 +363,27 @@
             </h2>
             <div class="meta">{currentThread.description}</div>
           </div>
-          <button
-            class="move-thread-btn"
-            onclick={() => (showMoveModal = true)}
-            aria-label="Move thread to project"
-            title="Move thread to project"
-          >
-            <i class="pi pi-folder-open"></i>
-            Move
-          </button>
+          <div class="header-buttons">
+            <button
+              class="header-action-btn"
+              class:active={showComments}
+              onclick={toggleShowComments}
+              aria-label={showComments ? 'Hide' : 'Show'}
+              title={showComments ? 'Hide' : 'Show'}
+            >
+              <i class="pi pi-comment"></i>
+              {showComments ? 'Hide' : 'Show'}
+            </button>
+            <button
+              class="header-action-btn"
+              onclick={() => (showMoveModal = true)}
+              aria-label="Move thread to project"
+              title="Move thread to project"
+            >
+              <i class="pi pi-folder-open"></i>
+              Move
+            </button>
+          </div>
         </div>
       {/key}
     </div>
@@ -365,6 +408,7 @@
             onShowVersions={handleShowVersions}
             threadId={currentThread?.id}
             {isStreaming}
+            {showComments}
             on:copied={(event) => showToast(event.detail.message)}
           />
         {/each}
@@ -502,7 +546,18 @@
     white-space: nowrap;
   }
 
-  .move-thread-btn {
+  .header-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    /* Pin to the right */
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .header-action-btn {
     display: flex;
     align-items: center;
     gap: var(--inline-spacing);
@@ -516,20 +571,21 @@
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
-    /* Pin to the right; independent of grid reflow during sidebar collapse/expand */
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
     min-width: max-content;
   }
 
-  .move-thread-btn:hover {
+  .header-action-btn:hover {
     background: var(--surface-hover);
     border-color: var(--primary-color);
   }
 
-  .move-thread-btn i {
+  .header-action-btn.active {
+    background: rgba(100, 108, 255, 0.1);
+    border-color: rgba(100, 108, 255, 0.4);
+    color: #646cff;
+  }
+
+  .header-action-btn i {
     font-size: 14px;
     color: var(--text-primary);
     display: inline-block;

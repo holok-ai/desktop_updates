@@ -140,6 +140,15 @@ export interface ThreadAPI {
     { success: true; message: Message; thread: Thread } | { success: false; error: string }
   >;
 
+  // Update message metadata (e.g., for comments)
+  updateMessageMetadata: (
+    threadId: string,
+    messageId: string,
+    metadataUpdates: Record<string, unknown>,
+  ) => Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  >;
+
   // Get message versions
   getMessageVersions: (
     threadId: string,
@@ -733,6 +742,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     updateMessage: (threadId: string, messageId: string, newContent: string) =>
       ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
+
+    updateMessageMetadata: (
+      threadId: string,
+      messageId: string,
+      metadataUpdates: Record<string, unknown>,
+    ) => ipcRenderer.invoke('thread:updateMessageMetadata', threadId, messageId, metadataUpdates),
 
     getMessageVersions: (threadId: string, messageId: string) =>
       ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),

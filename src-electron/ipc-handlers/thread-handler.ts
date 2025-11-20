@@ -982,6 +982,51 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Update message metadata (e.g., for comments)
+  ipcMain.handle(
+    'thread:updateMessageMetadata',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+      metadataUpdates: Record<string, unknown>,
+    ): Promise<
+      | { success: true; message: Message; thread: RendererThread }
+      | { success: false; error: string }
+    > => {
+      threadLog.info('[IPC] thread:updateMessageMetadata called', { threadId, messageId });
+
+      try {
+        const updatedMessage = threadRepository.updateMessageMetadata(
+          threadId,
+          messageId,
+          metadataUpdates,
+        );
+        const thread = threadRepository.loadThread(threadId);
+        const rt = thread ? toRendererThread(thread) : null;
+
+        if (!rt) throw new Error('Failed to load thread after metadata update');
+
+        broadcast('thread:updated', rt);
+        broadcast('message:metadata:updated', {
+          thread_id: threadId,
+          message_id: messageId,
+          timestamp: new Date().toISOString(),
+        });
+
+        return Promise.resolve({
+          success: true as const,
+          message: updatedMessage,
+          thread: rt,
+        });
+      } catch (error) {
+        const err = error as Error;
+        threadLog.error('[IPC] Error updating message metadata:', err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
+    },
+  );
+
   threadLog.info('Handlers registered');
 }
 
@@ -994,5 +1039,8 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:undoRename');
   ipcMain.removeHandler('thread:delete');
   ipcMain.removeHandler('thread:moveToProject');
+  ipcMain.removeHandler('thread:updateMessage');
+  ipcMain.removeHandler('thread:getMessageVersions');
+  ipcMain.removeHandler('thread:updateMessageMetadata');
   threadLog.info('Handlers unregistered');
 }

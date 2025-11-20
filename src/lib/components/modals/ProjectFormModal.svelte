@@ -162,12 +162,13 @@
         <span class="field-label">Privacy Mode</span>
         <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
           {#each privacyChoices as choice (choice.id)}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-            <label
+            <button
+              type="button"
+              role="radio"
               class="privacy-option"
               class:active={privacyMode === choice.id}
-              class:disabled={isSubmitting}
-              aria-pressed={privacyMode === choice.id}
+              aria-checked={privacyMode === choice.id}
+              disabled={isSubmitting}
               onclick={() => {
                 if (!isSubmitting) {
                   privacyMode = choice.id;
@@ -188,7 +189,7 @@
                 {/if}
               </div>
               <p class="option-description">{choice.description}</p>
-            </label>
+            </button>
           {/each}
         </div>
         <div class="privacy-hint">
@@ -263,6 +264,9 @@
     background: var(--surface-overlay);
     border: 1px solid var(--surface-border);
     border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
@@ -280,6 +284,12 @@
     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
   }
 
+  .privacy-option:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+  }
+
   .privacy-option input[type='radio'] {
     position: absolute;
     opacity: 0;
@@ -290,9 +300,14 @@
     background: rgba(66, 133, 244, 0.08);
   }
 
-  .privacy-option.disabled {
+  .privacy-option:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+    box-shadow: none;
+  }
+
+  .privacy-option:disabled:hover {
+    border-color: var(--surface-border);
     box-shadow: none;
   }
 
