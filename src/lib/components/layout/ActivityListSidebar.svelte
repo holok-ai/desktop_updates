@@ -65,7 +65,11 @@
 
   let filteredThreads = $state<Thread[]>([]);
   const hasListItems = $derived(
-    isThreadActivity ? filteredThreads.length > 0 : isProjectsActivity ? $projects.length > 0 : false,
+    isThreadActivity
+      ? filteredThreads.length > 0
+      : isProjectsActivity
+        ? $projects.length > 0
+        : false,
   );
 
   let lastActivityId: string | null = $state(null);

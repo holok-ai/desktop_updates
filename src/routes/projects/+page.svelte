@@ -7,9 +7,9 @@
   import { threadService } from '$lib/services/thread.service';
   import type { Project } from '$lib/types/project.type.js';
   import { ROUTE } from '$lib/constants/route.constant';
-import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
-import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
-import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
+  import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
+  import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
+  import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
   import { storageService } from '$lib/services/storage.service';
@@ -61,7 +61,6 @@ import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
         } catch {
           // ignore if IPC not available
         }
-
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {
@@ -159,13 +158,13 @@ import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
     replace(ROUTE.PROJECTS);
   }
 
-function openThreadById(threadId: string, projectId?: string | null) {
-  if (projectId) {
-    storageService.setLastProjectId(projectId);
+  function openThreadById(threadId: string, projectId?: string | null) {
+    if (projectId) {
+      storageService.setLastProjectId(projectId);
+    }
+    storageService.setLastThreadId(threadId);
+    replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
   }
-  storageService.setLastThreadId(threadId);
-  replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
-}
 
   // Project threads list (reactive without $derived)
   let projectThreads: Thread[] = $state([]);
@@ -263,40 +262,40 @@ function openThreadById(threadId: string, projectId?: string | null) {
         </div>
       </div>
 
-    {#if threadsLoading}
-      <div class="empty-threads">
-        <p>Loading threads...</p>
-      </div>
-    {:else if projectThreads.length === 0}
-      <div class="project-content">
-        <h3>Project Threads</h3>
+      {#if threadsLoading}
         <div class="empty-threads">
-          <p>
-            {#if threadCount > 0}
-              No visible threads found yet. Try switching views or reopening Threads.
-            {:else}
-              No threads in this project yet
-            {/if}
-          </p>
+          <p>Loading threads...</p>
         </div>
-      </div>
-    {:else}
-      <div class="project-content">
-        <h3>Project Threads</h3>
-        <div class="project-thread-list">
-          {#each projectThreads as thread (thread.id)}
-            <ThreadListItem
-              {thread}
-              isSelected={false}
-              showActions={false}
+      {:else if projectThreads.length === 0}
+        <div class="project-content">
+          <h3>Project Threads</h3>
+          <div class="empty-threads">
+            <p>
+              {#if threadCount > 0}
+                No visible threads found yet. Try switching views or reopening Threads.
+              {:else}
+                No threads in this project yet
+              {/if}
+            </p>
+          </div>
+        </div>
+      {:else}
+        <div class="project-content">
+          <h3>Project Threads</h3>
+          <div class="project-thread-list">
+            {#each projectThreads as thread (thread.id)}
+              <ThreadListItem
+                {thread}
+                isSelected={false}
+                showActions={false}
                 on:click={() => {
                   openThreadById(thread.id, selectedProject?.id ?? null);
                 }}
-            />
-          {/each}
+              />
+            {/each}
+          </div>
         </div>
-      </div>
-    {/if}
+      {/if}
     </div>
   {/if}
 </div>

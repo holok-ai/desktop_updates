@@ -8,9 +8,7 @@
   let { form }: Props = $props();
 </script>
 
-<section
-  class="create-page-layout"
->
+<section class="create-page-layout">
   <div class="form-card">
     {@render form()}
   </div>
