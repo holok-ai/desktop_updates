@@ -2,13 +2,12 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { currentUser, isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
-  import { push, location, querystring } from 'svelte-spa-router';
+  import { push, location } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
   import SidebarItem from '../common/SidebarItem.svelte';
-  import { projects } from '$lib/stores/project.store';
   import { projectService } from '$lib/services/project.service';
   import { storageService } from '$lib/services/storage.service';
   import { confirmNavigation } from '$lib/stores/navigation-guard.store';
@@ -25,9 +24,6 @@
   let selected = $state(activities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showProfileMenu = $state(false);
-  let selectedProjectId = $state<string | null>(null);
-  let projectActivities = $state<SidebarActivity[]>([]);
-  let openMenuId = $state<string | null>(null); // Track which item's menu is open
 
   async function handleLogout() {
     try {
@@ -116,28 +112,6 @@
   // Keep selection in sync when route changes
   $effect(() => {
     const unsubscribe = location.subscribe((path: string) => syncSelectedWithLocation(path));
-    return unsubscribe;
-  });
-
-  $effect(() => {
-    projectActivities = $projects.map((project) => ({
-      id: project.id,
-      label: project.title,
-      icon: 'pi pi-folder',
-      route: ROUTE.PROJECTS,
-    }));
-  });
-
-  $effect(() => {
-    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
-      const params = new URLSearchParams(qs ?? '');
-      const pid = params.get('projectId');
-      if (pid) {
-        selectedProjectId = pid;
-      } else {
-        selectedProjectId = storageService.getLastProjectId();
-      }
-    });
     return unsubscribe;
   });
 

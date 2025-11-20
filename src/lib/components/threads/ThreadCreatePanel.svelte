@@ -25,8 +25,6 @@
     newThreadPrompt = $bindable(),
   }: Props = $props();
 
-  let hasEmittedInitialModel = $state(false);
-
   function updateField<T extends keyof Thread>(field: T, value: Thread[T]) {
     formData = {
       ...formData,
