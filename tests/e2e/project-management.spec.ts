@@ -368,15 +368,18 @@ test.describe('E2E: Project Management', () => {
     }
     const threadId = threadInfo.threadId;
 
-    await page.evaluate(async ({ projectName }) => {
-      const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
-      if (!api) return;
-      const projects = await api.project.getAll();
-      const project = projects.find((p: any) => p.title === projectName);
-      if (project) {
-        await api.project.update(project.id, { privacyMode: 'project_only' });
-      }
-    }, { projectName });
+    await page.evaluate(
+      async ({ projectName }) => {
+        const api = (globalThis as any).electronAPI ?? (globalThis as any).window?.electronAPI;
+        if (!api) return;
+        const projects = await api.project.getAll();
+        const project = projects.find((p: any) => p.title === projectName);
+        if (project) {
+          await api.project.update(project.id, { privacyMode: 'project_only' });
+        }
+      },
+      { projectName },
+    );
 
     await page.waitForTimeout(500);
     await page.reload();
@@ -398,9 +401,12 @@ test.describe('E2E: Project Management', () => {
     await expect(projectThreadItem).toBeVisible({ timeout: 5000 });
     await projectThreadItem.click();
 
-    await page.waitForFunction(({ threadId }) => {
-      return globalThis.location.hash.includes(threadId);
-    }, { threadId });
+    await page.waitForFunction(
+      ({ threadId }) => {
+        return globalThis.location.hash.includes(threadId);
+      },
+      { threadId },
+    );
 
     await expect(page.getByTestId('message-input')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.error-banner')).toHaveCount(0);
