@@ -1,42 +1,25 @@
+import Perplexity from '@perplexity-ai/perplexity_ai';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import {
   PerplexityAIConverter,
   type PerplexityChatRequest,
-  type PerplexityChatRequestWithOptions,
+  type PerplexityChatRequestNonStreaming,
+  type PerplexityChatRequestStreaming,
 } from '../converters/PerplexityAIConverter.js';
-
-type PerplexityChatCompletion = {
-  id: string;
-  choices: Array<{
-    message?: {
-      role: string;
-      content?: string;
-    };
-  }>;
-};
-
-type PerplexityChatCompletionChunk = {
-  id: string;
-  choices: Array<{
-    delta?: {
-      role?: string;
-      content?: string;
-    };
-  }>;
-};
 
 /**
  * Perplexity chat provider using the native Perplexity API surface.
  */
 export class PerplexityChatProvider implements IChatProvider {
-  private readonly baseURL: string;
-  private readonly apiKey: string;
+  private readonly client: Perplexity;
   private defaultModel: string;
 
   constructor(url: string, apiKey: string, defaultModel: string) {
-    this.baseURL = (url || 'https://api.perplexity.ai').replace(/\/$/, '');
-    this.apiKey = apiKey;
+    this.client = new Perplexity({
+      apiKey,
+      baseURL: (url || 'https://api.perplexity.ai').replace(/\/$/, ''),
+    });
     this.defaultModel = defaultModel || 'sonar';
 
     console.log(`PerplexityChatProvider initialized with model ${this.defaultModel}`);
@@ -52,7 +35,7 @@ export class PerplexityChatProvider implements IChatProvider {
       model: modelToUse,
     });
 
-    await this.sendCompletion(perplexityRequest, request.streaming !== false, onTokenReceived);
+    await this.sendCompletion(perplexityRequest, onTokenReceived);
   }
 
   public async chatWithOptions(
@@ -65,125 +48,75 @@ export class PerplexityChatProvider implements IChatProvider {
       model: modelToUse,
     });
 
-    await this.sendCompletion(
-      perplexityRequest,
-      request.streaming !== false,
-      onTokenReceived,
-    );
+    await this.sendCompletion(perplexityRequest, onTokenReceived);
   }
 
   private async sendCompletion(
-    body: PerplexityChatRequest | PerplexityChatRequestWithOptions,
-    streaming: boolean,
+    body: PerplexityChatRequest,
     onTokenReceived?: (token: string) => void,
   ): Promise<void> {
-    const payload = streaming ? { ...body, stream: true } : body;
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Perplexity API error (${response.status} ${response.statusText}): ${errorText}`,
-      );
-    }
-
-    if (streaming) {
-      await this.handleStreamResponse(response, onTokenReceived);
+    if (this.isStreamingRequest(body)) {
+      await this.handleStreamingResponse(body, onTokenReceived);
       return;
     }
 
-    const completion = (await response.json()) as PerplexityChatCompletion;
-    const content = completion.choices?.[0]?.message?.content || '';
+    await this.handleNonStreamingResponse(body, onTokenReceived);
+  }
+
+  private async handleStreamingResponse(
+    body: PerplexityChatRequestStreaming,
+    onTokenReceived?: (token: string) => void,
+  ): Promise<void> {
+    const stream = await this.client.chat.completions.create(body);
+
+    for await (const chunk of stream) {
+      const content = this.extractContent(chunk.choices?.[0]?.delta?.content);
+      if (content && onTokenReceived) {
+        onTokenReceived(content);
+      }
+    }
+  }
+
+  private async handleNonStreamingResponse(
+    body: PerplexityChatRequestNonStreaming,
+    onTokenReceived?: (token: string) => void,
+  ): Promise<void> {
+    const completion = await this.client.chat.completions.create(body);
+    const content = this.extractContent(completion.choices?.[0]?.message?.content);
+
     if (content && onTokenReceived) {
       onTokenReceived(content);
     }
   }
 
-  private async handleStreamResponse(
-    response: Response,
-    onTokenReceived?: (token: string) => void,
-  ): Promise<void> {
-    if (!response.body) {
-      throw new Error('Perplexity streaming response is missing a body');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      buffer = this.processBufferedSSE(buffer, onTokenReceived);
-    }
-
-    // Flush whatever remains
-    this.processBufferedSSE(buffer, onTokenReceived, true);
-  }
-
-  private processBufferedSSE(
-    buffer: string,
-    onTokenReceived?: (token: string) => void,
-    isFinal = false,
+  private extractContent(
+    content: Perplexity.ChatMessageOutput['content'] | undefined,
   ): string {
-    let workingBuffer = buffer;
-
-    while (true) {
-      const separatorIndex = workingBuffer.indexOf('\n\n');
-      if (separatorIndex === -1) {
-        break;
-      }
-
-      const rawEvent = workingBuffer.slice(0, separatorIndex).trim();
-      workingBuffer = workingBuffer.slice(separatorIndex + 2);
-      this.dispatchEvent(rawEvent, onTokenReceived);
-    }
-
-    if (isFinal && workingBuffer.trim().length > 0) {
-      this.dispatchEvent(workingBuffer.trim(), onTokenReceived);
+    if (!content) {
       return '';
     }
 
-    return workingBuffer;
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (Array.isArray(content)) {
+      return content
+        .map((chunk) => {
+          if (chunk.type === 'text' && 'text' in chunk) {
+            return chunk.text ?? '';
+          }
+          return '';
+        })
+        .join('');
+    }
+
+    return '';
   }
 
-  private dispatchEvent(eventPayload: string, onTokenReceived?: (token: string) => void): void {
-    if (!eventPayload) {
-      return;
-    }
-
-    for (const line of eventPayload.split('\n')) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine.startsWith('data:')) {
-        continue;
-      }
-
-      const data = trimmedLine.slice(5).trim();
-      if (!data || data === '[DONE]') {
-        continue;
-      }
-
-      try {
-        const parsed = JSON.parse(data) as PerplexityChatCompletionChunk;
-        const content = parsed.choices?.[0]?.delta?.content || '';
-        if (content && onTokenReceived) {
-          onTokenReceived(content);
-        }
-      } catch (error) {
-        console.warn('Unable to parse Perplexity SSE payload', error);
-      }
-    }
+  private isStreamingRequest(
+    body: PerplexityChatRequest,
+  ): body is PerplexityChatRequestStreaming {
+    return body.stream === true;
   }
 }
-

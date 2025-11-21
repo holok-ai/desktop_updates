@@ -1,28 +1,16 @@
+import type PerplexityClient from '@perplexity-ai/perplexity_ai';
 import type {
   ChatMessage,
   ChatRequest,
   ChatRequestWithOptions,
 } from '../interfaces/ChatMessage.js';
 
-export type PerplexityChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-};
-
-export type PerplexityChatRequest = {
-  model: string;
-  messages: PerplexityChatMessage[];
-  stream: boolean;
-};
-
-export type PerplexityChatRequestWithOptions = PerplexityChatRequest & {
-  temperature?: number;
-  max_tokens?: number;
-  top_p?: number;
-  frequency_penalty?: number;
-  presence_penalty?: number;
-  stop?: string[];
-};
+export type PerplexityChatMessage = PerplexityClient.ChatMessageInput;
+export type PerplexityChatRequest = PerplexityClient.Chat.CompletionCreateParams;
+export type PerplexityChatRequestStreaming =
+  PerplexityClient.Chat.CompletionCreateParamsStreaming;
+export type PerplexityChatRequestNonStreaming =
+  PerplexityClient.Chat.CompletionCreateParamsNonStreaming;
 
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class PerplexityAIConverter {
@@ -50,9 +38,9 @@ export class PerplexityAIConverter {
 
   static toPerplexityRequestWithOptions(
     request: ChatRequestWithOptions,
-  ): PerplexityChatRequestWithOptions {
+  ): PerplexityChatRequest {
     const options = request.options || {};
-    const perplexityRequest: PerplexityChatRequestWithOptions = {
+    const perplexityRequest: PerplexityChatRequest = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
@@ -80,4 +68,3 @@ export class PerplexityAIConverter {
     return perplexityRequest;
   }
 }
-
