@@ -148,7 +148,7 @@
   <div class="sidebar-header flex justify-center items-center h-16">
     <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
     <button
-      class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
+      class="bg-transparent text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
         'p-0'}"
       onclick={toggle}
       aria-label="Collapse/Expand Sidebar"
@@ -173,6 +173,7 @@
       >
         <button
           class="profile-trigger"
+          class:collapsed={isCollapsed}
           tabindex="0"
           aria-haspopup="true"
           aria-expanded={showProfileMenu}
@@ -214,7 +215,7 @@
           </div>
         {/if}
         {#if isCollapsed}
-          <span class="text-xs text-[var(--text-primary)] text-center"
+          <span class="text-xs text-white text-center"
             >{$currentUser?.name ?? 'User'}</span
           >
         {/if}
@@ -224,6 +225,10 @@
 </nav>
 
 <style lang="postcss">
+  .profile-trigger.collapsed {
+    padding-left: 14px;
+  }
+
   .profile-trigger {
     display: flex;
     width: 100%;

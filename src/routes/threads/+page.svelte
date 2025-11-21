@@ -149,12 +149,10 @@
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
 
-      // Track current project from localStorage (set by sidebar when project is selected)
-      try {
-        const lastProjectId = storageService.getLastProjectId();
-        currentProjectId = lastProjectId;
-      } catch {
-        currentProjectId = null;
+      const projectIdParam = params.get('projectId');
+      currentProjectId = projectIdParam;
+      if (projectIdParam) {
+        storageService.setLastProjectId(projectIdParam);
       }
 
       if (params.has('createThread')) {
@@ -301,7 +299,6 @@
 
 <div class="threads-page">
   <div class="header">
-    <h1>Threads</h1>
     {#if !isAddThreadView}
       <button class="btn-primary" onclick={() => startThreadCreationFlow()}> + New Thread </button>
     {/if}
@@ -356,7 +353,7 @@
 
   .header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     margin-bottom: 2rem;
   }

@@ -163,7 +163,12 @@
       storageService.setLastProjectId(projectId);
     }
     storageService.setLastThreadId(threadId);
-    replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(threadId)}`);
+    const params = new URLSearchParams();
+    params.set('threadId', threadId);
+    if (projectId) {
+      params.set('projectId', projectId);
+    }
+    replace(`${ROUTE.THREADS}?${params.toString()}`);
   }
 
   // Project threads list (reactive without $derived)
@@ -203,10 +208,6 @@
 </script>
 
 <div class="projects-page">
-  <div class="header">
-    <h1>Projects</h1>
-  </div>
-
   {#if errorMessage}
     <div class="error-banner" role="alert">
       <i class="pi pi-exclamation-triangle"></i>
@@ -355,13 +356,6 @@
   .project-actions {
     display: flex;
     gap: 0.75rem;
-  }
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
   }
 
   .btn-secondary,
