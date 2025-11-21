@@ -1,260 +1,294 @@
-# Thread Methods Analysis
+# Thread Management Architecture
 
 ## Overview
 
-This document analyzes the thread-related methods used in the application, comparing what's implemented in the backend (src-electron) with what's actually used in the frontend (src), and provides recommendations for API simplification.
+This document describes the thread management architecture for the Holokai Desktop application. The architecture follows a **separation of concerns** pattern where:
 
-## Methods Used in src-electron (Backend)
+- **Holo API** - Single source of truth for prompt execution and persistence
+- **Moku API** - Provides read access to threads/messages and organizational operations
+- **Desktop App** - Generates thread IDs, submits prompts, manages local cache
 
-The following methods are currently implemented in `ThreadRepository` and exposed via IPC handlers:
+## Architecture Flow
 
-### 1. **listThreads()** - GET /threads
-- **Purpose**: Load all thread summaries
-- **Returns**: Array of threads with basic info (id, title, metadata, createdAt, updatedAt)
-- **Filters**: Excludes soft-deleted threads
-- **Used in**:
-  - thread-handler.ts:178, 185
-  - project-handler.ts:138, 150, 175
-
-### 2. **loadThread(threadId)** - GET /threads/:threadId
-- **Purpose**: Get single thread with all data
-- **Returns**: Complete thread object including messages
-- **Used in**:
-  - thread-handler.ts:193, 204, 242, 264, 274, 341, 415, 444, 511, 569
-
-### 3. **getMessages(threadId)** - GET /threads/:threadId/messages
-- **Purpose**: Load all messages for a specific thread
-- **Returns**: Array of messages sorted by createdAt (ascending)
-- **Filters**: Excludes soft-deleted messages
-- **Used in**:
-  - thread-handler.ts:204 (filters messages from loaded thread)
-
-### 4. **appendMessage(threadId, payload)** - POST /threads/:threadId/messages
-- **Purpose**: Append a new message to a thread
-- **Payload**: `{ role, content, metadata?, clientMessageId? }`
-- **Returns**: Created message object + updated thread
-- **Features**:
-  - Idempotency via clientMessageId
-  - Message size validation (8KB limit)
-  - Authorization checks
-- **Used in**:
-  - thread-handler.ts:269, 437
-
-### 5. **createThread(metadata)** - POST /threads
-- **Purpose**: Create a new thread
-- **Payload**: `{ title?, metadata? }`
-- **Returns**: Created thread object
-- **Used in**:
-  - thread-handler.ts:329
-
-### 6. **saveThread(thread)** - PATCH /threads/:threadId
-- **Purpose**: Update thread metadata and properties
-- **Payload**: Partial thread updates (title, metadata, status)
-- **Returns**: Updated thread object
-- **Used in**:
-  - thread-handler.ts:354
-
-### 7. **updateThreadMetadata(threadId, updates)** - PATCH /threads/:threadId/metadata
-- **Purpose**: Update only thread metadata fields
-- **Payload**: Partial metadata object
-- **Returns**: Updated thread object
-- **Used in**:
-  - thread-handler.ts:609
-  - project-handler.ts:156
-
-### 8. **deleteThread(threadId)** - DELETE /threads/:threadId
-- **Purpose**: Permanently delete a thread
-- **Returns**: Boolean success
-- **Side effects**: Deletes associated files
-- **Used in**:
-  - thread-handler.ts:370
-
-### 9. **softDeleteThread(threadId)** - POST /threads/:threadId/soft-delete
-- **Purpose**: Mark thread as deleted without removing data
-- **Side effects**:
-  - Sets deletedAt timestamp
-  - Sets status to 'deleted'
-  - Deletes associated files
-- **Used in**:
-  - thread-handler.ts:377
-  - project-handler.ts:142
-
-### 10. **duplicateMessage(threadId, messageId)** - POST /threads/:threadId/messages/:messageId/duplicate
-- **Purpose**: Create a copy of an existing user message
-- **Returns**: New message object
-- **Restriction**: Only user messages can be duplicated
-- **Status**: ⚠️ Logic exists but method not directly called (inlined in handler)
-
-### 11. **addUserPrompt(threadId, prompt, opts)** - POST /threads/:threadId/user-prompt
-- **Purpose**: Add user prompt and optionally create thread
-- **Payload**: `{ prompt, title?, description?, model? }`
-- **Returns**: Thread + message object
-- **Feature**: Creates thread if threadId is null
-- **Used in**:
-  - thread-handler.ts:492
-
-### 12. **addAssistantResponse(threadId, response, model)** - POST /threads/:threadId/assistant-response
-- **Purpose**: Add assistant response to thread
-- **Payload**: `{ response, model? }`
-- **Returns**: Message object
-- **Side effect**: Updates thread metadata with model
-- **Used in**:
-  - thread-handler.ts:510
-
-### 13. **savePromptAndResponses(threadId, prompt, responses, opts)** - POST /threads/:threadId/prompt-and-responses
-- **Purpose**: Atomically save user prompt and multiple assistant responses
-- **Payload**: `{ prompt, responses: [{ text, model? }], title?, description? }`
-- **Returns**: Thread + prompt message + response messages array
-- **Feature**: Creates thread if threadId is null
-- **Used in**:
-  - thread-handler.ts:534
-
----
-
-## Methods Used in src (Frontend)
-
-Analysis of which backend methods are actually called from the frontend code:
-
-### ✅ Actively Used (8 methods)
-
-1. **threadService.getAll()** - GET /threads
-   - threads/+page.svelte:145
-   - projects/+page.svelte:32, 117
-   - ChatPane.svelte:780
-   - ActivityListSidebar.svelte:227
-
-2. **threadService.getMessages(id)** - GET /threads/:threadId/messages
-   - threads/+page.svelte:112, 177
-   - message-state-machine.ts:386
-
-3. **threadService.appendMessage(threadId, payload)** - POST /threads/:threadId/messages
-   - ChatPane.svelte:253, 351
-
-4. **threadService.update(id, updates)** - PATCH /threads/:threadId
-   - threads/+page.svelte:202
-
-5. **threadService.moveToProject(threadId, targetProjectId, options)** - POST /threads/:threadId/move
-   - MoveThreadModal.svelte:84
-
-6. **threadService.softDelete(id)** - POST /threads/:threadId/soft-delete
-   - ActivityListSidebar.svelte:288, 312
-
-7. **window.electronAPI.thread.addUserPrompt(...)** - POST /threads/:threadId/user-prompt
-   - threads/+page.svelte:207
-
-8. **window.electronAPI.thread.savePromptAndResponses(...)** - POST /threads/:threadId/prompt-and-responses
-   - ChatPane.svelte:377
-
-### ❌ Not Used (5 methods)
-
-- `threadService.getById()` - Defined but never called
-- `threadService.create()` - Defined but never called directly
-- `threadService.delete()` - Defined but never called
-- `window.electronAPI.thread.addAssistantResponse()` - Never used
-- `duplicateMessage()` - Handler exists but not exposed to frontend
-
-### 📡 Event Listeners (WebSocket-like updates)
-
-- `onThreadCreated()` - thread.service.ts:12
-- `onThreadUpdated()` - thread.service.ts:16, threads/+page.svelte:108, projects/+page.svelte:38
-- `onThreadDeleted()` - thread.service.ts:20, projects/+page.svelte:43
-- `onMessageError()` - ChatPane.svelte:493
-
----
-
-## Recommendations
-
-### Simplify API to 9 Core Methods
-
-The current 13 methods can be reduced to 9 essential methods by eliminating redundant atomic operations (methods 11, 12, 13) and replacing them with a two-step pattern.
-
-#### Core API Methods
-
-1. **GET /threads** - List all thread summaries
-2. **GET /threads/:threadId** - Get single thread details
-3. **GET /threads/:threadId/messages** - Get messages for a thread
-4. **POST /threads/:threadId/messages** - Append message (user or assistant)
-5. **POST /threads** - Create new thread
-6. **PATCH /threads/:threadId** - Update thread metadata/properties
-7. **POST /threads/:threadId/move** - Move thread to/from project
-8. **DELETE /threads/:threadId** - Hard delete thread
-9. **POST /threads/:threadId/soft-delete** - Soft delete thread
-
-#### Replacement Pattern for Eliminated Methods
-
-**Old Method 11: `addUserPrompt()`**
-```javascript
-// OLD: Atomic operation
-const res = await window.electronAPI.thread.addUserPrompt(null, prompt, { title, description, model });
-
-// NEW: Two-step pattern
-const thread = await threadService.create({ title, description, metadata: { model } });
-await threadService.appendMessage(thread.id, { role: 'user', content: prompt });
+```
+Desktop App
+    ↓ (generates threadId)
+    ↓ (submits prompt via ChatService)
+    ↓
+Holo API (chat endpoint)
+    ↓ (executes LLM prompt)
+    ↓ (saves request + response to Postgres)
+    ↓
+Shared Database (Postgres)
+    ↓
+Moku API (read access)
+    ↓ (desktop reads threads/messages)
+    ↓ (desktop performs organizational operations)
+Desktop App (displays + caches)
 ```
 
-**Old Method 12: `addAssistantResponse()`**
-```javascript
-// OLD: Special method
-await window.electronAPI.thread.addAssistantResponse(threadId, response, model);
+---
 
-// NEW: Use standard append
-await threadService.appendMessage(threadId, {
-  role: 'assistant',
-  content: response,
-  metadata: { model }
+## Thread ID Generation
+
+### Desktop-Generated UUIDs
+
+The desktop application generates thread IDs locally using UUID v4 (random):
+
+```typescript
+import { randomUUID } from 'crypto';
+
+// Generate new thread ID
+const threadId = randomUUID(); // e.g., "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Benefits:**
+- ✅ No API call needed to start a conversation
+- ✅ Works offline (can queue prompts)
+- ✅ Globally unique (collision probability ~1 in 2^122)
+- ✅ Desktop controls threadId from the start
+
+**Implementation Location:**
+`src-electron/repository/thread-repository.ts`
+
+```typescript
+public createNewThreadId(): string {
+  return randomUUID();
+}
+```
+
+---
+
+## Prompt Submission Flow
+
+### Step 1: Desktop Generates Thread ID
+
+```typescript
+// In ThreadRepository or handler
+const threadId = randomUUID();
+```
+
+### Step 2: Desktop Submits to Holo API
+
+Uses the **existing ChatService** (`src-electron/services/chat.service.ts`):
+
+```typescript
+// ChatService.submitPrompt() - needs modification
+await chatService.submitPrompt({
+  threadId,      // Desktop-generated UUID
+  prompt: userMessage,
+  model: 'claude-3-opus',
+  // ... other parameters
 });
 ```
 
-**Old Method 13: `savePromptAndResponses()`**
-```javascript
-// OLD: Atomic operation
-const saved = await window.electronAPI.thread.savePromptAndResponses(
-  null,
-  userMessage,
-  [{ text: responseText, model: 'llama3:latest' }],
-  { title, description }
-);
+**⚠️ IMPORTANT: Holo API Modification Required**
 
-// NEW: Sequential operations
-const thread = await threadService.create({ title, description, metadata: { model } });
-await threadService.appendMessage(thread.id, { role: 'user', content: userMessage });
-await threadService.appendMessage(thread.id, { role: 'assistant', content: responseText });
+The Holo API chat method must be updated to:
+1. **Accept** a `threadId` parameter (UUID string)
+2. **Store** the `threadId` in the `requests` table (NOT in responses - they use FK to request)
+3. **Return** the `threadId` in the response
+
+**Current Holo API (assumed):**
+```
+POST /api/chat
+{
+  "prompt": "user message",
+  "model": "claude-3-opus"
+}
 ```
 
-### Benefits of Simplification
+**Updated Holo API (required):**
+```
+POST /api/chat
+{
+  "threadId": "550e8400-e29b-41d4-a716-446655440000",  // Added
+  "prompt": "user message",
+  "model": "claude-3-opus"
+}
+```
 
-1. **Reduced API surface**: 4 fewer endpoints to maintain
-2. **Consistent patterns**: Everything uses `appendMessage` for adding content
-3. **More flexible**: Can add messages in any order or combination
-4. **Simpler backend**: No special-case logic for atomic operations
-5. **Clearer semantics**: Each operation does one thing well
-6. **Easier testing**: Fewer code paths to test
-7. **Better separation**: Thread creation is separate from message management
+### Step 3: Holo Saves to Database
 
-### Implementation Notes
+Holo API automatically:
+1. Saves user prompt to `requests` table with `threadId` field
+2. Executes LLM request
+3. Saves LLM response to `responses` table with foreign key to request
 
-- The current "atomic" operations (methods 11, 13) aren't truly atomic since they make multiple repository calls anyway
-- The two-step pattern provides the same functionality with more flexibility
-- Client-side code can add loading states between operations if needed
-- The `appendMessage` method already supports idempotency via `clientMessageId`
+**Database Structure:**
+```
+requests table:
+  - id (primary key)
+  - threadId (UUID - provided by desktop)
+  - prompt (user message)
+  - model
+  - createdAt
+  - ... other fields
 
-### Migration Path
+responses table:
+  - id (primary key)
+  - requestId (foreign key to requests.id - one-to-one)
+  - content (assistant message)
+  - createdAt
+  - ... other fields
+```
 
-1. Add `create()` method calls to frontend where needed
-2. Replace `addUserPrompt()` calls with create + append pattern
-3. Replace `savePromptAndResponses()` calls with create + multiple appends
-4. Remove unused methods from backend once frontend is updated
-5. Update tests to use new patterns
+**Note**: Responses do NOT have a `threadId` field since they have a one-to-one relationship with requests. To get all messages for a thread, query all requests with that `threadId` and join with their responses.
+
+### Step 4: Desktop Reads from Moku API
+
+After submission, desktop can read the saved thread/messages:
+
+```typescript
+// Read thread with messages
+const thread = await mokuService.getThread(accessToken, threadId);
+
+// Or just read messages
+const messages = await mokuService.getThreadMessages(accessToken, threadId);
+```
 
 ---
 
-## Moku Service Thread API Methods
+## ChatService Interface
 
-The `MokuService` (src-electron/services/moku.service.ts) needs to be extended with thread management methods that communicate with the Moku API backend. These methods serve as the HTTP client layer between the ThreadRepository cache and the Moku API.
+### Current Implementation
 
-### Required Service Methods
+Location: `src-electron/services/chat.service.ts`
 
-All methods require an `accessToken` parameter for authentication (obtained from `AuthService.getAccessToken()`).
+### Required Update
+
+The `submitPrompt` method needs to accept a `threadId` parameter:
+
+```typescript
+// BEFORE (assumed current implementation)
+async submitPrompt(params: {
+  prompt: string;
+  model: string;
+  // ... other params
+}): Promise<ChatResponse>
+
+// AFTER (required modification)
+async submitPrompt(params: {
+  threadId: string;        // NEW: Desktop-generated UUID
+  prompt: string;
+  model: string;
+  // ... other params
+}): Promise<ChatResponse>
+```
+
+**Example Updated Method:**
+
+```typescript
+export class ChatService {
+  async submitPrompt(params: {
+    threadId: string;
+    prompt: string;
+    model: string;
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<ChatResponse> {
+    const response = await fetch(`${this.holoApiBaseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        threadId: params.threadId,  // Pass to Holo
+        prompt: params.prompt,
+        model: params.model,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Holo API error: ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+}
+```
+
+---
+
+## Moku API Methods
+
+The Moku API provides **read access** to threads/messages and **organizational operations**. It does NOT handle prompt submission or message creation (that's Holo's job).
+
+### How Moku Queries Holo's Database
+
+Moku API reads from the same Postgres database that Holo writes to. To reconstruct a thread's conversation:
+
+```sql
+-- Get all messages for a thread (interleaving requests and responses)
+SELECT 
+  r.id as message_id,
+  'user' as role,
+  r.prompt as content,
+  r.createdAt,
+  r.model
+FROM requests r
+WHERE r.threadId = :threadId
+
+UNION ALL
+
+SELECT 
+  resp.id as message_id,
+  'assistant' as role,
+  resp.content,
+  resp.createdAt,
+  r.model
+FROM responses resp
+JOIN requests r ON resp.requestId = r.id
+WHERE r.threadId = :threadId
+
+ORDER BY createdAt ASC;
+```
+
+This query:
+1. Gets all user messages (requests) for the thread
+2. Gets all assistant messages (responses) via JOIN
+3. Combines them with UNION ALL
+4. Orders chronologically
+
+**Listing Threads:**
+
+```sql
+-- Get all distinct threads for a user
+SELECT DISTINCT
+  r.threadId as id,
+  MIN(r.createdAt) as createdAt,
+  MAX(GREATEST(r.createdAt, COALESCE(resp.createdAt, r.createdAt))) as updatedAt,
+  -- Title can be derived from first request or stored separately in thread_metadata table
+  (SELECT prompt FROM requests WHERE threadId = r.threadId ORDER BY createdAt LIMIT 1) as title
+FROM requests r
+LEFT JOIN responses resp ON resp.requestId = r.id
+WHERE r.userId = :userId
+GROUP BY r.threadId
+ORDER BY updatedAt DESC;
+```
+
+**Note**: You may want to create a separate `thread_metadata` table to store thread-level attributes (title, description, status, projectId) rather than deriving them from requests. This would improve query performance and allow for organizational operations.
+
+**Recommended thread_metadata table:**
+```
+thread_metadata:
+  - threadId (UUID, primary key)
+  - userId (UUID)
+  - title (string)
+  - description (text)
+  - status (enum: 'active', 'archived', 'deleted')
+  - projectId (UUID, nullable)
+  - createdAt (timestamp)
+  - updatedAt (timestamp)
+  - deletedAt (timestamp, nullable)
+```
+
+### Required Moku Service Methods
+
+All methods require an `accessToken` parameter for authentication.
 
 #### 1. **listThreads(accessToken)**
 
@@ -272,14 +306,14 @@ async listThreads(accessToken: string): Promise<ThreadSummary[]>
   ```json
   [
     {
-      "id": "thread_abc123",
-      "title": "My Thread",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "My Conversation",
       "description": "Thread description",
       "status": "active",
       "createdAt": 1234567890000,
       "updatedAt": 1234567890000,
       "metadata": {
-        "model": "gpt-4",
+        "model": "claude-3-opus",
         "projectId": "proj_123"
       }
     }
@@ -319,46 +353,28 @@ async getThreadMessages(accessToken: string, threadId: string): Promise<Message[
   [
     {
       "id": "msg_xyz789",
-      "threadId": "thread_abc123",
+      "threadId": "550e8400-e29b-41d4-a716-446655440000",
       "role": "user",
       "content": "Hello, how are you?",
       "createdAt": 1234567890000,
       "metadata": {}
+    },
+    {
+      "id": "msg_abc456",
+      "threadId": "550e8400-e29b-41d4-a716-446655440000",
+      "role": "assistant",
+      "content": "I'm doing well, thank you!",
+      "createdAt": 1234567891000,
+      "metadata": {
+        "model": "claude-3-opus"
+      }
     }
   ]
   ```
 
-#### 4. **createThread(accessToken, data)**
+#### 4. **updateThread(accessToken, threadId, updates)**
 
-Create a new thread.
-
-```typescript
-async createThread(accessToken: string, data: {
-  title?: string;
-  description?: string;
-  metadata?: Record<string, unknown>;
-}): Promise<Thread>
-```
-
-- **HTTP Method**: `POST`
-- **Endpoint**: `/api/threads`
-- **Headers**: `Authorization: Bearer ${accessToken}`
-- **Body**:
-  ```json
-  {
-    "title": "New Thread",
-    "description": "Thread description",
-    "metadata": {
-      "model": "gpt-4",
-      "projectId": "proj_123"
-    }
-  }
-  ```
-- **Returns**: Created thread object with generated ID
-
-#### 5. **updateThread(accessToken, threadId, updates)**
-
-Update thread metadata and properties.
+Update thread metadata and properties (organizational operations only).
 
 ```typescript
 async updateThread(accessToken: string, threadId: string, updates: {
@@ -374,43 +390,9 @@ async updateThread(accessToken: string, threadId: string, updates: {
 - **Headers**: `Authorization: Bearer ${accessToken}`
 - **Body**: Partial thread updates
 - **Returns**: Updated thread object
+- **Use Cases**: Update title, add description, change status
 
-#### 6. **appendMessage(accessToken, threadId, payload)**
-
-Append a new message to a thread.
-
-```typescript
-async appendMessage(accessToken: string, threadId: string, payload: {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  metadata?: Record<string, unknown>;
-  clientMessageId?: string;
-}): Promise<{ message: Message; thread: Thread }>
-```
-
-- **HTTP Method**: `POST`
-- **Endpoint**: `/api/threads/${threadId}/messages`
-- **Headers**: `Authorization: Bearer ${accessToken}`
-- **Body**:
-  ```json
-  {
-    "role": "user",
-    "content": "Message content",
-    "metadata": {
-      "model": "gpt-4"
-    },
-    "clientMessageId": "client_msg_123"
-  }
-  ```
-- **Returns**: Object containing the created message and updated thread
-- **Features**:
-  - Idempotency via `clientMessageId`
-  - Message size validation (8KB limit) on server
-- **Status Codes**:
-  - `200 OK` - Message created
-  - `413 Payload Too Large` - Message exceeds size limit
-
-#### 7. **moveThreadToProject(accessToken, threadId, targetProjectId, options)**
+#### 5. **moveThreadToProject(accessToken, threadId, targetProjectId, options)**
 
 Move a thread to/from a project.
 
@@ -440,7 +422,7 @@ async moveThreadToProject(
 - **Returns**: Updated thread object
 - **Note**: Pass `null` for `targetProjectId` to move to general history
 
-#### 8. **softDeleteThread(accessToken, threadId)**
+#### 6. **softDeleteThread(accessToken, threadId)**
 
 Soft delete a thread (marks as deleted without removing data).
 
@@ -454,7 +436,7 @@ async softDeleteThread(accessToken: string, threadId: string): Promise<boolean>
 - **Returns**: Boolean indicating success
 - **Side Effects**: Sets `deletedAt` timestamp and status to 'deleted'
 
-#### 9. **deleteThread(accessToken, threadId)**
+#### 7. **deleteThread(accessToken, threadId)**
 
 Permanently delete a thread.
 
@@ -468,145 +450,20 @@ async deleteThread(accessToken: string, threadId: string): Promise<boolean>
 - **Returns**: Boolean indicating success
 - **Warning**: Permanently removes thread and all associated data
 
-### Implementation Example
-
-```typescript
-// src-electron/services/moku.service.ts
-
-export class MokuService {
-  private readonly mokuApiBaseUrl: string;
-
-  constructor() {
-    this.mokuApiBaseUrl = this.getMokuApiUrl();
-    this.seedModels();
-  }
-
-  private getMokuApiUrl(): string {
-    const settingsService = getSettingsService();
-    return settingsService.getMokuApiUrl();
-  }
-
-  // Example implementation
-  async listThreads(accessToken: string): Promise<ThreadSummary[]> {
-    const response = await fetch(`${this.mokuApiBaseUrl}/api/threads`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to list threads: ${response.statusText}`);
-    }
-
-    return await response.json();
-  }
-
-  async appendMessage(
-    accessToken: string,
-    threadId: string,
-    payload: {
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-      metadata?: Record<string, unknown>;
-      clientMessageId?: string;
-    }
-  ): Promise<{ message: Message; thread: Thread }> {
-    const response = await fetch(
-      `${this.mokuApiBaseUrl}/api/threads/${threadId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 413) {
-        throw new Error('MESSAGE_TOO_LARGE');
-      }
-      throw new Error(`Failed to append message: ${response.statusText}`);
-    }
-
-    return await response.json();
-  }
-
-  // ... other methods follow similar pattern
-}
-```
-
-### Error Handling
-
-All methods should handle common HTTP errors:
-
-- **401 Unauthorized**: Access token invalid or expired
-  - Call `authService.getAccessToken()` to refresh
-  - Retry request once
-- **403 Forbidden**: User doesn't have permission
-  - Throw error for handler to catch
-- **404 Not Found**: Resource doesn't exist
-  - Return `null` for get operations
-  - Throw error for update/delete operations
-- **413 Payload Too Large**: Message exceeds size limit
-  - Throw specific `MESSAGE_TOO_LARGE` error
-- **500 Internal Server Error**: Server-side issue
-  - Log error and throw
-
-### Type Definitions
-
-```typescript
-export interface ThreadSummary {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'active' | 'archived' | 'deleted';
-  createdAt: number;  // epoch ms
-  updatedAt: number;  // epoch ms
-  metadata?: {
-    model?: string;
-    projectId?: string;
-    [key: string]: unknown;
-  };
-}
-
-export interface Thread extends ThreadSummary {
-  messages: Message[];
-  deletedAt?: number | null;
-}
-
-export interface Message {
-  id: string;
-  threadId: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  createdAt: number;  // epoch ms
-  metadata?: {
-    model?: string;
-    provider?: string;
-    attachments?: Attachment[];
-    [key: string]: unknown;
-  };
-  clientMessageId?: string;
-  deletedAt?: number | null;
-}
-```
-
 ---
 
 ## Thread Repository Caching Architecture
 
-The `ThreadRepository` (src-electron/repository/thread-repository.ts) should implement a **caching layer** that sits between the IPC handlers and the Moku API. This provides performance benefits and reduces unnecessary API calls.
+The `ThreadRepository` implements a **read-focused caching layer** that sits between the IPC handlers and the Moku API.
 
 ### Design Principles
 
-1. **Cache-first**: Always check in-memory cache before calling Moku API
+1. **Cache-first for reads**: Always check in-memory cache before calling Moku API
 2. **Lazy loading**: Only load data from API when requested and not in cache
-3. **Write-through**: All mutations (create/update/delete) call API then update cache
-4. **Separate message caching**: Messages cached independently by threadId for efficient loading
+3. **No write operations**: All message creation happens via Holo API
+4. **Organizational writes**: Metadata updates go through Moku API and update cache
+5. **Separate message caching**: Messages cached independently by threadId
+6. **Cache invalidation**: Refresh cache when data may be stale
 
 ### Cache Structure
 
@@ -615,20 +472,108 @@ export class ThreadRepository {
   // In-memory caches
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly messagesByThreadId: Map<string, Message[]> = new Map();
-  private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
   private cacheLoaded: boolean = false;
 
-  constructor() {
-    // No disk loading - will load from Moku API on demand
-  }
+  constructor(
+    private readonly mokuService: MokuService,
+    private readonly chatService: ChatService,
+  ) {}
 }
 ```
 
-### Method Implementations
+### Core Operations
+
+#### Creating a New Thread and Submitting Prompt
+
+```typescript
+public async createThreadWithPrompt(
+  prompt: string,
+  options: {
+    title?: string;
+    description?: string;
+    model: string;
+  }
+): Promise<{ threadId: string; thread: Thread }> {
+  // 1. Generate thread ID locally
+  const threadId = randomUUID();
+
+  // 2. Submit prompt to Holo API (which saves thread + messages)
+  await this.chatService.submitPrompt({
+    threadId,
+    prompt,
+    model: options.model,
+  });
+
+  // 3. Read back the saved thread from Moku API
+  const accessToken = await this.getAccessToken();
+  const thread = await this.mokuService.getThread(accessToken, threadId);
+
+  if (!thread) {
+    throw new Error('Thread not found after Holo submission');
+  }
+
+  // 4. Optionally update metadata via Moku if title/description provided
+  if (options.title || options.description) {
+    const updated = await this.mokuService.updateThread(accessToken, threadId, {
+      title: options.title,
+      description: options.description,
+    });
+    
+    // Cache the updated thread
+    this.threadsById.set(threadId, updated);
+    return { threadId, thread: updated };
+  }
+
+  // 5. Cache the thread
+  this.threadsById.set(threadId, thread);
+  if (thread.messages) {
+    this.messagesByThreadId.set(threadId, [...thread.messages]);
+  }
+
+  return { threadId, thread };
+}
+```
+
+#### Continuing a Conversation (Appending to Existing Thread)
+
+```typescript
+public async continueThread(
+  threadId: string,
+  prompt: string,
+  model: string
+): Promise<Message[]> {
+  // 1. Submit prompt to Holo API (which appends messages)
+  await this.chatService.submitPrompt({
+    threadId,
+    prompt,
+    model,
+  });
+
+  // 2. Invalidate cached messages for this thread
+  this.messagesByThreadId.delete(threadId);
+
+  // 3. Reload messages from Moku API
+  const accessToken = await this.getAccessToken();
+  const messages = await this.mokuService.getThreadMessages(accessToken, threadId);
+
+  // 4. Update cache
+  this.messagesByThreadId.set(threadId, messages);
+
+  // 5. Update thread timestamp in cache
+  const thread = this.threadsById.get(threadId);
+  if (thread) {
+    thread.updatedAt = Date.now();
+    this.threadsById.set(threadId, thread);
+  }
+
+  return messages;
+}
+```
 
 #### Read Operations (Cache-first)
 
 **listThreads()**
+
 ```typescript
 public async listThreads(): Promise<Thread[]> {
   // If cache not loaded, fetch all threads from API
@@ -638,14 +583,14 @@ public async listThreads(): Promise<Thread[]> {
 
   // Return from cache
   return Array.from(this.threadsById.values())
-    .filter((t) => !t.deletedAt && t.metadata?.status !== 'deleted')
+    .filter((t) => !t.deletedAt && t.status !== 'deleted')
     .map((t) => this.cloneThread(t))
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 private async loadThreadsFromApi(): Promise<void> {
   const accessToken = await this.getAccessToken();
-  const threads = await mokuService.listThreads(accessToken);
+  const threads = await this.mokuService.listThreads(accessToken);
 
   // Populate cache
   this.threadsById.clear();
@@ -658,6 +603,7 @@ private async loadThreadsFromApi(): Promise<void> {
 ```
 
 **loadThread(threadId)**
+
 ```typescript
 public async loadThread(threadId: string): Promise<Thread | null> {
   // Check cache first
@@ -667,7 +613,7 @@ public async loadThread(threadId: string): Promise<Thread | null> {
 
   // Not in cache, fetch from API
   const accessToken = await this.getAccessToken();
-  const thread = await mokuService.getThread(accessToken, threadId);
+  const thread = await this.mokuService.getThread(accessToken, threadId);
 
   if (thread) {
     // Store in cache
@@ -682,6 +628,7 @@ public async loadThread(threadId: string): Promise<Thread | null> {
 ```
 
 **getMessages(threadId)**
+
 ```typescript
 public async getMessages(threadId: string): Promise<Message[]> {
   // Check if messages are cached
@@ -694,7 +641,7 @@ public async getMessages(threadId: string): Promise<Message[]> {
 
   // Not in cache, fetch from API
   const accessToken = await this.getAccessToken();
-  const messages = await mokuService.getThreadMessages(accessToken, threadId);
+  const messages = await this.mokuService.getThreadMessages(accessToken, threadId);
 
   // Cache the messages
   this.messagesByThreadId.set(threadId, messages);
@@ -706,86 +653,23 @@ public async getMessages(threadId: string): Promise<Message[]> {
 }
 ```
 
-#### Write Operations (Write-through)
-
-**createThread(metadata)**
-```typescript
-public async createThread(metadata: ThreadMetadata): Promise<Thread> {
-  const accessToken = await this.getAccessToken();
-
-  // Create via API
-  const thread = await mokuService.createThread(accessToken, {
-    title: metadata.title,
-    description: metadata.description,
-    metadata: metadata,
-  });
-
-  // Add to cache
-  this.threadsById.set(thread.id, thread);
-  this.messagesByThreadId.set(thread.id, []);
-
-  return this.cloneThread(thread);
-}
-```
-
-**appendMessage(threadId, payload)**
-```typescript
-public async appendMessage(
-  threadId: string,
-  payload: {
-    role: MessageRole;
-    content: string;
-    metadata?: Record<string, unknown>;
-    clientMessageId?: string;
-  }
-): Promise<Message> {
-  const accessToken = await this.getAccessToken();
-
-  // Check idempotency in cache
-  if (payload.clientMessageId) {
-    const byThread = this.idempotencyIndex.get(threadId);
-    const existingId = byThread?.get(payload.clientMessageId);
-    if (existingId) {
-      const messages = this.messagesByThreadId.get(threadId) || [];
-      const found = messages.find((m) => m.id === existingId);
-      if (found) return { ...found };
-    }
-  }
-
-  // Call API
-  const result = await mokuService.appendMessage(accessToken, threadId, payload);
-
-  // Update cache
-  this.threadsById.set(result.thread.id, result.thread);
-
-  const messages = this.messagesByThreadId.get(threadId) || [];
-  messages.push(result.message);
-  this.messagesByThreadId.set(threadId, messages);
-
-  // Update idempotency index
-  if (payload.clientMessageId) {
-    if (!this.idempotencyIndex.has(threadId)) {
-      this.idempotencyIndex.set(threadId, new Map());
-    }
-    this.idempotencyIndex.get(threadId)!.set(payload.clientMessageId, result.message.id);
-  }
-
-  return { ...result.message };
-}
-```
+#### Organizational Operations (Write-through to Moku API)
 
 **updateThreadMetadata(threadId, updates)**
+
 ```typescript
 public async updateThreadMetadata(
   threadId: string,
-  updates: Partial<ThreadMetadata>
+  updates: {
+    title?: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }
 ): Promise<Thread> {
   const accessToken = await this.getAccessToken();
 
-  // Update via API
-  const updatedThread = await mokuService.updateThread(accessToken, threadId, {
-    metadata: updates,
-  });
+  // Update via Moku API
+  const updatedThread = await this.mokuService.updateThread(accessToken, threadId, updates);
 
   // Update cache
   this.threadsById.set(threadId, updatedThread);
@@ -795,19 +679,20 @@ public async updateThreadMetadata(
 ```
 
 **softDeleteThread(threadId)**
+
 ```typescript
 public async softDeleteThread(threadId: string): Promise<boolean> {
   const accessToken = await this.getAccessToken();
 
-  // Delete via API
-  const success = await mokuService.softDeleteThread(accessToken, threadId);
+  // Delete via Moku API
+  const success = await this.mokuService.softDeleteThread(accessToken, threadId);
 
   if (success) {
     // Update cache
     const thread = this.threadsById.get(threadId);
     if (thread) {
       thread.deletedAt = Date.now();
-      thread.metadata = { ...thread.metadata, status: 'deleted' };
+      thread.status = 'deleted';
       this.threadsById.set(threadId, thread);
     }
   }
@@ -817,21 +702,60 @@ public async softDeleteThread(threadId: string): Promise<boolean> {
 ```
 
 **deleteThread(threadId)**
+
 ```typescript
 public async deleteThread(threadId: string): Promise<boolean> {
   const accessToken = await this.getAccessToken();
 
-  // Delete via API
-  const success = await mokuService.deleteThread(accessToken, threadId);
+  // Delete via Moku API
+  const success = await this.mokuService.deleteThread(accessToken, threadId);
 
   if (success) {
     // Remove from cache
     this.threadsById.delete(threadId);
     this.messagesByThreadId.delete(threadId);
-    this.idempotencyIndex.delete(threadId);
   }
 
   return success;
+}
+```
+
+### Cache Management
+
+```typescript
+// Clear cache (called on logout)
+public clearCache(): void {
+  this.threadsById.clear();
+  this.messagesByThreadId.clear();
+  this.cacheLoaded = false;
+}
+
+// Invalidate specific thread (force reload from API)
+public async invalidateThread(threadId: string): Promise<void> {
+  this.threadsById.delete(threadId);
+  this.messagesByThreadId.delete(threadId);
+  // Reload from API on next access
+}
+
+// Invalidate thread list (force reload all threads)
+public invalidateThreadList(): void {
+  this.cacheLoaded = false;
+  // Will reload on next listThreads() call
+}
+
+// Refresh thread from API (bypass cache)
+public async refreshThread(threadId: string): Promise<Thread | null> {
+  const accessToken = await this.getAccessToken();
+  const thread = await this.mokuService.getThread(accessToken, threadId);
+
+  if (thread) {
+    this.threadsById.set(thread.id, thread);
+    if (thread.messages) {
+      this.messagesByThreadId.set(thread.id, [...thread.messages]);
+    }
+  }
+
+  return thread ? this.cloneThread(thread) : null;
 }
 ```
 
@@ -847,1170 +771,170 @@ private async getAccessToken(): Promise<string> {
 }
 ```
 
-### Cache Management
-
-```typescript
-// Clear cache (called on logout)
-public clearCache(): void {
-  this.threadsById.clear();
-  this.messagesByThreadId.clear();
-  this.idempotencyIndex.clear();
-  this.cacheLoaded = false;
-}
-```
-
-### Benefits
-
-✅ **Performance**: No API call if data is already cached
-✅ **Reduced latency**: Instant response for cached data
-✅ **Offline-aware**: Can show cached data if API temporarily unavailable
-✅ **Consistency**: All writes go through API to maintain sync
-✅ **Simple interface**: Handler code doesn't change - same methods as before
-✅ **Memory efficient**: Messages loaded on-demand per thread
-✅ **Idempotency preserved**: Prevents duplicate messages via in-memory index
-
-### Flow Diagrams
-
-**First List Request:**
-```
-Frontend → IPC Handler → ThreadRepository.listThreads()
-                         ↓ (cache empty)
-                         → Moku API GET /threads
-                         ↓ (store in cache)
-                         → Return threads
-```
-
-**Subsequent List Request:**
-```
-Frontend → IPC Handler → ThreadRepository.listThreads()
-                         ↓ (cache loaded)
-                         → Return from cache (no API call)
-```
-
-**Create Thread:**
-```
-Frontend → IPC Handler → ThreadRepository.createThread()
-                         ↓
-                         → Moku API POST /threads
-                         ↓ (success)
-                         → Update cache
-                         → Return thread
-```
-
-**Get Messages (first time):**
-```
-Frontend → IPC Handler → ThreadRepository.getMessages(threadId)
-                         ↓ (messages not cached)
-                         → Moku API GET /threads/:id/messages
-                         ↓ (store in cache)
-                         → Return messages
-```
-
 ---
 
-## Moku API Backend Implementation
-
-This section describes the backend implementation needed in the Moku API (Java/Spring Boot) to support the thread and project management features required by the desktop application.
-
-### Architecture Overview
-
-```
-Desktop App (Electron)
-    ↓
-MokuService (HTTP Client)
-    ↓
-Moku API (Spring Boot)
-    ↓
-DesktopController → DesktopThreadService → ThreadRepository
-                                        → ProjectRepository
-```
-
-### Layer Responsibilities
-
-1. **Controller Layer** - HTTP endpoint handling, request validation, response formatting
-2. **Service Layer** - Business logic, authorization, transaction management
-3. **Repository Layer** - Database operations, entity management
-4. **DTO Layer** - Data transfer objects for API requests/responses
-
----
-
-### Controller Layer
-
-#### DesktopThreadController
-
-Handles all thread-related HTTP endpoints for the desktop application.
-
-```java
-package ai.holok.moku.controller;
-
-import ai.holok.moku.dto.desktop.*;
-import ai.holok.moku.service.DesktopThreadService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-
-import jakarta.validation.Valid;
-import java.util.List;
-import java.util.UUID;
-
-@RestController
-@RequestMapping("/api/threads")
-@RequiredArgsConstructor
-@Slf4j
-@Tag(name = "Desktop Threads", description = "Thread management endpoints for desktop application")
-@PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-public class DesktopThreadController {
-
-    private final DesktopThreadService threadService;
-
-    @GetMapping
-    @Operation(summary = "List all threads for current user")
-    public ResponseEntity<List<ThreadSummaryDTO>> listThreads(Authentication authentication) {
-        log.info("List threads request from user: {}", authentication.getName());
-        List<ThreadSummaryDTO> threads = threadService.listThreadsForUser(authentication);
-        return ResponseEntity.ok(threads);
-    }
-
-    @GetMapping("/{threadId}")
-    @Operation(summary = "Get single thread by ID")
-    public ResponseEntity<ThreadDetailDTO> getThread(
-            @PathVariable UUID threadId,
-            Authentication authentication) {
-        log.info("Get thread request: threadId={}, user={}", threadId, authentication.getName());
-        ThreadDetailDTO thread = threadService.getThreadById(threadId, authentication);
-        return ResponseEntity.ok(thread);
-    }
-
-    @GetMapping("/{threadId}/messages")
-    @Operation(summary = "Get all messages for a thread")
-    public ResponseEntity<List<MessageDTO>> getThreadMessages(
-            @PathVariable UUID threadId,
-            Authentication authentication) {
-        log.info("Get messages request: threadId={}, user={}", threadId, authentication.getName());
-        List<MessageDTO> messages = threadService.getMessagesForThread(threadId, authentication);
-        return ResponseEntity.ok(messages);
-    }
-
-    @PostMapping
-    @Operation(summary = "Create a new thread")
-    public ResponseEntity<ThreadDetailDTO> createThread(
-            @Valid @RequestBody CreateThreadRequestDTO request,
-            Authentication authentication) {
-        log.info("Create thread request from user: {}", authentication.getName());
-        ThreadDetailDTO thread = threadService.createThread(request, authentication);
-        return ResponseEntity.status(HttpStatus.CREATED).body(thread);
-    }
-
-    @PatchMapping("/{threadId}")
-    @Operation(summary = "Update thread metadata")
-    public ResponseEntity<ThreadDetailDTO> updateThread(
-            @PathVariable UUID threadId,
-            @Valid @RequestBody UpdateThreadRequestDTO request,
-            Authentication authentication) {
-        log.info("Update thread request: threadId={}, user={}", threadId, authentication.getName());
-        ThreadDetailDTO thread = threadService.updateThread(threadId, request, authentication);
-        return ResponseEntity.ok(thread);
-    }
-
-    @PostMapping("/{threadId}/messages")
-    @Operation(summary = "Append message to thread")
-    public ResponseEntity<AppendMessageResponseDTO> appendMessage(
-            @PathVariable UUID threadId,
-            @Valid @RequestBody AppendMessageRequestDTO request,
-            Authentication authentication) {
-        log.info("Append message request: threadId={}, user={}", threadId, authentication.getName());
-        AppendMessageResponseDTO response = threadService.appendMessage(threadId, request, authentication);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/{threadId}/move")
-    @Operation(summary = "Move thread to/from project")
-    public ResponseEntity<ThreadDetailDTO> moveThreadToProject(
-            @PathVariable UUID threadId,
-            @Valid @RequestBody MoveThreadRequestDTO request,
-            Authentication authentication) {
-        log.info("Move thread request: threadId={}, targetProjectId={}, user={}",
-                threadId, request.getTargetProjectId(), authentication.getName());
-        ThreadDetailDTO thread = threadService.moveThreadToProject(threadId, request, authentication);
-        return ResponseEntity.ok(thread);
-    }
-
-    @PostMapping("/{threadId}/soft-delete")
-    @Operation(summary = "Soft delete thread")
-    public ResponseEntity<Void> softDeleteThread(
-            @PathVariable UUID threadId,
-            Authentication authentication) {
-        log.info("Soft delete thread request: threadId={}, user={}", threadId, authentication.getName());
-        threadService.softDeleteThread(threadId, authentication);
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/{threadId}")
-    @Operation(summary = "Permanently delete thread")
-    public ResponseEntity<Void> deleteThread(
-            @PathVariable UUID threadId,
-            Authentication authentication) {
-        log.info("Delete thread request: threadId={}, user={}", threadId, authentication.getName());
-        threadService.deleteThread(threadId, authentication);
-        return ResponseEntity.ok().build();
-    }
-}
-```
-
-#### DesktopProjectController
-
-Handles project-related HTTP endpoints (if needed for thread organization).
-
-```java
-package ai.holok.moku.controller;
-
-import ai.holok.moku.dto.desktop.*;
-import ai.holok.moku.service.DesktopProjectService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
-
-@RestController
-@RequestMapping("/api/projects")
-@RequiredArgsConstructor
-@Slf4j
-@Tag(name = "Desktop Projects", description = "Project management endpoints for desktop application")
-@PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-public class DesktopProjectController {
-
-    private final DesktopProjectService projectService;
-
-    @GetMapping
-    @Operation(summary = "List all projects for current user")
-    public ResponseEntity<List<ProjectSummaryDTO>> listProjects(Authentication authentication) {
-        List<ProjectSummaryDTO> projects = projectService.listProjectsForUser(authentication);
-        return ResponseEntity.ok(projects);
-    }
-
-    @GetMapping("/{projectId}/threads")
-    @Operation(summary = "Get thread count for a project")
-    public ResponseEntity<ProjectThreadCountDTO> getProjectThreadCount(
-            @PathVariable UUID projectId,
-            Authentication authentication) {
-        ProjectThreadCountDTO count = projectService.getThreadCountForProject(projectId, authentication);
-        return ResponseEntity.ok(count);
-    }
-}
-```
-
----
-
-### Service Layer
-
-#### DesktopThreadService
-
-Business logic for thread operations with authorization checks.
-
-```java
-package ai.holok.moku.service;
-
-import ai.holok.moku.dto.desktop.*;
-import ai.holok.moku.model.DesktopThread;
-import ai.holok.moku.model.DesktopMessage;
-import ai.holok.moku.model.User;
-import ai.holok.moku.repository.DesktopThreadRepository;
-import ai.holok.moku.repository.DesktopMessageRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import jakarta.persistence.EntityNotFoundException;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class DesktopThreadService {
-
-    private final DesktopThreadRepository threadRepository;
-    private final DesktopMessageRepository messageRepository;
-    private final UserService userService;
-
-    @Transactional(readOnly = true)
-    public List<ThreadSummaryDTO> listThreadsForUser(Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        List<DesktopThread> threads = threadRepository.findByUserIdAndDeletedAtIsNull(user.getId());
-
-        return threads.stream()
-                .map(this::toThreadSummaryDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public ThreadDetailDTO getThreadById(UUID threadId, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        return toThreadDetailDTO(thread);
-    }
-
-    @Transactional(readOnly = true)
-    public List<MessageDTO> getMessagesForThread(UUID threadId, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        List<DesktopMessage> messages = messageRepository.findByThreadIdAndDeletedAtIsNullOrderByCreatedAtAsc(threadId);
-
-        return messages.stream()
-                .map(this::toMessageDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public ThreadDetailDTO createThread(CreateThreadRequestDTO request, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = new DesktopThread();
-        thread.setId(UUID.randomUUID());
-        thread.setUserId(user.getId());
-        thread.setTitle(request.getTitle() != null ? request.getTitle() : "");
-        thread.setDescription(request.getDescription());
-        thread.setStatus("active");
-        thread.setMetadata(request.getMetadata());
-        thread.setCreatedAt(Instant.now());
-        thread.setUpdatedAt(Instant.now());
-
-        thread = threadRepository.save(thread);
-        log.info("Created thread: threadId={}, userId={}", thread.getId(), user.getId());
-
-        return toThreadDetailDTO(thread);
-    }
-
-    @Transactional
-    public ThreadDetailDTO updateThread(UUID threadId, UpdateThreadRequestDTO request, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        // Update fields
-        if (request.getTitle() != null) {
-            thread.setTitle(request.getTitle());
-        }
-        if (request.getDescription() != null) {
-            thread.setDescription(request.getDescription());
-        }
-        if (request.getStatus() != null) {
-            thread.setStatus(request.getStatus());
-        }
-        if (request.getMetadata() != null) {
-            // Merge metadata
-            Map<String, Object> metadata = thread.getMetadata();
-            if (metadata == null) {
-                metadata = request.getMetadata();
-            } else {
-                metadata.putAll(request.getMetadata());
-            }
-            thread.setMetadata(metadata);
-        }
-        thread.setUpdatedAt(Instant.now());
-
-        thread = threadRepository.save(thread);
-        log.info("Updated thread: threadId={}", threadId);
-
-        return toThreadDetailDTO(thread);
-    }
-
-    @Transactional
-    public AppendMessageResponseDTO appendMessage(UUID threadId, AppendMessageRequestDTO request, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        // Check for idempotency
-        if (request.getClientMessageId() != null) {
-            DesktopMessage existing = messageRepository.findByThreadIdAndClientMessageId(
-                    threadId, request.getClientMessageId());
-            if (existing != null) {
-                log.info("Idempotent message request: returning existing message={}", existing.getId());
-                return new AppendMessageResponseDTO(toMessageDTO(existing), toThreadSummaryDTO(thread));
-            }
-        }
-
-        // Validate message size (8KB limit)
-        if (request.getContent().getBytes().length > 8 * 1024) {
-            throw new IllegalArgumentException("MESSAGE_TOO_LARGE");
-        }
-
-        // Create message
-        DesktopMessage message = new DesktopMessage();
-        message.setId(UUID.randomUUID());
-        message.setThreadId(threadId);
-        message.setRole(request.getRole());
-        message.setContent(request.getContent());
-        message.setMetadata(request.getMetadata());
-        message.setClientMessageId(request.getClientMessageId());
-        message.setCreatedAt(Instant.now());
-
-        message = messageRepository.save(message);
-
-        // Update thread timestamp
-        thread.setUpdatedAt(Instant.now());
-        thread = threadRepository.save(thread);
-
-        log.info("Appended message: messageId={}, threadId={}, role={}",
-                message.getId(), threadId, request.getRole());
-
-        return new AppendMessageResponseDTO(toMessageDTO(message), toThreadSummaryDTO(thread));
-    }
-
-    @Transactional
-    public ThreadDetailDTO moveThreadToProject(UUID threadId, MoveThreadRequestDTO request, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        // Update metadata with project ID
-        Map<String, Object> metadata = thread.getMetadata();
-        if (request.getTargetProjectId() == null) {
-            metadata.remove("projectId");
-        } else {
-            metadata.put("projectId", request.getTargetProjectId().toString());
-        }
-
-        if (request.getPrivacyMode() != null) {
-            metadata.put("privacyMode", request.getPrivacyMode());
-        }
-        if (request.getContextHandling() != null) {
-            metadata.put("contextHandling", request.getContextHandling());
-        }
-
-        thread.setMetadata(metadata);
-        thread.setUpdatedAt(Instant.now());
-        thread = threadRepository.save(thread);
-
-        log.info("Moved thread: threadId={}, projectId={}", threadId, request.getTargetProjectId());
-
-        return toThreadDetailDTO(thread);
-    }
-
-    @Transactional
-    public void softDeleteThread(UUID threadId, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        thread.setDeletedAt(Instant.now());
-        thread.setStatus("deleted");
-        thread.setUpdatedAt(Instant.now());
-        threadRepository.save(thread);
-
-        log.info("Soft deleted thread: threadId={}", threadId);
-    }
-
-    @Transactional
-    public void deleteThread(UUID threadId, Authentication authentication) {
-        User user = userService.getUserFromAuthentication(authentication);
-
-        DesktopThread thread = threadRepository.findById(threadId)
-                .orElseThrow(() -> new EntityNotFoundException("Thread not found: " + threadId));
-
-        // Authorization check
-        if (!thread.getUserId().equals(user.getId())) {
-            throw new SecurityException("Access denied to thread: " + threadId);
-        }
-
-        // Delete all messages first
-        messageRepository.deleteByThreadId(threadId);
-
-        // Delete thread
-        threadRepository.delete(thread);
-
-        log.info("Permanently deleted thread: threadId={}", threadId);
-    }
-
-    // DTO conversion methods
-    private ThreadSummaryDTO toThreadSummaryDTO(DesktopThread thread) {
-        return ThreadSummaryDTO.builder()
-                .id(thread.getId())
-                .title(thread.getTitle())
-                .description(thread.getDescription())
-                .status(thread.getStatus())
-                .createdAt(thread.getCreatedAt().toEpochMilli())
-                .updatedAt(thread.getUpdatedAt().toEpochMilli())
-                .metadata(thread.getMetadata())
-                .build();
-    }
-
-    private ThreadDetailDTO toThreadDetailDTO(DesktopThread thread) {
-        List<DesktopMessage> messages = messageRepository.findByThreadIdAndDeletedAtIsNullOrderByCreatedAtAsc(thread.getId());
-
-        return ThreadDetailDTO.builder()
-                .id(thread.getId())
-                .title(thread.getTitle())
-                .description(thread.getDescription())
-                .status(thread.getStatus())
-                .createdAt(thread.getCreatedAt().toEpochMilli())
-                .updatedAt(thread.getUpdatedAt().toEpochMilli())
-                .deletedAt(thread.getDeletedAt() != null ? thread.getDeletedAt().toEpochMilli() : null)
-                .metadata(thread.getMetadata())
-                .messages(messages.stream().map(this::toMessageDTO).collect(Collectors.toList()))
-                .build();
-    }
-
-    private MessageDTO toMessageDTO(DesktopMessage message) {
-        return MessageDTO.builder()
-                .id(message.getId())
-                .threadId(message.getThreadId())
-                .role(message.getRole())
-                .content(message.getContent())
-                .createdAt(message.getCreatedAt().toEpochMilli())
-                .metadata(message.getMetadata())
-                .clientMessageId(message.getClientMessageId())
-                .deletedAt(message.getDeletedAt() != null ? message.getDeletedAt().toEpochMilli() : null)
-                .build();
-    }
-}
-```
-
----
-
-### Repository Layer
-
-```java
-package ai.holok.moku.repository;
-
-import ai.holok.moku.model.DesktopThread;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-import java.util.List;
-import java.util.UUID;
-
-@Repository
-public interface DesktopThreadRepository extends JpaRepository<DesktopThread, UUID> {
-
-    List<DesktopThread> findByUserIdAndDeletedAtIsNull(UUID userId);
-
-    List<DesktopThread> findByUserId(UUID userId);
-}
-```
-
-```java
-package ai.holok.moku.repository;
-
-import ai.holok.moku.model.DesktopMessage;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-import java.util.List;
-import java.util.UUID;
-
-@Repository
-public interface DesktopMessageRepository extends JpaRepository<DesktopMessage, UUID> {
-
-    List<DesktopMessage> findByThreadIdAndDeletedAtIsNullOrderByCreatedAtAsc(UUID threadId);
-
-    DesktopMessage findByThreadIdAndClientMessageId(UUID threadId, String clientMessageId);
-
-    void deleteByThreadId(UUID threadId);
-}
-```
-
----
-
-### Entity Models
-
-```java
-package ai.holok.moku.model;
-
-import jakarta.persistence.*;
-import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
-
-@Entity
-@Table(name = "desktop_threads")
-@Data
-public class DesktopThread {
-
-    @Id
-    @Column(columnDefinition = "uuid")
-    private UUID id;
-
-    @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
-    private UUID userId;
-
-    @Column(nullable = false)
-    private String title;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
-    @Column(nullable = false)
-    private String status; // active, archived, deleted
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private Map<String, Object> metadata;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-}
-```
-
-```java
-package ai.holok.moku.model;
-
-import jakarta.persistence.*;
-import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
-
-@Entity
-@Table(name = "desktop_messages")
-@Data
-public class DesktopMessage {
-
-    @Id
-    @Column(columnDefinition = "uuid")
-    private UUID id;
-
-    @Column(name = "thread_id", nullable = false, columnDefinition = "uuid")
-    private UUID threadId;
-
-    @Column(nullable = false)
-    private String role; // user, assistant, system
-
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private Map<String, Object> metadata;
-
-    @Column(name = "client_message_id")
-    private String clientMessageId;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-}
-```
-
----
-
-### DTO Classes
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.Map;
-import java.util.UUID;
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ThreadSummaryDTO {
-    private UUID id;
-    private String title;
-    private String description;
-    private String status;
-    private Long createdAt;  // epoch milliseconds
-    private Long updatedAt;  // epoch milliseconds
-    private Map<String, Object> metadata;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ThreadDetailDTO {
-    private UUID id;
-    private String title;
-    private String description;
-    private String status;
-    private Long createdAt;
-    private Long updatedAt;
-    private Long deletedAt;
-    private Map<String, Object> metadata;
-    private List<MessageDTO> messages;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.Map;
-import java.util.UUID;
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class MessageDTO {
-    private UUID id;
-    private UUID threadId;
-    private String role;
-    private String content;
-    private Long createdAt;
-    private Map<String, Object> metadata;
-    private String clientMessageId;
-    private Long deletedAt;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import lombok.Data;
-
-import java.util.Map;
-
-@Data
-public class CreateThreadRequestDTO {
-    @Size(max = 255)
-    private String title;
-
-    @Size(max = 1000)
-    private String description;
-
-    private Map<String, Object> metadata;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.Data;
-
-import java.util.Map;
-
-@Data
-public class UpdateThreadRequestDTO {
-    private String title;
-    private String description;
-    private String status;
-    private Map<String, Object> metadata;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import lombok.Data;
-
-import java.util.Map;
-
-@Data
-public class AppendMessageRequestDTO {
-    @NotBlank
-    @Pattern(regexp = "user|assistant|system")
-    private String role;
-
-    @NotBlank
-    private String content;
-
-    private Map<String, Object> metadata;
-
-    private String clientMessageId;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
-@Data
-@AllArgsConstructor
-public class AppendMessageResponseDTO {
-    private MessageDTO message;
-    private ThreadSummaryDTO thread;
-}
-```
-
-```java
-package ai.holok.moku.dto.desktop;
-
-import lombok.Data;
-
-import java.util.UUID;
-
-@Data
-public class MoveThreadRequestDTO {
-    private UUID targetProjectId;
-    private String privacyMode;
-    private String contextHandling;
-}
-```
-
----
-
-### Database Schema
-
-#### Database Migration (Flyway)
-
-The database schema should be created using Flyway migrations for version control and reproducibility.
-
-**File**: `src/main/resources/db/migration/V{VERSION}__create_desktop_threads_tables.sql`
-
-Replace `{VERSION}` with the appropriate version number (e.g., `V1.15` if the last migration was `V1.14`).
-
-```sql
--- ============================================================================
--- Desktop Threads and Messages Tables
--- ============================================================================
--- Description: Creates tables for desktop application thread management
--- Author: [Your Name]
--- Date: [Current Date]
--- Version: V{VERSION}
--- ============================================================================
-
--- Desktop Threads Table
--- Stores conversation threads for desktop application users
-CREATE TABLE desktop_threads (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    metadata JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP,
-
-    CONSTRAINT desktop_threads_status_check CHECK (status IN ('active', 'archived', 'deleted')),
-    CONSTRAINT fk_desktop_threads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Indexes for desktop_threads
-CREATE INDEX idx_desktop_threads_user_id ON desktop_threads(user_id);
-
--- Comment on table
-COMMENT ON TABLE desktop_threads IS 'Conversation threads for desktop application';
-COMMENT ON COLUMN desktop_threads.id IS 'Unique thread identifier';
-COMMENT ON COLUMN desktop_threads.user_id IS 'User who owns this thread';
-COMMENT ON COLUMN desktop_threads.title IS 'Thread title/name';
-COMMENT ON COLUMN desktop_threads.description IS 'Optional thread description';
-COMMENT ON COLUMN desktop_threads.status IS 'Thread status: active, archived, or deleted';
-COMMENT ON COLUMN desktop_threads.metadata IS 'Flexible metadata storage (model, projectId, etc.)';
-COMMENT ON COLUMN desktop_threads.created_at IS 'Timestamp when thread was created';
-COMMENT ON COLUMN desktop_threads.updated_at IS 'Timestamp of last update';
-COMMENT ON COLUMN desktop_threads.deleted_at IS 'Soft delete timestamp (NULL if not deleted)';
-
--- Desktop Messages Table
--- Stores individual messages within threads
-CREATE TABLE desktop_messages (
-    id UUID PRIMARY KEY,
-    thread_id UUID NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    metadata JSONB,
-    client_message_id VARCHAR(255),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP,
-
-    CONSTRAINT desktop_messages_role_check CHECK (role IN ('user', 'assistant', 'system')),
-    CONSTRAINT fk_desktop_messages_thread FOREIGN KEY (thread_id) REFERENCES desktop_threads(id) ON DELETE CASCADE
-);
-
--- Indexes for desktop_messages
-CREATE INDEX idx_desktop_messages_thread_id ON desktop_messages(thread_id);
-
--- Comment on table
-COMMENT ON TABLE desktop_messages IS 'Messages within desktop application threads';
-COMMENT ON COLUMN desktop_messages.id IS 'Unique message identifier';
-COMMENT ON COLUMN desktop_messages.thread_id IS 'Thread this message belongs to';
-COMMENT ON COLUMN desktop_messages.role IS 'Message role: user, assistant, or system';
-COMMENT ON COLUMN desktop_messages.content IS 'Message content/text';
-COMMENT ON COLUMN desktop_messages.metadata IS 'Flexible metadata storage (model, provider, attachments, etc.)';
-COMMENT ON COLUMN desktop_messages.client_message_id IS 'Client-provided ID for idempotency';
-COMMENT ON COLUMN desktop_messages.created_at IS 'Timestamp when message was created';
-COMMENT ON COLUMN desktop_messages.deleted_at IS 'Soft delete timestamp (NULL if not deleted)';
-
--- ============================================================================
--- End of migration
--- ============================================================================
-```
-
-#### Flyway Migration Notes
-
-1. **Version Numbering**: Follow your project's versioning convention (e.g., `V1.15`, `V2.0`, etc.)
-2. **Naming Convention**: `V{VERSION}__{description}.sql` (use double underscore)
-3. **Idempotency**: Flyway ensures migrations run only once
-4. **Rollback**: Create corresponding `U{VERSION}__rollback_desktop_threads.sql` if needed:
-
-```sql
--- Rollback migration (if needed)
--- File: U{VERSION}__rollback_desktop_threads.sql
-
-DROP TABLE IF EXISTS desktop_messages CASCADE;
-DROP TABLE IF EXISTS desktop_threads CASCADE;
-```
-
-5. **Testing**: Test migration on local/dev database before production:
-```bash
-# Validate migration
-./gradlew flywayValidate
-
-# Run migration
-./gradlew flywayMigrate
-
-# Check migration status
-./gradlew flywayInfo
-```
-
-6. **Dependencies**: Ensure `users` table exists before running this migration
-7. **Baseline**: If adding to existing database, may need to baseline:
-```bash
-./gradlew flywayBaseline
-```
-
-#### Schema Verification Queries
-
-After migration, verify tables were created correctly:
-
-```sql
--- Check tables exist
-SELECT table_name, table_type
-FROM information_schema.tables
-WHERE table_schema = 'public'
-  AND table_name IN ('desktop_threads', 'desktop_messages');
-
--- Check indexes
-SELECT indexname, tablename, indexdef
-FROM pg_indexes
-WHERE tablename IN ('desktop_threads', 'desktop_messages')
-ORDER BY tablename, indexname;
-
--- Check constraints
-SELECT conname, contype, pg_get_constraintdef(oid)
-FROM pg_constraint
-WHERE conrelid IN (
-    SELECT oid FROM pg_class
-    WHERE relname IN ('desktop_threads', 'desktop_messages')
-);
-
--- Check JSONB column support
-SELECT column_name, data_type
-FROM information_schema.columns
-WHERE table_name IN ('desktop_threads', 'desktop_messages')
-  AND data_type = 'jsonb';
-```
-
----
-
-### Key Design Decisions
-
-1. **Separate Tables**: `desktop_threads` and `desktop_messages` for clean separation
-2. **UUID Primary Keys**: For distributed systems and security
-3. **JSONB Metadata**: Flexible storage for extensibility without schema changes
-4. **Soft Deletes**: `deletedAt` timestamp for recovery and audit trail
-5. **Idempotency**: `clientMessageId` index for preventing duplicate messages
-6. **Cascade Deletes**: Foreign key constraints ensure data integrity
-7. **Authorization**: Service layer checks user ownership on all operations
-8. **Transaction Management**: `@Transactional` ensures atomic operations
-9. **Epoch Timestamps**: DTOs use epoch milliseconds for JavaScript compatibility
-10. **Validation**: Bean validation annotations on request DTOs
+## Error Handling
+
+### Holo API Errors
+
+When submitting prompts via ChatService:
+
+- **401 Unauthorized**: Access token invalid or expired
+  - Refresh token and retry once
+  - If refresh fails, prompt user to log in
+- **429 Too Many Requests**: Rate limiting
+  - Implement exponential backoff
+  - Show user-friendly message
+- **500 Internal Server Error**: Holo API issue
+  - Log error
+  - Show user error message
+  - Allow retry
+
+### Moku API Errors
+
+When reading threads/messages:
+
+- **401 Unauthorized**: Refresh token and retry
+- **403 Forbidden**: User doesn't have permission
+- **404 Not Found**: Thread doesn't exist
+  - Remove from cache
+  - Handle gracefully in UI
+- **500 Internal Server Error**: Log and show error
+
+### Cache Synchronization
+
+If Holo saves data but Moku read fails:
+1. Thread exists in database but not in cache
+2. Desktop should retry reading from Moku
+3. If persistent failure, show error but data is safe
 
 ---
 
 ## Data Structures
 
-The application uses different TypeScript interfaces at different layers:
+### Thread
 
-### Backend Internal Thread (src-electron/repository/thread-repository.ts)
 ```typescript
 interface Thread {
-  id: string;
+  id: string;                          // UUID v4 (generated by desktop)
   title: string;
-  metadata: ThreadMetadata;  // Required object
-  messages: Message[];       // Includes full message array
-  createdAt: number;         // Epoch milliseconds
-  updatedAt: number;         // Epoch milliseconds
-  deletedAt?: number | null;
-}
-
-interface ThreadMetadata {
-  title?: string;
   description?: string;
-  model?: string;
-  projectId?: string;
-  userId?: string;
-  status?: 'active' | 'archived' | 'deleted';
-  [key: string]: unknown;
+  status: 'active' | 'archived' | 'deleted';
+  createdAt: number;                   // Epoch milliseconds
+  updatedAt: number;                   // Epoch milliseconds
+  deletedAt?: number | null;           // Soft delete timestamp
+  metadata?: {
+    model?: string;                    // Last used model
+    projectId?: string;                // Project association
+    [key: string]: unknown;
+  };
+  messages?: Message[];                // Included in getThread() response
 }
 ```
 
-### IPC/Renderer Thread (src-electron/preload.ts, used by frontend)
-```typescript
-interface Thread {
-  id: string;
-  title: string;             // Flattened from metadata
-  description: string;       // Flattened from metadata
-  status: ThreadStatus;      // Flattened from metadata
-  createdAt: Date;           // Date objects (converted from epoch ms)
-  updatedAt: Date;           // Date objects
-  metadata?: Record<string, unknown>;  // Optional catch-all for other fields
-}
-```
+### Message
 
-**Note**: The `toRendererThread()` function in thread-handler.ts converts between these representations.
-
-### Backend Internal Message (src-electron/repository/thread-repository.ts)
 ```typescript
 interface Message {
-  id: string;
-  threadId: string;          // Reference to parent thread
+  id: string;                          // Generated by Holo API
+  threadId: string;                    // UUID v4 (provided by desktop)
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;         // Epoch milliseconds
-  metadata?: MessageMetadata;
-  clientMessageId?: string;
-  deletedAt?: number | null;
-}
-```
-
-### Frontend Message (src/lib/types/thread.type.ts)
-```typescript
-interface Message {
-  id: string;
-  clientMessageId?: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  createdAt: number;         // Epoch milliseconds
-  status?: MessageStatus;    // Frontend-specific state
-  attemptCount?: number;     // Frontend-specific retry tracking
-  metadata?: MessageMetadata;
-}
-```
-
-### MessageMetadata (src-shared/types/attachment.types.ts)
-```typescript
-interface MessageMetadata {
-  attachments?: Attachment[];
-  provider?: string;         // e.g., 'ollama', 'anthropic'
-  model?: string;            // e.g., 'llama3:latest', 'claude-3-opus'
-  [key: string]: unknown;
+  createdAt: number;                   // Epoch milliseconds
+  deletedAt?: number | null;           // Soft delete timestamp
+  metadata?: {
+    model?: string;                    // Model used for this message
+    provider?: string;                 // e.g., 'anthropic', 'openai'
+    [key: string]: unknown;
+  };
 }
 ```
 
 ---
 
-## Additional Considerations
+## Implementation Checklist
 
-### Authorization
-- All operations require authentication checks
-- Thread ownership validation via metadata.userId
-- Project access validation for move operations
+### Holo API Changes
+- [ ] Update chat endpoint to accept `threadId` parameter
+- [ ] Store `threadId` with prompt request in database
+- [ ] Store `threadId` with LLM response in database
+- [ ] Return `threadId` in response payload
+- [ ] Test UUID format compatibility
 
-### File Management
-- Thread deletion (hard and soft) should clean up associated files
-- File storage is handled via `fileStorageService`
+### Desktop App Changes
+- [ ] Update `ChatService.submitPrompt()` to include `threadId`
+- [ ] Implement `ThreadRepository.createThreadWithPrompt()`
+- [ ] Implement `ThreadRepository.continueThread()`
+- [ ] Add UUID generation helper
+- [ ] Update IPC handlers to use new flow
+- [ ] Update frontend to handle new architecture
 
-### Idempotency
-- `appendMessage` supports idempotency via `clientMessageId`
-- Prevents duplicate messages on retry/network issues
+### Moku API Implementation
+- [ ] Implement `GET /api/threads` endpoint
+- [ ] Implement `GET /api/threads/:threadId` endpoint
+- [ ] Implement `GET /api/threads/:threadId/messages` endpoint
+- [ ] Implement `PATCH /api/threads/:threadId` endpoint
+- [ ] Implement `POST /api/threads/:threadId/move` endpoint
+- [ ] Implement `POST /api/threads/:threadId/soft-delete` endpoint
+- [ ] Implement `DELETE /api/threads/:threadId` endpoint
+- [ ] Add authorization checks (user ownership)
+- [ ] Add database queries for thread/message retrieval
 
-### Size Limits
-- Message content limited to 8KB
-- Validation happens in `appendMessage`
+### Testing
+- [ ] Test UUID uniqueness across multiple desktop instances
+- [ ] Test Holo API saves threadId correctly
+- [ ] Test Moku API returns threads/messages correctly
+- [ ] Test cache invalidation after Holo submission
+- [ ] Test offline queue (if implementing)
+- [ ] Test error handling for Holo/Moku failures
+
+---
+
+## Benefits of This Architecture
+
+### Separation of Concerns
+✅ **Holo API**: Handles LLM execution and persistence (single source of truth)
+✅ **Moku API**: Handles organization and retrieval (read-focused)
+✅ **Desktop App**: Handles UI, caching, and orchestration
+
+### Simplified Desktop Logic
+✅ No complex write operations to manage
+✅ No idempotency concerns (Holo handles that)
+✅ Simpler error handling (read vs write)
+✅ Cache can focus on read performance
+
+### Scalability
+✅ Holo API can be optimized for write throughput
+✅ Moku API can be optimized for read performance
+✅ Desktop doesn't need to coordinate writes
+✅ Easier to implement real-time updates (Holo → Moku → Desktop)
+
+### Consistency
+✅ Single database for all prompt/response data
+✅ No sync issues between multiple write sources
+✅ Desktop always reads latest data from Moku
+✅ Holo guarantees atomic write of request + response
+
+---
+
+## Future Enhancements
+
+### Real-time Updates
+- Implement WebSocket connection from desktop to Moku
+- Receive push notifications when new messages arrive
+- Update cache in real-time without polling
+
+### Offline Support
+- Queue prompts locally when offline
+- Submit to Holo when connection restored
+- Show pending status in UI
+
+### Optimistic UI Updates
+- Show user message immediately in UI
+- Show "AI is thinking..." placeholder
+- Replace with real response when received from Moku
+
+### Background Sync
+- Periodically sync threads from Moku to keep cache fresh
+- Detect conflicts (messages added from other devices)
+- Merge and resolve conflicts gracefully
