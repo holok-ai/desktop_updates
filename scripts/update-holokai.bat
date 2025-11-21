@@ -27,14 +27,24 @@ if errorlevel 1 (
 echo ✓ Dependencies updated successfully!
 echo.
 
-echo Step 3: Building Electron application...
+echo Step 3: Building Svelte application...
+call npm run build
+if errorlevel 1 (
+    echo ERROR: Failed to build Svelte application.
+    pause
+    exit /b 1
+)
+echo ✓ Svelte application built successfully!
+echo.
+
+echo Step 4: Building Electron application...
 call npm run build:electron
 if errorlevel 1 (
     echo ERROR: Failed to build Electron application.
     pause
     exit /b 1
 )
-echo ✓ Application built successfully!
+echo ✓ Electron application built successfully!
 echo.
 
 echo ==========================================
@@ -42,6 +52,10 @@ echo Update Complete!
 echo ==========================================
 echo.
 echo The Holokai Desktop app has been updated to the latest version.
-echo You can now close this window and run the app.
 echo.
+echo Press any key to launch the app, or close this window to launch it manually later.
 pause
+
+echo.
+echo Launching Holokai Desktop...
+call npm run electron
