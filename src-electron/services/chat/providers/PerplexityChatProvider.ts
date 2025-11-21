@@ -104,4 +104,3 @@ export class PerplexityChatProvider implements IChatProvider {
     }
   }
 }
-

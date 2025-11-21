@@ -43,10 +43,7 @@ describe('ChatProviderFactory', () => {
       '../../../src-electron/services/chat/factories/ChatProviderFactory'
     );
     expect(() =>
-      ChatProviderFactory.createProvider(
-        ProviderType.OPENAI,
-        { url: 'u', model: 'm' } as any,
-      ),
+      ChatProviderFactory.createProvider(ProviderType.OPENAI, { url: 'u', model: 'm' } as any),
     ).toThrow(/API key is required for OpenAI provider/);
   });
 
