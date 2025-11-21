@@ -332,7 +332,8 @@
             </h2>
             <div class="meta">{currentThread.description}</div>
           </div>
-          <button
+          <!-- Hide for now -->
+          <!-- <button
             class="move-thread-btn"
             onclick={() => (showMoveModal = true)}
             aria-label="Move thread to project"
@@ -340,7 +341,7 @@
           >
             <i class="pi pi-folder-open"></i>
             Move
-          </button>
+          </button> -->
         </div>
       {/key}
     </div>
