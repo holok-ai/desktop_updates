@@ -374,15 +374,16 @@
               <i class="pi pi-comment"></i>
               {showComments ? 'Hide' : 'Show'}
             </button>
-            <button
-              class="header-action-btn"
-              onclick={() => (showMoveModal = true)}
-              aria-label="Move thread to project"
-              title="Move thread to project"
-            >
-              <i class="pi pi-folder-open"></i>
-              Move
-            </button>
+            <!-- Hide for now -->
+            <!-- <button
+            class="move-thread-btn"
+            onclick={() => (showMoveModal = true)}
+            aria-label="Move thread to project"
+            title="Move thread to project"
+          >
+            <i class="pi pi-folder-open"></i>
+            Move
+            </button> -->
           </div>
         </div>
       {/key}

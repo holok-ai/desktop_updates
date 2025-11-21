@@ -9,9 +9,12 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
   import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
+  import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
   import { storageService } from '$lib/services/storage.service';
+  import ProjectCreatePanel from '$lib/components/projects/ProjectCreatePanel.svelte';
+  import { clearUnsavedChanges } from '$lib/stores/navigation-guard.store';
 
   let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
@@ -58,23 +61,6 @@
         } catch {
           // ignore if IPC not available
         }
-
-        const params = new URLSearchParams((window as any).location?.search ?? '');
-        if (!params.get('projectId') && !params.get('createProject')) {
-          // If no projectId in URL, restore last selected from localStorage
-          try {
-            const last = storageService.getLastProjectId();
-            if (last) {
-              const found = $projects.find((p) => p.id === last);
-              if (found) {
-                selectedProjectId = last;
-                void replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(last)}`);
-              }
-            }
-          } catch {
-            // ignore
-          }
-        }
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {
@@ -113,9 +99,11 @@
         } else {
           // Project not found (possibly deleted), clear selection
           selectedProjectId = null;
+          storageService.removeLastProjectId();
           replace(ROUTE.PROJECTS);
         }
       } else {
+        // No projectId in URL - show creation page
         selectedProjectId = null;
       }
     });
@@ -151,7 +139,10 @@
 
   function handleCreate() {
     projectToEdit = null;
-    showFormModal = true;
+    showFormModal = false;
+    selectedProjectId = null;
+    storageService.removeLastProjectId();
+    replace(ROUTE.PROJECTS);
   }
 
   function handleDelete() {
@@ -165,6 +156,19 @@
     selectedProjectId = null;
     storageService.removeLastProjectId();
     replace(ROUTE.PROJECTS);
+  }
+
+  function openThreadById(threadId: string, projectId?: string | null) {
+    if (projectId) {
+      storageService.setLastProjectId(projectId);
+    }
+    storageService.setLastThreadId(threadId);
+    const params = new URLSearchParams();
+    params.set('threadId', threadId);
+    if (projectId) {
+      params.set('projectId', projectId);
+    }
+    replace(`${ROUTE.THREADS}?${params.toString()}`);
   }
 
   // Project threads list (reactive without $derived)
@@ -185,6 +189,22 @@
       });
     projectThreads = filtered;
   });
+
+  $effect(() => {
+    if (selectedProject) {
+      clearUnsavedChanges('add-project');
+    }
+  });
+
+  function handleProjectCreated(event: CustomEvent<{ projectId: string }>) {
+    const projectId = event.detail.projectId;
+    if (!projectId) {
+      return;
+    }
+    selectedProjectId = projectId;
+    storageService.setLastProjectId(projectId);
+    replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(projectId)}`);
+  }
 </script>
 
 <div class="projects-page">
@@ -200,11 +220,7 @@
   {#if isLoading}
     <div class="loading">Loading projects...</div>
   {:else if !selectedProject}
-    <div class="no-selection">
-      <h2>Projects</h2>
-      <p>Select a project from the sidebar to view details</p>
-      <button onclick={handleCreate}>Create New Project</button>
-    </div>
+    <ProjectCreatePanel on:created={handleProjectCreated} />
   {:else}
     <div class="project-detail">
       <div class="project-header">
@@ -264,6 +280,22 @@
             </p>
           </div>
         </div>
+      {:else}
+        <div class="project-content">
+          <h3>Project Threads</h3>
+          <div class="project-thread-list">
+            {#each projectThreads as thread (thread.id)}
+              <ThreadListItem
+                {thread}
+                isSelected={false}
+                showActions={false}
+                on:click={() => {
+                  openThreadById(thread.id, selectedProject?.id ?? null);
+                }}
+              />
+            {/each}
+          </div>
+        </div>
       {/if}
     </div>
   {/if}
@@ -282,43 +314,16 @@
     flex-direction: column;
     height: 100%;
     background: var(--surface-main);
-    padding: 2rem;
     overflow-y: auto;
   }
 
-  .loading,
-  .no-selection {
+  .loading {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100%;
     color: var(--text-secondary);
-  }
-
-  .no-selection h2 {
-    margin: 0 0 1rem 0;
-    color: var(--text-primary);
-  }
-
-  .no-selection p {
-    margin: 0 0 2rem 0;
-  }
-
-  .no-selection button {
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: opacity 0.2s;
-  }
-
-  .no-selection button:hover {
-    opacity: 0.9;
   }
 
   .project-detail {
@@ -418,6 +423,13 @@
     border: 1px solid var(--surface-border);
     border-radius: 8px;
     padding: 1.5rem;
+  }
+
+  .project-thread-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
   }
 
   .project-content h3 {

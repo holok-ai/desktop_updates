@@ -126,7 +126,7 @@
     align-items: center;
   }
   select {
-    padding: var(--inline-spacing);
+    padding: 12px;
     border-radius: var(--border-radius);
     border: 1px solid var(--surface-border);
     background: var(--surface-card);
