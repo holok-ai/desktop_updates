@@ -12,7 +12,7 @@ export enum ProviderType {
   OPENAI = 'openai',
   CLAUDE = 'claude',
   PERPLEXITY = 'perplexity',
-  // Priority 2 (not yet implemented)
+  // Priority 2
   GEMINI = 'gemini',
   XAI = 'xai',
 }
