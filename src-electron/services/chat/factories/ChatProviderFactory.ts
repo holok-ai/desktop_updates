@@ -2,6 +2,7 @@ import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import { OllamaChatProvider } from '../providers/OllamaChatProvider.js';
 import { OpenAIChatProvider } from '../providers/OpenAIChatProvider.js';
 import { ClaudeChatProvider } from '../providers/ClaudeChatProvider.js';
+import { PerplexityChatProvider } from '../providers/PerplexityChatProvider.js';
 
 /**
  * Provider types supported by the factory
@@ -11,6 +12,9 @@ export enum ProviderType {
   OPENAI = 'openai',
   CLAUDE = 'claude',
   PERPLEXITY = 'perplexity',
+  // Priority 2 (not yet implemented)
+  GEMINI = 'gemini',
+  XAI = 'xai',
 }
 
 /**
@@ -54,14 +58,13 @@ export class ChatProviderFactory {
         return new ClaudeChatProvider(config.url, config.apiKey, config.model);
 
       case ProviderType.PERPLEXITY:
-        // Will implement PerplexityChatProvider
-        throw new Error('PerplexityChatProvider not implemented yet');
+        if (!config.apiKey) {
+          throw new Error('API key is required for Perplexity provider');
+        }
+        return new PerplexityChatProvider(config.url, config.apiKey, config.model);
 
-      default: {
-        // Exhaustive check to ensure all cases are handled
-        const exhaustiveCheck: never = providerType;
-        throw new Error(`Unsupported provider type: ${String(exhaustiveCheck)}`);
-      }
+      default:
+        throw new Error(`Unsupported provider type: ${providerType}`);
     }
   }
 }
