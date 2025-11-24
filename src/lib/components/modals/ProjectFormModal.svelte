@@ -162,34 +162,37 @@
         <span class="field-label">Privacy Mode</span>
         <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
           {#each privacyChoices as choice (choice.id)}
-            <button
-              type="button"
-              role="radio"
-              class="privacy-option"
-              class:active={privacyMode === choice.id}
-              aria-checked={privacyMode === choice.id}
-              disabled={isSubmitting}
-              onclick={() => {
-                if (!isSubmitting) {
-                  privacyMode = choice.id;
-                }
-              }}
-            >
+            <label class="privacy-option-wrapper">
               <input
                 type="radio"
                 name="privacy-mode"
                 value={choice.id}
                 bind:group={privacyMode}
                 disabled={isSubmitting}
+                class="sr-only"
               />
-              <div class="option-header">
-                <span class="option-title">{choice.title}</span>
-                {#if privacyMode === choice.id}
-                  <span class="option-badge">Selected</span>
-                {/if}
-              </div>
-              <p class="option-description">{choice.description}</p>
-            </button>
+              <button
+                type="button"
+                class="privacy-option"
+                class:active={privacyMode === choice.id}
+                class:disabled={isSubmitting}
+                aria-pressed={privacyMode === choice.id}
+                disabled={isSubmitting}
+                onclick={() => {
+                  if (!isSubmitting) {
+                    privacyMode = choice.id;
+                  }
+                }}
+              >
+                <div class="option-header">
+                  <span class="option-title">{choice.title}</span>
+                  {#if privacyMode === choice.id}
+                    <span class="option-badge">Selected</span>
+                  {/if}
+                </div>
+                <p class="option-description">{choice.description}</p>
+              </button>
+            </label>
           {/each}
         </div>
         <div class="privacy-hint">
@@ -258,6 +261,10 @@
     gap: 12px;
   }
 
+  .privacy-option-wrapper {
+    display: block;
+  }
+
   .privacy-option {
     width: 100%;
     text-align: left;
@@ -277,22 +284,30 @@
       background 0.2s ease;
     color: var(--text-primary);
     cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
   }
 
-  .privacy-option:hover {
+  .privacy-option:hover:not(:disabled) {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
   }
 
-  .privacy-option:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+  .privacy-option:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 
-  .privacy-option input[type='radio'] {
+  .sr-only {
     position: absolute;
-    opacity: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
   }
 
   .privacy-option.active {
