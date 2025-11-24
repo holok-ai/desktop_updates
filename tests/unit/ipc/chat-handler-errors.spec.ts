@@ -47,7 +47,7 @@ describe('Chat IPC handlers - error branches', () => {
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
 
-    const res = handlers['chat:createProvider'](null, 'x', {});
+    const res = await handlers['chat:createProvider'](null, 'x', {});
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/ctor fail/);
   });
@@ -67,7 +67,7 @@ describe('Chat IPC handlers - error branches', () => {
     mod.registerChatHandlers();
 
     // initialize service
-    handlers['chat:createProvider'](null, 'x', {});
+    await handlers['chat:createProvider'](null, 'x', {});
 
     const event = { sender: { send: vi.fn() } } as any;
     const res = await handlers['chat:send'](event, { model: 'm', messages: [] });
@@ -87,7 +87,7 @@ describe('Chat IPC handlers - error branches', () => {
 
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
-    handlers['chat:createProvider'](null, 'x', {});
+    await handlers['chat:createProvider'](null, 'x', {});
 
     const event = { sender: { send: vi.fn() } } as any;
     const res = await handlers['chat:sendWithOptions'](event, {
@@ -111,7 +111,7 @@ describe('Chat IPC handlers - error branches', () => {
 
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
-    handlers['chat:createProvider'](null, 'x', {});
+    await handlers['chat:createProvider'](null, 'x', {});
 
     expect(() => handlers['chat:getAuditLogs']()).toThrow(/logs fail/);
   });
