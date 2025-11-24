@@ -89,9 +89,7 @@ export class PerplexityChatProvider implements IChatProvider {
     }
   }
 
-  private extractContent(
-    content: Perplexity.ChatMessageOutput['content'] | undefined,
-  ): string {
+  private extractContent(content: Perplexity.ChatMessageOutput['content'] | undefined): string {
     if (!content) {
       return '';
     }
@@ -114,9 +112,7 @@ export class PerplexityChatProvider implements IChatProvider {
     return '';
   }
 
-  private isStreamingRequest(
-    body: PerplexityChatRequest,
-  ): body is PerplexityChatRequestStreaming {
+  private isStreamingRequest(body: PerplexityChatRequest): body is PerplexityChatRequestStreaming {
     return body.stream === true;
   }
 }
