@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import Anthropic from '@anthropic-ai/sdk';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
@@ -40,7 +43,9 @@ export class ClaudeChatProvider implements IChatProvider {
             messages: claudeRequest.messages,
             stream: true,
             max_tokens: 4096,
-          })
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            thread_id: (request as any).thread_id,
+          } as any)
           .on('text', (text) => {
             if (onTokenReceived) {
               onTokenReceived(text);
@@ -55,7 +60,9 @@ export class ClaudeChatProvider implements IChatProvider {
           model: claudeRequest.model,
           messages: claudeRequest.messages,
           max_tokens: 4096,
-        });
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          thread_id: (request as any).thread_id,
+        } as any);
 
         if (response.content && response.content.length > 0) {
           const content = response.content
@@ -101,7 +108,9 @@ export class ClaudeChatProvider implements IChatProvider {
             top_p: claudeRequest.top_p as number | undefined,
             stop_sequences: claudeRequest.stop_sequences as string[] | undefined,
             stream: true,
-          })
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            thread_id: (request as any).thread_id,
+          } as any)
           .on('text', (text) => {
             if (onTokenReceived) {
               onTokenReceived(text);
@@ -118,7 +127,9 @@ export class ClaudeChatProvider implements IChatProvider {
           max_tokens: (claudeRequest.max_tokens as number | undefined) || 4096,
           top_p: claudeRequest.top_p as number | undefined,
           stop_sequences: claudeRequest.stop_sequences as string[] | undefined,
-        });
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          thread_id: (request as any).thread_id,
+        } as any);
 
         if (response.content && response.content.length > 0) {
           const content = response.content

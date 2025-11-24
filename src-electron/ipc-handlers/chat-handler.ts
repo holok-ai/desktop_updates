@@ -5,6 +5,7 @@ import type {
   ChatRequestWithOptions,
 } from '../services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
+import { AuthService } from '../services/auth.service.js';
 import log from 'electron-log';
 
 /**
@@ -14,24 +15,41 @@ import log from 'electron-log';
  */
 
 let chatService: ChatService | null = null;
+let authService: AuthService | null = null;
 
 /**
  * Register all chat IPC handlers
  */
-export function registerChatHandlers(): void {
+export function registerChatHandlers(auth?: AuthService): void {
+  // Store auth service reference if provided
+  if (auth) {
+    authService = auth;
+  }
+
   /**
    * Create Chat Provider - Initialize ChatService with provider type and config
    */
   ipcMain.handle(
     'chat:createProvider',
-    (
+    async (
       _event,
       providerType: string,
       config: ProviderConfig,
-    ): { success: boolean; error?: string } => {
+    ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:createProvider called', { providerType });
 
       try {
+        // Inject access token from auth service if available
+        if (authService) {
+          try {
+            const accessToken = await authService.getAccessToken();
+            config.apiKey = accessToken;
+            log.info('[IPC] Access token injected into chat provider config');
+          } catch (error) {
+            log.warn('[IPC] Could not get access token, using provided apiKey:', error);
+          }
+        }
+
         chatService = new ChatService(providerType, config, true);
         log.info('[IPC] Chat service created successfully');
         return { success: true };
@@ -130,6 +148,71 @@ export function registerChatHandlers(): void {
   });
 
   /**
+   * Send Chat Message with File Tools - Send message with file tools enabled and streaming
+   */
+  ipcMain.handle(
+    'chat:sendWithFileTools',
+    async (
+      event: IpcMainInvokeEvent,
+      request: ChatRequest,
+    ): Promise<{ success: boolean; error?: string }> => {
+      log.info('[IPC] chat:sendWithFileTools called');
+
+      if (!chatService) {
+        const errorMessage = 'Chat service not initialized. Call createProvider first.';
+        log.error('[IPC]', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      try {
+        await chatService.chatWithFileTools(
+          request,
+          (token: string) => {
+            // Send streaming tokens back to renderer
+            event.sender.send('chat:token', token);
+          },
+          (toolName: string, input: unknown) => {
+            // Send tool use notifications back to renderer
+            event.sender.send('chat:toolUse', { toolName, input });
+          },
+        );
+        log.info('[IPC] Chat message with file tools sent successfully');
+        return { success: true };
+      } catch (error) {
+        log.error('[IPC] Error sending chat message with file tools:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
+  /**
+   * Set File Tools Working Directory - Configure working directory for file tools
+   */
+  ipcMain.handle(
+    'chat:setFileToolsWorkingDirectory',
+    (_event, dir: string): { success: boolean; error?: string } => {
+      log.info('[IPC] chat:setFileToolsWorkingDirectory called', { dir });
+
+      if (!chatService) {
+        const errorMessage = 'Chat service not initialized. Call createProvider first.';
+        log.error('[IPC]', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      try {
+        chatService.setFileToolsWorkingDirectory(dir);
+        log.info('[IPC] File tools working directory set successfully');
+        return { success: true };
+      } catch (error) {
+        log.error('[IPC] Error setting file tools working directory:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
+  /**
    * Destroy Chat Service - Clean up current chat service instance
    */
   ipcMain.handle('chat:destroy', (): { success: boolean } => {
@@ -155,6 +238,8 @@ export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:createProvider');
   ipcMain.removeHandler('chat:send');
   ipcMain.removeHandler('chat:sendWithOptions');
+  ipcMain.removeHandler('chat:sendWithFileTools');
+  ipcMain.removeHandler('chat:setFileToolsWorkingDirectory');
   ipcMain.removeHandler('chat:getAuditLogs');
   ipcMain.removeHandler('chat:destroy');
 

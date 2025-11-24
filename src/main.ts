@@ -36,6 +36,14 @@ async function bootstrap(): Promise<void> {
   // Initialize thread update listener for reactive thread list updates
   initThreadUpdateListener();
 
+  // Reset comments visibility to hidden on app startup
+  // (preference can be stored across threads, but always start hidden)
+  try {
+    storageService.setShowComments(false);
+  } catch {
+    // ignore if storage unavailable
+  }
+
   const appElement = document.getElementById('app');
   if (appElement === null) {
     throw new Error('App mount point not found');

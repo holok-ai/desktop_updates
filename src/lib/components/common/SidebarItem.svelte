@@ -95,9 +95,7 @@
   </li>
 
   {#if isCollapsed}
-    <span
-      class="h-4 text-[10px] text-white text-center mt-[2px] truncate w-full leading-none"
-    >
+    <span class="h-4 text-[10px] text-white text-center mt-[2px] truncate w-full leading-none">
       {item.shortLabel || item.label}
     </span>
   {/if}

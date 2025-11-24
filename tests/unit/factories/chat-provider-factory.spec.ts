@@ -76,22 +76,46 @@ describe('ChatProviderFactory', () => {
     expect(MockOpenAI.calls[0]).toEqual(['u2', 'k2', 'm2']);
   });
 
-  it('throws for Perplexity not implemented', async () => {
+  it('creates Perplexity provider when apiKey provided', async () => {
+    class MockPerplexity {
+      static calls: any[] = [];
+      type = 'perplexity';
+      endpoint: string;
+      apiKey: string;
+      model: string;
+      constructor(endpoint: string, apiKey: string, model: string) {
+        MockPerplexity.calls.push([endpoint, apiKey, model]);
+        this.endpoint = endpoint;
+        this.apiKey = apiKey;
+        this.model = model;
+      }
+    }
+    vi.doMock('../../../src-electron/services/chat/providers/PerplexityChatProvider', () => ({
+      PerplexityChatProvider: MockPerplexity,
+    }));
+
+    const { ChatProviderFactory, ProviderType } = await import(
+      '../../../src-electron/services/chat/factories/ChatProviderFactory'
+    );
+    const provider: any = ChatProviderFactory.createProvider(ProviderType.PERPLEXITY, {
+      url: 'p-endpoint',
+      model: 'p-model',
+      apiKey: 'p-key',
+    });
+    expect(provider.type).toBe('perplexity');
+    expect(MockPerplexity.calls[0]).toEqual(['p-endpoint', 'p-key', 'p-model']);
+  });
+
+  it('throws for unsupported provider type', async () => {
     const { ChatProviderFactory, ProviderType } = await import(
       '../../../src-electron/services/chat/factories/ChatProviderFactory'
     );
     expect(() =>
-      ChatProviderFactory.createProvider(ProviderType.PERPLEXITY, { url: 'x', model: 'm' } as any),
-    ).toThrow(/PerplexityChatProvider not implemented yet/);
-  });
-
-  it('throws for unsupported provider type', async () => {
-    const { ChatProviderFactory } = await import(
-      '../../../src-electron/services/chat/factories/ChatProviderFactory'
-    );
-    // cast a string to the enum to exercise default branch
-    expect(() =>
-      ChatProviderFactory.createProvider('unknown' as any, { url: 'x', model: 'm' } as any),
-    ).toThrow(/Unsupported provider type/);
+      ChatProviderFactory.createProvider(ProviderType.GEMINI, {
+        url: 'x',
+        model: 'm',
+        apiKey: 'k',
+      }),
+    ).toThrow(/Unsupported provider type: gemini/);
   });
 });
