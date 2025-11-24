@@ -44,7 +44,7 @@
       apiKey: '', // Will be injected from auth service by chat handler
       model: 'claude-3-haiku-20240307'
   };
-  let modelName = devClaudeModel.model; 
+  let modelName = localLlamaModel.model; 
 
   // Watch for prop changes
   $effect(() => {
@@ -101,17 +101,7 @@
 
   // Initialize chat service on mount
   async function initializeChatService() {
-    // const result = await window.electronAPI.chat.createProvider('ollama', {
-    //   url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
-    //   apiKey: '', // Will be injected from auth service by chat handler
-    //   model: 'llama3:latest',
-    // });
-    // const result = await window.electronAPI.chat.createProvider('claude', {
-    //   url: 'http://localhost:3000/api/custom/claude/f4f61965',
-    //   apiKey: '', // Will be injected from auth service by chat handler
-    //   model: 'claude-opus-4-1-20250805',
-    // });
-  const result = await window.electronAPI.chat.createProvider('claude', devClaudeModel);
+  const result = await window.electronAPI.chat.createProvider('ollama', localLlamaModel);
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
       console.error('Failed to create chat provider:', result.error);
