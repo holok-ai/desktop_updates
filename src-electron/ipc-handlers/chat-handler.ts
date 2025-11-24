@@ -5,6 +5,7 @@ import type {
   ChatRequestWithOptions,
 } from '../services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
+import { AuthService } from '../services/auth.service.js';
 import log from 'electron-log';
 
 /**
@@ -14,24 +15,41 @@ import log from 'electron-log';
  */
 
 let chatService: ChatService | null = null;
+let authService: AuthService | null = null;
 
 /**
  * Register all chat IPC handlers
  */
-export function registerChatHandlers(): void {
+export function registerChatHandlers(auth?: AuthService): void {
+  // Store auth service reference if provided
+  if (auth) {
+    authService = auth;
+  }
+
   /**
    * Create Chat Provider - Initialize ChatService with provider type and config
    */
   ipcMain.handle(
     'chat:createProvider',
-    (
+    async (
       _event,
       providerType: string,
       config: ProviderConfig,
-    ): { success: boolean; error?: string } => {
+    ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:createProvider called', { providerType });
 
       try {
+        // Inject access token from auth service if available
+        if (authService) {
+          try {
+            const accessToken = await authService.getAccessToken();
+            config.apiKey = accessToken;
+            log.info('[IPC] Access token injected into chat provider config');
+          } catch (error) {
+            log.warn('[IPC] Could not get access token, using provided apiKey:', error);
+          }
+        }
+
         chatService = new ChatService(providerType, config, true);
         log.info('[IPC] Chat service created successfully');
         return { success: true };

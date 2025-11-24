@@ -31,28 +31,48 @@ export class OllamaChatProvider implements IChatProvider {
     const requestWithModel = { ...request, model: modelToUse };
 
     const ollamaRequest = OllamaConverter.toOllamaRequest(requestWithModel);
+    console.log('[OllamaChatProvider] Sending request:', JSON.stringify(ollamaRequest, null, 2));
+
     // Handle streaming vs non-streaming
     if (ollamaRequest.stream) {
       const response = await this.ollama.chat({
         ...ollamaRequest,
+        thread_id: (request as any).thread_id,
         stream: true,
-      });
+      } as any);
 
       // Handle streaming response
       for await (const part of response) {
+        console.log('[OllamaChatProvider] Received streaming part:', JSON.stringify(part, null, 2));
+
+        // Skip completion messages
+        if (part.done) {
+          console.log('[OllamaChatProvider] Received completion signal');
+          continue;
+        }
+
+        // Check if part has the expected structure
+        if (!part.message) {
+          console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+          continue;
+        }
+
         const token = part.message.content;
-        if (onTokenReceived) {
+        if (token && onTokenReceived) {
           onTokenReceived(token);
         }
       }
     } else {
-      const response = await this.ollama.chat({
+      const response: any = await this.ollama.chat({
         ...ollamaRequest,
+        thread_id: (request as any).thread_id,
         stream: false,
-      });
+      } as any);
+
+      console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
 
       // Handle non-streaming response
-      if (onTokenReceived) {
+      if (response.message && onTokenReceived) {
         onTokenReceived(response.message.content);
       }
     }
@@ -69,29 +89,48 @@ export class OllamaChatProvider implements IChatProvider {
     const requestWithModel = { ...request, model: modelToUse };
 
     const ollamaRequest = OllamaConverter.toOllamaRequestWithOptions(requestWithModel);
+    console.log('[OllamaChatProvider] Sending request with options:', JSON.stringify(ollamaRequest, null, 2));
 
     // Handle streaming vs non-streaming
     if (ollamaRequest.stream) {
       const response = await this.ollama.chat({
         ...ollamaRequest,
+        thread_id: (request as any).thread_id,
         stream: true,
-      });
+      } as any);
 
       // Handle streaming response
       for await (const part of response) {
+        console.log('[OllamaChatProvider] Received streaming part:', JSON.stringify(part, null, 2));
+
+        // Skip completion messages
+        if (part.done) {
+          console.log('[OllamaChatProvider] Received completion signal');
+          continue;
+        }
+
+        // Check if part has the expected structure
+        if (!part.message) {
+          console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+          continue;
+        }
+
         const token = part.message.content;
-        if (onTokenReceived) {
+        if (token && onTokenReceived) {
           onTokenReceived(token);
         }
       }
     } else {
-      const response = await this.ollama.chat({
+      const response: any = await this.ollama.chat({
         ...ollamaRequest,
+        thread_id: (request as any).thread_id,
         stream: false,
-      });
+      } as any);
+
+      console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
 
       // Handle non-streaming response
-      if (onTokenReceived) {
+      if (response.message && onTokenReceived) {
         onTokenReceived(response.message.content);
       }
     }

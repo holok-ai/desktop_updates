@@ -121,7 +121,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
 /**
  * Register all authentication IPC handlers
  */
-export function registerAuthHandlers(): void {
+export function registerAuthHandlers(): AuthService {
   // Initialize auth service
   authService = new AuthService();
 
@@ -263,6 +263,7 @@ export function registerAuthHandlers(): void {
   });
 
   authLog.info('Handlers registered');
+  return authService;
 }
 
 /**
