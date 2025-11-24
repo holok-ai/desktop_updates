@@ -606,7 +606,7 @@
     line-height: 1em;
     font-style: normal;
     font-family: 'PrimeIcons', primeicons, sans-serif;
-  } */
+  }
 
   .title-generating {
     display: inline-flex;
