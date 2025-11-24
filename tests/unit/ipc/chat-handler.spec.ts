@@ -73,8 +73,10 @@ describe('Chat IPC handlers', () => {
 
   it('createProvider success and then send streams tokens', async () => {
     // call createProvider
-    const createRes = await handlers['chat:createProvider'](null, 'ollama', {
-      endpoint: 'http://x',
+    const createRes = handlers['chat:createProvider'](null, 'ollama', {
+      url: 'http://x',
+      model: 'm',
+      apiKey: 'k',
     });
     expect(createRes.success).toBe(true);
 
@@ -126,7 +128,11 @@ describe('Chat IPC handlers', () => {
 
   it('getAuditLogs returns logs when service present and destroy clears service', async () => {
     // create provider
-    await handlers['chat:createProvider'](null, 'ollama', {});
+    handlers['chat:createProvider'](null, 'ollama', {
+      url: 'http://localhost',
+      model: 'm',
+      apiKey: 'k',
+    });
     const logs = handlers['chat:getAuditLogs']();
     expect(Array.isArray(logs)).toBe(true);
 
