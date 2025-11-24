@@ -17,6 +17,8 @@ class StorageService {
     LAST_PROJECT_ID: 'lastProjectId',
     SIDEBAR_ACTIVITY: SIDEBAR_STORAGE_KEY,
     SIDEBAR_COLLAPSED: SIDEBAR_COLLAPSED_STORAGE_KEY,
+    ACTIVITY_LIST_WIDTH: 'activityListWidth',
+    ACTIVITY_LIST_COLLAPSED: 'activityListCollapsed',
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
     SHOW_COMMENTS: 'showComments',
   } as const;
@@ -157,6 +159,63 @@ class StorageService {
 
   setShowComments(show: boolean): boolean {
     return this.set(this.KEYS.SHOW_COMMENTS, show);
+  }
+
+  /**
+   * Get the custom width for Activity List sidebar
+   * @returns The custom width in pixels, or 280 (default)
+   */
+  getActivityListWidth(): number {
+    const value = this.get(this.KEYS.ACTIVITY_LIST_WIDTH, 280, {
+      coerce: (raw) => {
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed) && parsed >= 200 && parsed <= 600) {
+          return parsed;
+        }
+        return null;
+      },
+    });
+
+    // Additional validation in case JSON parsing succeeded but value is out of range
+    if (typeof value === 'number' && (value < 200 || value > 600)) {
+      return 280;
+    }
+
+    return value;
+  }
+
+  /**
+   * Set the custom width for Activity List sidebar
+   * @param width Width in pixels (will be clamped between 200 and 600)
+   */
+  setActivityListWidth(width: number): boolean {
+    // Clamp width between min and max
+    const clampedWidth = Math.max(200, Math.min(600, width));
+    return this.set(this.KEYS.ACTIVITY_LIST_WIDTH, clampedWidth);
+  }
+
+  /**
+   * Get the collapsed state for Activity List sidebar
+   */
+  getActivityListCollapsed(): boolean {
+    return this.get(this.KEYS.ACTIVITY_LIST_COLLAPSED, false, {
+      coerce: (raw) => {
+        if (raw === 'true') {
+          return true;
+        }
+        if (raw === 'false') {
+          return false;
+        }
+        return null;
+      },
+    });
+  }
+
+  /**
+   * Set the collapsed state for Activity List sidebar
+   */
+  setActivityListCollapsed(collapsed: boolean): boolean {
+    return this.set(this.KEYS.ACTIVITY_LIST_COLLAPSED, collapsed);
   }
 }
 
