@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import type { Thread } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
@@ -129,6 +130,56 @@ class ThreadService {
     return res as
       | { success: true; message: Message; thread: Thread }
       | { success: false; error: string };
+  }
+
+  async updateMessageMetadata(
+    threadId: string,
+    messageId: string,
+    metadataUpdates: Record<string, unknown>,
+  ): Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  > {
+    const res: unknown = await window.electronAPI.thread.updateMessageMetadata(
+      threadId,
+      messageId,
+      metadataUpdates,
+    );
+    return res as
+      | { success: true; message: Message; thread: Thread }
+      | { success: false; error: string };
+  }
+
+  /**
+   * Update or delete comment on a message
+   * @param commentContent - The comment text, or null/empty to delete
+   */
+  async updateMessageComment(
+    threadId: string,
+    messageId: string,
+    commentContent: string | null,
+  ): Promise<
+    { success: true; message: Message; thread: Thread } | { success: false; error: string }
+  > {
+    if (!commentContent || commentContent.trim() === '') {
+      // Delete comment by setting it to undefined
+      return this.updateMessageMetadata(threadId, messageId, { comment: undefined });
+    }
+
+    // Get current message to check if comment already exists
+    const messages = await this.getMessages(threadId);
+    const currentMessage = messages.find((m) => m.id === messageId);
+    const existingComment = currentMessage?.metadata?.comment as
+      | { content: string; createdAt: number; editedAt?: number }
+      | undefined;
+
+    const now = Date.now();
+    const comment = {
+      content: commentContent.trim(),
+      createdAt: existingComment?.createdAt ?? now,
+      editedAt: now,
+    };
+
+    return this.updateMessageMetadata(threadId, messageId, { comment });
   }
 
   async getMessageVersions(

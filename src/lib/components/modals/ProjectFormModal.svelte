@@ -271,6 +271,9 @@
     background: var(--surface-overlay);
     border: 1px solid var(--surface-border);
     border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
@@ -312,9 +315,14 @@
     background: rgba(66, 133, 244, 0.08);
   }
 
-  .privacy-option.disabled {
+  .privacy-option:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+    box-shadow: none;
+  }
+
+  .privacy-option:disabled:hover {
+    border-color: var(--surface-border);
     box-shadow: none;
   }
 
