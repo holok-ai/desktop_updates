@@ -29,6 +29,22 @@
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);
+  let localLlamaModel = {
+    url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
+    //   apiKey: '', // Will be injected from auth service by chat handler
+    model: 'llama3:latest'    
+  };
+  let localClaudeModel = {
+      url: 'http://localhost:3000/api/custom/claude/f4f61965',
+      apiKey: '', // Will be injected from auth service by chat handler
+      model: 'claude-opus-4-1-20250805',
+  };
+  let devClaudeModel = {
+      url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
+      apiKey: '', // Will be injected from auth service by chat handler
+      model: 'claude-3-haiku-20240307'
+  };
+  let modelName = localLlamaModel.model; 
 
   // Watch for prop changes
   $effect(() => {
@@ -85,12 +101,7 @@
 
   // Initialize chat service on mount
   async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider('ollama', {
-      url: 'http://localhost:11434',
-      apiKey: 'ollama',
-      model: 'llama3:latest',
-    });
-
+  const result = await window.electronAPI.chat.createProvider('ollama', localLlamaModel);
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
       console.error('Failed to create chat provider:', result.error);
@@ -159,7 +170,7 @@
       const request = {
         messages: [{ role: 'user', content: userMessage }],
         streaming: true,
-        model: 'llama3:latest',
+       model: modelName
       };
 
       const result = await window.electronAPI.chat.chat(request);
@@ -220,7 +231,7 @@
       const request = {
         messages: [{ role: 'user', content: newContent }],
         streaming: true,
-        model: 'llama3:latest',
+        model: modelName
       };
 
       const chatResult = await window.electronAPI.chat.chat(request);
@@ -332,7 +343,8 @@
             </h2>
             <div class="meta">{currentThread.description}</div>
           </div>
-          <button
+          <!-- Hide for now -->
+          <!-- <button
             class="move-thread-btn"
             onclick={() => (showMoveModal = true)}
             aria-label="Move thread to project"
@@ -340,7 +352,7 @@
           >
             <i class="pi pi-folder-open"></i>
             Move
-          </button>
+          </button> -->
         </div>
       {/key}
     </div>

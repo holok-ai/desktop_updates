@@ -32,6 +32,8 @@
     activity?.route === ROUTE.PROJECTS || activity?.id === 'projects',
   );
 
+  const activityTitle = $derived(activity?.label ?? 'Activity');
+
   onMount(async () => {
     await getThreadItems();
   });
@@ -112,6 +114,9 @@
     dispatch('select', item);
     selectedThreadId = item.id;
     storageService.setLastThreadId(item.id);
+    if (!selectedProjectId) {
+      storageService.removeLastProjectId();
+    }
 
     const route = (item as SidebarActivity).route;
 
@@ -119,7 +124,16 @@
       case ROUTE.THREADS:
         selectedThreadId = item.id;
         storageService.setLastThreadId(item.id);
-        push(`${ROUTE.THREADS}?threadId=${encodeURIComponent(item.id)}`);
+        if (!selectedProjectId) {
+          storageService.removeLastProjectId();
+        }
+        const params = new URLSearchParams();
+        params.set('threadId', item.id);
+        if (selectedProjectId) {
+          params.set('projectId', selectedProjectId);
+          storageService.setLastProjectId(selectedProjectId);
+        }
+        push(`${ROUTE.THREADS}?${params.toString()}`);
         break;
       default:
         break;
@@ -204,7 +218,7 @@
 >
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
     {#if !isCollapsed}
-      <span class="activity-title">{'Organization Name'}</span>
+      <span class="activity-title">{activityTitle}</span>
     {/if}
     <button
       class="{!isCollapsed &&
