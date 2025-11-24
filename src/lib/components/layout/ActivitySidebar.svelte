@@ -215,9 +215,7 @@
           </div>
         {/if}
         {#if isCollapsed}
-          <span class="text-xs text-white text-center"
-            >{$currentUser?.name ?? 'User'}</span
-          >
+          <span class="text-xs text-white text-center">{$currentUser?.name ?? 'User'}</span>
         {/if}
       </div>
     {/if}

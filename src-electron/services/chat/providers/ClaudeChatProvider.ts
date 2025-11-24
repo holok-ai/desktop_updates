@@ -37,13 +37,14 @@ export class ClaudeChatProvider implements IChatProvider {
     try {
       if (request.streaming !== false) {
         // Handle streaming request
-        const stream = this.client.messages.stream({
+        const stream = this.client.messages
+          .stream({
             model: claudeRequest.model,
             messages: claudeRequest.messages,
             stream: true,
             max_tokens: 4096,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            thread_id: (request as any).thread_id
+            thread_id: (request as any).thread_id,
           } as any)
           .on('text', (text) => {
             if (onTokenReceived) {

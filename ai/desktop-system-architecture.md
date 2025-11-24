@@ -46,14 +46,14 @@ This document describes the complete system architecture for the Holokai Desktop
 
 ### 1.2 Component Responsibilities
 
-| Component | Responsibility | Technology |
-|-----------|---------------|------------|
-| **Desktop Main Process** | Window management, IPC handlers, authentication orchestration | Electron 28.x, Node.js |
-| **Desktop Renderer** | UI rendering, user interactions, chat interface | Svelte, @holokai/chat-component |
-| **Moku Web** | OAuth2 authentication, SSO provider integration | Web application |
-| **Moku API** | Exchange code generation/validation, user authentication, thread organization, project management | Spring Boot REST API |
-| **Holo API** | LLM prompt execution, model access, streaming responses | API Gateway |
-| **Holo Audit Service** | Thread persistence, request/response storage, message history | Database-backed service |
+| Component                | Responsibility                                                                                    | Technology                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **Desktop Main Process** | Window management, IPC handlers, authentication orchestration                                     | Electron 28.x, Node.js          |
+| **Desktop Renderer**     | UI rendering, user interactions, chat interface                                                   | Svelte, @holokai/chat-component |
+| **Moku Web**             | OAuth2 authentication, SSO provider integration                                                   | Web application                 |
+| **Moku API**             | Exchange code generation/validation, user authentication, thread organization, project management | Spring Boot REST API            |
+| **Holo API**             | LLM prompt execution, model access, streaming responses                                           | API Gateway                     |
+| **Holo Audit Service**   | Thread persistence, request/response storage, message history                                     | Database-backed service         |
 
 ---
 
@@ -61,18 +61,18 @@ This document describes the complete system architecture for the Holokai Desktop
 
 ### 2.1 Technology Stack
 
-| Layer | Technology | Version | Purpose |
-|-------|-----------|---------|---------|
-| **Desktop Framework** | Electron | 28.x | Cross-platform desktop app |
-| **UI Framework** | Svelte | 5.x | Reactive UI components |
-| **Chat Library** | @holokai/chat-component | 1.x | Reusable chat interface |
-| **Router** | svelte-spa-router | Latest | Hash-based client-side routing |
-| **State Management** | Svelte Stores | Built-in | Reactive state containers |
-| **HTTP Client** | Fetch API | Native | API communication |
-| **Styling** | Tailwind CSS | 3.x | Utility-first CSS |
-| **Language** | TypeScript | 5.3.x | Type-safe development |
-| **Log Sanitization** | @cdssnc/sanitize-pii | Latest | Automated PII redaction in logs |
-| **Compression** | Node.js zlib | Built-in | Gzip compression for cache optimization |
+| Layer                 | Technology              | Version  | Purpose                                 |
+| --------------------- | ----------------------- | -------- | --------------------------------------- |
+| **Desktop Framework** | Electron                | 28.x     | Cross-platform desktop app              |
+| **UI Framework**      | Svelte                  | 5.x      | Reactive UI components                  |
+| **Chat Library**      | @holokai/chat-component | 1.x      | Reusable chat interface                 |
+| **Router**            | svelte-spa-router       | Latest   | Hash-based client-side routing          |
+| **State Management**  | Svelte Stores           | Built-in | Reactive state containers               |
+| **HTTP Client**       | Fetch API               | Native   | API communication                       |
+| **Styling**           | Tailwind CSS            | 3.x      | Utility-first CSS                       |
+| **Language**          | TypeScript              | 5.3.x    | Type-safe development                   |
+| **Log Sanitization**  | @cdssnc/sanitize-pii    | Latest   | Automated PII redaction in logs         |
+| **Compression**       | Node.js zlib            | Built-in | Gzip compression for cache optimization |
 
 ### 2.2 Process Architecture
 
@@ -147,22 +147,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Thread operations
   threads: {
-    create: (prompt: string, model: string) => 
-      ipcRenderer.invoke('threads:create', prompt, model),
+    create: (prompt: string, model: string) => ipcRenderer.invoke('threads:create', prompt, model),
     list: () => ipcRenderer.invoke('threads:list'),
-    getMessages: (threadId: string) => 
-      ipcRenderer.invoke('threads:get-messages', threadId),
-    continue: (threadId: string, prompt: string) => 
+    getMessages: (threadId: string) => ipcRenderer.invoke('threads:get-messages', threadId),
+    continue: (threadId: string, prompt: string) =>
       ipcRenderer.invoke('threads:continue', threadId, prompt),
-    delete: (threadId: string) => 
-      ipcRenderer.invoke('threads:delete', threadId),
+    delete: (threadId: string) => ipcRenderer.invoke('threads:delete', threadId),
   },
 
   // Project operations (Phase 1 basic support)
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),
     create: (name: string) => ipcRenderer.invoke('projects:create', name),
-    moveThread: (threadId: string, projectId: string) => 
+    moveThread: (threadId: string, projectId: string) =>
       ipcRenderer.invoke('projects:move-thread', threadId, projectId),
   },
 
@@ -258,6 +255,7 @@ The desktop application uses an **Exchange Code Flow** for secure authentication
 11. **Secure Storage**: Desktop stores access token encrypted via OS keychain
 
 **Security Features**:
+
 - State parameter prevents protocol hijacking (PKCE-style protection)
 - Exchange code is single-use and expires in 5 minutes
 - API key is short-lived intermediate token with 24-hour maximum lifetime
@@ -268,12 +266,14 @@ The desktop application uses an **Exchange Code Flow** for secure authentication
 ### 3.2 Token Management
 
 **Token Storage**:
+
 - **In-Memory**: Main process keeps current accessToken
 - **Secure Storage**: Uses Electron's safeStorage (OS keychain)
 - **Never Persisted in Renderer**: Renderer never sees raw tokens
 - **API Key Caching**: Optional caching with explicit 24-hour maximum lifetime
 
 **Token Lifecycle**:
+
 - **Exchange codes**: Expire in 5 minutes, single-use only
 - **API keys**: Maximum 24-hour lifetime, stored encrypted, used only for token refresh
 - **Access tokens**: 15-minute lifetime with automatic refresh
@@ -283,46 +283,47 @@ The desktop application uses an **Exchange Code Flow** for secure authentication
 - Logout clears all stored credentials (access token and apiKey)
 
 **Token Refresh Strategy**:
+
 ```typescript
 class AuthService {
   private accessToken: string | null = null;
   private accessTokenExpiresAt: number | null = null;
   private apiKey: string | null = null;
   private apiKeyExpiresAt: number | null = null;
-  
+
   // Token lifetime constants
   private readonly ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000; // 15 minutes
   private readonly API_KEY_MAX_LIFETIME = 24 * 60 * 60 * 1000; // 24 hours
   private readonly REFRESH_BUFFER = 2 * 60 * 1000; // Refresh 2 min before expiry
-  
+
   async cacheApiKey(apiKey: string): Promise<void> {
     this.apiKey = apiKey;
     this.apiKeyExpiresAt = Date.now() + this.API_KEY_MAX_LIFETIME;
     await secureStorage.set('apiKey', apiKey);
     await secureStorage.set('apiKeyExpiry', this.apiKeyExpiresAt);
   }
-  
+
   async refreshAccessToken(): Promise<void> {
     if (this.isAccessTokenValid()) {
       return; // Still valid, no refresh needed
     }
-    
+
     if (!this.apiKey || Date.now() > this.apiKeyExpiresAt!) {
       // apiKey expired - need full re-authentication
       throw new Error('RE_AUTH_REQUIRED');
     }
-    
+
     const response = await mokuAPI.refreshToken(this.apiKey);
     this.accessToken = response.accessToken;
     this.accessTokenExpiresAt = Date.now() + this.ACCESS_TOKEN_LIFETIME;
   }
-  
+
   private isAccessTokenValid(): boolean {
     if (!this.accessToken || !this.accessTokenExpiresAt) return false;
     // Check if token expires within refresh buffer
-    return Date.now() < (this.accessTokenExpiresAt - this.REFRESH_BUFFER);
+    return Date.now() < this.accessTokenExpiresAt - this.REFRESH_BUFFER;
   }
-  
+
   clearCredentials(): void {
     this.accessToken = null;
     this.accessTokenExpiresAt = null;
@@ -335,6 +336,7 @@ class AuthService {
 ```
 
 **Security Enforcement**:
+
 - API key MUST be deleted after 24 hours (enforced at application level)
 - Access token MUST be refreshed every 15 minutes (server enforces expiration)
 - Automatic background refresh at 10-minute intervals when app active
@@ -359,6 +361,7 @@ Main process listens for `open-url` event to intercept OAuth callback.
 Desktop uses the **@holokai/chat-component** library for all chat UI and interactions.
 
 **Key Features**:
+
 - Message rendering with markdown support
 - Code syntax highlighting (Prism.js)
 - Streaming response display
@@ -366,6 +369,7 @@ Desktop uses the **@holokai/chat-component** library for all chat UI and interac
 - Multi-modal input (text + images)
 
 **Integration**:
+
 ```svelte
 <!-- src/routes/chat/+page.svelte -->
 <script lang="ts">
@@ -378,11 +382,7 @@ Desktop uses the **@holokai/chat-component** library for all chat UI and interac
   }
 </script>
 
-<ChatWindow 
-  {messages} 
-  onSubmit={handleSubmit}
-  streaming={true}
-/>
+<ChatWindow {messages} onSubmit={handleSubmit} streaming={true} />
 ```
 
 ### 4.2 Holo API Integration
@@ -390,16 +390,18 @@ Desktop uses the **@holokai/chat-component** library for all chat UI and interac
 Desktop communicates with Holo API for all LLM operations.
 
 **API Endpoints**:
+
 - `POST /api/chat` - Execute LLM prompt with streaming
 - `GET /api/models` - List available models
 - `GET /api/chat/history/{threadId}` - Retrieve thread history
 
 **Request Flow**:
+
 ```typescript
 // Main Process: src-electron/services/holo-api-client.ts
 export class HoloAPIClient {
   async submitPrompt(request: {
-    threadId: string;      // Desktop-generated UUID
+    threadId: string; // Desktop-generated UUID
     prompt: string;
     model: string;
     stream?: boolean;
@@ -407,7 +409,7 @@ export class HoloAPIClient {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(request),
@@ -419,6 +421,7 @@ export class HoloAPIClient {
 ```
 
 **Streaming Support**:
+
 - Holo API returns Server-Sent Events (SSE)
 - Desktop streams tokens to renderer via IPC
 - Chat component displays tokens incrementally
@@ -426,17 +429,20 @@ export class HoloAPIClient {
 ### 4.3 Thread ID Management
 
 **Desktop-Generated UUIDs**:
+
 - Desktop generates thread IDs locally (UUID v4)
 - No round-trip to server needed to start conversation
 - UUIDs included in all Holo API requests
 
 **Benefits**:
+
 - ✅ Immediate thread creation (no API latency)
 - ✅ Offline capability (queue prompts)
 - ✅ Globally unique identifiers
 - ✅ Desktop controls threading from start
 
 **Implementation**:
+
 ```typescript
 import { randomUUID } from 'crypto';
 
@@ -456,6 +462,7 @@ export class ThreadRepository {
 The **Holo Audit Service** is the single source of truth for all chat data.
 
 **Storage Responsibilities**:
+
 - Thread metadata (title, created date, user)
 - User prompts (requests)
 - LLM responses
@@ -494,6 +501,7 @@ responses:
 ### 5.2 Data Flow
 
 **Write Operations** (Prompt Submission):
+
 ```
 Desktop (generates threadId)
     ↓
@@ -509,6 +517,7 @@ Response streamed back to Desktop
 ```
 
 **Read Operations** (Thread History):
+
 ```
 Desktop (requests thread messages)
     ↓
@@ -530,6 +539,7 @@ Desktop caches and displays
 Desktop implements a two-tier LRU caching system with configurable limits, lazy loading, and **encryption for sensitive data**:
 
 **Thread Cache**:
+
 - **Capacity**: 100 threads (configurable in settings: 50-200)
 - **Eviction Policy**: Least Recently Used (LRU)
 - **Loading Strategy**: Lazy, on-demand as user scrolls
@@ -538,6 +548,7 @@ Desktop implements a two-tier LRU caching system with configurable limits, lazy 
 - **Security**: Thread metadata (title, dates) stored in plain text; no message content in thread cache
 
 **Message Cache**:
+
 - **Per-Thread Limit**: 100 messages initially loaded
 - **Total Capacity**: 1000 messages across all threads (effectively ~1500-2000 with compression)
 - **Eviction Policy**: Thread-based LRU (evict entire thread's messages)
@@ -548,6 +559,7 @@ Desktop implements a two-tier LRU caching system with configurable limits, lazy 
 - **Key Rotation**: Encryption keys rotate every 8 hours with secure re-encryption
 
 **Cache Security Implementation with Compression**:
+
 ```typescript
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
@@ -556,58 +568,58 @@ export class SecureCacheManager {
   private encryptionKey: Buffer | null = null;
   private keyCreatedAt: number = 0;
   private rotationTimer: NodeJS.Timeout | null = null;
-  
+
   // 8-hour key rotation period
   private static readonly KEY_ROTATION_PERIOD = 8 * 60 * 60 * 1000; // 8 hours
   private static readonly COMPRESSION_THRESHOLD = 1024; // Compress if > 1KB
-  
+
   // Initialize with session-based key, not token-derived
   initializeEncryption(): void {
     this.generateNewKey();
     this.scheduleKeyRotation();
   }
-  
+
   private generateNewKey(): void {
     // Generate cryptographically secure random key
     this.encryptionKey = randomBytes(32);
     this.keyCreatedAt = Date.now();
   }
-  
+
   private scheduleKeyRotation(): void {
     // Clear existing timer
     if (this.rotationTimer) {
       clearTimeout(this.rotationTimer);
     }
-    
+
     // Schedule rotation in 8 hours
     this.rotationTimer = setTimeout(() => {
       this.rotateKey();
     }, SecureCacheManager.KEY_ROTATION_PERIOD);
   }
-  
+
   private async rotateKey(): Promise<void> {
     const oldKey = this.encryptionKey;
     this.generateNewKey();
-    
+
     // Re-encrypt existing cache with new key
     // This should be done in a background worker to avoid blocking
     await this.reencryptCache(oldKey, this.encryptionKey);
-    
+
     // Securely clear old key
     if (oldKey) {
       oldKey.fill(0);
     }
-    
+
     this.scheduleKeyRotation();
   }
-  
+
   // Encrypt and compress message content before caching
   encryptMessage(message: Message): EncryptedMessage {
     if (!this.encryptionKey) throw new Error('Encryption not initialized');
-    
+
     let dataToEncrypt: Buffer;
     let isCompressed = false;
-    
+
     // Compress if content is larger than threshold
     if (message.content.length > SecureCacheManager.COMPRESSION_THRESHOLD) {
       dataToEncrypt = gzipSync(Buffer.from(message.content, 'utf8'));
@@ -615,17 +627,14 @@ export class SecureCacheManager {
     } else {
       dataToEncrypt = Buffer.from(message.content, 'utf8');
     }
-    
+
     const iv = randomBytes(16);
     const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    
-    const encrypted = Buffer.concat([
-      cipher.update(dataToEncrypt),
-      cipher.final()
-    ]);
-    
+
+    const encrypted = Buffer.concat([cipher.update(dataToEncrypt), cipher.final()]);
+
     const authTag = cipher.getAuthTag();
-    
+
     return {
       ...message,
       content: '', // Clear plaintext
@@ -634,27 +643,27 @@ export class SecureCacheManager {
       authTag: authTag.toString('base64'),
       isCompressed, // Store compression flag
       originalSize: message.content.length,
-      compressedSize: dataToEncrypt.length
+      compressedSize: dataToEncrypt.length,
     };
   }
-  
+
   // Decrypt and decompress message content when retrieving from cache
   decryptMessage(encrypted: EncryptedMessage): Message {
     if (!this.encryptionKey) throw new Error('Encryption not initialized');
-    
+
     const decipher = createDecipheriv(
       'aes-256-gcm',
       this.encryptionKey,
-      Buffer.from(encrypted.iv, 'base64')
+      Buffer.from(encrypted.iv, 'base64'),
     );
-    
+
     decipher.setAuthTag(Buffer.from(encrypted.authTag, 'base64'));
-    
+
     const decrypted = Buffer.concat([
       decipher.update(Buffer.from(encrypted.encryptedContent, 'base64')),
-      decipher.final()
+      decipher.final(),
     ]);
-    
+
     // Decompress if needed
     let content: string;
     if (encrypted.isCompressed) {
@@ -662,26 +671,26 @@ export class SecureCacheManager {
     } else {
       content = decrypted.toString('utf8');
     }
-    
+
     return {
       ...encrypted,
-      content
+      content,
     };
   }
-  
+
   // Clear encryption key on logout or screen lock
   clearEncryption(): void {
     if (this.rotationTimer) {
       clearTimeout(this.rotationTimer);
       this.rotationTimer = null;
     }
-    
+
     if (this.encryptionKey) {
       this.encryptionKey.fill(0); // Overwrite key in memory
       this.encryptionKey = null;
     }
   }
-  
+
   // Re-encrypt cache with new key (should be done in worker thread)
   private async reencryptCache(oldKey: Buffer, newKey: Buffer): Promise<void> {
     // Implementation would iterate through all cached messages
@@ -689,38 +698,39 @@ export class SecureCacheManager {
     // This is a placeholder for the actual implementation
     console.log('Re-encrypting cache with new key');
   }
-  
+
   // Get compression statistics
   getCompressionStats(): { ratio: number; savedBytes: number } {
     // Return compression effectiveness metrics
     return {
       ratio: 0.65, // Example: 35% compression
-      savedBytes: 0
+      savedBytes: 0,
     };
   }
 }
 ```
 
 **Cache Implementation**:
+
 ```typescript
 export class ThreadRepository {
   // Thread cache with LRU eviction
   private readonly threadCache: LRUCache<string, Thread>;
   private readonly MAX_THREADS: number; // Default 200, configurable
-  
+
   // Message cache with thread-based LRU eviction
   private readonly messageCache: LRUCache<string, Message[]>;
   private readonly MAX_TOTAL_MESSAGES = 1000;
   private readonly INITIAL_MESSAGE_LOAD = 100;
   private readonly MESSAGE_PAGE_SIZE = 50;
-  
+
   // Thread list pagination state
   private threadListCursor: string | null = null;
   private allThreadsLoaded = false;
-  
+
   constructor(settings: Settings) {
     this.MAX_THREADS = settings.threadCacheSize || 100;
-    
+
     this.threadCache = new LRUCache<string, Thread>({
       max: this.MAX_THREADS,
       dispose: (thread) => {
@@ -728,23 +738,23 @@ export class ThreadRepository {
         this.messageCache.delete(thread.id);
       },
     });
-    
+
     this.messageCache = new LRUCache<string, EncryptedMessage[]>({
       max: this.MAX_TOTAL_MESSAGES,
       length: (messages) => messages.length, // Count by message count
       dispose: (threadId, messages) => {
         // Securely clear encrypted messages from memory
-        messages.forEach(msg => {
+        messages.forEach((msg) => {
           if (msg.encryptedContent) {
             msg.encryptedContent = '';
           }
         });
       },
     });
-    
+
     // Initialize cache encryption
     this.cacheManager = new SecureCacheManager();
-    
+
     // Listen for screen lock events to clear cache
     powerMonitor.on('lock-screen', () => {
       this.clearSensitiveCache();
@@ -759,7 +769,7 @@ export class ThreadRepository {
       // User scrolled - load next batch
       await this.loadThreadBatch(50);
     }
-    
+
     return Array.from(this.threadCache.values());
   }
 
@@ -768,58 +778,49 @@ export class ThreadRepository {
       limit,
       cursor: this.threadListCursor,
     });
-    
-    result.threads.forEach(thread => {
+
+    result.threads.forEach((thread) => {
       this.threadCache.set(thread.id, thread);
     });
-    
+
     this.threadListCursor = result.nextCursor || null;
     this.allThreadsLoaded = !result.nextCursor;
   }
 
-  async getMessages(
-    threadId: string, 
-    loadOlder: boolean = false
-  ): Promise<Message[]> {
+  async getMessages(threadId: string, loadOlder: boolean = false): Promise<Message[]> {
     let encryptedMessages = this.messageCache.get(threadId);
-    
+
     if (!encryptedMessages) {
       // Initial load - get last 100 messages
       const messages = await this.mokuAPI.getThreadMessages(threadId, {
         limit: this.INITIAL_MESSAGE_LOAD,
       });
-      
+
       // Encrypt messages before caching
-      encryptedMessages = messages.map(msg => 
-        this.cacheManager.encryptMessage(msg)
-      );
+      encryptedMessages = messages.map((msg) => this.cacheManager.encryptMessage(msg));
       this.messageCache.set(threadId, encryptedMessages);
     } else if (loadOlder && encryptedMessages.length >= this.INITIAL_MESSAGE_LOAD) {
       // User scrolled up - load older messages
       const oldestEncrypted = encryptedMessages[0];
       const oldestDecrypted = this.cacheManager.decryptMessage(oldestEncrypted);
-      
+
       const olderMessages = await this.mokuAPI.getThreadMessages(threadId, {
         limit: this.MESSAGE_PAGE_SIZE,
         before: oldestDecrypted.createdAt,
       });
-      
+
       if (olderMessages.length > 0) {
-        const encryptedOlder = olderMessages.map(msg =>
-          this.cacheManager.encryptMessage(msg)
-        );
+        const encryptedOlder = olderMessages.map((msg) => this.cacheManager.encryptMessage(msg));
         encryptedMessages = [...encryptedOlder, ...encryptedMessages];
         this.messageCache.set(threadId, encryptedMessages);
       }
     }
-    
+
     // Touch thread in cache to mark as recently used
     this.threadCache.get(threadId);
-    
+
     // Decrypt messages for return
-    return encryptedMessages.map(msg => 
-      this.cacheManager.decryptMessage(msg)
-    );
+    return encryptedMessages.map((msg) => this.cacheManager.decryptMessage(msg));
   }
 
   clearSensitiveCache(): void {
@@ -831,7 +832,7 @@ export class ThreadRepository {
   invalidateThread(threadId: string): void {
     this.messageCache.delete(threadId);
   }
-  
+
   clearCache(): void {
     this.threadCache.clear();
     this.messageCache.clear();
@@ -842,6 +843,7 @@ export class ThreadRepository {
 ```
 
 **Cache Benefits**:
+
 - Bounded memory usage (100 threads + 1000 messages)
 - Automatic eviction of least-used data
 - Smooth infinite scroll experience
@@ -856,6 +858,7 @@ export class ThreadRepository {
 - **Session-based keys** independent of token lifecycle for stability
 
 **No Local Database**:
+
 - Desktop does NOT use SQLite or local DB
 - All persistence handled by Holo Audit Service
 - Cache cleared on app restart (reload from API)
@@ -869,6 +872,7 @@ export class ThreadRepository {
 While Holo Audit Service manages the authoritative storage of all chat data, **Moku API** provides essential organizational and metadata management capabilities for the desktop application. Moku serves as the coordination layer for thread organization, project management, and user-specific configurations.
 
 **Separation of Concerns**:
+
 - **Holo Audit Service**: Chat execution and message persistence (requests/responses)
 - **Moku API**: Thread organization, project management, metadata operations
 
@@ -909,6 +913,7 @@ Moku API provides a dedicated **DesktopThreadController** that exposes thread or
 9. **DELETE /api/threads/{threadId}** - Permanently delete thread
 
 **Key Characteristics**:
+
 - All endpoints require user authentication via access token
 - Thread operations validate user ownership before execution
 - Metadata updates preserved in JSONB fields for flexibility
@@ -965,6 +970,7 @@ Moku API queries Holo Audit Service synchronously when serving thread content to
 ### 7.1 Core Features
 
 **Thread Management**:
+
 - ✅ Create new thread (with initial prompt)
 - ✅ Continue existing thread (append messages)
 - ✅ List all threads (sorted by recent activity)
@@ -973,6 +979,7 @@ Moku API queries Holo Audit Service synchronously when serving thread content to
 - ✅ Search threads (basic title/content search)
 
 **Chat Interface**:
+
 - ✅ Send text prompts
 - ✅ Receive streaming responses
 - ✅ Markdown rendering
@@ -981,17 +988,20 @@ Moku API queries Holo Audit Service synchronously when serving thread content to
 - ✅ Regenerate response (retry prompt)
 
 **Model Selection**:
+
 - ✅ Choose from available models (Claude, GPT-4, etc.)
 - ✅ Per-thread model selection
 - ✅ Model switching mid-conversation
 
 **Project Organization** (Basic):
+
 - ✅ Create projects (folders)
 - ✅ Move threads to projects
 - ✅ View threads grouped by project
 - ✅ General threads (no project)
 
 **Settings**:
+
 - ✅ Default model selection
 - ✅ Theme selection (light/dark)
 - ✅ Keyboard shortcuts
@@ -1015,13 +1025,14 @@ Moku API queries Holo Audit Service synchronously when serving thread content to
 ### 8.1 Electron Security Configuration
 
 **BrowserWindow Settings**:
+
 ```typescript
 const mainWindow = new BrowserWindow({
   webPreferences: {
-    nodeIntegration: false,           // Renderer cannot access Node
-    contextIsolation: true,           // Isolate preload from renderer
-    sandbox: true,                    // Run renderer in sandbox
-    webSecurity: true,                // Enforce same-origin policy
+    nodeIntegration: false, // Renderer cannot access Node
+    contextIsolation: true, // Isolate preload from renderer
+    sandbox: true, // Run renderer in sandbox
+    webSecurity: true, // Enforce same-origin policy
     allowRunningInsecureContent: false,
     preload: path.join(__dirname, 'preload.js'),
   },
@@ -1029,6 +1040,7 @@ const mainWindow = new BrowserWindow({
 ```
 
 **Content Security Policy**:
+
 ```typescript
 import { randomBytes } from 'crypto';
 
@@ -1039,7 +1051,7 @@ function generateNonce(): string {
 
 session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
   const nonce = generateNonce();
-  
+
   // Pass nonce to renderer via meta tag or header
   callback({
     responseHeaders: {
@@ -1047,17 +1059,17 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       'Content-Security-Policy': [
         "default-src 'self'",
         "script-src 'self'",
-        "style-src 'self' 'nonce-" + nonce + "'",  // Removed unsafe-inline
+        "style-src 'self' 'nonce-" + nonce + "'", // Removed unsafe-inline
         "img-src 'self' data: https:",
         "connect-src 'self' https://api.holo.holokai.app https://api.moku.holokai.app",
         "font-src 'self' data:",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
-        "frame-ancestors 'none'",  // Added for clickjacking protection
-        "upgrade-insecure-requests",  // Force HTTPS
+        "frame-ancestors 'none'", // Added for clickjacking protection
+        'upgrade-insecure-requests', // Force HTTPS
       ].join('; '),
-      'X-CSP-Nonce': nonce,  // Pass nonce to renderer
+      'X-CSP-Nonce': nonce, // Pass nonce to renderer
     },
   });
 });
@@ -1069,20 +1081,23 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 ### 8.2 Token Security
 
 **Secure Storage**:
+
 - Uses Electron's safeStorage API
 - Encrypted via OS keychain (macOS Keychain, Windows Credential Vault, Linux libsecret)
 - Tokens never logged or exposed
 - Automatic cleanup on logout
 
 **Token Validation**:
+
 - Check expiration before each API call
 - Automatic refresh using API key
 - Automatic re-authentication on 401 errors
-- Token refresh 
+- Token refresh
 
 ### 8.3 Data Protection
 
 **Sensitive Data Rules**:
+
 - ❌ Never log tokens or passwords
 - ❌ Never pass tokens through renderer
 - ❌ Never store PII unencrypted
@@ -1100,6 +1115,7 @@ session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 ### 9.1 Local Logging (electron-log)
 
 **Main Process Logging with PII Sanitization**:
+
 ```typescript
 import log from 'electron-log';
 import { sanitize } from '@cdssnc/sanitize-pii';
@@ -1107,7 +1123,7 @@ import { sanitize } from '@cdssnc/sanitize-pii';
 // Configure PII sanitization for all log transports
 log.hooks.push((message, transport, level) => {
   // Sanitize all log arguments to remove PII
-  const sanitizedArgs = message.data.map(arg => {
+  const sanitizedArgs = message.data.map((arg) => {
     if (typeof arg === 'string') {
       return sanitize(arg);
     } else if (typeof arg === 'object' && arg !== null) {
@@ -1116,7 +1132,7 @@ log.hooks.push((message, transport, level) => {
     }
     return arg;
   });
-  
+
   return { ...message, data: sanitizedArgs };
 });
 
@@ -1135,6 +1151,7 @@ log.info('Token value:', token); // ❌ NEVER DO THIS
 
 **PII Sanitization Features**:
 The `@cdssnc/sanitize-pii` package automatically detects and redacts:
+
 - **Email addresses**: user@example.com → [REDACTED EMAIL]
 - **Phone numbers**: 555-123-4567 → [REDACTED PHONE]
 - **Social Security Numbers**: 123-45-6789 → [REDACTED SSN]
@@ -1145,24 +1162,30 @@ The `@cdssnc/sanitize-pii` package automatically detects and redacts:
 - **Other PII patterns**: Customizable through configuration
 
 **Custom Sanitization Rules**:
+
 ```typescript
 // Additional custom sanitization for application-specific patterns
 function sanitizeError(error: any): any {
   const errorString = error.toString();
   // Remove any JWT tokens from error messages
-  const sanitized = errorString.replace(/Bearer\s+[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/g, 'Bearer [REDACTED TOKEN]');
+  const sanitized = errorString.replace(
+    /Bearer\s+[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/g,
+    'Bearer [REDACTED TOKEN]',
+  );
   // Remove any API keys
   return sanitized.replace(/apiKey=[^&\s]+/g, 'apiKey=[REDACTED]');
 }
 ```
 
 **Log Levels**:
+
 - `error` - Failures, exceptions
 - `warn` - Recoverable issues
 - `info` - Significant events
 - `debug` - Verbose troubleshooting
 
 **Log Location**:
+
 - **macOS**: `~/Library/Logs/Holokai/main.log`
 - **Windows**: `%USERPROFILE%\AppData\Roaming\Holokai\logs\main.log`
 - **Linux**: `~/.config/Holokai/logs/main.log`
@@ -1170,12 +1193,14 @@ function sanitizeError(error: any): any {
 ### 9.2 Holo Audit Service
 
 **Audit Events** (Managed by Holo):
+
 - Prompt submission
 - LLM response completion
 - Thread creation/deletion
 - Model selection changes
 
 **Not Logged by Desktop**:
+
 - Desktop does NOT send separate audit events
 - All auditing handled by Holo Audit Service
 - Desktop logging is for troubleshooting only
@@ -1187,16 +1212,19 @@ function sanitizeError(error: any): any {
 ### 10.1 Error Categories
 
 **Authentication Errors**:
+
 - `401 Unauthorized` → Re-authenticate user
 - `403 Forbidden` → Show access denied message
 - Exchange code expired → Restart SSO flow
 
 **API Errors**:
+
 - `429 Too Many Requests` → Show rate limit message
 - `500 Internal Server Error` → Show error, allow retry
 - Network timeout → Show connection error
 
 **Application Errors**:
+
 - IPC handler exceptions → Log and show generic error
 - Render crashes → Electron restart window
 - Cache corruption → Clear cache and reload
@@ -1228,11 +1256,10 @@ export class HoloAPIClient {
       }
 
       return await response.json();
-
     } catch (error) {
-      log.error('Prompt submission failed', { 
-        threadId: request.threadId, 
-        error: sanitizeError(error) 
+      log.error('Prompt submission failed', {
+        threadId: request.threadId,
+        error: sanitizeError(error),
       });
       throw error;
     }
@@ -1247,6 +1274,7 @@ export class HoloAPIClient {
 ### 11.1 Build Configuration
 
 **Electron Builder** (`electron-builder.yml`):
+
 ```yaml
 appId: com.holokai.desktop
 productName: Holokai
@@ -1290,12 +1318,14 @@ protocols:
 ### 11.2 Update Strategy
 
 **Auto-Updater**:
+
 - Check for updates on startup
 - Download in background
 - Prompt user to restart for update
 - Delta updates for smaller downloads
 
 **Update Server**:
+
 - S3-hosted update files
 - Signed updates (macOS notarization, Windows code signing)
 - Version manifest with release notes
@@ -1307,16 +1337,19 @@ protocols:
 ### 12.1 Optimization Strategies
 
 **Lazy Loading**:
+
 - Load thread list on demand
 - Paginate thread history (50 messages at a time)
 - Defer loading thread content until viewed
 
 **Caching**:
+
 - In-memory cache for active thread
 - LRU eviction for old threads
 - Invalidate cache on new messages
 
 **Rendering**:
+
 - Virtualized lists for large thread counts
 - Debounced search input
 - Lazy markdown rendering
@@ -1324,6 +1357,7 @@ protocols:
 ### 12.2 Memory Management
 
 **Cache Limits**:
+
 - Thread cache: 100 threads (configurable: 50-200)
 - Message cache: 1000 total messages across all threads (effectively ~1500-2000 with gzip)
 - Per-thread message limit: 100 messages initially loaded
@@ -1332,12 +1366,14 @@ protocols:
 - Clear cache on logout or app restart
 
 **Memory Monitoring**:
+
 ```typescript
 // Main process
 app.on('ready', () => {
   setInterval(() => {
     const usage = process.memoryUsage();
-    if (usage.heapUsed > 500 * 1024 * 1024) { // 500MB
+    if (usage.heapUsed > 500 * 1024 * 1024) {
+      // 500MB
       log.warn('High memory usage', { heapUsed: usage.heapUsed });
       threadRepository.clearOldCache();
     }
@@ -1352,11 +1388,13 @@ app.on('ready', () => {
 ### 13.1 Unit Tests
 
 **Main Process**:
+
 - Service layer methods (mocked API clients)
 - IPC handlers (mocked services)
 - Authentication flow (mocked OAuth)
 
 **Renderer Process**:
+
 - Svelte component tests (Vitest)
 - Service wrapper tests (mocked IPC)
 - Store tests (state mutations)
@@ -1364,6 +1402,7 @@ app.on('ready', () => {
 ### 13.2 Integration Tests
 
 **E2E Tests** (Playwright):
+
 - Complete authentication flow
 - Create thread and send message
 - View thread history
@@ -1517,48 +1556,48 @@ npm run dist
 
 **Authentication**:
 
-| Endpoint | Method | Purpose | Request | Response |
-|----------|--------|---------|---------|----------|
-| `/api/auth/exchange-code` | POST | Exchange code for API key | `{ code: string }` | `{ apiKey: string }` |
-| `/api/auth/token/refresh` | POST | Exchange API key for access token | `{ apiKey: string }` | `{ accessToken: string, expiresIn: number }` |
+| Endpoint                  | Method | Purpose                           | Request              | Response                                     |
+| ------------------------- | ------ | --------------------------------- | -------------------- | -------------------------------------------- |
+| `/api/auth/exchange-code` | POST   | Exchange code for API key         | `{ code: string }`   | `{ apiKey: string }`                         |
+| `/api/auth/token/refresh` | POST   | Exchange API key for access token | `{ apiKey: string }` | `{ accessToken: string, expiresIn: number }` |
 
 **Thread Management**:
 
-| Endpoint | Method | Purpose | Query Parameters |
-|----------|--------|---------|------------------|
-| `/api/threads` | GET | List threads with pagination | `limit`, `cursor`, `before`, `after` |
-| `/api/threads/{threadId}` | GET | Get single thread by ID | - |
-| `/api/threads/{threadId}/messages` | GET | Get messages with pagination | `limit`, `before`, `after`, `cursor` |
-| `/api/threads` | POST | Create a new thread | - |
-| `/api/threads/{threadId}` | PATCH | Update thread metadata | - |
-| `/api/threads/{threadId}/messages` | POST | Append message to thread | - |
-| `/api/threads/{threadId}/move` | POST | Move thread to/from project | - |
-| `/api/threads/{threadId}/soft-delete` | POST | Soft delete thread | - |
-| `/api/threads/{threadId}` | DELETE | Permanently delete thread | - |
+| Endpoint                              | Method | Purpose                      | Query Parameters                     |
+| ------------------------------------- | ------ | ---------------------------- | ------------------------------------ |
+| `/api/threads`                        | GET    | List threads with pagination | `limit`, `cursor`, `before`, `after` |
+| `/api/threads/{threadId}`             | GET    | Get single thread by ID      | -                                    |
+| `/api/threads/{threadId}/messages`    | GET    | Get messages with pagination | `limit`, `before`, `after`, `cursor` |
+| `/api/threads`                        | POST   | Create a new thread          | -                                    |
+| `/api/threads/{threadId}`             | PATCH  | Update thread metadata       | -                                    |
+| `/api/threads/{threadId}/messages`    | POST   | Append message to thread     | -                                    |
+| `/api/threads/{threadId}/move`        | POST   | Move thread to/from project  | -                                    |
+| `/api/threads/{threadId}/soft-delete` | POST   | Soft delete thread           | -                                    |
+| `/api/threads/{threadId}`             | DELETE | Permanently delete thread    | -                                    |
 
 **Project Management**:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/projects` | GET | List user's projects |
-| `/api/projects` | POST | Create project |
-| `/api/projects/:id` | GET | Get project details |
-| `/api/projects/:id` | PATCH | Update project |
-| `/api/projects/:id` | DELETE | Delete project |
-| `/api/projects/:id/share` | POST | Share project with user/org |
-| `/api/projects/:id/share/:shareId` | DELETE | Revoke project access |
-| `/api/projects/:id/collaborators` | GET | List project collaborators |
-| `/api/projects/:id/files` | POST | Upload file to project |
-| `/api/projects/:id/files` | GET | List project files |
-| `/api/projects/:id/files/:fileId` | DELETE | Delete project file |
+| Endpoint                           | Method | Purpose                     |
+| ---------------------------------- | ------ | --------------------------- |
+| `/api/projects`                    | GET    | List user's projects        |
+| `/api/projects`                    | POST   | Create project              |
+| `/api/projects/:id`                | GET    | Get project details         |
+| `/api/projects/:id`                | PATCH  | Update project              |
+| `/api/projects/:id`                | DELETE | Delete project              |
+| `/api/projects/:id/share`          | POST   | Share project with user/org |
+| `/api/projects/:id/share/:shareId` | DELETE | Revoke project access       |
+| `/api/projects/:id/collaborators`  | GET    | List project collaborators  |
+| `/api/projects/:id/files`          | POST   | Upload file to project      |
+| `/api/projects/:id/files`          | GET    | List project files          |
+| `/api/projects/:id/files/:fileId`  | DELETE | Delete project file         |
 
 ### Holo API Endpoints
 
-| Endpoint | Method | Purpose | Request | Response |
-|----------|--------|---------|---------|----------|
-| `/api/chat` | POST | Submit LLM prompt | `{ threadId: string, prompt: string, model: string, stream?: boolean }` | `{ response: string }` or SSE stream |
-| `/api/chat/history/{threadId}` | GET | Get thread messages | N/A | `{ messages: Message[] }` |
-| `/api/models` | GET | List available models | N/A | `{ models: Model[] }` |
+| Endpoint                       | Method | Purpose               | Request                                                                 | Response                             |
+| ------------------------------ | ------ | --------------------- | ----------------------------------------------------------------------- | ------------------------------------ |
+| `/api/chat`                    | POST   | Submit LLM prompt     | `{ threadId: string, prompt: string, model: string, stream?: boolean }` | `{ response: string }` or SSE stream |
+| `/api/chat/history/{threadId}` | GET    | Get thread messages   | N/A                                                                     | `{ messages: Message[] }`            |
+| `/api/models`                  | GET    | List available models | N/A                                                                     | `{ models: Model[] }`                |
 
 ---
 
@@ -1596,6 +1635,7 @@ export default {
 ---
 
 **Document Version History**:
+
 - v1.0 (2024-11) - Initial Phase 1 architecture documentation
 - v1.0.1 (2024-11) - Added missing vocabulary definitions (JSONB, LRU, PKCE, SSE)
 - v1.0.2 (2024-11) - Added PII sanitization to logging system using @cdssnc/sanitize-pii package
