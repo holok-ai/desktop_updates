@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Ollama } from 'ollama';
 import type { ChatRequest as OllamaChatRequest, ChatResponse } from 'ollama';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
