@@ -211,8 +211,8 @@ function registerIpcHandlers(): void {
   // Register settings handlers FIRST (other services depend on settings)
   registerSettingsHandlers();
 
-  // Register authentication IPC handlers
-  registerAuthHandlers();
+  // Register authentication IPC handlers and get auth service instance
+  const authService = registerAuthHandlers();
 
   // Register thread-related IPC handlers
   registerThreadHandlers();
@@ -226,8 +226,8 @@ function registerIpcHandlers(): void {
   // Register system-related IPC handlers
   registerSystemHandlers();
 
-  // Register chat-related IPC handlers
-  registerChatHandlers();
+  // Register chat-related IPC handlers with auth service for token injection
+  registerChatHandlers(authService);
 
   // Register file upload/download IPC handlers
   registerFileHandlers();

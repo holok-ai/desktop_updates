@@ -25,11 +25,12 @@ export class OpenAIChatProvider implements IChatProvider {
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
 
     if (request.streaming !== false) {
-      const stream = await this.client.chat.completions.create({
+      const stream: any = await this.client.chat.completions.create({
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: true,
-      });
+        thread_id: (request as any).thread_id,
+      } as any);
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
@@ -41,7 +42,8 @@ export class OpenAIChatProvider implements IChatProvider {
       const response = await this.client.chat.completions.create({
         model: openaiRequest.model,
         messages: openaiRequest.messages,
-      });
+        thread_id: (request as any).thread_id,
+      } as any);
 
       const content = response.choices[0]?.message?.content || '';
       if (content && onTokenReceived) {
@@ -64,7 +66,7 @@ export class OpenAIChatProvider implements IChatProvider {
     });
 
     if (request.streaming !== false) {
-      const stream = await this.client.chat.completions.create({
+      const stream: any = await this.client.chat.completions.create({
         model: openaiRequest.model as string,
         messages:
           openaiRequest.messages as import('openai/resources/chat').ChatCompletionMessageParam[],
@@ -75,7 +77,8 @@ export class OpenAIChatProvider implements IChatProvider {
         presence_penalty: openaiRequest.presence_penalty as number | undefined,
         stop: openaiRequest.stop as string[] | undefined,
         stream: true,
-      });
+        thread_id: (request as any).thread_id,
+      } as any);
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
@@ -94,7 +97,8 @@ export class OpenAIChatProvider implements IChatProvider {
         frequency_penalty: openaiRequest.frequency_penalty as number | undefined,
         presence_penalty: openaiRequest.presence_penalty as number | undefined,
         stop: openaiRequest.stop as string[] | undefined,
-      });
+        thread_id: (request as any).thread_id,
+      } as any);
 
       const content = response.choices[0]?.message?.content || '';
       if (content && onTokenReceived) {

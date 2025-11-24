@@ -7,6 +7,9 @@ import {
 } from './factories/ChatProviderFactory.js';
 import { AuditService } from './audit/AuditService.js';
 
+// Static UUID for testing thread_id association
+const THREAD_UUID = '12345678-1234-5678-1234-567812345678';
+
 /**
  * Main service class that provides a unified interface for chat functionality
  * across different providers
@@ -45,16 +48,19 @@ export class ChatService {
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
   ): Promise<void> {
+    // Add thread_id to request
+    const requestWithThreadId = { ...request, thread_id: THREAD_UUID };
+
     // Create audit wrapper if audit is enabled
     const { callback, complete } = this.auditService.createWrappedCallback(
-      request,
+      requestWithThreadId,
       this.providerType,
       onTokenReceived,
     );
 
     try {
       // Use the wrapped callback for provider calls
-      await this.provider.chat(request, callback);
+      await this.provider.chat(requestWithThreadId, callback);
       complete();
     } catch (error) {
       complete(error);
@@ -69,16 +75,19 @@ export class ChatService {
     request: ChatRequestWithOptions,
     onTokenReceived?: (token: string) => void,
   ): Promise<void> {
+    // Add thread_id to request
+    const requestWithThreadId = { ...request, thread_id: THREAD_UUID };
+
     // Create audit wrapper if audit is enabled
     const { callback, complete } = this.auditService.createWrappedCallback(
-      request,
+      requestWithThreadId,
       this.providerType,
       onTokenReceived,
     );
 
     try {
       // Use the wrapped callback for provider calls
-      await this.provider.chatWithOptions(request, callback);
+      await this.provider.chatWithOptions(requestWithThreadId, callback);
       complete();
     } catch (error) {
       complete(error);
