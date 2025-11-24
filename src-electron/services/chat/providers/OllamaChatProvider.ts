@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Ollama } from 'ollama';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
@@ -53,7 +57,10 @@ export class OllamaChatProvider implements IChatProvider {
 
         // Check if part has the expected structure
         if (!part.message) {
-          console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+          console.error(
+            '[OllamaChatProvider] Unexpected response structure - missing message:',
+            part,
+          );
           continue;
         }
 
@@ -69,7 +76,10 @@ export class OllamaChatProvider implements IChatProvider {
         stream: false,
       } as any);
 
-      console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
+      console.log(
+        '[OllamaChatProvider] Received non-streaming response:',
+        JSON.stringify(response, null, 2),
+      );
 
       // Handle non-streaming response
       if (response.message && onTokenReceived) {
@@ -89,7 +99,10 @@ export class OllamaChatProvider implements IChatProvider {
     const requestWithModel = { ...request, model: modelToUse };
 
     const ollamaRequest = OllamaConverter.toOllamaRequestWithOptions(requestWithModel);
-    console.log('[OllamaChatProvider] Sending request with options:', JSON.stringify(ollamaRequest, null, 2));
+    console.log(
+      '[OllamaChatProvider] Sending request with options:',
+      JSON.stringify(ollamaRequest, null, 2),
+    );
 
     // Handle streaming vs non-streaming
     if (ollamaRequest.stream) {
@@ -111,7 +124,10 @@ export class OllamaChatProvider implements IChatProvider {
 
         // Check if part has the expected structure
         if (!part.message) {
-          console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+          console.error(
+            '[OllamaChatProvider] Unexpected response structure - missing message:',
+            part,
+          );
           continue;
         }
 
@@ -127,7 +143,10 @@ export class OllamaChatProvider implements IChatProvider {
         stream: false,
       } as any);
 
-      console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
+      console.log(
+        '[OllamaChatProvider] Received non-streaming response:',
+        JSON.stringify(response, null, 2),
+      );
 
       // Handle non-streaming response
       if (response.message && onTokenReceived) {
