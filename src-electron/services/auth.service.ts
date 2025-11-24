@@ -321,8 +321,11 @@ export class AuthService {
 
       // If no name found, use email username part
       if (!extractedName && userEmail) {
-        extractedName = userEmail.split('@')[0].replace(/[._-]/g, ' ').split(' ')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        extractedName = userEmail
+          .split('@')[0]
+          .replace(/[._-]/g, ' ')
+          .split(' ')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
       }
 

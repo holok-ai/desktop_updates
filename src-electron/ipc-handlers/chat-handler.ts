@@ -148,6 +148,71 @@ export function registerChatHandlers(auth?: AuthService): void {
   });
 
   /**
+   * Send Chat Message with File Tools - Send message with file tools enabled and streaming
+   */
+  ipcMain.handle(
+    'chat:sendWithFileTools',
+    async (
+      event: IpcMainInvokeEvent,
+      request: ChatRequest,
+    ): Promise<{ success: boolean; error?: string }> => {
+      log.info('[IPC] chat:sendWithFileTools called');
+
+      if (!chatService) {
+        const errorMessage = 'Chat service not initialized. Call createProvider first.';
+        log.error('[IPC]', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      try {
+        await chatService.chatWithFileTools(
+          request,
+          (token: string) => {
+            // Send streaming tokens back to renderer
+            event.sender.send('chat:token', token);
+          },
+          (toolName: string, input: unknown) => {
+            // Send tool use notifications back to renderer
+            event.sender.send('chat:toolUse', { toolName, input });
+          },
+        );
+        log.info('[IPC] Chat message with file tools sent successfully');
+        return { success: true };
+      } catch (error) {
+        log.error('[IPC] Error sending chat message with file tools:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
+  /**
+   * Set File Tools Working Directory - Configure working directory for file tools
+   */
+  ipcMain.handle(
+    'chat:setFileToolsWorkingDirectory',
+    (_event, dir: string): { success: boolean; error?: string } => {
+      log.info('[IPC] chat:setFileToolsWorkingDirectory called', { dir });
+
+      if (!chatService) {
+        const errorMessage = 'Chat service not initialized. Call createProvider first.';
+        log.error('[IPC]', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      try {
+        chatService.setFileToolsWorkingDirectory(dir);
+        log.info('[IPC] File tools working directory set successfully');
+        return { success: true };
+      } catch (error) {
+        log.error('[IPC] Error setting file tools working directory:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
+  /**
    * Destroy Chat Service - Clean up current chat service instance
    */
   ipcMain.handle('chat:destroy', (): { success: boolean } => {
@@ -173,6 +238,8 @@ export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:createProvider');
   ipcMain.removeHandler('chat:send');
   ipcMain.removeHandler('chat:sendWithOptions');
+  ipcMain.removeHandler('chat:sendWithFileTools');
+  ipcMain.removeHandler('chat:setFileToolsWorkingDirectory');
   ipcMain.removeHandler('chat:getAuditLogs');
   ipcMain.removeHandler('chat:destroy');
 

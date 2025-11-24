@@ -9,12 +9,14 @@ The **Projects** feature in Holokai Desktop provides a workspace concept that or
 ## Core Concept
 
 A **Project** is a collection of:
+
 - **Threads** - Conversation history with AI assistants
 - **Input Assets** - Documents, data files, images, scripts, videos uploaded for AI processing
 - **Generated Assets** - Outputs created by AI (reports, code, analysis, etc.)
 - **Metadata** - Project settings, permissions, sharing configuration
 
 Projects serve as organizational containers that:
+
 - Group related work together (e.g., "Q4 Marketing Campaign", "Backend Refactor", "Research Paper")
 - Provide context boundaries for AI conversations
 - Enable collaboration through sharing mechanisms
@@ -29,11 +31,13 @@ Projects serve as organizational containers that:
 Threads can be associated with projects through the `projectId` metadata field stored in the `thread_metadata` table. This allows:
 
 **Thread-to-Project Relationships:**
+
 - One thread belongs to zero or one project (nullable relationship)
 - One project can contain many threads
 - Threads without a project live in threads list
 
 **Operations:**
+
 - Move threads into projects
 - Move threads out of projects threads list
 - Filter/view threads by project
@@ -41,6 +45,7 @@ Threads can be associated with projects through the `projectId` metadata field s
 
 **Context Handling:**
 When moving threads between projects, the desktop app can implement privacy modes:
+
 - **Preserve Context** - Thread history remains visible in both locations
 - **Break Context** - Thread appears fresh in new location (metadata flag)
 
@@ -49,6 +54,7 @@ When moving threads between projects, the desktop app can implement privacy mode
 Projects manage two categories of assets:
 
 **Input Assets:**
+
 - Documents, images, videos, scripts, files users upload to provide context to AI
 - PDFs, spreadsheets, code files, media files, etc.
 - Referenced by threads within the project
@@ -56,12 +62,14 @@ Projects manage two categories of assets:
 - Asset type tracked: 'file' | 'script' | 'image' | 'video' | 'document'
 
 **Generated Assets:**
+
 - AI-created outputs (documents, code, reports, visualizations, scripts)
 - Linked to specific threads via thread_id in metadata
 - Associated with specific requests via request_id in metadata
 - Tracked for version history and regeneration
 
 **Asset Storage Strategy:**
+
 ```
 Local Storage (Desktop):
   ~/AppData/Roaming/holokai-desktop/projects/{projectId}/
@@ -84,37 +92,42 @@ Projects support multi-user collaboration through integration with Moku's user a
 
 **Sharing Levels:**
 
-| Level | Description | Permissions |
-|-------|-------------|-------------|
-| **Private** | Project owner only | Full control: read, write, delete, share |
-| **Shared - View** | Specific users/orgs | Read threads, view assets, cannot modify |
+| Level             | Description         | Permissions                                         |
+| ----------------- | ------------------- | --------------------------------------------------- |
+| **Private**       | Project owner only  | Full control: read, write, delete, share            |
+| **Shared - View** | Specific users/orgs | Read threads, view assets, cannot modify            |
 | **Shared - Edit** | Specific users/orgs | Read, create threads, upload assets, limited delete |
-| **Organization** | All org members | Permissions based on org role (admin/member) |
+| **Organization**  | All org members     | Permissions based on org role (admin/member)        |
 
 **Sharing Mechanism:**
+
 - Creator adds user to project and selects level - Member sees project in their project list
 - Moku API manages access control lists (ACLs)
 - Desktop app enforces permissions locally
 - Real-time sync keeps permissions current
 
 **Use Cases:**
+
 - **Team Projects**: Share "Q4 Budget Analysis" with finance team
-- **Client Work**: Share "Website Redesign" with one person  (view-only)
+- **Client Work**: Share "Website Redesign" with one person (view-only)
 
 ### 4. Privacy & Context Management
 
 Projects provide privacy boundaries and context control:
 
 **Context Isolation:**
+
 - Threads in Project A cannot reference assets from Project B
 - AI responses use only project-specific context
 - Search/indexing respects project boundaries
 
 **Privacy Modes:**
+
 - **Private Projects**: Data never leaves user's account
 - **Shared Projects**: Data visible to members only
 
 **Context Window Management:**
+
 - Desktop tracks which assets are "active" in current conversation
 - User can explicitly include/exclude project assets from AI context
 - Token budgets managed per-thread, respecting project limits
@@ -127,27 +140,27 @@ Projects provide privacy boundaries and context control:
 
 ```typescript
 interface Project {
-  id: string;                          // UUID v4
-  name: string;                        // "Q4 Marketing Campaign"
-  description?: string;                // Project purpose/details
-  createdBy: string;                   // User ID of creator
-  organizationId?: string;             // Optional org association
+  id: string; // UUID v4
+  name: string; // "Q4 Marketing Campaign"
+  description?: string; // Project purpose/details
+  createdBy: string; // User ID of creator
+  organizationId?: string; // Optional org association
   status: 'active' | 'archived' | 'deleted';
-  createdAt: number;                   // Epoch milliseconds
-  updatedAt: number;                   // Epoch milliseconds
-  deletedAt?: number | null;           // Soft delete
-  
+  createdAt: number; // Epoch milliseconds
+  updatedAt: number; // Epoch milliseconds
+  deletedAt?: number | null; // Soft delete
+
   metadata: {
-    color?: string;                    // UI accent color
-    icon?: string;                     // Project icon identifier
-    tags?: string[];                   // Searchable tags
+    color?: string; // UI accent color
+    icon?: string; // Project icon identifier
+    tags?: string[]; // Searchable tags
     settings?: {
-      defaultModel?: string;           // Preferred AI model
+      defaultModel?: string; // Preferred AI model
       contextMode?: 'full' | 'limited'; // File context behavior
-      maxThreads?: number;             // Optional limit
+      maxThreads?: number; // Optional limit
     };
   };
-  
+
   // Computed fields (not stored, fetched on demand)
   threadCount?: number;
   assetCount?: number;
@@ -160,14 +173,14 @@ interface Project {
 
 ```typescript
 interface ProjectMember {
-  id: string;                          // UUID v4
-  projectId: string;                   // FK to projects
-  userId?: string;                     // Individual user (nullable)
-  organizationId?: string;             // Org membership (nullable)
+  id: string; // UUID v4
+  projectId: string; // FK to projects
+  userId?: string; // Individual user (nullable)
+  organizationId?: string; // Org membership (nullable)
   permission: 'view' | 'edit' | 'admin';
-  createdBy: string;                   // Who granted access
+  createdBy: string; // Who granted access
   createdAt: number;
-  expiresAt?: number | null;           // Optional expiration
+  expiresAt?: number | null; // Optional expiration
 }
 ```
 
@@ -175,21 +188,21 @@ interface ProjectMember {
 
 ```typescript
 interface ProjectAsset {
-  id: string;                          // UUID v4
-  projectId: string;                   // FK to projects
-  name: string;                        // Original filename
-  type: 'input' | 'output';           // Asset category
+  id: string; // UUID v4
+  projectId: string; // FK to projects
+  name: string; // Original filename
+  type: 'input' | 'output'; // Asset category
   assetType: 'file' | 'script' | 'image' | 'video' | 'document';
-  mimeType: string;                    // e.g., 'application/pdf', 'video/mp4'
-  size: number;                        // Bytes
-  path: string;                        // Local storage path
-  cloudUrl?: string;                   // Cloud storage URL (if synced)
-  uploadedBy: string;                  // User ID
+  mimeType: string; // e.g., 'application/pdf', 'video/mp4'
+  size: number; // Bytes
+  path: string; // Local storage path
+  cloudUrl?: string; // Cloud storage URL (if synced)
+  uploadedBy: string; // User ID
   createdAt: number;
   metadata?: {
-    threadId?: string;                 // Associated thread
-    requestId?: string;                // Associated request (for generated assets)
-    version?: number;                  // Version tracking
+    threadId?: string; // Associated thread
+    requestId?: string; // Associated request (for generated assets)
+    version?: number; // Version tracking
     tags?: string[];
   };
 }
@@ -214,7 +227,7 @@ CREATE TABLE projects (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
-    
+
     CONSTRAINT projects_status_check CHECK (status IN ('active', 'archived', 'deleted')),
 );
 
@@ -331,6 +344,7 @@ CREATE INDEX idx_project_assets_project ON project_assets(project_id);
 ### Holo API (No Changes Required)
 
 The Holo API continues to handle prompt execution and persistence. It does not need project awareness since:
+
 - Projects are organizational constructs managed by Moku
 - Thread-project associations stored in `thread_metadata`
 - Asset context provided by desktop app in prompt payload
@@ -349,13 +363,15 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 6. Desktop caches project locally, adds to sidebar
 
 ### Adding Threads to Project
-1. User clicks on a project in the Activity List 
-2. In Project page, user selects "New Thread" 
+
+1. User clicks on a project in the Activity List
+2. In Project page, user selects "New Thread"
 3. Desktop generates UUID, shows thread creation page
-3. Desktop calls `POST /api/threads/:id/move` (Moku API)
-4. Moku updates `thread_metadata.project_id`
+4. Desktop calls `POST /api/threads/:id/move` (Moku API)
+5. Moku updates `thread_metadata.project_id`
 
 ### Moving a Thread to Project
+
 1. User right-clicks thread in General History
 2. Selects "Move to Project" → chooses project
 3. Desktop calls `POST /api/threads/:id/move` (Moku API)
@@ -389,6 +405,7 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 ## Implementation Phases
 
 ### Phase 1: Core Project Management (MVP)
+
 - [ ] Projects table and basic CRUD in Moku API
 - [ ] Desktop UI for creating/viewing projects
 - [ ] Thread-to-project association (move threads)
@@ -396,6 +413,7 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 - [ ] Local project cache
 
 ### Phase 2: Asset Management
+
 - [ ] Project assets table in Moku API
 - [ ] Asset upload/download endpoints
 - [ ] Desktop asset panel UI
@@ -405,6 +423,7 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 - [ ] Thread_id and request_id tracking in asset metadata
 
 ### Phase 3: Collaboration
+
 - [ ] Project members table and APIs
 - [ ] Desktop sharing UI
 - [ ] Permission enforcement in Moku API
@@ -412,6 +431,7 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 - [ ] Real-time member presence
 
 ### Phase 4: Advanced Features
+
 - [ ] Organization-level projects
 - [ ] Project templates
 - [ ] Project archival and export
@@ -423,18 +443,21 @@ The Holo API continues to handle prompt execution and persistence. It does not n
 ## Security Considerations
 
 ### Access Control
+
 - All project operations require authentication
 - Moku API validates user permissions on every request
 - Desktop enforces UI restrictions based on permission level
 - Audit log tracks all project access and modifications
 
 ### Data Isolation
+
 - Projects are completely isolated at database level
 - No cross-project queries allowed
 - Asset access controlled via signed URLs with expiration
 - Search indexes respect project boundaries
 
 ### Compliance
+
 - Organization admins can enforce data policies
 - Support for data residency requirements
 - Retention policies for archived/deleted projects
@@ -467,6 +490,7 @@ The Projects feature transforms Holokai Desktop from a simple chat interface int
 - Scale AI workflows for enterprise use
 
 The feature integrates seamlessly with the existing architecture:
+
 - Desktop app handles UI and local caching
 - Moku API manages persistence and authorization
 - Holo API continues to process prompts without modification

@@ -17,6 +17,16 @@
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
 
+  // Resize state
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 600;
+  const DEFAULT_WIDTH = 280;
+
+  let customWidth = $state(DEFAULT_WIDTH);
+  let isResizing = $state(false);
+  let startX = $state(0);
+  let startWidth = $state(0);
+
   let isCollapsed = $state(false);
   let selectedThreadId: string | null = $state(null);
   let renamingThreadId: string | null = $state(null);
@@ -35,6 +45,10 @@
   const activityTitle = $derived(activity?.label ?? 'Activity');
 
   onMount(async () => {
+    // Restore custom width and collapsed state from storage
+    customWidth = storageService.getActivityListWidth();
+    isCollapsed = storageService.getActivityListCollapsed();
+
     await getThreadItems();
   });
 
@@ -121,7 +135,7 @@
     const route = (item as SidebarActivity).route;
 
     switch (route) {
-      case ROUTE.THREADS:
+      case ROUTE.THREADS: {
         selectedThreadId = item.id;
         storageService.setLastThreadId(item.id);
         if (!selectedProjectId) {
@@ -135,6 +149,7 @@
         }
         push(`${ROUTE.THREADS}?${params.toString()}`);
         break;
+      }
       default:
         break;
     }
@@ -154,7 +169,51 @@
 
   function toggleSidebar() {
     isCollapsed = !isCollapsed;
+    storageService.setActivityListCollapsed(isCollapsed);
   }
+
+  // Resize handlers
+  function handleResizeStart(e: MouseEvent) {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = customWidth;
+    e.preventDefault();
+  }
+
+  function handleResizeMove(e: MouseEvent) {
+    if (!isResizing) return;
+
+    const delta = e.clientX - startX;
+    const newWidth = startWidth + delta;
+
+    // Clamp width between min and max
+    customWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+  }
+
+  function handleResizeEnd() {
+    if (isResizing) {
+      isResizing = false;
+      // Save the custom width to storage
+      storageService.setActivityListWidth(customWidth);
+    }
+  }
+
+  // Add global mouse event listeners for resize
+  $effect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleResizeEnd);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleResizeEnd);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+    }
+  });
 
   async function getThreadItems() {
     try {
@@ -214,6 +273,7 @@
 
 <aside
   class="activity-list-sidebar transition-all duration-300 {isCollapsed && 'collapsed'}"
+  style="width: {isCollapsed ? 'var(--sidebar-secondary-collapsed, 48px)' : `${customWidth}px`};"
   aria-label="Activity list sidebar"
 >
   <div class="{isCollapsed ? 'p-0' : 'p-4'} flex items-center justify-between gap-2">
@@ -221,8 +281,7 @@
       <span class="activity-title">{activityTitle}</span>
     {/if}
     <button
-      class="{!isCollapsed &&
-        'p-0'} bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none"
+      class="collapse-toggle-btn"
       onclick={toggleSidebar}
       aria-label="Collapse/Expand Activity List"
     >
@@ -285,6 +344,18 @@
       {/if}
     </ul>
   </div>
+
+  <!-- Resize handle -->
+  {#if !isCollapsed}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="resize-handle {isResizing ? 'resizing' : ''}"
+      onmousedown={handleResizeStart}
+      role="separator"
+      aria-label="Resize activity list"
+      aria-orientation="vertical"
+    ></div>
+  {/if}
 </aside>
 
 <!-- Rename thread modal dialog -->
@@ -323,14 +394,14 @@
 <style>
   .activity-list-sidebar {
     box-shadow: var(--sidebar-secondary-box-shadow);
-    width: var(--sidebar-secondary-width);
     background: var(--surface-sidebar-secondary);
     color: var(--text-primary);
     border-right: 1px solid var(--border-sidebar);
-    transition: all 0.3s ease;
+    transition: width 0.3s ease;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    position: relative;
     --sidebar-item-text-color: #0a1624;
     --sidebar-item-icon-color: #0a1624;
     --sidebar-item-active-bg: rgba(10, 22, 36, 0.08);
@@ -344,8 +415,80 @@
     --thread-list-action-color: #0a1624;
     --thread-list-action-hover-bg: rgba(10, 22, 36, 0.12);
   }
-  .activity-list-sidebar.collapsed {
-    width: var(--sidebar-secondary-collapsed, 48px);
+
+  .collapse-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 0.375rem;
+  }
+
+  .collapse-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  :global(html.dark) .collapse-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .collapse-toggle-btn:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  :global(html.dark) .collapse-toggle-btn:focus {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .collapse-toggle-btn i {
+    font-size: 1.25rem;
+  }
+
+  .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background-color 0.2s ease;
+    z-index: 10;
+  }
+
+  .resize-handle:hover,
+  .resize-handle.resizing {
+    background: rgba(59, 130, 246, 0.3);
+  }
+
+  :global(html.dark) .resize-handle:hover,
+  :global(html.dark) .resize-handle.resizing {
+    background: rgba(59, 130, 246, 0.5);
+  }
+
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 40px;
+    background: var(--border-sidebar);
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .resize-handle:hover::after,
+  .resize-handle.resizing::after {
+    opacity: 0.5;
   }
   .activity-title {
     flex: 1;
