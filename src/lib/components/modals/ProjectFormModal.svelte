@@ -173,6 +173,12 @@
                   privacyMode = choice.id;
                 }
               }}
+              onkeydown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && !isSubmitting) {
+                  e.preventDefault();
+                  privacyMode = choice.id;
+                }
+              }}
             >
               <input
                 type="radio"

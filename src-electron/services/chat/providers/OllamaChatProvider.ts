@@ -3,9 +3,13 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Ollama } from 'ollama';
+import type { ChatRequest as OllamaChatRequest, ChatResponse } from 'ollama';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OllamaConverter } from '../converters/OllamaConverter.js';
+
+type ThreadAwareRequest = { thread_id?: string };
+type ThreadAwareOllamaRequest = OllamaChatRequest & ThreadAwareRequest;
 
 export class OllamaChatProvider implements IChatProvider {
   private ollama: Ollama;
@@ -37,55 +41,7 @@ export class OllamaChatProvider implements IChatProvider {
     const ollamaRequest = OllamaConverter.toOllamaRequest(requestWithModel);
     console.log('[OllamaChatProvider] Sending request:', JSON.stringify(ollamaRequest, null, 2));
 
-    // Handle streaming vs non-streaming
-    if (ollamaRequest.stream) {
-      const response = await this.ollama.chat({
-        ...ollamaRequest,
-        thread_id: (request as any).thread_id,
-        stream: true,
-      } as any);
-
-      // Handle streaming response
-      for await (const part of response) {
-        console.log('[OllamaChatProvider] Received streaming part:', JSON.stringify(part, null, 2));
-
-        // Skip completion messages
-        if (part.done) {
-          console.log('[OllamaChatProvider] Received completion signal');
-          continue;
-        }
-
-        // Check if part has the expected structure
-        if (!part.message) {
-          console.error(
-            '[OllamaChatProvider] Unexpected response structure - missing message:',
-            part,
-          );
-          continue;
-        }
-
-        const token = part.message.content;
-        if (token && onTokenReceived) {
-          onTokenReceived(token);
-        }
-      }
-    } else {
-      const response: any = await this.ollama.chat({
-        ...ollamaRequest,
-        thread_id: (request as any).thread_id,
-        stream: false,
-      } as any);
-
-      console.log(
-        '[OllamaChatProvider] Received non-streaming response:',
-        JSON.stringify(response, null, 2),
-      );
-
-      // Handle non-streaming response
-      if (response.message && onTokenReceived) {
-        onTokenReceived(response.message.content);
-      }
-    }
+    await this.executeChatRequest(ollamaRequest, request.thread_id, onTokenReceived);
   }
 
   /**
@@ -104,54 +60,73 @@ export class OllamaChatProvider implements IChatProvider {
       JSON.stringify(ollamaRequest, null, 2),
     );
 
-    // Handle streaming vs non-streaming
+    await this.executeChatRequest(ollamaRequest, request.thread_id, onTokenReceived);
+  }
+
+  public supportsTools(): boolean {
+    return false;
+  }
+
+  private async executeChatRequest(
+    ollamaRequest: OllamaChatRequest,
+    threadId: string | undefined,
+    onTokenReceived?: (token: string) => void,
+  ): Promise<void> {
     if (ollamaRequest.stream) {
-      const response = await this.ollama.chat({
-        ...ollamaRequest,
-        thread_id: (request as any).thread_id,
-        stream: true,
-      } as any);
+      const streamingRequest = this.buildThreadAwareRequest(ollamaRequest, threadId, true);
+      const response = await this.ollama.chat(streamingRequest);
+      await this.processStreamingResponse(response, onTokenReceived);
+      return;
+    }
 
-      // Handle streaming response
-      for await (const part of response) {
-        console.log('[OllamaChatProvider] Received streaming part:', JSON.stringify(part, null, 2));
+    const nonStreamingRequest = this.buildThreadAwareRequest(ollamaRequest, threadId, false);
+    const response: ChatResponse = await this.ollama.chat(nonStreamingRequest);
+    console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
+    this.emitNonStreamingResponse(response, onTokenReceived);
+  }
 
-        // Skip completion messages
-        if (part.done) {
-          console.log('[OllamaChatProvider] Received completion signal');
-          continue;
-        }
+  private buildThreadAwareRequest<TStream extends boolean>(
+    request: OllamaChatRequest,
+    threadId: string | undefined,
+    stream: TStream,
+  ): ThreadAwareOllamaRequest & { stream: TStream } {
+    return {
+      ...request,
+      ...(threadId ? { thread_id: threadId } : {}),
+      stream,
+    };
+  }
 
-        // Check if part has the expected structure
-        if (!part.message) {
-          console.error(
-            '[OllamaChatProvider] Unexpected response structure - missing message:',
-            part,
-          );
-          continue;
-        }
+  private async processStreamingResponse(
+    response: AsyncIterable<ChatResponse>,
+    onTokenReceived?: (token: string) => void,
+  ): Promise<void> {
+    for await (const part of response) {
+      console.log('[OllamaChatProvider] Received streaming part:', JSON.stringify(part, null, 2));
 
-        const token = part.message.content;
-        if (token && onTokenReceived) {
-          onTokenReceived(token);
-        }
+      if (part.done) {
+        console.log('[OllamaChatProvider] Received completion signal');
+        continue;
       }
-    } else {
-      const response: any = await this.ollama.chat({
-        ...ollamaRequest,
-        thread_id: (request as any).thread_id,
-        stream: false,
-      } as any);
 
-      console.log(
-        '[OllamaChatProvider] Received non-streaming response:',
-        JSON.stringify(response, null, 2),
-      );
-
-      // Handle non-streaming response
-      if (response.message && onTokenReceived) {
-        onTokenReceived(response.message.content);
+      const token = part.message?.content;
+      if (!token) {
+        console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+        continue;
       }
+
+      if (token && onTokenReceived) {
+        onTokenReceived(token);
+      }
+    }
+  }
+
+  private emitNonStreamingResponse(
+    response: ChatResponse,
+    onTokenReceived?: (token: string) => void,
+  ): void {
+    if (response.message?.content && onTokenReceived) {
+      onTokenReceived(response.message.content);
     }
   }
 }

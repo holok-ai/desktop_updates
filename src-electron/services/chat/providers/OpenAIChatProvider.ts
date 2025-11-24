@@ -3,9 +3,27 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import OpenAI from 'openai';
+import type { Stream } from 'openai/core/streaming';
+import type {
+  ChatCompletion,
+  ChatCompletionChunk,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+} from 'openai/resources/chat/completions';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OpenAIConverter } from '../converters/OpenAIConverter.js';
+
+type ThreadContext = { thread_id?: string };
+type ThreadAwareStreamingParams = ChatCompletionCreateParamsStreaming & ThreadContext;
+type ThreadAwareNonStreamingParams = ChatCompletionCreateParamsNonStreaming & ThreadContext;
+type OptionalParamKeys =
+  | 'temperature'
+  | 'max_tokens'
+  | 'top_p'
+  | 'frequency_penalty'
+  | 'presence_penalty'
+  | 'stop';
 
 export class OpenAIChatProvider implements IChatProvider {
   private client: OpenAI;
@@ -27,14 +45,19 @@ export class OpenAIChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
+    const threadContext: ThreadContext = request.thread_id ? { thread_id: request.thread_id } : {};
 
-    if (request.streaming !== false) {
-      const stream: any = await this.client.chat.completions.create({
+    const shouldStream = request.streaming !== false;
+
+    if (shouldStream) {
+      const params: ThreadAwareStreamingParams = {
+        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: true,
-        thread_id: (request as any).thread_id,
-      } as any);
+      };
+
+      const stream: Stream<ChatCompletionChunk> = await this.client.chat.completions.create(params);
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
@@ -43,11 +66,14 @@ export class OpenAIChatProvider implements IChatProvider {
         }
       }
     } else {
-      const response = await this.client.chat.completions.create({
+      const params: ThreadAwareNonStreamingParams = {
+        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
-        thread_id: (request as any).thread_id,
-      } as any);
+        stream: false,
+      };
+
+      const response: ChatCompletion = await this.client.chat.completions.create(params);
 
       const content = response.choices[0]?.message?.content || '';
       if (content && onTokenReceived) {
@@ -68,21 +94,22 @@ export class OpenAIChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
+    const threadContext: ThreadContext = request.thread_id ? { thread_id: request.thread_id } : {};
 
-    if (request.streaming !== false) {
-      const stream: any = await this.client.chat.completions.create({
-        model: openaiRequest.model as string,
-        messages:
-          openaiRequest.messages as import('openai/resources/chat').ChatCompletionMessageParam[],
-        temperature: openaiRequest.temperature as number | undefined,
-        max_tokens: openaiRequest.max_tokens as number | undefined,
-        top_p: openaiRequest.top_p as number | undefined,
-        frequency_penalty: openaiRequest.frequency_penalty as number | undefined,
-        presence_penalty: openaiRequest.presence_penalty as number | undefined,
-        stop: openaiRequest.stop as string[] | undefined,
+    const optionalParams = this.buildOptionalParams(openaiRequest);
+
+    const shouldStream = request.streaming !== false;
+
+    if (shouldStream) {
+      const params: ThreadAwareStreamingParams = {
+        ...threadContext,
+        model: openaiRequest.model,
+        messages: openaiRequest.messages,
         stream: true,
-        thread_id: (request as any).thread_id,
-      } as any);
+        ...optionalParams,
+      };
+
+      const stream: Stream<ChatCompletionChunk> = await this.client.chat.completions.create(params);
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
@@ -91,23 +118,51 @@ export class OpenAIChatProvider implements IChatProvider {
         }
       }
     } else {
-      const response = await this.client.chat.completions.create({
-        model: openaiRequest.model as string,
-        messages:
-          openaiRequest.messages as import('openai/resources/chat').ChatCompletionMessageParam[],
-        temperature: openaiRequest.temperature as number | undefined,
-        max_tokens: openaiRequest.max_tokens as number | undefined,
-        top_p: openaiRequest.top_p as number | undefined,
-        frequency_penalty: openaiRequest.frequency_penalty as number | undefined,
-        presence_penalty: openaiRequest.presence_penalty as number | undefined,
-        stop: openaiRequest.stop as string[] | undefined,
-        thread_id: (request as any).thread_id,
-      } as any);
+      const params: ThreadAwareNonStreamingParams = {
+        ...threadContext,
+        model: openaiRequest.model,
+        messages: openaiRequest.messages,
+        stream: false,
+        ...optionalParams,
+      };
+
+      const response: ChatCompletion = await this.client.chat.completions.create(params);
 
       const content = response.choices[0]?.message?.content || '';
       if (content && onTokenReceived) {
         onTokenReceived(content);
       }
     }
+  }
+
+  public supportsTools(): boolean {
+    return false;
+  }
+
+  private buildOptionalParams(
+    openaiRequest: ReturnType<typeof OpenAIConverter.toOpenAIRequestWithOptions>,
+  ): Partial<Pick<ThreadAwareNonStreamingParams, OptionalParamKeys>> {
+    const optionalParams: Partial<Pick<ThreadAwareNonStreamingParams, OptionalParamKeys>> = {};
+
+    if (typeof openaiRequest.temperature === 'number') {
+      optionalParams.temperature = openaiRequest.temperature;
+    }
+    if (typeof openaiRequest.max_tokens === 'number') {
+      optionalParams.max_tokens = openaiRequest.max_tokens;
+    }
+    if (typeof openaiRequest.top_p === 'number') {
+      optionalParams.top_p = openaiRequest.top_p;
+    }
+    if (typeof openaiRequest.frequency_penalty === 'number') {
+      optionalParams.frequency_penalty = openaiRequest.frequency_penalty;
+    }
+    if (typeof openaiRequest.presence_penalty === 'number') {
+      optionalParams.presence_penalty = openaiRequest.presence_penalty;
+    }
+    if (Array.isArray(openaiRequest.stop)) {
+      optionalParams.stop = openaiRequest.stop;
+    }
+
+    return optionalParams;
   }
 }
