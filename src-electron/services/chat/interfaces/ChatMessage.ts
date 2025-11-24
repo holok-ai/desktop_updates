@@ -16,7 +16,6 @@ export interface ChatRequest {
   messages: ChatMessage[];
   streaming?: boolean;
   model: string;
-  thread_id?: string;
 }
 
 /**

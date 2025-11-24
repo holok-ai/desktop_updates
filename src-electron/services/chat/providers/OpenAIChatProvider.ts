@@ -10,9 +10,8 @@ import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OpenAIConverter } from '../converters/OpenAIConverter.js';
 
-type ThreadContext = { thread_id?: string };
-type ThreadAwareStreamingParams = ChatCompletionCreateParamsStreaming & ThreadContext;
-type ThreadAwareNonStreamingParams = ChatCompletionCreateParamsNonStreaming & ThreadContext;
+type ThreadAwareStreamingParams = ChatCompletionCreateParamsStreaming;
+type ThreadAwareNonStreamingParams = ChatCompletionCreateParamsNonStreaming;
 type OptionalParamKeys =
   | 'temperature'
   | 'max_tokens'
@@ -41,7 +40,7 @@ export class OpenAIChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
-    const threadContext: ThreadContext = request.thread_id ? { thread_id: request.thread_id } : {};
+    const threadContext = (request as unknown as { thread_id?: string }).thread_id ? { thread_id: (request as unknown as { thread_id?: string }).thread_id } : {};
 
     const shouldStream = request.streaming !== false;
 
@@ -90,7 +89,7 @@ export class OpenAIChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
-    const threadContext: ThreadContext = request.thread_id ? { thread_id: request.thread_id } : {};
+    const threadContext = (request as unknown as { thread_id?: string }).thread_id ? { thread_id: (request as unknown as { thread_id?: string }).thread_id } : {};
 
     const optionalParams = this.buildOptionalParams(openaiRequest);
 
