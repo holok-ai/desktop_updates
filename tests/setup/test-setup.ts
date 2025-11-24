@@ -6,7 +6,8 @@
 
 import { afterEach, vi } from 'vitest';
 import type { ElectronAPI, Thread, AuthState, UserProfile } from '../../src-electron/preload';
-import type { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
+import type { Project } from '../../src/lib/types/project.type';
+import type { GUID } from '../../src/lib/types/app.type';
 
 // Strongly-typed global helper for test environment
 interface ResizeObserverConstructorLike {
@@ -67,6 +68,96 @@ if (typeof G.ResizeObserver === 'undefined') {
   G.ResizeObserver = ResizeObserverStub as unknown as ResizeObserverConstructorLike;
 }
 
+// Lightweight in-memory IndexedDB polyfill for unit tests
+// Provides minimal API used by services: open, onupgradeneeded, onsuccess,
+// transaction(...).objectStore(...).{put,getAll,delete,clear}
+if (typeof (globalThis as any).indexedDB === 'undefined') {
+  (globalThis as any).indexedDB = (() => {
+    type Store = Map<any, any>;
+    const dbs = new Map<string, { version: number; stores: Map<string, Store> }>();
+
+    function open(name: string, version = 1) {
+      const request: any = {};
+      // emulate async behavior
+      Promise.resolve().then(() => {
+        let entry = dbs.get(name);
+        const isNew = !entry;
+        if (!entry) {
+          entry = { version, stores: new Map() };
+          dbs.set(name, entry);
+        } else if (version > entry.version) {
+          // upgrade path
+          entry.version = version;
+          if (typeof request.onupgradeneeded === 'function') {
+            request.result = makeDB(name);
+            request.onupgradeneeded({ target: request });
+          }
+        }
+
+        request.result = makeDB(name);
+        if (typeof request.onsuccess === 'function') request.onsuccess({ target: request });
+      });
+      return request;
+    }
+
+    function makeDB(name: string) {
+      const entry = dbs.get(name)!;
+      return {
+        name,
+        version: entry.version,
+        objectStoreNames: {
+          contains: (s: string) => entry.stores.has(s),
+        },
+        createObjectStore: (storeName: string, _opts?: any) => {
+          if (!entry.stores.has(storeName)) entry.stores.set(storeName, new Map());
+        },
+        transaction: (storeName: string, _mode: 'readonly' | 'readwrite') => {
+          const store = entry.stores.get(storeName) ?? new Map();
+          return {
+            objectStore: () => {
+              return {
+                put: (val: any) => {
+                  const key = val?.message?.id ?? val?.id;
+                  store.set(key, val);
+                  const req: any = {};
+                  Promise.resolve().then(() => req.onsuccess && req.onsuccess());
+                  return req;
+                },
+                getAll: () => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    req.result = Array.from(store.values());
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+                delete: (key: any) => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    store.delete(key);
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+                clear: () => {
+                  const req: any = {};
+                  Promise.resolve().then(() => {
+                    store.clear();
+                    req.onsuccess && req.onsuccess();
+                  });
+                  return req;
+                },
+              };
+            },
+          };
+        },
+      };
+    }
+
+    return { open };
+  })();
+}
+
 // -------------------------------------------------------------
 // window.electronAPI stub (Context Bridge)
 // -------------------------------------------------------------
@@ -97,6 +188,17 @@ const createThread = (data: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Thr
   createdAt: now(),
   updatedAt: now(),
   ...data,
+});
+
+const createProjectStub = (data?: Partial<Project>): Project => ({
+  id: (data?.id as GUID) ?? 'project-1',
+  title: data?.title ?? 'Test Project',
+  description: data?.description ?? '',
+  createdAt: data?.createdAt ?? now(),
+  updatedAt: data?.updatedAt ?? now(),
+  deletedAt: data?.deletedAt ?? null,
+  metadata: data?.metadata ?? {},
+  privacyMode: data?.privacyMode ?? 'default',
 });
 
 const electronAPIStub: ElectronAPI = {
@@ -198,6 +300,42 @@ const electronAPIStub: ElectronAPI = {
       return { thread: th, promptMessage, responseMessages };
     },
   },
+  project: {
+    getAll: async () => [createProjectStub()],
+    getById: async (id: GUID) => createProjectStub({ id }),
+    create: async (data: {
+      title: string;
+      description?: string;
+      metadata?: Record<string, unknown>;
+      privacyMode?: string;
+    }) =>
+      createProjectStub({
+        id: crypto.randomUUID(),
+        title: data.title,
+        description: data.description,
+        metadata: data.metadata,
+        privacyMode: (data.privacyMode as Project['privacyMode']) ?? 'default',
+      }),
+    update: async (
+      id: GUID,
+      updates: {
+        title?: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+        privacyMode?: string;
+      },
+    ) =>
+      createProjectStub({
+        id,
+        ...updates,
+        privacyMode: (updates.privacyMode as Project['privacyMode']) ?? 'default',
+      }),
+    delete: async () => true,
+    getThreads: async () => 0,
+    onProjectCreated: (_cb: (project: Project) => void) => () => {},
+    onProjectUpdated: (_cb: (project: Project) => void) => () => {},
+    onProjectDeleted: (_cb: (projectId: GUID) => void) => () => {},
+  },
   chat: {
     createProvider: async () => ({ success: true }),
     chat: async () => ({ success: true }),
@@ -237,7 +375,17 @@ Object.defineProperty(win, 'electronAPI', {
 G.electronAPI = electronAPIStub;
 
 // Helper to allow tests to override parts of the stub when needed
-export const setElectronAPIMocks = (overrides: Partial<ElectronAPI>): void => {
+type DeepObjectPartial<T> = {
+  [K in keyof T]?: T[K] extends (...args: never[]) => unknown
+    ? T[K]
+    : T[K] extends object
+      ? DeepObjectPartial<T[K]>
+      : T[K];
+};
+
+type ElectronAPIPartial = DeepObjectPartial<ElectronAPI>;
+
+export const setElectronAPIMocks = (overrides: ElectronAPIPartial): void => {
   const w = window as unknown as Window & { electronAPI: ElectronAPI };
   w.electronAPI = {
     ...w.electronAPI,
@@ -245,6 +393,7 @@ export const setElectronAPIMocks = (overrides: Partial<ElectronAPI>): void => {
     auth: { ...w.electronAPI.auth, ...(overrides.auth || {}) },
     settings: { ...w.electronAPI.settings, ...(overrides.settings || {}) },
     thread: { ...w.electronAPI.thread, ...(overrides.thread || {}) },
+    project: { ...w.electronAPI.project, ...(overrides.project || {}) },
     system: { ...w.electronAPI.system, ...(overrides.system || {}) },
     log: { ...w.electronAPI.log, ...(overrides.log || {}) },
   };

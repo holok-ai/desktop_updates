@@ -5,12 +5,13 @@
   import { push, location } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
-  import { SIDEBAR_COLLAPSED_STORAGE_KEY } from '$lib/constants/sidebar.constant';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
   import SidebarItem from '../common/SidebarItem.svelte';
+  import { projectService } from '$lib/services/project.service';
+  import { storageService } from '$lib/services/storage.service';
+  import { confirmNavigation } from '$lib/stores/navigation-guard.store';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
-  const logoBlue = new URL('../../../assets/images/logo-blue.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -49,11 +50,18 @@
   }
 
   onMount(() => {
-    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-    if (saved !== null) isCollapsed = saved === 'true';
+    isCollapsed = storageService.getSidebarCollapsed();
 
-    const stored = localStorage.getItem(APP_THEME_MODE_STORAGE_KEY);
+    const stored = storageService.getThemeMode();
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
+
+    void (async () => {
+      try {
+        await projectService.loadProjects();
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      }
+    })();
 
     // React to theme changes applied elsewhere (e.g., Settings page)
     const html = document.documentElement;
@@ -93,7 +101,7 @@
   });
 
   $effect(() => {
-    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isCollapsed));
+    storageService.setSidebarCollapsed(isCollapsed);
   });
 
   $effect(() => {
@@ -108,6 +116,7 @@
   });
 
   function handleNavigate(activity: SidebarActivity) {
+    if (!confirmNavigation()) return;
     selected = activity.id;
     dispatch('select', activity);
     if (activity.route) push(activity.route);
@@ -126,7 +135,7 @@
     } else {
       html.classList.remove(APP_THEME_MODE.DARK);
     }
-    localStorage.setItem(APP_THEME_MODE_STORAGE_KEY, mode);
+    storageService.setThemeMode(mode);
   }
 </script>
 
@@ -137,17 +146,8 @@
   aria-label="Main sidebar"
 >
   <div class="sidebar-header flex justify-center items-center h-16">
-    <img
-      src={currentMode === APP_THEME_MODE.DARK ? logoWhite : logoBlue}
-      alt="Holokai Logo"
-      class="w-[160px] h-[80px] {isCollapsed && 'hidden'}"
-    />
-    <button
-      class="bg-transparent text-black dark:text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
-        'p-0'}"
-      onclick={toggle}
-      aria-label="Collapse/Expand Sidebar"
-    >
+    <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
+    <button class="collapse-toggle-btn" onclick={toggle} aria-label="Collapse/Expand Sidebar">
       <i class={isCollapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'}></i>
     </button>
   </div>
@@ -157,7 +157,7 @@
         isSelected={selected === activity.id}
         item={activity}
         {isCollapsed}
-        on:click={() => handleNavigate(activity)}
+        on:click={() => void handleNavigate(activity)}
       />
     {/each}
   </ul>
@@ -167,25 +167,26 @@
         class="flex flex-col items-center justify-center w-full relative transition-all duration-300"
       >
         <button
-          class="bg-[#474747] transition-all duration-200 w-full flex items-center justify-start gap-3 cursor-pointer rounded-lg py-3 px-4"
+          class="profile-trigger"
+          class:collapsed={isCollapsed}
           tabindex="0"
           aria-haspopup="true"
           aria-expanded={showProfileMenu}
           onclick={() => (showProfileMenu = !showProfileMenu)}
         >
-          <span class="flex items-center gap-3">
+          <span class="profile-trigger-content">
             {#if !isCollapsed}
               <i
                 class={showProfileMenu
-                  ? 'pi pi-chevron-up text-white'
-                  : 'pi pi-chevron-down text-white'}
+                  ? 'pi pi-chevron-up profile-trigger-icon'
+                  : 'pi pi-chevron-down profile-trigger-icon'}
               ></i>
             {/if}
             {#key showProfileMenu}
-              <i class="pi pi-user text-white"></i>
+              <i class="pi pi-user profile-trigger-icon"></i>
             {/key}
             {#if !isCollapsed}
-              <span class="text-base text-white">{$currentUser?.name ?? 'User'}</span>
+              <span class="profile-trigger-label">{$currentUser?.name ?? 'User'}</span>
             {/if}
           </span>
         </button>
@@ -193,7 +194,7 @@
         {#if showProfileMenu && !isCollapsed}
           <div class="w-full mt-2 gap-2 flex flex-col">
             <button
-              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
+              class="profile-menu-button"
               onclick={() => {
                 showProfileMenu = false;
                 push(ROUTE.SETTINGS);
@@ -202,19 +203,14 @@
               <i class="pi pi-cog"></i>
               <span>Settings</span>
             </button>
-            <button
-              class="hover:bg-gray-200 dark:hover:bg-gray-800 w-full bg-transparent border-none cursor-pointer flex items-center gap-2 py-2 pl-6 pr-4 text-[var(--text-primary)]"
-              onclick={handleLogout}
-            >
+            <button class="profile-menu-button" onclick={handleLogout}>
               <i class="pi pi-sign-out"></i>
               <span>Logout</span>
             </button>
           </div>
         {/if}
         {#if isCollapsed}
-          <span class="text-xs text-[var(--text-primary)] text-center"
-            >{$currentUser?.name ?? 'User'}</span
-          >
+          <span class="text-xs text-white text-center">{$currentUser?.name ?? 'User'}</span>
         {/if}
       </div>
     {/if}
@@ -222,6 +218,105 @@
 </nav>
 
 <style lang="postcss">
+  .collapse-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 0.375rem;
+  }
+
+  .collapse-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .collapse-toggle-btn:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .collapse-toggle-btn i {
+    color: #ffffff;
+    font-size: 1.25rem;
+  }
+
+  .profile-trigger.collapsed {
+    padding-left: 14px;
+  }
+
+  .profile-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--content-padding);
+    padding: calc(var(--inline-spacing) * 2) var(--content-padding);
+    border-radius: var(--border-radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-active);
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .profile-trigger:focus {
+    outline: none;
+  }
+
+  .profile-trigger:hover {
+    background: var(--background-primary-hover);
+  }
+
+  .profile-trigger-content {
+    display: flex;
+    align-items: center;
+    gap: var(--content-padding);
+    width: 100%;
+  }
+
+  .profile-trigger-icon {
+    color: #fff;
+    font-size: 16px;
+  }
+
+  .profile-trigger-label {
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .profile-menu-button {
+    display: flex;
+    align-items: center;
+    gap: var(--inline-spacing);
+    width: 100%;
+    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
+    background: transparent;
+    border: none;
+    color: #fff;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .profile-menu-button span {
+    color: #fff;
+  }
+
+  .profile-menu-button:focus {
+    outline: none;
+  }
+
+  .profile-menu-button:hover {
+    background: var(--background-primary-hover);
+  }
+
   .nav-icons {
     @apply flex flex-col gap-4 mt-8;
     flex: 1;

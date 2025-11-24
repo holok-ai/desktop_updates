@@ -1,6 +1,7 @@
 <script lang="ts">
+  import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
-  import type { Project } from '$lib/types/project.type';
+  import type { Project, ProjectPrivacyMode } from '$lib/types/project.type';
 
   let {
     show = $bindable(false),
@@ -11,17 +12,54 @@
   let projectDescription = $state('');
   let isSubmitting = $state(false);
   let error = $state('');
+  let privacyMode = $state<ProjectPrivacyMode>('default');
+  let initialPrivacyMode = $state<ProjectPrivacyMode>('default');
+
+  const privacyChoices: { id: 'default' | 'project_only'; title: string; description: string }[] = [
+    {
+      id: 'default',
+      title: 'Default',
+      description:
+        'Allow memories to surface between this project and outside chats when policy allows.',
+    },
+    {
+      id: 'project_only',
+      title: 'Project Only',
+      description:
+        'Keep context and memories locked to this project. Nothing flows in or out without migration.',
+    },
+  ];
 
   const isEditMode = $derived(!!project);
+  const modalTitle = $derived(isEditMode ? 'Edit Project' : 'Create New Project');
+  const submitLabel = $derived(
+    isSubmitting
+      ? isEditMode
+        ? 'Saving...'
+        : 'Creating...'
+      : isEditMode
+        ? 'Save Changes'
+        : 'Create Project',
+  );
+
+  let lastShownState = $state(false);
 
   $effect(() => {
-    if (project) {
-      projectName = project.title;
-      projectDescription = project.description || '';
-    } else {
-      projectName = '';
-      projectDescription = '';
+    // Only initialize when modal opens (transitions from false to true)
+    if (show && !lastShownState) {
+      if (project) {
+        projectName = project.title;
+        projectDescription = project.description || '';
+        privacyMode = project.privacyMode ?? 'default';
+        initialPrivacyMode = privacyMode;
+      } else {
+        projectName = '';
+        projectDescription = '';
+        privacyMode = 'default';
+        initialPrivacyMode = 'default';
+      }
     }
+    lastShownState = show;
   });
 
   async function handleSubmit() {
@@ -35,19 +73,31 @@
 
     try {
       if (isEditMode && project) {
+        if (initialPrivacyMode !== privacyMode && privacyMode === 'project_only') {
+          const ok = window.confirm(
+            'Switching to Project Only will isolate memories and context to this project. This may hide context from general chats and other projects. Proceed?',
+          );
+          if (!ok) {
+            isSubmitting = false;
+            return;
+          }
+        }
         await projectService.updateProject(project.id, {
           title: projectName.trim(),
           description: projectDescription.trim() || undefined,
+          privacyMode,
         });
       } else {
         await projectService.createProject(
           projectName.trim(),
           projectDescription.trim() || undefined,
+          privacyMode,
         );
       }
 
       projectName = '';
       projectDescription = '';
+      privacyMode = 'default';
       show = false;
     } catch (err) {
       error =
@@ -65,117 +115,97 @@
     error = '';
     show = false;
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      handleCancel();
-    } else if (event.key === 'Enter' && event.metaKey) {
-      handleSubmit();
-    }
-  }
 </script>
 
-{#if show}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-overlay" onclick={handleCancel} onkeydown={handleKeydown} role="presentation">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-labelledby="modal-title"
-      tabindex="0"
+<BaseModal
+  bind:show
+  title={modalTitle}
+  {error}
+  {isSubmitting}
+  {submitLabel}
+  submitDisabled={!projectName.trim()}
+  oncancel={handleCancel}
+  onsubmit={handleSubmit}
+>
+  {#snippet content()}
+    <form
+      onsubmit={(e) => {
+        e.preventDefault();
+        handleSubmit();
+      }}
     >
-      <h2 id="modal-title">{isEditMode ? 'Edit Project' : 'Create New Project'}</h2>
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-      >
-        <div class="form-group">
-          <label for="project-name">Project Name *</label>
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            id="project-name"
-            type="text"
-            bind:value={projectName}
-            placeholder="Enter project name"
-            disabled={isSubmitting}
-            autofocus
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="project-description">Description (optional)</label>
-          <textarea
-            id="project-description"
-            bind:value={projectDescription}
-            placeholder="Enter project description"
-            rows="3"
-            disabled={isSubmitting}
-          ></textarea>
-        </div>
-
-        {#if error}
-          <div class="error-message">{error}</div>
-        {/if}
-
-        <div class="modal-actions">
-          <button
-            type="button"
-            class="btn-secondary"
-            onclick={handleCancel}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
-          <button type="submit" class="btn-primary" disabled={isSubmitting || !projectName.trim()}>
-            {#if isSubmitting}
-              {isEditMode ? 'Saving...' : 'Creating...'}
-            {:else}
-              {isEditMode ? 'Save Changes' : 'Create Project'}
-            {/if}
-          </button>
-        </div>
-      </form>
-
-      <div class="hint">
-        Tip: Press <kbd>Esc</kbd> to cancel or <kbd>⌘+Enter</kbd> to submit
+      <div class="form-group">
+        <label for="project-name">Project Name *</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          id="project-name"
+          type="text"
+          bind:value={projectName}
+          placeholder="Enter project name"
+          disabled={isSubmitting}
+          autofocus
+        />
       </div>
-    </div>
-  </div>
-{/if}
+
+      <div class="form-group">
+        <label for="project-description">Description (optional)</label>
+        <textarea
+          id="project-description"
+          bind:value={projectDescription}
+          placeholder="Enter project description"
+          rows="3"
+          disabled={isSubmitting}
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <span class="field-label">Privacy Mode</span>
+        <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
+          {#each privacyChoices as choice (choice.id)}
+            <label class="privacy-option-wrapper">
+              <input
+                type="radio"
+                name="privacy-mode"
+                value={choice.id}
+                bind:group={privacyMode}
+                disabled={isSubmitting}
+                class="sr-only"
+              />
+              <button
+                type="button"
+                class="privacy-option"
+                class:active={privacyMode === choice.id}
+                class:disabled={isSubmitting}
+                aria-pressed={privacyMode === choice.id}
+                disabled={isSubmitting}
+                onclick={() => {
+                  if (!isSubmitting) {
+                    privacyMode = choice.id;
+                  }
+                }}
+              >
+                <div class="option-header">
+                  <span class="option-title">{choice.title}</span>
+                  {#if privacyMode === choice.id}
+                    <span class="option-badge">Selected</span>
+                  {/if}
+                </div>
+                <p class="option-description">{choice.description}</p>
+              </button>
+            </label>
+          {/each}
+        </div>
+        <div class="privacy-hint">
+          Changes apply in under 2 seconds across all threads. Organization policy may limit your
+          options.
+        </div>
+      </div>
+    </form>
+  {/snippet}
+</BaseModal>
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--modal-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: var(--surface-ground);
-    border-radius: 8px;
-    padding: 24px;
-    max-width: 500px;
-    width: 90%;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  h2 {
-    margin: 0 0 20px 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
+  /* Component-specific styles only - modal infrastructure handled by BaseModal */
 
   .form-group {
     margin-bottom: 16px;
@@ -218,69 +248,113 @@
     font-family: inherit;
   }
 
-  .error-message {
-    padding: 10px 12px;
-    background: var(--error-bg);
-    border: 1px solid var(--error-color);
-    border-radius: 6px;
-    color: var(--error-color);
-    font-size: 14px;
-    margin-bottom: 16px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
-
-  button {
-    padding: 10px 20px;
-    border-radius: 6px;
+  .field-label {
+    display: block;
+    margin-bottom: 8px;
     font-size: 14px;
     font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-  }
-
-  .btn-secondary {
-    background: var(--surface-overlay);
     color: var(--text-primary);
   }
 
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--surface-hover);
+  .privacy-options {
+    display: grid;
+    gap: 12px;
   }
 
-  .btn-primary {
-    background: var(--primary-color);
-    color: white;
+  .privacy-option-wrapper {
+    display: block;
   }
 
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .hint {
-    margin-top: 16px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  kbd {
+  .privacy-option {
+    width: 100%;
+    text-align: left;
     background: var(--surface-overlay);
     border: 1px solid var(--surface-border);
-    border-radius: 3px;
-    padding: 2px 6px;
-    font-family: monospace;
-    font-size: 11px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  .privacy-option:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+  }
+
+  .privacy-option:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .privacy-option.active {
+    border-color: var(--primary-color);
+    background: rgba(66, 133, 244, 0.08);
+  }
+
+  .privacy-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    box-shadow: none;
+  }
+
+  .privacy-option:disabled:hover {
+    border-color: var(--surface-border);
+    box-shadow: none;
+  }
+
+  .option-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .option-title {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .option-badge {
+    background: var(--primary-color);
+    color: #fff;
+    border-radius: 14px;
+    font-size: 12px;
+    padding: 2px 10px;
+  }
+
+  .option-description {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .privacy-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
   }
 </style>

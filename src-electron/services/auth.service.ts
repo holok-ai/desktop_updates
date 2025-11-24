@@ -299,18 +299,46 @@ export class AuthService {
         unknown
       >;
 
+      // Log the full payload to see what fields are available
+      log.info('[AuthService] JWT payload fields:', Object.keys(payload));
+      log.info('[AuthService] JWT payload:', JSON.stringify(payload, null, 2));
+
       // Extract user information with type assertions
       const subject = payload.subject as string | undefined;
       const sub = payload.sub as string | undefined;
       const userId = payload.userId as string | undefined;
       const email = payload.email as string | undefined;
       const name = payload.name as string | undefined;
+      const username = payload.username as string | undefined;
+      const displayName = payload.displayName as string | undefined;
       const picture = payload.picture as string | undefined;
 
+      // userId might be the email in this API
+      const userEmail = email ?? userId;
+
+      // Try multiple possible name fields
+      let extractedName = name ?? displayName ?? username;
+
+      // If no name found, use email username part
+      if (!extractedName && userEmail) {
+        extractedName = userEmail
+          .split('@')[0]
+          .replace(/[._-]/g, ' ')
+          .split(' ')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      }
+
+      // Final fallback
+      extractedName = extractedName ?? 'User';
+
+      log.info('[AuthService] Extracted user email:', userEmail);
+      log.info('[AuthService] Extracted user name:', extractedName);
+
       return {
-        id: subject ?? sub ?? userId ?? 'unknown',
-        email: userId ?? email ?? 'user@example.com',
-        name: name ?? email ?? 'User',
+        id: sub ?? subject ?? userId ?? 'unknown',
+        email: userEmail ?? 'user@example.com',
+        name: extractedName,
         picture,
       };
     } catch (error) {

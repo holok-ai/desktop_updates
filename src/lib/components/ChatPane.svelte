@@ -9,7 +9,10 @@
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
+  import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
+  import { storageService } from '$lib/services/storage.service';
 
   interface Props {
     thread?: Thread | null;
@@ -26,6 +29,30 @@
 
   let { thread = null, messages = [], composer }: Props = $props();
 
+  // Reactive thread state that updates when backend sends updates
+  let currentThread = $state(thread);
+  let localLlamaModel = {
+    url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
+    //   apiKey: '', // Will be injected from auth service by chat handler
+    model: 'llama3:latest',
+  };
+  let _localClaudeModel = {
+    url: 'http://localhost:3000/api/custom/claude/f4f61965',
+    apiKey: '', // Will be injected from auth service by chat handler
+    model: 'claude-opus-4-1-20250805',
+  };
+  let _devClaudeModel = {
+    url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
+    apiKey: '', // Will be injected from auth service by chat handler
+    model: 'claude-3-haiku-20240307',
+  };
+  let modelName = localLlamaModel.model;
+
+  // Watch for prop changes
+  $effect(() => {
+    currentThread = thread;
+  });
+
   // State management
   let chatServiceCreated = $state(false);
   let responseText = $state('');
@@ -36,7 +63,36 @@
   let toastTimeout: number | null = null;
   let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
+  let showComments = $state(false);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+
+  // Load showComments preference from localStorage
+  onMount(() => {
+    try {
+      const saved = storageService.getShowComments();
+      showComments = saved ?? false;
+    } catch {
+      showComments = false;
+    }
+  });
+
+  // Toggle and persist showComments preference
+  // When hiding, also cancel any active comment editing
+  function toggleShowComments() {
+    const wasShowing = showComments;
+    showComments = !showComments;
+
+    // If hiding comments, cancel any active editing (will be handled by MessageBubble via prop)
+    if (wasShowing && !showComments) {
+      // The showComments prop change will trigger MessageBubble to cancel editing
+    }
+
+    try {
+      storageService.setShowComments(showComments);
+    } catch (error) {
+      console.error('Failed to save showComments preference:', error);
+    }
+  }
 
   // Initialize message transmitter
   const transmitter = new MessageTransmitter({
@@ -76,12 +132,7 @@
 
   // Initialize chat service on mount
   async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider('ollama', {
-      url: 'http://localhost:11434',
-      apiKey: 'ollama',
-      model: 'llama3:latest',
-    });
-
+    const result = await window.electronAPI.chat.createProvider('ollama', localLlamaModel);
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
       console.error('Failed to create chat provider:', result.error);
@@ -103,8 +154,9 @@
   function setupTokenListener() {
     responseText = ''; // Clear previous response
 
-    // Prevent duplicate subscriptions across multiple sends
+    // Remove any existing token listeners to prevent duplicates
     window.electronAPI.chat.offToken();
+
     window.electronAPI.chat.onToken((token: string) => {
       console.log(token);
       // Force reactivity by creating a new string reference
@@ -149,7 +201,7 @@
       const request = {
         messages: [{ role: 'user', content: userMessage }],
         streaming: true,
-        model: 'llama3:latest',
+        model: modelName,
       };
 
       const result = await window.electronAPI.chat.chat(request);
@@ -159,7 +211,7 @@
         console.error('Chat failed:', result.error);
       } else {
         // After streaming completes, handle assistant response
-        await transmitter.handleAssistantResponse(responseText, thread, userMessage);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -210,7 +262,7 @@
       const request = {
         messages: [{ role: 'user', content: newContent }],
         streaming: true,
-        model: 'llama3:latest',
+        model: modelName,
       };
 
       const chatResult = await window.electronAPI.chat.chat(request);
@@ -265,20 +317,45 @@
     outboxService.init();
     initializeChatService();
 
+    // Listen for thread updates from backend
+    let unsubThreadUpdated: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.thread?.onThreadUpdated) {
+        unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
+          // Only update if it's our current thread
+          if (currentThread && updatedThread.id === currentThread.id) {
+            currentThread = updatedThread;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
+    // Listen for message error events from main process
+    try {
+      window.electronAPI.thread.onMessageError((evt: any) => {
+        // TODO: Handle message errors with new transmitter pattern if needed
+        console.error('Message error:', evt);
+      });
+    } catch {
+      // ignore if API not available
+    }
     return () => {
+      if (unsubThreadUpdated) unsubThreadUpdated();
       cleanup();
     };
   });
 
   // Watch for thread changes to reinitialize if needed
   $effect(() => {
-    if (thread && !chatServiceCreated) {
+    if (currentThread && !chatServiceCreated) {
       initializeChatService();
     }
   });
 </script>
 
-{#if !thread}
+{#if !currentThread}
   <div class="chat-pane empty">Select a thread to open chat</div>
 {:else}
   <div class="chat-pane">
@@ -286,10 +363,30 @@
       {#key thread?.id}
         <div class="header-content">
           <div>
-            <h2>{thread.title}</h2>
-            <div class="meta">{thread.description}</div>
+            <h2>
+              {currentThread.title || 'New Thread'}
+              {#if $isThreadGeneratingTitle(currentThread.id)}
+                <span class="title-generating" aria-live="polite">
+                  <span class="generating-dots">...</span>
+                  <span class="sr-only">Generating title</span>
+                </span>
+              {/if}
+            </h2>
+            <div class="meta">{currentThread.description}</div>
           </div>
-          <button
+          <div class="header-buttons">
+            <button
+              class="header-action-btn"
+              class:active={showComments}
+              onclick={toggleShowComments}
+              aria-label={showComments ? 'Hide' : 'Show'}
+              title={showComments ? 'Hide' : 'Show'}
+            >
+              <i class="pi pi-comment"></i>
+              {showComments ? 'Hide' : 'Show'}
+            </button>
+            <!-- Hide for now -->
+            <!-- <button
             class="move-thread-btn"
             onclick={() => (showMoveModal = true)}
             aria-label="Move thread to project"
@@ -297,7 +394,8 @@
           >
             <i class="pi pi-folder-open"></i>
             Move
-          </button>
+            </button> -->
+          </div>
         </div>
       {/key}
     </div>
@@ -320,8 +418,9 @@
             onRetry={retryMessage}
             onEdit={handleEdit}
             onShowVersions={handleShowVersions}
-            threadId={thread?.id}
+            threadId={currentThread?.id}
             {isStreaming}
+            {showComments}
             on:copied={(event) => showToast(event.detail.message)}
           />
         {/each}
@@ -330,7 +429,9 @@
       <!-- Show streaming response in real-time -->
       {#if isStreaming && responseText}
         <div class="message assistant streaming">
-          <div class="message-content">{responseText}</div>
+          <div class="message-content">
+            <MarkdownRenderer content={responseText} enableCopy={true} />
+          </div>
           <div class="message-meta">Streaming... ●</div>
         </div>
       {/if}
@@ -360,7 +461,8 @@
   bind:thread
   on:moved={(e) => {
     const { projectId } = e.detail;
-    void threadService.getAll();
+    // Reload all threads - filtering happens in UI/sidebar
+    void threadService.getAll({ includeProjectOnly: true });
     showToast(`Thread moved ${projectId ? 'to project' : 'to general history'}`);
   }}
 />
@@ -370,24 +472,26 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    border-left: 1px solid #e5e7eb;
-    padding: 1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    padding: var(--content-padding);
     background: var(--surface-main);
   }
 
   .chat-header {
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--surface-border, rgba(15, 23, 42, 0.12));
+    padding: var(--content-padding) 0;
+    border-bottom: 1px solid var(--surface-border);
     position: sticky;
-    top: 0;
+    top: -31px;
     z-index: 5;
+    background: var(--surface-main);
   }
 
   .header-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
+    gap: var(--content-padding);
     overflow: visible;
     position: relative; /* allow absolute positioning of the action button */
     padding-right: 128px; /* reserve space so title doesn't sit under the button */
@@ -400,53 +504,102 @@
 
   .chat-header h2 {
     margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-primary, #f8fafc);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .chat-header .meta {
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary, rgba(148, 163, 184, 0.9));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .move-thread-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--surface-overlay, rgba(148, 163, 184, 0.12));
-    color: var(--text-primary, #f8fafc);
-    border: 1px solid var(--surface-border, rgba(148, 163, 184, 0.35));
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
-    /* Pin to the right; independent of grid reflow during sidebar collapse/expand */
+  }
+
+  .title-generating {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-tertiary, #9ca3af);
+    font-weight: normal;
+  }
+
+  .generating-dots {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .chat-header .meta {
+    margin-top: calc(var(--inline-spacing) / 2);
+    font-size: 14px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    /* Pin to the right */
     position: absolute;
     right: 0;
     top: 50%;
     transform: translateY(-50%);
+  }
+
+  .header-action-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--inline-spacing);
+    padding: var(--inline-spacing) var(--content-padding);
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
     min-width: max-content;
   }
 
-  .move-thread-btn:hover {
-    background: var(--surface-hover, rgba(148, 163, 184, 0.2));
-    border-color: var(--primary-color, #2563eb);
+  .header-action-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
   }
 
-  .move-thread-btn i {
-    font-size: 0.875rem;
-    color: var(--text-primary, #f8fafc);
+  .header-action-btn.active {
+    background: rgba(100, 108, 255, 0.1);
+    border-color: rgba(100, 108, 255, 0.4);
+    color: #646cff;
+  }
+
+  .header-action-btn i {
+    font-size: 14px;
+    color: var(--text-primary);
     display: inline-block;
     width: 1em;
     height: 1em;
@@ -454,43 +607,78 @@
     font-style: normal;
     font-family: 'PrimeIcons', primeicons, sans-serif;
   }
+
+  .title-generating {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--text-tertiary, #9ca3af);
+    font-weight: normal;
+  }
+
+  .generating-dots {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
   .toast {
     position: absolute;
-    right: 1rem;
-    top: 3.5rem;
-    background: #111827;
-    color: #fff;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    right: var(--content-padding);
+    top: calc(var(--content-padding) * 3);
+    background: var(--surface-main);
+    color: var(--text-primary);
+    padding: var(--inline-spacing) calc(var(--inline-spacing) * 1.5);
+    border-radius: var(--border-radius);
+    box-shadow: 0 var(--inline-spacing) calc(var(--inline-spacing) * 3) 0 var(--surface-main);
   }
 
   .error-banner {
-    background-color: #fee;
-    color: #c00;
-    padding: 0.5rem;
-    border-radius: 4px;
-    margin: 0.5rem 0;
+    background: var(--error-bg);
+    color: var(--error-color);
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
+    margin: var(--inline-spacing) 0;
   }
 
   .messages {
     flex: 1;
     overflow: auto;
-    margin-top: 1rem;
-    padding-right: 0.5rem;
+    margin-top: var(--content-padding);
+    padding-right: var(--inline-spacing);
   }
 
   .composer {
-    margin-top: 1rem;
+    margin-top: var(--content-padding);
   }
 
   .message-content {
     background: var(--surface-card);
-    padding: 0.5rem;
-    border-radius: 6px;
+    padding: var(--inline-spacing);
+    border-radius: var(--border-radius);
   }
 
   .no-messages {
-    color: #6b7280;
+    color: var(--text-secondary);
   }
 </style>

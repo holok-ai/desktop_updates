@@ -94,7 +94,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--modal-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -112,14 +112,15 @@
   }
 
   .modal-content {
-    background: var(--surface-main);
-    border-radius: 8px;
+    background: var(--surface-card);
+    border-radius: var(--border-radius);
     max-width: 700px;
     width: 90%;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 calc(var(--inline-spacing) * 2) calc(var(--inline-spacing) * 4) 0
+      color-mix(in srgb, var(--surface-900) 12%, transparent);
     animation: slideUp 0.2s ease;
   }
 
@@ -138,8 +139,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    padding: calc(var(--content-padding) * 0.8) var(--content-padding);
+    border-bottom: 1px solid var(--surface-border);
   }
 
   .modal-header h3 {
@@ -149,11 +150,12 @@
   }
 
   .close-button {
+    outline: none;
     background: transparent;
     border: none;
     font-size: 2rem;
     cursor: pointer;
-    color: #666;
+    color: var(--text-secondary);
     line-height: 1;
     padding: 0;
     width: 2rem;
@@ -161,17 +163,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     transition: background 0.2s;
   }
 
   .close-button:hover {
-    background: #f3f4f6;
-    color: #333;
+    background: var(--surface-hover);
+    color: var(--text-primary);
   }
 
   .modal-body {
-    padding: 1.5rem;
+    padding: var(--content-padding);
     overflow-y: auto;
     flex: 1;
   }
@@ -180,68 +182,69 @@
   .error,
   .no-previous-versions {
     text-align: center;
-    padding: 2rem;
-    color: #666;
+    padding: calc(var(--content-padding) * 1.5);
+    color: var(--text-secondary);
   }
 
   .error {
-    color: #ef4444;
+    color: var(--error-color);
   }
 
   .versions-list {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--content-padding);
   }
 
   .version-item {
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    padding: var(--content-padding);
     transition: box-shadow 0.2s;
   }
 
   .version-item:hover {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 var(--inline-spacing) calc(var(--inline-spacing) * 2) 0
+      color-mix(in srgb, var(--surface-900) 8%, transparent);
   }
 
   .version-item.current {
-    border: 2px solid #646cff;
+    border: 2px solid var(--primary-color);
   }
 
   .version-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
-    font-size: 0.875rem;
+    margin-bottom: calc(var(--inline-spacing) * 1.5);
+    font-size: 14px;
   }
 
   .version-badge {
     font-weight: 600;
-    color: #6b7280;
-    background: #f3f4f6;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--surface-100);
+    padding: calc(var(--inline-spacing) / 2) var(--inline-spacing);
+    border-radius: var(--border-radius);
+    font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
   }
 
   .version-badge.current-badge {
-    background: #646cff;
-    color: white;
+    background: var(--primary-color);
+    color: var(--primary-color-text);
   }
 
   .version-date {
-    color: #9ca3af;
-    font-size: 0.75rem;
+    color: var(--surface-400);
+    font-size: 12px;
   }
 
   .version-content {
-    padding: 0.75rem;
+    padding: calc(var(--inline-spacing) * 1.5);
     background: var(--surface-card);
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text-secondary);
@@ -255,7 +258,7 @@
 
   .no-previous-versions {
     font-style: italic;
-    color: #9ca3af;
-    padding: 1rem;
+    color: var(--surface-400);
+    padding: var(--content-padding);
   }
 </style>

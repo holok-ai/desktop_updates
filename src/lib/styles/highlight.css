@@ -1,0 +1,153 @@
+/* Highlight.js Theme for Code Blocks - Adapts to light/dark mode */
+
+/* Light mode syntax colors */
+:root {
+  --syntax-keyword: #af00db;
+  --syntax-string: #008000;
+  --syntax-number: #09885a;
+  --syntax-function: #0070c1;
+  --syntax-class: #795e26;
+  --syntax-variable: #001080;
+  --syntax-comment: #008000;
+  --syntax-tag: #800000;
+  --syntax-literal: #0000ff;
+}
+
+/* Dark mode syntax colors */
+:root.dark {
+  --syntax-keyword: #c678dd;
+  --syntax-string: #98c379;
+  --syntax-number: #d19a66;
+  --syntax-function: #61afef;
+  --syntax-class: #e6c07b;
+  --syntax-variable: #e5c07b;
+  --syntax-comment: #5c6370;
+  --syntax-tag: #e06c75;
+  --syntax-literal: #56b6c2;
+}
+
+.hljs {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-formula {
+  color: var(--syntax-keyword);
+}
+
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-deletion,
+.hljs-subst {
+  color: var(--syntax-tag);
+}
+
+.hljs-literal {
+  color: var(--syntax-literal);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: var(--syntax-string);
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number {
+  color: var(--syntax-number);
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: var(--syntax-function);
+}
+
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: var(--syntax-class);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-link {
+  text-decoration: underline;
+}
+
+/* Variable highlighting - make them stand out */
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--syntax-variable);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--syntax-variable) 30%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+/* Function names */
+.hljs-title.function_,
+.hljs-function .hljs-title {
+  color: var(--syntax-function);
+  font-weight: 500;
+}
+
+/* Class names */
+.hljs-title.class_ {
+  color: var(--syntax-class);
+  font-weight: 500;
+}
+
+/* Parameters */
+.hljs-params {
+  color: var(--text-primary);
+  opacity: 0.9;
+}
+
+/* Punctuation */
+.hljs-punctuation {
+  color: var(--text-primary);
+  opacity: 0.8;
+}
+
+/* Tags (HTML/XML) */
+.hljs-tag {
+  color: #e06c75;
+}
+
+.hljs-tag .hljs-name {
+  color: #e06c75;
+}
+
+.hljs-tag .hljs-attr {
+  color: #d19a66;
+}

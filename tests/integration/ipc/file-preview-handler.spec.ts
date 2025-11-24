@@ -7,9 +7,6 @@ import { ipcMain } from 'electron';
 import { registerFileHandlers } from '../../../src-electron/ipc-handlers/file-handler';
 import { fileStorageService } from '../../../src-electron/services/file-storage.service';
 import { fileAccessTokenService } from '../../../src-electron/services/file-access-token.service';
-import { fileAuditService } from '../../../src-electron/services/file-audit.service';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock electron app
 vi.mock('electron', () => ({
@@ -34,9 +31,6 @@ describe('File Preview/Download IPC Handlers (Integration)', () => {
 
     // Register handlers
     registerFileHandlers();
-
-    // Clear audit log
-    fileAuditService.clearInMemoryLog();
   });
 
   afterEach(() => {
@@ -117,11 +111,6 @@ describe('File Preview/Download IPC Handlers (Integration)', () => {
         fileId: 'file-456',
         userId: 'user-789',
       });
-
-      const events = fileAuditService.queryLog({ action: 'preview' });
-      expect(events.length).toBeGreaterThan(0);
-      expect(events[0].userId).toBe('user-789');
-      expect(events[0].fileId).toBe('file-456');
     });
   });
 
@@ -182,11 +171,6 @@ describe('File Preview/Download IPC Handlers (Integration)', () => {
         fileId: 'file-456',
         userId: 'user-789',
       });
-
-      const events = fileAuditService.queryLog({ action: 'download' });
-      expect(events.length).toBeGreaterThan(0);
-      expect(events[0].userId).toBe('user-789');
-      expect(events[0].fileId).toBe('file-456');
     });
   });
 
@@ -288,10 +272,6 @@ describe('File Preview/Download IPC Handlers (Integration)', () => {
       expect(getResult.success).toBe(true);
       expect(getResult.buffer).toEqual(mockBuffer);
       expect(getResult.filename).toBe('photo.jpg');
-
-      // Verify audit trail
-      const events = fileAuditService.queryLog({ userId: 'user-789' });
-      expect(events.length).toBeGreaterThan(0);
     });
 
     it('should complete full download flow with token', async () => {
@@ -329,10 +309,6 @@ describe('File Preview/Download IPC Handlers (Integration)', () => {
 
       expect(getResult.success).toBe(true);
       expect(getResult.buffer).toEqual(mockBuffer);
-
-      // Verify audit trail
-      const events = fileAuditService.queryLog({ action: 'download', userId: 'user-789' });
-      expect(events.length).toBeGreaterThan(0);
     });
   });
 

@@ -2,9 +2,14 @@
   import { MESSAGE_STATUS } from '$lib/constants/status.constant';
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
-  import { createEventDispatcher } from 'svelte';
-  import type { Attachment } from '../../../src-shared/types/attachment.types';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
+  import type { Attachment, ResponseComment } from '../../../src-shared/types/attachment.types';
   import AttachmentPreview from './AttachmentPreview.svelte';
+  import CommentBubbleIcon from './CommentBubbleIcon.svelte';
+  import CommentDisplay from './CommentDisplay.svelte';
+  import CommentEditor from './CommentEditor.svelte';
+  import { threadService } from '$lib/services/thread.service';
 
   interface Props {
     message: Message;
@@ -13,6 +18,7 @@
     onShowVersions?: (messageId: string) => void;
     threadId?: string;
     isStreaming?: boolean;
+    showComments?: boolean;
   }
 
   const dispatch = createEventDispatcher<{ copied: { message: string } }>();
@@ -31,11 +37,39 @@
     [MESSAGE_STATUS.PENDING_OFFLINE]: 'Offline',
   } as const;
 
-  let { message, onRetry, onEdit, onShowVersions, isStreaming = false, threadId }: Props = $props();
+  let {
+    message,
+    onRetry,
+    onEdit,
+    onShowVersions,
+    isStreaming = false,
+    threadId,
+    showComments = false,
+  }: Props = $props();
 
   let isEditingInline = $state(false);
   let editedContent = $state('');
+  // Cache for inline preview blob URLs: key is `${threadId}:${attachment.id}`, value is the blob URL
+  // URLs are populated in getInlinePreviewUrl() when attachments are rendered (line 342)
   const inlinePreviewUrls = new Map<string, string>();
+
+  // Comment functionality
+  let isEditingComment = $state(false);
+  let isAddingComment = $state(false);
+  const comment = $derived(message.metadata?.comment as ResponseComment | undefined);
+  const hasComment = $derived(comment && comment.content.trim().length > 0);
+
+  // Cancel editing when showComments changes from true to false
+  // But allow editing even when showComments is false (user clicked icon)
+  let prevShowComments = $state(showComments);
+  $effect(() => {
+    // Only cancel if showComments changed from true to false
+    if (prevShowComments && !showComments) {
+      isEditingComment = false;
+      isAddingComment = false;
+    }
+    prevShowComments = showComments;
+  });
 
   function getStatusIcon(status?: MessageStatus): string {
     if (!status) return '';
@@ -78,11 +112,17 @@
     }
   }
 
+  /**
+   * Get or create an inline preview URL for an attachment.
+   * URLs are cached in inlinePreviewUrls map to avoid re-creating blob URLs.
+   * Called from template when rendering attachments (line 342).
+   */
   async function getInlinePreviewUrl(attachment: Attachment): Promise<string | undefined> {
     if (!threadId) return undefined;
 
     const MAX_INLINE_SIZE = 500 * 1024; // 500KB
     const cacheKey = `${threadId}:${attachment.id}`;
+    // Check cache first
     if (inlinePreviewUrls.has(cacheKey)) {
       return inlinePreviewUrls.get(cacheKey);
     }
@@ -105,6 +145,7 @@
           const uint8Array = new Uint8Array(fileData.buffer as any);
           const blob = new Blob([uint8Array], { type: result.fileInfo.mimeType });
           const url = URL.createObjectURL(blob);
+          // Store the blob URL in the cache map for reuse
           inlinePreviewUrls.set(cacheKey, url);
           return url;
         }
@@ -151,6 +192,73 @@
       onShowVersions(message.id);
     }
   }
+
+  // Comment handlers
+  function handleCommentClick() {
+    // If already editing/adding, cancel (hide editor)
+    if (isEditingComment || isAddingComment) {
+      isEditingComment = false;
+      isAddingComment = false;
+      return;
+    }
+
+    if (hasComment) {
+      // Edit existing comment
+      isEditingComment = true;
+      isAddingComment = false;
+    } else {
+      // Add new comment
+      isAddingComment = true;
+      isEditingComment = false;
+    }
+  }
+
+  async function handleCommentSave(commentText: string) {
+    if (!threadId || !message.id) return;
+
+    try {
+      const result = await threadService.updateMessageComment(threadId, message.id, commentText);
+      if (result.success) {
+        isEditingComment = false;
+        isAddingComment = false;
+      } else {
+        console.error('Failed to save comment:', result.error);
+      }
+    } catch (error) {
+      console.error('Error saving comment:', error);
+    }
+  }
+
+  async function handleCommentDelete() {
+    if (!threadId || !message.id) return;
+
+    try {
+      const result = await threadService.updateMessageComment(threadId, message.id, null);
+      if (result.success) {
+        isEditingComment = false;
+        isAddingComment = false;
+      } else {
+        console.error('Failed to delete comment:', result.error);
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  }
+
+  function handleCommentCancel() {
+    isEditingComment = false;
+    isAddingComment = false;
+  }
+
+  // Cleanup blob URLs when component is destroyed to prevent memory leaks
+  function cleanupInlinePreviewUrls() {
+    inlinePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    inlinePreviewUrls.clear();
+  }
+
+  onDestroy(() => {
+    cleanupInlinePreviewUrls();
+  });
 </script>
 
 <div
@@ -187,11 +295,13 @@
         <button class="cancel-button" onclick={handleCancelEdit} disabled={isStreaming}>
           Cancel
         </button>
-        <span class="edit-hint">Ctrl/⌘+Enter to save, Esc to cancel</span>
+        <span class="edit-hint">⌘+Enter to save, Esc to cancel</span>
       </div>
     </div>
   {:else}
-    <div class="message-content">{message.content}</div>
+    <div class="message-content">
+      <MarkdownRenderer content={message.content} enableCopy={true} />
+    </div>
   {/if}
   <div class="message-footer">
     <span class="message-meta">
@@ -207,9 +317,11 @@
       </span>
     {/if}
     <div class="message-actions">
-      <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
-        📋
-      </button>
+      {#if message.status !== MESSAGE_STATUS.SENDING}
+        <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
+          📋
+        </button>
+      {/if}
       {#if message.role === 'user' && onEdit && message.status !== MESSAGE_STATUS.SENDING}
         <button
           class="action-button"
@@ -234,6 +346,9 @@
         <button class="retry-button" onclick={handleRetry} aria-label="Retry sending message">
           Retry
         </button>
+      {/if}
+      {#if message.role === 'assistant'}
+        <CommentBubbleIcon {comment} onclick={handleCommentClick} />
       {/if}
     </div>
   </div>
@@ -261,6 +376,22 @@
         {/await}
       {/each}
     </div>
+  {/if}
+  {#if isEditingComment && comment}
+    <CommentEditor
+      initialValue={comment.content}
+      onsave={handleCommentSave}
+      oncancel={handleCommentCancel}
+      ondelete={handleCommentDelete}
+    />
+  {:else if isAddingComment}
+    <CommentEditor
+      placeholder="Enter your comment about this response..."
+      onsave={handleCommentSave}
+      oncancel={handleCommentCancel}
+    />
+  {:else if showComments && hasComment && comment}
+    <CommentDisplay {comment} onedit={handleCommentClick} ondelete={handleCommentDelete} />
   {/if}
 </div>
 
@@ -292,7 +423,7 @@
   }
 
   .message.assistant .message-content {
-    background: var(--surface-card);
+    background: transparent;
     padding: 0.5rem;
     border-radius: 6px;
   }

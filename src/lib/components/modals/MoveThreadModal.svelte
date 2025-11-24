@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import BaseModal from './BaseModal.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
@@ -21,10 +22,15 @@
   let privacyMode = $state<string>('');
   let contextHandling = $state<string>('merge');
 
+  const submitLabel = $derived(
+    isMoving ? 'Moving...' : showPrivacyConfirmation ? 'Confirm Move' : 'Move Thread',
+  );
+
   $effect(() => {
     if (show && thread) {
-      // Initialize selected project to current project or null
-      selectedProjectId = thread.metadata?.projectId as GUID | null;
+      // Initialize selected project to current project or default to General History
+      const current = thread.metadata?.projectId as GUID | null;
+      selectedProjectId = current;
       // Load projects if not already loaded
       if ($projects.length === 0) {
         void projectService.loadProjects();
@@ -103,27 +109,19 @@
     contextHandling = 'merge';
     show = false;
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      handleCancel();
-    }
-  }
 </script>
 
-{#if show && thread}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-overlay" onclick={handleCancel} onkeydown={handleKeydown} role="presentation">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-labelledby="modal-title"
-      tabindex="0"
-    >
-      <h2 id="modal-title">Move Thread</h2>
-
+{#if thread}
+  <BaseModal
+    bind:show
+    title="Move Thread"
+    {error}
+    isSubmitting={isMoving}
+    {submitLabel}
+    oncancel={handleCancel}
+    onsubmit={handleConfirm}
+  >
+    {#snippet content()}
       {#if !showPrivacyConfirmation}
         <p class="info-text">
           Move <strong>{thread.title || 'Untitled Thread'}</strong> to a different location.
@@ -181,62 +179,12 @@
           </div>
         </div>
       {/if}
-
-      {#if error}
-        <div class="error-message">{error}</div>
-      {/if}
-
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isMoving}>
-          Cancel
-        </button>
-        <button type="button" class="btn-primary" onclick={handleConfirm} disabled={isMoving}>
-          {#if isMoving}
-            Moving...
-          {:else if showPrivacyConfirmation}
-            Confirm Move
-          {:else}
-            Move Thread
-          {/if}
-        </button>
-      </div>
-
-      <div class="hint">
-        Tip: Press <kbd>Esc</kbd> to cancel
-      </div>
-    </div>
-  </div>
+    {/snippet}
+  </BaseModal>
 {/if}
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--modal-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: var(--surface-ground);
-    border-radius: 8px;
-    padding: 24px;
-    max-width: 500px;
-    width: 90%;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  h2 {
-    margin: 0 0 16px 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
+  /* Component-specific styles only - modal infrastructure handled by BaseModal */
 
   h3 {
     margin: 0 0 12px 0;
@@ -323,71 +271,5 @@
     margin: 0 0 16px 0;
     font-size: 14px;
     color: var(--text-primary);
-  }
-
-  .error-message {
-    padding: 10px 12px;
-    background: var(--error-bg);
-    border: 1px solid var(--error-color);
-    border-radius: 6px;
-    color: var(--error-color);
-    font-size: 14px;
-    margin-bottom: 16px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
-
-  button {
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-  }
-
-  .btn-secondary {
-    background: var(--surface-overlay);
-    color: var(--text-primary);
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-
-  .btn-primary {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .hint {
-    margin-top: 16px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  kbd {
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 3px;
-    padding: 2px 6px;
-    font-family: monospace;
-    font-size: 11px;
   }
 </style>

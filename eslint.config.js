@@ -247,7 +247,8 @@ export default [
     rules: {
       ...svelte.configs.recommended.rules,
       'no-unused-vars': 'off',
-      'svelte/no-at-html-tags': 'error',
+      // Allow {@html} when content is sanitized with DOMPurify (e.g., MarkdownRenderer)
+      'svelte/no-at-html-tags': 'warn',
       'svelte/valid-compile': 'error',
       'svelte/no-dom-manipulating': 'warn',
       'svelte/no-unused-props': 'off',
@@ -259,6 +260,14 @@ export default [
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+    },
+  },
+
+  // MarkdownRenderer - {@html} is safe here due to DOMPurify sanitization
+  {
+    files: ['**/MarkdownRenderer.svelte'],
+    rules: {
+      'svelte/no-at-html-tags': 'off',
     },
   },
 

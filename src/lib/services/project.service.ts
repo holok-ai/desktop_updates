@@ -1,6 +1,7 @@
 import type { GUID } from '$lib/types/app.type';
+import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { projects } from '../stores/project.store';
-import type { Project } from '../types/project.type.js';
+import type { Project, ProjectPrivacyMode } from '../types/project.type.js';
 
 export class ProjectService {
   private static instance: ProjectService | null = null;
@@ -36,56 +37,54 @@ export class ProjectService {
   }
 
   public async loadProjects(): Promise<void> {
-    try {
-      const allProjects = await window.electronAPI.project.getAll();
-      projects.setProjects(allProjects);
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-      throw error;
-    }
+    const allProjects = await wrapElectronCall(
+      () => window.electronAPI.project.getAll(),
+      'Failed to load projects',
+    );
+    projects.setProjects(allProjects);
   }
 
-  public async createProject(title: string, description?: string): Promise<Project> {
-    try {
-      const project = await window.electronAPI.project.create({ title, description });
-      return project;
-    } catch (error) {
-      console.error('Failed to create project:', error);
-      throw error;
-    }
+  public async createProject(
+    title: string,
+    description?: string,
+    privacyMode?: ProjectPrivacyMode,
+  ): Promise<Project> {
+    return wrapElectronCall(
+      () => window.electronAPI.project.create({ title, description, privacyMode }),
+      'Failed to create project',
+    );
   }
 
   public async updateProject(
     id: GUID,
-    updates: { title?: string; description?: string },
+    updates: { title?: string; description?: string; privacyMode?: ProjectPrivacyMode },
   ): Promise<Project> {
-    try {
-      const project = await window.electronAPI.project.update(id, updates);
-      return project;
-    } catch (error) {
-      console.error('Failed to update project:', error);
-      throw error;
-    }
+    return wrapElectronCall(
+      () => window.electronAPI.project.update(id, updates),
+      'Failed to update project',
+    );
+  }
+
+  public async setPrivacyMode(id: GUID, mode: ProjectPrivacyMode): Promise<Project> {
+    return wrapElectronCall(
+      () => window.electronAPI.project.update(id, { privacyMode: mode }),
+      'Failed to set privacy mode',
+    );
   }
 
   public async deleteProject(id: GUID, deleteThreads = false): Promise<boolean> {
-    try {
-      const isprojectDeleted = await window.electronAPI.project.delete(id, { deleteThreads });
-      return isprojectDeleted;
-    } catch (error) {
-      console.error('Failed to delete project:', error);
-      throw error;
-    }
+    return wrapElectronCall(
+      () => window.electronAPI.project.delete(id, { deleteThreads }),
+      'Failed to delete project',
+    );
   }
 
   public async getThreadCount(projectId: GUID): Promise<number> {
-    try {
-      const count = await window.electronAPI.project.getThreads(projectId);
-      return count;
-    } catch (error) {
-      console.error('Failed to get thread count:', error);
-      return 0;
-    }
+    return wrapElectronCallWithFallback(
+      () => window.electronAPI.project.getThreads(projectId),
+      'Failed to get thread count',
+      0,
+    );
   }
 
   public cleanup(): void {

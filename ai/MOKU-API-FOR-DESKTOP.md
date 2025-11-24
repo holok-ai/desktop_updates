@@ -121,6 +121,7 @@ DesktopProjectController → DesktopProjectService → ProjectRepository
 - **desktop_messages** - Message storage with thread_id, role, content
 
 **Indexes:**
+
 - `idx_desktop_threads_user_id` on `desktop_threads(user_id)`
 - `idx_desktop_messages_thread_id` on `desktop_messages(thread_id)`
 
@@ -1040,6 +1041,7 @@ DROP TABLE IF EXISTS desktop_threads CASCADE;
 ```
 
 5. **Testing**: Test migration on local/dev database before production:
+
 ```bash
 # Validate migration
 ./gradlew flywayValidate
@@ -1053,6 +1055,7 @@ DROP TABLE IF EXISTS desktop_threads CASCADE;
 
 6. **Dependencies**: Ensure `users` table exists before running this migration
 7. **Baseline**: If adding to existing database, may need to baseline:
+
 ```bash
 ./gradlew flywayBaseline
 ```

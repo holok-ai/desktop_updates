@@ -4,14 +4,16 @@
 
   const dispatch = createEventDispatcher();
 
-  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection } = $props<{
-    isSelected: boolean;
-    isHidden?: boolean;
-    item: SidebarActivity;
-    isCollapsed: boolean;
-    showActions?: boolean;
-    isSubsection?: boolean;
-  }>();
+  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection, isMenuOpen } =
+    $props<{
+      isSelected: boolean;
+      isHidden?: boolean;
+      item: SidebarActivity;
+      isCollapsed: boolean;
+      showActions?: boolean;
+      isSubsection?: boolean;
+      isMenuOpen?: boolean;
+    }>();
 
   function onClick(item: SidebarActivity) {
     dispatch('click', item);
@@ -21,15 +23,18 @@
     if (e.key === 'Enter' || e.key === ' ') onClick(item);
   }
 
-  let menuOpen = $state(false);
+  function toggleMenu(e: Event) {
+    e.stopPropagation();
+    dispatch('toggleMenu', item);
+  }
 </script>
 
 <div
-  class="{isSubsection && 'px-4'} w-full transition-all duration-200 flex flex-col items-stretch"
+  class="{isSubsection && 'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch"
   class:hidden={isHidden}
 >
   <li
-    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-800"
+    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)]"
     class:active={isSelected}
     tabindex="0"
     role="menuitem"
@@ -40,39 +45,49 @@
   >
     {#if item.icon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
-        <i class="{item.icon} text-base leading-none"></i>
+        <i class="{item.icon} text-base leading-none sidebar-item-icon"></i>
       </div>
     {/if}
 
     {#if !isCollapsed}
-      <span class="text-sm leading-none truncate flex-1">{item.label}</span>
+      <span class="text-sm truncate flex-1 sidebar-item-label">{item.label}</span>
       {#if showActions}
-        <button
-          class="icon-button"
-          title="More"
-          onclick={(e) => {
-            e.stopPropagation();
-            menuOpen = !menuOpen;
-          }}>⋯</button
-        >
-        {#if menuOpen}
+        <button class="icon-button" title="More" onclick={toggleMenu}>⋯</button>
+        {#if isMenuOpen}
           <div
             class="menu"
             role="menu"
             tabindex="0"
             onclick={(e) => e.stopPropagation()}
             onkeydown={(e) => {
-              if (e.key === 'Escape') menuOpen = false;
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                dispatch('toggleMenu', item);
+              }
             }}
           >
             <button
               class="menu-item"
               type="button"
               onclick={() => {
-                menuOpen = false;
-                dispatch('delete', item);
-              }}>Delete thread</button
+                dispatch('toggleMenu', item); // Close menu
+                dispatch('rename', item);
+              }}
+              aria-label="Rename thread"
             >
+              <i class="pi pi-pencil"></i> Rename
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              onclick={() => {
+                dispatch('toggleMenu', item); // Close menu
+                dispatch('delete', item);
+              }}
+              aria-label="Delete thread"
+            >
+              <i class="pi pi-trash"></i> Delete
+            </button>
           </div>
         {/if}
       {/if}
@@ -80,9 +95,7 @@
   </li>
 
   {#if isCollapsed}
-    <span
-      class="h-4 text-[10px] text-[var(--text-primary)] text-center mt-[2px] truncate w-full leading-none"
-    >
+    <span class="h-4 text-[10px] text-white text-center mt-[2px] truncate w-full leading-none">
       {item.shortLabel || item.label}
     </span>
   {/if}
@@ -90,47 +103,160 @@
 
 <style scoped>
   .active {
-    background-color: var(--background-primary-active, #0f2239);
-    color: var(--text-active, #ffffff);
-
-    span,
-    .icon-button {
-      color: var(--text-active);
-    }
+    background-color: var(--sidebar-item-active-bg, var(--background-primary-active));
+    color: var(--sidebar-item-active-text-color, var(--text-active));
   }
+
+  .active .sidebar-item-label,
+  .active .sidebar-item-icon,
+  .active .icon-button {
+    color: var(--sidebar-item-active-text-color, var(--text-active));
+  }
+
+  .sidebar-item-icon {
+    color: var(--sidebar-item-icon-color, #fff);
+  }
+
+  .sidebar-item-label {
+    color: var(--sidebar-item-text-color, #fff);
+  }
+
   .icon-button {
     background: transparent;
     border: none;
-    color: var(--text-primary);
+    color: var(--sidebar-item-icon-color, #fff);
     cursor: pointer;
-    padding: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: 0.7;
+
+    &:hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+      opacity: 1;
+    }
 
     &:focus {
       outline: none;
+      background: var(--surface-hover);
+    }
+
+    &:active {
+      transform: scale(0.95);
     }
   }
+
   .menu {
     position: absolute;
     right: 8px;
     top: 36px;
-    background: var(--surface-sidebar-secondary, #0f172a);
-    border: 1px solid var(--border-card, #1f2937);
-    border-radius: 6px;
-    padding: 0.25rem;
+    background: var(--sidebar-item-menu-background, var(--surface-main));
+    border-radius: var(--border-radius);
+    padding: calc(var(--inline-spacing) / 2);
     z-index: 20;
     min-width: 160px;
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    animation: menuFadeIn 0.15s ease-out;
+    backdrop-filter: blur(8px);
   }
+
+  @keyframes menuFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   .menu-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
     width: 100%;
     text-align: left;
-    padding: 0.5rem 0.75rem;
+    padding: 0.625rem 0.875rem;
     background: transparent;
     border: none;
-    color: var(--text-primary);
+    outline: none;
+    color: var(--sidebar-item-menu-text-color, #fff);
     cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 400;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease;
+    position: relative;
+
+    i {
+      font-size: 0.875rem;
+      width: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &:hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--surface-hover);
+    }
+
+    &:first-child {
+      i {
+        color: var(--primary-color);
+      }
+
+      &:hover {
+        background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+        i {
+          color: var(--primary-color);
+        }
+      }
+    }
+
+    &:last-child {
+      i {
+        color: var(--error-color);
+      }
+
+      &:hover {
+        background: var(--error-bg);
+        i {
+          color: var(--error-color);
+        }
+      }
+    }
   }
-  .menu-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+
+  /* Dark mode specific adjustments */
+  :global(html.dark) .menu {
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Light mode specific adjustments */
+  :global(html:not(.dark)) .menu {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 </style>

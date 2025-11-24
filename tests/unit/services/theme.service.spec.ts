@@ -48,7 +48,10 @@ describe('theme.service', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem');
 
     persistTheme(APP_THEME_MODE.DARK);
-    expect(spy).toHaveBeenCalledWith(APP_THEME_MODE_STORAGE_KEY, APP_THEME_MODE.DARK);
+    expect(spy).toHaveBeenCalledWith(
+      APP_THEME_MODE_STORAGE_KEY,
+      JSON.stringify(APP_THEME_MODE.DARK),
+    );
 
     // simulate storage failure - should not throw
     spy.mockImplementationOnce(() => {
