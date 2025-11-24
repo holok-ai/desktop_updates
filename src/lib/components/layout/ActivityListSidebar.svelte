@@ -121,7 +121,7 @@
     const route = (item as SidebarActivity).route;
 
     switch (route) {
-      case ROUTE.THREADS:
+      case ROUTE.THREADS: {
         selectedThreadId = item.id;
         storageService.setLastThreadId(item.id);
         if (!selectedProjectId) {
@@ -135,6 +135,7 @@
         }
         push(`${ROUTE.THREADS}?${params.toString()}`);
         break;
+      }
       default:
         break;
     }

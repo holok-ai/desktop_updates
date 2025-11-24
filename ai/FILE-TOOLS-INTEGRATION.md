@@ -1,17 +1,20 @@
 # File Tools Integration with ChatService
 
 ## Overview
+
 Integrate file access tools (`read_folder`, `read_file`) with the existing ChatService to enable LLMs to access local files during conversations.
 
 ## Provider Priority
 
 ### Priority 1 (Immediate Implementation)
+
 1. **OpenAI** (GPT-4, GPT-4 Turbo) - Full tool calling support
 2. **Anthropic** (Claude 3.x) - Full tool calling support
 3. **Ollama** (Local models) - Limited/manual tool handling
 4. **Perplexity** (pplx-70b-online, pplx-7b-chat) - Tool calling support
 
 ### Priority 2 (Future Implementation)
+
 1. **Google Gemini** (gemini-pro, gemini-ultra) - Tool calling support
 2. **xAI** (Grok) - Tool calling support
 
@@ -20,6 +23,7 @@ Integrate file access tools (`read_folder`, `read_file`) with the existing ChatS
 ## Architecture
 
 ### Current State
+
 ```
 ChatService
 ├── ClaudeChatProvider (Anthropic)
@@ -28,6 +32,7 @@ ChatService
 ```
 
 ### Target State
+
 ```
 ChatService + FileToolsService
 ├── ClaudeChatProvider (with tool support)
@@ -43,9 +48,11 @@ ChatService + FileToolsService
 ## Tool Definitions
 
 ### Tool 1: `read_folder`
+
 Lists files and subdirectories in a folder.
 
 **Input Schema:**
+
 ```json
 {
   "type": "object",
@@ -80,6 +87,7 @@ Lists files and subdirectories in a folder.
 ```
 
 **Output:**
+
 ```json
 {
   "success": true,
@@ -100,9 +108,11 @@ Lists files and subdirectories in a folder.
 ```
 
 ### Tool 2: `read_file`
+
 Reads contents of a text file.
 
 **Input Schema:**
+
 ```json
 {
   "type": "object",
@@ -130,6 +140,7 @@ Reads contents of a text file.
 ```
 
 **Output:**
+
 ```json
 {
   "success": true,
@@ -150,6 +161,7 @@ Reads contents of a text file.
 ## Implementation Plan
 
 ### Phase 1: Core Infrastructure
+
 1. Create `FileToolsService` class
 2. Extend `IChatProvider` interface with tool support
 3. Update `ChatService` to integrate file tools
@@ -157,16 +169,19 @@ Reads contents of a text file.
 ### Phase 2: Provider Implementation (Priority 1)
 
 #### 2.1 Anthropic (Claude) - **Already Exists**
+
 - Claude SDK supports tool calling natively
 - Implement `chatWithTools()` method
 - Handle tool use loop
 
 #### 2.2 OpenAI (GPT-4) - **Already Exists**
+
 - OpenAI SDK supports "function calling" (their term for tools)
 - Implement `chatWithTools()` method
 - Convert tool definitions to OpenAI format
 
 #### 2.3 Ollama - **Already Exists**
+
 - No native tool support
 - Implement manual tool handling:
   1. Append tool descriptions to system prompt
@@ -175,6 +190,7 @@ Reads contents of a text file.
   4. Continue conversation
 
 #### 2.4 Perplexity - **NEW**
+
 - Uses OpenAI-compatible API
 - Create `PerplexityChatProvider`
 - Similar implementation to OpenAI
@@ -182,10 +198,12 @@ Reads contents of a text file.
 ### Phase 3: Provider Implementation (Priority 2)
 
 #### 3.1 Google Gemini
+
 - Create `GeminiChatProvider`
 - Implement tool calling (similar to Claude/OpenAI)
 
 #### 3.2 xAI (Grok)
+
 - Create `XAIChatProvider`
 - Implement based on xAI API documentation
 
@@ -196,6 +214,7 @@ Reads contents of a text file.
 ### 1. FileToolsService
 
 **Requirements:**
+
 - Must provide tool definitions in a format compatible with LLM providers (Anthropic, OpenAI formats)
 - Must execute tools by name and return structured success/error results
 - Must resolve relative paths to absolute paths using a configurable working directory
@@ -245,62 +264,64 @@ export class FileToolsService {
     return [
       {
         name: 'read_folder',
-        description: 'List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.',
+        description:
+          'List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.',
         input_schema: {
           type: 'object',
           properties: {
             path: {
               type: 'string',
-              description: 'Path to the folder (can be relative to working directory or absolute)'
+              description: 'Path to the folder (can be relative to working directory or absolute)',
             },
             recursive: {
               type: 'boolean',
-              description: 'If true, list subdirectories recursively. Default: false'
+              description: 'If true, list subdirectories recursively. Default: false',
             },
             max_depth: {
               type: 'integer',
-              description: 'Maximum recursion depth when recursive is true. Default: 3'
+              description: 'Maximum recursion depth when recursive is true. Default: 3',
             },
             include_hidden: {
               type: 'boolean',
-              description: 'Include hidden files (starting with .). Default: false'
+              description: 'Include hidden files (starting with .). Default: false',
             },
             filter_extensions: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Only include files with these extensions (e.g., [".js", ".ts"])'
-            }
+              description: 'Only include files with these extensions (e.g., [".js", ".ts"])',
+            },
           },
-          required: ['path']
-        }
+          required: ['path'],
+        },
       },
       {
         name: 'read_file',
-        description: 'Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.',
+        description:
+          'Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.',
         input_schema: {
           type: 'object',
           properties: {
             path: {
               type: 'string',
-              description: 'Path to the file (can be relative to working directory or absolute)'
+              description: 'Path to the file (can be relative to working directory or absolute)',
             },
             encoding: {
               type: 'string',
               enum: ['utf-8', 'ascii', 'latin1'],
-              description: 'Text encoding. Default: utf-8'
+              description: 'Text encoding. Default: utf-8',
             },
             start_line: {
               type: 'integer',
-              description: 'Read from this line number (1-indexed). Useful for large files.'
+              description: 'Read from this line number (1-indexed). Useful for large files.',
             },
             end_line: {
               type: 'integer',
-              description: 'Read to this line number (1-indexed). Useful for large files.'
-            }
+              description: 'Read to this line number (1-indexed). Useful for large files.',
+            },
           },
-          required: ['path']
-        }
-      }
+          required: ['path'],
+        },
+      },
     ];
   }
 
@@ -316,14 +337,14 @@ export class FileToolsService {
         default:
           return {
             success: false,
-            error: `Unknown tool: ${toolName}`
+            error: `Unknown tool: ${toolName}`,
           };
       }
     } catch (error) {
       log.error(`[FileTools] Error executing ${toolName}:`, error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -334,7 +355,7 @@ export class FileToolsService {
       recursive = false,
       max_depth = 3,
       include_hidden = false,
-      filter_extensions
+      filter_extensions,
     } = params;
 
     const resolvedPath = this.resolvePath(userPath);
@@ -343,7 +364,7 @@ export class FileToolsService {
     if (!this.isPathAllowed(resolvedPath)) {
       return {
         success: false,
-        error: `ACCESS_DENIED: Path is restricted for security reasons`
+        error: `ACCESS_DENIED: Path is restricted for security reasons`,
       };
     }
 
@@ -351,7 +372,7 @@ export class FileToolsService {
     if (!fs.existsSync(resolvedPath)) {
       return {
         success: false,
-        error: `PATH_NOT_FOUND: '${userPath}' does not exist`
+        error: `PATH_NOT_FOUND: '${userPath}' does not exist`,
       };
     }
 
@@ -359,7 +380,7 @@ export class FileToolsService {
     if (!stats.isDirectory()) {
       return {
         success: false,
-        error: `NOT_A_DIRECTORY: '${userPath}' is not a directory`
+        error: `NOT_A_DIRECTORY: '${userPath}' is not a directory`,
       };
     }
 
@@ -370,14 +391,14 @@ export class FileToolsService {
       max_depth,
       include_hidden,
       filter_extensions,
-      0
+      0,
     );
 
     // Check file limit
     if (entries.length > this.maxFolderFiles) {
       return {
         success: false,
-        error: `TOO_MANY_FILES: Folder contains ${entries.length} items (max: ${this.maxFolderFiles}). Be more specific or use filters.`
+        error: `TOO_MANY_FILES: Folder contains ${entries.length} items (max: ${this.maxFolderFiles}). Be more specific or use filters.`,
       };
     }
 
@@ -386,19 +407,14 @@ export class FileToolsService {
       data: {
         path: resolvedPath,
         entries,
-        total_files: entries.filter(e => e.type === 'file').length,
-        total_directories: entries.filter(e => e.type === 'directory').length
-      }
+        total_files: entries.filter((e) => e.type === 'file').length,
+        total_directories: entries.filter((e) => e.type === 'directory').length,
+      },
     };
   }
 
   private async readFile(params: any): Promise<ToolResult> {
-    const {
-      path: userPath,
-      encoding = 'utf-8',
-      start_line,
-      end_line
-    } = params;
+    const { path: userPath, encoding = 'utf-8', start_line, end_line } = params;
 
     const resolvedPath = this.resolvePath(userPath);
 
@@ -406,7 +422,7 @@ export class FileToolsService {
     if (!this.isPathAllowed(resolvedPath)) {
       return {
         success: false,
-        error: `ACCESS_DENIED: Path is restricted for security reasons`
+        error: `ACCESS_DENIED: Path is restricted for security reasons`,
       };
     }
 
@@ -414,7 +430,7 @@ export class FileToolsService {
     if (!fs.existsSync(resolvedPath)) {
       return {
         success: false,
-        error: `FILE_NOT_FOUND: '${userPath}' does not exist`
+        error: `FILE_NOT_FOUND: '${userPath}' does not exist`,
       };
     }
 
@@ -422,7 +438,7 @@ export class FileToolsService {
     if (!stats.isFile()) {
       return {
         success: false,
-        error: `NOT_A_FILE: '${userPath}' is not a file`
+        error: `NOT_A_FILE: '${userPath}' is not a file`,
       };
     }
 
@@ -430,7 +446,7 @@ export class FileToolsService {
     if (stats.size > this.maxFileSize && !start_line && !end_line) {
       return {
         success: false,
-        error: `FILE_TOO_LARGE: File is ${(stats.size / 1024 / 1024).toFixed(2)}MB (max: ${this.maxFileSize / 1024 / 1024}MB). Use start_line and end_line parameters.`
+        error: `FILE_TOO_LARGE: File is ${(stats.size / 1024 / 1024).toFixed(2)}MB (max: ${this.maxFileSize / 1024 / 1024}MB). Use start_line and end_line parameters.`,
       };
     }
 
@@ -438,7 +454,7 @@ export class FileToolsService {
     if (!this.isTextFile(resolvedPath)) {
       return {
         success: false,
-        error: `NOT_TEXT_FILE: File appears to be binary`
+        error: `NOT_TEXT_FILE: File appears to be binary`,
       };
     }
 
@@ -464,10 +480,10 @@ export class FileToolsService {
           size: stats.size,
           lines: content.split('\n').length,
           modified: stats.mtimeMs,
-          encoding
+          encoding,
         },
-        truncated
-      }
+        truncated,
+      },
     };
   }
 
@@ -477,7 +493,7 @@ export class FileToolsService {
     maxDepth: number,
     includeHidden: boolean,
     filterExtensions?: string[],
-    currentDepth: number = 0
+    currentDepth: number = 0,
   ): Promise<any[]> {
     const entries: any[] = [];
     const items = await fs.promises.readdir(dirPath, { withFileTypes: true });
@@ -494,7 +510,7 @@ export class FileToolsService {
           path: itemPath,
           type: 'directory',
           size: 0,
-          modified: stats.mtimeMs
+          modified: stats.mtimeMs,
         });
 
         if (recursive && currentDepth < maxDepth) {
@@ -504,7 +520,7 @@ export class FileToolsService {
             maxDepth,
             includeHidden,
             filterExtensions,
-            currentDepth + 1
+            currentDepth + 1,
           );
           entries.push(...subEntries);
         }
@@ -521,7 +537,7 @@ export class FileToolsService {
           type: 'file',
           size: stats.size,
           modified: stats.mtimeMs,
-          extension: ext
+          extension: ext,
         });
       }
     }
@@ -550,11 +566,37 @@ export class FileToolsService {
 
   private isTextFile(filePath: string): boolean {
     const textExts = new Set([
-      '.txt', '.md', '.json', '.js', '.ts', '.tsx', '.jsx',
-      '.py', '.java', '.cpp', '.c', '.h', '.hpp', '.cs',
-      '.css', '.html', '.xml', '.yaml', '.yml', '.toml',
-      '.ini', '.conf', '.sh', '.bash', '.sql', '.go', '.rs',
-      '.vue', '.svelte', '.log', '.env'
+      '.txt',
+      '.md',
+      '.json',
+      '.js',
+      '.ts',
+      '.tsx',
+      '.jsx',
+      '.py',
+      '.java',
+      '.cpp',
+      '.c',
+      '.h',
+      '.hpp',
+      '.cs',
+      '.css',
+      '.html',
+      '.xml',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.ini',
+      '.conf',
+      '.sh',
+      '.bash',
+      '.sql',
+      '.go',
+      '.rs',
+      '.vue',
+      '.svelte',
+      '.log',
+      '.env',
     ]);
     return textExts.has(path.extname(filePath).toLowerCase());
   }
@@ -594,6 +636,7 @@ export class FileToolsService {
 ### 2. Update IChatProvider Interface
 
 **Requirements:**
+
 - Must extend IChatProvider interface to include optional tool calling support
 - Must define ToolUse interface with id, name, and input parameters
 - Must define ToolResult interface for tool execution responses
@@ -617,7 +660,7 @@ export interface IChatProvider {
 
   chatWithOptions(
     request: ChatRequestWithOptions,
-    onTokenReceived?: (token: string) => void
+    onTokenReceived?: (token: string) => void,
   ): Promise<void>;
 
   /**
@@ -632,7 +675,7 @@ export interface IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void>;
 }
 ```
@@ -640,6 +683,7 @@ export interface IChatProvider {
 ### 3. Update ChatService
 
 **Requirements:**
+
 - Must instantiate FileToolsService in ChatService constructor
 - Must provide chatWithFileTools() method that accepts callbacks for token streaming and tool use notifications
 - Must check if provider supports tools before attempting tool-enabled chat
@@ -672,7 +716,7 @@ export class ChatService {
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolName: string, input: any) => void
+    onToolUse?: (toolName: string, input: any) => void,
   ): Promise<void> {
     // Check if provider supports tools
     if (!this.provider.supportsTools() || !this.provider.chatWithTools) {
@@ -692,7 +736,7 @@ export class ChatService {
     const { callback, complete } = this.auditService.createWrappedCallback(
       request,
       this.providerType,
-      onTokenReceived
+      onTokenReceived,
     );
 
     try {
@@ -715,6 +759,7 @@ export class ChatService {
 #### 4.1 Anthropic (Claude) - Priority 1
 
 **Requirements:**
+
 - Must implement supportsTools() returning true for Claude 3.x models
 - Must implement chatWithTools() using Anthropic SDK's native tool calling
 - Must handle both streaming and non-streaming modes with tools
@@ -738,7 +783,7 @@ export class ClaudeChatProvider implements IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const claudeRequest = ClaudeConverter.toClaudeRequest({ ...request, model: modelToUse });
@@ -755,7 +800,7 @@ export class ClaudeChatProvider implements IChatProvider {
           messages,
           tools, // Pass tools to Claude
           max_tokens: 4096,
-          stream: true
+          stream: true,
         });
 
         stream.on('text', (text) => {
@@ -770,7 +815,7 @@ export class ClaudeChatProvider implements IChatProvider {
           messages,
           tools,
           max_tokens: 4096,
-          stream: false
+          stream: false,
         });
 
         // Send full response at once
@@ -793,23 +838,23 @@ export class ClaudeChatProvider implements IChatProvider {
             const result = await onToolUse({
               id: tu.id,
               name: tu.name,
-              input: tu.input
+              input: tu.input,
             });
 
             return {
               type: 'tool_result',
               tool_use_id: tu.id,
               content: JSON.stringify(result),
-              is_error: !result.success
+              is_error: !result.success,
             };
-          })
+          }),
         );
 
         // Continue conversation with tool results
         messages = [
           ...messages,
           { role: 'assistant', content: response.content },
-          { role: 'user', content: toolResults }
+          { role: 'user', content: toolResults },
         ];
       } else {
         // No more tools to use, exit loop
@@ -823,6 +868,7 @@ export class ClaudeChatProvider implements IChatProvider {
 #### 4.2 OpenAI - Priority 1
 
 **Requirements:**
+
 - Must implement supportsTools() returning true for GPT-4 models
 - Must convert ToolDefinition format to OpenAI's "functions" format (different terminology)
 - Must handle streaming mode by accumulating function_call chunks from delta objects
@@ -846,15 +892,15 @@ export class OpenAIChatProvider implements IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
 
     // Convert tools to OpenAI format (they call it "functions")
-    const functions = tools.map(tool => ({
+    const functions = tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
-      parameters: tool.input_schema
+      parameters: tool.input_schema,
     }));
 
     let messages = request.messages;
@@ -867,7 +913,7 @@ export class OpenAIChatProvider implements IChatProvider {
           model: modelToUse,
           messages,
           functions,
-          stream: true
+          stream: true,
         });
 
         let functionCall: any = null;
@@ -894,13 +940,15 @@ export class OpenAIChatProvider implements IChatProvider {
 
         if (functionCall) {
           response = {
-            choices: [{
-              finish_reason: 'function_call',
-              message: {
-                role: 'assistant',
-                function_call: functionCall
-              }
-            }]
+            choices: [
+              {
+                finish_reason: 'function_call',
+                message: {
+                  role: 'assistant',
+                  function_call: functionCall,
+                },
+              },
+            ],
           };
         } else {
           break;
@@ -910,7 +958,7 @@ export class OpenAIChatProvider implements IChatProvider {
           model: modelToUse,
           messages,
           functions,
-          stream: false
+          stream: false,
         });
 
         if (onTokenReceived && response.choices[0].message.content) {
@@ -925,7 +973,7 @@ export class OpenAIChatProvider implements IChatProvider {
         const toolUse: ToolUse = {
           id: `call_${Date.now()}`,
           name: functionCall.name,
-          input: JSON.parse(functionCall.arguments)
+          input: JSON.parse(functionCall.arguments),
         };
 
         const result = await onToolUse(toolUse);
@@ -937,8 +985,8 @@ export class OpenAIChatProvider implements IChatProvider {
           {
             role: 'function',
             name: functionCall.name,
-            content: JSON.stringify(result)
-          }
+            content: JSON.stringify(result),
+          },
         ];
       } else {
         break;
@@ -951,6 +999,7 @@ export class OpenAIChatProvider implements IChatProvider {
 #### 4.3 Ollama - Priority 1
 
 **Requirements:**
+
 - Must implement supportsTools() returning false (no native tool support)
 - Must provide optional chatWithTools() method for manual tool handling
 - Must append tool descriptions to system prompt in human-readable format
@@ -974,19 +1023,19 @@ export class OllamaChatProvider implements IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void> {
     // Fallback: append tool descriptions to system prompt
-    const toolDescriptions = tools.map(t =>
-      `Tool: ${t.name}\nDescription: ${t.description}\nParameters: ${JSON.stringify(t.input_schema.properties)}`
-    ).join('\n\n');
+    const toolDescriptions = tools
+      .map(
+        (t) =>
+          `Tool: ${t.name}\nDescription: ${t.description}\nParameters: ${JSON.stringify(t.input_schema.properties)}`,
+      )
+      .join('\n\n');
 
     const systemPrompt = `You have access to the following tools:\n\n${toolDescriptions}\n\nTo use a tool, respond with JSON in this format: {"tool": "tool_name", "input": {...}}`;
 
-    const modifiedMessages = [
-      { role: 'system', content: systemPrompt },
-      ...request.messages
-    ];
+    const modifiedMessages = [{ role: 'system', content: systemPrompt }, ...request.messages];
 
     // Call regular chat with modified messages
     return this.chat({ ...request, messages: modifiedMessages }, onTokenReceived);
@@ -997,6 +1046,7 @@ export class OllamaChatProvider implements IChatProvider {
 #### 4.4 Perplexity - Priority 1 (NEW)
 
 **Requirements:**
+
 - Must create new PerplexityChatProvider class implementing IChatProvider
 - Must use OpenAI SDK with baseURL set to 'https://api.perplexity.ai'
 - Must implement supportsTools() returning true (OpenAI-compatible API)
@@ -1021,14 +1071,14 @@ export class PerplexityChatProvider implements IChatProvider {
     this.client = new OpenAI({
       apiKey,
       baseURL: apiEndpoint || 'https://api.perplexity.ai',
-      dangerouslyAllowBrowser: true
+      dangerouslyAllowBrowser: true,
     });
     this.defaultModel = defaultModel || 'pplx-70b-online';
   }
 
   public async chat(
     request: ChatRequest,
-    onTokenReceived?: (token: string) => void
+    onTokenReceived?: (token: string) => void,
   ): Promise<void> {
     // Similar to OpenAI implementation
     // Perplexity uses OpenAI-compatible API
@@ -1036,7 +1086,7 @@ export class PerplexityChatProvider implements IChatProvider {
 
   public async chatWithOptions(
     request: ChatRequestWithOptions,
-    onTokenReceived?: (token: string) => void
+    onTokenReceived?: (token: string) => void,
   ): Promise<void> {
     return this.chat(request, onTokenReceived);
   }
@@ -1049,7 +1099,7 @@ export class PerplexityChatProvider implements IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void> {
     // Same implementation as OpenAI since Perplexity is OpenAI-compatible
     // ... (copy OpenAI chatWithTools implementation)
@@ -1060,6 +1110,7 @@ export class PerplexityChatProvider implements IChatProvider {
 ### 5. Update ChatProviderFactory
 
 **Requirements:**
+
 - Must add PERPLEXITY to ProviderType enum
 - Must add GEMINI and XAI to ProviderType enum for Priority 2
 - Must add case for ProviderType.PERPLEXITY in createProvider() switch statement
@@ -1079,7 +1130,7 @@ export enum ProviderType {
   PERPLEXITY = 'perplexity', // NEW
   // Priority 2:
   GEMINI = 'gemini',
-  XAI = 'xai'
+  XAI = 'xai',
 }
 
 export class ChatProviderFactory {
@@ -1103,6 +1154,7 @@ export class ChatProviderFactory {
 ### 6. IPC Handler Updates
 
 **Requirements:**
+
 - Must add new 'chat:sendWithFileTools' IPC handler
 - Must accept ChatRequest and optional workingDirectory parameter
 - Must validate chatService is initialized before proceeding
@@ -1121,7 +1173,7 @@ ipcMain.handle(
   async (
     event: IpcMainInvokeEvent,
     request: ChatRequest,
-    workingDirectory?: string
+    workingDirectory?: string,
   ): Promise<{ success: boolean; error?: string }> => {
     log.info('[IPC] chat:sendWithFileTools called');
 
@@ -1141,7 +1193,7 @@ ipcMain.handle(
         },
         (toolName: string, input: any) => {
           event.sender.send('chat:toolUse', { toolName, input });
-        }
+        },
       );
 
       return { success: true };
@@ -1149,10 +1201,10 @@ ipcMain.handle(
       log.error('[IPC] Error in chatWithFileTools:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
-  }
+  },
 );
 ```
 
@@ -1161,18 +1213,21 @@ ipcMain.handle(
 ## Testing Strategy
 
 ### Unit Tests
+
 - [ ] FileToolsService.readFolder() - various scenarios
 - [ ] FileToolsService.readFile() - encoding, line ranges
 - [ ] Path security validation
 - [ ] Blacklist enforcement
 
 ### Integration Tests
+
 - [ ] Anthropic with file tools
 - [ ] OpenAI with file tools
 - [ ] Ollama with manual tools
 - [ ] Perplexity with file tools
 
 ### E2E Tests
+
 - [ ] User: "What files are in src/lib/services?"
 - [ ] User: "Show me auth.service.ts"
 - [ ] User: "Analyze all TypeScript files"
@@ -1187,22 +1242,22 @@ const configs = {
   anthropic: {
     apiEndpoint: 'https://api.anthropic.com',
     apiKey: 'sk-ant-...',
-    model: 'claude-3-5-sonnet-20241022'
+    model: 'claude-3-5-sonnet-20241022',
   },
   openai: {
     apiEndpoint: 'https://api.openai.com/v1',
     apiKey: 'sk-...',
-    model: 'gpt-4-turbo-preview'
+    model: 'gpt-4-turbo-preview',
   },
   ollama: {
     apiEndpoint: 'http://localhost:11434',
-    model: 'llama3:latest'
+    model: 'llama3:latest',
   },
   perplexity: {
     apiEndpoint: 'https://api.perplexity.ai',
     apiKey: 'pplx-...',
-    model: 'pplx-70b-online'
-  }
+    model: 'pplx-70b-online',
+  },
 };
 ```
 
