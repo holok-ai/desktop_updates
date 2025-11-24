@@ -37,7 +37,7 @@ describe('ChatService (integration shim)', () => {
 
     const { ChatService } = await import('../../../src-electron/services/chat/ChatService');
 
-    const svc = new ChatService('ollama', { endpoint: 'http://x' } as any, true);
+    const svc = new ChatService('ollama', { url: 'http://x' } as any, true);
 
     await svc.chat({ model: 'm', messages: [] } as any, (t) => tokens.push(t));
     expect(tokens).toEqual(['tok1', 'tok2']);
