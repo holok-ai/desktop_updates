@@ -534,6 +534,39 @@ export class ThreadRepository {
     };
   }
 
+  /**
+   * Update message metadata (e.g., for adding/editing comments)
+   */
+  public updateMessageMetadata(
+    threadId: string,
+    messageId: string,
+    metadataUpdates: Partial<MessageMetadata>,
+  ): Message {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+
+    const message = thread.messages.find((m) => m.id === messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+
+    // Merge metadata updates
+    if (!message.metadata) {
+      message.metadata = {};
+    }
+    message.metadata = {
+      ...message.metadata,
+      ...metadataUpdates,
+    };
+
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+    this.saveToDisk();
+
+    return {
+      ...message,
+      metadata: message.metadata ? { ...message.metadata } : undefined,
+    };
+  }
+
   public getMessageVersions(threadId: string, messageId: string): MessageVersion[] {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);

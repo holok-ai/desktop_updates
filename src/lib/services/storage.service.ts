@@ -20,6 +20,7 @@ class StorageService {
     ACTIVITY_LIST_WIDTH: 'activityListWidth',
     ACTIVITY_LIST_COLLAPSED: 'activityListCollapsed',
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
+    SHOW_COMMENTS: 'showComments',
   } as const;
 
   private get<T>(key: string, defaultValue: T, options?: GetOptions<T>): T {
@@ -140,6 +141,24 @@ class StorageService {
 
   setSidebarActivity(activity: SidebarActivity): boolean {
     return this.set(this.KEYS.SIDEBAR_ACTIVITY, activity);
+  }
+
+  getShowComments(): boolean {
+    return this.get(this.KEYS.SHOW_COMMENTS, false, {
+      coerce: (raw) => {
+        if (raw === 'true') {
+          return true;
+        }
+        if (raw === 'false') {
+          return false;
+        }
+        return null;
+      },
+    });
+  }
+
+  setShowComments(show: boolean): boolean {
+    return this.set(this.KEYS.SHOW_COMMENTS, show);
   }
 
   /**
