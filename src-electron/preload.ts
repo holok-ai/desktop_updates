@@ -407,11 +407,20 @@ export interface ChatAPI {
     request: ChatRequestWithOptions,
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // Send a chat message with file tools enabled
+  chatWithFileTools: (request: ChatRequest) => Promise<{ success: boolean; error?: string }>;
+
+  // Set working directory for file tools
+  setFileToolsWorkingDirectory: (dir: string) => Promise<{ success: boolean; error?: string }>;
+
   // Listen for streaming tokens (event-based)
   onToken: (callback: (token: string) => void) => void;
 
   // Stop listening to token events
   offToken: () => void;
+
+  // Listen for tool use events (event-based)
+  onToolUse: (callback: (data: { toolName: string; input: unknown }) => void) => () => void;
 
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
@@ -596,6 +605,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 7. Optional: Chat with advanced options
     chatWithOptions: (request: ChatRequestWithOptions) =>
       ipcRenderer.invoke('chat:sendWithOptions', request),
+
+    // 8. Chat with file tools enabled
+    chatWithFileTools: (request: ChatRequest) =>
+      ipcRenderer.invoke('chat:sendWithFileTools', request),
+
+    // 9. Set working directory for file tools
+    setFileToolsWorkingDirectory: (dir: string) =>
+      ipcRenderer.invoke('chat:setFileToolsWorkingDirectory', dir),
+
+    // 10. Listen for tool use events
+    onToolUse: (callback: (data: { toolName: string; input: unknown }) => void): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { toolName: string; input: unknown },
+      ): void => callback(data);
+      ipcRenderer.on('chat:toolUse', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('chat:toolUse', subscription);
+      };
+    },
   },
 
   /**
