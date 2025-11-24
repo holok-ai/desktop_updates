@@ -1,5 +1,14 @@
 // src/lib/services/interfaces/IChatProvider.ts
 import type { ChatRequest, ChatRequestWithOptions } from './ChatMessage.js';
+import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
+
+/**
+ * Represents a tool use request from the LLM
+ */
+export interface ToolUse {
+  name: string;
+  input: Record<string, unknown>;
+}
 
 /**
  * Core interface for all chat providers
@@ -20,6 +29,26 @@ export interface IChatProvider {
   chatWithOptions(
     request: ChatRequestWithOptions,
     onTokenReceived?: (token: string) => void,
+  ): Promise<void>;
+
+  /**
+   * Check if this provider supports tool use (function calling)
+   * @returns true if the provider supports tools
+   */
+  supportsTools?(): boolean;
+
+  /**
+   * Sends a chat request with tool definitions and handles tool execution
+   * @param request The chat request containing messages and model
+   * @param tools Array of tool definitions available to the LLM
+   * @param onTokenReceived Callback function to handle streamed tokens
+   * @param onToolUse Callback function to handle tool execution requests
+   */
+  chatWithTools?(
+    request: ChatRequest,
+    tools: ToolDefinition[],
+    onTokenReceived?: (token: string) => void,
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void>;
 }
 
@@ -49,6 +78,9 @@ export function makeMockProvider(tokens: string[] = ['t1', 't2']): IChatProvider
         for (const t of tokens) onTokenReceived(t + '_opt');
       }
       return Promise.resolve();
+    },
+    supportsTools(): boolean {
+      return false;
     },
   };
 }
