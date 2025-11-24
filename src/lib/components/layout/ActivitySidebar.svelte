@@ -147,12 +147,7 @@
 >
   <div class="sidebar-header flex justify-center items-center h-16">
     <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
-    <button
-      class="bg-transparent text-white border-none cursor-pointer text-secondary font-size-1-4 text-center mt-2 focus:outline-none {!isCollapsed &&
-        'p-0'}"
-      onclick={toggle}
-      aria-label="Collapse/Expand Sidebar"
-    >
+    <button class="collapse-toggle-btn" onclick={toggle} aria-label="Collapse/Expand Sidebar">
       <i class={isCollapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'}></i>
     </button>
   </div>
@@ -223,6 +218,33 @@
 </nav>
 
 <style lang="postcss">
+  .collapse-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 0.375rem;
+  }
+
+  .collapse-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .collapse-toggle-btn:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .collapse-toggle-btn i {
+    color: #ffffff;
+    font-size: 1.25rem;
+  }
+
   .profile-trigger.collapsed {
     padding-left: 14px;
   }

@@ -75,6 +75,20 @@ export interface AttachmentPayload {
 }
 
 /**
+ * Comment on a response message
+ */
+export interface ResponseComment {
+  /** Comment text content */
+  content: string;
+
+  /** When comment was created (epoch milliseconds) */
+  createdAt: number;
+
+  /** When comment was last edited (epoch milliseconds) */
+  editedAt?: number;
+}
+
+/**
  * Extended metadata interface for messages with attachments
  */
 export interface MessageMetadata {
@@ -89,6 +103,9 @@ export interface MessageMetadata {
 
   /** First prompt (for thread creation) */
   _firstPrompt?: string;
+
+  /** Single comment on this response */
+  comment?: ResponseComment;
 
   /** Any other metadata */
   [key: string]: unknown;
