@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-useless-constructor */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { ToolDefinition } from '../../../src-electron/services/file-tools.service';
 
 describe('OllamaChatProvider', () => {
   beforeEach(() => {
@@ -9,7 +11,6 @@ describe('OllamaChatProvider', () => {
     const calls: any[] = [];
 
     class MockOllama {
-      constructor(_opts: any) {}
       async *_stream() {
         yield { message: { content: 's1' } };
         yield { message: { content: 's2' } };
@@ -40,7 +41,6 @@ describe('OllamaChatProvider', () => {
     const calls: any[] = [];
 
     class MockOllama {
-      constructor(_opts: any) {}
       chat(opts: any) {
         calls.push(opts);
         return { message: { content: 'final' } };
@@ -65,7 +65,6 @@ describe('OllamaChatProvider', () => {
     const calls: any[] = [];
 
     class MockOllama {
-      constructor(_opts: any) {}
       async *_stream() {
         yield { message: { content: 'chunk' } };
       }
@@ -97,7 +96,6 @@ describe('OllamaChatProvider', () => {
     const calls: any[] = [];
 
     class MockOllama {
-      constructor(_opts: any) {}
       chat(opts: any) {
         calls.push(opts);
         return { message: { content: 'done' } };
@@ -118,5 +116,44 @@ describe('OllamaChatProvider', () => {
     expect(received).toEqual(['done']);
     expect(calls[0].stream).toBe(false);
     expect(calls[0].model).toBe('m4');
+  });
+
+  it('disables tool support after native attempt fails and falls back', async () => {
+    let callCount = 0;
+
+    class MockOllama {
+      chat(_opts: any) {
+        callCount += 1;
+        if (callCount === 1) {
+          throw new Error('tool support unavailable');
+        }
+        return { message: { content: 'fallback-response' } };
+      }
+    }
+
+    vi.doMock('ollama', () => ({ Ollama: MockOllama }));
+    const { OllamaChatProvider } = await import(
+      '../../../src-electron/services/chat/providers/OllamaChatProvider'
+    );
+
+    const provider = new OllamaChatProvider('', 'k', 'def');
+    const tokens: string[] = [];
+    const toolDefs: ToolDefinition[] = [
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        input_schema: { type: 'object', properties: {}, required: [] },
+      },
+    ];
+
+    await provider.chatWithTools(
+      { model: 'mm', messages: [{ role: 'user', content: 'hello' }], streaming: false },
+      toolDefs,
+      (token) => tokens.push(token),
+      async () => ({ success: true }),
+    );
+
+    expect(tokens).toEqual(['fallback-response']);
+    expect(provider.supportsTools()).toBe(false);
   });
 });

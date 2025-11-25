@@ -35,7 +35,8 @@ export class ClaudeChatProvider implements IChatProvider {
     const claudeRequest = ClaudeConverter.toClaudeRequest({ ...request, model: modelToUse });
 
     try {
-      if (request.streaming !== false) {
+      const shouldStream = request.streaming !== false;
+      if (shouldStream) {
         // Handle streaming request
         const stream = this.client.messages
           .stream({
@@ -66,8 +67,8 @@ export class ClaudeChatProvider implements IChatProvider {
 
         if (response.content && response.content.length > 0) {
           const content = response.content
-            .filter((block) => block.type === 'text')
-            .map((block) => block.text)
+            .filter((block) => block.type === 'text' && 'text' in block)
+            .map((block) => (block as { text: string }).text)
             .join('');
 
           if (onTokenReceived) {
@@ -95,7 +96,8 @@ export class ClaudeChatProvider implements IChatProvider {
     });
 
     try {
-      if (request.streaming !== false) {
+      const shouldStream = request.streaming !== false;
+      if (shouldStream) {
         // Handle streaming request with options
 
         const stream = this.client.messages
@@ -133,8 +135,8 @@ export class ClaudeChatProvider implements IChatProvider {
 
         if (response.content && response.content.length > 0) {
           const content = response.content
-            .filter((block) => block.type === 'text')
-            .map((block) => block.text)
+            .filter((block) => block.type === 'text' && 'text' in block)
+            .map((block) => (block as { text: string }).text)
             .join('');
 
           if (onTokenReceived) {

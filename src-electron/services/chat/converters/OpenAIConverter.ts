@@ -3,7 +3,22 @@ import type {
   ChatRequest,
   ChatRequestWithOptions,
 } from '../interfaces/ChatMessage.js';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+
+type OpenAIBaseRequest = {
+  model: string;
+  messages: ChatCompletionMessageParam[];
+  stream: boolean;
+};
+
+type OpenAIRequestWithOptions = OpenAIBaseRequest & {
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  stop?: string[];
+};
 
 /**
  * Converter for OpenAI-specific request/response formats
@@ -32,11 +47,7 @@ export class OpenAIConverter {
   /**
    * Convert internal ChatRequest to OpenAI-specific format
    */
-  static toOpenAIRequest(request: ChatRequest): {
-    model: string;
-    messages: ChatCompletionMessageParam[];
-    stream: boolean;
-  } {
+  static toOpenAIRequest(request: ChatRequest): OpenAIBaseRequest {
     return {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
@@ -47,10 +58,10 @@ export class OpenAIConverter {
   /**
    * Convert internal ChatRequestWithOptions to OpenAI-specific format
    */
-  static toOpenAIRequestWithOptions(request: ChatRequestWithOptions): Record<string, unknown> {
+  static toOpenAIRequestWithOptions(request: ChatRequestWithOptions): OpenAIRequestWithOptions {
     const options = request.options || {};
 
-    const openaiRequest: Record<string, unknown> = {
+    const openaiRequest: OpenAIRequestWithOptions = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,

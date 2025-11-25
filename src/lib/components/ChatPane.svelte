@@ -31,22 +31,22 @@
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);
-  let localLlamaModel = {
+  const localLlamaModel = {
     url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
     //   apiKey: '', // Will be injected from auth service by chat handler
     model: 'llama3:latest',
   };
-  let _localClaudeModel = {
-    url: 'http://localhost:3000/api/custom/claude/f4f61965',
-    apiKey: '', // Will be injected from auth service by chat handler
-    model: 'claude-opus-4-1-20250805',
-  };
-  let _devClaudeModel = {
-    url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
-    apiKey: '', // Will be injected from auth service by chat handler
-    model: 'claude-3-haiku-20240307',
-  };
-  let modelName = localLlamaModel.model;
+  // const localClaudeModel = {
+  //     url: 'http://localhost:3000/api/custom/claude/f4f61965',
+  //     apiKey: '', // Will be injected from auth service by chat handler
+  //     model: 'claude-opus-4-1-20250805',
+  // };
+  // const devClaudeModel = {
+  //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
+  //     apiKey: '', // Will be injected from auth service by chat handler
+  //     model: 'claude-3-haiku-20240307'
+  // };
+  const modelName = localLlamaModel.model;
 
   // Watch for prop changes
   $effect(() => {
