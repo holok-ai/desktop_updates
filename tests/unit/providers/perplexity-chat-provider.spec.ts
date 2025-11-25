@@ -8,7 +8,6 @@ describe('PerplexityChatProvider', () => {
   it('normalizes endpoint and model defaults before calling OpenAI base class', async () => {
     const ctorArgs: Array<{ baseURL: string; apiKey: string; model: string }> = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
     class MockOpenAIChatProvider {
       constructor(baseURL: string, apiKey: string, model: string) {
         ctorArgs.push({ baseURL, apiKey, model });
@@ -36,7 +35,6 @@ describe('PerplexityChatProvider', () => {
   it('passes through custom endpoint/model while still supporting tools', async () => {
     const ctorArgs: Array<{ baseURL: string; apiKey: string; model: string }> = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
     class MockOpenAIChatProvider {
       constructor(baseURL: string, apiKey: string, model: string) {
         ctorArgs.push({ baseURL, apiKey, model });
