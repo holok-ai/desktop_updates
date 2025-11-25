@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-useless-constructor */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { ToolDefinition } from '../../../src-electron/services/file-tools.service';
 
