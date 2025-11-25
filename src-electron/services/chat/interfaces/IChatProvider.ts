@@ -2,10 +2,8 @@
 import type { ChatRequest, ChatRequestWithOptions } from './ChatMessage.js';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
 
-/**
- * Represents a tool use request from the LLM
- */
 export interface ToolUse {
+  id: string;
   name: string;
   input: Record<string, unknown>;
 }
@@ -32,23 +30,18 @@ export interface IChatProvider {
   ): Promise<void>;
 
   /**
-   * Check if this provider supports tool use (function calling)
-   * @returns true if the provider supports tools
+   * Check if provider supports tool calling
    */
-  supportsTools?(): boolean;
+  supportsTools(): boolean;
 
   /**
-   * Sends a chat request with tool definitions and handles tool execution
-   * @param request The chat request containing messages and model
-   * @param tools Array of tool definitions available to the LLM
-   * @param onTokenReceived Callback function to handle streamed tokens
-   * @param onToolUse Callback function to handle tool execution requests
+   * Send chat with tools enabled (optional - only for providers that support it)
    */
   chatWithTools?(
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
   ): Promise<void>;
 }
 
@@ -58,7 +51,9 @@ export function isIChatProvider(obj: unknown): obj is IChatProvider {
   if (!obj) return false;
   const asRecord = obj as Record<string, unknown>;
   return (
-    typeof asRecord['chat'] === 'function' && typeof asRecord['chatWithOptions'] === 'function'
+    typeof asRecord['chat'] === 'function' &&
+    typeof asRecord['chatWithOptions'] === 'function' &&
+    typeof asRecord['supportsTools'] === 'function'
   );
 }
 
