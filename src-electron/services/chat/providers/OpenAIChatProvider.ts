@@ -46,7 +46,9 @@ export class OpenAIChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
-    const threadContext = (request as unknown as { thread_id?: string }).thread_id ? { thread_id: (request as unknown as { thread_id?: string }).thread_id } : {};
+    const threadContext = (request as unknown as { thread_id?: string }).thread_id
+      ? { thread_id: (request as unknown as { thread_id?: string }).thread_id }
+      : {};
 
     const shouldStream = request.streaming !== false;
 
@@ -95,7 +97,9 @@ export class OpenAIChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
-    const threadContext = (request as unknown as { thread_id?: string }).thread_id ? { thread_id: (request as unknown as { thread_id?: string }).thread_id } : {};
+    const threadContext = (request as unknown as { thread_id?: string }).thread_id
+      ? { thread_id: (request as unknown as { thread_id?: string }).thread_id }
+      : {};
 
     const optionalParams = this.buildOptionalParams(openaiRequest);
 
@@ -193,7 +197,11 @@ export class OpenAIChatProvider implements IChatProvider {
     iteration: number,
     context: {
       messages: ChatCompletionMessageParam[];
-      functions: { name: string; description: string; parameters: ToolDefinition['input_schema'] }[];
+      functions: {
+        name: string;
+        description: string;
+        parameters: ToolDefinition['input_schema'];
+      }[];
       model: string;
       shouldStream: boolean;
       threadContext: Record<string, unknown>;
@@ -246,7 +254,11 @@ export class OpenAIChatProvider implements IChatProvider {
   private async createToolAwareResponse(
     params: {
       messages: ChatCompletionMessageParam[];
-      functions: { name: string; description: string; parameters: ToolDefinition['input_schema'] }[];
+      functions: {
+        name: string;
+        description: string;
+        parameters: ToolDefinition['input_schema'];
+      }[];
       model: string;
       shouldStream: boolean;
       threadContext: Record<string, unknown>;
@@ -263,7 +275,11 @@ export class OpenAIChatProvider implements IChatProvider {
   private async createStreamingToolResponse(
     params: {
       messages: ChatCompletionMessageParam[];
-      functions: { name: string; description: string; parameters: ToolDefinition['input_schema'] }[];
+      functions: {
+        name: string;
+        description: string;
+        parameters: ToolDefinition['input_schema'];
+      }[];
       model: string;
       threadContext: Record<string, unknown>;
     },
@@ -306,7 +322,11 @@ export class OpenAIChatProvider implements IChatProvider {
   private async createNonStreamingToolResponse(
     params: {
       messages: ChatCompletionMessageParam[];
-      functions: { name: string; description: string; parameters: ToolDefinition['input_schema'] }[];
+      functions: {
+        name: string;
+        description: string;
+        parameters: ToolDefinition['input_schema'];
+      }[];
       model: string;
       threadContext: Record<string, unknown>;
     },
@@ -328,7 +348,9 @@ export class OpenAIChatProvider implements IChatProvider {
     return response;
   }
 
-  private extractFunctionCall(response: ChatCompletion): { name: string; arguments?: string } | null {
+  private extractFunctionCall(
+    response: ChatCompletion,
+  ): { name: string; arguments?: string } | null {
     const choice = response.choices[0];
     if (choice?.finish_reason !== 'function_call') {
       return null;
@@ -420,7 +442,8 @@ export class OpenAIChatProvider implements IChatProvider {
   private buildOptionalParams(
     openaiRequest: ReturnType<typeof OpenAIConverter.toOpenAIRequestWithOptions>,
   ): Partial<Pick<ChatCompletionCreateParamsNonStreaming, OptionalParamKeys>> {
-    const optionalParams: Partial<Pick<ChatCompletionCreateParamsNonStreaming, OptionalParamKeys>> = {};
+    const optionalParams: Partial<Pick<ChatCompletionCreateParamsNonStreaming, OptionalParamKeys>> =
+      {};
 
     if (typeof openaiRequest.temperature === 'number') {
       optionalParams.temperature = openaiRequest.temperature;

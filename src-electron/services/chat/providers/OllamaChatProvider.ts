@@ -119,7 +119,10 @@ export class OllamaChatProvider implements IChatProvider {
       stream: false,
     };
     const response: ChatResponse = await this.ollama.chat(nonStreamingRequest);
-    console.log('[OllamaChatProvider] Received non-streaming response:', JSON.stringify(response, null, 2));
+    console.log(
+      '[OllamaChatProvider] Received non-streaming response:',
+      JSON.stringify(response, null, 2),
+    );
     this.emitNonStreamingResponse(response, onTokenReceived);
   }
 
@@ -137,7 +140,10 @@ export class OllamaChatProvider implements IChatProvider {
 
       const token = part.message?.content;
       if (!token) {
-        console.error('[OllamaChatProvider] Unexpected response structure - missing message:', part);
+        console.error(
+          '[OllamaChatProvider] Unexpected response structure - missing message:',
+          part,
+        );
         continue;
       }
 

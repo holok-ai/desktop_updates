@@ -193,7 +193,11 @@ describe('OpenAIChatProvider', () => {
       {
         name: 'read_file',
         description: 'Read a file',
-        input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+        input_schema: {
+          type: 'object',
+          properties: { path: { type: 'string' } },
+          required: ['path'],
+        },
       },
     ];
 

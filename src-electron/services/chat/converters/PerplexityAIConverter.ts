@@ -7,8 +7,7 @@ import type {
 
 export type PerplexityChatMessage = PerplexityClient.ChatMessageInput;
 export type PerplexityChatRequest = PerplexityClient.Chat.CompletionCreateParams;
-export type PerplexityChatRequestStreaming =
-  PerplexityClient.Chat.CompletionCreateParamsStreaming;
+export type PerplexityChatRequestStreaming = PerplexityClient.Chat.CompletionCreateParamsStreaming;
 export type PerplexityChatRequestNonStreaming =
   PerplexityClient.Chat.CompletionCreateParamsNonStreaming;
 
@@ -36,9 +35,7 @@ export class PerplexityAIConverter {
     };
   }
 
-  static toPerplexityRequestWithOptions(
-    request: ChatRequestWithOptions,
-  ): PerplexityChatRequest {
+  static toPerplexityRequestWithOptions(request: ChatRequestWithOptions): PerplexityChatRequest {
     const options = request.options || {};
     const perplexityRequest: PerplexityChatRequest = {
       model: request.model,
