@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Ollama } from 'ollama';
 import type { ChatRequest as OllamaChatRequest, ChatResponse } from 'ollama';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
@@ -193,7 +192,7 @@ export class OllamaChatProvider implements IChatProvider {
 
       if (parsedToolCall) {
         const toolUse: ToolUseRequest = {
-          id: randomUUID(),
+          id: `use_dt_${Date.now()}`,
           name: parsedToolCall.tool,
           input: parsedToolCall.input,
         };

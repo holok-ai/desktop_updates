@@ -10,8 +10,6 @@ import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OpenAIConverter } from '../converters/OpenAIConverter.js';
 
-type ThreadAwareStreamingParams = ChatCompletionCreateParamsStreaming;
-type ThreadAwareNonStreamingParams = ChatCompletionCreateParamsNonStreaming;
 type OptionalParamKeys =
   | 'temperature'
   | 'max_tokens'
@@ -45,7 +43,7 @@ export class OpenAIChatProvider implements IChatProvider {
     const shouldStream = request.streaming !== false;
 
     if (shouldStream) {
-      const params: ThreadAwareStreamingParams = {
+      const params: ChatCompletionCreateParamsStreaming = {
         ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
@@ -61,7 +59,7 @@ export class OpenAIChatProvider implements IChatProvider {
         }
       }
     } else {
-      const params: ThreadAwareNonStreamingParams = {
+      const params: ChatCompletionCreateParamsNonStreaming = {
         ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
@@ -96,7 +94,7 @@ export class OpenAIChatProvider implements IChatProvider {
     const shouldStream = request.streaming !== false;
 
     if (shouldStream) {
-      const params: ThreadAwareStreamingParams = {
+      const params: ChatCompletionCreateParamsStreaming = {
         ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
@@ -113,7 +111,7 @@ export class OpenAIChatProvider implements IChatProvider {
         }
       }
     } else {
-      const params: ThreadAwareNonStreamingParams = {
+      const params: ChatCompletionCreateParamsNonStreaming = {
         ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
@@ -136,8 +134,8 @@ export class OpenAIChatProvider implements IChatProvider {
 
   private buildOptionalParams(
     openaiRequest: ReturnType<typeof OpenAIConverter.toOpenAIRequestWithOptions>,
-  ): Partial<Pick<ThreadAwareNonStreamingParams, OptionalParamKeys>> {
-    const optionalParams: Partial<Pick<ThreadAwareNonStreamingParams, OptionalParamKeys>> = {};
+  ): Partial<Pick<ChatCompletionCreateParamsNonStreaming, OptionalParamKeys>> {
+    const optionalParams: Partial<Pick<ChatCompletionCreateParamsNonStreaming, OptionalParamKeys>> = {};
 
     if (typeof openaiRequest.temperature === 'number') {
       optionalParams.temperature = openaiRequest.temperature;
