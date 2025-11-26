@@ -41,7 +41,7 @@ export interface IChatProvider {
     request: ChatRequest,
     tools: ToolDefinition[],
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>
+    onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>,
   ): Promise<void>;
 }
 

@@ -144,4 +144,3 @@ describe('ChatService - conversation context handling', () => {
     expect(forwardedRequest.messages[0]?.id).toBe('solo');
   });
 });
-

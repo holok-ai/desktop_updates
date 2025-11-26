@@ -60,6 +60,7 @@ const threadId = randomUUID(); // e.g., "550e8400-e29b-41d4-a716-446655440000"
 ```
 
 **Benefits:**
+
 - ✅ No API call needed to start a conversation
 - ✅ Works offline (can queue prompts)
 - ✅ Globally unique (collision probability ~1 in 2^122)
@@ -92,7 +93,7 @@ Uses the **existing ChatService** (`src-electron/services/chat.service.ts`):
 ```typescript
 // ChatService.submitPrompt() - needs modification
 await chatService.submitPrompt({
-  threadId,      // Desktop-generated UUID
+  threadId, // Desktop-generated UUID
   prompt: userMessage,
   model: 'claude-3-opus',
   // ... other parameters
@@ -102,11 +103,13 @@ await chatService.submitPrompt({
 **⚠️ IMPORTANT: Holo API Modification Required**
 
 The Holo API chat method must be updated to:
+
 1. **Accept** a `threadId` parameter (UUID string)
 2. **Store** the `threadId` in the `requests` table (NOT in responses - they use FK to request)
 3. **Return** the `threadId` in the response
 
 **Current Holo API (assumed):**
+
 ```
 POST /api/chat
 {
@@ -116,6 +119,7 @@ POST /api/chat
 ```
 
 **Updated Holo API (required):**
+
 ```
 POST /api/chat
 {
@@ -128,11 +132,13 @@ POST /api/chat
 ### Step 3: Holo Saves to Database
 
 Holo API automatically:
+
 1. Saves user prompt to `requests` table with `threadId` field
 2. Executes LLM request
 3. Saves LLM response to `responses` table with foreign key to request
 
 **Database Structure:**
+
 ```
 requests table:
   - id (primary key)
@@ -205,11 +211,11 @@ export class ChatService {
     const response = await fetch(`${this.holoApiBaseUrl}/api/chat`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        threadId: params.threadId,  // Pass to Holo
+        threadId: params.threadId, // Pass to Holo
         prompt: params.prompt,
         model: params.model,
         temperature: params.temperature,
@@ -226,7 +232,6 @@ export class ChatService {
 }
 ```
 
-
 ## Moku API Methods
 
 The Moku API provides **read access** to threads/messages and **organizational operations**. It does NOT handle prompt submission or message creation (that's Holo's job).
@@ -237,7 +242,7 @@ Moku API reads from the same Postgres database that Holo writes to. To reconstru
 
 ```sql
 -- Get all messages for a thread (interleaving requests and responses)
-SELECT 
+SELECT
   r.id as message_id,
   'user' as role,
   r.prompt as content,
@@ -248,7 +253,7 @@ WHERE r.threadId = :threadId
 
 UNION ALL
 
-SELECT 
+SELECT
   resp.id as message_id,
   'assistant' as role,
   resp.content,
@@ -262,6 +267,7 @@ ORDER BY createdAt ASC;
 ```
 
 This query:
+
 1. Gets all user messages (requests) for the thread
 2. Gets all assistant messages (responses) via JOIN
 3. Combines them with UNION ALL
@@ -287,6 +293,7 @@ ORDER BY updatedAt DESC;
 **Note**: You may want to create a separate `thread_metadata` table to store thread-level attributes (title, description, status, projectId) rather than deriving them from requests. This would improve query performance and allow for organizational operations.
 
 **Recommended thread_metadata table:**
+
 ```
 thread_metadata:
   - threadId (UUID, primary key)
@@ -464,7 +471,6 @@ async deleteThread(accessToken: string, threadId: string): Promise<boolean>
 - **Returns**: Boolean indicating success
 - **Warning**: Permanently removes thread and all associated data
 
-
 ## Thread Repository Caching Architecture
 
 The `ThreadRepository` implements a **read-focused caching layer** that sits between the IPC handlers and the Moku API.
@@ -531,7 +537,7 @@ public async createThreadWithPrompt(
       title: options.title,
       description: options.description,
     });
-    
+
     // Cache the updated thread
     this.threadsById.set(threadId, updated);
     return { threadId, thread: updated };
@@ -815,13 +821,15 @@ When reading threads/messages:
 ### Cache Synchronization
 
 If Holo saves data but Moku read fails:
+
 1. Thread exists in database but not in cache
 2. Desktop should retry reading from Moku
 3. If persistent failure, show error but data is saf
 
-  return thread ? this.cloneThread(thread) : null;
+return thread ? this.cloneThread(thread) : null;
 }
-```
+
+````
 
 ### Authentication Helper
 
@@ -833,7 +841,7 @@ private async getAccessToken(): Promise<string> {
   }
   return await auth.getAccessToken(); // Auto-refreshes if expired
 }
-```
+````
 
 ## Error Handling
 
@@ -951,7 +959,6 @@ interface Message {
 - [ ] Test offline queue (if implementing)
 - [ ] Test error handling for Holo/Moku failures
 
-
 ## Benefits of This Architecture
 
 ### Separation of Concerns
@@ -981,29 +988,27 @@ interface Message {
 ✅ Desktop always reads latest data from Moku
 ✅ Holo guarantees atomic write of request + response
 
-
 ---
 
 ## Future Enhancements
-
 
 ### Thread
 
 ```typescript
 interface Thread {
-  id: string;                          // UUID v4 (generated by desktop)
+  id: string; // UUID v4 (generated by desktop)
   title: string;
   description?: string;
   status: 'active' | 'archived' | 'deleted';
-  createdAt: number;                   // Epoch milliseconds
-  updatedAt: number;                   // Epoch milliseconds
-  deletedAt?: number | null;           // Soft delete timestamp
+  createdAt: number; // Epoch milliseconds
+  updatedAt: number; // Epoch milliseconds
+  deletedAt?: number | null; // Soft delete timestamp
   metadata?: {
-    model?: string;                    // Last used model
-    projectId?: string;                // Project association
+    model?: string; // Last used model
+    projectId?: string; // Project association
     [key: string]: unknown;
   };
-  messages?: Message[];                // Included in getThread() response
+  messages?: Message[]; // Included in getThread() response
 }
 ```
 
@@ -1011,15 +1016,15 @@ interface Thread {
 
 ```typescript
 interface Message {
-  id: string;                          // Generated by Holo API
-  threadId: string;                    // UUID v4 (provided by desktop)
+  id: string; // Generated by Holo API
+  threadId: string; // UUID v4 (provided by desktop)
   role: 'user' | 'assistant' | 'system';
   content: string;
-  createdAt: number;                   // Epoch milliseconds
-  deletedAt?: number | null;           // Soft delete timestamp
+  createdAt: number; // Epoch milliseconds
+  deletedAt?: number | null; // Soft delete timestamp
   metadata?: {
-    model?: string;                    // Model used for this message
-    provider?: string;                 // e.g., 'anthropic', 'openai'
+    model?: string; // Model used for this message
+    provider?: string; // e.g., 'anthropic', 'openai'
     [key: string]: unknown;
   };
 }
@@ -1028,6 +1033,7 @@ interface Message {
 ## Implementation Checklist
 
 ### Holo API Changes
+
 - [ ] Update chat endpoint to accept `threadId` parameter
 - [ ] Store `threadId` with prompt request in database
 - [ ] Store `threadId` with LLM response in database
@@ -1035,6 +1041,7 @@ interface Message {
 - [ ] Test UUID format compatibility
 
 ### Desktop App Changes
+
 - [ ] Update `ChatService.submitPrompt()` to include `threadId`
 - [ ] Implement `ThreadRepository.createThreadWithPrompt()`
 - [ ] Implement `ThreadRepository.continueThread()`
@@ -1043,6 +1050,7 @@ interface Message {
 - [ ] Update frontend to handle new architecture
 
 ### Moku API Implementation
+
 - [ ] Implement `GET /api/threads` endpoint
 - [ ] Implement `GET /api/threads/:threadId` endpoint
 - [ ] Implement `GET /api/threads/:threadId/messages` endpoint
@@ -1054,6 +1062,7 @@ interface Message {
 - [ ] Add database queries for thread/message retrieval
 
 ### Testing
+
 - [ ] Test UUID uniqueness across multiple desktop instances
 - [ ] Test Holo API saves threadId correctly
 - [ ] Test Moku API returns threads/messages correctly
@@ -1066,23 +1075,27 @@ interface Message {
 ## Benefits of This Architecture
 
 ### Separation of Concerns
+
 ✅ **Holo API**: Handles LLM execution and persistence (single source of truth)
 ✅ **Moku API**: Handles organization and retrieval (read-focused)
 ✅ **Desktop App**: Handles UI, caching, and orchestration
 
 ### Simplified Desktop Logic
+
 ✅ No complex write operations to manage
 ✅ No idempotency concerns (Holo handles that)
 ✅ Simpler error handling (read vs write)
 ✅ Cache can focus on read performance
 
 ### Scalability
+
 ✅ Holo API can be optimized for write throughput
 ✅ Moku API can be optimized for read performance
 ✅ Desktop doesn't need to coordinate writes
 ✅ Easier to implement real-time updates (Holo → Moku → Desktop)
 
 ### Consistency
+
 ✅ Single database for all prompt/response data
 ✅ No sync issues between multiple write sources
 ✅ Desktop always reads latest data from Moku
@@ -1091,16 +1104,19 @@ interface Message {
 ## Future Enhancements
 
 ### Real-time Updates
+
 - Implement WebSocket connection from desktop to Moku
 - Receive push notifications when new messages arrive
 - Update cache in real-time without polling
 
 ### Offline Support
+
 - Queue prompts locally when offline
 - Submit to Holo when connection restored
 - Show pending status in UI
 
 ### Optimistic UI Updates
+
 - Show user message immediately in UI
 - Show "AI is thinking..." placeholder
 - Replace with real response when received from Moku
@@ -1123,5 +1139,3 @@ interface Message {
 - Show user message immediately in UI
 - Show "AI is thinking..." placeholder
 - Replace with real response when received from Moku
-
-

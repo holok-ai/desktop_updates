@@ -1,5 +1,6 @@
 ## Moku API Backend Implementation
-version 1.0 
+
+version 1.0
 
 This section describes the backend implementation needed in the Moku API (Java/Spring Boot) to support the thread and project management features required by the desktop application.
 

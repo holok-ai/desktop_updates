@@ -147,9 +147,7 @@ export class ClaudeChatProvider implements IChatProvider {
     }
   }
 
-  private getThreadId(
-    request: ChatRequest | ChatRequestWithOptions,
-  ): string | undefined {
+  private getThreadId(request: ChatRequest | ChatRequestWithOptions): string | undefined {
     const camel = (request as { threadId?: string }).threadId;
     if (typeof camel === 'string' && camel.length > 0) {
       return camel;
