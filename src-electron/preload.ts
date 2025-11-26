@@ -408,7 +408,10 @@ export interface ChatAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Send a chat message with file tools enabled
-  chatWithFileTools: (request: ChatRequest) => Promise<{ success: boolean; error?: string }>;
+  chatWithFileTools: (
+    request: ChatRequest,
+    workingDirectory?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Set working directory for file tools
   setFileToolsWorkingDirectory: (dir: string) => Promise<{ success: boolean; error?: string }>;
@@ -607,8 +610,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:sendWithOptions', request),
 
     // 8. Chat with file tools enabled
-    chatWithFileTools: (request: ChatRequest) =>
-      ipcRenderer.invoke('chat:sendWithFileTools', request),
+    chatWithFileTools: (request: ChatRequest, workingDirectory?: string) =>
+      ipcRenderer.invoke('chat:sendWithFileTools', request, workingDirectory),
 
     // 9. Set working directory for file tools
     setFileToolsWorkingDirectory: (dir: string) =>
