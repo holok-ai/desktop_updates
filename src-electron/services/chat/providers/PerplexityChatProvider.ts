@@ -25,6 +25,13 @@ export class PerplexityChatProvider implements IChatProvider {
     console.log(`PerplexityChatProvider initialized with model ${this.defaultModel}`);
   }
 
+  /**
+   * Check if provider supports tool calling
+   */
+  public supportsTools(): boolean {
+    return false; // Perplexity provider does not support tools yet
+  }
+
   public async chat(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
