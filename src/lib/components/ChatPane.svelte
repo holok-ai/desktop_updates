@@ -32,8 +32,7 @@
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);
   const localLlamaModel = {
-    url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
-    //   apiKey: '', // Will be injected from auth service by chat handler
+    url: 'http://localhost:11434',
     model: 'llama3:latest',
   };
   // const localClaudeModel = {
@@ -41,12 +40,12 @@
   //     apiKey: '', // Will be injected from auth service by chat handler
   //     model: 'claude-opus-4-1-20250805',
   // };
-  // const devClaudeModel = {
-  //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
-  //     apiKey: '', // Will be injected from auth service by chat handler
-  //     model: 'claude-3-haiku-20240307'
-  // };
-  const modelName = localLlamaModel.model;
+  let devClaudeModel = {
+      url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
+      apiKey: '', // Will be injected from auth service by chat handler
+      model: 'claude-3-haiku-20240307'
+  };
+  let modelName = localLlamaModel.model; 
 
   // Watch for prop changes
   $effect(() => {
@@ -199,9 +198,17 @@
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [
+          {
+            role: 'user',
+            content: userMessage,
+            id: userMsg.id,
+            clientMessageId: userMsg.clientMessageId,
+          },
+        ],
         streaming: true,
         model: modelName,
+        threadId: currentThread?.id,
       };
 
       const result = await window.electronAPI.chat.chat(request);
@@ -260,9 +267,16 @@
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [{ role: 'user', content: newContent }],
+        messages: [
+          {
+            role: 'user',
+            content: newContent,
+            id: messageId,
+          },
+        ],
         streaming: true,
         model: modelName,
+        threadId: thread.id,
       };
 
       const chatResult = await window.electronAPI.chat.chat(request);

@@ -46,9 +46,7 @@ export class OpenAIChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
-    const threadContext = (request as unknown as { thread_id?: string }).thread_id
-      ? { thread_id: (request as unknown as { thread_id?: string }).thread_id }
-      : {};
+    const threadContext = this.extractThreadContext(request);
 
     const shouldStream = request.streaming !== false;
 
@@ -97,9 +95,7 @@ export class OpenAIChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
-    const threadContext = (request as unknown as { thread_id?: string }).thread_id
-      ? { thread_id: (request as unknown as { thread_id?: string }).thread_id }
-      : {};
+    const threadContext = this.extractThreadContext(request);
 
     const optionalParams = this.buildOptionalParams(openaiRequest);
 
@@ -247,7 +243,9 @@ export class OpenAIChatProvider implements IChatProvider {
   private extractThreadContext(
     request: ChatRequest,
   ): Record<string, string> | Record<string, never> {
-    const threadId = (request as unknown as { thread_id?: string }).thread_id;
+    const threadId =
+      (request as unknown as { threadId?: string }).threadId ??
+      (request as unknown as { thread_id?: string }).thread_id;
     return threadId ? { thread_id: threadId } : {};
   }
 

@@ -7,6 +7,8 @@ export interface ChatMessage {
   role: string;
   content: string;
   attachments?: Attachment[]; // Optional file attachments for multi-modal support
+  id?: string; // Optional persisted message id for context deduplication
+  clientMessageId?: string; // Client-side identifier used before persistence
 }
 
 /**
@@ -16,6 +18,7 @@ export interface ChatRequest {
   messages: ChatMessage[];
   streaming?: boolean;
   model: string;
+  threadId?: string;
 }
 
 /**
@@ -45,6 +48,7 @@ export interface ChatApiRequest {
   messages: ChatMessage[];
   streaming?: boolean;
   model: string;
+  threadId?: string;
 }
 
 // Runtime helpers (exported so unit tests can exercise this module and

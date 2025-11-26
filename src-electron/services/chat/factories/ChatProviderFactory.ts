@@ -39,11 +39,9 @@ export class ChatProviderFactory {
    */
   public static createProvider(providerType: ProviderType, config: ProviderConfig): IChatProvider {
     switch (providerType) {
-      case ProviderType.OLLAMA:
-        if (!config.apiKey) {
-          throw new Error('API key is required for Ollama provider');
-        }
+      case ProviderType.OLLAMA: {
         return new OllamaChatProvider(config.url, config.apiKey, config.model);
+      }
 
       case ProviderType.OPENAI:
         if (!config.apiKey) {

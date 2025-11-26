@@ -214,9 +214,10 @@ export class MessageTransmitter {
       setupTokenListener: () => void;
       getResponseText: () => string;
       chat: (request: {
-        messages: Array<{ role: string; content: string }>;
+        messages: Array<{ role: string; content: string; id?: string; clientMessageId?: string }>;
         streaming: boolean;
         model: string;
+        threadId?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       setStreaming: (streaming: boolean) => void;
       offToken: () => void;
@@ -239,9 +240,17 @@ export class MessageTransmitter {
             chatHandler.setupTokenListener();
 
             const request = {
-              messages: [{ role: 'user', content: pendingMsg.message.content }],
+              messages: [
+                {
+                  role: 'user',
+                  content: pendingMsg.message.content,
+                  id: pendingMsg.message.id,
+                  clientMessageId: pendingMsg.message.clientMessageId,
+                },
+              ],
               streaming: true,
               model: 'llama3:latest',
+              threadId: pendingMsg.threadId,
             };
 
             const result = await wrapElectronCall(

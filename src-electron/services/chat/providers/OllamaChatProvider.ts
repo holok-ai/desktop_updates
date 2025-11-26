@@ -17,16 +17,21 @@ export class OllamaChatProvider implements IChatProvider {
   private toolSupportEnabled = true;
   private static readonly MAX_TOOL_ITERATIONS = 5;
 
-  constructor(apiEndpoint: string, apiKey: string, defaultModel: string) {
-    this.ollama = new Ollama({
+  constructor(apiEndpoint: string, apiKey: string | undefined, defaultModel: string) {
+    const clientOptions: ConstructorParameters<typeof Ollama>[0] = {
       host: apiEndpoint,
-      headers: {
+    };
+
+    if (apiKey) {
+      clientOptions.headers = {
         'X-api-key': apiKey,
-      },
-    });
+      };
+    }
+
+    this.ollama = new Ollama(clientOptions);
     this.defaultModel = defaultModel;
     console.log(
-      `OllamaChatProvider initialized with endpoint ${apiEndpoint} and model ${defaultModel} and key ${apiKey}`,
+      `[OllamaChatProvider] endpoint=${apiEndpoint} model=${defaultModel} hasKey=${Boolean(apiKey)}`,
     );
   }
 

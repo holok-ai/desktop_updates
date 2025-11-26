@@ -1,5 +1,5 @@
 import type { IChatProvider, ToolUse } from './interfaces/IChatProvider.js';
-import type { ChatRequest, ChatRequestWithOptions } from './interfaces/ChatMessage.js';
+import type { ChatMessage, ChatRequest, ChatRequestWithOptions } from './interfaces/ChatMessage.js';
 import {
   ChatProviderFactory,
   ProviderType,
@@ -7,10 +7,8 @@ import {
 } from './factories/ChatProviderFactory.js';
 import { AuditService } from './audit/AuditService.js';
 import { FileToolsService, type ToolResult } from '../file-tools.service.js';
+import { threadRepository } from '../../repository/thread-repository.js';
 import log from 'electron-log';
-
-// Static UUID for testing thread_id association
-const THREAD_UUID = '12345678-1234-5678-1234-567812345678';
 
 /**
  * Main service class that provides a unified interface for chat functionality
@@ -52,19 +50,18 @@ export class ChatService {
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
   ): Promise<void> {
-    // Add thread_id to request
-    const requestWithThreadId = { ...request, thread_id: THREAD_UUID };
+    const requestWithContext = this.prepareRequest(request);
 
     // Create audit wrapper if audit is enabled
     const { callback, complete } = this.auditService.createWrappedCallback(
-      requestWithThreadId,
+      requestWithContext,
       this.providerType,
       onTokenReceived,
     );
 
     try {
       // Use the wrapped callback for provider calls
-      await this.provider.chat(requestWithThreadId, callback);
+      await this.provider.chat(requestWithContext, callback);
       complete();
     } catch (error) {
       complete(error);
@@ -79,19 +76,18 @@ export class ChatService {
     request: ChatRequestWithOptions,
     onTokenReceived?: (token: string) => void,
   ): Promise<void> {
-    // Add thread_id to request
-    const requestWithThreadId = { ...request, thread_id: THREAD_UUID };
+    const requestWithContext = this.prepareRequest(request);
 
     // Create audit wrapper if audit is enabled
     const { callback, complete } = this.auditService.createWrappedCallback(
-      requestWithThreadId,
+      requestWithContext,
       this.providerType,
       onTokenReceived,
     );
 
     try {
       // Use the wrapped callback for provider calls
-      await this.provider.chatWithOptions(requestWithThreadId, callback);
+      await this.provider.chatWithOptions(requestWithContext, callback);
       complete();
     } catch (error) {
       complete(error);
@@ -138,14 +134,15 @@ export class ChatService {
       return await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
     };
 
+    const requestWithContext = this.prepareRequest(request);
     const { callback, complete } = this.auditService.createWrappedCallback(
-      request,
+      requestWithContext,
       this.providerType,
       onTokenReceived,
     );
 
     try {
-      await this.provider.chatWithTools(request, tools, callback, handleToolUse);
+      await this.provider.chatWithTools(requestWithContext, tools, callback, handleToolUse);
       complete();
     } catch (error) {
       complete(error);
@@ -159,5 +156,111 @@ export class ChatService {
    */
   public setFileToolsWorkingDirectory(dir: string): void {
     this.fileToolsService.setWorkingDirectory(dir);
+  }
+
+  /**
+   * Merge stored thread history with the incoming request to build provider context
+   */
+  private prepareRequest<T extends ChatRequest | ChatRequestWithOptions>(request: T): T {
+    const threadId = this.extractThreadId(request);
+    if (!threadId) {
+      return request;
+    }
+
+    const history = this.getOrderedThreadMessages(threadId);
+    if (!history.length) {
+      return { ...request, threadId };
+    }
+
+    const mergedMessages = this.mergeMessages(history, request.messages);
+    return {
+      ...request,
+      threadId,
+      messages: mergedMessages,
+    };
+  }
+
+  private extractThreadId(request: Partial<Pick<ChatRequest, 'threadId'>>): string | undefined {
+    if (typeof request.threadId === 'string' && request.threadId.length > 0) {
+      return request.threadId;
+    }
+    const legacyThreadId = (request as { thread_id?: string }).thread_id;
+    if (typeof legacyThreadId === 'string' && legacyThreadId.length > 0) {
+      return legacyThreadId;
+    }
+    return undefined;
+  }
+
+  private getOrderedThreadMessages(threadId: string): ChatMessage[] {
+    const thread = threadRepository.loadThread(threadId);
+    if (!thread?.messages?.length) {
+      return [];
+    }
+
+    return thread.messages
+      .filter((message) => !message.deletedAt)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        id: message.id,
+        clientMessageId: message.clientMessageId,
+      }));
+  }
+
+  private mergeMessages(history: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+    if (!incoming.length) {
+      return history;
+    }
+
+    const merged = [...history];
+    const seen = new Set<string>();
+
+    for (const message of merged) {
+      this.registerMessageIdentifiers(message, seen);
+    }
+
+    for (const message of incoming) {
+      const idKey = this.getMessageKey(message, 'id');
+      const clientKey = this.getMessageKey(message, 'client');
+
+      if ((idKey && seen.has(idKey)) || (clientKey && seen.has(clientKey))) {
+        continue;
+      }
+
+      this.registerMessageIdentifiers(message, seen);
+      merged.push(message);
+    }
+
+    return merged;
+  }
+
+  private registerMessageIdentifiers(message: ChatMessage, seen: Set<string>): void {
+    const idKey = this.getMessageKey(message, 'id');
+    const clientKey = this.getMessageKey(message, 'client');
+
+    if (idKey) {
+      seen.add(idKey);
+    }
+
+    if (clientKey) {
+      seen.add(clientKey);
+    }
+  }
+
+  private getMessageKey(message: ChatMessage, type: 'id' | 'client'): string | null {
+    if (type === 'id' && typeof message.id === 'string' && message.id.length > 0) {
+      return `id:${message.id}`;
+    }
+
+    if (
+      type === 'client' &&
+      typeof message.clientMessageId === 'string' &&
+      message.clientMessageId.length > 0
+    ) {
+      return `client:${message.clientMessageId}`;
+    }
+
+    return null;
   }
 }
