@@ -16,6 +16,10 @@
   --sidebar-secondary-width: 280px;
   --sidebar-secondary-collapsed: 48px;
 
+  /* Comment colors */
+  --comment-blue: 59, 130, 246;
+  --comment-green: 34, 197, 94;
+
   /* Holokai light theme variables */
   --holokai-sidebar-primary-light-color: #091320;
   --holokai-sidebar-item-hover-light-color: #33667e71;
