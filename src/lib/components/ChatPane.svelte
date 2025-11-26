@@ -180,6 +180,12 @@
 
     if (!userMessage.trim() && attachments.length === 0) return;
 
+    // Build conversation history from existing messages (oldest -> newest)
+    const historyMessages = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     error = '';
 
     // Create and add optimistic message
@@ -198,17 +204,9 @@
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [
-          {
-            role: 'user',
-            content: userMessage,
-            id: userMsg.id,
-            clientMessageId: userMsg.clientMessageId,
-          },
-        ],
+        messages: [...historyMessages, { role: 'user', content: userMessage }],
         streaming: true,
         model: modelName,
-        threadId: currentThread?.id,
       };
 
       const result = await window.electronAPI.chat.chat(request);
@@ -263,20 +261,18 @@
         messages = messages.slice(0, messageIndex + 1);
       }
 
-      // Regenerate the AI response
+      // Regenerate the AI response with full conversation history
+      const historyMessages = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [
-          {
-            role: 'user',
-            content: newContent,
-            id: messageId,
-          },
-        ],
+        messages: historyMessages,
         streaming: true,
         model: modelName,
-        threadId: thread.id,
       };
 
       const chatResult = await window.electronAPI.chat.chat(request);

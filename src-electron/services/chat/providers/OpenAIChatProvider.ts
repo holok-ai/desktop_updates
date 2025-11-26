@@ -243,9 +243,7 @@ export class OpenAIChatProvider implements IChatProvider {
   private extractThreadContext(
     request: ChatRequest,
   ): Record<string, string> | Record<string, never> {
-    const threadId =
-      (request as unknown as { threadId?: string }).threadId ??
-      (request as unknown as { thread_id?: string }).thread_id;
+    const threadId = (request as unknown as { thread_id?: string }).thread_id;
     return threadId ? { thread_id: threadId } : {};
   }
 
