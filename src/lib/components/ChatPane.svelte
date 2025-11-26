@@ -40,12 +40,12 @@
   //     apiKey: '', // Will be injected from auth service by chat handler
   //     model: 'claude-opus-4-1-20250805',
   // };
-  let devClaudeModel = {
-      url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
-      apiKey: '', // Will be injected from auth service by chat handler
-      model: 'claude-3-haiku-20240307'
-  };
-  let modelName = localLlamaModel.model; 
+  // let devClaudeModel = {
+  //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
+  //     apiKey: '', // Will be injected from auth service by chat handler
+  //     model: 'claude-3-haiku-20240307'
+  // };
+  let modelName = localLlamaModel.model;
 
   // Watch for prop changes
   $effect(() => {
