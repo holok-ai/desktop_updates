@@ -155,6 +155,7 @@ export function registerChatHandlers(auth?: AuthService): void {
     async (
       event: IpcMainInvokeEvent,
       request: ChatRequest,
+      workingDirectory?: string,
     ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:sendWithFileTools called');
 
@@ -165,6 +166,10 @@ export function registerChatHandlers(auth?: AuthService): void {
       }
 
       try {
+        if (workingDirectory) {
+          chatService.setFileToolsWorkingDirectory(workingDirectory);
+        }
+
         await chatService.chatWithFileTools(
           request,
           (token: string) => {

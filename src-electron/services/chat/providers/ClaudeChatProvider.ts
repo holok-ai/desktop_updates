@@ -81,6 +81,13 @@ export class ClaudeChatProvider implements IChatProvider {
   }
 
   /**
+   * Check if provider supports tool calling
+   */
+  public supportsTools(): boolean {
+    return false; // Claude provider does not support tools yet
+  }
+
+  /**
    * Send a chat request with additional options to Claude
    */
   public async chatWithOptions(
