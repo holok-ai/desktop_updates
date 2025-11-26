@@ -41,6 +41,13 @@ export class PerplexityChatProvider implements IChatProvider {
         : PerplexityChatProvider.DEFAULT_MODEL;
   }
 
+  /**
+   * Check if provider supports tool calling
+   */
+  public supportsTools(): boolean {
+    return false; // Perplexity provider does not support tools yet
+  }
+
   public async chat(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
