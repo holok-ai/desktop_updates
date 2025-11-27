@@ -24,28 +24,14 @@ type ChatCompletionLike = {
 export class PerplexityChatProvider implements IChatProvider {
   private readonly client: Perplexity;
   private defaultModel: string;
-  private static readonly DEFAULT_ENDPOINT = 'https://api.perplexity.ai';
-  private static readonly SUPPORTED_MODELS = new Set(['pplx-70b-online', 'pplx-7b-chat']);
-  private static readonly DEFAULT_MODEL = 'pplx-70b-online';
   private static readonly MAX_TOOL_ITERATIONS = 8;
 
   constructor(url: string, apiKey: string, defaultModel: string) {
-    const baseURL = (url || PerplexityChatProvider.DEFAULT_ENDPOINT).replace(/\/$/, '');
     this.client = new Perplexity({
       apiKey,
-      baseURL,
+      baseURL: url,
     });
-    this.defaultModel =
-      defaultModel && PerplexityChatProvider.SUPPORTED_MODELS.has(defaultModel)
-        ? defaultModel
-        : PerplexityChatProvider.DEFAULT_MODEL;
-  }
-
-  /**
-   * Check if provider supports tool calling
-   */
-  public supportsTools(): boolean {
-    return false; // Perplexity provider does not support tools yet
+    this.defaultModel = defaultModel || 'pplx-70b-online';
   }
 
   public async chat(
