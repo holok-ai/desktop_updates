@@ -46,17 +46,17 @@ export class OpenAIChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const openaiRequest = OpenAIConverter.toOpenAIRequest({ ...request, model: modelToUse });
-    const threadContext = this.extractThreadContext(request);
 
     const shouldStream = request.streaming !== false;
+    const threadId = (openaiRequest as { thread_id?: string }).thread_id;
 
     if (shouldStream) {
       const params: ChatCompletionCreateParamsStreaming = {
-        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: true,
-      };
+        ...(threadId && { thread_id: threadId }),
+      } as ChatCompletionCreateParamsStreaming;
 
       const stream: Stream<ChatCompletionChunk> = await this.client.chat.completions.create(params);
 
@@ -68,11 +68,11 @@ export class OpenAIChatProvider implements IChatProvider {
       }
     } else {
       const params: ChatCompletionCreateParamsNonStreaming = {
-        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: false,
-      };
+        ...(threadId && { thread_id: threadId }),
+      } as ChatCompletionCreateParamsNonStreaming;
 
       const response: ChatCompletion = await this.client.chat.completions.create(params);
 
@@ -95,20 +95,19 @@ export class OpenAIChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
-    const threadContext = this.extractThreadContext(request);
 
     const optionalParams = this.buildOptionalParams(openaiRequest);
-
+    const threadId = (openaiRequest as { thread_id?: string }).thread_id;
     const shouldStream = request.streaming !== false;
 
     if (shouldStream) {
       const params: ChatCompletionCreateParamsStreaming = {
-        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: true,
         ...optionalParams,
-      };
+        ...(threadId && { thread_id: threadId }),
+      } as ChatCompletionCreateParamsStreaming;
 
       const stream: Stream<ChatCompletionChunk> = await this.client.chat.completions.create(params);
 
@@ -120,12 +119,12 @@ export class OpenAIChatProvider implements IChatProvider {
       }
     } else {
       const params: ChatCompletionCreateParamsNonStreaming = {
-        ...threadContext,
         model: openaiRequest.model,
         messages: openaiRequest.messages,
         stream: false,
         ...optionalParams,
-      };
+        ...(threadId && { thread_id: threadId }),
+      } as ChatCompletionCreateParamsNonStreaming;
 
       const response: ChatCompletion = await this.client.chat.completions.create(params);
 
@@ -160,7 +159,8 @@ export class OpenAIChatProvider implements IChatProvider {
       description: tool.description,
       parameters: tool.input_schema,
     }));
-    const threadContext = this.extractThreadContext(request);
+    const threadId = (openaiRequest as { thread_id?: string }).thread_id;
+    const threadContext: Record<string, unknown> = threadId ? { thread_id: threadId } : {};
     const shouldStream = request.streaming !== false;
     let messages = openaiRequest.messages;
     const maxIterations = 8;
@@ -240,12 +240,6 @@ export class OpenAIChatProvider implements IChatProvider {
     );
   }
 
-  private extractThreadContext(
-    request: ChatRequest,
-  ): Record<string, string> | Record<string, never> {
-    const threadId = (request as unknown as { thread_id?: string }).thread_id;
-    return threadId ? { thread_id: threadId } : {};
-  }
 
   private async createToolAwareResponse(
     params: {
