@@ -39,6 +39,15 @@ export class ClaudeConverter {
     };
   }
 
+  private static extractThreadId(request: ChatRequest | ChatRequestWithOptions): string | undefined {
+    const threadId = (request as { thread_id?: string }).thread_id;
+    if (typeof threadId === 'string' && threadId.length > 0) {
+      return threadId;
+    }
+
+    return undefined;
+  }
+
   /**
    * Convert internal ChatRequest to Claude-specific format
    */
@@ -47,11 +56,20 @@ export class ClaudeConverter {
     messages: MessageParam[];
     stream: boolean;
   } {
-    return {
+    const threadId = this.extractThreadId(request);
+    const claudeRequest: {
+      model: string;
+      messages: MessageParam[];
+      stream: boolean;
+      thread_id?: string;
+    } = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
+
+    return claudeRequest;
   }
 
   /**
@@ -59,11 +77,13 @@ export class ClaudeConverter {
    */
   static toClaudeRequestWithOptions(request: ChatRequestWithOptions): Record<string, unknown> {
     const options = request.options || {};
+    const threadId = this.extractThreadId(request);
 
     const claudeRequest: Record<string, unknown> = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
 
     // Add optional parameters only if defined
