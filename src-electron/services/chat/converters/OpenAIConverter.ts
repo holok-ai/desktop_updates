@@ -44,15 +44,27 @@ export class OpenAIConverter {
     }
   }
 
+  private static extractThreadId(request: ChatRequest | ChatRequestWithOptions): string | undefined {
+    const threadId = (request as { thread_id?: string }).thread_id;
+    if (typeof threadId === 'string' && threadId.length > 0) {
+      return threadId;
+    }
+
+    return undefined;
+  }
+
   /**
    * Convert internal ChatRequest to OpenAI-specific format
    */
   static toOpenAIRequest(request: ChatRequest): OpenAIBaseRequest {
-    return {
+    const threadId = this.extractThreadId(request);
+    const baseRequest: OpenAIBaseRequest = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
+    return baseRequest;
   }
 
   /**
@@ -60,11 +72,13 @@ export class OpenAIConverter {
    */
   static toOpenAIRequestWithOptions(request: ChatRequestWithOptions): OpenAIRequestWithOptions {
     const options = request.options || {};
+    const threadId = this.extractThreadId(request);
 
     const openaiRequest: OpenAIRequestWithOptions = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
 
     // Add optional parameters only if defined

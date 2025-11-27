@@ -31,22 +31,21 @@
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);
-  const localLlamaModel = {
-    url: 'http://localhost:3000/api/custom/ollama/afc6b6e0',
-    //   apiKey: '', // Will be injected from auth service by chat handler
+  const _localLlamaModel = {
+    url: 'http://localhost:11434',
     model: 'llama3:latest',
   };
-  // const localClaudeModel = {
+  // const _localClaudeModel = {
   //     url: 'http://localhost:3000/api/custom/claude/f4f61965',
   //     apiKey: '', // Will be injected from auth service by chat handler
   //     model: 'claude-opus-4-1-20250805',
   // };
-  // const devClaudeModel = {
+  // let _devClaudeModel = {
   //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
   //     apiKey: '', // Will be injected from auth service by chat handler
   //     model: 'claude-3-haiku-20240307'
   // };
-  const modelName = localLlamaModel.model;
+  let modelName = _localLlamaModel.model;
 
   // Watch for prop changes
   $effect(() => {
@@ -132,7 +131,7 @@
 
   // Initialize chat service on mount
   async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider('ollama', localLlamaModel);
+    const result = await window.electronAPI.chat.createProvider('ollama', _localLlamaModel);
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
       console.error('Failed to create chat provider:', result.error);
@@ -181,6 +180,12 @@
 
     if (!userMessage.trim() && attachments.length === 0) return;
 
+    // Build conversation history from existing messages (oldest -> newest)
+    const historyMessages = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     error = '';
 
     // Create and add optimistic message
@@ -199,7 +204,7 @@
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [...historyMessages, { role: 'user', content: userMessage }],
         streaming: true,
         model: modelName,
       };
@@ -256,11 +261,16 @@
         messages = messages.slice(0, messageIndex + 1);
       }
 
-      // Regenerate the AI response
+      // Regenerate the AI response with full conversation history
+      const historyMessages = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
       isStreaming = true;
       setupTokenListener();
       const request = {
-        messages: [{ role: 'user', content: newContent }],
+        messages: historyMessages,
         streaming: true,
         model: modelName,
       };

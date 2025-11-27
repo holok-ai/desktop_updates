@@ -32,7 +32,7 @@ export interface IChatProvider {
   /**
    * Check if provider supports tool calling
    */
-  supportsTools(): boolean;
+  supportsTools?(): boolean;
 
   /**
    * Send chat with tools enabled (optional - only for providers that support it)

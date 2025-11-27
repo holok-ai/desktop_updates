@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import Anthropic from '@anthropic-ai/sdk';
 import type { IChatProvider, ToolUse } from '../interfaces/IChatProvider.js';
@@ -53,6 +52,7 @@ export class ClaudeChatProvider implements IChatProvider {
   ): Promise<void> {
     const modelToUse = request.model || this.defaultModel;
     const claudeRequest = ClaudeConverter.toClaudeRequest({ ...request, model: modelToUse });
+    const threadId = (claudeRequest as { thread_id?: string }).thread_id;
 
     try {
       const shouldStream = request.streaming !== false;
@@ -64,8 +64,7 @@ export class ClaudeChatProvider implements IChatProvider {
             messages: claudeRequest.messages,
             stream: true,
             max_tokens: 4096,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            thread_id: (request as any).thread_id,
+            ...(threadId && { thread_id: threadId }),
           } as any)
           .on('text', (text) => {
             if (onTokenReceived) {
@@ -81,8 +80,7 @@ export class ClaudeChatProvider implements IChatProvider {
           model: claudeRequest.model,
           messages: claudeRequest.messages,
           max_tokens: 4096,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          thread_id: (request as any).thread_id,
+          ...(threadId && { thread_id: threadId }),
         } as any);
 
         if (response.content && response.content.length > 0) {
@@ -338,6 +336,7 @@ export class ClaudeChatProvider implements IChatProvider {
       ...request,
       model: modelToUse,
     });
+    const threadId = (claudeRequest as { thread_id?: string }).thread_id;
 
     try {
       const shouldStream = request.streaming !== false;
@@ -354,8 +353,7 @@ export class ClaudeChatProvider implements IChatProvider {
             top_p: claudeRequest.top_p as number | undefined,
             stop_sequences: claudeRequest.stop_sequences as string[] | undefined,
             stream: true,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            thread_id: (request as any).thread_id,
+            ...(threadId && { thread_id: threadId }),
           } as any)
           .on('text', (text) => {
             if (onTokenReceived) {
@@ -373,8 +371,7 @@ export class ClaudeChatProvider implements IChatProvider {
           max_tokens: (claudeRequest.max_tokens as number | undefined) || 4096,
           top_p: claudeRequest.top_p as number | undefined,
           stop_sequences: claudeRequest.stop_sequences as string[] | undefined,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          thread_id: (request as any).thread_id,
+          ...(threadId && { thread_id: threadId }),
         } as any);
 
         if (response.content && response.content.length > 0) {
@@ -393,4 +390,5 @@ export class ClaudeChatProvider implements IChatProvider {
       throw error;
     }
   }
+
 }
