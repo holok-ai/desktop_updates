@@ -23,6 +23,18 @@
       "options": {
         "parser": "svelte"
       }
+    },
+    {
+      "files": "*.{ts,tsx}",
+      "options": {
+        "parser": "typescript"
+      }
+    },
+    {
+      "files": "*.{js,jsx}",
+      "options": {
+        "parser": "babel"
+      }
     }
   ]
 }

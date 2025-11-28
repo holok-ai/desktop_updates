@@ -17,7 +17,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint . --ext .ts,.js,.svelte",
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
-    "format": "prettier --write \"**/*.{ts,js,svelte,json,css,md}\"",
+    "format": "prettier --write --config .prettierrc.json \"**/*.{ts,js,svelte,json,css,md}\"",
     "type-check": "tsc --noEmit",
     "security": "node scripts/security-scan.js",
     "security:audit": "better-npm-audit audit",
