@@ -26,3 +26,5 @@ Thumbs.db
 # Generated files
 *.map
 
+# AI folder
+ai/
