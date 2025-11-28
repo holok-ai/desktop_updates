@@ -103,7 +103,11 @@ Code test coverage should be 90% or greater.
 - The `npm run format` command uses Prettier with a fixed configuration (`.prettierrc.json`) to ensure consistent formatting across all operating systems
 - Line endings are standardized to LF (`\n`) regardless of the development machine's operating system to prevent formatting differences between Windows, macOS, and Linux
 - Files excluded from formatting are defined in `.prettierignore` to ensure consistent file selection
-- **Version Consistency**: All developers must use the same Prettier version. Run `npm install` to ensure `package-lock.json` versions are installed. Different Prettier versions (even minor/patch) can produce different formatting output
+- **CRITICAL - Version Consistency**: 
+  - Prettier versions (even minor/patch differences) produce different formatting
+  - After pulling/checking out a branch, ALWAYS run `npm ci` (not `npm install`) to install exact versions from `package-lock.json`
+  - `npm ci` deletes `node_modules` and installs exact locked versions, ensuring consistency
+  - Verify versions: `npm list prettier prettier-plugin-svelte` should show `prettier@3.6.2` and `prettier-plugin-svelte@3.4.0`
 - **Parser Settings**: TypeScript and JavaScript files use explicit parser settings in `.prettierrc.json` to ensure consistent parsing across all machines
 - If formatting is not run before submitting a PR, a subsequent PR may contain unrelated formatting changes that pollute the PR diff
 - Always run `npm run format` on your branch before creating a PR, even if you believe the code is already formatted
