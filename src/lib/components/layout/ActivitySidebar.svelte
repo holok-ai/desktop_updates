@@ -226,8 +226,8 @@
   }
 
   .sidebar-logo {
-    width: 64px;
-    height: auto;
+    width: 100%;
+    height: 90px;
   }
 
   .profile-trigger {
