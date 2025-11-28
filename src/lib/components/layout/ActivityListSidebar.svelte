@@ -517,6 +517,11 @@
       gap 0.2s;
   }
 
+  .activity-list-sidebar.collapsed {
+    padding: 6px;
+    padding-top: 1rem;
+  }
+
   .activity-list-sidebar.collapsed .list-items {
     align-items: center;
     justify-content: flex-start;
