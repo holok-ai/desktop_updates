@@ -166,4 +166,3 @@ describe('PerplexityChatProvider', () => {
     expect(createCalls.length).toBe(2);
   });
 });
-

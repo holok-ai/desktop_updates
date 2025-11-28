@@ -4,25 +4,25 @@
 
   const dispatch = createEventDispatcher();
 
-const {
-  isSelected,
-  isHidden,
-  item,
-  isCollapsed,
-  showActions,
-  isSubsection,
-  isMenuOpen,
-  hideCollapsedLabel = false,
-} = $props<{
-  isSelected: boolean;
-  isHidden?: boolean;
-  item: SidebarActivity;
-  isCollapsed: boolean;
-  showActions?: boolean;
-  isSubsection?: boolean;
-  isMenuOpen?: boolean;
-  hideCollapsedLabel?: boolean;
-}>();
+  const {
+    isSelected,
+    isHidden,
+    item,
+    isCollapsed,
+    showActions,
+    isSubsection,
+    isMenuOpen,
+    hideCollapsedLabel = false,
+  } = $props<{
+    isSelected: boolean;
+    isHidden?: boolean;
+    item: SidebarActivity;
+    isCollapsed: boolean;
+    showActions?: boolean;
+    isSubsection?: boolean;
+    isMenuOpen?: boolean;
+    hideCollapsedLabel?: boolean;
+  }>();
 
   let showTooltip = $state(false);
   const tooltipId = `sidebar-item-tooltip-${item.id}`;
@@ -47,12 +47,13 @@ const {
 </script>
 
 <div
-  class="{isSubsection && 'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch relative"
+  class="{isSubsection &&
+    'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch relative"
   class:hidden={isHidden}
 >
   <li
     class="sidebar-item min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)] {isCollapsed &&
-      hideCollapsedLabel
+    hideCollapsedLabel
       ? 'icon-only'
       : ''}"
     class:active={isSelected}

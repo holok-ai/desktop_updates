@@ -44,7 +44,9 @@ export class OpenAIConverter {
     }
   }
 
-  private static extractThreadId(request: ChatRequest | ChatRequestWithOptions): string | undefined {
+  private static extractThreadId(
+    request: ChatRequest | ChatRequestWithOptions,
+  ): string | undefined {
     const threadId = (request as { thread_id?: string }).thread_id;
     if (typeof threadId === 'string' && threadId.length > 0) {
       return threadId;
