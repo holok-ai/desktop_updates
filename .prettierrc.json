@@ -7,7 +7,7 @@
   "useTabs": false,
   "bracketSpacing": true,
   "arrowParens": "always",
-  "endOfLine": "auto",
+  "endOfLine": "lf",
   "proseWrap": "preserve",
   "quoteProps": "as-needed",
   "htmlWhitespaceSensitivity": "css",

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+dist-electron/
+release/
+
+# Test outputs
+test-results/
+playwright-report/
+coverage/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.map
+
