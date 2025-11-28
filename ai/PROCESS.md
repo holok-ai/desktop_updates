@@ -94,9 +94,17 @@ Code test coverage should be 90% or greater.
 
 **Before submitting a PR:**
 
-1. **Review code security**: Run `npm run security` - ensure only "eslint security analysis" has findings
-2. **Verify build and tests**: Run `npm run build && npm run build:electron && npm run lint && npm run test:e2e` - all must complete successfully
-3. **Update ticket status**: Move ticket to "Code Review" in Kanban when submitting PR for review
+1. **Format code**: Run `npm run format` - this must be run on all source code before submitting a PR to ensure consistent formatting across all development machines
+2. **Review code security**: Run `npm run security` - ensure only "eslint security analysis" has findings
+3. **Verify build and tests**: Run `npm run build && npm run build:electron && npm run lint && npm run test:e2e` - all must complete successfully
+4. **Update ticket status**: Move ticket to "Code Review" in Kanban when submitting PR for review
+
+**Important - Code Formatting:**
+- The `npm run format` command uses Prettier with a fixed configuration (`.prettierrc.json`) to ensure consistent formatting across all operating systems
+- Line endings are standardized to LF (`\n`) regardless of the development machine's operating system to prevent formatting differences between Windows, macOS, and Linux
+- Files excluded from formatting are defined in `.prettierignore` to ensure consistent file selection
+- If formatting is not run before submitting a PR, a subsequent PR may contain unrelated formatting changes that pollute the PR diff
+- Always run `npm run format` on your branch before creating a PR, even if you believe the code is already formatted
 
 ## Definitions
 
