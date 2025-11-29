@@ -15,7 +15,7 @@
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
-  let isCollapsed = $state(false);
+  let sidebarElement: HTMLElement | null = null;
   let activities: SidebarActivity[] = [
     { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
@@ -24,6 +24,7 @@
   let selected = $state(activities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showProfileMenu = $state(false);
+  let profileSection: HTMLElement | null = null;
 
   async function handleLogout() {
     try {
@@ -50,8 +51,6 @@
   }
 
   onMount(() => {
-    isCollapsed = storageService.getSidebarCollapsed();
-
     const stored = storageService.getThemeMode();
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
 
@@ -88,6 +87,15 @@
     };
     window.addEventListener('storage', onStorage);
 
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!showProfileMenu) return;
+      if (!(event.target instanceof Node)) return;
+      const clickedInsideProfile = profileSection?.contains(event.target) ?? false;
+      if (clickedInsideProfile) return;
+      showProfileMenu = false;
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+
     // Initial sync with current route
     let currentPath = '';
     const unsub = location.subscribe((p: string) => (currentPath = p));
@@ -97,11 +105,8 @@
     return () => {
       observer.disconnect();
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('pointerdown', handlePointerDown);
     };
-  });
-
-  $effect(() => {
-    storageService.setSidebarCollapsed(isCollapsed);
   });
 
   $effect(() => {
@@ -122,10 +127,6 @@
     if (activity.route) push(activity.route);
   }
 
-  function toggle() {
-    isCollapsed = !isCollapsed;
-  }
-
   function setMode(mode: AppThemeMode) {
     currentMode = mode;
     modeStore.set(mode);
@@ -140,124 +141,101 @@
 </script>
 
 <nav
-  class="flex flex-col bg-[var(--surface-sidebar-primary)] h-screen transition-all duration-300 {isCollapsed
-    ? 'w-[var(--sidebar-primary-collapsed)] p-2'
-    : 'w-[var(--sidebar-primary-expanded)] p-4'}"
+  class="activity-sidebar flex flex-col bg-[var(--surface-sidebar-primary)] h-screen px-3 py-4"
+  bind:this={sidebarElement}
   aria-label="Main sidebar"
 >
-  <div class="sidebar-header flex justify-center items-center h-16">
-    <img src={logoWhite} alt="Holokai Logo" class="w-[160px] h-[80px] {isCollapsed && 'hidden'}" />
-    <button class="collapse-toggle-btn" onclick={toggle} aria-label="Collapse/Expand Sidebar">
-      <i class={isCollapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'}></i>
-    </button>
+  <div class="sidebar-header flex justify-center items-center h-20">
+    <img src={logoWhite} alt="Holokai Logo" class="sidebar-logo" />
   </div>
   <ul class="nav-icons" role="menu">
     {#each activities as activity}
       <SidebarItem
         isSelected={selected === activity.id}
         item={activity}
-        {isCollapsed}
+        isCollapsed={true}
+        hideCollapsedLabel={true}
         on:click={() => void handleNavigate(activity)}
       />
     {/each}
   </ul>
-  <div class="flex flex-col items-center justify-center">
+  <div
+    class="sidebar-footer mt-auto flex flex-col items-center justify-center relative"
+    bind:this={profileSection}
+  >
     {#if $isAuthenticated}
-      <div
-        class="flex flex-col items-center justify-center w-full relative transition-all duration-300"
+      <button
+        class="profile-trigger"
+        tabindex="0"
+        aria-haspopup="true"
+        aria-expanded={showProfileMenu}
+        aria-label="Open profile menu"
+        onclick={() => (showProfileMenu = !showProfileMenu)}
+        onkeydown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            showProfileMenu = !showProfileMenu;
+          }
+          if (event.key === 'Escape') {
+            showProfileMenu = false;
+          }
+        }}
       >
-        <button
-          class="profile-trigger"
-          class:collapsed={isCollapsed}
-          tabindex="0"
-          aria-haspopup="true"
-          aria-expanded={showProfileMenu}
-          onclick={() => (showProfileMenu = !showProfileMenu)}
-        >
-          <span class="profile-trigger-content">
-            {#if !isCollapsed}
-              <i
-                class={showProfileMenu
-                  ? 'pi pi-chevron-up profile-trigger-icon'
-                  : 'pi pi-chevron-down profile-trigger-icon'}
-              ></i>
-            {/if}
-            {#key showProfileMenu}
-              <i class="pi pi-user profile-trigger-icon"></i>
-            {/key}
-            {#if !isCollapsed}
-              <span class="profile-trigger-label">{$currentUser?.name ?? 'User'}</span>
-            {/if}
-          </span>
-        </button>
+        <i class="pi pi-user profile-trigger-icon"></i>
+      </button>
+      <span class="profile-name" aria-hidden="true">{$currentUser?.name ?? 'User'}</span>
 
-        {#if showProfileMenu && !isCollapsed}
-          <div class="w-full mt-2 gap-2 flex flex-col">
-            <button
-              class="profile-menu-button"
-              onclick={() => {
-                showProfileMenu = false;
-                push(ROUTE.SETTINGS);
-              }}
-            >
-              <i class="pi pi-cog"></i>
-              <span>Settings</span>
-            </button>
-            <button class="profile-menu-button" onclick={handleLogout}>
-              <i class="pi pi-sign-out"></i>
-              <span>Logout</span>
-            </button>
-          </div>
-        {/if}
-        {#if isCollapsed}
-          <span class="text-xs text-white text-center">{$currentUser?.name ?? 'User'}</span>
-        {/if}
-      </div>
+      {#if showProfileMenu}
+        <div
+          class="profile-menu-panel"
+          role="menu"
+          tabindex="-1"
+          onkeydown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              showProfileMenu = false;
+            }
+          }}
+        >
+          <button
+            class="profile-menu-button"
+            role="menuitem"
+            onclick={() => {
+              showProfileMenu = false;
+              push(ROUTE.SETTINGS);
+            }}
+          >
+            <i class="pi pi-cog"></i>
+            <span>Settings</span>
+          </button>
+          <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
+            <i class="pi pi-sign-out"></i>
+            <span>Logout</span>
+          </button>
+        </div>
+      {/if}
     {/if}
   </div>
 </nav>
 
 <style lang="postcss">
-  .collapse-toggle-btn {
-    background: transparent;
-    border: none;
-    color: #ffffff;
-    cursor: pointer;
-    padding: 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    border-radius: 0.375rem;
+  .activity-sidebar {
+    width: 92px;
+    min-width: 92px;
+    max-width: 92px;
   }
 
-  .collapse-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .collapse-toggle-btn:focus {
-    outline: none;
-    background: rgba(255, 255, 255, 0.15);
-  }
-
-  .collapse-toggle-btn i {
-    color: #ffffff;
-    font-size: 1.25rem;
-  }
-
-  .profile-trigger.collapsed {
-    padding-left: 14px;
+  .sidebar-logo {
+    width: 100%;
+    height: 90px;
   }
 
   .profile-trigger {
     display: flex;
-    width: 100%;
+    width: 48px;
+    height: 48px;
     align-items: center;
-    justify-content: flex-start;
-    gap: var(--content-padding);
-    padding: calc(var(--inline-spacing) * 2) var(--content-padding);
-    border-radius: var(--border-radius);
-    border: 1px solid transparent;
+    justify-content: center;
     background: transparent;
     color: var(--text-active);
     cursor: pointer;
@@ -268,27 +246,35 @@
 
   .profile-trigger:focus {
     outline: none;
+    border: none;
   }
 
   .profile-trigger:hover {
     background: var(--background-primary-hover);
-  }
-
-  .profile-trigger-content {
-    display: flex;
-    align-items: center;
-    gap: var(--content-padding);
-    width: 100%;
+    border: none;
   }
 
   .profile-trigger-icon {
     color: #fff;
-    font-size: 16px;
+    font-size: 18px;
   }
 
-  .profile-trigger-label {
-    color: #fff;
-    font-size: 14px;
+  .profile-menu-panel {
+    position: absolute;
+    left: calc(100% + 12px);
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(20, 24, 40, 0.95);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 8px 18px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+    min-width: 180px;
+    z-index: 20;
   }
 
   .profile-menu-button {
@@ -296,7 +282,7 @@
     align-items: center;
     gap: var(--inline-spacing);
     width: 100%;
-    padding: calc(var(--inline-spacing) * 1.5) calc(var(--content-padding) * 1.2);
+    padding: 0.5rem 0.75rem;
     background: transparent;
     border: none;
     color: #fff;
@@ -320,5 +306,12 @@
   .nav-icons {
     @apply flex flex-col gap-4 mt-8;
     flex: 1;
+  }
+  .profile-name {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+    line-height: 1.1;
   }
 </style>

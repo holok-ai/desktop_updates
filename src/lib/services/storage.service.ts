@@ -1,10 +1,7 @@
 import type { AppThemeMode } from '$lib/types/app.type';
 import type { SidebarActivity } from '$lib/types/sidebar.type';
 import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
-import {
-  SIDEBAR_STORAGE_KEY,
-  SIDEBAR_COLLAPSED_STORAGE_KEY,
-} from '$lib/constants/sidebar.constant';
+import { SIDEBAR_STORAGE_KEY } from '$lib/constants/sidebar.constant';
 
 type GetOptions<T> = {
   coerce?: (value: string) => T | null;
@@ -16,7 +13,6 @@ class StorageService {
     LAST_THREAD_ID: 'lastThreadId',
     LAST_PROJECT_ID: 'lastProjectId',
     SIDEBAR_ACTIVITY: SIDEBAR_STORAGE_KEY,
-    SIDEBAR_COLLAPSED: SIDEBAR_COLLAPSED_STORAGE_KEY,
     ACTIVITY_LIST_WIDTH: 'activityListWidth',
     ACTIVITY_LIST_COLLAPSED: 'activityListCollapsed',
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
@@ -117,24 +113,6 @@ class StorageService {
     return this.set(this.KEYS.THEME_MODE, mode);
   }
 
-  getSidebarCollapsed(): boolean {
-    return this.get(this.KEYS.SIDEBAR_COLLAPSED, false, {
-      coerce: (raw) => {
-        if (raw === 'true') {
-          return true;
-        }
-        if (raw === 'false') {
-          return false;
-        }
-        return null;
-      },
-    });
-  }
-
-  setSidebarCollapsed(collapsed: boolean): boolean {
-    return this.set(this.KEYS.SIDEBAR_COLLAPSED, collapsed);
-  }
-
   getSidebarActivity(): SidebarActivity | null {
     return this.get(this.KEYS.SIDEBAR_ACTIVITY, null);
   }
@@ -168,8 +146,8 @@ class StorageService {
   getActivityListWidth(): number {
     const value = this.get(this.KEYS.ACTIVITY_LIST_WIDTH, 280, {
       coerce: (raw) => {
-        const parsed = parseInt(raw, 10);
-        if (!isNaN(parsed) && parsed >= 200 && parsed <= 600) {
+        const parsed = Number.parseInt(raw, 10);
+        if (!Number.isNaN(parsed) && parsed >= 200 && parsed <= 600) {
           return parsed;
         }
         return null;

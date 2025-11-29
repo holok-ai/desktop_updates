@@ -4,16 +4,33 @@
 
   const dispatch = createEventDispatcher();
 
-  const { isSelected, isHidden, item, isCollapsed, showActions, isSubsection, isMenuOpen } =
-    $props<{
-      isSelected: boolean;
-      isHidden?: boolean;
-      item: SidebarActivity;
-      isCollapsed: boolean;
-      showActions?: boolean;
-      isSubsection?: boolean;
-      isMenuOpen?: boolean;
-    }>();
+  const {
+    isSelected,
+    isHidden,
+    item,
+    isCollapsed,
+    showActions,
+    isSubsection,
+    isMenuOpen,
+    hideCollapsedLabel = false,
+  } = $props<{
+    isSelected: boolean;
+    isHidden?: boolean;
+    item: SidebarActivity;
+    isCollapsed: boolean;
+    showActions?: boolean;
+    isSubsection?: boolean;
+    isMenuOpen?: boolean;
+    hideCollapsedLabel?: boolean;
+  }>();
+
+  let showTooltip = $state(false);
+  const tooltipId = `sidebar-item-tooltip-${item.id}`;
+
+  function setTooltipState(next: boolean) {
+    if (!isCollapsed || !hideCollapsedLabel) return;
+    showTooltip = next;
+  }
 
   function onClick(item: SidebarActivity) {
     dispatch('click', item);
@@ -30,18 +47,26 @@
 </script>
 
 <div
-  class="{isSubsection && 'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch"
+  class="{isSubsection &&
+    'pl-4'} w-full transition-all duration-200 flex flex-col items-stretch relative"
   class:hidden={isHidden}
 >
   <li
-    class="min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)]"
+    class="sidebar-item min-h-11 relative leading-none w-full flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-[var(--holokai-sidebar-item-hover-light-color)] dark:hover:bg-[var(--holokai-sidebar-item-hover-dark-color)] {isCollapsed &&
+    hideCollapsedLabel
+      ? 'icon-only'
+      : ''}"
     class:active={isSelected}
     tabindex="0"
     role="menuitem"
     aria-label={item.label}
+    aria-describedby={isCollapsed && hideCollapsedLabel ? tooltipId : undefined}
     onclick={() => onClick(item)}
     onkeydown={(e) => handleKey(e, item)}
-    title={isCollapsed ? item.label : undefined}
+    onmouseenter={() => setTooltipState(true)}
+    onmouseleave={() => setTooltipState(false)}
+    onfocus={() => setTooltipState(true)}
+    onblur={() => setTooltipState(false)}
   >
     {#if item.icon}
       <div class="flex items-center justify-center w-6 h-6 flex-shrink-0">
@@ -70,7 +95,7 @@
               class="menu-item"
               type="button"
               onclick={() => {
-                dispatch('toggleMenu', item); // Close menu
+                dispatch('toggleMenu', item);
                 dispatch('rename', item);
               }}
               aria-label="Rename thread"
@@ -81,7 +106,7 @@
               class="menu-item"
               type="button"
               onclick={() => {
-                dispatch('toggleMenu', item); // Close menu
+                dispatch('toggleMenu', item);
                 dispatch('delete', item);
               }}
               aria-label="Delete thread"
@@ -94,7 +119,15 @@
     {/if}
   </li>
 
-  {#if isCollapsed}
+  {#if isCollapsed && hideCollapsedLabel}
+    {#if showTooltip}
+      <div class="sidebar-tooltip" role="tooltip" id={tooltipId}>
+        {item.label}
+      </div>
+    {/if}
+  {/if}
+
+  {#if isCollapsed && !hideCollapsedLabel}
     <span class="h-4 text-[10px] text-white text-center mt-[2px] truncate w-full leading-none">
       {item.shortLabel || item.label}
     </span>
@@ -102,6 +135,33 @@
 </div>
 
 <style scoped>
+  .sidebar-item {
+    position: relative;
+  }
+
+  .icon-only {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar-tooltip {
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    background: rgba(11, 16, 28, 0.95);
+    color: #fff;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    box-shadow:
+      0 6px 14px rgba(0, 0, 0, 0.25),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 10;
+  }
+
   .active {
     background-color: var(--sidebar-item-active-bg, var(--background-primary-active));
     color: var(--sidebar-item-active-text-color, var(--text-active));
