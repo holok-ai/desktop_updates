@@ -58,13 +58,20 @@
     onkeydown={(e) => handleKey(e, item)}
   >
     {#if item.icon}
-      <div class="flex items-center justify-center w-6 h-6 flex-shrink-0 {isCollapsed && !hideCollapsedLabel ? 'mx-auto' : ''}">
+      <div
+        class="flex items-center justify-center w-6 h-6 flex-shrink-0 {isCollapsed &&
+        !hideCollapsedLabel
+          ? 'mx-auto'
+          : ''}"
+      >
         <i class="{item.icon} text-base leading-none sidebar-item-icon"></i>
       </div>
     {/if}
 
     {#if isCollapsed && !hideCollapsedLabel}
-      <span class="h-4 text-[8.5pt] text-white text-center mt-[2px] truncate w-full leading-none font-normal sidebar-item-label">
+      <span
+        class="h-4 text-[8.5pt] text-white text-center mt-[2px] truncate w-full leading-none font-normal sidebar-item-label"
+      >
         {item.shortLabel || item.label}
       </span>
     {/if}
