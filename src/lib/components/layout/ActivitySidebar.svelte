@@ -87,15 +87,6 @@
     };
     window.addEventListener('storage', onStorage);
 
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!showProfileMenu) return;
-      if (!(event.target instanceof Node)) return;
-      const clickedInsideProfile = profileSection?.contains(event.target) ?? false;
-      if (clickedInsideProfile) return;
-      showProfileMenu = false;
-    };
-    window.addEventListener('pointerdown', handlePointerDown);
-
     // Initial sync with current route
     let currentPath = '';
     const unsub = location.subscribe((p: string) => (currentPath = p));
@@ -105,7 +96,6 @@
     return () => {
       observer.disconnect();
       window.removeEventListener('storage', onStorage);
-      window.removeEventListener('pointerdown', handlePointerDown);
     };
   });
 
@@ -154,7 +144,7 @@
         isSelected={selected === activity.id}
         item={activity}
         isCollapsed={true}
-        hideCollapsedLabel={true}
+        hideCollapsedLabel={false}
         on:click={() => void handleNavigate(activity)}
       />
     {/each}
@@ -162,6 +152,10 @@
   <div
     class="sidebar-footer mt-auto flex flex-col items-center justify-center relative"
     bind:this={profileSection}
+    role="region"
+    aria-label="User profile"
+    onmouseenter={() => (showProfileMenu = true)}
+    onmouseleave={() => (showProfileMenu = false)}
   >
     {#if $isAuthenticated}
       <button
@@ -170,7 +164,6 @@
         aria-haspopup="true"
         aria-expanded={showProfileMenu}
         aria-label="Open profile menu"
-        onclick={() => (showProfileMenu = !showProfileMenu)}
         onkeydown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
@@ -227,7 +220,8 @@
 
   .sidebar-logo {
     width: 100%;
-    height: 90px;
+    height: auto;
+    object-fit: contain;
   }
 
   .profile-trigger {
@@ -261,7 +255,7 @@
 
   .profile-menu-panel {
     position: absolute;
-    left: calc(100% + 12px);
+    left: calc(100% + 2px);
     bottom: 0;
     display: flex;
     flex-direction: column;
@@ -275,6 +269,10 @@
       0 0 0 1px rgba(255, 255, 255, 0.05);
     min-width: 180px;
     z-index: 20;
+  }
+
+  .sidebar-footer {
+    padding-right: 8px;
   }
 
   .profile-menu-button {
