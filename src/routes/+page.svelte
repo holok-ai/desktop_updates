@@ -13,8 +13,8 @@
 <div class="home">
   <h1 class="mb-4">Welcome to Holokai Desktop</h1>
   <p>
-    This is a reference implementation demonstrating best practices for building Electron
-    applications with Svelte.
+    The Desktop application is an agent platform for automating personal and enterprise workflow
+    using AI.
   </p>
 
   <div class="system-info">
@@ -24,13 +24,12 @@
   </div>
 
   <div class="features">
-    <h2 class="mb-4">Features Demonstrated:</h2>
+    <h2 class="mb-4">Desktop Highlights:</h2>
     <ul class="ml-6 mt-4">
-      <li>Context Bridge for secure IPC</li>
-      <li>Reactive Svelte stores for state management</li>
-      <li>Service layer for business logic</li>
-      <li>Real-time event broadcasting</li>
-      <li>Mock authentication system</li>
+      <li>Chat with your favorite LLM</li>
+      <li>Organize chats using threads</li>
+      <li>Use multiple AI providers and models</li>
+      <li>Optimize model interaction with advanced prompt retry and branching</li>
     </ul>
   </div>
 </div>
