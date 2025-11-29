@@ -240,7 +240,6 @@ export class OpenAIChatProvider implements IChatProvider {
     );
   }
 
-
   private async createToolAwareResponse(
     params: {
       messages: ChatCompletionMessageParam[];

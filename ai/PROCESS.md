@@ -94,9 +94,24 @@ Code test coverage should be 90% or greater.
 
 **Before submitting a PR:**
 
-1. **Review code security**: Run `npm run security` - ensure only "eslint security analysis" has findings
-2. **Verify build and tests**: Run `npm run build && npm run build:electron && npm run lint && npm run test:e2e` - all must complete successfully
-3. **Update ticket status**: Move ticket to "Code Review" in Kanban when submitting PR for review
+1. **Format code**: Run `npm run format` - this must be run on all source code before submitting a PR to ensure consistent formatting across all development machines
+2. **Review code security**: Run `npm run security` - ensure only "eslint security analysis" has findings
+3. **Verify build and tests**: Run `npm run build && npm run build:electron && npm run lint && npm run test:e2e` - all must complete successfully
+4. **Update ticket status**: Move ticket to "Code Review" in Kanban when submitting PR for review
+
+**Important - Code Formatting:**
+- The `npm run format` command uses Prettier with a fixed configuration (`.prettierrc.json`) to ensure consistent formatting across all operating systems
+- Line endings are standardized to LF (`\n`) regardless of the development machine's operating system to prevent formatting differences between Windows, macOS, and Linux
+- Files excluded from formatting are defined in `.prettierignore` to ensure consistent file selection
+- **CRITICAL - Version Consistency**: 
+  - Prettier versions (even minor/patch differences) produce different formatting
+  - After pulling/checking out a branch, ALWAYS run `npm ci` (not `npm install`) to install exact versions from `package-lock.json`
+  - `npm ci` deletes `node_modules` and installs exact locked versions, ensuring consistency
+  - Verify versions: `npm list prettier prettier-plugin-svelte` should show `prettier@3.6.2` and `prettier-plugin-svelte@3.4.0`
+- **Parser Settings**: TypeScript and JavaScript files use explicit parser settings in `.prettierrc.json` to ensure consistent parsing across all machines
+- If formatting is not run before submitting a PR, a subsequent PR may contain unrelated formatting changes that pollute the PR diff
+- Always run `npm run format` on your branch before creating a PR, even if you believe the code is already formatted
+- After running `npm run format`, verify no files changed by running `git status` - if files are modified, commit the formatting changes as part of your PR
 
 ## Definitions
 

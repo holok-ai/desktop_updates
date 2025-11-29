@@ -7,7 +7,7 @@
   "useTabs": false,
   "bracketSpacing": true,
   "arrowParens": "always",
-  "endOfLine": "auto",
+  "endOfLine": "lf",
   "proseWrap": "preserve",
   "quoteProps": "as-needed",
   "htmlWhitespaceSensitivity": "css",
@@ -22,6 +22,18 @@
       "files": "*.svelte",
       "options": {
         "parser": "svelte"
+      }
+    },
+    {
+      "files": "*.{ts,tsx}",
+      "options": {
+        "parser": "typescript"
+      }
+    },
+    {
+      "files": "*.{js,jsx}",
+      "options": {
+        "parser": "babel"
       }
     }
   ]

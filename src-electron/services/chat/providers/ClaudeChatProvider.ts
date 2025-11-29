@@ -390,5 +390,4 @@ export class ClaudeChatProvider implements IChatProvider {
       throw error;
     }
   }
-
 }
