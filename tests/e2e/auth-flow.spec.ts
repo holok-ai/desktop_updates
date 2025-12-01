@@ -35,7 +35,7 @@ test.describe('E2E: Auth Flow (mock)', () => {
     }
   });
 
-  test('login → persist on reload → logout', async () => {
+  test('login → persist on reload → open settings from profile menu', async () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
@@ -52,35 +52,30 @@ test.describe('E2E: Auth Flow (mock)', () => {
       await page.waitForTimeout(1200);
     }
 
-    // Open sidebar profile submenu and assert Logout is available
-    const profileBtn = page
-      .locator('nav')
-      .locator('button')
-      .filter({ has: page.locator('.pi-user') })
-      .first();
-    await expect(profileBtn).toBeVisible();
-    await profileBtn.click();
-    const logoutBtn = page.getByRole('button', { name: 'Logout' });
-    await expect(logoutBtn).toBeVisible({ timeout: 10000 });
+    // Reveal sidebar profile submenu (hover to open) and assert menu items
+    const sidebarFooter = page.locator('[aria-label="User profile"]');
+    await expect(sidebarFooter).toBeVisible();
+    await sidebarFooter.hover();
+    await page.waitForTimeout(200);
+    const settingsBtn = page.getByRole('menuitem', { name: 'Settings' });
+    await expect(settingsBtn).toBeVisible({ timeout: 10000 });
 
     // Reload renderer window to ensure auth state persists
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
 
-    // Open submenu again and ensure Logout is still available
-    const profileBtn2 = page
-      .locator('nav')
-      .locator('button')
-      .filter({ has: page.locator('.pi-user') })
-      .first();
-    await expect(profileBtn2).toBeVisible();
-    await profileBtn2.click();
-    const logoutBtn2 = page.getByRole('button', { name: 'Logout' });
-    await expect(logoutBtn2).toBeVisible({ timeout: 10000 });
+    // Reveal submenu again and ensure Settings is still available
+    const sidebarFooter2 = page.locator('[aria-label="User profile"]');
+    await expect(sidebarFooter2).toBeVisible();
+    await sidebarFooter2.hover();
+    await page.waitForTimeout(200);
+    const settingsBtn2 = page.getByRole('menuitem', { name: 'Settings' });
+    await expect(settingsBtn2).toBeVisible({ timeout: 10000 });
 
-    // Logout and verify back to login screen
-    await logoutBtn2.click();
-    // After logout the page reloads; wait for login button again
-    await expect(page.getByRole('button', { name: 'Sign In (Mock)' })).toBeVisible();
+    // Click settings and verify navigation to Settings page
+    await settingsBtn2.click();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
