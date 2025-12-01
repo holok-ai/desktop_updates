@@ -58,6 +58,7 @@ export function confirmNavigation(): boolean {
     return true;
   }
 
+  // eslint-disable-next-line @typescript-eslint/naming-convention
   const userClickedOK = confirmFn(state.message);
   if (userClickedOK) {
     // User wants to stay on the page and finish
