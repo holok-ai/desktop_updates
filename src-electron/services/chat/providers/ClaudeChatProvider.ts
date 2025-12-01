@@ -24,6 +24,17 @@ type TextBlock = {
   text: string;
 };
 
+// Type for Claude API content blocks
+type ContentBlock = ToolUseBlock | TextBlock | { type: string };
+
+// Type for Claude API response
+interface ClaudeResponse {
+  content: ContentBlock[];
+  stop_reason?: string;
+  model?: string;
+  id?: string;
+}
+
 export class ClaudeChatProvider implements IChatProvider {
   private client: Anthropic;
   private defaultModel: string;
@@ -153,16 +164,16 @@ export class ClaudeChatProvider implements IChatProvider {
   /**
    * Extract tool_use blocks from response content
    */
-  private extractToolUses(content: any[]): ToolUseBlock[] {
-    return content.filter((block: any): block is ToolUseBlock => block.type === 'tool_use');
+  private extractToolUses(content: ContentBlock[]): ToolUseBlock[] {
+    return content.filter((block): block is ToolUseBlock => block.type === 'tool_use');
   }
 
   /**
    * Extract text blocks from response content
    */
-  private extractTextContent(content: any[]): string {
+  private extractTextContent(content: ContentBlock[]): string {
     return content
-      .filter((block: any): block is TextBlock => block.type === 'text')
+      .filter((block): block is TextBlock => block.type === 'text')
       .map((block: TextBlock) => block.text)
       .join('');
   }
@@ -174,22 +185,25 @@ export class ClaudeChatProvider implements IChatProvider {
     toolUseBlocks: ToolUseBlock[],
     results: ToolResult[],
   ): Array<{ type: 'tool_result'; tool_use_id: string; content: string }> {
-    return toolUseBlocks.map((toolUse, index) => ({
-      type: 'tool_result' as const,
-      tool_use_id: toolUse.id,
-      content: JSON.stringify({
-        success: results[index].success,
-        data: results[index].data ?? null,
-        error: results[index].error ?? null,
-      }),
-    }));
+    return toolUseBlocks.map((toolUse, index) => {
+      const result = results.at(index);
+      return {
+        type: 'tool_result' as const,
+        tool_use_id: toolUse.id,
+        content: JSON.stringify({
+          success: result?.success ?? false,
+          data: result?.data ?? null,
+          error: result?.error ?? null,
+        }),
+      };
+    });
   }
 
   /**
    * Handle the tool use loop for both streaming and non-streaming modes
    */
   private async handleToolLoop(
-    claudeRequest: { model: string; messages: any[]; stream: boolean },
+    claudeRequest: { model: string; messages: unknown[]; stream: boolean },
     tools: ClaudeTool[],
     onTokenReceived: ((token: string) => void) | undefined,
     onToolUse: (toolUse: ToolUse) => Promise<ToolResult>,
@@ -199,7 +213,7 @@ export class ClaudeChatProvider implements IChatProvider {
     const shouldStream = originalRequest.streaming !== false;
 
     for (let iteration = 0; iteration < ClaudeChatProvider.MAX_TOOL_ITERATIONS; iteration++) {
-      let response: any;
+      let response: ClaudeResponse | null;
 
       if (shouldStream) {
         response = await this.sendStreamingRequestWithTools(
@@ -251,11 +265,11 @@ export class ClaudeChatProvider implements IChatProvider {
         ...messages,
         {
           role: 'assistant',
-          content: response.content,
+          content: response.content as unknown,
         },
         {
           role: 'user',
-          content: toolResultBlocks,
+          content: toolResultBlocks as unknown,
         },
       ];
     }
@@ -268,21 +282,21 @@ export class ClaudeChatProvider implements IChatProvider {
    */
   private async sendStreamingRequestWithTools(
     model: string,
-    messages: any[],
+    messages: unknown[],
     tools: ClaudeTool[],
     onTokenReceived: ((token: string) => void) | undefined,
     originalRequest: ChatRequest,
-  ): Promise<any> {
+  ): Promise<ClaudeResponse | null> {
+    const requestWithThreadId = originalRequest as { thread_id?: string };
     const stream = this.client.messages
       .stream({
         model,
         messages,
-        tools: tools as any,
+        tools: tools as Anthropic.Tool[],
         max_tokens: 4096,
         stream: true,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        thread_id: (originalRequest as any).thread_id,
-      } as any)
+        thread_id: requestWithThreadId.thread_id,
+      } as Anthropic.MessageCreateParams)
       .on('text', (text) => {
         if (onTokenReceived) {
           onTokenReceived(text);
@@ -290,7 +304,7 @@ export class ClaudeChatProvider implements IChatProvider {
       });
 
     const finalMessage = await stream.finalMessage();
-    return finalMessage;
+    return finalMessage as unknown as ClaudeResponse;
   }
 
   /**
@@ -298,30 +312,32 @@ export class ClaudeChatProvider implements IChatProvider {
    */
   private async sendNonStreamingRequestWithTools(
     model: string,
-    messages: any[],
+    messages: unknown[],
     tools: ClaudeTool[],
     onTokenReceived: ((token: string) => void) | undefined,
     originalRequest: ChatRequest,
-  ): Promise<any> {
+  ): Promise<ClaudeResponse | null> {
+    const requestWithThreadId = originalRequest as { thread_id?: string };
     const response = await this.client.messages.create({
       model,
       messages,
-      tools: tools as any,
+      tools: tools as Anthropic.Tool[],
       max_tokens: 4096,
       stream: false,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      thread_id: (originalRequest as any).thread_id,
-    } as any);
+      thread_id: requestWithThreadId.thread_id,
+    } as Anthropic.MessageCreateParams);
+
+    const typedResponse = response as unknown as ClaudeResponse;
 
     // Send text content if callback provided
-    if (onTokenReceived && response.content) {
-      const textContent = this.extractTextContent(response.content);
+    if (onTokenReceived && typedResponse.content) {
+      const textContent = this.extractTextContent(typedResponse.content);
       if (textContent) {
         onTokenReceived(textContent);
       }
     }
 
-    return response;
+    return typedResponse;
   }
 
   /**
