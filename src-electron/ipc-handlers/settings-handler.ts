@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import { createScopedLogger } from '../utils/logger.js';
+import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 
 /**
  * Settings IPC Handlers
@@ -33,6 +34,7 @@ export function registerSettingsHandlers(): void {
         ({
           mokuWebUrl: 'http://localhost:4200',
           mokuApiUrl: 'http://localhost:8080',
+          holoApiUrl: DEFAULT_HOLO_API_URL,
           theme: 'light',
           logLevel: 'info',
         }) as AppSettings,
@@ -42,6 +44,7 @@ export function registerSettingsHandlers(): void {
       resetToDefaults: () => {},
       getMokuWebUrl: () => 'http://localhost:4200',
       getMokuApiUrl: () => 'http://localhost:8080',
+      getHoloApiUrl: () => DEFAULT_HOLO_API_URL,
       getStorePath: () => '',
     } as unknown as SettingsService;
   }
