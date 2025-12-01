@@ -50,42 +50,26 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
     await page.waitForLoadState('networkidle');
     await ensureAuthenticated(page);
 
-    // Navigate to Threads
+    // Navigate to Threads - simplified create form will be shown
     await page.getByRole('menuitem', { name: 'Threads' }).click();
     await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 
-    // Create a thread via dialog (temp thread)
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    await page.getByRole('menuitem', { name: 'New Thread' }).click();
-    await page.getByLabel('Title').fill('Test Append Thread');
-    await page.getByLabel('Description').fill('Testing message append');
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
+    // Create thread with initial prompt (simplified flow)
+    const prompt1 = 'Test Append Thread - Just response "Okay"';
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+    await promptTextarea.fill(prompt1);
 
-    // Verify thread appears in sidebar and is selected
-    await page.getByRole('menuitem', { name: 'Threads' }).click();
-    // Thread might be in a collapsed section - expand if needed
-    // Use .first() to handle strict mode violation (duplicate items)
-    const threadItem = page.getByRole('menuitem', { name: 'Test Append Thread' }).first();
-    if ((await threadItem.count()) === 0) {
-      // Try expanding sections
-      const sections = page.locator('[role="button"]').filter({ hasText: /Recent|Threads/ });
-      const sectionCount = await sections.count();
-      for (let i = 0; i < sectionCount; i++) {
-        await sections.nth(i).click();
-        await page.waitForTimeout(300);
-        if ((await threadItem.count()) > 0) break;
-      }
-    }
-    await expect(threadItem).toBeVisible({ timeout: 5000 });
-    await threadItem.click();
+    // Send to create thread
+    const sendButton = page.getByRole('button', { name: /Send/ });
+    await expect(sendButton).toBeEnabled({ timeout: 2000 });
+    await sendButton.click();
 
-    // Send first message (will persist thread after response)
-    const prompt1 = 'Just response "Okay"';
+    // Wait for chat view to appear (thread created)
+    await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
+
+    // Thread is now created with the first message already sent
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible({ timeout: 3000 });
-    await textarea.fill(prompt1);
-    await textarea.press('Enter');
 
     // Wait for user message to appear
     await expect(
@@ -154,17 +138,20 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
     // Navigate to Threads and create/select a thread
     await page.getByRole('menuitem', { name: 'Threads' }).click();
 
-    // Use existing thread or create new one - use .first() to handle duplicates
-    const existingThread = page.getByRole('menuitem', { name: 'Test Append Thread' }).first();
+    // Use existing thread from Scenario 1 or create new one
+    const existingThread = page.getByRole('menuitem', { name: /Test Append Thread/ }).first();
     if (await existingThread.count()) {
       await existingThread.click();
+      await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
     } else {
-      await page.getByRole('menuitem', { name: 'Home' }).click();
-      await page.getByRole('menuitem', { name: 'New Thread' }).click();
-      await page.getByLabel('Title').fill('Idempotency Test');
-      await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-      await page.getByRole('menuitem', { name: 'Threads' }).click();
-      await page.getByRole('menuitem', { name: 'Idempotency Test' }).first().click();
+      // Create thread with simplified flow
+      const promptTextarea = page.locator('textarea#thread-prompt');
+      if (await promptTextarea.count()) {
+        await promptTextarea.fill('Idempotency Test - Just respond OK');
+        const sendButton = page.getByRole('button', { name: /Send/ });
+        await sendButton.click();
+        await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
+      }
     }
 
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
@@ -194,8 +181,10 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
 
     await page.getByRole('menuitem', { name: 'Threads' }).click();
 
-    const threadName = (await existingThread.count()) ? 'Test Append Thread' : 'Idempotency Test';
-    const threadItem = page.getByRole('menuitem', { name: threadName }).first();
+    // Thread name is auto-generated from prompt, use regex to match
+    const threadItem = page
+      .getByRole('menuitem', { name: /Test Append Thread|Idempotency Test/ })
+      .first();
     await expect(threadItem).toBeVisible({ timeout: 5000 });
     await threadItem.click();
 
@@ -216,27 +205,30 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
     await page.waitForLoadState('networkidle');
     await ensureAuthenticated(page);
 
-    // Create a thread for deletion test
+    // Create a thread for deletion test using simplified flow
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    await page.getByRole('menuitem', { name: 'New Thread' }).click();
-    await page.getByLabel('Title').fill('To Be Deleted');
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 
-    // Send a message to persist it
-    await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await page.getByRole('menuitem', { name: 'To Be Deleted' }).first().click();
-    const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible({ timeout: 3000 });
-    await textarea.fill('Test delete');
-    await textarea.press('Enter');
+    // Fill prompt and create thread
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+    await promptTextarea.fill('To Be Deleted - Test deletion');
+
+    const sendButton = page.getByRole('button', { name: /Send/ });
+    await expect(sendButton).toBeEnabled({ timeout: 2000 });
+    await sendButton.click();
+
+    // Wait for chat view (thread created with message sent)
+    await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
+
+    // Wait for assistant response (thread is persisted on creation)
     await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
       timeout: 30000,
     });
 
     // Soft delete via sidebar 3-dot menu
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    const threadToDelete = page.getByRole('menuitem', { name: 'To Be Deleted' }).first();
+    const threadToDelete = page.getByRole('menuitem', { name: /To Be Deleted/ }).first();
     await expect(threadToDelete).toBeVisible();
 
     // Hover over thread item to reveal 3-dot menu

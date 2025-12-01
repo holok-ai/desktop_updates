@@ -81,11 +81,6 @@
     const m = parseSelected();
     dispatch('modelSelected', m);
   }
-
-  function confirm() {
-    const m = parseSelected();
-    if (m) dispatch('confirm', m);
-  }
 </script>
 
 <div class="model-chooser" role="group" aria-label="Model chooser">
@@ -103,14 +98,10 @@
         aria-label="Choose model"
         {disabled}
       >
-        <option value="">-- Select a model --</option>
         {#each models as m}
           <option value={m.provider + '::' + m.id}>{m.title} — {m.provider}</option>
         {/each}
       </select>
-      <button class="model-confirm" onclick={confirm} disabled={!selectedKey || disabled}>
-        Use
-      </button>
     </div>
   {/if}
 </div>
@@ -131,27 +122,15 @@
     border: 1px solid var(--surface-border);
     background: var(--surface-card);
     color: var(--text-primary);
-  }
-  .model-confirm {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-    border: 1px solid var(--primary-color);
-    padding: var(--inline-spacing) calc(var(--inline-spacing) * 2);
-    border-radius: var(--border-radius);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+    min-width: 200px;
   }
 
-  .model-confirm:hover:not(:disabled) {
-    background: var(--primary-600);
-    border-color: var(--primary-600);
+  select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
   }
 
-  .model-confirm:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
   .loading {
     color: var(--text-secondary);
   }

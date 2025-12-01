@@ -65,13 +65,8 @@
       clearUnsavedChanges('add-thread');
       return;
     }
-    const descriptionHasValue =
-      typeof formData.description === 'string' && formData.description.trim().length > 0;
-    const dirty =
-      formData.title.trim().length > 0 ||
-      descriptionHasValue ||
-      newThreadPrompt.trim().length > 0 ||
-      modelSelectionTouched;
+    // Only track prompt content and model selection as "dirty" state
+    const dirty = newThreadPrompt.trim().length > 0 || modelSelectionTouched;
     setUnsavedChanges('add-thread', dirty);
   });
 
@@ -245,54 +240,49 @@
     storageService.setLastThreadId(thread.id);
   }
 
-  async function handleSave() {
-    try {
-      const data = $state.snapshot(formData);
-      if (selectedModel) {
-        const merged = {
-          ...((data.metadata as Record<string, unknown>) ?? {}),
-          model: selectedModel.id,
-          provider: selectedModel.provider,
-        } as Record<string, unknown>;
-        (data as any).metadata = merged;
-      }
+  /**
+   * Auto-generate a title from the prompt (max 80 chars)
+   */
+  function generateTitleFromPrompt(prompt: string): string {
+    const trimmed = prompt.trim();
+    if (trimmed.length <= 80) {
+      // Use first line or entire prompt if short
+      const firstLine = trimmed.split('\n')[0];
+      return firstLine.length <= 80 ? firstLine : firstLine.substring(0, 77) + '...';
+    }
+    // Truncate at word boundary if possible
+    const truncated = trimmed.substring(0, 77);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 50) {
+      return truncated.substring(0, lastSpace) + '...';
+    }
+    return truncated + '...';
+  }
 
-      // If an initial prompt was provided, create thread + prompt atomically
-      if (newThreadPrompt && newThreadPrompt.trim()) {
-        try {
-          const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
-            title: data.title,
-            description: data.description,
-            model: selectedModel?.id,
-          });
-          const created = res.thread as Thread;
-          threads.addThread(created);
-          selectThread(created);
-          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
-        } catch (e) {
-          console.error('Failed to create thread with prompt:', e);
-        }
-      } else {
-        // Create an ephemeral thread for sidebar/selection (not persisted yet)
-        const tempId = `temp_${crypto.randomUUID()}`;
-        const tempThread: Thread = {
-          id: tempId,
-          title: data.title,
-          description: data.description,
-          status: THREAD_STATUS.ACTIVE,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          metadata: data.metadata ?? {},
-        } as Thread;
-        threads.addThread(tempThread);
-        selectedThread = tempThread;
-        messages = [];
-        void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
-      }
+  async function handleSave() {
+    // Require both model and prompt (validation in ThreadCreatePanel ensures this)
+    if (!selectedModel || !newThreadPrompt.trim()) {
+      return;
+    }
+
+    try {
+      // Auto-generate title from prompt
+      const autoTitle = generateTitleFromPrompt(newThreadPrompt);
+
+      // Create thread with prompt atomically
+      const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
+        title: autoTitle,
+        model: selectedModel.id,
+      });
+      const created = res.thread as Thread;
+      threads.addThread(created);
+      selectThread(created);
+      void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
+
       clearUnsavedChanges('add-thread');
       resetThreadForm();
     } catch (error) {
-      console.error('Failed to save thread:', error);
+      console.error('Failed to create thread:', error);
     }
   }
 </script>
@@ -329,7 +319,6 @@
         }
       }}
       on:submit={() => handleSave()}
-      on:reset={() => resetThreadForm()}
     />
   {:else}
     <div class="threads-grid">

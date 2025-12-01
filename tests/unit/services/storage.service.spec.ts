@@ -132,24 +132,24 @@ describe('storage.service', () => {
     });
   });
 
-  describe('getSidebarCollapsed / setSidebarCollapsed', () => {
+  describe('getActivityListCollapsed / setActivityListCollapsed', () => {
     it('should return false when no value is stored', () => {
-      expect(storageService.getSidebarCollapsed()).toBe(false);
+      expect(storageService.getActivityListCollapsed()).toBe(false);
     });
 
-    it('should store and retrieve sidebar collapsed state', () => {
-      storageService.setSidebarCollapsed(true);
-      expect(storageService.getSidebarCollapsed()).toBe(true);
+    it('should store and retrieve activity list collapsed state', () => {
+      storageService.setActivityListCollapsed(true);
+      expect(storageService.getActivityListCollapsed()).toBe(true);
 
-      storageService.setSidebarCollapsed(false);
-      expect(storageService.getSidebarCollapsed()).toBe(false);
+      storageService.setActivityListCollapsed(false);
+      expect(storageService.getActivityListCollapsed()).toBe(false);
     });
 
     it('should handle storage errors gracefully', () => {
       const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('Storage unavailable');
       });
-      expect(storageService.getSidebarCollapsed()).toBe(false);
+      expect(storageService.getActivityListCollapsed()).toBe(false);
       spy.mockRestore();
     });
   });
@@ -229,10 +229,10 @@ describe('storage.service', () => {
       expect(storageService.getLastThreadId()).toBe('thread-123');
     });
 
-    it('should handle existing boolean values for sidebar collapsed', () => {
+    it('should handle existing boolean values for activity list collapsed', () => {
       // Simulate old format (plain string, not JSON)
-      localStorage.setItem('holokai-sidebar-collapsed', JSON.stringify(true));
-      expect(storageService.getSidebarCollapsed()).toBe(true);
+      localStorage.setItem('activityListCollapsed', JSON.stringify(true));
+      expect(storageService.getActivityListCollapsed()).toBe(true);
     });
   });
 });
