@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
 
 vi.mock('electron-store', () => {
   return {
@@ -38,6 +39,7 @@ describe('SettingsService', () => {
     const all = svc.getAllSettings();
     expect(all.mokuWebUrl).toBeDefined();
     expect(all.mokuApiUrl).toBeDefined();
+    expect((all as any).holoApiUrl).toBe(DEFAULT_HOLO_API_URL);
   });
 
   it('get/set setting', () => {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
 
 // Mock electron-store so we can capture constructor options and control store behavior
 vi.mock('electron-store', () => {
@@ -51,6 +52,7 @@ describe('SettingsService (unit)', () => {
     // Basic getters should return defaults
     expect(svc.getMokuWebUrl()).toBe('http://localhost:4200');
     expect(svc.getMokuApiUrl()).toBe('http://localhost:8080');
+    expect(svc.getHoloApiUrl()).toBe(DEFAULT_HOLO_API_URL);
     expect(svc.getTheme()).toBe('light');
     // new fields present with defaults
     const auto = svc.getSetting('autoUpdate');
@@ -92,6 +94,9 @@ describe('SettingsService (unit)', () => {
 
     svc.setSetting('mokuApiUrl', 'http://api');
     expect(svc.getSetting('mokuApiUrl')).toBe('http://api');
+
+    svc.setSetting('holoApiUrl', 'https://example.com');
+    expect(svc.getSetting('holoApiUrl')).toBe('https://example.com');
   });
 
   it('getAllSettings returns underlying store object', async () => {

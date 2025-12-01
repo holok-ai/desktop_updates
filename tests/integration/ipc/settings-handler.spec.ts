@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
 
 const handlers = new Map<string, (...args: any[]) => any>();
 const sentEvents: Array<{ channel: string; args: unknown[] }> = [];
@@ -40,6 +41,7 @@ vi.mock('../../../src-electron/services/settings.service', () => ({
       return {
         mokuWebUrl: 'u',
         mokuApiUrl: 'a',
+        holoApiUrl: DEFAULT_HOLO_API_URL,
         theme: 'light',
         autoUpdate: true,
         updateAvailable: false,
@@ -57,6 +59,9 @@ vi.mock('../../../src-electron/services/settings.service', () => ({
     }
     getMokuApiUrl() {
       return 'a';
+    }
+    getHoloApiUrl() {
+      return DEFAULT_HOLO_API_URL;
     }
     getStorePath() {
       return '/tmp';
