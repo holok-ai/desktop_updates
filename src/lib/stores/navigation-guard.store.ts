@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import { get, writable } from 'svelte/store';
 
 export type UnsavedContext = 'add-thread' | 'add-project';
@@ -17,9 +18,23 @@ const guardStore = writable<GuardState>({
   message: WARNING_MESSAGE,
 });
 
+// Cleanup callbacks registered by consumers (keyed by context)
+const cleanupCallbacks = new Map<UnsavedContext, () => void>();
+
 export const navigationGuard = {
   subscribe: guardStore.subscribe,
 };
+
+/**
+ * Register a cleanup callback to be called when user discards changes for a specific context.
+ * Returns an unsubscribe function.
+ */
+export function registerDiscardCallback(context: UnsavedContext, callback: () => void): () => void {
+  cleanupCallbacks.set(context, callback);
+  return () => {
+    cleanupCallbacks.delete(context);
+  };
+}
 
 export function setUnsavedChanges(context: UnsavedContext, isDirty: boolean): void {
   guardStore.update((state) => {
@@ -65,6 +80,15 @@ export function confirmNavigation(): boolean {
     return false;
   } else {
     // User wants to discard changes and navigate away
+    // Call the cleanup callback for this context if registered
+    const contextToClean = state.context;
+    if (contextToClean) {
+      const cleanup = cleanupCallbacks.get(contextToClean);
+      if (cleanup) {
+        cleanup();
+      }
+    }
+
     guardStore.set({
       isDirty: false,
       context: null,

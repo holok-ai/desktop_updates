@@ -12,7 +12,11 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
-  import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
+  import {
+    clearUnsavedChanges,
+    setUnsavedChanges,
+    registerDiscardCallback,
+  } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
 
   let isLoading = $state(true);
@@ -68,6 +72,16 @@
     // Only track prompt content and model selection as "dirty" state
     const dirty = newThreadPrompt.trim().length > 0 || modelSelectionTouched;
     setUnsavedChanges('add-thread', dirty);
+  });
+
+  // Register cleanup callback for when user discards unsaved thread creation data
+  onMount(() => {
+    const unregisterDiscard = registerDiscardCallback('add-thread', () => {
+      resetThreadForm();
+    });
+    return () => {
+      unregisterDiscard();
+    };
   });
 
   onMount(async () => {
