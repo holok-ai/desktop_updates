@@ -95,7 +95,7 @@
         </button>
         <button
           onclick={selectFolder}
-          class="px-4 py-2 rounded border hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+          class="px-4 py-2 rounded border bg-gray-900 hover:bg-gray-800 dark:hover:bg-gray-800 text-sm"
         >
           Browse...
         </button>
@@ -117,7 +117,7 @@
             <span class="text-sm font-mono flex-1 truncate" title={path}>{path}</span>
             <button
               onclick={() => removePath(path)}
-              class="ml-3 px-3 py-1 rounded text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              class="bg-red-500 ml-3 px-3 py-1 rounded text-sm text-white hover:bg-red-600"
             >
               Remove
             </button>
