@@ -72,8 +72,8 @@ describe('Chat IPC handlers', () => {
   });
 
   it('createProvider success and then send streams tokens', async () => {
-    // call createProvider
-    const createRes = handlers['chat:createProvider'](null, 'ollama', {
+    // call createProvider (it's an async handler)
+    const createRes = await handlers['chat:createProvider'](null, 'ollama', {
       url: 'http://x',
       model: 'm',
       apiKey: 'k',
@@ -127,8 +127,8 @@ describe('Chat IPC handlers', () => {
   });
 
   it('getAuditLogs returns logs when service present and destroy clears service', async () => {
-    // create provider
-    handlers['chat:createProvider'](null, 'ollama', {
+    // create provider (async)
+    await handlers['chat:createProvider'](null, 'ollama', {
       url: 'http://localhost',
       model: 'm',
       apiKey: 'k',

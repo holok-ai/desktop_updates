@@ -47,7 +47,7 @@ describe('Chat IPC handlers - error branches', () => {
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
 
-    const res = handlers['chat:createProvider'](null, 'x', {
+    const res = await handlers['chat:createProvider'](null, 'x', {
       url: 'http://localhost',
       model: 'm',
       apiKey: 'k',
@@ -70,8 +70,8 @@ describe('Chat IPC handlers - error branches', () => {
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
 
-    // initialize service
-    handlers['chat:createProvider'](null, 'x', {
+    // initialize service (async)
+    await handlers['chat:createProvider'](null, 'x', {
       url: 'http://localhost',
       model: 'm',
       apiKey: 'k',
@@ -95,7 +95,7 @@ describe('Chat IPC handlers - error branches', () => {
 
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
-    handlers['chat:createProvider'](null, 'x', {
+    await handlers['chat:createProvider'](null, 'x', {
       url: 'http://localhost',
       model: 'm',
       apiKey: 'k',
@@ -123,7 +123,7 @@ describe('Chat IPC handlers - error branches', () => {
 
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     mod.registerChatHandlers();
-    handlers['chat:createProvider'](null, 'x', {
+    await handlers['chat:createProvider'](null, 'x', {
       url: 'http://localhost',
       model: 'm',
       apiKey: 'k',

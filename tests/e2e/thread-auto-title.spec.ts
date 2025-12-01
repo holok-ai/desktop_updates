@@ -21,61 +21,28 @@ async function navigateToThreads(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 }
 
-async function createNewThread(page: Page): Promise<void> {
+async function createNewThread(page: Page, initialPrompt: string): Promise<void> {
   await navigateToThreads(page);
   await page.waitForTimeout(500);
 
-  // Open create dialog
-  const createBtn = page.getByRole('button', { name: 'Create Thread' });
-  if ((await createBtn.count()) > 0) {
-    await createBtn.click();
-  } else {
-    await page.evaluate(() => {
-      const base = (window as any).location.hash.startsWith('#')
-        ? (window as any).location.hash.split('?')[0]
-        : '#/threads';
-      (window as any).location.hash = base + '?create=';
-    });
-  }
-
-  await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).toBeVisible({
-    timeout: 5000,
-  });
-
-  // Select model
+  // The simplified thread creation form should be visible (model chooser + prompt input)
+  // Model is pre-selected by default
   const modelSelect = page.locator('select#model-select');
   await expect(modelSelect).toBeVisible({ timeout: 3000 });
-  const options = modelSelect.locator('option:not([value=""])');
-  if ((await options.count()) > 0) {
-    const val = await options.nth(0).getAttribute('value');
-    if (val) await modelSelect.selectOption(val);
-  }
 
-  // Leave title empty for auto-generation
-  const descInput = page.getByLabel('Description');
-  if ((await descInput.count()) > 0) {
-    await descInput.fill('E2E test thread for auto-title');
-  }
+  // Fill the prompt and send (this creates the thread)
+  const promptTextarea = page.locator('textarea#thread-prompt');
+  await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+  await promptTextarea.fill(initialPrompt);
 
-  // Create thread
-  const createButton = page.getByRole('button', { name: 'Confirm Create', exact: true });
-  await expect(createButton).toBeVisible({ timeout: 2000 });
-  await createButton.click();
-
-  await expect(page.getByRole('heading', { name: /Create Thread/ })).toHaveCount(0, {
-    timeout: 3000,
-  });
-  await page.waitForTimeout(800);
-}
-
-async function sendMessage(page: Page, message: string): Promise<void> {
-  const textarea = page.locator('textarea[placeholder="Write a message..."]');
-  await expect(textarea).toBeVisible({ timeout: 3000 });
-  await textarea.fill(message);
-
-  const sendButton = page.getByRole('button', { name: 'Send' });
-  await expect(sendButton).toBeVisible({ timeout: 3000 });
+  // Submit by pressing Enter or clicking Send
+  const sendButton = page.getByRole('button', { name: /Send/ });
+  await expect(sendButton).toBeEnabled({ timeout: 2000 });
   await sendButton.click();
+
+  // Wait for thread to be created and chat view to appear
+  await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
+  await page.waitForTimeout(500);
 }
 
 test.describe('E2E: Thread Auto-Title Generation', () => {
@@ -103,15 +70,15 @@ test.describe('E2E: Thread Auto-Title Generation', () => {
     if (app) await app.close();
   });
 
-  test('should auto-generate title after first assistant response', async () => {
+  test('should auto-generate title from initial prompt', async () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
     await mockLogin(page);
-    await createNewThread(page);
 
+    // Create thread with initial prompt - title auto-generated from prompt
     const prompt = 'Test prompt. Reply shortly';
-    await sendMessage(page, prompt);
+    await createNewThread(page, prompt);
 
     // Wait for user message to appear
     await expect(
@@ -124,7 +91,7 @@ test.describe('E2E: Thread Auto-Title Generation', () => {
     // Wait for title generation
     await page.waitForTimeout(2000);
 
-    // Verify title in chat header
+    // Verify title in chat header - should contain text from prompt
     const chatHeader = page.locator('.chat-header h2');
     await expect(chatHeader).toBeVisible({ timeout: 5000 });
     const titleText = await chatHeader.textContent();

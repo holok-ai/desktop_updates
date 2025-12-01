@@ -22,12 +22,23 @@ async function navigateToThreads(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 }
 
-async function createTestThread(page: Page, title: string): Promise<void> {
-  await page.getByRole('menuitem', { name: 'Home' }).click();
-  await page.getByRole('menuitem', { name: 'New Thread' }).click();
-  await page.getByLabel('Title').fill(title);
-  await page.getByLabel('Description').fill('Test thread for file uploads');
-  await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+async function createTestThread(page: Page, initialPrompt: string): Promise<void> {
+  // Navigate to threads to see the simplified create form
+  await navigateToThreads(page);
+  await page.waitForTimeout(300);
+
+  // Model is pre-selected by default, just fill prompt and send
+  const promptTextarea = page.locator('textarea#thread-prompt');
+  await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+  await promptTextarea.fill(initialPrompt);
+
+  // Submit to create thread
+  const sendButton = page.getByRole('button', { name: /Send/ });
+  await expect(sendButton).toBeEnabled({ timeout: 2000 });
+  await sendButton.click();
+
+  // Wait for thread to be created and chat view to appear
+  await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
   await page.waitForTimeout(500);
 }
 
