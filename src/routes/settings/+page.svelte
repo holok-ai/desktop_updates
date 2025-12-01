@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { AppSettings, AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE } from '$lib/constants/app.constant';
+  import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
 
   let isLoading = true;
@@ -11,6 +12,7 @@
   let settings: AppSettings = {
     mokuWebUrl: '',
     mokuApiUrl: '',
+    holoApiUrl: DEFAULT_HOLO_API_URL,
     theme: APP_THEME_MODE.LIGHT,
     autoUpdate: true,
     updateAvailable: false,
@@ -28,6 +30,7 @@
     settings = {
       mokuWebUrl: all.mokuWebUrl,
       mokuApiUrl: all.mokuApiUrl,
+      holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
@@ -40,14 +43,36 @@
     isLoading = false;
   });
 
+  let holoApiUrlError = '';
+
+  function normalizeBaseUrl(url: string): string {
+    return url.replace(/\/+$/, '');
+  }
+
+  function validateHoloApiUrl(url: string): string {
+    if (!url) return 'Holo API URL is required';
+    if (!isValidUrl(url)) return 'Invalid Holo API URL';
+    const normalized = normalizeBaseUrl(url);
+    if (!isValidUrl(normalized)) return 'Invalid Holo API URL';
+    return '';
+  }
+
   async function saveSettings() {
     try {
       if (!isValidUrl(settings.mokuWebUrl)) throw new Error('Invalid Moku Web URL');
       if (!isValidUrl(settings.mokuApiUrl)) throw new Error('Invalid Moku API URL');
+      const holoError = validateHoloApiUrl(settings.holoApiUrl);
+      if (holoError) {
+        holoApiUrlError = holoError;
+        throw new Error(holoError);
+      }
+
+      settings.holoApiUrl = normalizeBaseUrl(settings.holoApiUrl);
 
       await window.electronAPI.settings.setMultiple({
         mokuWebUrl: settings.mokuWebUrl,
         mokuApiUrl: settings.mokuApiUrl,
+        holoApiUrl: settings.holoApiUrl,
         autoUpdate: settings.autoUpdate,
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
@@ -64,6 +89,7 @@
 
   function cancelSettings() {
     settings = { ...savedSettings };
+    holoApiUrlError = '';
     applyTheme(settings.theme);
     persistTheme(settings.theme);
   }
@@ -77,6 +103,10 @@
     }
   }
 
+  $: if (!isLoading) {
+    holoApiUrlError = settings.holoApiUrl ? validateHoloApiUrl(settings.holoApiUrl) : '';
+  }
+
   // Immediate apply + persist theme
   $: if (!isLoading) {
     applyTheme(settings.theme);
@@ -88,11 +118,13 @@
     JSON.stringify({
       mokuWebUrl: settings.mokuWebUrl,
       mokuApiUrl: settings.mokuApiUrl,
+      holoApiUrl: settings.holoApiUrl,
       autoUpdate: settings.autoUpdate,
     }) !==
     JSON.stringify({
       mokuWebUrl: savedSettings.mokuWebUrl,
       mokuApiUrl: savedSettings.mokuApiUrl,
+      holoApiUrl: savedSettings.holoApiUrl,
       autoUpdate: savedSettings.autoUpdate,
     });
 </script>
@@ -130,6 +162,21 @@
             class="w-full p-2 rounded border bg-transparent"
           />
           <small class="text-xs text-gray-500">URL of the Moku API server</small>
+        </div>
+
+        <div class="form-group">
+          <label for="holo-api-url" class="block text-sm font-medium mb-1">Holo API URL</label>
+          <input
+            id="holo-api-url"
+            type="url"
+            bind:value={settings.holoApiUrl}
+            placeholder={DEFAULT_HOLO_API_URL}
+            class="w-full p-2 rounded border bg-transparent"
+          />
+          <small class="text-xs text-gray-500">The base URL for the Holo API endpoint</small>
+          {#if holoApiUrlError}
+            <div class="text-xs text-red-500 mt-1">{holoApiUrlError}</div>
+          {/if}
         </div>
       </div>
     </section>

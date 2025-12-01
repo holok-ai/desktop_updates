@@ -57,9 +57,9 @@
         selectedKey = pre ? pre.provider + '::' + pre.id : '';
       }
 
-      // Emit initial selection if any
+      // Emit initial selection if any (mark as auto-selection)
       const m = parseSelected();
-      if (m) dispatch('modelSelected', m);
+      if (m) dispatch('modelSelected', { model: m, isAuto: true });
     } catch (err: unknown) {
       // Make a best-effort error message
       error = (err as any)?.message ?? String(err);
@@ -79,7 +79,7 @@
 
   function onChange() {
     const m = parseSelected();
-    dispatch('modelSelected', m);
+    dispatch('modelSelected', { model: m, isAuto: false });
   }
 </script>
 

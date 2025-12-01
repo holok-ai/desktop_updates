@@ -210,8 +210,10 @@
         }
       } else {
         // No threadId in URL - clear selection to show create form
+        // Also reset the form state to prevent stale "dirty" flags
         selectedThread = null;
         messages = [];
+        modelSelectionTouched = false;
       }
     });
     return unsubscribe;

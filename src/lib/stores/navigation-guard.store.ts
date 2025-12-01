@@ -9,7 +9,7 @@ interface GuardState {
 }
 
 const WARNING_MESSAGE =
-  'You have entered data. Continue and lose it, or stay on this page to finish?';
+  'You have entered data for a new thread.\n\nPress OK to stay on this page and finish.\nPress Cancel to discard changes.';
 
 const guardStore = writable<GuardState>({
   isDirty: false,
@@ -52,7 +52,18 @@ export function confirmNavigation(): boolean {
   }
 
   const confirmFn = globalThis.confirm;
-  if (confirmFn === undefined || confirmFn(state.message)) {
+  // OK = stay on page (return false to block navigation)
+  // Cancel = discard changes and continue (return true to allow navigation)
+  if (confirmFn === undefined) {
+    return true;
+  }
+
+  const userClickedOK = confirmFn(state.message);
+  if (userClickedOK) {
+    // User wants to stay on the page and finish
+    return false;
+  } else {
+    // User wants to discard changes and navigate away
     guardStore.set({
       isDirty: false,
       context: null,
@@ -60,6 +71,4 @@ export function confirmNavigation(): boolean {
     });
     return true;
   }
-
-  return false;
 }

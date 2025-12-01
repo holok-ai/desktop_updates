@@ -5,6 +5,7 @@ import log from 'electron-log';
 import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'node:fs';
+import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 
 /**
  * Application Settings Service
@@ -19,6 +20,9 @@ export interface AppSettings {
 
   // Moku API URL - backend API endpoint
   mokuApiUrl: string;
+
+  // Holo API URL - base URL for the Holo API endpoint
+  holoApiUrl: string;
 
   // Other settings can be added here
   theme?: 'light' | 'dark';
@@ -39,6 +43,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   // Development Moku API URL
   mokuApiUrl: 'http://localhost:8080',
+
+  // Default Holo API URL (user-configurable)
+  holoApiUrl: DEFAULT_HOLO_API_URL,
 
   // Production alternatives (commented out):
   // mokuWebUrl: 'https://moku.holokai.com',
@@ -77,6 +84,11 @@ export class SettingsService {
           format: 'uri',
           default: DEFAULT_SETTINGS.mokuApiUrl,
         },
+        holoApiUrl: {
+          type: 'string',
+          format: 'uri',
+          default: DEFAULT_SETTINGS.holoApiUrl,
+        },
         theme: {
           type: 'string',
           enum: ['light', 'dark'],
@@ -101,6 +113,7 @@ export class SettingsService {
     log.info('[SettingsService] Config path:', this.getStorePath());
     log.info('[SettingsService] Moku Web URL:', this.getMokuWebUrl());
     log.info('[SettingsService] Moku API URL:', this.getMokuApiUrl());
+    log.info('[SettingsService] Holo API URL:', this.getHoloApiUrl());
 
     // Ensure config file exists on first run: create with defaults if missing
     try {
@@ -157,6 +170,30 @@ export class SettingsService {
   }
 
   /**
+   * Normalize base URL by trimming trailing slashes
+   */
+  private normalizeBaseUrl(url: string): string {
+    return url.replace(/\/+$/, '');
+  }
+
+  /**
+   * Validate URL is HTTP/HTTPS and normalize
+   */
+  private validateAndNormalizeUrl(url: string, field: string): string {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('URL must use http or https');
+      }
+      const normalized = this.normalizeBaseUrl(parsed.toString());
+      return normalized;
+    } catch (err) {
+      log.warn(`[SettingsService] Invalid URL for ${field}:`, url, err);
+      throw new Error(`Invalid URL for ${field}`);
+    }
+  }
+
+  /**
    * Get Moku Web URL (for SSO login)
    */
   public getMokuWebUrl(): string {
@@ -167,8 +204,9 @@ export class SettingsService {
    * Set Moku Web URL
    */
   public setMokuWebUrl(url: string): void {
-    this.store.set('mokuWebUrl', url);
-    log.info('[SettingsService] Moku Web URL updated:', url);
+    const normalized = this.validateAndNormalizeUrl(url, 'mokuWebUrl');
+    this.store.set('mokuWebUrl', normalized);
+    log.info('[SettingsService] Moku Web URL updated:', normalized);
   }
 
   /**
@@ -182,8 +220,25 @@ export class SettingsService {
    * Set Moku API URL
    */
   public setMokuApiUrl(url: string): void {
-    this.store.set('mokuApiUrl', url);
-    log.info('[SettingsService] Moku API URL updated:', url);
+    const normalized = this.validateAndNormalizeUrl(url, 'mokuApiUrl');
+    this.store.set('mokuApiUrl', normalized);
+    log.info('[SettingsService] Moku API URL updated:', normalized);
+  }
+
+  /**
+   * Get Holo API URL
+   */
+  public getHoloApiUrl(): string {
+    return this.store.get('holoApiUrl');
+  }
+
+  /**
+   * Set Holo API URL
+   */
+  public setHoloApiUrl(url: string): void {
+    const normalized = this.validateAndNormalizeUrl(url, 'holoApiUrl');
+    this.store.set('holoApiUrl', normalized);
+    log.info('[SettingsService] Holo API URL updated:', normalized);
   }
 
   /**
