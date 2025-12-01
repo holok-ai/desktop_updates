@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
@@ -35,6 +35,7 @@ export function registerSettingsHandlers(): void {
           mokuWebUrl: 'http://localhost:4200',
           mokuApiUrl: 'http://localhost:8080',
           holoApiUrl: DEFAULT_HOLO_API_URL,
+          fileToolsWhitelist: [],
           theme: 'light',
           logLevel: 'info',
         }) as AppSettings,
@@ -46,6 +47,10 @@ export function registerSettingsHandlers(): void {
       getMokuApiUrl: () => 'http://localhost:8080',
       getHoloApiUrl: () => DEFAULT_HOLO_API_URL,
       getStorePath: () => '',
+      getFileToolsWhitelist: () => [],
+      addWhitelistPath: (_p: string) => {},
+      removeWhitelistPath: (_p: string) => {},
+      setFileToolsWhitelist: (_p: string[]) => {},
     } as unknown as SettingsService;
   }
 
@@ -122,6 +127,55 @@ export function registerSettingsHandlers(): void {
     return Promise.resolve(settingsService.getStorePath());
   });
 
+  /**
+   * Get file tools whitelist
+   */
+  ipcMain.handle('settings:getFileToolsWhitelist', (): Promise<string[]> => {
+    settingsLog.info('GetFileToolsWhitelist called');
+    return Promise.resolve(settingsService.getFileToolsWhitelist());
+  });
+
+  /**
+   * Add path to file tools whitelist
+   */
+  ipcMain.handle('settings:addWhitelistPath', (_event, filePath: string): Promise<void> => {
+    settingsLog.info('AddWhitelistPath called', { filePath });
+    try {
+      settingsService.addWhitelistPath(filePath);
+      return Promise.resolve();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      settingsLog.error('AddWhitelistPath failed', { filePath, error: message });
+      return Promise.reject(new Error(message));
+    }
+  });
+
+  /**
+   * Remove path from file tools whitelist
+   */
+  ipcMain.handle('settings:removeWhitelistPath', (_event, filePath: string): Promise<void> => {
+    settingsLog.info('RemoveWhitelistPath called', { filePath });
+    settingsService.removeWhitelistPath(filePath);
+    return Promise.resolve();
+  });
+
+  /**
+   * Select folder using native dialog
+   */
+  ipcMain.handle('settings:selectFolder', async (): Promise<string | null> => {
+    settingsLog.info('SelectFolder called');
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Folder for File Tools Whitelist',
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+
+    return result.filePaths[0];
+  });
+
   settingsLog.info('Handlers registered');
 }
 
@@ -148,6 +202,10 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:getMokuWebUrl');
   ipcMain.removeHandler('settings:getMokuApiUrl');
   ipcMain.removeHandler('settings:getStorePath');
+  ipcMain.removeHandler('settings:getFileToolsWhitelist');
+  ipcMain.removeHandler('settings:addWhitelistPath');
+  ipcMain.removeHandler('settings:removeWhitelistPath');
+  ipcMain.removeHandler('settings:selectFolder');
 
   settingsLog.info('Handlers unregistered');
 }

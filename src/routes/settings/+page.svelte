@@ -4,6 +4,7 @@
   import { APP_THEME_MODE } from '$lib/constants/app.constant';
   import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
+  import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
 
   let isLoading = true;
   let saveStatus = '';
@@ -13,6 +14,7 @@
     mokuWebUrl: '',
     mokuApiUrl: '',
     holoApiUrl: DEFAULT_HOLO_API_URL,
+    fileToolsWhitelist: [],
     theme: APP_THEME_MODE.LIGHT,
     autoUpdate: true,
     updateAvailable: false,
@@ -31,6 +33,7 @@
       mokuWebUrl: all.mokuWebUrl,
       mokuApiUrl: all.mokuApiUrl,
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
+      fileToolsWhitelist: all.fileToolsWhitelist ?? [],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
@@ -229,6 +232,13 @@
           <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
           <span>Enable automatic updates</span>
         </label>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="mb-2">File Tools</h2>
+      <div class="rounded-lg p-4 bg-[var(--surface-card)]">
+        <FileToolsWhitelist />
       </div>
     </section>
 

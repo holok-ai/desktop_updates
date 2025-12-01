@@ -267,6 +267,12 @@ export interface SettingsAPI {
 
   // Get settings file path
   getStorePath: () => Promise<string>;
+
+  // File tools whitelist management
+  getFileToolsWhitelist: () => Promise<string[]>;
+  addWhitelistPath: (path: string) => Promise<void>;
+  removeWhitelistPath: (path: string) => Promise<void>;
+  selectFolder: () => Promise<string | null>;
 }
 
 /**
@@ -276,6 +282,7 @@ export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
   holoApiUrl: string;
+  fileToolsWhitelist?: string[];
   theme?: AppThemeMode;
   autoUpdate?: boolean;
   updateAvailable?: boolean;
@@ -653,6 +660,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMokuApiUrl: () => ipcRenderer.invoke('settings:getMokuApiUrl'),
 
     getStorePath: () => ipcRenderer.invoke('settings:getStorePath'),
+
+    getFileToolsWhitelist: () => ipcRenderer.invoke('settings:getFileToolsWhitelist'),
+
+    addWhitelistPath: (path: string) => ipcRenderer.invoke('settings:addWhitelistPath', path),
+
+    removeWhitelistPath: (path: string) =>
+      ipcRenderer.invoke('settings:removeWhitelistPath', path),
+
+    selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
   } as SettingsAPI,
 
   /**
