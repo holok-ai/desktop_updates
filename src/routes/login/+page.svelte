@@ -1,9 +1,56 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { push } from 'svelte-spa-router';
   import { authStore } from '../../lib/stores/auth.store';
+
+  type AuthErrorPayload = { error?: string; description?: string; message?: string };
 
   let isLoading = false;
   let isMockLoading = false;
   let provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft';
+  let toastMessage = '';
+  let toastTimeout: number | null = null;
+  let hasNavigatedHome = false;
+
+  onMount(() => {
+    const unsubscribeAuth = authStore.subscribe((state) => {
+      if (state.isAuthenticated) {
+        navigateHome();
+      } else {
+        hasNavigatedHome = false;
+      }
+    });
+
+    const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
+      window.electronAPI.log.info('[Login] Auth callback success received', data);
+      authStore.setAuthState({
+        isAuthenticated: data.isAuthenticated,
+        user: data.user,
+        tokens: null,
+      });
+      navigateHome();
+    });
+
+    const unsubscribeError = window.electronAPI.auth.onAuthCallbackError((error) => {
+      window.electronAPI.log.error('[Login] Auth callback failed', error);
+      showToast(formatAuthError(error));
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeSuccess();
+      unsubscribeError();
+    };
+  });
+
+  function navigateHome(): void {
+    if (hasNavigatedHome) {
+      return;
+    }
+
+    hasNavigatedHome = true;
+    push('/');
+  }
 
   async function handleLogin() {
     isLoading = true;
@@ -11,8 +58,9 @@
       await window.electronAPI.auth.startOAuthFlow();
       window.electronAPI.log.info('OAuth flow initiated');
     } catch (error) {
-      console.error('Login failed:', error);
+      const message = formatAuthError(error);
       window.electronAPI.log.error('Login failed', error);
+      showToast(message);
     } finally {
       isLoading = false;
     }
@@ -24,12 +72,42 @@
       const authState = await window.electronAPI.auth.mockLogin(provider);
       authStore.setAuthState(authState);
       window.electronAPI.log.info('Mock login successful', { provider });
+      navigateHome();
     } catch (error) {
-      console.error('Mock login failed:', error);
+      const message = formatAuthError(error);
       window.electronAPI.log.error('Mock login failed', error);
+      showToast(message);
     } finally {
       isMockLoading = false;
     }
+  }
+
+  function showToast(message: string, duration = 4000): void {
+    toastMessage = message;
+    if (toastTimeout) {
+      window.clearTimeout(toastTimeout);
+    }
+    toastTimeout = window.setTimeout(() => {
+      toastMessage = '';
+      toastTimeout = null;
+    }, duration);
+  }
+
+  function formatAuthError(error: unknown): string {
+    if (typeof error === 'string' && error.trim().length > 0) {
+      return `Login failed: ${error}`;
+    }
+
+    if (error instanceof Error && error.message) {
+      return `Login failed: ${error.message}`;
+    }
+
+    const payload = error as AuthErrorPayload;
+    if (payload?.description || payload?.message) {
+      return `Login failed: ${payload.description ?? payload.message}`;
+    }
+
+    return 'Login failed: Something went wrong, please try again.';
   }
 </script>
 
@@ -68,6 +146,10 @@
     <p class="note">Mock login is for testing purposes only</p>
   </div>
 </div>
+
+{#if toastMessage}
+  <div class="toast">{toastMessage}</div>
+{/if}
 
 <style>
   .login-container {
@@ -192,5 +274,21 @@
     font-size: 14px;
     color: var(--text-secondary);
     text-align: center;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, var(--surface-900) 92%, transparent);
+    color: var(--surface-card);
+    padding: calc(var(--inline-spacing) * 1.2) calc(var(--content-padding) * 1.2);
+    border-radius: var(--border-radius);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--surface-900) 45%, transparent);
+    z-index: 10;
+    min-width: 240px;
+    text-align: center;
+    font-weight: 600;
   }
 </style>

@@ -1,9 +1,19 @@
 <script lang="ts">
-  import { currentUser } from '../../stores/auth.store';
+  import { push } from 'svelte-spa-router';
+  import { ROUTE } from '../../constants/route.constant';
+  import { authStore, currentUser } from '../../stores/auth.store';
 
   async function handleLogout() {
-    await window.electronAPI.auth.logout();
-    window.location.reload();
+    try {
+      await window.electronAPI.auth.logout();
+      authStore.logout();
+      window.electronAPI.log.info('[Header] User logged out');
+    } catch (error) {
+      window.electronAPI.log.error('[Header] Logout failed', error);
+      console.error('Logout failed:', error);
+    } finally {
+      push(ROUTE.LOGIN);
+    }
   }
 </script>
 
