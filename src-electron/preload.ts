@@ -665,8 +665,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     addWhitelistPath: (path: string) => ipcRenderer.invoke('settings:addWhitelistPath', path),
 
-    removeWhitelistPath: (path: string) =>
-      ipcRenderer.invoke('settings:removeWhitelistPath', path),
+    removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
   } as SettingsAPI,

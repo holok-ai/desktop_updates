@@ -124,9 +124,9 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     // Find input and add button within File Tools section
     const pathInput = section.getByPlaceholder(/Enter folder path/i);
     await expect(pathInput).toBeVisible();
-    
+
     await pathInput.fill(testPath);
-    
+
     const addButton = section.locator('button', { hasText: 'Add' }).first();
     await addButton.click();
 
@@ -267,4 +267,3 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     await expect(errorMessage).toBeVisible({ timeout: 2000 });
   });
 });
-

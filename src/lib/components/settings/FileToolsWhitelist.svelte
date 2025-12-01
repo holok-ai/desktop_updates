@@ -18,7 +18,8 @@
     }
 
     if (!isAbsolutePath(trimmed)) {
-      errorMessage = 'Path must be absolute (e.g., /Users/name/project or C:\\\\path\\\\to\\\\folder)';
+      errorMessage =
+        'Path must be absolute (e.g., /Users/name/project or C:\\\\path\\\\to\\\\folder)';
       return;
     }
 
@@ -72,33 +73,33 @@
   </div>
 
   <div class="mb-4">
-      <div class="flex gap-2">
-        <input
-          type="text"
-          bind:value={newPath}
-          onkeydown={handleKeydown}
-          placeholder="Enter folder path (e.g., /home/user/projects)"
-          class="flex-1 p-2 rounded border bg-transparent text-sm"
-        />
-        <button
-          onclick={addPath}
-          class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
-        >
-          <i class="pi pi-plus text-xs"></i>
-          <span class="text-white">Add</span>
-        </button>
-        <button
-          onclick={selectFolder}
-          class="px-4 py-2 rounded border bg-gray-900 hover:bg-gray-800 dark:hover:bg-gray-800 text-sm"
-        >
-          Browse...
-        </button>
-      </div>
-
-      {#if errorMessage}
-        <div class="mt-2 text-xs text-red-500">{errorMessage}</div>
-      {/if}
+    <div class="flex gap-2">
+      <input
+        type="text"
+        bind:value={newPath}
+        onkeydown={handleKeydown}
+        placeholder="Enter folder path (e.g., /home/user/projects)"
+        class="flex-1 p-2 rounded border bg-transparent text-sm"
+      />
+      <button
+        onclick={addPath}
+        class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
+      >
+        <i class="pi pi-plus text-xs"></i>
+        <span class="text-white">Add</span>
+      </button>
+      <button
+        onclick={selectFolder}
+        class="px-4 py-2 rounded border bg-gray-900 hover:bg-gray-800 dark:hover:bg-gray-800 text-sm"
+      >
+        Browse...
+      </button>
     </div>
+
+    {#if errorMessage}
+      <div class="mt-2 text-xs text-red-500">{errorMessage}</div>
+    {/if}
+  </div>
 
   {#if paths.length === 0}
     <div class="text-sm text-gray-500 p-4 rounded border border-dashed">
@@ -107,7 +108,9 @@
   {:else}
     <ul class="space-y-2">
       {#each paths as path}
-        <li class="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[var(--input-border)] bg-[var(--surface-card)]">
+        <li
+          class="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[var(--input-border)] bg-[var(--surface-card)]"
+        >
           <span class="text-sm font-mono flex-1 truncate" title={path}>{path}</span>
           <button
             onclick={() => removePath(path)}
