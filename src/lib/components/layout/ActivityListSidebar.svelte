@@ -303,11 +303,7 @@
   <!-- New Thread button - only visible for Threads activity when not collapsed -->
   {#if isThreadActivity && !isCollapsed}
     <div class="new-thread-container">
-      <button
-        class="new-thread-btn"
-        onclick={handleNewThread}
-        aria-label="Create new thread"
-      >
+      <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
         <i class="pi pi-plus"></i>
         <span>New Thread ...</span>
       </button>
