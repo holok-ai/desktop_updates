@@ -275,6 +275,7 @@ export interface SettingsAPI {
 export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
+  holoApiUrl: string;
   theme?: AppThemeMode;
   autoUpdate?: boolean;
   updateAvailable?: boolean;
