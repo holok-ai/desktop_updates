@@ -33,13 +33,16 @@
       mokuWebUrl: all.mokuWebUrl,
       mokuApiUrl: all.mokuApiUrl,
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
-      fileToolsWhitelist: all.fileToolsWhitelist ?? [],
+      fileToolsWhitelist: [...(all.fileToolsWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
     };
-    savedSettings = { ...settings };
+    savedSettings = {
+      ...settings,
+      fileToolsWhitelist: [...settings.fileToolsWhitelist],
+    };
     appVersion = version;
 
     applyTheme(settings.theme);
@@ -76,12 +79,16 @@
         mokuWebUrl: settings.mokuWebUrl,
         mokuApiUrl: settings.mokuApiUrl,
         holoApiUrl: settings.holoApiUrl,
+        fileToolsWhitelist: settings.fileToolsWhitelist,
         autoUpdate: settings.autoUpdate,
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
       });
 
-      savedSettings = { ...settings };
+      savedSettings = {
+        ...settings,
+        fileToolsWhitelist: [...settings.fileToolsWhitelist],
+      };
       saveStatus = 'Settings saved successfully!';
       setTimeout(() => (saveStatus = ''), 3000);
     } catch (error: unknown) {
@@ -91,7 +98,10 @@
   }
 
   function cancelSettings() {
-    settings = { ...savedSettings };
+    settings = {
+      ...savedSettings,
+      fileToolsWhitelist: [...savedSettings.fileToolsWhitelist],
+    };
     holoApiUrlError = '';
     applyTheme(settings.theme);
     persistTheme(settings.theme);
@@ -122,12 +132,14 @@
       mokuWebUrl: settings.mokuWebUrl,
       mokuApiUrl: settings.mokuApiUrl,
       holoApiUrl: settings.holoApiUrl,
+      fileToolsWhitelist: settings.fileToolsWhitelist,
       autoUpdate: settings.autoUpdate,
     }) !==
     JSON.stringify({
       mokuWebUrl: savedSettings.mokuWebUrl,
       mokuApiUrl: savedSettings.mokuApiUrl,
       holoApiUrl: savedSettings.holoApiUrl,
+      fileToolsWhitelist: savedSettings.fileToolsWhitelist,
       autoUpdate: savedSettings.autoUpdate,
     });
 </script>
@@ -214,6 +226,13 @@
     </section>
 
     <section class="mb-6">
+      <h2 class="mb-2">File Tools</h2>
+      <div class="rounded-lg p-4 bg-[var(--surface-card)]">
+        <FileToolsWhitelist bind:paths={settings.fileToolsWhitelist} />
+      </div>
+    </section>
+
+    <section class="mb-6">
       <h2 class="mb-2">Updates</h2>
       <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
         <div class="text-sm">
@@ -232,13 +251,6 @@
           <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
           <span>Enable automatic updates</span>
         </label>
-      </div>
-    </section>
-
-    <section class="mb-6">
-      <h2 class="mb-2">File Tools</h2>
-      <div class="rounded-lg p-4 bg-[var(--surface-card)]">
-        <FileToolsWhitelist />
       </div>
     </section>
 
