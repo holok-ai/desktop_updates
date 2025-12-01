@@ -107,7 +107,7 @@
   {:else}
     <ul class="space-y-2">
       {#each paths as path}
-        <li class="flex items-center gap-3 p-3 rounded border bg-[var(--surface-card)]">
+        <li class="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[var(--input-border)] bg-[var(--surface-card)]">
           <span class="text-sm font-mono flex-1 truncate" title={path}>{path}</span>
           <button
             onclick={() => removePath(path)}
