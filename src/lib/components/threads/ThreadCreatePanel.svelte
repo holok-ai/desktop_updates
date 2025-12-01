@@ -55,7 +55,8 @@
   }
 
   function handleModelSelected(e: CustomEvent) {
-    const m = e.detail as MokuModel | null;
+    const detail = e.detail as { model: MokuModel | null; isAuto: boolean };
+    const m = detail.model;
     if (m) {
       selectedModel = m;
       formData.metadata = {
@@ -63,7 +64,7 @@
         model: m.id,
         provider: m.provider,
       };
-      dispatch('modelSelectionChange', { model: m, isAuto: false });
+      dispatch('modelSelectionChange', { model: m, isAuto: detail.isAuto });
     }
   }
 </script>
