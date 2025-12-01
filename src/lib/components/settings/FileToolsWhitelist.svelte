@@ -85,7 +85,7 @@
           class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
         >
           <i class="pi pi-plus text-xs"></i>
-          <span>Add</span>
+          <span class="text-white">Add</span>
         </button>
         <button
           onclick={selectFolder}
@@ -114,7 +114,7 @@
             class="remove-btn flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-sm text-red-500 hover:text-red-400"
           >
             <i class="pi pi-trash"></i>
-            <span>Remove</span>
+            <span class="text-white">Remove</span>
           </button>
         </li>
       {/each}
