@@ -159,7 +159,7 @@ export class SettingsService {
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
     this.store.set(key, value);
-    log.info(`[SettingsService] Setting updated: ${key} = ${value}`);
+    log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
   }
 
   /**
