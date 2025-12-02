@@ -166,59 +166,64 @@
     bind:this={profileSection}
     role="region"
     aria-label="User profile"
-    onmouseenter={() => (showProfileMenu = true)}
+    onmouseenter={() => {
+      if ($isAuthenticated) {
+        showProfileMenu = true;
+      }
+    }}
     onmouseleave={() => (showProfileMenu = false)}
   >
-    {#if $isAuthenticated}
-      <button
-        class="profile-trigger"
-        tabindex="0"
-        aria-haspopup="true"
-        aria-expanded={showProfileMenu}
-        aria-label="Open profile menu"
+    <button
+      class="profile-trigger"
+      tabindex="0"
+      aria-haspopup="true"
+      aria-expanded={$isAuthenticated && showProfileMenu}
+      aria-label="Open profile menu"
+      onkeydown={(event) => {
+        if (!$isAuthenticated) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showProfileMenu = !showProfileMenu;
+        }
+        if (event.key === 'Escape') {
+          showProfileMenu = false;
+        }
+      }}
+    >
+      <i class="pi pi-user profile-trigger-icon"></i>
+    </button>
+    <span class="profile-name" aria-hidden="true">
+      {$isAuthenticated && $currentUser?.name ? $currentUser.name : 'User'}
+    </span>
+
+    {#if $isAuthenticated && showProfileMenu}
+      <div
+        class="profile-menu-panel"
+        role="menu"
+        tabindex="-1"
         onkeydown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            showProfileMenu = !showProfileMenu;
-          }
           if (event.key === 'Escape') {
+            event.stopPropagation();
             showProfileMenu = false;
           }
         }}
       >
-        <i class="pi pi-user profile-trigger-icon"></i>
-      </button>
-      <span class="profile-name" aria-hidden="true">{$currentUser?.name ?? 'User'}</span>
-
-      {#if showProfileMenu}
-        <div
-          class="profile-menu-panel"
-          role="menu"
-          tabindex="-1"
-          onkeydown={(event) => {
-            if (event.key === 'Escape') {
-              event.stopPropagation();
-              showProfileMenu = false;
-            }
+        <button
+          class="profile-menu-button"
+          role="menuitem"
+          onclick={() => {
+            showProfileMenu = false;
+            push(ROUTE.SETTINGS);
           }}
         >
-          <button
-            class="profile-menu-button"
-            role="menuitem"
-            onclick={() => {
-              showProfileMenu = false;
-              push(ROUTE.SETTINGS);
-            }}
-          >
-            <i class="pi pi-cog"></i>
-            <span>Settings</span>
-          </button>
-          <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
-            <i class="pi pi-sign-out"></i>
-            <span>Logout</span>
-          </button>
-        </div>
-      {/if}
+          <i class="pi pi-cog"></i>
+          <span>Settings</span>
+        </button>
+        <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
+          <i class="pi pi-sign-out"></i>
+          <span>Logout</span>
+        </button>
+      </div>
     {/if}
   </div>
 </nav>

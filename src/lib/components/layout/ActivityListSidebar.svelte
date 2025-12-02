@@ -32,6 +32,7 @@
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
   let showRenameModal = $state(false);
+  let renameError = $state('');
 
   let selectedProjectId: string | null = $state(null);
 
@@ -242,6 +243,7 @@
   function handleRenameStart(item: { id: string; label: string }) {
     renamingThreadId = item.id;
     renamingThreadTitle = item.label;
+    renameError = '';
     showRenameModal = true;
   }
 
@@ -250,6 +252,8 @@
    */
   async function handleRenameSave() {
     if (!renamingThreadId) return;
+
+    renameError = '';
 
     try {
       const result = await (window.electronAPI.thread as any).renameThread(
@@ -263,13 +267,20 @@
         renamingThreadTitle = '';
         showRenameModal = false;
       } else {
-        // Show error to user
+        // Map error codes to user-friendly messages
+        const errorMessages: Record<string, string> = {
+          TITLE_EMPTY: 'Title cannot be empty',
+          TITLE_TOO_SHORT: 'Title is too short',
+          TITLE_TOO_LONG: 'Title cannot exceed 200 characters',
+          TITLE_DUPLICATE: 'A thread with this title already exists',
+          TITLE_INVALID_CHARACTERS: 'Title contains invalid characters',
+        };
+        renameError = errorMessages[result.code || ''] || result.error || 'Failed to rename thread';
         console.error('Failed to rename thread:', result.error);
-        throw new Error(result.error || 'Failed to rename thread');
       }
     } catch (error) {
+      renameError = error instanceof Error ? error.message : 'Failed to rename thread';
       console.error('Error renaming thread:', error);
-      throw error;
     }
   }
 
@@ -279,6 +290,7 @@
   function handleRenameCancel() {
     renamingThreadId = null;
     renamingThreadTitle = '';
+    renameError = '';
     showRenameModal = false;
   }
 </script>
@@ -374,6 +386,7 @@
 <BaseModal
   bind:show={showRenameModal}
   title="Rename Thread"
+  error={renameError}
   submitLabel="Save"
   cancelLabel="Cancel"
   submitDisabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
