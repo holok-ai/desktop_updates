@@ -34,4 +34,3 @@ function createToastStore(): ToastStore {
 }
 
 export const toastStore = createToastStore();
-
