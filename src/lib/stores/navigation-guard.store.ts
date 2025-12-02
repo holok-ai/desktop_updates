@@ -9,6 +9,14 @@ interface GuardState {
   message: string;
 }
 
+// Modal state for the custom confirmation dialog
+export interface ConfirmModalState {
+  show: boolean;
+  message: string;
+  onStay: (() => void) | null;
+  onDiscard: (() => void) | null;
+}
+
 const WARNING_MESSAGE =
   'You have entered data for a new thread.\n\nPress OK to stay on this page and finish.\nPress Cancel to discard changes.';
 
@@ -16,6 +24,14 @@ const guardStore = writable<GuardState>({
   isDirty: false,
   context: null,
   message: WARNING_MESSAGE,
+});
+
+// Store for the confirmation modal state
+export const confirmModalStore = writable<ConfirmModalState>({
+  show: false,
+  message: '',
+  onStay: null,
+  onDiscard: null,
 });
 
 // Cleanup callbacks registered by consumers (keyed by context)
@@ -60,15 +76,81 @@ export function clearUnsavedChanges(context?: UnsavedContext): void {
   });
 }
 
+/**
+ * Hide the confirmation modal
+ */
+export function hideConfirmModal(): void {
+  confirmModalStore.set({
+    show: false,
+    message: '',
+    onStay: null,
+    onDiscard: null,
+  });
+}
+
+/**
+ * Request navigation - if there are unsaved changes, shows a custom modal.
+ * Returns true if navigation can proceed immediately, false if modal was shown.
+ *
+ * @param onProceed - Callback to execute if user confirms navigation (discards changes)
+ */
+export function requestNavigation(onProceed: () => void): boolean {
+  const state = get(guardStore);
+
+  if (!state.isDirty) {
+    // No unsaved changes, proceed immediately
+    return true;
+  }
+
+  // Show the custom confirmation modal
+  confirmModalStore.set({
+    show: true,
+    message: state.message,
+    onStay: () => {
+      // User wants to stay - just hide the modal
+      hideConfirmModal();
+    },
+    onDiscard: () => {
+      // User wants to discard changes and navigate
+      // Call the cleanup callback for this context if registered
+      const contextToClean = state.context;
+      if (contextToClean) {
+        const cleanup = cleanupCallbacks.get(contextToClean);
+        if (cleanup) {
+          cleanup();
+        }
+      }
+
+      guardStore.set({
+        isDirty: false,
+        context: null,
+        message: WARNING_MESSAGE,
+      });
+
+      hideConfirmModal();
+
+      // Execute the navigation callback
+      onProceed();
+    },
+  });
+
+  // Return false to indicate navigation was blocked (modal shown)
+  return false;
+}
+
+/**
+ * @deprecated Use requestNavigation() instead to avoid native dialog focus issues.
+ * Synchronous check - only use for cases where async modal isn't possible.
+ */
 export function confirmNavigation(): boolean {
   const state = get(guardStore);
   if (!state.isDirty) {
     return true;
   }
 
+  // Fallback to native confirm - but this causes focus issues in Electron
+  // Prefer using requestNavigation() with the custom modal
   const confirmFn = globalThis.confirm;
-  // OK = stay on page (return false to block navigation)
-  // Cancel = discard changes and continue (return true to allow navigation)
   if (confirmFn === undefined) {
     return true;
   }
@@ -80,7 +162,6 @@ export function confirmNavigation(): boolean {
     return false;
   } else {
     // User wants to discard changes and navigate away
-    // Call the cleanup callback for this context if registered
     const contextToClean = state.context;
     if (contextToClean) {
       const cleanup = cleanupCallbacks.get(contextToClean);

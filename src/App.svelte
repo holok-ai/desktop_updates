@@ -3,6 +3,7 @@
   import { authStore } from './lib/stores/auth.store';
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Login from './routes/login/+page.svelte';
+  import ConfirmNavigationModal from './lib/components/modals/ConfirmNavigationModal.svelte';
   import type { AuthState } from '../src-electron/services/auth.service';
   import '$lib/services/menu-navigation.service';
 
@@ -62,6 +63,9 @@
 {:else}
   <Login />
 {/if}
+
+<!-- Global navigation confirmation modal -->
+<ConfirmNavigationModal />
 
 <style>
   .loading {
