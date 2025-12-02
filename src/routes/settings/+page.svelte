@@ -14,7 +14,7 @@
     mokuWebUrl: '',
     mokuApiUrl: '',
     holoApiUrl: DEFAULT_HOLO_API_URL,
-    fileToolsWhitelist: [],
+    directoryWhitelist: [],
     theme: APP_THEME_MODE.LIGHT,
     autoUpdate: true,
     updateAvailable: false,
@@ -33,7 +33,7 @@
       mokuWebUrl: all.mokuWebUrl,
       mokuApiUrl: all.mokuApiUrl,
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
-      fileToolsWhitelist: [...(all.fileToolsWhitelist ?? [])],
+      directoryWhitelist: [...(all.directoryWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
@@ -41,7 +41,7 @@
     };
     savedSettings = {
       ...settings,
-      fileToolsWhitelist: [...settings.fileToolsWhitelist],
+      directoryWhitelist: [...settings.directoryWhitelist],
     };
     appVersion = version;
 
@@ -79,7 +79,7 @@
         mokuWebUrl: settings.mokuWebUrl,
         mokuApiUrl: settings.mokuApiUrl,
         holoApiUrl: settings.holoApiUrl,
-        fileToolsWhitelist: settings.fileToolsWhitelist,
+        directoryWhitelist: settings.directoryWhitelist,
         autoUpdate: settings.autoUpdate,
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
@@ -87,7 +87,7 @@
 
       savedSettings = {
         ...settings,
-        fileToolsWhitelist: [...settings.fileToolsWhitelist],
+        directoryWhitelist: [...settings.directoryWhitelist],
       };
       saveStatus = 'Settings saved successfully!';
       setTimeout(() => (saveStatus = ''), 3000);
@@ -100,7 +100,7 @@
   function cancelSettings() {
     settings = {
       ...savedSettings,
-      fileToolsWhitelist: [...savedSettings.fileToolsWhitelist],
+      directoryWhitelist: [...savedSettings.directoryWhitelist],
     };
     holoApiUrlError = '';
     applyTheme(settings.theme);
@@ -132,14 +132,14 @@
       mokuWebUrl: settings.mokuWebUrl,
       mokuApiUrl: settings.mokuApiUrl,
       holoApiUrl: settings.holoApiUrl,
-      fileToolsWhitelist: settings.fileToolsWhitelist,
+      directoryWhitelist: settings.directoryWhitelist,
       autoUpdate: settings.autoUpdate,
     }) !==
     JSON.stringify({
       mokuWebUrl: savedSettings.mokuWebUrl,
       mokuApiUrl: savedSettings.mokuApiUrl,
       holoApiUrl: savedSettings.holoApiUrl,
-      fileToolsWhitelist: savedSettings.fileToolsWhitelist,
+      directoryWhitelist: savedSettings.directoryWhitelist,
       autoUpdate: savedSettings.autoUpdate,
     });
 </script>
@@ -228,7 +228,7 @@
     <section class="mb-6">
       <h2 class="mb-2">File Tools</h2>
       <div class="rounded-lg p-4 bg-[var(--surface-card)]">
-        <FileToolsWhitelist bind:paths={settings.fileToolsWhitelist} />
+        <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
       </div>
     </section>
 

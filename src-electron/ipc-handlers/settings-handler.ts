@@ -35,7 +35,7 @@ export function registerSettingsHandlers(): void {
           mokuWebUrl: 'http://localhost:4200',
           mokuApiUrl: 'http://localhost:8080',
           holoApiUrl: DEFAULT_HOLO_API_URL,
-          fileToolsWhitelist: [],
+          directoryWhitelist: [],
           theme: 'light',
           logLevel: 'info',
         }) as AppSettings,
@@ -47,10 +47,10 @@ export function registerSettingsHandlers(): void {
       getMokuApiUrl: () => 'http://localhost:8080',
       getHoloApiUrl: () => DEFAULT_HOLO_API_URL,
       getStorePath: () => '',
-      getFileToolsWhitelist: () => [],
+      getDirectoryWhitelist: () => [],
       addWhitelistPath: (_p: string) => {},
       removeWhitelistPath: (_p: string) => {},
-      setFileToolsWhitelist: (_p: string[]) => {},
+      setDirectoryWhitelist: (_p: string[]) => {},
     } as unknown as SettingsService;
   }
 
@@ -128,11 +128,11 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
-   * Get file tools whitelist
+   * Get directory whitelist
    */
-  ipcMain.handle('settings:getFileToolsWhitelist', (): Promise<string[]> => {
-    settingsLog.info('GetFileToolsWhitelist called');
-    return Promise.resolve(settingsService.getFileToolsWhitelist());
+  ipcMain.handle('settings:getDirectoryWhitelist', (): Promise<string[]> => {
+    settingsLog.info('GetDirectoryWhitelist called');
+    return Promise.resolve(settingsService.getDirectoryWhitelist());
   });
 
   /**
@@ -202,7 +202,7 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:getMokuWebUrl');
   ipcMain.removeHandler('settings:getMokuApiUrl');
   ipcMain.removeHandler('settings:getStorePath');
-  ipcMain.removeHandler('settings:getFileToolsWhitelist');
+  ipcMain.removeHandler('settings:getDirectoryWhitelist');
   ipcMain.removeHandler('settings:addWhitelistPath');
   ipcMain.removeHandler('settings:removeWhitelistPath');
   ipcMain.removeHandler('settings:selectFolder');

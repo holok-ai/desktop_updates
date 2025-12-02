@@ -24,8 +24,8 @@ export interface AppSettings {
   // Holo API URL - base URL for the Holo API endpoint
   holoApiUrl: string;
 
-  // File Tools Whitelist - trusted folders for LLM file system access
-  fileToolsWhitelist: string[];
+  // Directory Whitelist - trusted directories for file system access
+  directoryWhitelist: string[];
 
   // Other settings can be added here
   theme?: 'light' | 'dark';
@@ -50,8 +50,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Default Holo API URL (user-configurable)
   holoApiUrl: DEFAULT_HOLO_API_URL,
 
-  // File Tools Whitelist - empty by default
-  fileToolsWhitelist: [],
+  // Directory Whitelist - empty by default
+  directoryWhitelist: [],
 
   // Production alternatives (commented out):
   // mokuWebUrl: 'https://moku.holokai.com',
@@ -112,10 +112,10 @@ export class SettingsService {
           type: 'string',
           default: DEFAULT_SETTINGS.latestVersion,
         },
-        fileToolsWhitelist: {
+        directoryWhitelist: {
           type: 'array',
           items: { type: 'string' },
-          default: DEFAULT_SETTINGS.fileToolsWhitelist,
+          default: DEFAULT_SETTINGS.directoryWhitelist,
         },
       },
     } as any); // TODO: Reason to put any in here to pass the unit test since it require passing projectName. Will need define real type in future
@@ -275,15 +275,15 @@ export class SettingsService {
   }
 
   /**
-   * Get file tools whitelist
+   * Get directory whitelist
    */
-  public getFileToolsWhitelist(): string[] {
-    const whitelist = this.store.get('fileToolsWhitelist', []);
+  public getDirectoryWhitelist(): string[] {
+    const whitelist = this.store.get('directoryWhitelist', []);
     return Array.isArray(whitelist) ? [...whitelist] : [];
   }
 
   /**
-   * Add a path to the file tools whitelist
+   * Add a path to the directory whitelist
    */
   public addWhitelistPath(filePath: string): void {
     if (!path.isAbsolute(filePath)) {
@@ -295,34 +295,34 @@ export class SettingsService {
       throw new Error('Path does not exist');
     }
 
-    const whitelist = this.getFileToolsWhitelist();
+    const whitelist = this.getDirectoryWhitelist();
     const normalized = path.normalize(filePath);
 
     if (!whitelist.includes(normalized)) {
       whitelist.push(normalized);
-      this.store.set('fileToolsWhitelist', whitelist);
+      this.store.set('directoryWhitelist', whitelist);
       log.info('[SettingsService] Added whitelist path:', normalized);
     }
   }
 
   /**
-   * Remove a path from the file tools whitelist
+   * Remove a path from the directory whitelist
    */
   public removeWhitelistPath(filePath: string): void {
-    const whitelist = this.getFileToolsWhitelist();
+    const whitelist = this.getDirectoryWhitelist();
     const normalized = path.normalize(filePath);
     const filtered = whitelist.filter((p) => p !== normalized);
 
-    this.store.set('fileToolsWhitelist', filtered);
+    this.store.set('directoryWhitelist', filtered);
     log.info('[SettingsService] Removed whitelist path:', normalized);
   }
 
   /**
-   * Set the entire file tools whitelist
+   * Set the entire directory whitelist
    */
-  public setFileToolsWhitelist(paths: string[]): void {
+  public setDirectoryWhitelist(paths: string[]): void {
     const normalized = paths.map((p) => path.normalize(p));
-    this.store.set('fileToolsWhitelist', normalized);
+    this.store.set('directoryWhitelist', normalized);
     log.info('[SettingsService] Whitelist updated:', normalized);
   }
 }

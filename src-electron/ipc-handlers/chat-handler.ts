@@ -53,7 +53,7 @@ export function registerChatHandlers(auth?: AuthService): void {
 
         // Get whitelist from settings
         const settingsService = getSettingsService();
-        const allowedPaths = settingsService.getFileToolsWhitelist();
+        const allowedPaths = settingsService.getDirectoryWhitelist();
 
         chatService = new ChatService(providerType, config, true, allowedPaths);
         log.info('[IPC] Chat service created successfully with whitelist', {

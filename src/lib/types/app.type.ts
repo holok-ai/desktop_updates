@@ -7,7 +7,7 @@ export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
   holoApiUrl: string;
-  fileToolsWhitelist: string[];
+  directoryWhitelist: string[];
   theme: AppThemeMode;
   autoUpdate: boolean;
 
@@ -20,7 +20,7 @@ export const defaultAppSettings: AppSettings = {
   mokuWebUrl: '',
   mokuApiUrl: '',
   holoApiUrl: DEFAULT_HOLO_API_URL,
-  fileToolsWhitelist: [],
+  directoryWhitelist: [],
   theme: APP_THEME_MODE.LIGHT as AppThemeMode,
   autoUpdate: false,
 };

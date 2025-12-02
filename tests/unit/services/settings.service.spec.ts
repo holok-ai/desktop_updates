@@ -110,22 +110,22 @@ describe('SettingsService (unit)', () => {
     if (typeof au === 'boolean') expect(au).toBe(true);
   });
 
-  it('initializes fileToolsWhitelist as empty array by default', async () => {
+  it('initializes directoryWhitelist as empty array by default', async () => {
     const { SettingsService } = await import('../../../src-electron/services/settings.service');
     const svc = new SettingsService();
 
     const all = svc.getAllSettings() as any;
-    expect(Array.isArray(all.fileToolsWhitelist)).toBe(true);
-    expect(all.fileToolsWhitelist.length).toBe(0);
+    expect(Array.isArray(all.directoryWhitelist)).toBe(true);
+    expect(all.directoryWhitelist.length).toBe(0);
   });
 
-  it('fileToolsWhitelist getters return a copy of the array', async () => {
+  it('directoryWhitelist getters return a copy of the array', async () => {
     const { SettingsService } = await import('../../../src-electron/services/settings.service');
     const svc = new SettingsService();
 
-    svc.setFileToolsWhitelist(['/tmp/folder1']);
-    const wl1 = svc.getFileToolsWhitelist();
-    const wl2 = svc.getFileToolsWhitelist();
+    svc.setDirectoryWhitelist(['/tmp/folder1']);
+    const wl1 = svc.getDirectoryWhitelist();
+    const wl2 = svc.getDirectoryWhitelist();
 
     expect(wl1).not.toBe(wl2);
     expect(wl1).toEqual(wl2);
