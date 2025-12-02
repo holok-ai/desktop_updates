@@ -91,12 +91,12 @@ export function hideConfirmModal(): void {
 /**
  * Request navigation - if there are unsaved changes, shows a custom modal.
  * Returns true if navigation can proceed immediately, false if modal was shown.
- * 
+ *
  * @param onProceed - Callback to execute if user confirms navigation (discards changes)
  */
 export function requestNavigation(onProceed: () => void): boolean {
   const state = get(guardStore);
-  
+
   if (!state.isDirty) {
     // No unsaved changes, proceed immediately
     return true;
@@ -128,7 +128,7 @@ export function requestNavigation(onProceed: () => void): boolean {
       });
 
       hideConfirmModal();
-      
+
       // Execute the navigation callback
       onProceed();
     },
