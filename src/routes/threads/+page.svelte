@@ -224,15 +224,10 @@
         }
       } else {
         // No threadId in URL - clear selection to show create form
-        // Check if we're coming from a different view (thread was selected before)
-        const wasViewingThread = selectedThread !== null;
+        // Also reset the form state to prevent stale "dirty" flags
         selectedThread = null;
         messages = [];
-        // Reset form when entering add-thread view from thread view
-        // This ensures clean state after navigation (including after discard)
-        if (wasViewingThread) {
-          resetThreadForm();
-        }
+        modelSelectionTouched = false;
       }
     });
     return unsubscribe;

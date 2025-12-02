@@ -233,22 +233,6 @@ export function registerChatHandlers(auth?: AuthService): void {
     }
   });
 
-  /**
-   * Close Chat Provider - Alias for destroy (cleanup current chat service)
-   */
-  ipcMain.handle('chat:close', (): { success: boolean } => {
-    log.info('[IPC] chat:close called');
-
-    try {
-      chatService = null;
-      log.info('[IPC] Chat service closed successfully');
-      return { success: true };
-    } catch (error) {
-      log.error('[IPC] Error closing chat service:', error);
-      throw error;
-    }
-  });
-
   log.info('[IPC] Chat handlers registered');
 }
 
@@ -263,7 +247,6 @@ export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:setFileToolsWorkingDirectory');
   ipcMain.removeHandler('chat:getAuditLogs');
   ipcMain.removeHandler('chat:destroy');
-  ipcMain.removeHandler('chat:close');
 
   // Clean up service instance
   chatService = null;
