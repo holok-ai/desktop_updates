@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import ModelChooser from '$lib/components/ModelChooser.svelte';
   import type { Thread, MokuModel } from '../../../../src-electron/preload';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
@@ -27,6 +27,14 @@
 
   // Derived state for validation - require both model AND non-empty prompt
   const canSubmit = $derived(selectedModel !== null && newThreadPrompt.trim().length > 0);
+
+  // Auto-focus prompt input on mount
+  onMount(() => {
+    // Small delay to ensure DOM is ready after model chooser loads
+    setTimeout(() => {
+      promptTextarea?.focus();
+    }, 100);
+  });
 
   function handleSubmit(event: Event) {
     event.preventDefault();
