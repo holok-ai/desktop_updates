@@ -3,6 +3,8 @@
   import { authStore } from './lib/stores/auth.store';
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Login from './routes/login/+page.svelte';
+  import Toast from './lib/components/Toast.svelte';
+  import { toastStore } from './lib/services/toast.service';
   import type { AuthState } from '../src-electron/services/auth.service';
   import '$lib/services/menu-navigation.service';
 
@@ -10,16 +12,18 @@
   let authState = $state<AuthState>({ isAuthenticated: false, user: null, tokens: null });
 
   // Load initial auth state
-  onMount(async () => {
-    try {
-      const state = await window.electronAPI.auth.getAuthState();
-      authStore.setAuthState(state);
-      authState = state;
-    } catch (error) {
-      console.error('Failed to load auth state:', error);
-    } finally {
-      isLoading = false;
-    }
+  onMount(() => {
+    (async () => {
+      try {
+        const state = await window.electronAPI.auth.getAuthState();
+        authStore.setAuthState(state);
+        authState = state;
+      } catch (error) {
+        console.error('Failed to load auth state:', error);
+      } finally {
+        isLoading = false;
+      }
+    })();
 
     // Listen for OAuth callback success
     const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
@@ -29,6 +33,9 @@
         user: data.user,
         tokens: null, // tokens stay in main process
       });
+      if (data.user?.name) {
+        toastStore.show(`${data.user.name} successfully logged in.`);
+      }
     });
 
     // Listen for OAuth callback errors
@@ -62,6 +69,8 @@
 {:else}
   <Login />
 {/if}
+
+<Toast />
 
 <style>
   .loading {

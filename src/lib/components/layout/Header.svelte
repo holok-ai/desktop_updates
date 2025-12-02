@@ -2,12 +2,17 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '../../constants/route.constant';
   import { authStore, currentUser } from '../../stores/auth.store';
+  import { toastStore } from '../../services/toast.service';
 
   async function handleLogout() {
+    const userName = $currentUser?.name;
     try {
       await window.electronAPI.auth.logout();
       authStore.logout();
       window.electronAPI.log.info('[Header] User logged out');
+      if (userName) {
+        toastStore.show(`${userName} has been logged out.`);
+      }
     } catch (error) {
       window.electronAPI.log.error('[Header] Logout failed', error);
       console.error('Logout failed:', error);

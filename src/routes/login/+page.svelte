@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { authStore } from '../../lib/stores/auth.store';
+  import { toastStore } from '../../lib/services/toast.service';
 
   type AuthErrorPayload = { error?: string; description?: string; message?: string };
 
@@ -28,6 +29,9 @@
         user: data.user,
         tokens: null,
       });
+      if (data.user?.name) {
+        toastStore.show(`${data.user.name} successfully logged in.`);
+      }
       navigateHome();
     });
 
@@ -72,6 +76,9 @@
       const authState = await window.electronAPI.auth.mockLogin(provider);
       authStore.setAuthState(authState);
       window.electronAPI.log.info('Mock login successful', { provider });
+      if (authState.user?.name) {
+        toastStore.show(`${authState.user.name} successfully logged in.`);
+      }
       navigateHome();
     } catch (error) {
       const message = formatAuthError(error);
