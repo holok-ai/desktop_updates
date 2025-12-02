@@ -30,7 +30,7 @@
         tokens: null,
       });
       if (data.user?.name) {
-        toastStore.show(`${data.user.name} successfully logged in.`);
+        toastStore.show(`${data.user.name} successfully logged in.`, { variant: 'success' });
       }
       navigateHome();
     });
@@ -77,7 +77,7 @@
       authStore.setAuthState(authState);
       window.electronAPI.log.info('Mock login successful', { provider });
       if (authState.user?.name) {
-        toastStore.show(`${authState.user.name} successfully logged in.`);
+        toastStore.show(`${authState.user.name} successfully logged in.`, { variant: 'success' });
       }
       navigateHome();
     } catch (error) {

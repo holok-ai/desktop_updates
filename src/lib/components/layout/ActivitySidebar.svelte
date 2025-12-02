@@ -34,7 +34,7 @@
       authStore.logout();
       window.electronAPI.log.info('[Sidebar] User logged out');
       if (userName) {
-        toastStore.show(`${userName} has been logged out.`);
+        toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
       }
     } catch (error) {
       window.electronAPI.log.error('[Sidebar] Logout failed', error);

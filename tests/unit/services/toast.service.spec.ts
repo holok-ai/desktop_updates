@@ -22,7 +22,7 @@ describe('toast.service', () => {
   });
 
   it('show sets toast message with id and clears after duration', () => {
-    toastStore.show('Hello world', 1000);
+    toastStore.show('Hello world', { duration: 1000 });
 
     expect(lastToast).not.toBeNull();
     expect(lastToast?.message).toBe('Hello world');
@@ -35,7 +35,7 @@ describe('toast.service', () => {
   });
 
   it('hide clears toast immediately', () => {
-    toastStore.show('Will be cleared', 5000);
+    toastStore.show('Will be cleared', { duration: 5000 });
     expect(lastToast).not.toBeNull();
 
     toastStore.hide();
@@ -44,7 +44,7 @@ describe('toast.service', () => {
   });
 
   it('show with zero duration does not auto-clear', () => {
-    toastStore.show('Persistent', 0);
+    toastStore.show('Persistent', { duration: 0 });
 
     expect(lastToast).not.toBeNull();
     expect(lastToast?.message).toBe('Persistent');
@@ -55,3 +55,5 @@ describe('toast.service', () => {
     expect(lastToast?.message).toBe('Persistent');
   });
 });
+
+

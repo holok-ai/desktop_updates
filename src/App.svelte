@@ -19,7 +19,7 @@
         authStore.setAuthState(state);
         authState = state;
       } catch (error) {
-        console.error('Failed to load auth state:', error);
+        window.electronAPI.log.error('[App] Failed to load auth state', error);
       } finally {
         isLoading = false;
       }
@@ -34,15 +34,14 @@
         tokens: null, // tokens stay in main process
       });
       if (data.user?.name) {
-        toastStore.show(`${data.user.name} successfully logged in.`);
+        toastStore.show(`${data.user.name} successfully logged in.`, { variant: 'success' });
       }
     });
 
     // Listen for OAuth callback errors
     const unsubscribeError = window.electronAPI.auth.onAuthCallbackError((error) => {
       window.electronAPI.log.error('[App] OAuth callback error received', error);
-      console.error('OAuth authentication failed:', error.description);
-      // Could show error message to user here
+      window.electronAPI.log.error('[App] OAuth authentication failed', error.description);
     });
 
     // Cleanup listeners when component unmounts

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { toastStore } from '../services/toast.service';
 
-  const { position = 'bottom-center' } = $props<{
+  const { position = 'top-right' } = $props<{
     position?:
       | 'top'
       | 'bottom'
@@ -17,7 +17,9 @@
       | 'right-center';
   }>();
 
-  let toast = $state<{ id: string; message: string; duration?: number } | null>(null);
+  let toast = $state<{ id: string; message: string; duration?: number; variant?: string } | null>(
+    null,
+  );
 
   toastStore.subscribe((value) => {
     toast = value;
@@ -25,7 +27,7 @@
 </script>
 
 {#if toast}
-  <div class={`toast ${position} dark:bg-surface-0 light:bg-surface-800`} role="alert">
+  <div class={`toast ${position} ${toast.variant ?? 'success'}`} role="alert">
     <span class="toast-message">{toast.message}</span>
   </div>
 {/if}
@@ -40,7 +42,6 @@
     z-index: 10000;
     min-width: 240px;
     max-width: 400px;
-    font-weight: 600;
     text-align: center;
     animation: slideUp 0.3s ease-out;
   }
@@ -49,10 +50,26 @@
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+    line-clamp: 3;
     overflow: hidden;
     text-overflow: ellipsis;
     word-break: break-word;
-    color: #fff;
+    color: var(--surface-0);
+  }
+
+  .toast.success {
+    background: var(--green-500);
+    color: var(--surface-0);
+  }
+
+  .toast.warning {
+    background: var(--yellow-500);
+    color: var(--surface-900);
+  }
+
+  .toast.error {
+    background: var(--error-color);
+    color: var(--surface-0);
   }
 
   .toast.top {
