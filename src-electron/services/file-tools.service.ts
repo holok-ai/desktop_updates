@@ -58,7 +58,6 @@ export interface WriteFileParams {
   content: string;
   overwrite?: boolean;
   encoding?: 'utf-8' | 'ascii' | 'latin1';
-  create_directories?: boolean;
 }
 
 export interface WriteFileResult {
@@ -180,10 +179,6 @@ export class FileToolsService {
               type: 'string',
               enum: ['utf-8', 'ascii', 'latin1'],
               description: 'Text encoding. Default: utf-8',
-            },
-            create_directories: {
-              type: 'boolean',
-              description: "If true, create parent directories if they don't exist. Default: true",
             },
           },
           required: ['path', 'content'],
@@ -389,7 +384,6 @@ export class FileToolsService {
       content,
       overwrite = false,
       encoding = 'utf-8',
-      create_directories = true,
     } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
@@ -422,10 +416,10 @@ export class FileToolsService {
     }
 
     const parentDir = path.dirname(resolvedPath);
-    // Parent directory handling
+    // Check if parent directory exists
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     const parentExists = fs.existsSync(parentDir);
-    if (!parentExists && !create_directories) {
+    if (!parentExists) {
       return {
         success: false,
         error: 'DIR_NOT_FOUND: Parent directory does not exist',
@@ -433,17 +427,10 @@ export class FileToolsService {
     }
 
     try {
-      // Create parent directories if needed
-      if (!parentExists && create_directories) {
-        // eslint-disable-next-line security/detect-non-literal-fs-filename
-        await fs.promises.mkdir(parentDir, { recursive: true });
-      }
-
       log.info('[FileToolsService] write_file operation', {
         path: resolvedPath,
         overwrite,
         encoding,
-        create_directories,
       });
 
       // Write the file

@@ -223,25 +223,10 @@ describe('FileToolsService - Integration', () => {
       expect(written).toBe('original');
     });
 
-    it('should create parent directories when create_directories is true', async () => {
-      const result = await service.executeTool('write_file', {
-        path: path.join('nested', 'dir', 'file.txt'),
-        content: 'nested content',
-        create_directories: true,
-      });
-
-      expect(result.success).toBe(true);
-      const filePath = path.join(testDir, 'nested', 'dir', 'file.txt');
-      expect(fs.existsSync(filePath)).toBe(true);
-      const written = fs.readFileSync(filePath, 'utf-8');
-      expect(written).toBe('nested content');
-    });
-
-    it('should fail when parent directory does not exist and create_directories is false', async () => {
+    it('should fail when parent directory does not exist', async () => {
       const result = await service.executeTool('write_file', {
         path: path.join('nested', 'dir', 'file.txt'),
         content: 'content',
-        create_directories: false,
       });
 
       expect(result.success).toBe(false);

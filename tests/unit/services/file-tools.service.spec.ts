@@ -107,7 +107,6 @@ describe('FileToolsService', () => {
       expect(writeFile?.input_schema.properties.content).toBeDefined();
       expect(writeFile?.input_schema.properties.overwrite).toBeDefined();
       expect(writeFile?.input_schema.properties.encoding).toBeDefined();
-      expect(writeFile?.input_schema.properties.create_directories).toBeDefined();
     });
   });
 
@@ -136,8 +135,11 @@ describe('FileToolsService', () => {
     });
 
     it('should execute write_file tool', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-      (fs.promises.mkdir as any).mockResolvedValue(undefined);
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('test.txt')) return false;
+        return true; // Parent directory exists
+      });
       (fs.promises.writeFile as any).mockResolvedValue(undefined);
       (fs.promises.stat as any).mockResolvedValue({
         isFile: () => true,
@@ -527,8 +529,11 @@ describe('FileToolsService', () => {
     });
 
     it('should create a new file when it does not exist', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-      (fs.promises.mkdir as any).mockResolvedValue(undefined);
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('newfile.txt')) return false;
+        return true; // Parent directory exists
+      });
       (fs.promises.writeFile as any).mockResolvedValue(undefined);
       (fs.promises.stat as any).mockResolvedValue({
         size: 5,
@@ -575,31 +580,16 @@ describe('FileToolsService', () => {
       expect(result.data.created).toBe(false);
     });
 
-    it('should create parent directories when create_directories is true', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => !p.includes('nested'));
-      (fs.promises.mkdir as any).mockResolvedValue(undefined);
-      (fs.promises.writeFile as any).mockResolvedValue(undefined);
-      (fs.promises.stat as any).mockResolvedValue({
-        size: 4,
-        mtimeMs: 1234567890,
+    it('should return error when parent directory does not exist', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory doesn't exist
+        if (p.includes('nested')) return false;
+        return true;
       });
 
       const result = await service.executeTool('write_file', {
         path: './nested/dir/file.txt',
         content: 'data',
-      });
-
-      expect(result.success).toBe(true);
-      expect(fs.promises.mkdir).toHaveBeenCalled();
-    });
-
-    it('should return error when parent directory does not exist and create_directories is false', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-
-      const result = await service.executeTool('write_file', {
-        path: './nested/dir/file.txt',
-        content: 'data',
-        create_directories: false,
       });
 
       expect(result.success).toBe(false);
@@ -619,8 +609,11 @@ describe('FileToolsService', () => {
     });
 
     it('should map permission errors', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-      (fs.promises.mkdir as any).mockResolvedValue(undefined);
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('file.txt')) return false;
+        return true; // Parent directory exists
+      });
       (fs.promises.writeFile as any).mockRejectedValue({ code: 'EACCES', message: 'denied' });
 
       const result = await service.executeTool('write_file', {
@@ -633,8 +626,11 @@ describe('FileToolsService', () => {
     });
 
     it('should map disk full errors', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-      (fs.promises.mkdir as any).mockResolvedValue(undefined);
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('file.txt')) return false;
+        return true; // Parent directory exists
+      });
       (fs.promises.writeFile as any).mockRejectedValue({ code: 'ENOSPC', message: 'no space' });
 
       const result = await service.executeTool('write_file', {
