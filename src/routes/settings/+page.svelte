@@ -4,10 +4,10 @@
   import { APP_THEME_MODE } from '$lib/constants/app.constant';
   import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
+  import { toastStore } from '$lib/services/toast.service';
   import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
 
   let isLoading = true;
-  let saveStatus = '';
   let appVersion = '';
 
   let settings: AppSettings = {
@@ -89,11 +89,10 @@
         ...settings,
         directoryWhitelist: [...settings.directoryWhitelist],
       };
-      saveStatus = 'Settings saved successfully!';
-      setTimeout(() => (saveStatus = ''), 3000);
+      toastStore.show('Settings were saved successfully.', { variant: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      saveStatus = `Error: ${message}`;
+      toastStore.show(message, { variant: 'error' });
     }
   }
 
@@ -272,12 +271,6 @@
         <span class="!text-black">Cancel</span>
       </button>
     </div>
-
-    {#if saveStatus}
-      <div class="status-message mt-3" class:error={saveStatus.includes('Error')}>
-        {saveStatus}
-      </div>
-    {/if}
   {/if}
 </div>
 
@@ -285,8 +278,5 @@
   .loading {
     text-align: center;
     padding: 3rem;
-  }
-  .status-message {
-    font-size: 0.875rem;
   }
 </style>

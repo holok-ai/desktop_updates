@@ -298,15 +298,14 @@
    * Navigate to thread creation interface
    */
   function handleNewThread() {
- const proceed = () => {
-    // Clear any selected thread and navigate to threads page (shows create form)
-    selectedThreadId = null;
-    storageService.removeLastThreadId();
-    push(ROUTE.THREADS);
+    const proceed = () => {
+      // Clear any selected thread and navigate to threads page (shows create form)
+      selectedThreadId = null;
+      storageService.removeLastThreadId();
+      push(ROUTE.THREADS);
     };
 
-    if (requestNavigation(proceed)) 
-      proceed();
+    if (requestNavigation(proceed)) proceed();
   }
 </script>
 

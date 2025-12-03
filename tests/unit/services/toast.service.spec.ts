@@ -55,5 +55,3 @@ describe('toast.service', () => {
     expect(lastToast?.message).toBe('Persistent');
   });
 });
-
-
