@@ -28,6 +28,8 @@ vi.mock('fs', async () => {
       readdir: vi.fn(),
       stat: vi.fn(),
       readFile: vi.fn(),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
     },
     existsSync: vi.fn(),
   };
@@ -64,9 +66,9 @@ describe('FileToolsService', () => {
   });
 
   describe('getToolDefinitions', () => {
-    it('should return two tool definitions', () => {
+    it('should return three tool definitions', () => {
       const tools = service.getToolDefinitions();
-      expect(tools).toHaveLength(2);
+      expect(tools).toHaveLength(3);
     });
 
     it('should include read_folder tool with correct schema', () => {
@@ -93,6 +95,19 @@ describe('FileToolsService', () => {
       expect(readFile?.input_schema.properties.start_line).toBeDefined();
       expect(readFile?.input_schema.properties.end_line).toBeDefined();
     });
+
+    it('should include write_file tool with correct schema', () => {
+      const tools = service.getToolDefinitions();
+      const writeFile = tools.find((t) => t.name === 'write_file');
+      expect(writeFile).toBeDefined();
+      expect(writeFile?.input_schema.type).toBe('object');
+      expect(writeFile?.input_schema.required).toContain('path');
+      expect(writeFile?.input_schema.required).toContain('content');
+      expect(writeFile?.input_schema.properties.path).toBeDefined();
+      expect(writeFile?.input_schema.properties.content).toBeDefined();
+      expect(writeFile?.input_schema.properties.overwrite).toBeDefined();
+      expect(writeFile?.input_schema.properties.encoding).toBeDefined();
+    });
   });
 
   describe('executeTool', () => {
@@ -117,6 +132,28 @@ describe('FileToolsService', () => {
 
       const result = await service.executeTool('read_file', { file_path: './test.txt' });
       expect(result.success).toBe(true);
+    });
+
+    it('should execute write_file tool', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('test.txt')) return false;
+        return true; // Parent directory exists
+      });
+      (fs.promises.writeFile as any).mockResolvedValue(undefined);
+      (fs.promises.stat as any).mockResolvedValue({
+        isFile: () => true,
+        isDirectory: () => false,
+        size: 10,
+        mtimeMs: 1234567890,
+      });
+
+      const result = await service.executeTool('write_file', {
+        path: './test.txt',
+        content: 'hello',
+      });
+      expect(result.success).toBe(true);
+      expect(result.data.created).toBe(true);
     });
 
     it('should return error for unknown tool', async () => {
@@ -479,6 +516,130 @@ describe('FileToolsService', () => {
       });
       expect(result.success).toBe(true);
       expect(fs.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
+    });
+  });
+
+  describe('writeFile', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      (fs.existsSync as any).mockReturnValue(false);
+      (fs.promises.mkdir as any).mockReset();
+      (fs.promises.writeFile as any).mockReset();
+      (fs.promises.stat as any).mockReset();
+    });
+
+    it('should create a new file when it does not exist', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('newfile.txt')) return false;
+        return true; // Parent directory exists
+      });
+      (fs.promises.writeFile as any).mockResolvedValue(undefined);
+      (fs.promises.stat as any).mockResolvedValue({
+        size: 5,
+        mtimeMs: 1234567890,
+      });
+
+      const result: ToolResult = await service.executeTool('write_file', {
+        path: './newfile.txt',
+        content: 'hello',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.created).toBe(true);
+      expect(result.data.bytes_written).toBe(Buffer.byteLength('hello', 'utf-8'));
+    });
+
+    it('should return error when file exists and overwrite is false', async () => {
+      (fs.existsSync as any).mockReturnValue(true);
+
+      const result = await service.executeTool('write_file', {
+        path: './existing.txt',
+        content: 'data',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('FILE_EXISTS');
+    });
+
+    it('should overwrite existing file when overwrite is true', async () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.promises.writeFile as any).mockResolvedValue(undefined);
+      (fs.promises.stat as any).mockResolvedValue({
+        size: 4,
+        mtimeMs: 1234567890,
+      });
+
+      const result: ToolResult = await service.executeTool('write_file', {
+        path: './existing.txt',
+        content: 'data',
+        overwrite: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.created).toBe(false);
+    });
+
+    it('should return error when parent directory does not exist', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory doesn't exist
+        if (p.includes('nested')) return false;
+        return true;
+      });
+
+      const result = await service.executeTool('write_file', {
+        path: './nested/dir/file.txt',
+        content: 'data',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('DIR_NOT_FOUND');
+    });
+
+    it('should validate encoding and return error for invalid encoding', async () => {
+      const result = await service.executeTool('write_file', {
+        path: './file.txt',
+        content: 'data',
+        // @ts-expect-error testing invalid runtime encoding
+        encoding: 'utf16',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('INVALID_ENCODING');
+    });
+
+    it('should map permission errors', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('file.txt')) return false;
+        return true; // Parent directory exists
+      });
+      (fs.promises.writeFile as any).mockRejectedValue({ code: 'EACCES', message: 'denied' });
+
+      const result = await service.executeTool('write_file', {
+        path: './file.txt',
+        content: 'data',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('PERMISSION_DENIED');
+    });
+
+    it('should map disk full errors', async () => {
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        // Parent directory exists, file doesn't
+        if (p.includes('file.txt')) return false;
+        return true; // Parent directory exists
+      });
+      (fs.promises.writeFile as any).mockRejectedValue({ code: 'ENOSPC', message: 'no space' });
+
+      const result = await service.executeTool('write_file', {
+        path: './file.txt',
+        content: 'data',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('DISK_FULL');
     });
   });
 
