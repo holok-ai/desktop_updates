@@ -173,7 +173,8 @@ export class FileToolsService {
             },
             overwrite: {
               type: 'boolean',
-              description: 'If true, overwrite existing file. If false, fail if file exists. Default: false',
+              description:
+                'If true, overwrite existing file. If false, fail if file exists. Default: false',
             },
             encoding: {
               type: 'string',
@@ -182,8 +183,7 @@ export class FileToolsService {
             },
             create_directories: {
               type: 'boolean',
-              description:
-                "If true, create parent directories if they don't exist. Default: true",
+              description: "If true, create parent directories if they don't exist. Default: true",
             },
           },
           required: ['path', 'content'],
