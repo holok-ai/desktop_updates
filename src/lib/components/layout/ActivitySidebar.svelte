@@ -10,7 +10,7 @@
   import SidebarItem from '../common/SidebarItem.svelte';
   import { projectService } from '$lib/services/project.service';
   import { storageService } from '$lib/services/storage.service';
-  import { confirmNavigation } from '$lib/stores/navigation-guard.store';
+  import { requestNavigation } from '$lib/stores/navigation-guard.store';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
@@ -116,10 +116,17 @@
   });
 
   function handleNavigate(activity: SidebarActivity) {
-    if (!confirmNavigation()) return;
-    selected = activity.id;
-    dispatch('select', activity);
-    if (activity.route) push(activity.route);
+    const proceed = () => {
+      selected = activity.id;
+      dispatch('select', activity);
+      if (activity.route) push(activity.route);
+    };
+
+    // If no unsaved changes, requestNavigation returns true and we proceed immediately
+    // If there are unsaved changes, it shows the modal and returns false
+    if (requestNavigation(proceed)) {
+      proceed();
+    }
   }
 
   function setMode(mode: AppThemeMode) {

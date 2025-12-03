@@ -49,32 +49,14 @@ test.describe('E2E: Model selection on thread start', () => {
     const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
     await expect(threadsMenuItem).toBeVisible();
     await threadsMenuItem.click();
-    await page.waitForTimeout(500); // Wait for threads page to load
+    await page.waitForTimeout(500);
 
-    // Open create dialog: use visible CTA if present, else force query param
-    const createCta = page.getByRole('button', { name: 'Create Thread' });
-    if (await createCta.count()) {
-      await createCta.click();
-    } else {
-      // Trigger route query to open dialog
-      await page.evaluate(() => {
-        const base = (window as any).location.hash.startsWith('#')
-          ? (window as any).location.hash.split('?')[0]
-          : '#/threads';
-        (window as any).location.hash = base + '?create=';
-      });
-    }
-
-    // Wait for dialog to appear
-    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).toBeVisible();
-
-    // Wait for model chooser select
+    // The simplified thread creation form should be visible
+    // with model chooser and prompt input
     const select = page.locator('select#model-select');
-    await expect(select).toBeVisible();
+    await expect(select).toBeVisible({ timeout: 3000 });
 
-    // Choose a non-default model if available. Be robust: if the exact option
-    // is not present, pick the first non-empty option value available. Record
-    // the actual selected value so we can assert persistence matches it.
+    // Choose a non-default model if available
     let selectedValue: string | null = null;
     const desired = 'openai::gpt-4o-mini';
     const desiredOption = select.locator(`option[value="${desired}"]`);
@@ -90,72 +72,70 @@ test.describe('E2E: Model selection on thread start', () => {
         selectedValue = desired;
       }
     } else {
-      const options = select.locator('option:not([value=""])');
-      const optCount = await options.count();
-      if (optCount > 0) {
-        const val = await options.nth(0).getAttribute('value');
-        if (val) {
-          await select.selectOption(val);
-          selectedValue = val;
+      // Get the current selection (default model)
+      selectedValue = await select.inputValue();
+      if (!selectedValue) {
+        const options = select.locator('option');
+        const optCount = await options.count();
+        if (optCount > 0) {
+          const val = await options.nth(0).getAttribute('value');
+          if (val) {
+            selectedValue = val;
+          }
         }
-      } else {
-        throw new Error('No model options available to select in ModelChooser');
       }
     }
 
-    // Confirm create (model selection is now optional - temp thread created)
-    await page.getByLabel('Title').fill('E2E Model Thread');
-    await page.getByLabel('Description').fill('Testing model selection persistence');
-    // Note: Model selection is optional for temp threads; will persist after first response
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    // Fill prompt and create thread (simplified flow)
+    const promptText = 'E2E Model Selection Test - Just respond with OK';
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+    await promptTextarea.fill(promptText);
 
-    // Wait for dialog to close
-    await expect(page.getByRole('heading', { name: /Create Thread|Edit Thread/ })).not.toBeVisible({
-      timeout: 5000,
-    });
+    // Send to create thread
+    const sendButton = page.getByRole('button', { name: /Send/ });
+    await expect(sendButton).toBeEnabled({ timeout: 2000 });
+    await sendButton.click();
 
-    // Wait for thread to appear in sidebar (as a menuitem in the threads accordion)
-    // The thread should appear in the ActivityListSidebar
-    // Use .first() to handle strict mode violation (duplicate items)
-    const threadItem = page.getByRole('menuitem', { name: 'E2E Model Thread' }).first();
-    await expect(threadItem).toBeVisible({ timeout: 10000 });
+    // Wait for chat view to appear (thread created)
+    await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
 
-    // Send a message to persist the thread (temp threads only persist after first response)
-    await threadItem.click();
-    const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible({ timeout: 3000 });
-    await textarea.fill('Just response "Okay"');
-    await textarea.press('Enter');
+    // Wait for user message to appear
+    await expect(
+      page.locator('.messages .message.user .message-content', { hasText: promptText }),
+    ).toBeVisible({ timeout: 5000 });
 
     // Wait for response to start
     await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
       timeout: 30000,
     });
 
-    // Wait for streaming to complete - check that streaming class is removed
-    // If streaming doesn't complete, wait for a reasonable timeout and check if message exists
+    // Wait for streaming to complete
     try {
       await expect(page.locator('.messages .message.assistant.streaming')).toBeHidden({
         timeout: 60000,
       });
     } catch {
-      // If streaming doesn't stop, check if we have at least one assistant message
-      // This handles cases where streaming indicator might not be removed properly
       const assistantMessages = page.locator('.messages .message.assistant .message-content');
       await expect(assistantMessages.first()).toBeVisible({ timeout: 5000 });
-      // Give it a bit more time for streaming to potentially complete
       await page.waitForTimeout(2000);
     }
 
-    // Verify model persisted by checking thread metadata via IPC after persistence
-    const threadMetadata = await page.evaluate(async (title) => {
+    // Verify model persisted by checking thread metadata via IPC
+    // Title is now auto-generated from prompt, so we search by prompt content
+    const threadMetadata = await page.evaluate(async (prompt) => {
       const threads = await (window as any).electronAPI.thread.getAll();
-      const thread = threads.find((t: any) => t.title === title);
+      // Find thread that was just created (most recent with matching title pattern)
+      const thread = threads.find((t: any) => t.title && t.title.includes('E2E Model Selection'));
       return thread?.metadata;
-    }, 'E2E Model Thread');
+    }, promptText);
 
     expect(threadMetadata).toBeDefined();
-    // Note: Model selection in dialog may not persist to temp thread until first response
-    // The model might be stored in metadata or used from thread settings
+    // Model should be stored in metadata
+    if (selectedValue) {
+      const [provider, modelId] = selectedValue.split('::');
+      expect(threadMetadata.provider).toBe(provider);
+      expect(threadMetadata.model).toBe(modelId);
+    }
   });
 });

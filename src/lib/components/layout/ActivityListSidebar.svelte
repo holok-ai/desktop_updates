@@ -12,7 +12,7 @@
   import type { Project } from '$lib/types/project.type';
   import { storageService } from '$lib/services/storage.service';
   import BaseModal from '$lib/components/modals/BaseModal.svelte';
-  import { confirmNavigation } from '$lib/stores/navigation-guard.store';
+  import { requestNavigation } from '$lib/stores/navigation-guard.store';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -125,47 +125,59 @@
   });
 
   function select(item: { id: string; label: string; route?: string }) {
-    if (!confirmNavigation()) return;
-    dispatch('select', item);
-    selectedThreadId = item.id;
-    storageService.setLastThreadId(item.id);
-    if (!selectedProjectId) {
-      storageService.removeLastProjectId();
-    }
-
-    const route = (item as SidebarActivity).route;
-
-    switch (route) {
-      case ROUTE.THREADS: {
-        selectedThreadId = item.id;
-        storageService.setLastThreadId(item.id);
-        if (!selectedProjectId) {
-          storageService.removeLastProjectId();
-        }
-        const params = new URLSearchParams();
-        params.set('threadId', item.id);
-        if (selectedProjectId) {
-          params.set('projectId', selectedProjectId);
-          storageService.setLastProjectId(selectedProjectId);
-        }
-        push(`${ROUTE.THREADS}?${params.toString()}`);
-        break;
+    const proceed = () => {
+      dispatch('select', item);
+      selectedThreadId = item.id;
+      storageService.setLastThreadId(item.id);
+      if (!selectedProjectId) {
+        storageService.removeLastProjectId();
       }
-      default:
-        break;
+
+      const route = (item as SidebarActivity).route;
+
+      switch (route) {
+        case ROUTE.THREADS: {
+          selectedThreadId = item.id;
+          storageService.setLastThreadId(item.id);
+          if (!selectedProjectId) {
+            storageService.removeLastProjectId();
+          }
+          const params = new URLSearchParams();
+          params.set('threadId', item.id);
+          if (selectedProjectId) {
+            params.set('projectId', selectedProjectId);
+            storageService.setLastProjectId(selectedProjectId);
+          }
+          push(`${ROUTE.THREADS}?${params.toString()}`);
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    // If no unsaved changes, requestNavigation returns true and we proceed immediately
+    if (requestNavigation(proceed)) {
+      proceed();
     }
   }
 
   function selectProject(project: Project) {
-    if (!confirmNavigation()) return;
-    selectedProjectId = project.id;
-    storageService.setLastProjectId(project.id);
-    dispatch('select', {
-      id: project.id,
-      label: project.title,
-      route: ROUTE.PROJECTS,
-    });
-    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+    const proceed = () => {
+      selectedProjectId = project.id;
+      storageService.setLastProjectId(project.id);
+      dispatch('select', {
+        id: project.id,
+        label: project.title,
+        route: ROUTE.PROJECTS,
+      });
+      push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+    };
+
+    // If no unsaved changes, requestNavigation returns true and we proceed immediately
+    if (requestNavigation(proceed)) {
+      proceed();
+    }
   }
 
   function toggleSidebar() {

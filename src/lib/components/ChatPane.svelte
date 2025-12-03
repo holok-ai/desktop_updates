@@ -452,6 +452,58 @@
       initializeChatService();
     }
   });
+
+  // Track which threads we've already auto-sent for (to avoid duplicate sends)
+  let autoSentForThreadId: string | null = null;
+
+  // Auto-send initial message when thread is created with a prompt but no AI response yet
+  $effect(() => {
+    // Skip if no thread, chat service not ready, or already streaming
+    if (!currentThread || !chatServiceCreated || isStreaming) return;
+
+    // Skip if we've already auto-sent for this thread
+    if (autoSentForThreadId === currentThread.id) return;
+
+    // Check if there's exactly one user message with no assistant response
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const assistantMessages = messages.filter((m) => m.role === 'assistant');
+
+    if (userMessages.length === 1 && assistantMessages.length === 0) {
+      const initialPrompt = userMessages[0].content;
+
+      // Mark this thread as having been auto-sent
+      autoSentForThreadId = currentThread.id;
+
+      // Trigger AI response for the initial message
+      (async () => {
+        try {
+          isStreaming = true;
+          setupTokenListener();
+
+          const request = {
+            messages: [{ role: 'user', content: initialPrompt }],
+            streaming: true,
+            model: modelName,
+          };
+
+          const result = await window.electronAPI.chat.chat(request);
+
+          if (!result.success) {
+            error = result.error || 'Chat failed';
+            console.error('Chat failed:', result.error);
+          } else {
+            // Save the assistant response
+            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt);
+          }
+        } catch (err) {
+          error = err instanceof Error ? err.message : 'Unknown error';
+          console.error('Error sending initial message:', err);
+        } finally {
+          isStreaming = false;
+        }
+      })();
+    }
+  });
 </script>
 
 {#if !currentThread}

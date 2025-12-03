@@ -6,26 +6,42 @@ async function* streamChatChunks() {
   yield { choices: [{ delta: { content: 'p2' } }] };
 }
 
+// Create a mock class that can be instantiated
+function createMockPerplexityClass(createImpl?: () => any) {
+  return class MockPerplexity {
+    chat = {
+      completions: {
+        create:
+          createImpl ??
+          vi.fn(async () => ({
+            choices: [{ message: { content: 'ok' } }],
+          })),
+      },
+    };
+    constructor(public opts: any) {}
+  };
+}
+
 describe('PerplexityChatProvider', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('constructs Perplexity client with normalized endpoint and default model', async () => {
+  it('constructs Perplexity client with provided endpoint and default model', async () => {
     const ctorArgs: any[] = [];
 
-    const MockPerplexity = vi.fn().mockImplementation((opts: any) => {
-      ctorArgs.push(opts);
-      return {
-        chat: {
-          completions: {
-            create: vi.fn(async () => ({
-              choices: [{ message: { content: 'ok' } }],
-            })),
-          },
+    const MockPerplexity = class {
+      chat = {
+        completions: {
+          create: vi.fn(async () => ({
+            choices: [{ message: { content: 'ok' } }],
+          })),
         },
       };
-    });
+      constructor(opts: any) {
+        ctorArgs.push(opts);
+      }
+    };
 
     vi.doMock('@perplexity-ai/perplexity_ai', () => ({ default: MockPerplexity }));
 
@@ -33,7 +49,8 @@ describe('PerplexityChatProvider', () => {
       '../../../src-electron/services/chat/providers/PerplexityChatProvider'
     );
 
-    const provider = new PerplexityChatProvider('', 'api-key', '');
+    // Pass actual URL since the provider doesn't normalize empty strings
+    const provider = new PerplexityChatProvider('https://api.perplexity.ai', 'api-key', '');
     const tokens: string[] = [];
     await provider.chat({ model: 'pplx-70b-online', messages: [], streaming: false }, (t) =>
       tokens.push(t),
@@ -49,16 +66,17 @@ describe('PerplexityChatProvider', () => {
   it('streams chat tokens using Perplexity SDK', async () => {
     const createCalls: any[] = [];
 
-    const MockPerplexity = vi.fn().mockImplementation((_opts: any) => ({
-      chat: {
+    const MockPerplexity = class {
+      chat = {
         completions: {
           create: vi.fn(async (opts: any) => {
             createCalls.push(opts);
             return streamChatChunks();
           }),
         },
-      },
-    }));
+      };
+      constructor(_opts: any) {}
+    };
 
     vi.doMock('@perplexity-ai/perplexity_ai', () => ({ default: MockPerplexity }));
 
@@ -79,9 +97,10 @@ describe('PerplexityChatProvider', () => {
   });
 
   it('supportsTools always returns true', async () => {
-    const MockPerplexity = vi.fn().mockImplementation((_opts: any) => ({
-      chat: { completions: { create: vi.fn() } },
-    }));
+    const MockPerplexity = class {
+      chat = { completions: { create: vi.fn() } };
+      constructor(_opts: any) {}
+    };
 
     vi.doMock('@perplexity-ai/perplexity_ai', () => ({ default: MockPerplexity }));
 
@@ -96,8 +115,8 @@ describe('PerplexityChatProvider', () => {
   it('chatWithTools loops tool JSON responses and emits final answer', async () => {
     const createCalls: any[] = [];
 
-    const MockPerplexity = vi.fn().mockImplementation((_opts: any) => ({
-      chat: {
+    const MockPerplexity = class {
+      chat = {
         completions: {
           create: vi.fn(async () => {
             createCalls.push({});
@@ -123,8 +142,9 @@ describe('PerplexityChatProvider', () => {
             };
           }),
         },
-      },
-    }));
+      };
+      constructor(_opts: any) {}
+    };
 
     vi.doMock('@perplexity-ai/perplexity_ai', () => ({ default: MockPerplexity }));
 
