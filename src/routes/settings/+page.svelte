@@ -226,7 +226,7 @@
     </section>
 
     <section class="mb-6">
-      <h2 class="mb-2">File Tools</h2>
+      <h2 class="mb-2">Allowed Directories</h2>
       <div class="rounded-lg p-4 bg-[var(--surface-card)]">
         <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
       </div>
@@ -258,16 +258,18 @@
       <button
         onclick={saveSettings}
         disabled={!hasChanges}
-        class="btn-primary px-3 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+        class="btn-primary px-3 py-2 rounded bg-blue-700 text-white disabled:bg-[var(--surface-sidebar-primary)] disabled:text-gray-400 inline-flex items-center gap-1"
       >
-        Save
+        <i class="pi pi-check text-xs text-white"></i>
+        <span class="text-white">Save</span>
       </button>
       <button
         onclick={cancelSettings}
         disabled={!hasChanges}
-        class="btn-secondary px-3 py-2 rounded border"
+        class="btn-secondary px-3 py-2 rounded bg-white text-black disabled:opacity-50 inline-flex items-center gap-1"
       >
-        Cancel
+        <i class="pi pi-times text-xs !text-black"></i>
+        <span class="!text-black">Cancel</span>
       </button>
     </div>
 
