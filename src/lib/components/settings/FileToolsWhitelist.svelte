@@ -90,9 +90,10 @@
       </button>
       <button
         onclick={selectFolder}
-        class="px-4 py-2 rounded border bg-gray-900 hover:bg-gray-800 dark:hover:bg-gray-800 text-sm"
+        class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
       >
-        Browse...
+        <i class="pi pi-folder text-xs"></i>
+        <span class="text-white">Browse...</span>
       </button>
     </div>
 
@@ -114,10 +115,10 @@
           <span class="text-sm font-mono flex-1 truncate" title={path}>{path}</span>
           <button
             onclick={() => removePath(path)}
-            class="remove-btn flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-sm text-red-500 hover:text-red-400"
+            class="remove-btn flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-sm bg-gray-100 dark:bg-gray-200 hover:bg-gray-200 dark:hover:bg-gray-300"
           >
-            <i class="pi pi-trash"></i>
-            <span class="text-white">Remove</span>
+            <i class="pi pi-trash text-red-500"></i>
+            <span class="text-black">Remove</span>
           </button>
         </li>
       {/each}

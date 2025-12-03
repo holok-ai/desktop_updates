@@ -298,11 +298,15 @@
    * Navigate to thread creation interface
    */
   function handleNewThread() {
-    if (!confirmNavigation()) return;
+ const proceed = () => {
     // Clear any selected thread and navigate to threads page (shows create form)
     selectedThreadId = null;
     storageService.removeLastThreadId();
     push(ROUTE.THREADS);
+    };
+
+    if (requestNavigation(proceed)) 
+      proceed();
   }
 </script>
 
@@ -328,7 +332,7 @@
   {#if isThreadActivity && !isCollapsed}
     <div class="new-thread-container">
       <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
-        <i class="pi pi-plus"></i>
+        <i class="pi pi-plus text-black"></i>
         <span>New Thread ...</span>
       </button>
     </div>
@@ -474,8 +478,8 @@
     gap: 0.5rem;
     width: 100%;
     padding: 0.625rem 0.875rem;
-    background: var(--primary-color);
-    color: var(--primary-color-text, #fff);
+    background: var(--surface-sidebar-secondary);
+    color: var(--primary-color-text, black);
     border: none;
     border-radius: 0.5rem;
     font-size: 0.875rem;
@@ -485,9 +489,7 @@
   }
 
   .new-thread-btn:hover {
-    background: var(--primary-600, #2563eb);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
   }
 
   .new-thread-btn:focus {
@@ -508,8 +510,7 @@
   }
 
   :global(html.dark) .new-thread-btn:hover {
-    background: var(--primary-500, #3b82f6);
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
+    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
   }
 
   .collapse-toggle-btn {
