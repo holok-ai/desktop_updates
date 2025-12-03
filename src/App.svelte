@@ -5,6 +5,7 @@
   import Login from './routes/login/+page.svelte';
   import Toast from './lib/components/Toast.svelte';
   import { toastStore } from './lib/services/toast.service';
+  import ConfirmNavigationModal from './lib/components/modals/ConfirmNavigationModal.svelte';
   import type { AuthState } from '../src-electron/services/auth.service';
   import '$lib/services/menu-navigation.service';
 
@@ -70,6 +71,9 @@
 {/if}
 
 <Toast />
+
+<!-- Global navigation confirmation modal -->
+<ConfirmNavigationModal />
 
 <style>
   .loading {

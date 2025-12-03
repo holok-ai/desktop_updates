@@ -65,6 +65,14 @@
   let showComments = $state(false);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
+  // Title editing state
+  let isEditingTitle = $state(false);
+  let editedTitle = $state('');
+  let titleError = $state('');
+  let isSavingTitle = $state(false);
+  let titleInputRef: HTMLInputElement | null = $state(null);
+  const TITLE_MAX_LENGTH = 200;
+
   // Load showComments preference from localStorage
   onMount(() => {
     try {
@@ -90,6 +98,87 @@
       storageService.setShowComments(showComments);
     } catch (error) {
       console.error('Failed to save showComments preference:', error);
+    }
+  }
+
+  // Title editing functions
+  function enterTitleEditMode() {
+    if (!currentThread || $isThreadGeneratingTitle(currentThread.id)) return;
+    editedTitle = currentThread.title || '';
+    titleError = '';
+    isEditingTitle = true;
+    // Focus input after DOM update
+    setTimeout(() => {
+      titleInputRef?.focus();
+      titleInputRef?.select();
+    }, 0);
+  }
+
+  function cancelTitleEdit() {
+    isEditingTitle = false;
+    editedTitle = '';
+    titleError = '';
+  }
+
+  async function saveTitleEdit() {
+    if (!currentThread || isSavingTitle) return;
+
+    const trimmedTitle = editedTitle.trim();
+
+    // Client-side validation
+    if (!trimmedTitle) {
+      titleError = 'Title cannot be empty';
+      return;
+    }
+
+    if (trimmedTitle.length > TITLE_MAX_LENGTH) {
+      titleError = `Title cannot exceed ${TITLE_MAX_LENGTH} characters`;
+      return;
+    }
+
+    // No change - just exit edit mode
+    if (trimmedTitle === currentThread.title) {
+      cancelTitleEdit();
+      return;
+    }
+
+    isSavingTitle = true;
+    titleError = '';
+
+    try {
+      const result = await window.electronAPI.thread.renameThread(currentThread.id, trimmedTitle);
+
+      if (result.success) {
+        // Thread will be updated via onThreadUpdated listener
+        isEditingTitle = false;
+        editedTitle = '';
+        showToast('Title updated');
+      } else {
+        // Map error codes to user-friendly messages
+        const errorMessages: Record<string, string> = {
+          TITLE_EMPTY: 'Title cannot be empty',
+          TITLE_TOO_SHORT: 'Title is too short',
+          TITLE_TOO_LONG: `Title cannot exceed ${TITLE_MAX_LENGTH} characters`,
+          TITLE_DUPLICATE: 'A thread with this title already exists',
+          TITLE_INVALID_CHARACTERS: 'Title contains invalid characters',
+        };
+        titleError = errorMessages[result.code || ''] || result.error || 'Failed to update title';
+      }
+    } catch (err) {
+      titleError = err instanceof Error ? err.message : 'Failed to update title';
+      console.error('Error saving title:', err);
+    } finally {
+      isSavingTitle = false;
+    }
+  }
+
+  function handleTitleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveTitleEdit();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelTitleEdit();
     }
   }
 
@@ -363,6 +452,58 @@
       initializeChatService();
     }
   });
+
+  // Track which threads we've already auto-sent for (to avoid duplicate sends)
+  let autoSentForThreadId: string | null = null;
+
+  // Auto-send initial message when thread is created with a prompt but no AI response yet
+  $effect(() => {
+    // Skip if no thread, chat service not ready, or already streaming
+    if (!currentThread || !chatServiceCreated || isStreaming) return;
+
+    // Skip if we've already auto-sent for this thread
+    if (autoSentForThreadId === currentThread.id) return;
+
+    // Check if there's exactly one user message with no assistant response
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const assistantMessages = messages.filter((m) => m.role === 'assistant');
+
+    if (userMessages.length === 1 && assistantMessages.length === 0) {
+      const initialPrompt = userMessages[0].content;
+
+      // Mark this thread as having been auto-sent
+      autoSentForThreadId = currentThread.id;
+
+      // Trigger AI response for the initial message
+      (async () => {
+        try {
+          isStreaming = true;
+          setupTokenListener();
+
+          const request = {
+            messages: [{ role: 'user', content: initialPrompt }],
+            streaming: true,
+            model: modelName,
+          };
+
+          const result = await window.electronAPI.chat.chat(request);
+
+          if (!result.success) {
+            error = result.error || 'Chat failed';
+            console.error('Chat failed:', result.error);
+          } else {
+            // Save the assistant response
+            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt);
+          }
+        } catch (err) {
+          error = err instanceof Error ? err.message : 'Unknown error';
+          console.error('Error sending initial message:', err);
+        } finally {
+          isStreaming = false;
+        }
+      })();
+    }
+  });
 </script>
 
 {#if !currentThread}
@@ -372,16 +513,80 @@
     <div class="chat-header">
       {#key thread?.id}
         <div class="header-content">
-          <div>
-            <h2>
-              {currentThread.title || 'New Thread'}
-              {#if $isThreadGeneratingTitle(currentThread.id)}
-                <span class="title-generating" aria-live="polite">
-                  <span class="generating-dots">...</span>
-                  <span class="sr-only">Generating title</span>
-                </span>
-              {/if}
-            </h2>
+          <div class="title-section">
+            {#if isEditingTitle}
+              <!-- Edit Mode -->
+              <div class="title-edit-container">
+                <div class="title-edit-row">
+                  <input
+                    bind:this={titleInputRef}
+                    type="text"
+                    class="title-input"
+                    class:has-error={!!titleError}
+                    bind:value={editedTitle}
+                    onkeydown={handleTitleKeydown}
+                    maxlength={TITLE_MAX_LENGTH}
+                    placeholder="Enter thread title"
+                    aria-label="Thread title"
+                    disabled={isSavingTitle}
+                  />
+                  <button
+                    class="title-action-btn save-btn"
+                    onclick={() => saveTitleEdit()}
+                    disabled={isSavingTitle || !editedTitle.trim()}
+                    aria-label="Save title"
+                    title="Save (Enter)"
+                  >
+                    {#if isSavingTitle}
+                      <i class="pi pi-spin pi-spinner"></i>
+                    {:else}
+                      <i class="pi pi-check"></i>
+                    {/if}
+                  </button>
+                  <button
+                    class="title-action-btn cancel-btn"
+                    onclick={cancelTitleEdit}
+                    disabled={isSavingTitle}
+                    aria-label="Cancel editing"
+                    title="Cancel (Escape)"
+                  >
+                    <i class="pi pi-times"></i>
+                  </button>
+                </div>
+                {#if titleError}
+                  <div class="title-error" role="alert">{titleError}</div>
+                {/if}
+                <div
+                  class="char-counter"
+                  class:warning={editedTitle.length > TITLE_MAX_LENGTH - 20}
+                >
+                  {TITLE_MAX_LENGTH - editedTitle.length} characters remaining
+                </div>
+              </div>
+            {:else}
+              <!-- Display Mode -->
+              <div class="title-display">
+                <h2>
+                  {currentThread.title || 'New Thread'}
+                  {#if $isThreadGeneratingTitle(currentThread.id)}
+                    <span class="title-generating" aria-live="polite">
+                      <span class="generating-dots">...</span>
+                      <span class="sr-only">Generating title</span>
+                    </span>
+                  {/if}
+                </h2>
+                {#if !$isThreadGeneratingTitle(currentThread.id)}
+                  <button
+                    class="title-edit-btn"
+                    onclick={enterTitleEditMode}
+                    aria-label="Edit title"
+                    title="Edit title"
+                  >
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                {/if}
+              </div>
+            {/if}
             <div class="meta">{currentThread.description}</div>
           </div>
           <div class="header-buttons">
@@ -512,6 +717,16 @@
     min-width: 0;
   }
 
+  .title-section {
+    min-width: 0;
+  }
+
+  .title-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .chat-header h2 {
     margin: 0;
     display: flex;
@@ -523,6 +738,148 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .title-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  .title-edit-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--surface-border);
+    color: var(--text-primary);
+    opacity: 1;
+  }
+
+  .title-edit-btn:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    opacity: 1;
+  }
+
+  .title-edit-btn i {
+    font-size: 14px;
+  }
+
+  .title-edit-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .title-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--surface-ground);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    outline: none;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .title-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.2);
+  }
+
+  .title-input.has-error {
+    border-color: var(--error-color);
+  }
+
+  .title-input.has-error:focus {
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  }
+
+  .title-input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .title-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .title-action-btn.save-btn {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+  }
+
+  .title-action-btn.save-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .title-action-btn.save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .title-action-btn.cancel-btn {
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+  }
+
+  .title-action-btn.cancel-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  .title-action-btn.cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .title-action-btn i {
+    font-size: 14px;
+  }
+
+  .title-error {
+    font-size: 12px;
+    color: var(--error-color);
+    padding: 2px 0;
+  }
+
+  .char-counter {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .char-counter.warning {
+    color: var(--warning-color, #f59e0b);
   }
 
   .title-generating {

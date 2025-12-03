@@ -12,7 +12,7 @@
   import type { Project } from '$lib/types/project.type';
   import { storageService } from '$lib/services/storage.service';
   import BaseModal from '$lib/components/modals/BaseModal.svelte';
-  import { confirmNavigation } from '$lib/stores/navigation-guard.store';
+  import { requestNavigation } from '$lib/stores/navigation-guard.store';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -32,6 +32,7 @@
   let renamingThreadId: string | null = $state(null);
   let renamingThreadTitle: string = $state('');
   let showRenameModal = $state(false);
+  let renameError = $state('');
 
   let selectedProjectId: string | null = $state(null);
 
@@ -124,47 +125,59 @@
   });
 
   function select(item: { id: string; label: string; route?: string }) {
-    if (!confirmNavigation()) return;
-    dispatch('select', item);
-    selectedThreadId = item.id;
-    storageService.setLastThreadId(item.id);
-    if (!selectedProjectId) {
-      storageService.removeLastProjectId();
-    }
-
-    const route = (item as SidebarActivity).route;
-
-    switch (route) {
-      case ROUTE.THREADS: {
-        selectedThreadId = item.id;
-        storageService.setLastThreadId(item.id);
-        if (!selectedProjectId) {
-          storageService.removeLastProjectId();
-        }
-        const params = new URLSearchParams();
-        params.set('threadId', item.id);
-        if (selectedProjectId) {
-          params.set('projectId', selectedProjectId);
-          storageService.setLastProjectId(selectedProjectId);
-        }
-        push(`${ROUTE.THREADS}?${params.toString()}`);
-        break;
+    const proceed = () => {
+      dispatch('select', item);
+      selectedThreadId = item.id;
+      storageService.setLastThreadId(item.id);
+      if (!selectedProjectId) {
+        storageService.removeLastProjectId();
       }
-      default:
-        break;
+
+      const route = (item as SidebarActivity).route;
+
+      switch (route) {
+        case ROUTE.THREADS: {
+          selectedThreadId = item.id;
+          storageService.setLastThreadId(item.id);
+          if (!selectedProjectId) {
+            storageService.removeLastProjectId();
+          }
+          const params = new URLSearchParams();
+          params.set('threadId', item.id);
+          if (selectedProjectId) {
+            params.set('projectId', selectedProjectId);
+            storageService.setLastProjectId(selectedProjectId);
+          }
+          push(`${ROUTE.THREADS}?${params.toString()}`);
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    // If no unsaved changes, requestNavigation returns true and we proceed immediately
+    if (requestNavigation(proceed)) {
+      proceed();
     }
   }
 
   function selectProject(project: Project) {
-    if (!confirmNavigation()) return;
-    selectedProjectId = project.id;
-    storageService.setLastProjectId(project.id);
-    dispatch('select', {
-      id: project.id,
-      label: project.title,
-      route: ROUTE.PROJECTS,
-    });
-    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+    const proceed = () => {
+      selectedProjectId = project.id;
+      storageService.setLastProjectId(project.id);
+      dispatch('select', {
+        id: project.id,
+        label: project.title,
+        route: ROUTE.PROJECTS,
+      });
+      push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+    };
+
+    // If no unsaved changes, requestNavigation returns true and we proceed immediately
+    if (requestNavigation(proceed)) {
+      proceed();
+    }
   }
 
   function toggleSidebar() {
@@ -230,6 +243,7 @@
   function handleRenameStart(item: { id: string; label: string }) {
     renamingThreadId = item.id;
     renamingThreadTitle = item.label;
+    renameError = '';
     showRenameModal = true;
   }
 
@@ -238,6 +252,8 @@
    */
   async function handleRenameSave() {
     if (!renamingThreadId) return;
+
+    renameError = '';
 
     try {
       const result = await (window.electronAPI.thread as any).renameThread(
@@ -251,13 +267,20 @@
         renamingThreadTitle = '';
         showRenameModal = false;
       } else {
-        // Show error to user
+        // Map error codes to user-friendly messages
+        const errorMessages: Record<string, string> = {
+          TITLE_EMPTY: 'Title cannot be empty',
+          TITLE_TOO_SHORT: 'Title is too short',
+          TITLE_TOO_LONG: 'Title cannot exceed 200 characters',
+          TITLE_DUPLICATE: 'A thread with this title already exists',
+          TITLE_INVALID_CHARACTERS: 'Title contains invalid characters',
+        };
+        renameError = errorMessages[result.code || ''] || result.error || 'Failed to rename thread';
         console.error('Failed to rename thread:', result.error);
-        throw new Error(result.error || 'Failed to rename thread');
       }
     } catch (error) {
+      renameError = error instanceof Error ? error.message : 'Failed to rename thread';
       console.error('Error renaming thread:', error);
-      throw error;
     }
   }
 
@@ -267,7 +290,19 @@
   function handleRenameCancel() {
     renamingThreadId = null;
     renamingThreadTitle = '';
+    renameError = '';
     showRenameModal = false;
+  }
+
+  /**
+   * Navigate to thread creation interface
+   */
+  function handleNewThread() {
+    if (!confirmNavigation()) return;
+    // Clear any selected thread and navigate to threads page (shows create form)
+    selectedThreadId = null;
+    storageService.removeLastThreadId();
+    push(ROUTE.THREADS);
   }
 </script>
 
@@ -288,6 +323,17 @@
       <i class={isCollapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'}></i>
     </button>
   </div>
+
+  <!-- New Thread button - only visible for Threads activity when not collapsed -->
+  {#if isThreadActivity && !isCollapsed}
+    <div class="new-thread-container">
+      <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
+        <i class="pi pi-plus"></i>
+        <span>New Thread ...</span>
+      </button>
+    </div>
+  {/if}
+
   <div class="sidebar-scroll flex-1 overflow-y-auto">
     <ul class="list-items">
       {#if isThreadActivity}
@@ -362,6 +408,7 @@
 <BaseModal
   bind:show={showRenameModal}
   title="Rename Thread"
+  error={renameError}
   submitLabel="Save"
   cancelLabel="Cancel"
   submitDisabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
@@ -414,6 +461,55 @@
     --thread-list-hover-bg: rgba(10, 22, 36, 0.08);
     --thread-list-action-color: #0a1624;
     --thread-list-action-hover-bg: rgba(10, 22, 36, 0.12);
+  }
+
+  /* New Thread button styles */
+  .new-thread-container {
+    padding: 0 1rem 0.75rem 1rem;
+  }
+
+  .new-thread-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background: var(--primary-color);
+    color: var(--primary-color-text, #fff);
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .new-thread-btn:hover {
+    background: var(--primary-600, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  }
+
+  .new-thread-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+  }
+
+  .new-thread-btn:active {
+    transform: translateY(0);
+  }
+
+  .new-thread-btn i {
+    font-size: 0.875rem;
+  }
+
+  :global(html.dark) .new-thread-btn {
+    background: var(--primary-color);
+  }
+
+  :global(html.dark) .new-thread-btn:hover {
+    background: var(--primary-500, #3b82f6);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
   }
 
   .collapse-toggle-btn {

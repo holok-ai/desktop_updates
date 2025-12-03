@@ -12,7 +12,11 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
-  import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
+  import {
+    clearUnsavedChanges,
+    setUnsavedChanges,
+    registerDiscardCallback,
+  } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
 
   let isLoading = $state(true);
@@ -65,14 +69,19 @@
       clearUnsavedChanges('add-thread');
       return;
     }
-    const descriptionHasValue =
-      typeof formData.description === 'string' && formData.description.trim().length > 0;
-    const dirty =
-      formData.title.trim().length > 0 ||
-      descriptionHasValue ||
-      newThreadPrompt.trim().length > 0 ||
-      modelSelectionTouched;
+    // Only track prompt content and model selection as "dirty" state
+    const dirty = newThreadPrompt.trim().length > 0 || modelSelectionTouched;
     setUnsavedChanges('add-thread', dirty);
+  });
+
+  // Register cleanup callback for when user discards unsaved thread creation data
+  onMount(() => {
+    const unregisterDiscard = registerDiscardCallback('add-thread', () => {
+      resetThreadForm();
+    });
+    return () => {
+      unregisterDiscard();
+    };
   });
 
   onMount(async () => {
@@ -213,6 +222,17 @@
             errorMessage = null;
           }, 5000);
         }
+      } else {
+        // No threadId in URL - clear selection to show create form
+        // Check if we're coming from a different view (thread was selected before)
+        const wasViewingThread = selectedThread !== null;
+        selectedThread = null;
+        messages = [];
+        // Reset form when entering add-thread view from thread view
+        // This ensures clean state after navigation (including after discard)
+        if (wasViewingThread) {
+          resetThreadForm();
+        }
       }
     });
     return unsubscribe;
@@ -245,65 +265,54 @@
     storageService.setLastThreadId(thread.id);
   }
 
-  async function handleSave() {
-    try {
-      const data = $state.snapshot(formData);
-      if (selectedModel) {
-        const merged = {
-          ...((data.metadata as Record<string, unknown>) ?? {}),
-          model: selectedModel.id,
-          provider: selectedModel.provider,
-        } as Record<string, unknown>;
-        (data as any).metadata = merged;
-      }
+  /**
+   * Auto-generate a title from the prompt (max 80 chars)
+   */
+  function generateTitleFromPrompt(prompt: string): string {
+    const trimmed = prompt.trim();
+    if (trimmed.length <= 80) {
+      // Use first line or entire prompt if short
+      const firstLine = trimmed.split('\n')[0];
+      return firstLine.length <= 80 ? firstLine : firstLine.substring(0, 77) + '...';
+    }
+    // Truncate at word boundary if possible
+    const truncated = trimmed.substring(0, 77);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 50) {
+      return truncated.substring(0, lastSpace) + '...';
+    }
+    return truncated + '...';
+  }
 
-      // If an initial prompt was provided, create thread + prompt atomically
-      if (newThreadPrompt && newThreadPrompt.trim()) {
-        try {
-          const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
-            title: data.title,
-            description: data.description,
-            model: selectedModel?.id,
-          });
-          const created = res.thread as Thread;
-          threads.addThread(created);
-          selectThread(created);
-          void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
-        } catch (e) {
-          console.error('Failed to create thread with prompt:', e);
-        }
-      } else {
-        // Create an ephemeral thread for sidebar/selection (not persisted yet)
-        const tempId = `temp_${crypto.randomUUID()}`;
-        const tempThread: Thread = {
-          id: tempId,
-          title: data.title,
-          description: data.description,
-          status: THREAD_STATUS.ACTIVE,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          metadata: data.metadata ?? {},
-        } as Thread;
-        threads.addThread(tempThread);
-        selectedThread = tempThread;
-        messages = [];
-        void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(tempId)}`);
-      }
+  async function handleSave() {
+    // Require both model and prompt (validation in ThreadCreatePanel ensures this)
+    if (!selectedModel || !newThreadPrompt.trim()) {
+      return;
+    }
+
+    try {
+      // Auto-generate title from prompt
+      const autoTitle = generateTitleFromPrompt(newThreadPrompt);
+
+      // Create thread with prompt atomically
+      const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
+        title: autoTitle,
+        model: selectedModel.id,
+      });
+      const created = res.thread as Thread;
+      threads.addThread(created);
+      selectThread(created);
+      void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
+
       clearUnsavedChanges('add-thread');
       resetThreadForm();
     } catch (error) {
-      console.error('Failed to save thread:', error);
+      console.error('Failed to create thread:', error);
     }
   }
 </script>
 
 <div class="threads-page">
-  <div class="header">
-    {#if !isAddThreadView}
-      <button class="btn-primary" onclick={() => startThreadCreationFlow()}> + New Thread </button>
-    {/if}
-  </div>
-
   {#if errorMessage && selectedThread}
     <div class="error-banner" role="alert">
       <i class="pi pi-exclamation-triangle"></i>
@@ -329,7 +338,6 @@
         }
       }}
       on:submit={() => handleSave()}
-      on:reset={() => resetThreadForm()}
     />
   {:else}
     <div class="threads-grid">
@@ -351,13 +359,6 @@
     max-width: 1200px;
   }
 
-  .header {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    margin-bottom: 2rem;
-  }
-
   .loading {
     text-align: center;
     padding: calc(var(--content-padding) * 2.5);
@@ -367,21 +368,6 @@
   .threads-grid {
     display: flex;
     gap: var(--content-padding);
-  }
-
-  .btn-primary {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-    border: none;
-    padding: 0.65rem 1.5rem;
-    border-radius: 999px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  .btn-primary:hover {
-    background: var(--primary-600, #2563eb);
   }
 
   .error-banner {
