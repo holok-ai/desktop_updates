@@ -357,6 +357,9 @@
 <style>
   .threads-page {
     max-width: 1200px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .loading {
@@ -368,6 +371,11 @@
   .threads-grid {
     display: flex;
     gap: var(--content-padding);
+    flex: 1;
+  }
+
+  .threads-grid > .w-full {
+    height: 100%;
   }
 
   .error-banner {
