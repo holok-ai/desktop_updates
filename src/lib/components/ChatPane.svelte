@@ -47,9 +47,11 @@
   // };
   let modelName = _localLlamaModel.model;
 
-  // Watch for prop changes
+  // Watch for prop changes and clear error when thread changes
   $effect(() => {
     currentThread = thread;
+    // Clear error state when switching threads to prevent stale errors
+    error = '';
   });
 
   // State management
@@ -615,10 +617,6 @@
       {/key}
     </div>
 
-    {#if error}
-      <div class="error-banner">{error}</div>
-    {/if}
-
     {#if toast}
       <div class="toast">{toast}</div>
     {/if}
@@ -651,6 +649,10 @@
         </div>
       {/if}
     </div>
+
+    {#if error}
+      <div class="error-banner">{error}</div>
+    {/if}
 
     <div class="composer">
       <!-- Composer is rendered in the page and wired separately -->
