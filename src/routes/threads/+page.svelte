@@ -313,12 +313,6 @@
 </script>
 
 <div class="threads-page">
-  <div class="header">
-    {#if !isAddThreadView}
-      <button class="btn-primary" onclick={() => startThreadCreationFlow()}> + New Thread </button>
-    {/if}
-  </div>
-
   {#if errorMessage && selectedThread}
     <div class="error-banner" role="alert">
       <i class="pi pi-exclamation-triangle"></i>
@@ -365,13 +359,6 @@
     max-width: 1200px;
   }
 
-  .header {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    margin-bottom: 2rem;
-  }
-
   .loading {
     text-align: center;
     padding: calc(var(--content-padding) * 2.5);
@@ -381,21 +368,6 @@
   .threads-grid {
     display: flex;
     gap: var(--content-padding);
-  }
-
-  .btn-primary {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-    border: none;
-    padding: 0.65rem 1.5rem;
-    border-radius: 999px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  .btn-primary:hover {
-    background: var(--primary-600, #2563eb);
   }
 
   .error-banner {

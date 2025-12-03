@@ -293,6 +293,17 @@
     renameError = '';
     showRenameModal = false;
   }
+
+  /**
+   * Navigate to thread creation interface
+   */
+  function handleNewThread() {
+    if (!confirmNavigation()) return;
+    // Clear any selected thread and navigate to threads page (shows create form)
+    selectedThreadId = null;
+    storageService.removeLastThreadId();
+    push(ROUTE.THREADS);
+  }
 </script>
 
 <aside
@@ -312,6 +323,17 @@
       <i class={isCollapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'}></i>
     </button>
   </div>
+
+  <!-- New Thread button - only visible for Threads activity when not collapsed -->
+  {#if isThreadActivity && !isCollapsed}
+    <div class="new-thread-container">
+      <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
+        <i class="pi pi-plus"></i>
+        <span>New Thread ...</span>
+      </button>
+    </div>
+  {/if}
+
   <div class="sidebar-scroll flex-1 overflow-y-auto">
     <ul class="list-items">
       {#if isThreadActivity}
@@ -439,6 +461,55 @@
     --thread-list-hover-bg: rgba(10, 22, 36, 0.08);
     --thread-list-action-color: #0a1624;
     --thread-list-action-hover-bg: rgba(10, 22, 36, 0.12);
+  }
+
+  /* New Thread button styles */
+  .new-thread-container {
+    padding: 0 1rem 0.75rem 1rem;
+  }
+
+  .new-thread-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background: var(--primary-color);
+    color: var(--primary-color-text, #fff);
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .new-thread-btn:hover {
+    background: var(--primary-600, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  }
+
+  .new-thread-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+  }
+
+  .new-thread-btn:active {
+    transform: translateY(0);
+  }
+
+  .new-thread-btn i {
+    font-size: 0.875rem;
+  }
+
+  :global(html.dark) .new-thread-btn {
+    background: var(--primary-color);
+  }
+
+  :global(html.dark) .new-thread-btn:hover {
+    background: var(--primary-500, #3b82f6);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
   }
 
   .collapse-toggle-btn {
