@@ -3,6 +3,8 @@
   import { authStore } from './lib/stores/auth.store';
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Login from './routes/login/+page.svelte';
+  import Toast from './lib/components/Toast.svelte';
+  import { toastStore } from './lib/services/toast.service';
   import ConfirmNavigationModal from './lib/components/modals/ConfirmNavigationModal.svelte';
   import type { AuthState } from '../src-electron/services/auth.service';
   import '$lib/services/menu-navigation.service';
@@ -11,16 +13,18 @@
   let authState = $state<AuthState>({ isAuthenticated: false, user: null, tokens: null });
 
   // Load initial auth state
-  onMount(async () => {
-    try {
-      const state = await window.electronAPI.auth.getAuthState();
-      authStore.setAuthState(state);
-      authState = state;
-    } catch (error) {
-      console.error('Failed to load auth state:', error);
-    } finally {
-      isLoading = false;
-    }
+  onMount(() => {
+    (async () => {
+      try {
+        const state = await window.electronAPI.auth.getAuthState();
+        authStore.setAuthState(state);
+        authState = state;
+      } catch (error) {
+        window.electronAPI.log.error('[App] Failed to load auth state', error);
+      } finally {
+        isLoading = false;
+      }
+    })();
 
     // Listen for OAuth callback success
     const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
@@ -30,13 +34,15 @@
         user: data.user,
         tokens: null, // tokens stay in main process
       });
+      if (data.user?.name) {
+        toastStore.show(`${data.user.name} successfully logged in.`, { variant: 'success' });
+      }
     });
 
     // Listen for OAuth callback errors
     const unsubscribeError = window.electronAPI.auth.onAuthCallbackError((error) => {
       window.electronAPI.log.error('[App] OAuth callback error received', error);
-      console.error('OAuth authentication failed:', error.description);
-      // Could show error message to user here
+      window.electronAPI.log.error('[App] OAuth authentication failed', error.description);
     });
 
     // Cleanup listeners when component unmounts
@@ -63,6 +69,8 @@
 {:else}
   <Login />
 {/if}
+
+<Toast />
 
 <!-- Global navigation confirmation modal -->
 <ConfirmNavigationModal />

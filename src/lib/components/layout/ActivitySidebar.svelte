@@ -10,6 +10,7 @@
   import SidebarItem from '../common/SidebarItem.svelte';
   import { projectService } from '$lib/services/project.service';
   import { storageService } from '$lib/services/storage.service';
+  import { toastStore } from '../../services/toast.service';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
   const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
 
@@ -27,10 +28,14 @@
   let profileSection: HTMLElement | null = null;
 
   async function handleLogout() {
+    const userName = $currentUser?.name;
     try {
       await window.electronAPI.auth.logout();
       authStore.logout();
       window.electronAPI.log.info('[Sidebar] User logged out');
+      if (userName) {
+        toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
+      }
     } catch (error) {
       window.electronAPI.log.error('[Sidebar] Logout failed', error);
       console.error('Logout failed:', error);
