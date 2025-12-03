@@ -177,6 +177,97 @@ describe('FileToolsService - Integration', () => {
     });
   });
 
+  describe('File Writing Operations', () => {
+    it('should create a new file with default parameters', async () => {
+      const result = await service.executeTool('write_file', {
+        path: 'new-file.txt',
+        content: 'hello world',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.created).toBe(true);
+      const written = fs.readFileSync(path.join(testDir, 'new-file.txt'), 'utf-8');
+      expect(written).toBe('hello world');
+      expect(result.data.bytes_written).toBe(Buffer.byteLength('hello world', 'utf-8'));
+      expect(result.data.metadata.encoding).toBe('utf-8');
+    });
+
+    it('should overwrite existing file when overwrite is true', async () => {
+      const filePath = path.join(testDir, 'config.json');
+      fs.writeFileSync(filePath, '{"setting":false}', 'utf-8');
+
+      const result = await service.executeTool('write_file', {
+        path: 'config.json',
+        content: '{"setting":true}',
+        overwrite: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.created).toBe(false);
+      const written = fs.readFileSync(filePath, 'utf-8');
+      expect(written).toBe('{"setting":true}');
+    });
+
+    it('should fail when file exists and overwrite is false', async () => {
+      const filePath = path.join(testDir, 'existing.txt');
+      fs.writeFileSync(filePath, 'original', 'utf-8');
+
+      const result = await service.executeTool('write_file', {
+        path: 'existing.txt',
+        content: 'new content',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('FILE_EXISTS');
+      const written = fs.readFileSync(filePath, 'utf-8');
+      expect(written).toBe('original');
+    });
+
+    it('should create parent directories when create_directories is true', async () => {
+      const result = await service.executeTool('write_file', {
+        path: path.join('nested', 'dir', 'file.txt'),
+        content: 'nested content',
+        create_directories: true,
+      });
+
+      expect(result.success).toBe(true);
+      const filePath = path.join(testDir, 'nested', 'dir', 'file.txt');
+      expect(fs.existsSync(filePath)).toBe(true);
+      const written = fs.readFileSync(filePath, 'utf-8');
+      expect(written).toBe('nested content');
+    });
+
+    it('should fail when parent directory does not exist and create_directories is false', async () => {
+      const result = await service.executeTool('write_file', {
+        path: path.join('nested', 'dir', 'file.txt'),
+        content: 'content',
+        create_directories: false,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('DIR_NOT_FOUND');
+    });
+
+    it('should support different encodings', async () => {
+      const content = 'héllo';
+      const resultAscii = await service.executeTool('write_file', {
+        path: 'ascii.txt',
+        content,
+        encoding: 'ascii',
+      });
+      expect(resultAscii.success).toBe(true);
+      expect(resultAscii.data.metadata.encoding).toBe('ascii');
+
+      const resultLatin1 = await service.executeTool('write_file', {
+        path: 'latin1.txt',
+        content,
+        encoding: 'latin1',
+      });
+      expect(resultLatin1.success).toBe(true);
+      expect(resultLatin1.data.metadata.encoding).toBe('latin1');
+    });
+  });
+
   describe('File Reading Edge Cases', () => {
     it('should read file with line range', async () => {
       const result = await service.executeTool('read_file', {
