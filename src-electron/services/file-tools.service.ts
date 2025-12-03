@@ -21,7 +21,7 @@ export interface ToolDefinition {
 
 export interface ToolResult {
   success: boolean;
-  data?: ReadFolderResult | ReadFileResult;
+  data?: ReadFolderResult | ReadFileResult | WriteFileResult;
   error?: string;
 }
 
@@ -51,6 +51,25 @@ export interface ReadFileResult {
     encoding: string;
   };
   truncated: boolean;
+}
+
+export interface WriteFileParams {
+  path: string;
+  content: string;
+  overwrite?: boolean;
+  encoding?: 'utf-8' | 'ascii' | 'latin1';
+  create_directories?: boolean;
+}
+
+export interface WriteFileResult {
+  path: string;
+  created: boolean;
+  bytes_written: number;
+  metadata: {
+    size: number;
+    modified: number;
+    encoding: string;
+  };
 }
 
 export class FileToolsService {
@@ -137,6 +156,39 @@ export class FileToolsService {
           required: ['file_path'],
         },
       },
+      {
+        name: 'write_file',
+        description:
+          'Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Path to the file (can be relative to working directory or absolute)',
+            },
+            content: {
+              type: 'string',
+              description: 'The content to write to the file',
+            },
+            overwrite: {
+              type: 'boolean',
+              description: 'If true, overwrite existing file. If false, fail if file exists. Default: false',
+            },
+            encoding: {
+              type: 'string',
+              enum: ['utf-8', 'ascii', 'latin1'],
+              description: 'Text encoding. Default: utf-8',
+            },
+            create_directories: {
+              type: 'boolean',
+              description:
+                "If true, create parent directories if they don't exist. Default: true",
+            },
+          },
+          required: ['path', 'content'],
+        },
+      },
     ];
   }
 
@@ -152,6 +204,8 @@ export class FileToolsService {
           return await this.readFolder(input);
         case 'read_file':
           return await this.readFile(input);
+        case 'write_file':
+          return await this.writeFile(input as unknown as WriteFileParams);
         default:
           return {
             success: false,
@@ -324,6 +378,129 @@ export class FileToolsService {
         truncated,
       },
     };
+  }
+
+  /**
+   * Create or update a file with the specified content
+   */
+  private async writeFile(params: WriteFileParams): Promise<ToolResult> {
+    const {
+      path: userPath,
+      content,
+      overwrite = false,
+      encoding = 'utf-8',
+      create_directories = true,
+    } = params;
+
+    const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
+    if (!allowedEncodings.includes(encoding)) {
+      return {
+        success: false,
+        error: `INVALID_ENCODING: Unsupported encoding: '${encoding}'`,
+      };
+    }
+
+    const resolvedPath = this.resolvePath(userPath);
+
+    // Security check - must be in allowed directories and not blacklisted
+    const pathCheck = this.checkPathAccess(resolvedPath);
+    if (!pathCheck.allowed) {
+      return {
+        success: false,
+        error: 'ACCESS_DENIED: Path is not in the allowed directories list',
+      };
+    }
+
+    // Check if file exists
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    const fileExists = fs.existsSync(resolvedPath);
+    if (fileExists && !overwrite) {
+      return {
+        success: false,
+        error: `FILE_EXISTS: '${userPath}' already exists. Set overwrite=true to replace it.`,
+      };
+    }
+
+    const parentDir = path.dirname(resolvedPath);
+    // Parent directory handling
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    const parentExists = fs.existsSync(parentDir);
+    if (!parentExists && !create_directories) {
+      return {
+        success: false,
+        error: 'DIR_NOT_FOUND: Parent directory does not exist',
+      };
+    }
+
+    try {
+      // Create parent directories if needed
+      if (!parentExists && create_directories) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        await fs.promises.mkdir(parentDir, { recursive: true });
+      }
+
+      log.info('[FileToolsService] write_file operation', {
+        path: resolvedPath,
+        overwrite,
+        encoding,
+        create_directories,
+      });
+
+      // Write the file
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      await fs.promises.writeFile(resolvedPath, content, { encoding });
+
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      const stats = await fs.promises.stat(resolvedPath);
+      const bytesWritten = Buffer.byteLength(content, encoding);
+
+      return {
+        success: true,
+        data: {
+          path: resolvedPath,
+          created: !fileExists,
+          bytes_written: bytesWritten,
+          metadata: {
+            size: stats.size,
+            modified: stats.mtimeMs,
+            encoding,
+          },
+        },
+      };
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      log.error('[FileToolsService] write_file error', {
+        path: resolvedPath,
+        code: err.code,
+        message: err.message,
+      });
+
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+        return {
+          success: false,
+          error: `PERMISSION_DENIED: Cannot write to '${userPath}': permission denied`,
+        };
+      }
+
+      if (err.code === 'ENOSPC') {
+        return {
+          success: false,
+          error: 'DISK_FULL: Cannot write file: disk is full',
+        };
+      }
+
+      if (err.code === 'ENOENT') {
+        return {
+          success: false,
+          error: 'DIR_NOT_FOUND: Parent directory does not exist',
+        };
+      }
+
+      return {
+        success: false,
+        error: err.message || 'Unknown error',
+      };
+    }
   }
 
   /**
