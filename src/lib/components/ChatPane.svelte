@@ -242,7 +242,7 @@
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
-  function scrollToBottom(behavior: ScrollBehavior = 'auto') {
+  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
     if (!messagesContainer) return;
     messagesContainer.scrollTo({
       top: messagesContainer.scrollHeight,
