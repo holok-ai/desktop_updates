@@ -3,7 +3,7 @@
 import ElectronStore from 'electron-store';
 import log from 'electron-log';
 import { app } from 'electron';
-import * as path from 'path';
+import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 
@@ -23,6 +23,9 @@ export interface AppSettings {
 
   // Holo API URL - base URL for the Holo API endpoint
   holoApiUrl: string;
+
+  // Directory Whitelist - trusted directories for file system access
+  directoryWhitelist: string[];
 
   // Other settings can be added here
   theme?: 'light' | 'dark';
@@ -46,6 +49,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   // Default Holo API URL (user-configurable)
   holoApiUrl: DEFAULT_HOLO_API_URL,
+
+  // Directory Whitelist - empty by default
+  directoryWhitelist: [],
 
   // Production alternatives (commented out):
   // mokuWebUrl: 'https://moku.holokai.com',
@@ -106,6 +112,11 @@ export class SettingsService {
           type: 'string',
           default: DEFAULT_SETTINGS.latestVersion,
         },
+        directoryWhitelist: {
+          type: 'array',
+          items: { type: 'string' },
+          default: DEFAULT_SETTINGS.directoryWhitelist,
+        },
       },
     } as any); // TODO: Reason to put any in here to pass the unit test since it require passing projectName. Will need define real type in future
 
@@ -148,7 +159,7 @@ export class SettingsService {
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
     this.store.set(key, value);
-    log.info(`[SettingsService] Setting updated: ${key} = ${value}`);
+    log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
   }
 
   /**
@@ -261,5 +272,57 @@ export class SettingsService {
    */
   public getStorePath(): string {
     return this.store.path;
+  }
+
+  /**
+   * Get directory whitelist
+   */
+  public getDirectoryWhitelist(): string[] {
+    const whitelist = this.store.get('directoryWhitelist', []);
+    return Array.isArray(whitelist) ? [...whitelist] : [];
+  }
+
+  /**
+   * Add a path to the directory whitelist
+   */
+  public addWhitelistPath(filePath: string): void {
+    if (!path.isAbsolute(filePath)) {
+      throw new Error('Path must be absolute');
+    }
+
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Path does not exist');
+    }
+
+    const whitelist = this.getDirectoryWhitelist();
+    const normalized = path.normalize(filePath);
+
+    if (!whitelist.includes(normalized)) {
+      whitelist.push(normalized);
+      this.store.set('directoryWhitelist', whitelist);
+      log.info('[SettingsService] Added whitelist path:', normalized);
+    }
+  }
+
+  /**
+   * Remove a path from the directory whitelist
+   */
+  public removeWhitelistPath(filePath: string): void {
+    const whitelist = this.getDirectoryWhitelist();
+    const normalized = path.normalize(filePath);
+    const filtered = whitelist.filter((p) => p !== normalized);
+
+    this.store.set('directoryWhitelist', filtered);
+    log.info('[SettingsService] Removed whitelist path:', normalized);
+  }
+
+  /**
+   * Set the entire directory whitelist
+   */
+  public setDirectoryWhitelist(paths: string[]): void {
+    const normalized = paths.map((p) => path.normalize(p));
+    this.store.set('directoryWhitelist', normalized);
+    log.info('[SettingsService] Whitelist updated:', normalized);
   }
 }

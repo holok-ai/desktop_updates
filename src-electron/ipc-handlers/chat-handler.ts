@@ -6,6 +6,7 @@ import type {
 } from '../services/chat/interfaces/ChatMessage.js';
 import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
 import { AuthService } from '../services/auth.service.js';
+import { getSettingsService } from './settings-handler.js';
 import log from 'electron-log';
 
 /**
@@ -50,8 +51,14 @@ export function registerChatHandlers(auth?: AuthService): void {
           }
         }
 
-        chatService = new ChatService(providerType, config, true);
-        log.info('[IPC] Chat service created successfully');
+        // Get whitelist from settings
+        const settingsService = getSettingsService();
+        const allowedPaths = settingsService.getDirectoryWhitelist();
+
+        chatService = new ChatService(providerType, config, true, allowedPaths);
+        log.info('[IPC] Chat service created successfully with whitelist', {
+          whitelistCount: allowedPaths.length,
+        });
         return { success: true };
       } catch (error) {
         log.error('[IPC] Error creating chat provider:', error);

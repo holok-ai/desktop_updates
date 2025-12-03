@@ -23,7 +23,12 @@ export class ChatService {
   /**
    * Create a ChatService with the specified provider and configuration
    */
-  constructor(providerType: string, config: ProviderConfig, enableAudit: boolean = true) {
+  constructor(
+    providerType: string,
+    config: ProviderConfig,
+    enableAudit: boolean = true,
+    allowedPaths?: string[],
+  ) {
     this.providerType = providerType as ProviderType;
     this.config = config;
     this.provider = this.initializeProvider();
@@ -32,7 +37,7 @@ export class ChatService {
       logToConsole: true,
       logToServer: false,
     });
-    this.fileToolsService = new FileToolsService();
+    this.fileToolsService = new FileToolsService(undefined, allowedPaths);
   }
 
   /**
@@ -150,5 +155,13 @@ export class ChatService {
    */
   public setFileToolsWorkingDirectory(dir: string): void {
     this.fileToolsService.setWorkingDirectory(dir);
+  }
+
+  /**
+   * Set allowed paths for file tools operations
+   * @param paths Array of allowed paths
+   */
+  public setFileToolsAllowedPaths(paths: string[]): void {
+    this.fileToolsService.setAllowedPaths(paths);
   }
 }

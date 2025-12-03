@@ -4,6 +4,7 @@
   import { APP_THEME_MODE } from '$lib/constants/app.constant';
   import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
+  import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
 
   let isLoading = true;
   let saveStatus = '';
@@ -13,6 +14,7 @@
     mokuWebUrl: '',
     mokuApiUrl: '',
     holoApiUrl: DEFAULT_HOLO_API_URL,
+    directoryWhitelist: [],
     theme: APP_THEME_MODE.LIGHT,
     autoUpdate: true,
     updateAvailable: false,
@@ -31,12 +33,16 @@
       mokuWebUrl: all.mokuWebUrl,
       mokuApiUrl: all.mokuApiUrl,
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
+      directoryWhitelist: [...(all.directoryWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
     };
-    savedSettings = { ...settings };
+    savedSettings = {
+      ...settings,
+      directoryWhitelist: [...settings.directoryWhitelist],
+    };
     appVersion = version;
 
     applyTheme(settings.theme);
@@ -73,12 +79,16 @@
         mokuWebUrl: settings.mokuWebUrl,
         mokuApiUrl: settings.mokuApiUrl,
         holoApiUrl: settings.holoApiUrl,
+        directoryWhitelist: settings.directoryWhitelist,
         autoUpdate: settings.autoUpdate,
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
       });
 
-      savedSettings = { ...settings };
+      savedSettings = {
+        ...settings,
+        directoryWhitelist: [...settings.directoryWhitelist],
+      };
       saveStatus = 'Settings saved successfully!';
       setTimeout(() => (saveStatus = ''), 3000);
     } catch (error: unknown) {
@@ -88,7 +98,10 @@
   }
 
   function cancelSettings() {
-    settings = { ...savedSettings };
+    settings = {
+      ...savedSettings,
+      directoryWhitelist: [...savedSettings.directoryWhitelist],
+    };
     holoApiUrlError = '';
     applyTheme(settings.theme);
     persistTheme(settings.theme);
@@ -119,12 +132,14 @@
       mokuWebUrl: settings.mokuWebUrl,
       mokuApiUrl: settings.mokuApiUrl,
       holoApiUrl: settings.holoApiUrl,
+      directoryWhitelist: settings.directoryWhitelist,
       autoUpdate: settings.autoUpdate,
     }) !==
     JSON.stringify({
       mokuWebUrl: savedSettings.mokuWebUrl,
       mokuApiUrl: savedSettings.mokuApiUrl,
       holoApiUrl: savedSettings.holoApiUrl,
+      directoryWhitelist: savedSettings.directoryWhitelist,
       autoUpdate: savedSettings.autoUpdate,
     });
 </script>
@@ -207,6 +222,13 @@
             </label>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="mb-2">File Tools</h2>
+      <div class="rounded-lg p-4 bg-[var(--surface-card)]">
+        <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
       </div>
     </section>
 
