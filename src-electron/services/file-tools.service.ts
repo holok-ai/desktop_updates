@@ -68,6 +68,7 @@ export interface WriteFileResult {
     size: number;
     modified: number;
     encoding: string;
+    previous_size?: number;
   };
 }
 
@@ -426,7 +427,15 @@ export class FileToolsService {
       };
     }
 
+    let previousSize: number | undefined;
+
     try {
+      if (fileExists) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const existingStats = await fs.promises.stat(resolvedPath);
+        previousSize = existingStats.size;
+      }
+
       log.info('[FileToolsService] write_file operation', {
         path: resolvedPath,
         overwrite,
@@ -451,6 +460,7 @@ export class FileToolsService {
             size: stats.size,
             modified: stats.mtimeMs,
             encoding,
+            previous_size: previousSize,
           },
         },
       };

@@ -8,6 +8,7 @@
   import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
+  import FileWriteNotification from './chat/FileWriteNotification.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
@@ -33,7 +34,7 @@
   let currentThread = $state(thread);
   const _localLlamaModel = {
     url: 'http://localhost:11434',
-    model: 'llama3:latest',
+    model: 'llama3.1:8b',
   };
   // const _localClaudeModel = {
   //     url: 'http://localhost:3000/api/custom/claude/f4f61965',
@@ -74,6 +75,24 @@
   let isSavingTitle = $state(false);
   let titleInputRef: HTMLInputElement | null = $state(null);
   const TITLE_MAX_LENGTH = 200;
+
+  type FileWriteEvent = {
+    id: string;
+    toolCallId: string;
+    messageId: string;
+    status: 'pending' | 'complete';
+    filePath: string;
+    created: boolean;
+    bytesWritten: number | null;
+    content: string;
+    previousSizeBytes: number | null;
+    overwriteRequested: boolean | null;
+    success: boolean | null;
+    error: string | null;
+  };
+
+  let fileWriteEventsByMessageId = $state<Record<string, FileWriteEvent[]>>({});
+  let toolCallMessageMap = $state<Record<string, string>>({});
 
   // Load showComments preference from localStorage
   onMount(() => {
@@ -300,7 +319,7 @@
         model: modelName,
       };
 
-      const result = await window.electronAPI.chat.chat(request);
+      const result = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -366,7 +385,7 @@
         model: modelName,
       };
 
-      const chatResult = await window.electronAPI.chat.chat(request);
+      const chatResult = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -420,7 +439,123 @@
 
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
+    let unsubToolUse: (() => void) | undefined;
+
     try {
+      if (window.electronAPI?.chat?.onToolUse) {
+        unsubToolUse = window.electronAPI.chat.onToolUse(
+          (data: {
+            toolName: string;
+            input: unknown;
+            stage: 'start' | 'complete';
+            toolCallId: string;
+            result?: unknown;
+          }) => {
+            if (data.toolName !== 'write_file') return;
+
+            const input = data.input as {
+              path?: string;
+              content?: string;
+              overwrite?: boolean;
+            };
+
+            const basePath = input.path || '';
+            const baseContent = input.content || '';
+            const overwriteRequested = !!input.overwrite;
+
+            if (data.stage === 'start') {
+              const userMessages = messages.filter((m) => m.role === 'user');
+              const targetMessage = userMessages[userMessages.length - 1];
+              if (!targetMessage) {
+                return;
+              }
+
+              toolCallMessageMap = {
+                ...toolCallMessageMap,
+                [data.toolCallId]: targetMessage.id,
+              };
+
+              const existingForMessage = fileWriteEventsByMessageId[targetMessage.id] ?? [];
+              const newEvent: FileWriteEvent = {
+                id: data.toolCallId,
+                toolCallId: data.toolCallId,
+                messageId: targetMessage.id,
+                status: 'pending' as const,
+                filePath: basePath,
+                created: !overwriteRequested,
+                bytesWritten: null,
+                content: baseContent,
+                previousSizeBytes: null,
+                overwriteRequested,
+                success: null,
+                error: null,
+              };
+
+              fileWriteEventsByMessageId = {
+                ...fileWriteEventsByMessageId,
+                [targetMessage.id]: [...existingForMessage, newEvent],
+              };
+              return;
+            }
+
+            const messageId = toolCallMessageMap[data.toolCallId];
+            if (!messageId) {
+              return;
+            }
+
+            const existingForMessage = fileWriteEventsByMessageId[messageId] ?? [];
+            const result = data.result as
+              | {
+                  success: boolean;
+                  data?: {
+                    path?: string;
+                    created?: boolean;
+                    bytes_written?: number;
+                    metadata?: { previous_size?: number };
+                  };
+                  error?: string;
+                }
+              | undefined;
+
+            const updatedEvents = existingForMessage.map((event) => {
+              if (event.toolCallId !== data.toolCallId) {
+                return event;
+              }
+
+              if (result && result.success && result.data) {
+                const dataResult = result.data;
+                return {
+                  ...event,
+                  status: 'complete' as const,
+                  filePath: dataResult.path || event.filePath,
+                  created: !!dataResult.created,
+                  bytesWritten: dataResult.bytes_written ?? event.bytesWritten ?? 0,
+                  previousSizeBytes: dataResult.metadata?.previous_size ?? event.previousSizeBytes,
+                  success: true,
+                  error: null,
+                };
+              }
+
+              return {
+                ...event,
+                status: 'complete' as const,
+                bytesWritten: event.bytesWritten ?? 0,
+                success: false,
+                error: (result && result.error) || 'File write failed',
+              };
+            });
+
+            fileWriteEventsByMessageId = {
+              ...fileWriteEventsByMessageId,
+              [messageId]: updatedEvents,
+            };
+
+            const { [data.toolCallId]: _, ...rest } = toolCallMessageMap;
+            toolCallMessageMap = rest;
+          },
+        );
+      }
+
       if (window.electronAPI?.thread?.onThreadUpdated) {
         unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
           // Only update if it's our current thread
@@ -444,6 +579,7 @@
     }
     return () => {
       if (unsubThreadUpdated) unsubThreadUpdated();
+      if (unsubToolUse) unsubToolUse();
       cleanup();
     };
   });
@@ -488,7 +624,7 @@
             model: modelName,
           };
 
-          const result = await window.electronAPI.chat.chat(request);
+          const result = await window.electronAPI.chat.chatWithFileTools(request);
 
           if (!result.success) {
             error = result.error || 'Chat failed';
@@ -636,6 +772,22 @@
             {showComments}
             on:copied={(event) => showToast(event.detail.message)}
           />
+          {#if fileWriteEventsByMessageId[m.id]}
+            <div class="file-write-events">
+              {#each fileWriteEventsByMessageId[m.id] as evt (evt.id)}
+                <FileWriteNotification
+                  filePath={evt.filePath}
+                  created={evt.created}
+                  bytesWritten={evt.bytesWritten ?? 0}
+                  content={evt.content}
+                  previousSizeBytes={evt.previousSizeBytes}
+                  overwriteRequested={evt.overwriteRequested}
+                  error={evt.success === false ? evt.error : null}
+                  status={evt.status}
+                />
+              {/each}
+            </div>
+          {/if}
         {/each}
       {/if}
 
@@ -1035,6 +1187,13 @@
     overflow: auto;
     margin-top: var(--content-padding);
     padding-right: var(--inline-spacing);
+  }
+
+  .file-write-events {
+    margin-top: var(--inline-spacing);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .composer {

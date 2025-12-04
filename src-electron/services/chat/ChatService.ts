@@ -9,6 +9,12 @@ import { AuditService } from './audit/AuditService.js';
 import { FileToolsService, type ToolResult } from '../file-tools.service.js';
 import log from 'electron-log';
 
+interface ToolUseNotification {
+  toolCallId: string;
+  stage: 'start' | 'complete';
+  result?: ToolResult;
+}
+
 /**
  * Main service class that provides a unified interface for chat functionality
  * across different providers
@@ -113,7 +119,11 @@ export class ChatService {
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolName: string, input: unknown) => void,
+    onToolUse?: (
+      toolName: string,
+      input: unknown,
+      notification?: ToolUseNotification,
+    ) => void,
   ): Promise<void> {
     // Check if provider supports tools
     if (
@@ -129,9 +139,23 @@ export class ChatService {
 
     const handleToolUse = async (toolUse: ToolUse): Promise<ToolResult> => {
       if (onToolUse) {
-        onToolUse(toolUse.name, toolUse.input);
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'start',
+          toolCallId: toolUse.id,
+        });
       }
-      return await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+
+      const result = await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+
+      if (onToolUse) {
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'complete',
+          toolCallId: toolUse.id,
+          result,
+        });
+      }
+
+      return result;
     };
 
     const { callback, complete } = this.auditService.createWrappedCallback(

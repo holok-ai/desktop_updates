@@ -183,9 +183,13 @@ export function registerChatHandlers(auth?: AuthService): void {
             // Send streaming tokens back to renderer
             event.sender.send('chat:token', token);
           },
-          (toolName: string, input: unknown) => {
-            // Send tool use notifications back to renderer
-            event.sender.send('chat:toolUse', { toolName, input });
+          (toolName: string, input: unknown, notification) => {
+            // Send tool use notifications back to renderer, including stage/result payload
+            event.sender.send('chat:toolUse', {
+              toolName,
+              input,
+              ...notification,
+            });
           },
         );
         log.info('[IPC] Chat message with file tools sent successfully');

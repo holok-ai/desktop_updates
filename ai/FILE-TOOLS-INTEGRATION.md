@@ -10,7 +10,7 @@ Integrate file access tools (`read_folder`, `read_file`) with the existing ChatS
 
 1. **OpenAI** (GPT-4, GPT-4 Turbo) - Full tool calling support
 2. **Anthropic** (Claude 3.x) - Full tool calling support
-3. **Ollama** (Local models) - Limited/manual tool handling
+3. **Ollama** (Local models) - Limited/manual tool handling (model must reliably follow JSON tool-call format and must exist in your local Ollama model list)
 4. **Perplexity** (pplx-70b-online, pplx-7b-chat) - Tool calling support
 
 ### Priority 2 (Future Implementation)
@@ -1251,6 +1251,22 @@ const configs = {
   },
   ollama: {
     apiEndpoint: 'http://localhost:11434',
+    // Recommended local tool-calling models for file tools testing:
+    // - 'llama3:latest' (widely available; good default)
+    // - 'qwen2.5:latest' or a specific size like 'qwen2.5:32b'
+    // - 'qwen3:latest'
+    // - a DeepSeek-R1 tool-calling variant (for example from a "tool-calling" Ollama model)
+    // - 'gemma:7b-instruct' (function-calling tuned)
+    // - 'granite3.2:8b'
+    //
+    // To verify the exact model name on your machine, run:
+    //   ollama list          # shows installed models
+    //   ollama pull llama3   # installs 'llama3:latest' if needed
+    //
+    // NOTE: OllamaChatProvider uses a manual JSON tool protocol, not native "tools".
+    // The model must be good at following instructions like:
+    //   {"tool":"read_file","input":{"file_path":"src/main.ts"}}
+    // and then returning to normal conversation after tool results.
     model: 'llama3:latest',
   },
   perplexity: {
