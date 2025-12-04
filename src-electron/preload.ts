@@ -552,8 +552,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exchangeCode: (code: string, codeVerifier: string) =>
       ipcRenderer.invoke('auth:exchangeCode', code, codeVerifier),
 
-    mockLogin: (provider: AuthProvider) =>
-      ipcRenderer.invoke('auth:mockLogin', provider),
+    mockLogin: (provider: AuthProvider) => ipcRenderer.invoke('auth:mockLogin', provider),
 
     getAuthState: () => ipcRenderer.invoke('auth:getAuthState'),
 

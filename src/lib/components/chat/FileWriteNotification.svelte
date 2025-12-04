@@ -55,7 +55,11 @@
   $: isError = !!error;
   $: friendlyError = getFriendlyError(error, filePath);
   $: isPending = status === 'pending';
-  $: iconClass = isError ? 'pi pi-exclamation-triangle' : isPending ? 'pi pi-spin pi-spinner' : 'pi pi-pencil';
+  $: iconClass = isError
+    ? 'pi pi-exclamation-triangle'
+    : isPending
+      ? 'pi pi-spin pi-spinner'
+      : 'pi pi-pencil';
   $: operationLabel = created ? 'Creating file:' : 'Updating file:';
 </script>
 
@@ -155,8 +159,17 @@
   }
 
   .file-path {
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-        'Courier New', monospace);
+    font-family: var(
+      --font-mono,
+      ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      'Liberation Mono',
+      'Courier New',
+      monospace
+    );
     font-size: 0.85rem;
     color: var(--text-secondary);
     word-break: break-all;
@@ -202,5 +215,3 @@
     font-size: 0.85rem;
   }
 </style>
-
-

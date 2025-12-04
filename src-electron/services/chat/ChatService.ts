@@ -119,11 +119,7 @@ export class ChatService {
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (
-      toolName: string,
-      input: unknown,
-      notification?: ToolUseNotification,
-    ) => void,
+    onToolUse?: (toolName: string, input: unknown, notification?: ToolUseNotification) => void,
   ): Promise<void> {
     // Check if provider supports tools
     if (
