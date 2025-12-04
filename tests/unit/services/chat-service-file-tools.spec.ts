@@ -125,6 +125,7 @@ describe('ChatService - File Tools Integration (unit)', () => {
           // Simulate LLM requesting a tool
           if (onToolUse) {
             const result = await onToolUse({
+              id: 'tool-call-1',
               name: 'read_folder',
               input: { path: '/test/path' },
             });
@@ -173,9 +174,17 @@ describe('ChatService - File Tools Integration (unit)', () => {
       receivedTokens += token;
     };
 
-    const toolUseCalls: Array<{ toolName: string; input: unknown }> = [];
-    const onToolUse = (toolName: string, input: unknown): void => {
-      toolUseCalls.push({ toolName, input });
+    const toolUseCalls: Array<{
+      toolName: string;
+      input: unknown;
+      notification?: unknown;
+    }> = [];
+    const onToolUse = (
+      toolName: string,
+      input: unknown,
+      notification?: { stage: 'start' | 'complete'; toolCallId: string; result?: ToolResult },
+    ): void => {
+      toolUseCalls.push({ toolName, input, notification });
     };
 
     await service.chatWithFileTools(request, onTokenReceived, onToolUse);
@@ -183,8 +192,14 @@ describe('ChatService - File Tools Integration (unit)', () => {
     expect(mockProvider.supportsTools).toHaveBeenCalled();
     expect(mockProvider.chatWithTools).toHaveBeenCalled();
     expect(receivedTokens).toContain('Using tools');
-    expect(toolUseCalls).toHaveLength(1);
+
+    // Expect two notifications: start and complete
+    expect(toolUseCalls).toHaveLength(2);
     expect(toolUseCalls[0].toolName).toBe('read_folder');
+    expect((toolUseCalls[0].notification as any).stage).toBe('start');
+    expect(toolUseCalls[1].toolName).toBe('read_folder');
+    expect((toolUseCalls[1].notification as any).stage).toBe('complete');
+    expect((toolUseCalls[1].notification as any).result?.success).toBe(true);
   });
 
   it('should fallback to regular chat when provider does not support tools', async () => {
