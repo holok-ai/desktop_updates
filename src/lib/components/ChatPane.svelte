@@ -67,6 +67,10 @@
   let showComments = $state(false);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
+  // Scrolling state
+  let messagesContainer: HTMLDivElement | null = $state(null);
+  let streamingMessageEl: HTMLDivElement | null = $state(null);
+
   // Title editing state
   let isEditingTitle = $state(false);
   let editedTitle = $state('');
@@ -240,6 +244,14 @@
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
+  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
+    if (!messagesContainer) return;
+    messagesContainer.scrollTo({
+      top: messagesContainer.scrollHeight,
+      behavior,
+    });
+  }
+
   // Setup token listener for streaming responses
   function setupTokenListener() {
     responseText = ''; // Clear previous response
@@ -248,9 +260,16 @@
     window.electronAPI.chat.offToken();
 
     window.electronAPI.chat.onToken((token: string) => {
-      console.log(token);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
+
+      // Keep streaming text in view inside messages container
+      scrollToBottom('auto');
+
+      // Ensure streaming block stays visible in the viewport (outer scroll container / window)
+      if (streamingMessageEl) {
+        streamingMessageEl.scrollIntoView({ block: 'end', behavior: 'auto' });
+      }
     });
   }
 
@@ -448,6 +467,13 @@
     };
   });
 
+  // Always keep view pinned to bottom when messages change
+  $effect(() => {
+    const _len = messages.length;
+    if (!_len || !messagesContainer) return;
+    scrollToBottom('auto');
+  });
+
   // Watch for thread changes to reinitialize if needed
   $effect(() => {
     if (currentThread && !chatServiceCreated) {
@@ -621,7 +647,7 @@
       <div class="toast">{toast}</div>
     {/if}
 
-    <div class="messages">
+    <div class="messages" bind:this={messagesContainer}>
       {#if messages.length === 0}
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
@@ -641,7 +667,7 @@
 
       <!-- Show streaming response in real-time -->
       {#if isStreaming && responseText}
-        <div class="message assistant streaming">
+        <div class="message assistant streaming" bind:this={streamingMessageEl}>
           <div class="message-content">
             <MarkdownRenderer content={responseText} enableCopy={true} />
           </div>
