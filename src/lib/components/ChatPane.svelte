@@ -403,6 +403,7 @@
 
       console.log('[ChatPane] After mapping, messages array:', messages.length);
 
+      // Delete messages after the edited one from backend
       const deleteResult = await threadService.deleteMessagesAfter(currentThread.id, messageId);
       if (!deleteResult.success) {
         error = deleteResult.error;
@@ -410,16 +411,18 @@
         return;
       }
 
-      console.log('[ChatPane] Messages deleted from backend, messages array:', messages.length);
+      console.log('[ChatPane] Messages deleted from backend');
 
+      // Remove messages after the edited one from local array
       const messageIndex = messages.findIndex((m) => m.id === messageId);
       console.log('[ChatPane] Message index:', messageIndex, 'out of', messages.length);
+
       if (messageIndex !== -1) {
         messages = messages.slice(0, messageIndex + 1);
         console.log('[ChatPane] After slicing, messages array:', messages.length);
       }
 
-      // Regenerate the AI response with full conversation history
+      // Build conversation history for regeneration
       const historyMessages = messages.map((m) => ({
         role: m.role,
         content: m.content,

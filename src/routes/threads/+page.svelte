@@ -136,23 +136,6 @@
     };
   });
 
-  // Refresh messages when the selected thread is updated elsewhere
-  onMount(() => {
-    const off = window.electronAPI.thread.onThreadUpdated((t) => {
-      if (selectedThread && t.id === selectedThread.id) {
-        void (async () => {
-          try {
-            messages = await threadService.getMessages(t.id);
-          } catch (e) {
-            console.error('Failed to refresh messages:', e);
-          }
-        })();
-      }
-    });
-    return () => {
-      off();
-    };
-  });
 
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
