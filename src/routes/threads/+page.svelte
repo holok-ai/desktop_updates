@@ -165,7 +165,14 @@
           if (currentProjectId) {
             // In project context - only show threads that belong to this project
             if (threadProjectId === currentProjectId) {
-              selectThread(found);
+              // Only call selectThread if we're not already viewing this thread
+              // (prevents clearing messages during edit operations)
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              } else {
+                // Just update the reference without reloading messages
+                selectedThread = found;
+              }
               errorMessage = null;
             } else {
               errorMessage = 'This thread does not belong to the current project.';
@@ -178,13 +185,23 @@
           } else {
             // In general/global context - allow threads without a project or from non-isolated projects
             if (threadProjectId === null) {
-              selectThread(found);
+              // Only call selectThread if we're not already viewing this thread
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              } else {
+                selectedThread = found;
+              }
               errorMessage = null;
             } else {
               const project = $projects.find((p) => p.id === threadProjectId);
               const isProjectOnly = project?.privacyMode === 'project_only';
               if (!isProjectOnly) {
-                selectThread(found);
+                // Only call selectThread if we're not already viewing this thread
+                if (selectedThread?.id !== found.id) {
+                  selectThread(found);
+                } else {
+                  selectedThread = found;
+                }
                 errorMessage = null;
               } else {
                 errorMessage =
