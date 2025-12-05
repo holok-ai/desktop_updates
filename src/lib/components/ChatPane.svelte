@@ -369,6 +369,7 @@
     console.log('[ChatPane] Starting edit and regenerate for message:', messageId);
     console.log('[ChatPane] Current thread:', currentThread?.id);
     console.log('[ChatPane] New content length:', newContent.length);
+    console.log('[ChatPane] Messages array before edit:', messages.length);
 
     if (!currentThread) {
       console.error('[ChatPane] Cannot edit: no current thread');
@@ -384,6 +385,8 @@
         return;
       }
 
+      console.log('[ChatPane] Message updated in backend, messages array:', messages.length);
+
       // Use the message returned from backend which has isEdited flag set
       const updatedMessage = result.message;
       messages = messages.map((message) =>
@@ -398,6 +401,8 @@
           : message,
       );
 
+      console.log('[ChatPane] After mapping, messages array:', messages.length);
+
       const deleteResult = await threadService.deleteMessagesAfter(currentThread.id, messageId);
       if (!deleteResult.success) {
         error = deleteResult.error;
@@ -405,9 +410,13 @@
         return;
       }
 
+      console.log('[ChatPane] Messages deleted from backend, messages array:', messages.length);
+
       const messageIndex = messages.findIndex((m) => m.id === messageId);
+      console.log('[ChatPane] Message index:', messageIndex, 'out of', messages.length);
       if (messageIndex !== -1) {
         messages = messages.slice(0, messageIndex + 1);
+        console.log('[ChatPane] After slicing, messages array:', messages.length);
       }
 
       // Regenerate the AI response with full conversation history
