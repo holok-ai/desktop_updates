@@ -417,6 +417,7 @@
       }));
 
       console.log('[ChatPane] Starting regeneration with', historyMessages.length, 'messages');
+      console.log('[ChatPane] History messages:', JSON.stringify(historyMessages, null, 2));
       isStreaming = true;
       setupTokenListener();
       const request = {
@@ -424,6 +425,7 @@
         streaming: true,
         model: modelName,
       };
+      console.log('[ChatPane] Chat request:', JSON.stringify(request, null, 2));
 
       const chatResult = await window.electronAPI.chat.chat(request);
 
