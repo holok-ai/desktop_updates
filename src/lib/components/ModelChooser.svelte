@@ -8,7 +8,35 @@
   export let initialSelection: { provider: string; id: string } | null = null;
   export let disabled: boolean = false;
 
-  let models: MokuModel[] = [];
+  // Extended model interface with configuration details
+  interface ExtendedModel extends MokuModel {
+    url?: string;
+    apiKey?: string;
+  }
+
+  // Hardcoded model configurations
+  const AVAILABLE_MODELS: ExtendedModel[] = [
+    {
+      id: 'llama3:latest',
+      provider: 'ollama',
+      title: 'llama3:latest (ollama)',
+      available: true,
+      default: true,
+      createdAt: Date.now(),
+      url: 'http://localhost:11434',
+    },
+    {
+      id: 'claude-opus-4-5-20251101',
+      provider: 'claude',
+      title: 'claude-opus-4-5-20251101 (claude)',
+      available: true,
+      createdAt: Date.now(),
+      url: 'http://localhost:3000/api/custom/claude/9d13a116/',
+      apiKey: 'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJwZXRlci5iYXh0ZXJAZHluYW1vLndvcmtzIiwib3JnYW5pemF0aW9uSWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzdWIiOiIzYmY2NGUxOC03MzMzLTRjYjMtYWQzMy1iMDU1YjM2MzA4OGIiLCJpc3MiOiJtb2t1LWFwaSIsImlhdCI6MTc2NDk0MzY4NCwiZXhwIjoyMDgwNDc2NDg0fQ.SGAwUa-GGb853bm0mdxu4VbLA_ysEyDjXZmbLhmY1AXPrXswjsK2QsiVebLC6Uqx',
+    },
+  ];
+
+  let models: ExtendedModel[] = [];
   let loading = true;
   let error: string | null = null;
   let selectedKey: string = '';
@@ -16,39 +44,8 @@
   onMount(async () => {
     loading = true;
     try {
-      // Guard window.electronAPI availability (web-only fallback or unexpected runtime)
-      // If unavailable, provide a small in-component fallback list so the chooser
-      // remains usable in non-Electron contexts (dev preview / web).
-      const win: any = typeof window !== 'undefined' ? window : undefined;
-      if (
-        win &&
-        win.electronAPI &&
-        win.electronAPI.models &&
-        typeof win.electronAPI.models.listAvailable === 'function'
-      ) {
-        models = await win.electronAPI.models.listAvailable();
-      } else {
-        // Fallback sample models for non-electron environments
-        models = [
-          {
-            provider: 'openai',
-            id: 'gpt-4o',
-            title: 'GPT-4o',
-            available: true,
-            default: true,
-            createdAt: Date.now(),
-          },
-          {
-            provider: 'openai',
-            id: 'gpt-3.5',
-            title: 'GPT-3.5',
-            available: true,
-            createdAt: Date.now(),
-          },
-        ];
-        // Do not treat this as an error; show no error so UI can function.
-        error = null;
-      }
+      // Use hardcoded models instead of fetching from API
+      models = AVAILABLE_MODELS;
 
       if (initialSelection) {
         selectedKey = initialSelection.provider + '::' + initialSelection.id;
@@ -68,7 +65,7 @@
     }
   });
 
-  function parseSelected(): MokuModel | null {
+  function parseSelected(): ExtendedModel | null {
     if (!selectedKey) return null;
     const parts = selectedKey.split('::');
     const provider = parts[0];
@@ -99,7 +96,7 @@
         {disabled}
       >
         {#each models as m}
-          <option value={m.provider + '::' + m.id}>{m.title} — {m.provider}</option>
+          <option value={m.provider + '::' + m.id}>{m.title}</option>
         {/each}
       </select>
     </div>

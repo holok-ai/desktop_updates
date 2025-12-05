@@ -31,25 +31,24 @@
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);
-  const _localLlamaModel = {
-    url: 'http://localhost:11434',
-    model: 'llama3:latest',
-  };
-  // const _localClaudeModel = {
-  //     url: 'http://localhost:3000/api/custom/claude/f4f61965',
-  //     apiKey: '', // Will be injected from auth service by chat handler
-  //     model: 'claude-opus-4-1-20250805',
-  // };
-  // let _devClaudeModel = {
-  //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
-  //     apiKey: '', // Will be injected from auth service by chat handler
-  //     model: 'claude-3-haiku-20240307'
-  // };
-  let modelName = _localLlamaModel.model;
 
-  // Watch for prop changes and clear error when thread changes
+  // Model configuration derived from thread metadata
+  let modelName = $state('llama3:latest'); // Default fallback
+  let modelUrl = $state('http://localhost:11434');
+  let modelApiKey = $state<string | undefined>(undefined);
+
+  // Watch for prop changes and update model configuration from thread metadata
   $effect(() => {
     currentThread = thread;
+
+    // Extract model configuration from thread metadata
+    if (thread?.metadata) {
+      const meta = thread.metadata;
+      modelName = (meta.model as string) ?? 'llama3:latest';
+      modelUrl = (meta.url as string) ?? 'http://localhost:11434';
+      modelApiKey = meta.apiKey as string | undefined;
+    }
+
     // Clear error state when switching threads to prevent stale errors
     error = '';
   });
