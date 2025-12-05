@@ -294,10 +294,11 @@
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
 
-      // Create thread with prompt atomically
+      // Create thread with prompt atomically, passing full metadata with model config
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        metadata: formData.metadata, // Pass full metadata including url, apiKey, provider
       });
       const created = res.thread as Thread;
       threads.addThread(created);

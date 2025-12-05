@@ -88,7 +88,12 @@ export interface ThreadAPI {
   addUserPrompt: (
     threadId: string | null,
     prompt: string,
-    opts?: { title?: string; description?: string; model?: string },
+    opts?: {
+      title?: string;
+      description?: string;
+      model?: string;
+      metadata?: Record<string, unknown>;
+    },
   ) => Promise<{
     thread: Thread;
     message: { id: string; role: string; content: string; createdAt: number };
@@ -767,7 +772,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addUserPrompt: (
       threadId: string | null,
       prompt: string,
-      opts: { title?: string; description?: string; model?: string } | undefined,
+      opts:
+        | {
+            title?: string;
+            description?: string;
+            model?: string;
+            metadata?: Record<string, unknown>;
+          }
+        | undefined,
     ) => ipcRenderer.invoke('thread:addUserPrompt', threadId, prompt, opts),
 
     addAssistantResponse: (threadId: string, response: string, model?: string) =>
