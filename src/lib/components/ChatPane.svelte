@@ -36,6 +36,17 @@
   let modelName = $state('llama3:latest'); // Default fallback
   let modelUrl = $state('http://localhost:11434');
   let modelApiKey = $state<string | undefined>(undefined);
+  let modelProvider = $state('ollama'); // Default provider
+
+  // Track current provider config to detect changes
+  interface ProviderConfig {
+    provider: string;
+    url: string;
+    model: string;
+    apiKey?: string;
+  }
+  let currentProviderConfig: ProviderConfig | null = $state(null);
+  let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
 
   // Watch for prop changes and update model configuration from thread metadata
   $effect(() => {
@@ -47,6 +58,19 @@
       modelName = (meta.model as string) ?? 'llama3:latest';
       modelUrl = (meta.url as string) ?? 'http://localhost:11434';
       modelApiKey = meta.apiKey as string | undefined;
+      modelProvider = (meta.provider as string) ?? 'ollama';
+
+      // Log when thread is first loaded
+      if (thread.id && !threadLoadedIds.has(thread.id)) {
+        console.log(`[ChatPane] Thread loaded: provider=${modelProvider}, model=${modelName}`);
+        threadLoadedIds.add(thread.id);
+      }
+    } else {
+      // Reset to defaults if no metadata
+      modelName = 'llama3:latest';
+      modelUrl = 'http://localhost:11434';
+      modelApiKey = undefined;
+      modelProvider = 'ollama';
     }
 
     // Clear error state when switching threads to prevent stale errors
@@ -223,17 +247,25 @@
     wasOnline = online;
   });
 
-  // Initialize chat service on mount
-  async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider('ollama', _localLlamaModel);
+  // Initialize chat service with provider configuration
+  async function initializeChatService(config: ProviderConfig) {
+    console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
+
+    const result = await window.electronAPI.chat.createProvider(config.provider, {
+      url: config.url,
+      model: config.model,
+      apiKey: config.apiKey,
+    });
+
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
-      console.error('Failed to create chat provider:', result.error);
+      console.error('[ChatPane] Failed to create chat provider:', result.error);
       return;
     }
 
-    console.log('Chat service initialized!');
+    console.log('[ChatPane] Chat service initialized successfully!');
     chatServiceCreated = true;
+    currentProviderConfig = config;
   }
 
   function showToast(message: string, ms = 2500) {
@@ -434,7 +466,6 @@
   // Lifecycle hooks
   onMount(() => {
     outboxService.init();
-    initializeChatService();
 
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
@@ -473,10 +504,32 @@
     scrollToBottom('auto');
   });
 
-  // Watch for thread changes to reinitialize if needed
+  // Watch for thread changes and reinitialize provider if config changed
   $effect(() => {
-    if (currentThread && !chatServiceCreated) {
-      initializeChatService();
+    if (!currentThread) {
+      // No thread loaded, don't initialize
+      return;
+    }
+
+    // Build provider config from current thread metadata
+    const newConfig: ProviderConfig = {
+      provider: modelProvider,
+      url: modelUrl,
+      model: modelName,
+      apiKey: modelApiKey,
+    };
+
+    // Check if we need to reinitialize (config changed or first time)
+    const needsReinit = !currentProviderConfig ||
+      currentProviderConfig.provider !== newConfig.provider ||
+      currentProviderConfig.url !== newConfig.url ||
+      currentProviderConfig.model !== newConfig.model ||
+      currentProviderConfig.apiKey !== newConfig.apiKey;
+
+    if (needsReinit) {
+      console.log('[ChatPane] Provider config changed, reinitializing...');
+      chatServiceCreated = false; // Mark as not created to trigger reinit
+      void initializeChatService(newConfig);
     }
   });
 
