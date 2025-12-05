@@ -35,7 +35,6 @@
   // Model configuration derived from thread metadata
   let modelName = $state('llama3:latest'); // Default fallback
   let modelUrl = $state('http://localhost:11434');
-  let modelApiKey = $state<string | undefined>(undefined);
   let modelProvider = $state('ollama'); // Default provider
 
   // Track current provider config to detect changes
@@ -43,7 +42,6 @@
     provider: string;
     url: string;
     model: string;
-    apiKey?: string;
   }
   let currentProviderConfig: ProviderConfig | null = $state(null);
   let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
@@ -59,7 +57,6 @@
 
       modelName = (meta.model as string) ?? 'llama3:latest';
       modelUrl = (meta.url as string) ?? 'http://localhost:11434';
-      modelApiKey = meta.apiKey as string | undefined;
       modelProvider = (meta.provider as string) ?? 'ollama';
 
       // Log when thread is first loaded
@@ -72,7 +69,6 @@
       // Reset to defaults if no metadata
       modelName = 'llama3:latest';
       modelUrl = 'http://localhost:11434';
-      modelApiKey = undefined;
       modelProvider = 'ollama';
     }
 
@@ -257,7 +253,6 @@
     const result = await window.electronAPI.chat.createProvider(config.provider, {
       url: config.url,
       model: config.model,
-      apiKey: config.apiKey,
     });
 
     if (!result.success) {
@@ -533,15 +528,13 @@
       provider: modelProvider,
       url: modelUrl,
       model: modelName,
-      apiKey: modelApiKey,
     };
 
     // Check if we need to reinitialize (config changed or first time)
     const needsReinit = !currentProviderConfig ||
       currentProviderConfig.provider !== newConfig.provider ||
       currentProviderConfig.url !== newConfig.url ||
-      currentProviderConfig.model !== newConfig.model ||
-      currentProviderConfig.apiKey !== newConfig.apiKey;
+      currentProviderConfig.model !== newConfig.model;
 
     if (needsReinit) {
       console.log('[ChatPane] Provider config changed, reinitializing...');

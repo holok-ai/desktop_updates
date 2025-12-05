@@ -59,13 +59,12 @@
     const m = detail.model;
     if (m) {
       selectedModel = m;
-      const modelWithConfig = m as any; // ExtendedModel with url/apiKey
+      const modelWithConfig = m as any; // ExtendedModel with url
       formData.metadata = {
         ...(formData.metadata ?? {}),
         model: m.id,
         provider: m.provider,
         url: modelWithConfig.url,
-        apiKey: modelWithConfig.apiKey,
       };
       dispatch('modelSelectionChange', { model: m, isAuto: detail.isAuto });
     }

@@ -300,7 +300,6 @@
             model: formData.metadata.model,
             provider: formData.metadata.provider,
             url: formData.metadata.url,
-            apiKey: formData.metadata.apiKey,
           }
         : undefined;
 

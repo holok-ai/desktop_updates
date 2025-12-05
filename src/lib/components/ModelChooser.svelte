@@ -11,30 +11,7 @@
   // Extended model interface with configuration details
   interface ExtendedModel extends MokuModel {
     url?: string;
-    apiKey?: string;
   }
-
-  // Hardcoded model configurations
-  const AVAILABLE_MODELS: ExtendedModel[] = [
-    {
-      id: 'llama3:latest',
-      provider: 'ollama',
-      title: 'llama3:latest (ollama)',
-      available: true,
-      default: true,
-      createdAt: Date.now(),
-      url: 'http://localhost:11434',
-    },
-    {
-      id: 'claude-opus-4-5-20251101',
-      provider: 'claude',
-      title: 'claude-opus-4-5-20251101 (claude)',
-      available: true,
-      createdAt: Date.now(),
-      url: 'http://localhost:3000/api/custom/claude/9d13a116/',
-      apiKey: 'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJwZXRlci5iYXh0ZXJAZHluYW1vLndvcmtzIiwib3JnYW5pemF0aW9uSWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzdWIiOiIzYmY2NGUxOC03MzMzLTRjYjMtYWQzMy1iMDU1YjM2MzA4OGIiLCJpc3MiOiJtb2t1LWFwaSIsImlhdCI6MTc2NDk0MzY4NCwiZXhwIjoyMDgwNDc2NDg0fQ.SGAwUa-GGb853bm0mdxu4VbLA_ysEyDjXZmbLhmY1AXPrXswjsK2QsiVebLC6Uqx',
-    },
-  ];
 
   let models: ExtendedModel[] = [];
   let loading = true;
@@ -44,8 +21,9 @@
   onMount(async () => {
     loading = true;
     try {
-      // Use hardcoded models instead of fetching from API
-      models = AVAILABLE_MODELS;
+      // Fetch models from backend via IPC
+      const fetchedModels = await window.electronAPI.models.listAll();
+      models = fetchedModels as ExtendedModel[];
 
       if (initialSelection) {
         selectedKey = initialSelection.provider + '::' + initialSelection.id;
