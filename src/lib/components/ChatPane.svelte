@@ -27,7 +27,7 @@
     >;
   }
 
-  let { thread = null, messages = [], composer }: Props = $props();
+  let { thread = null, messages = $bindable([]), composer }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state(thread);

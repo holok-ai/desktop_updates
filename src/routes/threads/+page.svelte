@@ -335,7 +335,7 @@
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane bind:this={chatPaneRef} thread={selectedThread} {messages}>
+        <ChatPane bind:this={chatPaneRef} thread={selectedThread} bind:messages>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />
