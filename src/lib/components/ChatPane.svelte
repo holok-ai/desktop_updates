@@ -371,12 +371,21 @@
   }
 
   async function handleEditAndRegenerate(messageId: string, newContent: string) {
-    if (!thread) return;
+    console.log('[ChatPane] Starting edit and regenerate for message:', messageId);
+    console.log('[ChatPane] Current thread:', currentThread?.id);
+    console.log('[ChatPane] New content length:', newContent.length);
+
+    if (!currentThread) {
+      console.error('[ChatPane] Cannot edit: no current thread');
+      showToast('Error: No active thread');
+      return;
+    }
 
     try {
-      const result = await threadService.updateMessage(thread.id, messageId, newContent);
+      const result = await threadService.updateMessage(currentThread.id, messageId, newContent);
       if (!result.success) {
         error = result.error;
+        showToast(`Error updating message: ${result.error}`);
         return;
       }
 
@@ -394,9 +403,10 @@
           : message,
       );
 
-      const deleteResult = await threadService.deleteMessagesAfter(thread.id, messageId);
+      const deleteResult = await threadService.deleteMessagesAfter(currentThread.id, messageId);
       if (!deleteResult.success) {
         error = deleteResult.error;
+        showToast(`Error deleting messages: ${deleteResult.error}`);
         return;
       }
 
@@ -411,6 +421,7 @@
         content: m.content,
       }));
 
+      console.log('[ChatPane] Starting regeneration with', historyMessages.length, 'messages');
       isStreaming = true;
       setupTokenListener();
       const request = {
@@ -423,13 +434,16 @@
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
-        console.error('Chat failed:', chatResult.error);
+        console.error('[ChatPane] Chat failed:', chatResult.error);
+        showToast(`Error generating response: ${chatResult.error}`);
       } else {
-        await transmitter.handleAssistantResponse(responseText, thread, newContent);
+        console.log('[ChatPane] Regeneration complete, handling assistant response');
+        await transmitter.handleAssistantResponse(responseText, currentThread, newContent);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Error editing message:', err);
+      console.error('[ChatPane] Error editing message:', err);
+      showToast(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       isStreaming = false;
     }
