@@ -199,15 +199,11 @@ export class ThreadRepository {
   public addUserPrompt(
     threadId: string | null | undefined,
     prompt: string,
-    opts: { title?: string; description?: string; model?: string } = {},
+    opts: ThreadMetadata = {},
   ): { thread: Thread; message: Message } {
     let tid = threadId;
     if (!tid) {
-      const th = this.createThread({
-        title: opts.title,
-        description: opts.description,
-        model: opts.model,
-      });
+      const th = this.createThread(opts);
       tid = th.id;
     }
     const message = this.addMessage(tid, 'user', prompt);

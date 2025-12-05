@@ -55,6 +55,8 @@
     // Extract model configuration from thread metadata
     if (thread?.metadata) {
       const meta = thread.metadata;
+      console.log('[ChatPane] Thread metadata:', JSON.stringify(meta, null, 2));
+
       modelName = (meta.model as string) ?? 'llama3:latest';
       modelUrl = (meta.url as string) ?? 'http://localhost:11434';
       modelApiKey = meta.apiKey as string | undefined;
@@ -62,10 +64,11 @@
 
       // Log when thread is first loaded
       if (thread.id && !threadLoadedIds.has(thread.id)) {
-        console.log(`[ChatPane] Thread loaded: provider=${modelProvider}, model=${modelName}`);
+        console.log(`[ChatPane] Thread loaded: provider=${modelProvider}, model=${modelName}, url=${modelUrl}`);
         threadLoadedIds.add(thread.id);
       }
     } else {
+      console.log('[ChatPane] No thread metadata, using defaults');
       // Reset to defaults if no metadata
       modelName = 'llama3:latest';
       modelUrl = 'http://localhost:11434';
