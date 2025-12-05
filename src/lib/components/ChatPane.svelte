@@ -14,6 +14,7 @@
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
+  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
 
   interface Props {
     thread?: Thread | null;
@@ -50,9 +51,15 @@
 
   // Watch for prop changes and clear error when thread changes
   $effect(() => {
+    const previousThreadId = currentThread?.id;
     currentThread = thread;
     // Clear error state when switching threads to prevent stale errors
     error = '';
+    // Clear file write events when switching threads
+    if (previousThreadId !== thread?.id) {
+      fileWriteEventService.clear();
+      fileWriteEventsByMessageId = {};
+    }
   });
 
   // State management
@@ -76,23 +83,8 @@
   let titleInputRef: HTMLInputElement | null = $state(null);
   const TITLE_MAX_LENGTH = 200;
 
-  type FileWriteEvent = {
-    id: string;
-    toolCallId: string;
-    messageId: string;
-    status: 'pending' | 'complete';
-    filePath: string;
-    created: boolean;
-    bytesWritten: number | null;
-    content: string;
-    previousSizeBytes: number | null;
-    overwriteRequested: boolean | null;
-    success: boolean | null;
-    error: string | null;
-  };
-
+  const fileWriteEventService = new FileWriteEventService();
   let fileWriteEventsByMessageId = $state<Record<string, FileWriteEvent[]>>({});
-  let toolCallMessageMap = $state<Record<string, string>>({});
 
   // Load showComments preference from localStorage
   onMount(() => {
@@ -451,107 +443,7 @@
             toolCallId: string;
             result?: unknown;
           }) => {
-            if (data.toolName !== 'write_file') return;
-
-            const input = data.input as {
-              path?: string;
-              content?: string;
-              overwrite?: boolean;
-            };
-
-            const basePath = input.path || '';
-            const baseContent = input.content || '';
-            const overwriteRequested = !!input.overwrite;
-
-            if (data.stage === 'start') {
-              const userMessages = messages.filter((m) => m.role === 'user');
-              const targetMessage = userMessages[userMessages.length - 1];
-              if (!targetMessage) {
-                return;
-              }
-
-              toolCallMessageMap = {
-                ...toolCallMessageMap,
-                [data.toolCallId]: targetMessage.id,
-              };
-
-              const existingForMessage = fileWriteEventsByMessageId[targetMessage.id] ?? [];
-              const newEvent: FileWriteEvent = {
-                id: data.toolCallId,
-                toolCallId: data.toolCallId,
-                messageId: targetMessage.id,
-                status: 'pending' as const,
-                filePath: basePath,
-                created: !overwriteRequested,
-                bytesWritten: null,
-                content: baseContent,
-                previousSizeBytes: null,
-                overwriteRequested,
-                success: null,
-                error: null,
-              };
-
-              fileWriteEventsByMessageId = {
-                ...fileWriteEventsByMessageId,
-                [targetMessage.id]: [...existingForMessage, newEvent],
-              };
-              return;
-            }
-
-            const messageId = toolCallMessageMap[data.toolCallId];
-            if (!messageId) {
-              return;
-            }
-
-            const existingForMessage = fileWriteEventsByMessageId[messageId] ?? [];
-            const result = data.result as
-              | {
-                  success: boolean;
-                  data?: {
-                    path?: string;
-                    created?: boolean;
-                    bytes_written?: number;
-                    metadata?: { previous_size?: number };
-                  };
-                  error?: string;
-                }
-              | undefined;
-
-            const updatedEvents = existingForMessage.map((event) => {
-              if (event.toolCallId !== data.toolCallId) {
-                return event;
-              }
-
-              if (result && result.success && result.data) {
-                const dataResult = result.data;
-                return {
-                  ...event,
-                  status: 'complete' as const,
-                  filePath: dataResult.path || event.filePath,
-                  created: !!dataResult.created,
-                  bytesWritten: dataResult.bytes_written ?? event.bytesWritten ?? 0,
-                  previousSizeBytes: dataResult.metadata?.previous_size ?? event.previousSizeBytes,
-                  success: true,
-                  error: null,
-                };
-              }
-
-              return {
-                ...event,
-                status: 'complete' as const,
-                bytesWritten: event.bytesWritten ?? 0,
-                success: false,
-                error: (result && result.error) || 'File write failed',
-              };
-            });
-
-            fileWriteEventsByMessageId = {
-              ...fileWriteEventsByMessageId,
-              [messageId]: updatedEvents,
-            };
-
-            const { [data.toolCallId]: _, ...rest } = toolCallMessageMap;
-            toolCallMessageMap = rest;
+            fileWriteEventsByMessageId = fileWriteEventService.handleToolUse(data, messages);
           },
         );
       }

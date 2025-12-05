@@ -63,12 +63,12 @@ export interface WriteFileParams {
 export interface WriteFileResult {
   path: string;
   created: boolean;
-  bytes_written: number;
+  bytesWritten: number;
   metadata: {
     size: number;
     modified: number;
     encoding: string;
-    previous_size?: number;
+    previousSize?: number;
   };
 }
 
@@ -450,12 +450,12 @@ export class FileToolsService {
         data: {
           path: resolvedPath,
           created: !fileExists,
-          bytes_written: bytesWritten,
+          bytesWritten: bytesWritten,
           metadata: {
             size: stats.size,
             modified: stats.mtimeMs,
             encoding,
-            previous_size: previousSize,
+            previousSize: previousSize,
           },
         },
       };
