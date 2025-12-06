@@ -53,19 +53,16 @@
     // Extract model configuration from thread metadata
     if (thread?.metadata) {
       const meta = thread.metadata;
-      console.log('[ChatPane] Thread metadata:', JSON.stringify(meta, null, 2));
 
       modelName = (meta.model as string) ?? 'llama3:latest';
       modelUrl = (meta.url as string) ?? 'http://localhost:11434';
       modelProvider = (meta.provider as string) ?? 'ollama';
 
-      // Log when thread is first loaded
+      // Track loaded threads
       if (thread.id && !threadLoadedIds.has(thread.id)) {
-        console.log(`[ChatPane] Thread loaded: provider=${modelProvider}, model=${modelName}, url=${modelUrl}`);
         threadLoadedIds.add(thread.id);
       }
     } else {
-      console.log('[ChatPane] No thread metadata, using defaults');
       // Reset to defaults if no metadata
       modelName = 'llama3:latest';
       modelUrl = 'http://localhost:11434';
@@ -261,7 +258,6 @@
       return;
     }
 
-    console.log('[ChatPane] Chat service initialized successfully!');
     chatServiceCreated = true;
     currentProviderConfig = config;
   }
@@ -366,13 +362,7 @@
   }
 
   async function handleEditAndRegenerate(messageId: string, newContent: string) {
-    console.log('[ChatPane] Starting edit and regenerate for message:', messageId);
-    console.log('[ChatPane] Current thread:', currentThread?.id);
-    console.log('[ChatPane] New content length:', newContent.length);
-    console.log('[ChatPane] Messages array before edit:', messages.length);
-
     if (!currentThread) {
-      console.error('[ChatPane] Cannot edit: no current thread');
       showToast('Error: No active thread');
       return;
     }
@@ -384,8 +374,6 @@
         showToast(`Error updating message: ${result.error}`);
         return;
       }
-
-      console.log('[ChatPane] Message updated in backend, messages array:', messages.length);
 
       // Use the message returned from backend which has isEdited flag set
       const updatedMessage = result.message;
@@ -401,8 +389,6 @@
           : message,
       );
 
-      console.log('[ChatPane] After mapping, messages array:', messages.length);
-
       // Delete messages after the edited one from backend
       const deleteResult = await threadService.deleteMessagesAfter(currentThread.id, messageId);
       if (!deleteResult.success) {
@@ -411,15 +397,11 @@
         return;
       }
 
-      console.log('[ChatPane] Messages deleted from backend');
-
       // Remove messages after the edited one from local array
       const messageIndex = messages.findIndex((m) => m.id === messageId);
-      console.log('[ChatPane] Message index:', messageIndex, 'out of', messages.length);
 
       if (messageIndex !== -1) {
         messages = messages.slice(0, messageIndex + 1);
-        console.log('[ChatPane] After slicing, messages array:', messages.length);
       }
 
       // Build conversation history for regeneration
@@ -428,8 +410,6 @@
         content: m.content,
       }));
 
-      console.log('[ChatPane] Starting regeneration with', historyMessages.length, 'messages');
-      console.log('[ChatPane] History messages:', JSON.stringify(historyMessages, null, 2));
       isStreaming = true;
       setupTokenListener();
       const request = {
@@ -437,7 +417,6 @@
         streaming: true,
         model: modelName,
       };
-      console.log('[ChatPane] Chat request:', JSON.stringify(request, null, 2));
 
       const chatResult = await window.electronAPI.chat.chat(request);
 
@@ -446,7 +425,6 @@
         console.error('[ChatPane] Chat failed:', chatResult.error);
         showToast(`Error generating response: ${chatResult.error}`);
       } else {
-        console.log('[ChatPane] Regeneration complete, handling assistant response');
         await transmitter.handleAssistantResponse(responseText, currentThread, newContent);
       }
     } catch (err) {
@@ -551,7 +529,6 @@
       currentProviderConfig.model !== newConfig.model;
 
     if (needsReinit) {
-      console.log('[ChatPane] Provider config changed, reinitializing...');
       chatServiceCreated = false; // Mark as not created to trigger reinit
       void initializeChatService(newConfig);
     }
