@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/require-await */
 /**
- * In-memory Moku service (Moku API stub)
+ * Moku Service
+ * - Handles all API calls to Moku backend
+ * - Manages authentication endpoints (exchange code, token refresh)
  * - Memory-only store for available models returned by Moku
  * - Provides a simple API for listing and querying models
- * - Intended for UI integration and tests; no external network calls
  */
 
 import { randomUUID } from 'crypto';
+import { getSettingsService } from '../ipc-handlers/settings-handler.js';
+import log from 'electron-log';
 
 export interface MokuModel {
   provider: string;
@@ -16,6 +19,21 @@ export interface MokuModel {
   available: boolean;
   default?: boolean;
   createdAt: number;
+}
+
+/**
+ * Response from /api/auth/exchange-code endpoint
+ */
+export interface ExchangeCodeResponse {
+  apiKey: string;
+}
+
+/**
+ * Response from /api/auth/token/refresh endpoint
+ */
+export interface TokenRefreshResponse {
+  accessToken: string;
+  expires_in: number;
 }
 
 export class MokuService {
@@ -99,6 +117,74 @@ export class MokuService {
           createdAt: found.createdAt,
         }
       : undefined;
+  }
+
+  /**
+   * Get Moku API URL from settings
+   */
+  private getMokuApiUrl(): string {
+    const settingsService = getSettingsService();
+    return settingsService.getMokuApiUrl();
+  }
+
+  /**
+   * Exchange code for apiKey
+   * Step 1 of authentication flow
+   */
+  public async exchangeCodeForApiKey(code: string): Promise<string> {
+    log.info('[MokuService] Exchanging code for apiKey');
+
+    const mokuApiUrl = this.getMokuApiUrl();
+
+    const response = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log.error('[MokuService] Exchange code failed:', response.status, errorText);
+
+      if (response.status === 401) {
+        throw new Error('Invalid or expired exchange code. Please try logging in again.');
+      }
+      throw new Error(`Failed to exchange code: ${response.status}`);
+    }
+
+    const { apiKey } = (await response.json()) as ExchangeCodeResponse;
+    log.info('[MokuService] Successfully received apiKey');
+
+    return apiKey;
+  }
+
+  /**
+   * Exchange apiKey for accessToken
+   * Step 2 of authentication flow and used for token refresh
+   */
+  public async exchangeApiKeyForAccessToken(
+    apiKey: string,
+  ): Promise<{ accessToken: string; expires_in: number }> {
+    log.info('[MokuService] Exchanging apiKey for accessToken');
+
+    const mokuApiUrl = this.getMokuApiUrl();
+
+    const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log.error('[MokuService] Token refresh failed:', response.status, errorText);
+      throw new Error(`Failed to get access token: ${response.status}`);
+    }
+
+    const { accessToken, expires_in } = (await response.json()) as TokenRefreshResponse;
+    log.info('[MokuService] Successfully received accessToken');
+
+    return { accessToken, expires_in };
   }
 
   /** Simulate refreshing model list from Moku (no-op in-memory) */

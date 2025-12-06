@@ -15,7 +15,7 @@
     ondelete,
   }: Props = $props();
 
-  let commentText = $state(initialValue);
+  let commentText = $state('');
   let isFocused = $state(false);
 
   // Sync commentText when initialValue changes (e.g., when switching from display to edit)

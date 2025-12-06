@@ -30,7 +30,7 @@
   let { thread = null, messages = $bindable([]), composer }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
-  let currentThread = $state(thread);
+  let currentThread = $state<Thread | null>(null);
 
   // Model configuration derived from thread metadata
   let modelName = $state('llama3:latest'); // Default fallback
