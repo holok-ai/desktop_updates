@@ -706,12 +706,19 @@ export function registerThreadHandlers(): void {
       _event,
       threadId: string | null,
       prompt: string,
-      opts: { title?: string; description?: string; model?: string } = {},
+      opts: {
+        title?: string;
+        description?: string;
+        model?: string;
+        metadata?: Record<string, unknown>;
+      } = {},
     ): Promise<{
       thread: RendererThread;
       message: { id: string; role: string; content: string; createdAt: number };
     }> => {
-      const res = threadRepository.addUserPrompt(threadId, prompt, opts);
+      // Merge metadata into opts for createThread
+      const createOpts = opts.metadata ? { ...opts, ...opts.metadata } : opts;
+      const res = threadRepository.addUserPrompt(threadId, prompt, createOpts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread');
       const msg = {

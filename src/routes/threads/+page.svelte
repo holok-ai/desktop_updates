@@ -136,23 +136,6 @@
     };
   });
 
-  // Refresh messages when the selected thread is updated elsewhere
-  onMount(() => {
-    const off = window.electronAPI.thread.onThreadUpdated((t) => {
-      if (selectedThread && t.id === selectedThread.id) {
-        void (async () => {
-          try {
-            messages = await threadService.getMessages(t.id);
-          } catch (e) {
-            console.error('Failed to refresh messages:', e);
-          }
-        })();
-      }
-    });
-    return () => {
-      off();
-    };
-  });
 
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
@@ -182,7 +165,11 @@
           if (currentProjectId) {
             // In project context - only show threads that belong to this project
             if (threadProjectId === currentProjectId) {
-              selectThread(found);
+              // Only reload if we're switching to a different thread
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              }
+              // Don't update selectedThread if already viewing - prevents infinite loop
               errorMessage = null;
             } else {
               errorMessage = 'This thread does not belong to the current project.';
@@ -195,13 +182,21 @@
           } else {
             // In general/global context - allow threads without a project or from non-isolated projects
             if (threadProjectId === null) {
-              selectThread(found);
+              // Only reload if we're switching to a different thread
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              }
+              // Don't update selectedThread if already viewing - prevents infinite loop
               errorMessage = null;
             } else {
               const project = $projects.find((p) => p.id === threadProjectId);
               const isProjectOnly = project?.privacyMode === 'project_only';
               if (!isProjectOnly) {
-                selectThread(found);
+                // Only reload if we're switching to a different thread
+                if (selectedThread?.id !== found.id) {
+                  selectThread(found);
+                }
+                // Don't update selectedThread if already viewing - prevents infinite loop
                 errorMessage = null;
               } else {
                 errorMessage =
@@ -294,10 +289,20 @@
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
 
-      // Create thread with prompt atomically
+      // Extract only serializable metadata fields for IPC
+      const metadata = formData.metadata
+        ? {
+            model: formData.metadata.model,
+            provider: formData.metadata.provider,
+            url: formData.metadata.url,
+          }
+        : undefined;
+
+      // Create thread with prompt atomically, passing full metadata with model config
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        metadata,
       });
       const created = res.thread as Thread;
       threads.addThread(created);
@@ -342,7 +347,7 @@
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane bind:this={chatPaneRef} thread={selectedThread} {messages}>
+        <ChatPane bind:this={chatPaneRef} thread={selectedThread} bind:messages>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />

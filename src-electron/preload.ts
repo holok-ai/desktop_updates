@@ -88,7 +88,12 @@ export interface ThreadAPI {
   addUserPrompt: (
     threadId: string | null,
     prompt: string,
-    opts?: { title?: string; description?: string; model?: string },
+    opts?: {
+      title?: string;
+      description?: string;
+      model?: string;
+      metadata?: Record<string, unknown>;
+    },
   ) => Promise<{
     thread: Thread;
     message: { id: string; role: string; content: string; createdAt: number };
@@ -300,15 +305,14 @@ export interface MokuModel {
   available: boolean;
   default?: boolean;
   createdAt: number;
+  url?: string;
 }
 
 /**
  * Models API
  */
 export interface ModelsAPI {
-  listAvailable: (userId?: string) => Promise<MokuModel[]>;
-  listAll: (userId?: string) => Promise<MokuModel[]>;
-  get: (provider: string, id: string) => Promise<MokuModel | null>;
+  listAll: () => Promise<MokuModel[]>;
 }
 
 /**
@@ -671,12 +675,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   } as SettingsAPI,
 
   /**
-   * Models (Moku) API Implementation
+   * Models API Implementation
    */
   models: {
-    listAvailable: (userId?: string) => ipcRenderer.invoke('models:listAvailable', userId),
-    listAll: (userId?: string) => ipcRenderer.invoke('models:listAll', userId),
-    get: (provider: string, id: string) => ipcRenderer.invoke('models:get', provider, id),
+    listAll: () => ipcRenderer.invoke('models:listAll'),
   } as ModelsAPI,
 
   /**
@@ -767,7 +769,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addUserPrompt: (
       threadId: string | null,
       prompt: string,
-      opts: { title?: string; description?: string; model?: string } | undefined,
+      opts:
+        | {
+            title?: string;
+            description?: string;
+            model?: string;
+            metadata?: Record<string, unknown>;
+          }
+        | undefined,
     ) => ipcRenderer.invoke('thread:addUserPrompt', threadId, prompt, opts),
 
     addAssistantResponse: (threadId: string, response: string, model?: string) =>
