@@ -5,7 +5,7 @@
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import { querystring, replace } from 'svelte-spa-router';
+  import { querystring, replace, push } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
   import type { MokuModel } from '../../../src-electron/preload';
@@ -18,6 +18,8 @@
     registerDiscardCallback,
   } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
+  import { isAuthenticated } from '$lib/stores/auth.store';
+  import { toastStore } from '$lib/services/toast.service';
 
   let isLoading = $state(true);
   let formData: Thread = $state({
@@ -40,6 +42,14 @@
   let errorMessage = $state<string | null>(null);
   let modelSelectionTouched = $state(false);
   const isAddThreadView = $derived(!selectedThread);
+
+  // Auth guard: redirect to login if not authenticated
+  $effect(() => {
+    if (!$isAuthenticated) {
+      toastStore.show('Please log in to access Threads.', { variant: 'info' });
+      push(ROUTE.LOGIN);
+    }
+  });
 
   function resetThreadForm(prefillPrompt = '') {
     formData = {

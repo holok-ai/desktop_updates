@@ -17,12 +17,20 @@
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
   let sidebarElement: HTMLElement | null = null;
-  let activities: SidebarActivity[] = [
+  let allActivities: SidebarActivity[] = [
     { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
     { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
   ];
-  let selected = $state(activities[0].id);
+
+  // Filter activities based on authentication
+  let activities = $derived(
+    $isAuthenticated
+      ? allActivities // Show all when authenticated
+      : allActivities.filter((a) => a.id === 'home') // Only Home when not authenticated
+  );
+
+  let selected = $state(allActivities[0].id);
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showProfileMenu = $state(false);
   let profileSection: HTMLElement | null = null;
@@ -42,6 +50,11 @@
     } finally {
       push(ROUTE.LOGIN);
     }
+  }
+
+  function handleLogin() {
+    showProfileMenu = false;
+    push(ROUTE.LOGIN);
   }
 
   function syncSelectedWithLocation(path: string) {
@@ -172,9 +185,7 @@
     role="region"
     aria-label="User profile"
     onmouseenter={() => {
-      if ($isAuthenticated) {
-        showProfileMenu = true;
-      }
+      showProfileMenu = true;
     }}
     onmouseleave={() => (showProfileMenu = false)}
   >
@@ -182,10 +193,9 @@
       class="profile-trigger"
       tabindex="0"
       aria-haspopup="true"
-      aria-expanded={$isAuthenticated && showProfileMenu}
+      aria-expanded={showProfileMenu}
       aria-label="Open profile menu"
       onkeydown={(event) => {
-        if (!$isAuthenticated) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           showProfileMenu = !showProfileMenu;
@@ -201,7 +211,7 @@
       {$isAuthenticated && $currentUser?.name ? $currentUser.name : 'User'}
     </span>
 
-    {#if $isAuthenticated && showProfileMenu}
+    {#if showProfileMenu}
       <div
         class="profile-menu-panel"
         role="menu"
@@ -224,10 +234,17 @@
           <i class="pi pi-cog"></i>
           <span>Settings</span>
         </button>
-        <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
-          <i class="pi pi-sign-out"></i>
-          <span>Logout</span>
-        </button>
+        {#if $isAuthenticated}
+          <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
+            <i class="pi pi-sign-out"></i>
+            <span>Logout</span>
+          </button>
+        {:else}
+          <button class="profile-menu-button" role="menuitem" onclick={handleLogin}>
+            <i class="pi pi-sign-in"></i>
+            <span>Login</span>
+          </button>
+        {/if}
       </div>
     {/if}
   </div>

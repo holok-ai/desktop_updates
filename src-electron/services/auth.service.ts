@@ -1,7 +1,7 @@
 import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
-import { mokuService } from './moku.service.js';
+import { mokuService } from './mokuapi/moku.service.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,6 +20,7 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
+  organizationId?: string;
 }
 
 export interface AuthTokens {
@@ -263,6 +264,7 @@ export class AuthService {
       const username = payload.username as string | undefined;
       const displayName = payload.displayName as string | undefined;
       const picture = payload.picture as string | undefined;
+      const organizationId = payload.organizationId as string | undefined;
 
       // userId might be the email in this API
       const userEmail = email ?? userId;
@@ -285,12 +287,18 @@ export class AuthService {
 
       log.info('[AuthService] Extracted user email:', userEmail);
       log.info('[AuthService] Extracted user name:', extractedName);
+      log.info('[AuthService] Extracted organizationId:', organizationId);
+
+      if (!organizationId) {
+        log.warn('[AuthService] ⚠️  WARNING: organizationId not found in JWT token!');
+      }
 
       return {
         id: sub ?? subject ?? userId ?? 'unknown',
         email: userEmail ?? 'user@example.com',
         name: extractedName,
         picture,
+        organizationId,
       };
     } catch (error) {
       log.error('[AuthService] Error extracting user from token:', error);

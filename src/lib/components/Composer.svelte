@@ -9,7 +9,7 @@
     threadId?: string | null;
   }
 
-  let { sendMessage, isStreaming = false, threadId = null }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null }: Props = $props();
 
   let text = $state('');
   let selectedFiles = $state<File[]>([]);
@@ -77,7 +77,7 @@
   /**
    * Upload files and return Attachment array
    */
-  async function uploadFiles(files: File[], threadId: string): Promise<Attachment[]> {
+  async function _uploadFiles(files: File[], threadId: string): Promise<Attachment[]> {
     const attachments: Attachment[] = [];
 
     for (const file of files) {

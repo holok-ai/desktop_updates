@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mokuService } from '../../../src-electron/services/moku.service';
+import { mokuService } from '../../../src-electron/services/mokuapi/moku.service';
 
 describe('ModelsService (in-memory)', () => {
   beforeEach(async () => {

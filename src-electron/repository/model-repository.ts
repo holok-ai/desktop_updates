@@ -1,3 +1,7 @@
+import { mokuService } from '../services/mokuapi/moku.service.js';
+import { getSettingsService } from '../ipc-handlers/settings-handler.js';
+import log from 'electron-log';
+
 interface ModelConfig {
   id: string;
   provider: string;
@@ -37,7 +41,28 @@ export class ModelRepository {
     );
   }
 
-  public listAll(): ModelConfig[] {
+  public getModel(provider: string, model: string): ModelConfig | undefined {
+    return this.models.find((m) => m.provider === provider && m.id === model);
+  }
+
+  public getHoloApiUrl(): string {
+    const settingsService = getSettingsService();
+    return settingsService.getMokuApiUrl();
+  }
+  
+  public async listAll(): Promise<ModelConfig[]> {
+    // Fetch applications from Moku and log them
+    try {
+      const applications = await mokuService.getAllApplications();
+      log.info('[ModelRepository] Applications from Moku:');
+      applications.forEach((app) => {
+        const models = Array.from(app.modelNames).join(', ');
+        log.info(`  ${app.providerName}: ${models}`);
+      });
+    } catch (error) {
+      log.error('[ModelRepository] Failed to fetch applications from Moku:', error);
+    }
+
     return [...this.models]; // Return copy
   }
 }

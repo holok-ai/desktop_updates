@@ -16,10 +16,15 @@
   let { currentTitle, onSave, onCancel, maxLength = 200, autoFocus = true }: Props = $props();
 
   // State
-  let editedTitle = $state(currentTitle);
+  let editedTitle = $state('');
   let isSaving = $state(false);
   let errorMessage = $state('');
   let inputRef: HTMLInputElement | undefined = $state();
+
+  // Sync editedTitle when currentTitle changes
+  $effect(() => {
+    editedTitle = currentTitle;
+  });
 
   // Focus input on mount if autoFocus is true
   $effect(() => {

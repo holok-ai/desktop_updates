@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
 import { projectRepository } from '../repository/project-repository.js';
-import { mokuService } from '../services/moku.service.js';
+import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
@@ -344,7 +344,7 @@ export function registerThreadHandlers(): void {
 
       // Server-side validation: ensure provided model/provider are available
       if (typeof metadata.model === 'string' && typeof metadata.provider === 'string') {
-        const mdl = await mokuService.getModel(metadata.provider, metadata.model);
+        const mdl = modelRepository.getModel(metadata.provider, metadata.model);
         if (!mdl || !mdl.available) {
           throw new Error('Model unavailable—choose another');
         }
