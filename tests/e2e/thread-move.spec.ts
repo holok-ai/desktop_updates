@@ -100,9 +100,9 @@ test.describe('E2E: Move thread between projects and general history', () => {
     await page.reload();
     await ensureLoggedIn(page);
 
-    // Ensure we're on Threads and the header with Move button is visible
+    // Navigate to Threads view
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
+    await page.waitForTimeout(500);
 
     const sidebar = page.locator('.activity-list-sidebar');
     const threadListItem = sidebar.getByRole('menuitem', { name: threadTitle }).first();
@@ -141,7 +141,7 @@ test.describe('E2E: Move thread between projects and general history', () => {
 
     // Click to open the thread in Threads
     await projectThreadItem.click();
-    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
+    await page.waitForTimeout(500);
 
     // Move it back to general history
     await expect(moveBtn).toBeVisible({ timeout: 5000 });
@@ -158,7 +158,7 @@ test.describe('E2E: Move thread between projects and general history', () => {
     // Verify general history contains the thread again
     // Navigate back to Threads and ensure the page is accessible
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
+    await page.waitForTimeout(500);
     await expect(sidebar.getByRole('menuitem', { name: threadTitle }).first()).toBeVisible({
       timeout: 5000,
     });

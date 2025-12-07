@@ -11,6 +11,7 @@ import { createScopedLogger } from '../utils/logger.js';
 const authLog = createScopedLogger('auth');
 
 let authService: AuthService;
+let onAuthSuccessCallback: (() => Promise<void>) | null = null;
 
 /**
  * OAuth Callback Handler
@@ -71,7 +72,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     // Process the callback through auth service
     authService
       .processOAuthCallback(code)
-      .then((authState) => {
+      .then(async (authState) => {
         authLog.info('OAuth flow completed successfully');
         authLog.info('State - isAuthenticated:', authState.isAuthenticated);
         authLog.info('State - user:', authState.user?.email);
@@ -86,6 +87,18 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
           authLog.info('auth:callback-success sent to renderer');
         } else {
           authLog.warn('Cannot send to renderer - mainWindow is null');
+        }
+
+        // Execute post-authentication callback if registered
+        if (onAuthSuccessCallback) {
+          authLog.info('Executing post-authentication callback...');
+          try {
+            await onAuthSuccessCallback();
+            authLog.info('Post-authentication callback completed successfully');
+          } catch (error) {
+            authLog.error('Post-authentication callback failed:', error);
+            // Don't throw - auth succeeded even if post-auth actions failed
+          }
         }
       })
       .catch((error: unknown) => {
@@ -182,6 +195,18 @@ export function registerAuthHandlers(): AuthService {
 
     try {
       const authState = await authService.mockLogin();
+
+      // Execute post-authentication callback if registered
+      if (onAuthSuccessCallback) {
+        authLog.info('Executing post-authentication callback (mock login)...');
+        try {
+          await onAuthSuccessCallback();
+          authLog.info('Post-authentication callback completed successfully');
+        } catch (error) {
+          authLog.error('Post-authentication callback failed:', error);
+          // Don't throw - auth succeeded even if post-auth actions failed
+        }
+      }
 
       // Return only non-sensitive data to renderer
       return {
@@ -290,4 +315,13 @@ export function getAuthService(): AuthService {
     authService = new AuthService();
   }
   return authService;
+}
+
+/**
+ * Register callback to be executed after successful authentication
+ * Used by main process to coordinate post-login actions
+ */
+export function registerAuthSuccessCallback(callback: () => Promise<void>): void {
+  onAuthSuccessCallback = callback;
+  authLog.info('Auth success callback registered');
 }

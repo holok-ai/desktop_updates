@@ -30,12 +30,12 @@
   let { thread = null, messages = $bindable([]), composer }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
-  let currentThread = $state(thread);
+  let currentThread = $state<Thread | null>(null);
 
   // Model configuration derived from thread metadata
-  let modelName = $state('llama3:latest'); // Default fallback
-  let modelUrl = $state('http://localhost:11434');
-  let modelProvider = $state('ollama'); // Default provider
+  let modelName = $state('');
+  let modelUrl = $state('');
+  let modelProvider = $state('');
 
   // Track current provider config to detect changes
   interface ProviderConfig {
@@ -54,19 +54,24 @@
     if (thread?.metadata) {
       const meta = thread.metadata;
 
-      modelName = (meta.model as string) ?? 'llama3:latest';
-      modelUrl = (meta.url as string) ?? 'http://localhost:11434';
-      modelProvider = (meta.provider as string) ?? 'ollama';
+      console.log('[ChatPane] Thread metadata:', JSON.stringify(meta, null, 2));
+
+      // Use modelAccessName (full versioned name) for the chat API
+      modelName = (meta.modelAccessName as string) ?? '';
+      modelUrl = (meta.url as string) ?? '';
+      modelProvider = (meta.provider as string) ?? '';
+
+      console.log('[ChatPane] Extracted values:', { modelName, modelUrl, modelProvider });
 
       // Track loaded threads
       if (thread.id && !threadLoadedIds.has(thread.id)) {
         threadLoadedIds.add(thread.id);
       }
     } else {
-      // Reset to defaults if no metadata
-      modelName = 'llama3:latest';
-      modelUrl = 'http://localhost:11434';
-      modelProvider = 'ollama';
+      // Reset to empty if no metadata
+      modelName = '';
+      modelUrl = '';
+      modelProvider = '';
     }
 
     // Clear error state when switching threads to prevent stale errors

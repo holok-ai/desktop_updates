@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import type { MokuModel } from '../../../src-electron/preload';
+  import type { ModelDetails } from '../../../src-electron/preload';
 
   const dispatch = createEventDispatcher();
 
@@ -8,12 +8,7 @@
   export let initialSelection: { provider: string; id: string } | null = null;
   export let disabled: boolean = false;
 
-  // Extended model interface with configuration details
-  interface ExtendedModel extends MokuModel {
-    url?: string;
-  }
-
-  let models: ExtendedModel[] = [];
+  let models: ModelDetails[] = [];
   let loading = true;
   let error: string | null = null;
   let selectedKey: string = '';
@@ -23,12 +18,13 @@
     try {
       // Fetch models from backend via IPC
       const fetchedModels = await window.electronAPI.models.listAll();
-      models = fetchedModels as ExtendedModel[];
+      models = fetchedModels;
 
       if (initialSelection) {
         selectedKey = initialSelection.provider + '::' + initialSelection.id;
       } else {
-        const pre = models.find((m) => m.default) ?? models[0];
+        // Select first model as default
+        const pre = models[0];
         selectedKey = pre ? pre.provider + '::' + pre.id : '';
       }
 
@@ -43,7 +39,7 @@
     }
   });
 
-  function parseSelected(): ExtendedModel | null {
+  function parseSelected(): ModelDetails | null {
     if (!selectedKey) return null;
     const parts = selectedKey.split('::');
     const provider = parts[0];

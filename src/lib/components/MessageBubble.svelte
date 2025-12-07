@@ -61,7 +61,7 @@
 
   // Cancel editing when showComments changes from true to false
   // But allow editing even when showComments is false (user clicked icon)
-  let prevShowComments = $state(showComments);
+  let prevShowComments = $state(false);
   $effect(() => {
     // Only cancel if showComments changed from true to false
     if (prevShowComments && !showComments) {

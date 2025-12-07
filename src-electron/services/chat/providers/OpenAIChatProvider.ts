@@ -32,7 +32,11 @@ export class OpenAIChatProvider implements IChatProvider {
 
   constructor(baseURL: string, apiKey: string, defaultModel: string) {
     this.client = new OpenAI({ apiKey, baseURL, dangerouslyAllowBrowser: true });
-    this.defaultModel = defaultModel || 'gpt-3.5-turbo';
+
+    if (!defaultModel) {
+      throw new Error('Model is required for OpenAIChatProvider');
+    }
+    this.defaultModel = defaultModel;
 
     console.log(`OpenAIChatProvider initialized with model ${this.defaultModel}`);
   }

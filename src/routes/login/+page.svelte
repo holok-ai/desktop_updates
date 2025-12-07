@@ -164,11 +164,8 @@
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background: linear-gradient(
-      135deg,
-      var(--primary-400) 0%,
-      var(--purple-500, var(--primary-600)) 100%
-    );
+    background: var(--surface-main);
+    padding: 2rem;
   }
 
   .login-card {

@@ -295,24 +295,23 @@ export interface AppSettings {
 }
 
 /**
- * Models (Moku) API types
+ * ModelDetails - Full model configuration from Moku API
+ * Used by ModelRepository to store complete model information
  */
-export interface MokuModel {
-  provider: string;
+export interface ModelDetails {
   id: string;
   title: string;
-  description?: string;
-  available: boolean;
-  default?: boolean;
-  createdAt: number;
-  url?: string;
+  accessName: string;
+  provider: string;
+  slug: string;
+  url: string;
 }
 
 /**
  * Models API
  */
 export interface ModelsAPI {
-  listAll: () => Promise<MokuModel[]>;
+  listAll: () => Promise<ModelDetails[]>;
 }
 
 /**

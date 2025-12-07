@@ -9,8 +9,8 @@ export function registerModelsHandlers(): void {
   // Some test setups mock `electron.ipcMain` with only `on`/`removeListener`.
   // Guard against missing `handle` to avoid unhandled exceptions during tests.
   if (typeof (ipcMain as unknown as { handle?: unknown }).handle === 'function') {
-    ipcMain.handle('models:listAll', () => {
-      return modelRepository.listAll();
+    ipcMain.handle('models:listAll', async () => {
+      return await modelRepository.listAll();
     });
   } else if (typeof (ipcMain as unknown as { on?: unknown }).on === 'function') {
     // Register no-op listener so tests that inspect handler registration don't fail.

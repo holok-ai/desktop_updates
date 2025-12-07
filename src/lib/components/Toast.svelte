@@ -62,6 +62,11 @@
     color: var(--surface-0);
   }
 
+  .toast.info {
+    background: var(--primary-500);
+    color: var(--surface-0);
+  }
+
   .toast.warning {
     background: var(--yellow-500);
     color: var(--surface-900);
