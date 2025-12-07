@@ -49,7 +49,11 @@ export class ClaudeChatProvider implements IChatProvider {
     if (apiEndpoint) {
       this.client.baseURL = apiEndpoint;
     }
-    this.defaultModel = defaultModel || 'claude-3-opus-20240229';
+
+    if (!defaultModel) {
+      throw new Error('Model is required for ClaudeChatProvider');
+    }
+    this.defaultModel = defaultModel;
 
     console.log(`ClaudeChatProvider initialized with model ${this.defaultModel}`);
   }

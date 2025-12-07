@@ -342,10 +342,10 @@ export function registerThreadHandlers(): void {
         ...(threadData.metadata ?? {}),
       };
 
-      // Server-side validation: ensure provided model/provider are available
-      if (typeof metadata.model === 'string' && typeof metadata.provider === 'string') {
-        const mdl = modelRepository.getModel(metadata.provider, metadata.model);
-        if (!mdl || !mdl.available) {
+      // Server-side validation: ensure provided model is available
+      if (typeof metadata.modelId === 'string') {
+        const mdl = modelRepository.getModel(metadata.modelId);
+        if (!mdl) {
           throw new Error('Model unavailable—choose another');
         }
       }

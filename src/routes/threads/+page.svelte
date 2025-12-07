@@ -8,7 +8,7 @@
   import { querystring, replace, push } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
-  import type { MokuModel } from '../../../src-electron/preload';
+  import type { ModelDetails } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
@@ -31,7 +31,7 @@
     status: THREAD_STATUS.ACTIVE,
   });
 
-  let selectedModel: MokuModel | null = $state(null);
+  let selectedModel: ModelDetails | null = $state(null);
   let chooserInitial: { provider: string; id: string } | null = $state(null);
   let newThreadPrompt = $state('');
 
@@ -302,7 +302,9 @@
       // Extract only serializable metadata fields for IPC
       const metadata = formData.metadata
         ? {
-            model: formData.metadata.model,
+            modelId: formData.metadata.modelId,
+            modelTitle: formData.metadata.modelTitle,
+            modelAccessName: formData.metadata.modelAccessName,
             provider: formData.metadata.provider,
             url: formData.metadata.url,
           }
@@ -347,7 +349,7 @@
       bind:newThreadPrompt
       {chooserInitial}
       on:modelSelectionChange={(event) => {
-        const detail = (event as CustomEvent<{ model: MokuModel | null; isAuto: boolean }>).detail;
+        const detail = (event as CustomEvent<{ model: ModelDetails | null; isAuto: boolean }>).detail;
         if (!detail?.isAuto) {
           modelSelectionTouched = true;
         }

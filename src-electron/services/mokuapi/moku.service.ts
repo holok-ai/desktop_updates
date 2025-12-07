@@ -10,19 +10,9 @@
 import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
 import log from 'electron-log';
-import type { ApplicationSummary } from './application.types.js';
+import type { ApplicationSummary, ApplicationDetail } from './application.types.js';
 import type { PagedResponse } from './paging.types.js';
-import type { AgentListItem } from './agent.types.js';
-
-export interface MokuModel {
-  provider: string;
-  id: string;
-  title: string;
-  description?: string;
-  available: boolean;
-  default?: boolean;
-  createdAt: number;
-}
+import type { AgentListItem, AgentChatConfig } from './agent.types.js';
 
 /**
  * Response from /api/auth/exchange-code endpoint
@@ -212,6 +202,94 @@ export class MokuService {
       guards: app.guards ? new Set(app.guards as unknown as string[]) : undefined,
       evaluators: app.evaluators ? new Set(app.evaluators as unknown as string[]) : undefined,
     }));
+  }
+
+  /**
+   * Get application detail by ID from Moku API
+   * Fetches full application information including models array
+   */
+  public async getApplicationDetail(applicationId: string): Promise<ApplicationDetail> {
+    log.info(`[MokuService] Fetching application detail for ID: ${applicationId}`);
+
+    const mokuApiUrl = this.getMokuApiUrl();
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    try {
+      const response = await fetch(`${mokuApiUrl}/api/applications/${applicationId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error('[MokuService] Get application detail failed:', response.status, errorText);
+
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        }
+        throw new Error(`Failed to get application detail: ${response.status}`);
+      }
+
+      const data = (await response.json()) as ApplicationDetail;
+      log.info(`[MokuService] Successfully fetched application detail: ${data.name}`);
+
+      return data;
+    } catch (error) {
+      log.error('[MokuService] Error fetching application detail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get agent detail (AgentChatConfig) by ID from Moku API
+   * Fetches full agent information including chat configuration with Holo API URL
+   */
+  public async getAgentDetail(agentId: string): Promise<AgentChatConfig> {
+    log.info(`[MokuService] Fetching agent detail for ID: ${agentId}`);
+
+    const mokuApiUrl = this.getMokuApiUrl();
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    try {
+      const response = await fetch(`${mokuApiUrl}/api/v1/agents/${agentId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error('[MokuService] Get agent detail failed:', response.status, errorText);
+
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        }
+        throw new Error(`Failed to get agent detail: ${response.status}`);
+      }
+
+      const data = (await response.json()) as AgentChatConfig;
+      log.info(`[MokuService] Successfully fetched agent detail: ${data.name}`);
+
+      return data;
+    } catch (error) {
+      log.error('[MokuService] Error fetching agent detail:', error);
+      throw error;
+    }
   }
 }
 
