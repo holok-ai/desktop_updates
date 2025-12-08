@@ -6,7 +6,11 @@ import {
   type ProviderConfig,
 } from './factories/ChatProviderFactory.js';
 import { AuditService } from './audit/AuditService.js';
-import { FileToolsService, type ToolResult } from '../file-tools.service.js';
+import {
+  FileToolsService,
+  type ToolResult,
+  type ToolStatusCallback,
+} from '../file-tools.service.js';
 import log from 'electron-log';
 
 /**
@@ -103,18 +107,32 @@ export class ChatService {
   }
 
   /**
+   * Set callback for tool status updates (for UI feedback during long operations)
+   * @param callback - Function to call when tool status changes
+   */
+  public setToolStatusCallback(callback: ToolStatusCallback | null): void {
+    this.fileToolsService.setStatusCallback(callback);
+  }
+
+  /**
    * Send chat with file tools enabled
    * Automatically handles tool execution lifecycle and falls back to regular chat
    * if the provider doesn't support tools
    * @param request The chat request containing messages and model
    * @param onTokenReceived Callback function to handle streamed tokens
    * @param onToolUse Callback to notify when LLM uses a tool
+   * @param onToolStatus Callback to notify about tool execution status (for UI feedback)
    */
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
     onToolUse?: (toolName: string, input: unknown) => void,
+    onToolStatus?: ToolStatusCallback,
   ): Promise<void> {
+    // Set up status callback for this request
+    if (onToolStatus) {
+      this.fileToolsService.setStatusCallback(onToolStatus);
+    }
     // Check if provider supports tools
     if (
       !this.provider.supportsTools ||
@@ -146,6 +164,11 @@ export class ChatService {
     } catch (error) {
       complete(error);
       throw error;
+    } finally {
+      // Clear status callback after request completes
+      if (onToolStatus) {
+        this.fileToolsService.setStatusCallback(null);
+      }
     }
   }
 

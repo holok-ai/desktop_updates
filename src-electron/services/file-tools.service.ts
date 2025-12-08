@@ -71,12 +71,28 @@ export interface WriteFileResult {
   };
 }
 
+/**
+ * Tool status for UI feedback during long operations
+ */
+export interface ToolStatus {
+  toolName: string;
+  state: 'in_progress' | 'complete';
+  message?: string;
+}
+
+export type ToolStatusCallback = (status: ToolStatus) => void;
+
 export class FileToolsService {
   private workingDirectory: string;
   private blacklistedPaths: Set<string>;
   private allowedPaths: Set<string>;
   private maxFileSize: number = 10 * 1024 * 1024; // 10MB
   private maxFolderFiles: number = 1000;
+  private statusCallback: ToolStatusCallback | null = null;
+
+  // Thresholds for status display
+  private static readonly STATUS_DELAY_MS = 2000; // Show status after 2 seconds
+  private static readonly LARGE_FILE_SIZE = 1024 * 1024; // 1MB - show status immediately
 
   constructor(workingDir?: string, allowedPaths?: string[]) {
     this.workingDirectory = workingDir || process.cwd();
@@ -188,31 +204,126 @@ export class FileToolsService {
   }
 
   /**
+   * Set the callback for tool status updates
+   * @param callback - Function to call when tool status changes
+   */
+  public setStatusCallback(callback: ToolStatusCallback | null): void {
+    this.statusCallback = callback;
+  }
+
+  /**
+   * Emit a tool status event if callback is set
+   */
+  private emitStatus(toolName: string, state: 'in_progress' | 'complete', message?: string): void {
+    if (this.statusCallback) {
+      this.statusCallback({ toolName, state, message });
+    }
+  }
+
+  /**
+   * Get user-friendly message for tool operation
+   */
+  private getToolStatusMessage(toolName: string, input: Record<string, unknown>): string {
+    switch (toolName) {
+      case 'read_folder': {
+        const folderPath = input.path as string;
+        return `Reading folder: ${folderPath}`;
+      }
+      case 'read_file': {
+        const filePath = (input.file_path || input.path) as string;
+        return `Reading file: ${filePath}`;
+      }
+      case 'write_file': {
+        const writePath = input.path as string;
+        return `Writing file: ${writePath}`;
+      }
+      default:
+        return `Executing: ${toolName}`;
+    }
+  }
+
+  /**
+   * Check if we should show status immediately (large file)
+   */
+  private async shouldShowStatusImmediately(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (toolName === 'read_file') {
+      const userPath = (input.file_path || input.path) as string;
+      const resolvedPath = this.resolvePath(userPath);
+      try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const stats = await fs.promises.stat(resolvedPath);
+        return stats.size > FileToolsService.LARGE_FILE_SIZE;
+      } catch {
+        return false;
+      }
+    }
+    if (toolName === 'write_file') {
+      const content = input.content as string;
+      return Boolean(content && content.length > FileToolsService.LARGE_FILE_SIZE);
+    }
+    return false;
+  }
+
+  /**
    * Execute a tool by name with input parameters
    */
   public async executeTool(toolName: string, input: Record<string, unknown>): Promise<ToolResult> {
     log.info(`[FileTools] Executing: ${toolName}`, { input });
 
+    const statusMessage = this.getToolStatusMessage(toolName, input);
+    let statusTimeout: ReturnType<typeof setTimeout> | null = null;
+    let statusShown = false;
+
+    // Check if we should show status immediately (large file)
+    const showImmediately = await this.shouldShowStatusImmediately(toolName, input);
+    if (showImmediately) {
+      this.emitStatus(toolName, 'in_progress', statusMessage);
+      statusShown = true;
+    } else {
+      // Set up delayed status (show after 2 seconds)
+      statusTimeout = setTimeout(() => {
+        this.emitStatus(toolName, 'in_progress', statusMessage);
+        statusShown = true;
+      }, FileToolsService.STATUS_DELAY_MS);
+    }
+
     try {
+      let result: ToolResult;
       switch (toolName) {
         case 'read_folder':
-          return await this.readFolder(input);
+          result = await this.readFolder(input);
+          break;
         case 'read_file':
-          return await this.readFile(input);
+          result = await this.readFile(input);
+          break;
         case 'write_file':
-          return await this.writeFile(input as unknown as WriteFileParams);
+          result = await this.writeFile(input as unknown as WriteFileParams);
+          break;
         default:
-          return {
+          result = {
             success: false,
             error: `Unknown tool: ${toolName}`,
           };
       }
+
+      return result;
     } catch (error) {
       log.error(`[FileTools] Error executing ${toolName}:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    } finally {
+      // Clear timeout and emit complete status
+      if (statusTimeout) {
+        clearTimeout(statusTimeout);
+      }
+      if (statusShown) {
+        this.emitStatus(toolName, 'complete');
+      }
     }
   }
 

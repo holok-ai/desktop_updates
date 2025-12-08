@@ -171,8 +171,12 @@ export class PerplexityChatProvider implements IChatProvider {
         response.choices?.[0]?.message?.content as ChatMessageOutput['content'],
       ).trim();
 
+      // If empty content, fall back to regular chat
       if (!assistantContent) {
-        return;
+        console.warn(
+          '[PerplexityChatProvider] Empty response from tool-aware request, using fallback',
+        );
+        break;
       }
 
       const parsedToolCall = this.tryParseToolInvocation(assistantContent);
@@ -205,7 +209,14 @@ export class PerplexityChatProvider implements IChatProvider {
       return;
     }
 
-    throw new Error('Tool loop exceeded maximum iterations');
+    // If we reach here, either:
+    // 1. Empty response received
+    // 2. Max iterations exceeded (all responses were tool calls)
+    // Fall back to regular chat without tools
+    console.warn(
+      '[PerplexityChatProvider] Tool loop did not produce final response, falling back to regular chat',
+    );
+    await this.chat(request, onTokenReceived);
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
@@ -220,12 +231,21 @@ export class PerplexityChatProvider implements IChatProvider {
       .join('\n\n');
 
     return [
-      'You can inspect project files using special tools.',
-      'When you need to use a tool, respond ONLY with JSON using this shape:',
+      'You have access to tools for reading files and folders. Use them ONLY when the user asks about files, directories, or project structure.',
+      '',
+      'IMPORTANT RULES:',
+      '- NEVER mention tools to the user. Tools are invisible to them.',
+      '- NEVER explain how tools work or that you have tool access.',
+      '- NEVER include tool-related text in your response unless a tool operation fails.',
+      '- For non-file questions, respond normally without using any tools.',
+      '',
+      'When you need to use a tool, respond ONLY with this JSON (nothing else):',
       '{"tool":"tool_name","input":{...}}',
-      'After you receive tool results, continue the conversation normally.',
-      toolDescriptions ? `Available tools:\n\n${toolDescriptions}` : 'No tools available.',
-    ].join('\n\n');
+      '',
+      'After receiving tool results, respond naturally as if you simply knew the information.',
+      '',
+      toolDescriptions ? `Available tools:\n${toolDescriptions}` : '',
+    ].join('\n');
   }
 
   private async sendToolAwareRequest(

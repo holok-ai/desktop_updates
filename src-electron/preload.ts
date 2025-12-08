@@ -436,6 +436,15 @@ export interface ChatAPI {
   // Listen for tool use events (event-based)
   onToolUse: (callback: (data: { toolName: string; input: unknown }) => void) => () => void;
 
+  // Listen for tool status events (for UI feedback during long operations)
+  onToolStatus: (
+    callback: (status: {
+      toolName: string;
+      state: 'in_progress' | 'complete';
+      message?: string;
+    }) => void,
+  ) => () => void;
+
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
 
@@ -639,6 +648,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
       // Return cleanup function
       return (): void => {
         ipcRenderer.removeListener('chat:toolUse', subscription);
+      };
+    },
+
+    // 11. Listen for tool status events (for UI feedback during long operations)
+    onToolStatus: (
+      callback: (status: {
+        toolName: string;
+        state: 'in_progress' | 'complete';
+        message?: string;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        status: { toolName: string; state: 'in_progress' | 'complete'; message?: string },
+      ): void => callback(status);
+      ipcRenderer.on('chat:toolStatus', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('chat:toolStatus', subscription);
       };
     },
   },
