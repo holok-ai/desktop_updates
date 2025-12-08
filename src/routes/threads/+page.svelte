@@ -146,6 +146,7 @@
     };
   });
 
+
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
@@ -348,8 +349,7 @@
       bind:newThreadPrompt
       {chooserInitial}
       on:modelSelectionChange={(event) => {
-        const detail = (event as CustomEvent<{ model: ModelDetails | null; isAuto: boolean }>)
-          .detail;
+        const detail = (event as CustomEvent<{ model: ModelDetails | null; isAuto: boolean }>).detail;
         if (!detail?.isAuto) {
           modelSelectionTouched = true;
         }

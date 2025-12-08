@@ -490,7 +490,12 @@ export class FileToolsService {
    * Create or update a file with the specified content
    */
   private async writeFile(params: WriteFileParams): Promise<ToolResult> {
-    const { path: userPath, content, overwrite = false, encoding = 'utf-8' } = params;
+    const {
+      path: userPath,
+      content,
+      overwrite = false,
+      encoding = 'utf-8',
+    } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
     if (!allowedEncodings.includes(encoding)) {

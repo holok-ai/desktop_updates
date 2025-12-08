@@ -27,7 +27,7 @@
   let activities = $derived(
     $isAuthenticated
       ? allActivities // Show all when authenticated
-      : allActivities.filter((a) => a.id === 'home'), // Only Home when not authenticated
+      : allActivities.filter((a) => a.id === 'home') // Only Home when not authenticated
   );
 
   let selected = $state(allActivities[0].id);

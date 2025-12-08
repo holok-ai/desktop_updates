@@ -30,6 +30,7 @@ export interface TokenRefreshResponse {
 }
 
 export class MokuService {
+
   /**
    * Get Moku API URL from settings
    */

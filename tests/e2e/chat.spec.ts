@@ -68,9 +68,9 @@ test.describe('E2E: Chat prompt/response', () => {
 
     if (!isCreateFormVisible) {
       // Need to click "New Thread" or similar button
-      const newThreadButton = page
-        .getByRole('button', { name: /new thread/i })
-        .or(page.getByText(/new thread/i));
+      const newThreadButton = page.getByRole('button', { name: /new thread/i }).or(
+        page.getByText(/new thread/i)
+      );
       if (await newThreadButton.count()) {
         await newThreadButton.click();
         await page.waitForTimeout(500);
