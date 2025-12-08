@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { querystring, replace } from 'svelte-spa-router';
+  import { querystring, replace, push } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
   import { projectService } from '$lib/services/project.service';
@@ -15,6 +15,8 @@
   import { storageService } from '$lib/services/storage.service';
   import ProjectCreatePanel from '$lib/components/projects/ProjectCreatePanel.svelte';
   import { clearUnsavedChanges } from '$lib/stores/navigation-guard.store';
+  import { isAuthenticated } from '$lib/stores/auth.store';
+  import { toastStore } from '$lib/services/toast.service';
 
   let selectedProjectId: string | null = $state(null);
   let isLoading = $state(true);
@@ -25,6 +27,14 @@
   let threadCount = $state(0);
   let threadsLoading = $state(false);
   let errorMessage = $state<string | null>(null);
+
+  // Auth guard: redirect to login if not authenticated
+  $effect(() => {
+    if (!$isAuthenticated) {
+      toastStore.show('Please log in to access Projects.', { variant: 'info' });
+      push(ROUTE.LOGIN);
+    }
+  });
 
   // Derive selectedProject from store so it auto-updates
   const selectedProject = $derived(

@@ -3,7 +3,11 @@ import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import log, { createScopedLogger } from './utils/logger.js';
-import { registerAuthHandlers, handleOAuthCallback } from './ipc-handlers/auth-handler.js';
+import {
+  registerAuthHandlers,
+  handleOAuthCallback,
+  registerAuthSuccessCallback,
+} from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerProjectHandlers } from './ipc-handlers/project-handler.js';
 import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
@@ -11,6 +15,7 @@ import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
+import { modelRepository } from './repository/model-repository.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -213,6 +218,17 @@ function registerIpcHandlers(): void {
 
   // Register authentication IPC handlers and get auth service instance
   const authService = registerAuthHandlers();
+
+  // Register post-authentication callback to refresh models from Moku API
+  registerAuthSuccessCallback(async () => {
+    appLog.info('[Main] Auth success - refreshing models from Moku API');
+    try {
+      await modelRepository.refreshModels();
+      appLog.info('[Main] Models refreshed successfully after authentication');
+    } catch (error) {
+      appLog.error('[Main] Failed to refresh models after authentication:', error);
+    }
+  });
 
   // Register thread-related IPC handlers
   registerThreadHandlers();

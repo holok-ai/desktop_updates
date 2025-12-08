@@ -1,17 +1,17 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import ModelChooser from '$lib/components/ModelChooser.svelte';
-  import type { Thread, MokuModel } from '../../../../src-electron/preload';
+  import type { Thread, ModelDetails } from '../../../../src-electron/preload';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
   const dispatch = createEventDispatcher<{
     submit: void;
-    modelSelectionChange: { model: MokuModel | null; isAuto: boolean };
+    modelSelectionChange: { model: ModelDetails | null; isAuto: boolean };
   }>();
 
   interface Props {
     formData: Thread;
-    selectedModel: MokuModel | null;
+    selectedModel: ModelDetails | null;
     chooserInitial?: { provider: string; id: string } | null;
     newThreadPrompt: string;
   }
@@ -55,14 +55,17 @@
   }
 
   function handleModelSelected(e: CustomEvent) {
-    const detail = e.detail as { model: MokuModel | null; isAuto: boolean };
+    const detail = e.detail as { model: ModelDetails | null; isAuto: boolean };
     const m = detail.model;
     if (m) {
       selectedModel = m;
       formData.metadata = {
         ...(formData.metadata ?? {}),
-        model: m.id,
+        modelId: m.id,
+        modelTitle: m.title,
+        modelAccessName: m.accessName,
         provider: m.provider,
+        url: m.url,
       };
       dispatch('modelSelectionChange', { model: m, isAuto: detail.isAuto });
     }

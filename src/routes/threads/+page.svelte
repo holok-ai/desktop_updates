@@ -5,10 +5,10 @@
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import { querystring, replace } from 'svelte-spa-router';
+  import { querystring, replace, push } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
-  import type { MokuModel } from '../../../src-electron/preload';
+  import type { ModelDetails } from '../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Message } from '$lib/types/thread.type';
   import { storageService } from '$lib/services/storage.service';
@@ -18,6 +18,8 @@
     registerDiscardCallback,
   } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
+  import { isAuthenticated } from '$lib/stores/auth.store';
+  import { toastStore } from '$lib/services/toast.service';
 
   let isLoading = $state(true);
   let formData: Thread = $state({
@@ -29,7 +31,7 @@
     status: THREAD_STATUS.ACTIVE,
   });
 
-  let selectedModel: MokuModel | null = $state(null);
+  let selectedModel: ModelDetails | null = $state(null);
   let chooserInitial: { provider: string; id: string } | null = $state(null);
   let newThreadPrompt = $state('');
 
@@ -40,6 +42,14 @@
   let errorMessage = $state<string | null>(null);
   let modelSelectionTouched = $state(false);
   const isAddThreadView = $derived(!selectedThread);
+
+  // Auth guard: redirect to login if not authenticated
+  $effect(() => {
+    if (!$isAuthenticated) {
+      toastStore.show('Please log in to access Threads.', { variant: 'info' });
+      push(ROUTE.LOGIN);
+    }
+  });
 
   function resetThreadForm(prefillPrompt = '') {
     formData = {
@@ -136,23 +146,6 @@
     };
   });
 
-  // Refresh messages when the selected thread is updated elsewhere
-  onMount(() => {
-    const off = window.electronAPI.thread.onThreadUpdated((t) => {
-      if (selectedThread && t.id === selectedThread.id) {
-        void (async () => {
-          try {
-            messages = await threadService.getMessages(t.id);
-          } catch (e) {
-            console.error('Failed to refresh messages:', e);
-          }
-        })();
-      }
-    });
-    return () => {
-      off();
-    };
-  });
 
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
@@ -182,7 +175,11 @@
           if (currentProjectId) {
             // In project context - only show threads that belong to this project
             if (threadProjectId === currentProjectId) {
-              selectThread(found);
+              // Only reload if we're switching to a different thread
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              }
+              // Don't update selectedThread if already viewing - prevents infinite loop
               errorMessage = null;
             } else {
               errorMessage = 'This thread does not belong to the current project.';
@@ -195,13 +192,21 @@
           } else {
             // In general/global context - allow threads without a project or from non-isolated projects
             if (threadProjectId === null) {
-              selectThread(found);
+              // Only reload if we're switching to a different thread
+              if (selectedThread?.id !== found.id) {
+                selectThread(found);
+              }
+              // Don't update selectedThread if already viewing - prevents infinite loop
               errorMessage = null;
             } else {
               const project = $projects.find((p) => p.id === threadProjectId);
               const isProjectOnly = project?.privacyMode === 'project_only';
               if (!isProjectOnly) {
-                selectThread(found);
+                // Only reload if we're switching to a different thread
+                if (selectedThread?.id !== found.id) {
+                  selectThread(found);
+                }
+                // Don't update selectedThread if already viewing - prevents infinite loop
                 errorMessage = null;
               } else {
                 errorMessage =
@@ -294,10 +299,22 @@
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
 
-      // Create thread with prompt atomically
+      // Extract only serializable metadata fields for IPC
+      const metadata = formData.metadata
+        ? {
+            modelId: formData.metadata.modelId,
+            modelTitle: formData.metadata.modelTitle,
+            modelAccessName: formData.metadata.modelAccessName,
+            provider: formData.metadata.provider,
+            url: formData.metadata.url,
+          }
+        : undefined;
+
+      // Create thread with prompt atomically, passing full metadata with model config
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        metadata,
       });
       const created = res.thread as Thread;
       threads.addThread(created);
@@ -332,7 +349,7 @@
       bind:newThreadPrompt
       {chooserInitial}
       on:modelSelectionChange={(event) => {
-        const detail = (event as CustomEvent<{ model: MokuModel | null; isAuto: boolean }>).detail;
+        const detail = (event as CustomEvent<{ model: ModelDetails | null; isAuto: boolean }>).detail;
         if (!detail?.isAuto) {
           modelSelectionTouched = true;
         }
@@ -342,7 +359,7 @@
   {:else}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane bind:this={chatPaneRef} thread={selectedThread} {messages}>
+        <ChatPane bind:this={chatPaneRef} thread={selectedThread} bind:messages>
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />
@@ -357,6 +374,9 @@
 <style>
   .threads-page {
     max-width: 1200px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .loading {
@@ -368,6 +388,11 @@
   .threads-grid {
     display: flex;
     gap: var(--content-padding);
+    flex: 1;
+  }
+
+  .threads-grid > .w-full {
+    height: 100%;
   }
 
   .error-banner {

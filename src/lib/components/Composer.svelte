@@ -9,7 +9,7 @@
     threadId?: string | null;
   }
 
-  let { sendMessage, isStreaming = false, threadId = null }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null }: Props = $props();
 
   let text = $state('');
   let selectedFiles = $state<File[]>([]);
@@ -77,7 +77,7 @@
   /**
    * Upload files and return Attachment array
    */
-  async function uploadFiles(files: File[], threadId: string): Promise<Attachment[]> {
+  async function _uploadFiles(files: File[], threadId: string): Promise<Attachment[]> {
     const attachments: Attachment[] = [];
 
     for (const file of files) {
@@ -128,20 +128,42 @@
   }
 
   async function send() {
-    const payload = text.trim();
+    let payload = text.trim();
     if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming) return;
 
-    const filesToUpload = [...selectedFiles];
+    const filesToProcess = [...selectedFiles];
     text = ''; // Clear input immediately
     selectedFiles = [];
 
-    // Upload files if we have a threadId
-    let attachments: Attachment[] = [];
-    if (filesToUpload.length > 0 && threadId) {
-      attachments = await uploadFiles(filesToUpload, threadId);
+    // Read text file contents and append to message
+    const MAX_FILE_SIZE = 100 * 1024; // 100KB
+    for (const file of filesToProcess) {
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        validationError = `File "${file.name}" is too large. Maximum size is 100KB.`;
+        setTimeout(() => {
+          validationError = '';
+        }, 5000);
+        continue;
+      }
+
+      try {
+        // Read file as text
+        const fileContents = await file.text();
+
+        // Append to payload in the specified format
+        const fileSection = `\n\nFile contents for ${file.name} are: ${fileContents}`;
+        payload += fileSection;
+      } catch (error) {
+        console.error('Error reading file:', file.name, error);
+        validationError = `Failed to read file: ${file.name}`;
+        setTimeout(() => {
+          validationError = '';
+        }, 5000);
+      }
     }
 
-    await sendMessage(payload, attachments);
+    await sendMessage(payload, []);
   }
 
   // Keyboard shortcut: Cmd/Ctrl + U to attach file

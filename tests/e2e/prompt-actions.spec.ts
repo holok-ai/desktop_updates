@@ -46,22 +46,30 @@ test.describe('E2E: Prompt actions (copy, edit+run, run again, run in another mo
     await page.waitForLoadState('networkidle');
     await ensureAuthenticated(page);
 
-    // Navigate to Threads and create a new thread
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    await page.getByRole('menuitem', { name: 'New Thread' }).click();
-    await page.getByLabel('Title').fill('Copy Scenario Thread');
-    await page.getByLabel('Description').fill('Copy action test');
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-
+    // Navigate to Threads to create a new thread
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await page.getByRole('menuitem', { name: 'Copy Scenario Thread' }).first().click();
+    await page.waitForTimeout(1000);
 
-    // Send a prompt
+    // Wait for model selector and select first model
+    const modelSelect = page.locator('select#model-select');
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(1000);
+    const options = await modelSelect.locator('option').count();
+    if (options > 1) {
+      await modelSelect.selectOption({ index: 1 });
+    }
+    await page.waitForTimeout(500);
+
+    // Send initial prompt to create thread
     const prompt = 'CopyThisPrompt';
-    const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible();
-    await textarea.fill(prompt);
-    await textarea.press('Enter');
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+    await promptTextarea.click();
+    await promptTextarea.clear();
+    await promptTextarea.pressSequentially(prompt, { delay: 50 });
+    await page.waitForTimeout(300);
+    await promptTextarea.press('Enter');
+    await page.waitForTimeout(2000);
 
     // Open actions and copy
     const openBtn = page.getByLabel('Open actions for prompt').first();
@@ -84,25 +92,44 @@ test.describe('E2E: Prompt actions (copy, edit+run, run again, run in another mo
     await page.waitForLoadState('networkidle');
     await ensureAuthenticated(page);
 
-    // Select existing thread or create a new one
+    // Navigate to Threads view to find existing thread or will be on create form
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    const threadItem = page.getByRole('menuitem', { name: 'Copy Scenario Thread' }).first();
-    if ((await threadItem.count()) === 0) {
-      await page.getByRole('menuitem', { name: 'Home' }).click();
-      await page.getByRole('menuitem', { name: 'New Thread' }).click();
-      await page.getByLabel('Title').fill('Edit Scenario Thread');
-      await page.getByRole('button', { name: 'Confirm Create' }).click();
-      await page.getByRole('menuitem', { name: 'Threads' }).click();
-      await page.getByRole('menuitem', { name: 'Edit Scenario Thread' }).first().click();
-    } else {
-      await threadItem.click();
-    }
+    await page.waitForTimeout(500);
 
-    // Send initial prompt
     const initial = 'OriginalPrompt';
-    const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await textarea.fill(initial);
-    await textarea.press('Enter');
+
+    // Check if the thread from first test exists
+    const threadItem = page.getByRole('menuitem', { name: 'CopyThisPrompt' }).first();
+    if ((await threadItem.count()) > 0) {
+      // Use existing thread
+      await threadItem.click();
+      await page.waitForTimeout(500);
+
+      // Send new prompt in existing thread
+      const textarea = page.locator('textarea[placeholder="Write a message..."]');
+      await expect(textarea).toBeVisible({ timeout: 3000 });
+      await textarea.click();
+      await textarea.pressSequentially(initial, { delay: 50 });
+      await textarea.press('Enter');
+    } else {
+      // Create new thread if needed
+      const modelSelect = page.locator('select#model-select');
+      await expect(modelSelect).toBeVisible({ timeout: 5000 });
+      await page.waitForTimeout(1000);
+      const options = await modelSelect.locator('option').count();
+      if (options > 1) {
+        await modelSelect.selectOption({ index: 1 });
+      }
+      await page.waitForTimeout(500);
+
+      const promptTextarea = page.locator('textarea#thread-prompt');
+      await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+      await promptTextarea.click();
+      await promptTextarea.pressSequentially(initial, { delay: 50 });
+      await page.waitForTimeout(300);
+      await promptTextarea.press('Enter');
+      await page.waitForTimeout(2000);
+    }
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: initial }).last(),
     ).toBeVisible({ timeout: 20000 });
@@ -142,7 +169,9 @@ test.describe('E2E: Prompt actions (copy, edit+run, run again, run in another mo
     // Send prompt
     const p = `RunAgainPrompt ${Date.now()}`;
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await textarea.fill(p);
+    await expect(textarea).toBeVisible({ timeout: 3000 });
+    await textarea.click();
+    await textarea.pressSequentially(p, { delay: 50 });
     await textarea.press('Enter');
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: p }).last(),
@@ -178,7 +207,9 @@ test.describe('E2E: Prompt actions (copy, edit+run, run again, run in another mo
     await page.getByRole('menuitem', { name: 'Copy Scenario Thread' }).first().click();
     const promptText = `RunInModelPrompt ${Date.now()}`;
     const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await textarea.fill(promptText);
+    await expect(textarea).toBeVisible({ timeout: 3000 });
+    await textarea.click();
+    await textarea.pressSequentially(promptText, { delay: 50 });
     await textarea.press('Enter');
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: promptText }).last(),
@@ -191,14 +222,30 @@ test.describe('E2E: Prompt actions (copy, edit+run, run again, run in another mo
     await expect(menu).toBeVisible({ timeout: 2000 });
     await page.getByTestId('run-in-another-model').click();
 
-    // New Thread dialog should open with Initial Prompt prefilled
-    await expect(page.getByLabel('Initial Prompt')).toBeVisible({ timeout: 2000 });
-    await expect(page.locator('#initial-prompt')).toHaveValue(promptText);
+    // ThreadCreatePanel should be visible with prompt prefilled
+    await page.waitForTimeout(1000);
+    const newPromptTextarea = page.locator('textarea#thread-prompt');
+    await expect(newPromptTextarea).toBeVisible({ timeout: 3000 });
 
-    // Confirm create
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    // Verify the prompt is prefilled
+    const prefillValue = await newPromptTextarea.inputValue();
+    expect(prefillValue).toBe(promptText);
 
-    // New thread should be selected and contain the prompt
+    // Select model for new thread
+    const modelSelect = page.locator('select#model-select');
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(1000);
+    const options = await modelSelect.locator('option').count();
+    if (options > 1) {
+      await modelSelect.selectOption({ index: 1 });
+    }
+    await page.waitForTimeout(500);
+
+    // Submit to create new thread with the prompt
+    await newPromptTextarea.press('Enter');
+    await page.waitForTimeout(2000);
+
+    // New thread should be created and show the user message
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: promptText }).last(),
     ).toBeVisible({ timeout: 5000 });

@@ -53,19 +53,55 @@ test.describe('E2E: Thread management', () => {
 
     // Navigate to Threads via main sidebar (menuitem)
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    // Ensure Threads page header visible
-    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
 
-    // Switch to Home activity to access quick actions, then open New Thread from secondary sidebar
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    const newThreadMenuItem = page.getByRole('menuitem', { name: 'New Thread' });
-    await expect(newThreadMenuItem).toBeVisible();
-    await newThreadMenuItem.click();
-    await page.getByLabel('Title').fill('Playwright Thread');
-    await page.getByLabel('Description').fill('Created by E2E');
-    await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
+    // Wait for the thread creation form to be visible
+    await page.waitForTimeout(1000);
 
-    // Dialog should close after create; assert the confirm button disappears
-    await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(0);
+    // Wait for model selector to be visible
+    const modelSelect = page.locator('select#model-select');
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+
+    // Wait for models to load
+    await page.waitForTimeout(1000);
+
+    // Select the first model in the dropdown (skip index 0 as it's usually empty/placeholder)
+    const options = await modelSelect.locator('option').count();
+    if (options > 1) {
+      await modelSelect.selectOption({ index: 1 });
+    } else {
+      throw new Error('No models available in dropdown');
+    }
+
+    // Wait a bit for model selection to register
+    await page.waitForTimeout(500);
+
+    // Fill in the prompt
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+
+    // Focus the textarea
+    await promptTextarea.click();
+    await page.waitForTimeout(200);
+
+    // Clear any existing content
+    await promptTextarea.clear();
+
+    // Type the text (more reliable than fill for Svelte components)
+    await promptTextarea.pressSequentially('Playwright Thread', { delay: 50 });
+
+    // Wait a moment for the input to register
+    await page.waitForTimeout(300);
+
+    // Verify text was entered
+    const textareaValue = await promptTextarea.inputValue();
+    if (!textareaValue || textareaValue.trim() === '') {
+      throw new Error('Failed to enter text in prompt textarea');
+    }
+
+    // Submit the form by pressing Enter
+    await promptTextarea.press('Enter');
+
+    // Wait for thread to be created
+    await page.waitForTimeout(2000);
   });
 });

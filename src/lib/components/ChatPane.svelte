@@ -29,30 +29,54 @@
     >;
   }
 
-  let { thread = null, messages = [], composer }: Props = $props();
+  let { thread = null, messages = $bindable([]), composer }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
-  let currentThread = $state(thread);
-  const _localLlamaModel = {
-    url: 'http://localhost:11434',
-    model: 'llama3.1:8b',
-  };
-  // const _localClaudeModel = {
-  //     url: 'http://localhost:3000/api/custom/claude/f4f61965',
-  //     apiKey: '', // Will be injected from auth service by chat handler
-  //     model: 'claude-opus-4-1-20250805',
-  // };
-  // let _devClaudeModel = {
-  //     url: 'https://holo.holokai.dev/api/custom/claude/04ddbc63',
-  //     apiKey: '', // Will be injected from auth service by chat handler
-  //     model: 'claude-3-haiku-20240307'
-  // };
-  let modelName = _localLlamaModel.model;
+  let currentThread = $state<Thread | null>(null);
 
-  // Watch for prop changes and clear error when thread changes
+  // Model configuration derived from thread metadata
+  let modelName = $state('');
+  let modelUrl = $state('');
+  let modelProvider = $state('');
+
+  // Track current provider config to detect changes
+  interface ProviderConfig {
+    provider: string;
+    url: string;
+    model: string;
+  }
+  let currentProviderConfig: ProviderConfig | null = $state(null);
+  let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
+
+  // Watch for prop changes and update model configuration from thread metadata
   $effect(() => {
     const previousThreadId = currentThread?.id;
     currentThread = thread;
+
+    // Extract model configuration from thread metadata
+    if (thread?.metadata) {
+      const meta = thread.metadata;
+
+      console.log('[ChatPane] Thread metadata:', JSON.stringify(meta, null, 2));
+
+      // Use modelAccessName (full versioned name) for the chat API
+      modelName = (meta.modelAccessName as string) ?? '';
+      modelUrl = (meta.url as string) ?? '';
+      modelProvider = (meta.provider as string) ?? '';
+
+      console.log('[ChatPane] Extracted values:', { modelName, modelUrl, modelProvider });
+
+      // Track loaded threads
+      if (thread.id && !threadLoadedIds.has(thread.id)) {
+        threadLoadedIds.add(thread.id);
+      }
+    } else {
+      // Reset to empty if no metadata
+      modelName = '';
+      modelUrl = '';
+      modelProvider = '';
+    }
+
     // Clear error state when switching threads to prevent stale errors
     error = '';
     // Clear file write events when switching threads
@@ -74,6 +98,10 @@
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   let showComments = $state(false);
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+
+  // Scrolling state
+  let messagesContainer: HTMLDivElement | null = $state(null);
+  let streamingMessageEl: HTMLDivElement | null = $state(null);
 
   // Title editing state
   let isEditingTitle = $state(false);
@@ -231,17 +259,23 @@
     wasOnline = online;
   });
 
-  // Initialize chat service on mount
-  async function initializeChatService() {
-    const result = await window.electronAPI.chat.createProvider('ollama', _localLlamaModel);
+  // Initialize chat service with provider configuration
+  async function initializeChatService(config: ProviderConfig) {
+    console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
+
+    const result = await window.electronAPI.chat.createProvider(config.provider, {
+      url: config.url,
+      model: config.model,
+    });
+
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
-      console.error('Failed to create chat provider:', result.error);
+      console.error('[ChatPane] Failed to create chat provider:', result.error);
       return;
     }
 
-    console.log('Chat service initialized!');
     chatServiceCreated = true;
+    currentProviderConfig = config;
   }
 
   function showToast(message: string, ms = 2500) {
@@ -249,6 +283,14 @@
     if (toastTimeout) window.clearTimeout(toastTimeout);
     // @ts-ignore - window.setTimeout returns number in browser
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
+  }
+
+  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
+    if (!messagesContainer) return;
+    messagesContainer.scrollTo({
+      top: messagesContainer.scrollHeight,
+      behavior,
+    });
   }
 
   // Setup token listener for streaming responses
@@ -259,9 +301,16 @@
     window.electronAPI.chat.offToken();
 
     window.electronAPI.chat.onToken((token: string) => {
-      console.log(token);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
+
+      // Keep streaming text in view inside messages container
+      scrollToBottom('auto');
+
+      // Ensure streaming block stays visible in the viewport (outer scroll container / window)
+      if (streamingMessageEl) {
+        streamingMessageEl.scrollIntoView({ block: 'end', behavior: 'auto' });
+      }
     });
   }
 
@@ -329,12 +378,16 @@
   }
 
   async function handleEditAndRegenerate(messageId: string, newContent: string) {
-    if (!thread) return;
+    if (!currentThread) {
+      showToast('Error: No active thread');
+      return;
+    }
 
     try {
-      const result = await threadService.updateMessage(thread.id, messageId, newContent);
+      const result = await threadService.updateMessage(currentThread.id, messageId, newContent);
       if (!result.success) {
         error = result.error;
+        showToast(`Error updating message: ${result.error}`);
         return;
       }
 
@@ -352,18 +405,22 @@
           : message,
       );
 
-      const deleteResult = await threadService.deleteMessagesAfter(thread.id, messageId);
+      // Delete messages after the edited one from backend
+      const deleteResult = await threadService.deleteMessagesAfter(currentThread.id, messageId);
       if (!deleteResult.success) {
         error = deleteResult.error;
+        showToast(`Error deleting messages: ${deleteResult.error}`);
         return;
       }
 
+      // Remove messages after the edited one from local array
       const messageIndex = messages.findIndex((m) => m.id === messageId);
+
       if (messageIndex !== -1) {
         messages = messages.slice(0, messageIndex + 1);
       }
 
-      // Regenerate the AI response with full conversation history
+      // Build conversation history for regeneration
       const historyMessages = messages.map((m) => ({
         role: m.role,
         content: m.content,
@@ -381,13 +438,15 @@
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
-        console.error('Chat failed:', chatResult.error);
+        console.error('[ChatPane] Chat failed:', chatResult.error);
+        showToast(`Error generating response: ${chatResult.error}`);
       } else {
-        await transmitter.handleAssistantResponse(responseText, thread, newContent);
+        await transmitter.handleAssistantResponse(responseText, currentThread, newContent);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Error editing message:', err);
+      console.error('[ChatPane] Error editing message:', err);
+      showToast(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       isStreaming = false;
     }
@@ -427,7 +486,6 @@
   // Lifecycle hooks
   onMount(() => {
     outboxService.init();
-    initializeChatService();
 
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
@@ -476,10 +534,36 @@
     };
   });
 
-  // Watch for thread changes to reinitialize if needed
+  // Always keep view pinned to bottom when messages change
   $effect(() => {
-    if (currentThread && !chatServiceCreated) {
-      initializeChatService();
+    const _len = messages.length;
+    if (!_len || !messagesContainer) return;
+    scrollToBottom('auto');
+  });
+
+  // Watch for thread changes and reinitialize provider if config changed
+  $effect(() => {
+    if (!currentThread) {
+      // No thread loaded, don't initialize
+      return;
+    }
+
+    // Build provider config from current thread metadata
+    const newConfig: ProviderConfig = {
+      provider: modelProvider,
+      url: modelUrl,
+      model: modelName,
+    };
+
+    // Check if we need to reinitialize (config changed or first time)
+    const needsReinit = !currentProviderConfig ||
+      currentProviderConfig.provider !== newConfig.provider ||
+      currentProviderConfig.url !== newConfig.url ||
+      currentProviderConfig.model !== newConfig.model;
+
+    if (needsReinit) {
+      chatServiceCreated = false; // Mark as not created to trigger reinit
+      void initializeChatService(newConfig);
     }
   });
 
@@ -649,7 +733,7 @@
       <div class="toast">{toast}</div>
     {/if}
 
-    <div class="messages">
+    <div class="messages" bind:this={messagesContainer}>
       {#if messages.length === 0}
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
@@ -685,7 +769,7 @@
 
       <!-- Show streaming response in real-time -->
       {#if isStreaming && responseText}
-        <div class="message assistant streaming">
+        <div class="message assistant streaming" bind:this={streamingMessageEl}>
           <div class="message-content">
             <MarkdownRenderer content={responseText} enableCopy={true} />
           </div>

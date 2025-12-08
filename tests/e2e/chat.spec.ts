@@ -45,59 +45,88 @@ test.describe('E2E: Chat prompt/response', () => {
       await expect(loginBtn).toBeVisible({ timeout: 5000 });
       await loginBtn.click();
 
-      await page.waitForTimeout(1200);
+      // Wait for login to complete and models to load (post-auth callback)
+      await page.waitForTimeout(3000);
     }
 
     // Navigate to Threads via main sidebar (menuitem)
-    await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
+    const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
+    await expect(threadsMenuItem).toBeVisible({ timeout: 5000 });
+    await threadsMenuItem.click();
 
-    // Ensure a thread exists by creating one via secondary sidebar quick action
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    const newThreadMenuItem = page.getByRole('menuitem', { name: 'New Thread' });
-    let threadName = 'E2E Chat Thread';
-    if (await newThreadMenuItem.count()) {
-      await newThreadMenuItem.click();
-      await page.getByLabel('Title').fill(threadName);
-      await page.getByLabel('Description').fill('testing chat');
-      await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(
-        0,
+    // Wait for Threads page to load - check for model selector (ThreadCreatePanel)
+    // or chat interface, depending on whether threads exist
+    await page.waitForTimeout(1000);
+
+    // Wait for the thread creation form to be visible
+    // If threads exist, we may need to trigger creation, otherwise it shows automatically
+    await page.waitForTimeout(1000);
+
+    // Check if model selector is visible (ThreadCreatePanel is shown)
+    const modelSelect = page.locator('select#model-select');
+    const isCreateFormVisible = await modelSelect.isVisible();
+
+    if (!isCreateFormVisible) {
+      // Need to click "New Thread" or similar button
+      const newThreadButton = page.getByRole('button', { name: /new thread/i }).or(
+        page.getByText(/new thread/i)
       );
-    }
-
-    // Switch back to Threads activity and select the created thread from the grouped list
-    await page.getByRole('menuitem', { name: 'Threads' }).click();
-
-    // Thread might be in Recent section or other grouped sections
-    // Use .first() to handle strict mode violation (duplicate items)
-    const threadItem = page.getByRole('menuitem', { name: threadName }).first();
-    if ((await threadItem.count()) === 0) {
-      // Try to find by clicking through sections
-      const sections = page
-        .locator('[role="button"]')
-        .filter({ hasText: /Recent|Yesterday|Last 7 Days/ });
-      if ((await sections.count()) > 0) {
-        await sections.first().click();
-        await page.waitForTimeout(300);
+      if (await newThreadButton.count()) {
+        await newThreadButton.click();
+        await page.waitForTimeout(500);
       }
     }
 
-    await expect(threadItem).toBeVisible({ timeout: 5000 });
-    await threadItem.click();
+    // Wait for model selector to be visible
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
 
-    // Compose a prompt
-    const prompt = 'Just say "Okay"';
-    const textarea = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(textarea).toBeVisible({ timeout: 3000 });
-    await textarea.fill(prompt);
+    // Wait for models to load
+    await page.waitForTimeout(1000);
 
-    // Press Enter to send (mirrors normal UX)
-    await textarea.press('Enter');
+    // Select the first model in the dropdown (skip index 0 as it's usually empty/placeholder)
+    const options = await modelSelect.locator('option').count();
+    if (options > 1) {
+      await modelSelect.selectOption({ index: 1 });
+    } else {
+      throw new Error('No models available in dropdown');
+    }
+
+    // Wait a bit for model selection to register
+    await page.waitForTimeout(500);
+
+    // Fill in the prompt - this will be the first message
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+
+    // Focus the textarea
+    await promptTextarea.click();
+    await page.waitForTimeout(200);
+
+    // Clear any existing content
+    await promptTextarea.clear();
+
+    // Type the text (more reliable than fill for Svelte components)
+    await promptTextarea.pressSequentially('Just say "Okay"', { delay: 50 });
+
+    // Wait a moment for the input to register
+    await page.waitForTimeout(300);
+
+    // Verify text was entered
+    const textareaValue = await promptTextarea.inputValue();
+    if (!textareaValue || textareaValue.trim() === '') {
+      throw new Error('Failed to enter text in prompt textarea');
+    }
+
+    // Submit the form by pressing Enter
+    // This creates the thread AND sends the first message
+    await promptTextarea.press('Enter');
+
+    // Wait for thread to be created and first message to be sent
+    await page.waitForTimeout(2000);
 
     // Wait for user message to appear in the UI
     await expect(
-      page.locator('.messages .message.user .message-content', { hasText: prompt }),
+      page.locator('.messages .message.user .message-content', { hasText: 'Just say "Okay"' }),
     ).toBeVisible({ timeout: 5000 });
 
     // Wait for assistant response to start streaming (message appears)

@@ -38,31 +38,36 @@ test.describe('Prompt Edit & Version History (E2E)', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    // Create a new thread for this test
-    await page.getByRole('menuitem', { name: 'Home' }).click();
-    const newThreadMenuItem = page.getByRole('menuitem', { name: 'New Thread' });
-    const threadName = 'Version History Test';
-    if (await newThreadMenuItem.count()) {
-      await newThreadMenuItem.click();
-      await page.getByLabel('Title').fill(threadName);
-      await page.getByLabel('Description').fill('testing version history');
-      await page.getByRole('button', { name: 'Confirm Create', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Confirm Create', exact: true })).toHaveCount(
-        0,
-      );
+    // Navigate to Threads to create a new thread
+    await page.getByRole('menuitem', { name: 'Threads' }).click();
+    await page.waitForTimeout(1000);
+
+    // Wait for model selector to be visible
+    const modelSelect = page.locator('select#model-select');
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+
+    // Wait for models to load
+    await page.waitForTimeout(1000);
+
+    // Select the first model in the dropdown
+    const options = await modelSelect.locator('option').count();
+    if (options > 1) {
+      await modelSelect.selectOption({ index: 1 });
     }
 
-    // Switch back to Threads and select the thread
-    await page.getByRole('menuitem', { name: 'Threads' }).click();
-    const threadItem = page.getByRole('menuitem', { name: threadName }).first();
-    await expect(threadItem).toBeVisible({ timeout: 5000 });
-    await threadItem.click();
+    await page.waitForTimeout(500);
 
-    // Send initial message
-    const composer = page.locator('textarea[placeholder="Write a message..."]');
-    await expect(composer).toBeVisible({ timeout: 5000 });
-    await composer.fill('Just say "Okay"');
-    await composer.press('Enter');
+    // Fill in the initial prompt to create the thread
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 3000 });
+    await promptTextarea.click();
+    await promptTextarea.clear();
+    await promptTextarea.pressSequentially('Just say "Okay"', { delay: 50 });
+    await page.waitForTimeout(300);
+
+    // Submit to create thread with first message
+    await promptTextarea.press('Enter');
+    await page.waitForTimeout(2000);
 
     // Wait for user and assistant messages
     await expect(

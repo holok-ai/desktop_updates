@@ -7,7 +7,6 @@ import { applyTheme } from '$lib/services/theme.service';
 import { APP_THEME_MODE } from '$lib/constants/app.constant';
 import type { AppThemeMode } from '$lib/types/app.type';
 import { initTitleGenerationListeners } from '$lib/stores/titleGeneration.store';
-import { initThreadUpdateListener } from '$lib/stores/thread.store';
 import { storageService } from '$lib/services/storage.service';
 import App from './App.svelte';
 
@@ -32,9 +31,6 @@ async function bootstrap(): Promise<void> {
 
   // Initialize title generation event listeners
   initTitleGenerationListeners();
-
-  // Initialize thread update listener for reactive thread list updates
-  initThreadUpdateListener();
 
   // Reset comments visibility to hidden on app startup
   // (preference can be stored across threads, but always start hidden)

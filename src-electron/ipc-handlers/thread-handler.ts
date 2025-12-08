@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
 import { projectRepository } from '../repository/project-repository.js';
-import { mokuService } from '../services/moku.service.js';
+import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
@@ -342,10 +342,10 @@ export function registerThreadHandlers(): void {
         ...(threadData.metadata ?? {}),
       };
 
-      // Server-side validation: ensure provided model/provider are available
-      if (typeof metadata.model === 'string' && typeof metadata.provider === 'string') {
-        const mdl = await mokuService.getModel(metadata.provider, metadata.model);
-        if (!mdl || !mdl.available) {
+      // Server-side validation: ensure provided model is available
+      if (typeof metadata.modelId === 'string') {
+        const mdl = modelRepository.getModel(metadata.modelId);
+        if (!mdl) {
           throw new Error('Model unavailable—choose another');
         }
       }
@@ -706,12 +706,19 @@ export function registerThreadHandlers(): void {
       _event,
       threadId: string | null,
       prompt: string,
-      opts: { title?: string; description?: string; model?: string } = {},
+      opts: {
+        title?: string;
+        description?: string;
+        model?: string;
+        metadata?: Record<string, unknown>;
+      } = {},
     ): Promise<{
       thread: RendererThread;
       message: { id: string; role: string; content: string; createdAt: number };
     }> => {
-      const res = threadRepository.addUserPrompt(threadId, prompt, opts);
+      // Merge metadata into opts for createThread
+      const createOpts = opts.metadata ? { ...opts, ...opts.metadata } : opts;
+      const res = threadRepository.addUserPrompt(threadId, prompt, createOpts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread');
       const msg = {

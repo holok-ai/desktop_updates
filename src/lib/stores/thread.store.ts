@@ -46,19 +46,3 @@ function createThreadStore(): ThreadStore {
 }
 
 export const threads = createThreadStore();
-
-// Initialize listener for backend thread updates
-export function initThreadUpdateListener(): () => void {
-  try {
-    if (typeof window.electronAPI?.thread?.onThreadUpdated === 'function') {
-      return window.electronAPI.thread.onThreadUpdated((updatedThread) => {
-        threads.updateThread(updatedThread);
-      });
-    } else {
-      console.warn('[thread.store] onThreadUpdated function not available');
-    }
-  } catch (e) {
-    console.error('Failed to initialize thread update listener:', e);
-  }
-  return () => {}; // Return no-op cleanup function
-}

@@ -31,9 +31,9 @@
   }
 
   function getModelName(thread: Thread): string {
-    const model = thread.metadata?.model;
-    if (typeof model === 'string') {
-      return model;
+    const modelTitle = thread.metadata?.modelTitle;
+    if (typeof modelTitle === 'string') {
+      return modelTitle;
     }
     return 'unknown';
   }

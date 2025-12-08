@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import type { MokuModel } from '../../../src-electron/preload';
+  import type { ModelDetails } from '../../../src-electron/preload';
 
   const dispatch = createEventDispatcher();
 
@@ -8,7 +8,7 @@
   export let initialSelection: { provider: string; id: string } | null = null;
   export let disabled: boolean = false;
 
-  let models: MokuModel[] = [];
+  let models: ModelDetails[] = [];
   let loading = true;
   let error: string | null = null;
   let selectedKey: string = '';
@@ -16,44 +16,15 @@
   onMount(async () => {
     loading = true;
     try {
-      // Guard window.electronAPI availability (web-only fallback or unexpected runtime)
-      // If unavailable, provide a small in-component fallback list so the chooser
-      // remains usable in non-Electron contexts (dev preview / web).
-      const win: any = typeof window !== 'undefined' ? window : undefined;
-      if (
-        win &&
-        win.electronAPI &&
-        win.electronAPI.models &&
-        typeof win.electronAPI.models.listAvailable === 'function'
-      ) {
-        models = await win.electronAPI.models.listAvailable();
-      } else {
-        // Fallback sample models for non-electron environments
-        models = [
-          {
-            provider: 'openai',
-            id: 'gpt-4o',
-            title: 'GPT-4o',
-            available: true,
-            default: true,
-            createdAt: Date.now(),
-          },
-          {
-            provider: 'openai',
-            id: 'gpt-3.5',
-            title: 'GPT-3.5',
-            available: true,
-            createdAt: Date.now(),
-          },
-        ];
-        // Do not treat this as an error; show no error so UI can function.
-        error = null;
-      }
+      // Fetch models from backend via IPC
+      const fetchedModels = await window.electronAPI.models.listAll();
+      models = fetchedModels;
 
       if (initialSelection) {
         selectedKey = initialSelection.provider + '::' + initialSelection.id;
       } else {
-        const pre = models.find((m) => m.default) ?? models[0];
+        // Select first model as default
+        const pre = models[0];
         selectedKey = pre ? pre.provider + '::' + pre.id : '';
       }
 
@@ -68,7 +39,7 @@
     }
   });
 
-  function parseSelected(): MokuModel | null {
+  function parseSelected(): ModelDetails | null {
     if (!selectedKey) return null;
     const parts = selectedKey.split('::');
     const provider = parts[0];
@@ -99,7 +70,7 @@
         {disabled}
       >
         {#each models as m}
-          <option value={m.provider + '::' + m.id}>{m.title} — {m.provider}</option>
+          <option value={m.provider + '::' + m.id}>{m.title}</option>
         {/each}
       </select>
     </div>

@@ -1,6 +1,7 @@
 import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
+import { mokuService } from './mokuapi/moku.service.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -19,6 +20,7 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
+  organizationId?: string;
 }
 
 export interface AuthTokens {
@@ -31,18 +33,6 @@ export interface AuthState {
   user: UserProfile | null;
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
-}
-
-/**
- * API Response Types
- */
-interface ExchangeCodeResponse {
-  apiKey: string;
-}
-
-interface TokenResponse {
-  accessToken: string;
-  expires_in: number;
 }
 
 /**
@@ -81,14 +71,6 @@ export class AuthService {
   private getMokuWebUrl(): string {
     const settingsService = getSettingsService();
     return settingsService.getMokuWebUrl();
-  }
-
-  /**
-   * Get Moku API URL from settings
-   */
-  private getMokuApiUrl(): string {
-    const settingsService = getSettingsService();
-    return settingsService.getMokuApiUrl();
   }
 
   /**
@@ -219,44 +201,14 @@ export class AuthService {
     log.info('[AuthService] Exchanging code for tokens');
 
     try {
-      const mokuApiUrl = this.getMokuApiUrl();
-
-      // Step 1: Exchange code for apiKey
+      // Step 1: Exchange code for apiKey via MokuService
       log.info('[AuthService] Step 1: Exchanging code for apiKey');
-      const exchangeResponse = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!exchangeResponse.ok) {
-        const errorText = await exchangeResponse.text();
-        log.error('[AuthService] Exchange code failed:', exchangeResponse.status, errorText);
-
-        if (exchangeResponse.status === 401) {
-          throw new Error('Invalid or expired exchange code. Please try logging in again.');
-        }
-        throw new Error(`Failed to exchange code: ${exchangeResponse.status}`);
-      }
-
-      const { apiKey } = (await exchangeResponse.json()) as ExchangeCodeResponse;
+      const apiKey = await mokuService.exchangeCodeForApiKey(code);
       log.info('[AuthService] Successfully received apiKey');
 
-      // Step 2: Exchange apiKey for accessToken
+      // Step 2: Exchange apiKey for accessToken via MokuService
       log.info('[AuthService] Step 2: Exchanging apiKey for accessToken');
-      const tokenResponse = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        log.error('[AuthService] Token refresh failed:', tokenResponse.status, errorText);
-        throw new Error(`Failed to get access token: ${tokenResponse.status}`);
-      }
-
-      const { accessToken, expires_in } = (await tokenResponse.json()) as TokenResponse;
+      const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
       log.info('[AuthService] Successfully received accessToken');
 
       // Create tokens object
@@ -312,6 +264,7 @@ export class AuthService {
       const username = payload.username as string | undefined;
       const displayName = payload.displayName as string | undefined;
       const picture = payload.picture as string | undefined;
+      const organizationId = payload.organizationId as string | undefined;
 
       // userId might be the email in this API
       const userEmail = email ?? userId;
@@ -334,12 +287,18 @@ export class AuthService {
 
       log.info('[AuthService] Extracted user email:', userEmail);
       log.info('[AuthService] Extracted user name:', extractedName);
+      log.info('[AuthService] Extracted organizationId:', organizationId);
+
+      if (!organizationId) {
+        log.warn('[AuthService] ⚠️  WARNING: organizationId not found in JWT token!');
+      }
 
       return {
         id: sub ?? subject ?? userId ?? 'unknown',
         email: userEmail ?? 'user@example.com',
         name: extractedName,
         picture,
+        organizationId,
       };
     } catch (error) {
       log.error('[AuthService] Error extracting user from token:', error);
@@ -373,26 +332,10 @@ export class AuthService {
     }
 
     try {
-      const mokuApiUrl = this.getMokuApiUrl();
       const apiKey = this.currentAuthState.tokens.apiKey;
 
-      log.info('[AuthService] Calling token refresh endpoint');
-      const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        log.error('[AuthService] Token refresh failed:', response.status, errorText);
-
-        // Clear stored auth on refresh failure
-        this.cleanup();
-        throw new Error('Token refresh failed. Please log in again.');
-      }
-
-      const { accessToken, expires_in } = (await response.json()) as TokenResponse;
+      log.info('[AuthService] Calling token refresh via MokuService');
+      const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
       log.info('[AuthService] Token refresh successful');
 
       // Update tokens

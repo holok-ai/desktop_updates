@@ -31,7 +31,11 @@ export class PerplexityChatProvider implements IChatProvider {
       apiKey,
       baseURL: url,
     });
-    this.defaultModel = defaultModel || 'pplx-70b-online';
+
+    if (!defaultModel) {
+      throw new Error('Model is required for PerplexityChatProvider');
+    }
+    this.defaultModel = defaultModel;
   }
 
   public async chat(
