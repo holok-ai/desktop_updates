@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import log from 'electron-log';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /**
@@ -490,12 +491,7 @@ export class FileToolsService {
    * Create or update a file with the specified content
    */
   private async writeFile(params: WriteFileParams): Promise<ToolResult> {
-    const {
-      path: userPath,
-      content,
-      overwrite = false,
-      encoding = 'utf-8',
-    } = params;
+    const { path: userPath, content, overwrite = false, encoding = 'utf-8' } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
     if (!allowedEncodings.includes(encoding)) {
@@ -685,6 +681,24 @@ export class FileToolsService {
   }
 
   /**
+   * Check if a path starts with a folder, handling case-insensitivity on Windows
+   * @param whiteList - The allowed folder path
+   * @param promptString - The path to check
+   * @returns True if promptString starts with whiteList
+   */
+  private startsWithFolder(whiteList: string, promptString: string): boolean {
+    const isWindows = os.platform() === 'win32';
+
+    if (isWindows) {
+      // Case-insensitive comparison on Windows
+      return promptString.toLowerCase().startsWith(whiteList.toLowerCase());
+    }
+
+    // Case-sensitive comparison on Unix-like systems
+    return promptString.startsWith(whiteList);
+  }
+
+  /**
    * Check if a path is allowed with detailed reason
    * @returns Object with allowed status and reason for denial
    */
@@ -694,7 +708,7 @@ export class FileToolsService {
   } {
     // Check blacklist first
     for (const blacklisted of this.blacklistedPaths) {
-      if (absolutePath.startsWith(blacklisted)) {
+      if (this.startsWithFolder(blacklisted, absolutePath)) {
         return { allowed: false, reason: 'blacklist' };
       }
     }
@@ -703,7 +717,7 @@ export class FileToolsService {
     if (this.allowedPaths.size > 0) {
       let isInAllowedPath = false;
       for (const allowed of this.allowedPaths) {
-        if (absolutePath.startsWith(allowed)) {
+        if (this.startsWithFolder(allowed, absolutePath)) {
           isInAllowedPath = true;
           break;
         }
