@@ -250,7 +250,9 @@
 
   // Initialize chat service with provider configuration
   async function initializeChatService(config: ProviderConfig) {
-    console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
+    console.log(
+      `[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`,
+    );
 
     const result = await window.electronAPI.chat.createProvider(config.provider, {
       url: config.url,
@@ -274,7 +276,7 @@
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
-  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
+  function scrollToBottom(behavior: 'auto' | 'instant' | 'smooth' = 'auto') {
     if (!messagesContainer) return;
     messagesContainer.scrollTo({
       top: messagesContainer.scrollHeight,
@@ -531,7 +533,8 @@
     };
 
     // Check if we need to reinitialize (config changed or first time)
-    const needsReinit = !currentProviderConfig ||
+    const needsReinit =
+      !currentProviderConfig ||
       currentProviderConfig.provider !== newConfig.provider ||
       currentProviderConfig.url !== newConfig.url ||
       currentProviderConfig.model !== newConfig.model;

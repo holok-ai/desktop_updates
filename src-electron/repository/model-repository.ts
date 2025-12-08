@@ -72,7 +72,7 @@ export class ModelRepository {
         try {
           log.info(`[ModelRepository] Fetching details for application: ${app.name}`);
           const appDetail = await mokuService.getApplicationDetail(app.id);
-          const agentDetail = await mokuService.getAgentDetail(app.id); 
+          const agentDetail = await mokuService.getAgentDetail(app.id);
 
           // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
@@ -81,9 +81,9 @@ export class ModelRepository {
                 id: model.id,
                 title: model.name,
                 accessName: model.accessModel,
-                provider: (agentDetail ? agentDetail.provider : ''),
+                provider: agentDetail ? agentDetail.provider : '',
                 slug: appDetail.urlSlug,
-                url: (agentDetail ? agentDetail.url : '')
+                url: agentDetail ? agentDetail.url : '',
               };
               this.models.push(modelDetails);
               log.info(
@@ -92,12 +92,17 @@ export class ModelRepository {
             }
           }
         } catch (error) {
-          log.error(`[ModelRepository] Failed to fetch details for application ${app.name}:`, error);
+          log.error(
+            `[ModelRepository] Failed to fetch details for application ${app.name}:`,
+            error,
+          );
           // Continue with other applications
         }
       }
 
-      log.info(`[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications`);
+      log.info(
+        `[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications`,
+      );
     } catch (error) {
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
       // Don't throw - allow application to continue even if model refresh fails
