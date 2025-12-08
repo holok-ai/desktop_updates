@@ -349,7 +349,8 @@
         model: modelName,
       };
 
-      const result = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const result = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -423,7 +424,8 @@
         model: modelName,
       };
 
-      const chatResult = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const chatResult = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -464,7 +466,8 @@
     await transmitter.processPendingMessages(thread, map, {
       setupTokenListener,
       getResponseText: () => responseText,
-      chat: (request) => window.electronAPI.chat.chat(request),
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      chat: (request) => window.electronAPI.chat.chatWithFileTools(request),
       setStreaming: (streaming) => {
         isStreaming = streaming;
       },
@@ -572,7 +575,8 @@
             model: modelName,
           };
 
-          const result = await window.electronAPI.chat.chat(request);
+          // Use chatWithFileTools for all requests - tools are invisible to user
+          const result = await window.electronAPI.chat.chatWithFileTools(request);
 
           if (!result.success) {
             error = result.error || 'Chat failed';
