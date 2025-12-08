@@ -89,6 +89,7 @@
   let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   let showComments = $state(false);
+  let toolStatusMessage = $state<string | null>(null); // For tool status balloon
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Scrolling state
@@ -349,7 +350,8 @@
         model: modelName,
       };
 
-      const result = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const result = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -423,7 +425,8 @@
         model: modelName,
       };
 
-      const chatResult = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const chatResult = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -464,7 +467,8 @@
     await transmitter.processPendingMessages(thread, map, {
       setupTokenListener,
       getResponseText: () => responseText,
-      chat: (request) => window.electronAPI.chat.chat(request),
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      chat: (request) => window.electronAPI.chat.chatWithFileTools(request),
       setStreaming: (streaming) => {
         isStreaming = streaming;
       },
@@ -500,8 +504,26 @@
     } catch {
       // ignore if API not available
     }
+
+    // Listen for tool status events (for UI feedback during long operations)
+    let unsubToolStatus: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.chat?.onToolStatus) {
+        unsubToolStatus = window.electronAPI.chat.onToolStatus((status) => {
+          if (status.state === 'in_progress') {
+            toolStatusMessage = status.message || `${status.toolName}...`;
+          } else {
+            toolStatusMessage = null;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
     return () => {
       if (unsubThreadUpdated) unsubThreadUpdated();
+      if (unsubToolStatus) unsubToolStatus();
       cleanup();
     };
   });
@@ -572,7 +594,8 @@
             model: modelName,
           };
 
-          const result = await window.electronAPI.chat.chat(request);
+          // Use chatWithFileTools for all requests - tools are invisible to user
+          const result = await window.electronAPI.chat.chatWithFileTools(request);
 
           if (!result.success) {
             error = result.error || 'Chat failed';
@@ -730,6 +753,14 @@
             <MarkdownRenderer content={responseText} enableCopy={true} />
           </div>
           <div class="message-meta">Streaming... ●</div>
+        </div>
+      {/if}
+
+      <!-- Tool status balloon (shown during long tool operations) -->
+      {#if toolStatusMessage}
+        <div class="tool-status-balloon">
+          <span class="tool-status-spinner">⟳</span>
+          <span class="tool-status-text">{toolStatusMessage}</span>
         </div>
       {/if}
     </div>
@@ -1133,5 +1164,50 @@
 
   .no-messages {
     color: var(--text-secondary);
+  }
+
+  /* Tool status balloon - shows during long tool operations */
+  .tool-status-balloon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    background: var(--surface-overlay, #2a2a2a);
+    border: 1px solid var(--surface-border, #444);
+    border-radius: var(--border-radius, 6px);
+    color: var(--text-secondary, #aaa);
+    font-size: 0.85rem;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .tool-status-spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+    font-size: 1rem;
+  }
+
+  .tool-status-text {
+    font-style: italic;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

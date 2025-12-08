@@ -195,8 +195,10 @@ export class OllamaChatProvider implements IChatProvider {
       const response = await this.sendToolAwareRequest(conversation, baseRequest);
       const assistantContent = response.message?.content?.trim();
 
+      // If empty content, try a regular fallback response
       if (!assistantContent) {
-        return;
+        console.warn('[OllamaChatProvider] Empty response from tool-aware request, using fallback');
+        break;
       }
 
       const parsedToolCall = this.tryParseToolInvocation(assistantContent);
@@ -223,13 +225,21 @@ export class OllamaChatProvider implements IChatProvider {
         continue;
       }
 
+      // This is a normal response (not a tool call), emit it
       if (onTokenReceived) {
         onTokenReceived(assistantContent);
       }
       return;
     }
 
-    throw new Error('Tool loop exceeded maximum iterations');
+    // If we reach here, either:
+    // 1. Empty response received
+    // 2. Max iterations exceeded (all responses were tool calls)
+    // Fall back to regular chat without tools
+    console.warn(
+      '[OllamaChatProvider] Tool loop did not produce final response, falling back to regular chat',
+    );
+    await this.fallbackToStandardChat(request, onTokenReceived);
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
@@ -244,12 +254,16 @@ export class OllamaChatProvider implements IChatProvider {
       .join('\n\n');
 
     return [
-      'You can inspect project files using special tools.',
-      'When you need to use a tool, respond ONLY with JSON using this shape:',
-      '{"tool":"tool_name","input":{...}}',
-      'After you receive tool results, continue the conversation normally.',
-      toolDescriptions ? `Available tools:\n\n${toolDescriptions}` : 'No tools available.',
-    ].join('\n\n');
+      'You have access to tools for reading files and folders. Use them ONLY when the user asks about files, directories, or project structure.',
+      '',
+      'IMPORTANT RULES:',
+      '- When you need to use a tool, respond ONLY with this JSON (nothing else): {"tool":"tool_name","input":{...}}',
+      '- NEVER explain how tools work.',
+      '- NEVER include tool-related text in your response unless a tool operation fails.',
+      '- For non-file questions, respond normally without using any tools.',
+      '',
+      toolDescriptions ? `Available tools:\n${toolDescriptions}` : '',
+    ].join('\n');
   }
 
   private async sendToolAwareRequest(

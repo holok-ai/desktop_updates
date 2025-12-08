@@ -141,7 +141,13 @@ export class OpenAIChatProvider implements IChatProvider {
 
   public supportsTools(): boolean {
     const normalized = (this.defaultModel || '').toLowerCase();
-    return normalized.includes('gpt-4');
+    // GPT-3.5-turbo and above support function calling
+    return (
+      normalized.includes('gpt-4') ||
+      normalized.includes('gpt-5') ||
+      normalized.includes('gpt-3.5-turbo') ||
+      normalized.includes('chatgpt')
+    );
   }
 
   public async chatWithTools(
