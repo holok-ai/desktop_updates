@@ -487,6 +487,12 @@
   onMount(() => {
     outboxService.init();
 
+    // Set up callback for file write event updates
+    fileWriteEventService.setUpdateCallback(() => {
+      const allEvents = fileWriteEventService.getAllEvents();
+      fileWriteEventsByMessageId = { ...allEvents };
+    });
+
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
     let unsubToolUse: (() => void) | undefined;
@@ -501,7 +507,8 @@
             toolCallId: string;
             result?: unknown;
           }) => {
-            fileWriteEventsByMessageId = fileWriteEventService.handleToolUse(data, messages);
+            const updatedEvents = fileWriteEventService.handleToolUse(data, messages);
+            fileWriteEventsByMessageId = updatedEvents;
           },
         );
       }

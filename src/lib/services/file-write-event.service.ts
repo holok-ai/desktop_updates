@@ -13,6 +13,9 @@ export type FileWriteEvent = {
   overwriteRequested: boolean | null;
   success: boolean | null;
   error: string | null;
+  startedAtMs?: number;
+  durationMs?: number;
+  _hideNotification?: boolean;
 };
 
 export interface ToolUseData {
@@ -26,6 +29,13 @@ export interface ToolUseData {
 export class FileWriteEventService {
   private fileWriteEventsByMessageId: Record<string, FileWriteEvent[]> = {};
   private toolCallMessageMap: Record<string, string> = {};
+  private pendingTimers: Record<string, number> = {};
+  private static readonly NOTIFICATION_DURATION_THRESHOLD_MS = 2000;
+  private updateCallback?: () => void;
+
+  setUpdateCallback(callback: () => void): void {
+    this.updateCallback = callback;
+  }
 
   /**
    * Handle tool use event from chat service
@@ -35,7 +45,7 @@ export class FileWriteEventService {
     messages: Message[],
   ): Record<string, FileWriteEvent[]> {
     if (data.toolName !== 'write_file') {
-      return this.fileWriteEventsByMessageId;
+      return this.getFilteredEvents();
     }
 
     const input = data.input as {
@@ -51,8 +61,8 @@ export class FileWriteEventService {
     if (data.stage === 'start') {
       const userMessages = messages.filter((m) => m.role === 'user');
       const targetMessage = userMessages[userMessages.length - 1];
-      if (targetMessage === undefined || targetMessage === null) {
-        return this.fileWriteEventsByMessageId;
+      if (targetMessage === null || targetMessage === undefined) {
+        return this.getFilteredEvents();
       }
 
       this.toolCallMessageMap[data.toolCallId] = targetMessage.id;
@@ -71,15 +81,61 @@ export class FileWriteEventService {
         overwriteRequested: isoverwriteRequested,
         success: null,
         error: null,
+        startedAtMs: Date.now(),
+        _hideNotification: true,
       };
 
       this.fileWriteEventsByMessageId[targetMessage.id] = [...existingForMessage, newEvent];
-      return { ...this.fileWriteEventsByMessageId };
+
+      const { id: targetMsgId } = targetMessage;
+      const { toolCallId } = data;
+      const timerId = window.setTimeout(() => {
+        // eslint-disable-next-line security/detect-object-injection
+        const events = this.fileWriteEventsByMessageId[targetMsgId];
+        if (events !== null && events !== undefined && Array.isArray(events)) {
+          const eventIndex = events.findIndex((e) => e.toolCallId === toolCallId);
+          // eslint-disable-next-line security/detect-object-injection
+          const foundEvent = events[eventIndex];
+          if (eventIndex !== -1 && foundEvent?.status === 'pending') {
+            const updatedEvent = { ...foundEvent, _hideNotification: false };
+            const updatedEvents = [...events];
+            // eslint-disable-next-line security/detect-object-injection
+            updatedEvents[eventIndex] = updatedEvent;
+            // eslint-disable-next-line security/detect-object-injection
+            this.fileWriteEventsByMessageId[targetMsgId] = updatedEvents;
+            if (this.updateCallback !== null && this.updateCallback !== undefined) {
+              this.updateCallback();
+            }
+          }
+        }
+        // Remove timer by filtering
+        const entries = Object.entries(this.pendingTimers);
+        const filtered = entries.filter(([key]) => key !== toolCallId);
+        this.pendingTimers = Object.fromEntries(filtered);
+      }, FileWriteEventService.NOTIFICATION_DURATION_THRESHOLD_MS);
+
+      // eslint-disable-next-line security/detect-object-injection
+      this.pendingTimers[toolCallId] = timerId;
+
+      return this.getFilteredEvents();
     }
 
-    const messageId = this.toolCallMessageMap[data.toolCallId];
-    if (messageId === undefined || messageId === '') {
-      return this.fileWriteEventsByMessageId;
+    const { toolCallId } = data;
+    // eslint-disable-next-line security/detect-object-injection
+    const messageId = this.toolCallMessageMap[toolCallId];
+    if (messageId === null || messageId === undefined || messageId === '') {
+      return this.getFilteredEvents();
+    }
+
+    // Clear the pending timer if it exists
+    // eslint-disable-next-line security/detect-object-injection
+    const timer = this.pendingTimers[toolCallId];
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      // Remove timer by filtering
+      const entries = Object.entries(this.pendingTimers);
+      const filtered = entries.filter(([key]) => key !== toolCallId);
+      this.pendingTimers = Object.fromEntries(filtered);
     }
 
     // eslint-disable-next-line security/detect-object-injection
@@ -107,15 +163,28 @@ export class FileWriteEventService {
 
       if (result?.success === true && result.data !== undefined && result.data !== null) {
         const dataResult = result.data;
+        const bytesWritten = dataResult.bytesWritten ?? event.bytesWritten ?? 0;
+        const durationMs =
+          typeof event.startedAtMs === 'number' && Number.isFinite(event.startedAtMs)
+            ? Date.now() - event.startedAtMs
+            : undefined;
+        const isdurationKnown = typeof durationMs === 'number' && Number.isFinite(durationMs);
+        // Hide notification for fast operations (<= threshold). Show for slower operations.
+        const shouldhideNotification =
+          isdurationKnown &&
+          durationMs <= FileWriteEventService.NOTIFICATION_DURATION_THRESHOLD_MS;
+
         return {
           ...event,
           status: 'complete' as const,
           filePath: dataResult.path ?? event.filePath,
           created: dataResult.created === true,
-          bytesWritten: dataResult.bytesWritten ?? event.bytesWritten ?? 0,
+          bytesWritten,
           previousSizeBytes: dataResult.metadata?.previousSize ?? event.previousSizeBytes,
           success: true,
           error: null,
+          durationMs,
+          _hideNotification: shouldhideNotification,
         };
       }
 
@@ -128,34 +197,72 @@ export class FileWriteEventService {
       };
     });
 
+    // Keep pending events; for completed successes, keep only if not hidden; always keep failures
+    const filteredEvents = updatedEvents.filter((event) => {
+      if (event.status === 'pending') {
+        return true;
+      }
+      if (event.error !== null && event.error !== undefined) {
+        return true;
+      }
+      if (event.success === false) {
+        return true;
+      }
+      if (event.success === true) {
+        return event._hideNotification !== true;
+      }
+      return true;
+    });
+
     // eslint-disable-next-line security/detect-object-injection
-    this.fileWriteEventsByMessageId[messageId] = updatedEvents;
+    this.fileWriteEventsByMessageId[messageId] = filteredEvents;
 
     const { [data.toolCallId]: _removed, ...rest } = this.toolCallMessageMap;
     this.toolCallMessageMap = rest;
 
-    return { ...this.fileWriteEventsByMessageId };
+    return this.getFilteredEvents();
   }
 
   /**
-   * Get file write events for a specific message
+   * Get filtered events (excluding hidden notifications) for all messages
+   */
+  private getFilteredEvents(): Record<string, FileWriteEvent[]> {
+    const filtered: Record<string, FileWriteEvent[]> = {};
+    Object.entries(this.fileWriteEventsByMessageId).forEach(([messageId, events]) => {
+      const visibleEvents = events.filter((event) => event._hideNotification !== true);
+      if (visibleEvents.length > 0) {
+        // eslint-disable-next-line security/detect-object-injection
+        filtered[messageId] = visibleEvents;
+      }
+    });
+    return filtered;
+  }
+
+  /**
+   * Get file write events for a specific message (filters out hidden notifications)
    */
   getEventsForMessage(messageId: string): FileWriteEvent[] {
     // eslint-disable-next-line security/detect-object-injection
-    return this.fileWriteEventsByMessageId[messageId] ?? [];
+    const events = this.fileWriteEventsByMessageId[messageId] ?? [];
+    return events.filter((event) => event._hideNotification !== true);
   }
 
   /**
-   * Get all file write events
+   * Get all file write events (filters out hidden notifications)
    */
   getAllEvents(): Record<string, FileWriteEvent[]> {
-    return { ...this.fileWriteEventsByMessageId };
+    return this.getFilteredEvents();
   }
 
   /**
    * Clear all events (useful when switching threads)
    */
   clear(): void {
+    // Clear all pending timers
+    Object.values(this.pendingTimers).forEach((timer) => {
+      clearTimeout(timer);
+    });
+    this.pendingTimers = {};
     this.fileWriteEventsByMessageId = {};
     this.toolCallMessageMap = {};
   }

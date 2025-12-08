@@ -169,12 +169,12 @@ export class FileToolsService {
             },
             content: {
               type: 'string',
-              description: 'The content to write to the file',
+              description: 'The content to write to the file. Generate or use content based on what the user requested.',
             },
             overwrite: {
               type: 'boolean',
               description:
-                'If true, overwrite existing file. If false, fail if file exists. Default: false',
+                'CRITICAL: Default is false. ONLY set to true if the user explicitly says to overwrite it. If user says "create" or "make", ALWAYS use false. If false and file exists, operation fails with error.',
             },
             encoding: {
               type: 'string',
@@ -193,6 +193,11 @@ export class FileToolsService {
    */
   public async executeTool(toolName: string, input: Record<string, unknown>): Promise<ToolResult> {
     log.info(`[FileTools] Executing: ${toolName}`, { input });
+
+    // Enforce default overwrite=false for write_file unless explicitly set to true
+    if (toolName === 'write_file' && !('overwrite' in input)) {
+      input.overwrite = false;
+    }
 
     try {
       switch (toolName) {
@@ -380,7 +385,9 @@ export class FileToolsService {
    * Create or update a file with the specified content
    */
   private async writeFile(params: WriteFileParams): Promise<ToolResult> {
-    const { path: userPath, content, overwrite = false, encoding = 'utf-8' } = params;
+    // Explicitly default overwrite to false if not provided
+    const overwrite = params.overwrite === true;
+    const { path: userPath, content, encoding = 'utf-8' } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
     if (!allowedEncodings.includes(encoding)) {
