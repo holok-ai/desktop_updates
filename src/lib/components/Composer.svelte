@@ -246,65 +246,82 @@
   {/if}
 
   <div class="input-container">
-    <!-- Attach button -->
-    <button
-      type="button"
-      class="attach-button"
-      onclick={handleFileSelect}
-      disabled={isStreaming}
-      aria-label="Attach file (Ctrl+U or Cmd+U)"
-      title="Attach file (Ctrl+U or Cmd+U)"
-    >
-      <svg
-        class="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        xmlns="http://www.w3.org/2000/svg"
+    <div class="textarea-wrapper">
+      <textarea
+        bind:value={text}
+        placeholder="Write a message..."
+        rows={3}
+        disabled={isStreaming}
+        aria-label="Message input. Press Enter to send, Shift+Enter for new line"
+        data-testid="message-input"
+        aria-describedby="composer-help-text"
+        class="composer-textarea"
+        onkeydown={(e) => {
+          // Send on Enter (without Shift). Allow Shift+Enter for newline.
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            send();
+          }
+        }}
+      ></textarea>
+      <span id="composer-help-text" class="sr-only">
+        Press Enter to send message. Press Shift+Enter for new line. Press Ctrl+U or Cmd+U to attach
+        files.
+      </span>
+    </div>
+
+    <div class="side-controls">
+      <button
+        type="button"
+        class="attach-button"
+        onclick={handleFileSelect}
+        disabled={isStreaming}
+        aria-label="Attach file (Ctrl+U or Cmd+U)"
+        title="Attach file (Ctrl+U or Cmd+U)"
       >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-        />
-      </svg>
-    </button>
+        <svg
+          class="icon"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+          />
+        </svg>
+        <span class="button-text">Attach</span>
+      </button>
 
-    <textarea
-      bind:value={text}
-      placeholder="Write a message..."
-      rows={3}
-      disabled={isStreaming}
-      aria-label="Message input. Press Enter to send, Shift+Enter for new line"
-      data-testid="message-input"
-      aria-describedby="composer-help-text"
-      class="composer-textarea"
-      onkeydown={(e) => {
-        // Send on Enter (without Shift). Allow Shift+Enter for newline.
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          send();
-        }
-      }}
-    ></textarea>
-    <span id="composer-help-text" class="sr-only">
-      Press Enter to send message. Press Shift+Enter for new line. Press Ctrl+U or Cmd+U to attach
-      files.
-    </span>
-  </div>
-
-  <div class="actions">
-    <button
-      class="composer-send"
-      type="button"
-      onclick={send}
-      disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
-      aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-      aria-disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
-    >
-      {isStreaming ? 'Sending...' : 'Send'}
-    </button>
+      <button
+        class="composer-send"
+        type="button"
+        onclick={send}
+        disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
+        aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
+        aria-disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
+        class:sending={isStreaming}
+      >
+        <svg
+          class="icon"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 7l5 5m0 0l-5 5m5-5H6"
+          />
+        </svg>
+        <span class="button-text">Send</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -383,43 +400,22 @@
     align-items: flex-start;
   }
 
-  .attach-button {
-    flex-shrink: 0;
+  .textarea-wrapper {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--inline-spacing);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--surface-border);
-    color: var(--primary-color);
-    background: var(--surface-card);
-    transition: all 0.2s;
-  }
-
-  .attach-button:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--primary-color);
-  }
-
-  .attach-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .attach-button svg {
-    width: 20px;
-    height: 20px;
+    align-items: stretch;
   }
 
   .composer-textarea {
-    flex: 1;
     width: 100%;
     padding: var(--inline-spacing);
     border-radius: var(--border-radius);
     border: 1px solid var(--surface-border);
     font-family: inherit;
     resize: vertical;
-    min-height: 120px;
+    min-height: 64px;
+    line-height: 1.4;
   }
 
   .composer-textarea:disabled {
@@ -428,19 +424,59 @@
     pointer-events: none;
   }
 
-  .actions {
-    text-align: right;
+  .side-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--inline-spacing);
+    align-items: stretch;
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+
+  .attach-button,
+  .composer-send {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--inline-spacing) * 0.5);
+    padding: 8px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--primary-color);
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+    min-width: fit-content;
   }
 
   .composer-send {
     background: var(--primary-color);
+    border-color: var(--primary-color);
     color: var(--primary-color-text);
-    border: 1px solid var(--primary-color);
-    padding: var(--inline-spacing) var(--content-padding);
-    border-radius: var(--border-radius);
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+    margin-top: auto;
+  }
+
+  .composer-send.sending {
+    opacity: 0.7;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .attach-button:hover:not(:disabled) {
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
   }
 
   .composer-send:hover:not(:disabled) {
@@ -448,8 +484,21 @@
     border-color: var(--primary-600);
   }
 
+  .attach-button:disabled,
   .composer-send:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .attach-button .icon,
+  .composer-send .icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .attach-button .button-text,
+  .composer-send .button-text {
+    line-height: 1;
   }
 </style>
