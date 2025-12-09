@@ -405,6 +405,14 @@ export interface LogAPI {
  *
  * Chat service operations for interacting with LLM providers.
  */
+export type ToolUseEventPayload = {
+  toolName: string;
+  input: unknown;
+  stage: 'start' | 'complete';
+  toolCallId: string;
+  result?: unknown;
+};
+
 export interface ChatAPI {
   // Initialize/Create a chat service instance
   createProvider: (
@@ -436,15 +444,7 @@ export interface ChatAPI {
   offToken: () => void;
 
   // Listen for tool use events (event-based)
-  onToolUse: (
-    callback: (data: {
-      toolName: string;
-      input: unknown;
-      stage: 'start' | 'complete';
-      toolCallId: string;
-      result?: unknown;
-    }) => void,
-  ) => () => void;
+  onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;
 
   // Listen for tool status events (for UI feedback during long operations)
   onToolStatus: (
@@ -647,24 +647,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:setFileToolsWorkingDirectory', dir),
 
     // 10. Listen for tool use events
-    onToolUse: (
-      callback: (data: {
-        toolName: string;
-        input: unknown;
-        stage: 'start' | 'complete';
-        toolCallId: string;
-        result?: unknown;
-      }) => void,
-    ): (() => void) => {
+    onToolUse: (callback: (data: ToolUseEventPayload) => void): (() => void) => {
       const subscription = (
         _event: IpcRendererEvent,
-        data: {
-          toolName: string;
-          input: unknown;
-          stage: 'start' | 'complete';
-          toolCallId: string;
-          result?: unknown;
-        },
+        data: ToolUseEventPayload,
       ): void => callback(data);
       ipcRenderer.on('chat:toolUse', subscription);
 

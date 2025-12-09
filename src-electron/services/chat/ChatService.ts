@@ -13,7 +13,7 @@ import {
 } from '../file-tools.service.js';
 import log from 'electron-log';
 
-interface ToolUseNotification {
+export interface ToolUseNotification {
   toolCallId: string;
   stage: 'start' | 'complete';
   result?: ToolResult;
@@ -159,7 +159,14 @@ export class ChatService {
         });
       }
 
-      const result = await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+      let result: ToolResult;
+      try {
+        result = await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        log.error('[ChatService] executeTool failed', { tool: toolUse.name, error: message });
+        result = { success: false, error: message };
+      }
 
       if (onToolUse) {
         onToolUse(toolUse.name, toolUse.input, {
