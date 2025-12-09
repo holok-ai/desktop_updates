@@ -11,6 +11,7 @@
   export let status: 'pending' | 'complete' = 'complete';
 
   let showContent = false;
+  const CONTENT_PREVIEW_LIMIT = 4000;
 
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -50,7 +51,11 @@
   }
 
   $: language = getLanguageFromPath(filePath);
-  $: previewMarkdown = '```' + language + '\n' + content + '\n```';
+  $: isLargeContent = content.length > CONTENT_PREVIEW_LIMIT;
+  $: previewBody = isLargeContent ? content.slice(0, CONTENT_PREVIEW_LIMIT) + '\n... (truncated)' : content;
+  $: previewMarkdown = '```' + language + '\n' + previewBody + '\n```';
+  $: sizeDeltaBytes =
+    typeof previousSizeBytes === 'number' ? bytesWritten - previousSizeBytes : bytesWritten;
 
   $: isError = !!error;
   $: friendlyError = getFriendlyError(error, filePath);
@@ -98,6 +103,11 @@
       {:else}
         <div class="row">
           <span>{formatBytes(bytesWritten)} written</span>
+          {#if typeof sizeDeltaBytes === 'number'}
+            <span class="delta">
+              ({sizeDeltaBytes >= 0 ? '+' : ''}{formatBytes(sizeDeltaBytes)} vs previous)
+            </span>
+          {/if}
         </div>
       {/if}
     </div>
@@ -106,6 +116,9 @@
       <button type="button" onclick={() => (showContent = !showContent)}>
         {showContent ? 'Hide content' : 'Show content'}
       </button>
+      {#if isLargeContent}
+        <span class="hint">Preview truncated for large content</span>
+      {/if}
     </div>
 
     {#if showContent}
@@ -191,6 +204,9 @@
 
   .actions {
     margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .actions button {
@@ -204,6 +220,15 @@
 
   .actions button:hover {
     background: var(--surface-hover);
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .delta {
+    color: var(--text-secondary);
   }
 
   .content-preview {
