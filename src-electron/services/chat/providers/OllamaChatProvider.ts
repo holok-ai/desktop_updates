@@ -225,11 +225,8 @@ export class OllamaChatProvider implements IChatProvider {
         continue;
       }
 
-      // Filter out any tool call JSON that might be in the response
-      const cleanedContent = this.removeToolCallJson(assistantContent);
-
-      if (onTokenReceived && cleanedContent) {
-        onTokenReceived(cleanedContent);
+      if (onTokenReceived) {
+        onTokenReceived(assistantContent);
       }
       return;
     }
@@ -308,62 +305,6 @@ export class OllamaChatProvider implements IChatProvider {
     }
 
     return null;
-  }
-
-  private removeToolCallJson(content: string): string {
-    if (!content || !content.trim()) {
-      return content;
-    }
-
-    // Try to parse the entire content as a tool call first
-    const trimmed = content.trim();
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      try {
-        const parsed = JSON.parse(trimmed) as { tool?: unknown; input?: unknown; [key: string]: unknown };
-        if (typeof parsed.tool === 'string') {
-          // Check if it's a tool call in either format
-          const hasInput = parsed.input && typeof parsed.input === 'object';
-          const hasToolParams = Object.keys(parsed).some(key => key !== 'tool' && ['path', 'content', 'overwrite', 'encoding', 'folder', 'recursive'].includes(key));
-          if (hasInput || hasToolParams) {
-            // Entire content is a tool call, return empty
-            return '';
-          }
-        }
-      } catch {
-        // Not valid JSON, continue
-      }
-    }
-
-    // Remove tool call JSON patterns that might be embedded in the text
-    // Match {"tool":"...","input":{...}} or {"tool":"...","path":"...",...} with nested objects
-    // eslint-disable-next-line security/detect-unsafe-regex
-    const toolCallPattern = /\{\s*"tool"\s*:\s*"[^"]+"\s*(?:,\s*"input"\s*:\s*\{[^}]*(\{[^}]*\}[^}]*)*\}|\s*,\s*"[^"]+"\s*:[^}]*)\s*\}/g;
-    let cleaned = content.replace(toolCallPattern, '').trim();
-    
-    // Also check each line for tool call JSON
-    const lines = cleaned.split('\n');
-    const filteredLines = lines.filter((line) => {
-      const lineTrimmed = line.trim();
-      if (!lineTrimmed.startsWith('{') || !lineTrimmed.endsWith('}')) {
-        return true;
-      }
-      try {
-        const parsed = JSON.parse(lineTrimmed) as { tool?: unknown; input?: unknown; [key: string]: unknown };
-        // If it looks like a tool call, filter it out
-        if (typeof parsed.tool === 'string') {
-          const hasInput = parsed.input && typeof parsed.input === 'object';
-          const hasToolParams = Object.keys(parsed).some(key => key !== 'tool' && ['path', 'content', 'overwrite', 'encoding', 'folder', 'recursive'].includes(key));
-          if (hasInput || hasToolParams) {
-            return false;
-          }
-        }
-      } catch {
-        // Not JSON, keep it
-      }
-      return true;
-    });
-    
-    return filteredLines.join('\n').trim();
   }
 
   private formatToolResult(toolName: string, result: ToolResult): string {

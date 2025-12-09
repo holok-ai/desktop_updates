@@ -186,12 +186,12 @@ export class FileToolsService {
             },
             content: {
               type: 'string',
-              description: 'The content to write to the file. Generate or use content based on what the user requested.',
+              description: 'The content to write to the file.',
             },
             overwrite: {
               type: 'boolean',
               description:
-                'CRITICAL: Default is false. ONLY set to true if the user explicitly says to overwrite it. If user says "create" or "make", ALWAYS use false. If false and file exists, operation fails with error.',
+                'This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE.',
             },
             encoding: {
               type: 'string',
