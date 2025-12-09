@@ -115,6 +115,36 @@
   const fileWriteEventService = new FileWriteEventService();
   let fileWriteEventsByMessageId = $state<Record<string, FileWriteEvent[]>>({});
 
+  function eventsChanged(
+    current: Record<string, FileWriteEvent[]>,
+    next: Record<string, FileWriteEvent[]>,
+  ): boolean {
+    const currentKeys = Object.keys(current);
+    const nextKeys = Object.keys(next);
+    if (currentKeys.length !== nextKeys.length) return true;
+    for (const key of currentKeys) {
+      const currList = current[key] ?? [];
+      const nextList = next[key] ?? [];
+      if (currList.length !== nextList.length) return true;
+      for (let i = 0; i < currList.length; i += 1) {
+        const c = currList[i];
+        const n = nextList[i];
+        if (
+          c.id !== n.id ||
+          c.status !== n.status ||
+          c.filePath !== n.filePath ||
+          c.success !== n.success ||
+          c.error !== n.error ||
+          c.bytesWritten !== n.bytesWritten ||
+          c.previousSizeBytes !== n.previousSizeBytes
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   // Load showComments preference from localStorage
   onMount(() => {
     try {
@@ -494,7 +524,9 @@
     // Set up callback for file write event updates
     fileWriteEventService.setUpdateCallback(() => {
       const allEvents = fileWriteEventService.getAllEvents();
-      fileWriteEventsByMessageId = { ...allEvents };
+      if (eventsChanged(fileWriteEventsByMessageId, allEvents)) {
+        fileWriteEventsByMessageId = { ...allEvents };
+      }
     });
 
     // Listen for thread updates from backend
@@ -512,7 +544,9 @@
             result?: unknown;
           }) => {
             const updatedEvents = fileWriteEventService.handleToolUse(data, messages);
-            fileWriteEventsByMessageId = updatedEvents;
+            if (eventsChanged(fileWriteEventsByMessageId, updatedEvents)) {
+              fileWriteEventsByMessageId = updatedEvents;
+            }
           },
         );
       }
