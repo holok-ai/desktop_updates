@@ -64,11 +64,12 @@ export interface WriteFileParams {
 export interface WriteFileResult {
   path: string;
   created: boolean;
-  bytes_written: number;
+  bytesWritten: number;
   metadata: {
     size: number;
     modified: number;
     encoding: string;
+    previousSize?: number;
   };
 }
 
@@ -185,12 +186,12 @@ export class FileToolsService {
             },
             content: {
               type: 'string',
-              description: 'The content to write to the file',
+              description: 'The content to write to the file.',
             },
             overwrite: {
               type: 'boolean',
               description:
-                'If true, overwrite existing file. If false, fail if file exists. Default: false',
+                'This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE.',
             },
             encoding: {
               type: 'string',
@@ -273,6 +274,11 @@ export class FileToolsService {
    */
   public async executeTool(toolName: string, input: Record<string, unknown>): Promise<ToolResult> {
     log.info(`[FileTools] Executing: ${toolName}`, { input });
+
+    // Enforce default overwrite=false for write_file unless explicitly set to true
+    if (toolName === 'write_file' && !('overwrite' in input)) {
+      input.overwrite = false;
+    }
 
     const statusMessage = this.getToolStatusMessage(toolName, input);
     let statusTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -491,7 +497,9 @@ export class FileToolsService {
    * Create or update a file with the specified content
    */
   private async writeFile(params: WriteFileParams): Promise<ToolResult> {
-    const { path: userPath, content, overwrite = false, encoding = 'utf-8' } = params;
+    // Explicitly default overwrite to false if not provided
+    const overwrite = params.overwrite === true;
+    const { path: userPath, content, encoding = 'utf-8' } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
     if (!allowedEncodings.includes(encoding)) {
@@ -533,7 +541,15 @@ export class FileToolsService {
       };
     }
 
+    let previousSize: number | undefined;
+
     try {
+      if (fileExists) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const existingStats = await fs.promises.stat(resolvedPath);
+        previousSize = existingStats.size;
+      }
+
       log.info('[FileToolsService] write_file operation', {
         path: resolvedPath,
         overwrite,
@@ -553,11 +569,12 @@ export class FileToolsService {
         data: {
           path: resolvedPath,
           created: !fileExists,
-          bytes_written: bytesWritten,
+          bytesWritten: bytesWritten,
           metadata: {
             size: stats.size,
             modified: stats.mtimeMs,
             encoding,
+            previousSize: previousSize,
           },
         },
       };

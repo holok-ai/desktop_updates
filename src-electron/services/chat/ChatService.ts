@@ -13,6 +13,12 @@ import {
 } from '../file-tools.service.js';
 import log from 'electron-log';
 
+export interface ToolUseNotification {
+  toolCallId: string;
+  stage: 'start' | 'complete';
+  result?: ToolResult;
+}
+
 /**
  * Main service class that provides a unified interface for chat functionality
  * across different providers
@@ -126,7 +132,7 @@ export class ChatService {
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolName: string, input: unknown) => void,
+    onToolUse?: (toolName: string, input: unknown, notification?: ToolUseNotification) => void,
     onToolStatus?: ToolStatusCallback,
   ): Promise<void> {
     // Set up status callback for this request
@@ -147,9 +153,30 @@ export class ChatService {
 
     const handleToolUse = async (toolUse: ToolUse): Promise<ToolResult> => {
       if (onToolUse) {
-        onToolUse(toolUse.name, toolUse.input);
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'start',
+          toolCallId: toolUse.id,
+        });
       }
-      return await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+
+      let result: ToolResult;
+      try {
+        result = await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        log.error('[ChatService] executeTool failed', { tool: toolUse.name, error: message });
+        result = { success: false, error: message };
+      }
+
+      if (onToolUse) {
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'complete',
+          toolCallId: toolUse.id,
+          result,
+        });
+      }
+
+      return result;
     };
 
     const { callback, complete } = this.auditService.createWrappedCallback(

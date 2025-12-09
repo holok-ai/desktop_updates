@@ -1,6 +1,10 @@
 import Perplexity from '@perplexity-ai/perplexity_ai';
 import type PerplexityClient from '@perplexity-ai/perplexity_ai';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
+import {
+  buildToolInstructionPrompt,
+  formatToolDescriptions,
+} from '../utils/toolInstruction.js';
 import type { IChatProvider, ToolUse } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import {
@@ -189,11 +193,7 @@ export class PerplexityChatProvider implements IChatProvider {
         };
         const result = await onToolUse(toolUse);
 
-        const toolResultContent = JSON.stringify({
-          success: result.success,
-          data: result.data ?? null,
-          error: result.error ?? null,
-        });
+        const toolResultContent = this.formatToolResult(parsedToolCall.tool, result);
 
         conversation = [
           ...conversation,
@@ -220,27 +220,8 @@ export class PerplexityChatProvider implements IChatProvider {
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
-    const toolDescriptions = tools
-      .map((tool) => {
-        const params =
-          tool.input_schema?.properties && Object.keys(tool.input_schema.properties).length > 0
-            ? JSON.stringify(tool.input_schema.properties, null, 2)
-            : '{}';
-        return `Tool: ${tool.name}\nDescription: ${tool.description}\nParameters: ${params}`;
-      })
-      .join('\n\n');
-
-    return [
-      'You have access to tools for reading files and folders. Use them ONLY when the user asks about files, directories, or project structure.',
-      '',
-      'IMPORTANT RULES:',
-      '- When you need to use a tool, respond ONLY with this JSON (nothing else): {"tool":"tool_name","input":{...}}',
-      '- NEVER explain how tools work.',
-      '- NEVER include tool-related text in your response unless a tool operation fails.',
-      '- For non-file questions, respond normally without using any tools.',
-      '',
-      toolDescriptions ? `Available tools:\n${toolDescriptions}` : '',
-    ].join('\n');
+    const toolDescriptions = formatToolDescriptions(tools);
+    return buildToolInstructionPrompt(toolDescriptions);
   }
 
   private async sendToolAwareRequest(
@@ -276,17 +257,28 @@ export class PerplexityChatProvider implements IChatProvider {
       const parsed = JSON.parse(trimmed) as {
         tool?: unknown;
         input?: unknown;
+        [key: string]: unknown;
       };
 
-      if (
-        typeof parsed.tool === 'string' &&
-        parsed.tool.length > 0 &&
-        parsed.input &&
-        typeof parsed.input === 'object'
-      ) {
+      if (typeof parsed.tool !== 'string' || parsed.tool.length === 0) {
+        return null;
+      }
+
+      // Handle standard format: {"tool": "...", "input": {...}}
+      if (parsed.input && typeof parsed.input === 'object') {
         return {
           tool: parsed.tool,
           input: parsed.input as Record<string, unknown>,
+        };
+      }
+
+      // Handle alternative format: {"tool": "...", "path": "...", "content": "...", ...}
+      // Extract all properties except "tool" as the input
+      const { tool: _tool, ...rest } = parsed;
+      if (Object.keys(rest).length > 0) {
+        return {
+          tool: parsed.tool,
+          input: rest as Record<string, unknown>,
         };
       }
     } catch {
@@ -294,5 +286,49 @@ export class PerplexityChatProvider implements IChatProvider {
     }
 
     return null;
+  }
+
+  private formatToolResult(toolName: string, result: ToolResult): string {
+    if (!result.success) {
+      const error = result.error || 'Unknown error occurred';
+
+      // Format FILE_EXISTS error in a user-friendly way
+      if (error.startsWith('FILE_EXISTS:')) {
+        const match = error.match(/FILE_EXISTS:\s*'([^']+)'/);
+        const filePath = match ? match[1] : 'the file';
+        return `TOOL FAILED - File already exists: ${filePath} already exists. To overwrite it, the user must say to overwrite it.`;
+      }
+
+      if (error.startsWith('ACCESS_DENIED:')) {
+        return `TOOL FAILED - Access denied: ${error.replace('ACCESS_DENIED: ', '')}`;
+      }
+
+      if (error.startsWith('PERMISSION_DENIED:')) {
+        return `TOOL FAILED - Permission denied: ${error.replace('PERMISSION_DENIED: ', '')}`;
+      }
+
+      return `TOOL FAILED - ${error}`;
+    }
+
+    switch (toolName) {
+      case 'write_file': {
+        const data = result.data as {
+          path?: string;
+          created?: boolean;
+          bytesWritten?: number;
+        };
+        const filePath = data.path || 'unknown';
+        if (data.created) {
+          return `TOOL SUCCEEDED - File created successfully at ${filePath}.`;
+        }
+        return `TOOL SUCCEEDED - File updated successfully at ${filePath}.`;
+      }
+      default:
+        return JSON.stringify({
+          success: result.success,
+          data: result.data ?? null,
+          error: result.error ?? null,
+        });
+    }
   }
 }
