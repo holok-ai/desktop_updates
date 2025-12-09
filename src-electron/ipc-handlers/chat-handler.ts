@@ -191,6 +191,10 @@ export function registerChatHandlers(auth?: AuthService): void {
               ...notification,
             });
           },
+          (status) => {
+            // Send tool status notifications back to renderer (for UI feedback)
+            event.sender.send('chat:toolStatus', status);
+          },
         );
         log.info('[IPC] Chat message with file tools sent successfully');
         return { success: true };

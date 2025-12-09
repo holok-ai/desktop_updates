@@ -171,8 +171,12 @@ export class PerplexityChatProvider implements IChatProvider {
         response.choices?.[0]?.message?.content as ChatMessageOutput['content'],
       ).trim();
 
+      // If empty content, fall back to regular chat
       if (!assistantContent) {
-        return;
+        console.warn(
+          '[PerplexityChatProvider] Empty response from tool-aware request, using fallback',
+        );
+        break;
       }
 
       const parsedToolCall = this.tryParseToolInvocation(assistantContent);
@@ -204,7 +208,14 @@ export class PerplexityChatProvider implements IChatProvider {
       return;
     }
 
-    throw new Error('Tool loop exceeded maximum iterations');
+    // If we reach here, either:
+    // 1. Empty response received
+    // 2. Max iterations exceeded (all responses were tool calls)
+    // Fall back to regular chat without tools
+    console.warn(
+      '[PerplexityChatProvider] Tool loop did not produce final response, falling back to regular chat',
+    );
+    await this.chat(request, onTokenReceived);
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
@@ -235,6 +246,10 @@ export class PerplexityChatProvider implements IChatProvider {
         '4. After calling a tool, you will receive a result starting with:',
         '   - "TOOL SUCCEEDED" - operation worked',
         '   - "TOOL FAILED" - operation failed',
+        '',
+        '- NEVER explain how tools work.',
+        '- NEVER include tool-related text in your response unless a tool operation fails.',
+        '- For non-file questions, respond normally without using any tools.',
         '',
         'Response rules after receiving tool result:',
         '1. CRITICAL: Only say "I\'ve created the file" if you see "TOOL SUCCEEDED"',

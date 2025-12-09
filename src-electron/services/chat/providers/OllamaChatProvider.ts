@@ -195,8 +195,10 @@ export class OllamaChatProvider implements IChatProvider {
       const response = await this.sendToolAwareRequest(conversation, baseRequest);
       const assistantContent = response.message?.content?.trim();
 
+      // If empty content, try a regular fallback response
       if (!assistantContent) {
-        return;
+        console.warn('[OllamaChatProvider] Empty response from tool-aware request, using fallback');
+        break;
       }
 
       const parsedToolCall = this.tryParseToolInvocation(assistantContent);
@@ -228,7 +230,14 @@ export class OllamaChatProvider implements IChatProvider {
       return;
     }
 
-    throw new Error('Tool loop exceeded maximum iterations');
+    // If we reach here, either:
+    // 1. Empty response received
+    // 2. Max iterations exceeded (all responses were tool calls)
+    // Fall back to regular chat without tools
+    console.warn(
+      '[OllamaChatProvider] Tool loop did not produce final response, falling back to regular chat',
+    );
+    await this.fallbackToStandardChat(request, onTokenReceived);
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
@@ -259,6 +268,10 @@ export class OllamaChatProvider implements IChatProvider {
         '4. After calling a tool, you will receive a result starting with:',
         '   - "TOOL SUCCEEDED" - operation worked',
         '   - "TOOL FAILED" - operation failed',
+        '',
+        '- NEVER explain how tools work.',
+        '- NEVER include tool-related text in your response unless a tool operation fails.',
+        '- For non-file questions, respond normally without using any tools.',
         '',
         'Response rules after receiving tool result:',
         '1. CRITICAL: Only say "I\'ve created the file" if you see "TOOL SUCCEEDED"',
