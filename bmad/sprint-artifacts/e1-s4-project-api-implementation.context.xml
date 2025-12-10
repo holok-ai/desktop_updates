@@ -1,0 +1,120 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e1-s4" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>4</storyId>
+    <title>Project API Implementation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e1-s4-project-api-implementation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>backend developer</asA>
+    <iWant>to implement complete project CRUD and member management endpoints</iWant>
+    <soThat>users can create projects, manage members, and collaborate on threads</soThat>
+    <tasks>
+      - Create Project entities, DTOs, and repository (AC: #1-#10)
+      - Implement ProjectController with CRUD endpoints (AC: #1-#5, #9)
+      - Implement ProjectService with business logic (AC: #1, #9)
+      - Implement ProjectMemberController with member management (AC: #6, #7, #8)
+      - Implement ProjectMemberService with role validation (AC: #8, #10)
+      - Integrate AuthorizationService for RBAC enforcement (AC: #4, #6, #7, #10)
+      - Write comprehensive tests (AC: #1-#10)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">POST /api/projects automatically adds creator as owner member (per PROJ §7.1)</criterion>
+    <criterion id="2">GET /api/projects returns only projects where user is a member (membership filter)</criterion>
+    <criterion id="3">GET /api/projects/{id} includes userRole field (viewer/editor/owner) for current user</criterion>
+    <criterion id="4">PATCH /api/projects/{id} requires owner role (403 Forbidden if editor or viewer role)</criterion>
+    <criterion id="5">DELETE /api/projects/{id} soft deletes project (sets deleted_at timestamp, requires owner role)</criterion>
+    <criterion id="6">POST /api/projects/{id}/members requires owner role (403 if not owner)</criterion>
+    <criterion id="7">PATCH /api/projects/{id}/members/{id} (change role) requires owner role</criterion>
+    <criterion id="8">DELETE /api/projects/{id}/members/{id} prevents removing last owner (validation error: "Cannot remove last owner")</criterion>
+    <criterion id="9">GET /api/projects/{id}/updates?since={timestamp} returns counts (threadsUpdated, membersUpdated, workflowsUpdated)</criterion>
+    <criterion id="10">Member roles enforced on all operations per PROJ §2.4 (viewer: read only, editor: create, owner: manage)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Services and Modules - ProjectController/Service/Repository" snippet="ProjectController handles Project CRUD endpoints, member management. ProjectService handles business logic, member count, updates-since queries. ProjectRepository handles database queries, soft deletes. ProjectMemberService handles role validation, last-owner checks, thread ownership transfer." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Data Models - Project Entity (New)" snippet="id UUID PRIMARY KEY, name VARCHAR(200) NOT NULL, description TEXT, created_by UUID NOT NULL (FK to users) - project creator (immutable), organization_id UUID (nullable), status VARCHAR(20) DEFAULT 'active', metadata JSONB {color, icon, tags, settings, max_members: 100}, created_at TIMESTAMP, updated_at TIMESTAMP, deleted_at TIMESTAMP. Note: created_by serves as creator_id for thread ownership transfers." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Data Models - Project Member Entity (New)" snippet="id UUID PRIMARY KEY, project_id UUID NOT NULL (FK), user_id UUID (nullable, FK to users), organization_id UUID (nullable), role VARCHAR(20) NOT NULL ('viewer' | 'editor' | 'owner'), created_by UUID NOT NULL, created_at TIMESTAMP, expires_at TIMESTAMP (nullable). CHECK constraints: role IN ('viewer', 'editor', 'owner'), (user_id IS NOT NULL AND organization_id IS NULL) OR (user_id IS NULL AND organization_id IS NOT NULL). UNIQUE (project_id, user_id), UNIQUE (project_id, organization_id). Validation: COUNT(project_members WHERE project_id = ?) < max_project_members." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="APIs - Project API Endpoints (lines 252-278)" snippet="GET /api/projects?page={int}&size={int} → PagedResponse&lt;ProjectDTO&gt;. GET /api/projects/{id} → ProjectDetailDTO {id, name, description, createdBy, organizationId, status, metadata, memberCount, createdAt, updatedAt, userRole}. POST /api/projects Request: {name, description?, metadata?} → ProjectDTO (201 Created), auto-creates owner membership. PATCH /api/projects/{id} (owner only). DELETE /api/projects/{id} (soft delete, owner only). GET /api/projects/{id}/updates?since={ISO8601} → {threadsUpdated, membersUpdated, workflowsUpdated, latestUpdate}." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="APIs - Project Member API Endpoints (lines 280-300)" snippet="GET /api/projects/{id}/members → [MemberDTO] {id, userId, organizationId, userName, userEmail, role, createdBy, createdAt, expiresAt}. POST /api/projects/{id}/members Request: {userId, role: 'viewer'|'editor'|'owner', expiresAt?} → MemberDTO (201 Created), requires owner. PATCH /api/projects/{id}/members/{memberId} Request: {role} → MemberDTO (200 OK), requires owner. DELETE /api/projects/{id}/members/{memberId} (owner only), validation: Cannot remove last owner." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Workflows §E1-S4 (lines 363-380)" snippet="1. Create ProjectEntity, ProjectMemberEntity. 2. Create ProjectDTO, MemberDTO, ProjectDetailDTO. 3. Create ProjectRepository, ProjectMemberRepository with JPA queries. 4. Create ProjectService with CRUD methods and updates-since logic. 5. Create ProjectMemberService with role validation, last-owner check, member limit validation. 6. Add auto-membership logic in ProjectService.create(). 7. Add member limit validation. 8. Add thread ownership transfer in ProjectMemberService.removeMember()." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Open Questions §Q1 Decision - Member Limit" snippet="System-configurable limit of 100 'members' (individuals or organization groups) per project. Validation: COUNT(project_members WHERE project_id = ?) < max_project_members before adding." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Open Questions §Q2 Decision - Thread Ownership Transfer" snippet="When user removed from project: UPDATE desktop_threads SET owner_id = (SELECT created_by FROM projects WHERE id = ?) WHERE owner_id = ? AND project_id = ?. Threads remain visible to project members." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Open Questions §Q4 Decision - Audit Logging" snippet="Audit changes go to existing Holokai audit system. Event format: {event: 'project.member.role_changed', actorId, targetUserId, projectId, oldRole, newRole, timestamp}." />
+    </docs>
+    <code>
+      <artifact path="src/lib/types/project.type.ts" kind="interface" symbol="Project" lines="4-13" reason="Desktop Project interface - shows expected structure (id, title, description, createdAt, updatedAt, deletedAt, metadata, privacyMode) - reference for API DTO" />
+      <artifact path="src-electron/preload.ts" kind="interface" symbol="ProjectAPI" reason="Desktop ProjectAPI defines expected API contract for project operations from Desktop perspective" />
+      <artifact path="src/lib/stores/project.store.ts" kind="store" reason="Desktop ProjectStore handles project state management - reference for expected data flow" />
+      <artifact path="tests/unit/ipc/project-handler.spec.ts" kind="test" reason="Existing project handler unit tests - reference for test patterns" />
+    </code>
+    <dependencies>
+      <ecosystem name="Backend (Moku API - Spring Boot)" note="Separate repository">
+        <package name="Spring Boot" version="3.2+" />
+        <package name="Spring Data JPA" version="3.2+" />
+        <package name="PostgreSQL Driver" version="42.7+" />
+        <package name="Jackson" version="2.17+" />
+        <package name="Spring Security" version="6.2+" />
+        <package name="Lombok" version="1.18+" />
+        <package name="JUnit 5" version="5.10+" />
+        <package name="Mockito" version="5.x" />
+        <package name="Testcontainers" version="1.19+" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Repository Separation:** Moku API backend is SEPARATE repository. ProjectController/Service/Repository implementation is in Moku API codebase, NOT in this desktop project.
+    - **Project-Member Relationship:** Many-to-many via project_members join table. Each membership has role (viewer|editor|owner) and optional expiration. Projects can have individuals (user_id) OR organization groups (organization_id), both count toward 100-member limit. Creator immutable (project.created_by) used for thread ownership transfer.
+    - **Role Hierarchy:** Viewer: Read project, threads, members list. Editor: Viewer + create threads, execute workflows, upload files. Owner: Editor + manage members, update project, delete project.
+    - **Soft Delete Pattern:** Projects use deleted_at timestamp (not hard delete). Preserves audit trail and prevents FK constraint violations. Deleted projects filtered from queries (WHERE deleted_at IS NULL).
+    - **Updates Polling:** Desktop polls /api/projects/{id}/updates?since={lastPollTime}. Backend counts changes (threads, members, workflows) after timestamp.
+    - **Member Limit Enforcement:** System-configurable limit (default: 100). Validate before adding members: COUNT(project_members WHERE project_id = ?) < max_project_members. Return 400 Bad Request with "Member limit exceeded" if limit reached.
+    - **Thread Ownership Transfer:** When user removed from project, transfer owned threads to project creator: UPDATE desktop_threads SET owner_id = (SELECT created_by FROM projects WHERE id = ?) WHERE owner_id = ? AND project_id = ?. Threads remain visible to all project members.
+    - **Audit Logging:** Send audit events to Holokai audit system on role changes. Format: {event: 'project.member.role_changed', actorId, targetUserId, projectId, oldRole, newRole, timestamp}.
+    - **Last Admin Protection:** Cannot remove last admin from project. Before removing member, check: SELECT COUNT(*) FROM project_members WHERE project_id = ? AND role = 'admin'. If count = 1 and removing that admin, return 400 "Cannot remove last admin".
+    - **Dependency on E1-S1:** Database schema changes from E1-S1 must be applied first (V2.2 migration creates projects and project_members tables). Verify E1-S1 is complete before starting.
+    - **Dependency on E1-S5:** AuthorizationService will be implemented in E1-S5. For this story, create AuthorizationService stub/interface if E1-S5 not complete. Actual authorization logic will be implemented by E1-S5.
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /api/projects" kind="REST endpoint" signature="GET /api/projects?page={int}&size={int} → Response: PagedResponse&lt;ProjectDTO&gt; {content: [{id, name, description, status, memberCount, createdAt, updatedAt}], totalElements: int, totalPages: int}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="GET /api/projects/{id}" kind="REST endpoint" signature="GET /api/projects/{projectId} → Response: ProjectDetailDTO {id, name, description, createdBy, organizationId, status, metadata, memberCount, createdAt, updatedAt, userRole}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="POST /api/projects" kind="REST endpoint" signature="POST /api/projects Request: {name, description?, metadata?} → Response: ProjectDTO (201 Created), auto-creates admin membership for creator" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="PATCH /api/projects/{id}" kind="REST endpoint" signature="PATCH /api/projects/{projectId} Request: {name?, description?, metadata?} → Response: ProjectDTO (200 OK), requires admin role" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="DELETE /api/projects/{id}" kind="REST endpoint" signature="DELETE /api/projects/{projectId} → Response: 204 No Content (soft delete, sets deleted_at), requires admin role" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="GET /api/projects/{id}/updates" kind="REST endpoint" signature="GET /api/projects/{projectId}/updates?since={ISO8601} → Response: {threadsUpdated: int, membersUpdated: int, workflowsUpdated: int, latestUpdate: timestamp}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectController.java" />
+    <interface name="GET /api/projects/{id}/members" kind="REST endpoint" signature="GET /api/projects/{projectId}/members → Response: [MemberDTO] {id, userId, organizationId, userName, userEmail, role, createdBy, createdAt, expiresAt}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectMemberController.java" />
+    <interface name="POST /api/projects/{id}/members" kind="REST endpoint" signature="POST /api/projects/{projectId}/members Request: {userId, role: 'view'|'edit'|'admin', expiresAt?} → Response: MemberDTO (201 Created), requires admin role" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectMemberController.java" />
+    <interface name="PATCH /api/projects/{id}/members/{memberId}" kind="REST endpoint" signature="PATCH /api/projects/{projectId}/members/{memberId} Request: {role: 'view'|'edit'|'admin'} → Response: MemberDTO (200 OK), requires admin role" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectMemberController.java" />
+    <interface name="DELETE /api/projects/{id}/members/{memberId}" kind="REST endpoint" signature="DELETE /api/projects/{projectId}/members/{memberId} → Response: 204 No Content, requires admin role, validation: Cannot remove last admin" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ProjectMemberController.java" />
+  </interfaces>
+
+  <tests>
+    <standards>Use JUnit 5 for test structure. Use Mockito 5.x for mocking services/repositories. Use Spring Boot Test with @SpringBootTest for integration tests. Use Testcontainers for PostgreSQL database. Test auto-membership creation: POST project, verify creator in project_members with role='admin'. Test membership filtering: Create project, GET as non-member, expect empty list. Test role enforcement: PATCH/DELETE as non-admin, expect 403. Test last admin protection: DELETE only admin member, expect 400. Test thread ownership transfer: Remove member with owned threads, verify owner_id updated to project.created_by.</standards>
+    <locations>moku-api/src/test/java/com/holokai/moku/ (unit and integration tests for Moku API backend)</locations>
+    <ideas>
+      <test ac="1" idea="Integration test: POST /api/projects with name='Test Project', verify response ProjectDTO + query project_members, verify creator has role='admin'" />
+      <test ac="2" idea="Integration test: Create project as userA, GET /api/projects as userB (non-member), expect empty list" />
+      <test ac="3" idea="Integration test: GET /api/projects/{id}, verify response includes userRole field matching current user's role in project" />
+      <test ac="4" idea="Integration test: PATCH /api/projects/{id} as user with edit role, expect 403 Forbidden" />
+      <test ac="5" idea="Integration test: DELETE /api/projects/{id} as admin, verify deleted_at timestamp set (not hard deleted), verify GET returns 404" />
+      <test ac="6" idea="Integration test: POST /api/projects/{id}/members as user with edit role, expect 403 Forbidden" />
+      <test ac="7" idea="Integration test: PATCH /api/projects/{id}/members/{memberId} to change role as non-admin, expect 403" />
+      <test ac="8" idea="Integration test: Project with 1 admin, DELETE that admin member, expect 400 with message 'Cannot remove last admin'" />
+      <test ac="8" idea="Unit test: ProjectMemberService.isLastAdmin() method with mock data (1 admin → true, 2 admins → false)" />
+      <test ac="9" idea="Integration test: Create thread, update thread, add member, GET /api/projects/{id}/updates?since=T, verify threadsUpdated=1, membersUpdated=1" />
+      <test ac="10" idea="Integration test: Test role matrix - (view/edit/admin role) × (read/create/update/delete operations), verify permissions enforced correctly" />
+      <test ac="1,8" idea="Integration test: Project member limit - add 100 members, attempt 101st, expect 400 'Member limit exceeded'" />
+      <test ac="8" idea="Integration test: Thread ownership transfer - userA owns thread in project, remove userA from project, verify thread.owner_id = project.created_by" />
+      <test ac="7" idea="Integration test: Change member role from edit to admin, verify audit event sent to Holokai system with format {event, actorId, targetUserId, projectId, oldRole, newRole}" />
+    </ideas>
+  </tests>
+</story-context>

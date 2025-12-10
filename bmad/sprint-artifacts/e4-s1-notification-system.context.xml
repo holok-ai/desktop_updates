@@ -1,0 +1,93 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e4-s1" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>1</storyId>
+    <title>Notification System</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e4-s1-notification-system.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop user</asA>
+    <iWant>to receive system and in-app notifications</iWant>
+    <soThat>I'm informed of important events even when the app is in the background</soThat>
+    <tasks>
+      - Create NotificationService in main process using Electron Notification API
+      - Implement in-app toast system with Toast.svelte and ToastContainer.svelte
+      - Implement notification history store (last 50 notifications)
+      - Create notification settings UI with toggles for types
+      - Integrate with application events (new message, workflow complete, errors)
+      - Write tests for notification system
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">System notifications appear in OS notification center (CORE §8.1)</criterion>
+    <criterion id="2">Toasts appear in-app with auto-dismiss after configurable duration (default 3s) (CORE §8.2)</criterion>
+    <criterion id="3">Notification history accessible with last N notifications stored (e.g., 50) (CORE §8.3)</criterion>
+    <criterion id="4">Settings persist across sessions (enable/disable, sound, types filter) (CORE §8.4)</criterion>
+    <criterion id="5">Clicking system notification brings app to focus</criterion>
+    <criterion id="6">Multiple concurrent toasts supported without overlap</criterion>
+    <criterion id="7">Toasts styled by type (info=blue, success=green, warning=orange, error=red)</criterion>
+    <criterion id="8">Notification settings respect OS notification permissions</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Services and Modules - NotificationService" snippet="System + in-app notifications. Inputs: NotificationPayload (type, title, message, duration). Outputs: OS notifications, toast UI updates. Owner: Main Process." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Data Models - NotificationPayload" snippet="interface NotificationPayload {id?, type: 'info'|'success'|'warning'|'error', title, message, icon?, duration? (default 3000ms), action?}" />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Workflows - E4-S1 Implementation Sequence" snippet="Create NotificationService.ts singleton, implement showSystemNotification() with Electron Notification, create Toast.svelte with auto-dismiss, create ToastContainer for stacking, add history store (50 items), create settings UI." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="NFR Performance" snippet="Toast notification render time: &lt; 50ms from trigger to visible. Maximum concurrent toasts: 5 (older toasts dismissed automatically)." />
+    </docs>
+    <code>
+      <artifact path="src-electron/services/NotificationService.ts" kind="service" reason="NEW - Main process notification service using Electron Notification API" />
+      <artifact path="src/services/NotificationService.ts" kind="service" reason="NEW - Renderer process wrapper for IPC calls" />
+      <artifact path="src/components/Toast.svelte" kind="component" reason="NEW - Individual toast component with auto-dismiss timer" />
+      <artifact path="src/components/ToastContainer.svelte" kind="component" reason="NEW - Toast container for stacking and positioning" />
+      <artifact path="src/stores/notificationStore.ts" kind="store" reason="NEW - Toast state store (Svelte writable)" />
+      <artifact path="src/stores/notificationHistoryStore.ts" kind="store" reason="NEW - Notification history store (last 50)" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Electron)">
+        <package name="electron" version="39.x" note="Notification API" />
+        <package name="svelte" version="5.x" />
+        <package name="uuid" version="^9.0.0" note="Notification ID generation" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Electron main process for system notifications. Svelte components for in-app toasts.
+    - **Two-Layer System:** System notifications for OS-level (background), toasts for in-app (foreground).
+    - **IPC Communication:** Renderer requests notifications via IPC, main process creates Notification instances.
+    - **Auto-Dismiss:** Toasts auto-dismiss after duration (default 3000ms). Use setTimeout, clear on manual dismiss.
+    - **Stacking:** Max 5 concurrent toasts. When 6th appears, dismiss oldest automatically.
+    - **History:** In-memory store (last 50 notifications). Optional: persist to electron-store for cross-session.
+    - **OS Permissions:** Check if notifications enabled (macOS requires explicit permission). Graceful degradation if disabled.
+  </constraints>
+
+  <interfaces>
+    <interface name="NotificationService.showSystemNotification()" kind="TypeScript method" signature="showSystemNotification(payload: NotificationPayload): void - Creates OS notification using Electron Notification API, handles click event to focus window" path="src-electron/services/NotificationService.ts" />
+    <interface name="NotificationService.showToast()" kind="TypeScript method" signature="showToast(payload: NotificationPayload): void - Emits IPC event to renderer with payload, renderer updates toast store" path="src-electron/services/NotificationService.ts" />
+    <interface name="Toast.svelte" kind="Svelte component" signature="Props: {type, title, message, duration}. Renders toast with styling based on type, auto-dismiss after duration, manual dismiss button" path="src/components/Toast.svelte" />
+    <interface name="IPC Handler: notifications:history" kind="IPC handler" signature="ipcMain.handle('notifications:history') returns last 50 notifications from history store" path="src-electron/services/NotificationService.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test showSystemNotification() calls Electron Notification API with correct params. Test toast auto-dismiss after duration. Test notification history stores last 50 items. Test settings persist across restarts. Test toast stacking (max 5). Test click notification focuses app.</standards>
+    <locations>tests/unit/services/, tests/unit/components/, tests/integration/</locations>
+    <ideas>
+      <test ac="1,5" idea="Integration test: Trigger system notification, verify appears in OS center, click notification, verify app window focused" />
+      <test ac="2,7" idea="Unit test: Render toast with type='success', verify green styling, wait 3s, verify dismissed" />
+      <test ac="3" idea="Unit test: Add 100 notifications to history, verify only last 50 stored" />
+      <test ac="4" idea="Integration test: Toggle notification setting off, restart app, verify setting remembered" />
+      <test ac="6" idea="Integration test: Show 6 toasts, verify only 5 visible, oldest dismissed" />
+      <test ac="7" idea="Unit test: Render toasts with all types (info, success, warning, error), verify correct colors" />
+      <test ac="8" idea="Unit test: Mock OS notification permissions denied, verify graceful degradation (no crash, fallback to toasts only)" />
+    </ideas>
+  </tests>
+</story-context>

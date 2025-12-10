@@ -43,6 +43,12 @@ Thumbs.db
 *.swo
 .claude/
 
+# AI Assistant configuration folders
+.agent/
+.bmad/
+.gemini/
+.qwen/
+
 # Package manager files
 package-lock.json
 yarn.lock

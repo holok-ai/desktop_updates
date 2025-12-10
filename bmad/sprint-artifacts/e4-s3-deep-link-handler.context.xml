@@ -1,0 +1,93 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e4-s3" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>3</storyId>
+    <title>Deep Link Handler</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e4-s3-deep-link-handler.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>to open specific threads, projects, and workflows via holokai:// links</iWant>
+    <soThat>I can navigate directly from external sources (browser, email, etc.)</soThat>
+    <tasks>
+      - Register holokai:// protocol handler with OS
+      - Create DeepLinkParser utility for URL parsing and validation
+      - Create DeepLinkRouter service for route dispatching
+      - Handle deep links when app is closed (cold-start)
+      - Handle deep links when app is open (warm-start, focus window)
+      - Add pending deep link handling (require auth before navigation)
+      - Add deep link error handling (malformed URLs, invalid routes)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">holokai://thread/{id} opens specific thread (CORE §10.2)</criterion>
+    <criterion id="2">holokai://project/{id} opens specific project (CORE §10.2)</criterion>
+    <criterion id="3">holokai://workflow/{id} opens specific workflow (CORE §10.2)</criterion>
+    <criterion id="4">holokai://settings opens settings page (CORE §10.2)</criterion>
+    <criterion id="5">holokai://settings/{section} opens specific settings tab (CORE §10.2)</criterion>
+    <criterion id="6">Links work from browser, email, and other applications (CORE §10.3)</criterion>
+    <criterion id="7">Links work when app is closed (launch app and navigate) (CORE §10.3)</criterion>
+    <criterion id="8">Links work when app is open (focus window and navigate) (CORE §10.4)</criterion>
+    <criterion id="9">Malformed URLs handled gracefully (show error toast, log warning)</criterion>
+    <criterion id="10">Authentication required before navigation (redirect to login if needed)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Services and Modules - DeepLinkHandler" snippet="Protocol URL parsing and routing. Inputs: holokai:// URLs. Outputs: Navigation actions. Owner: Main Process. Registers protocol, handles open-url and second-instance events." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Data Models - DeepLinkRoute" snippet="interface DeepLinkRoute {type: 'thread'|'project'|'workflow'|'settings', params: Record&lt;string, string&gt;, queryParams?}. Supported URLs: holokai://thread/{id}, holokai://project/{id}, holokai://workflow/{id}, holokai://settings, holokai://settings/{section}." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Workflows - E4-S3 Implementation Sequence" snippet="Create DeepLinkHandler, register holokai:// protocol (app.setAsDefaultProtocolClient), add to electron-builder config, create DeepLinkParser, create DeepLinkRouter, handle cold-start (open-url event, macOS) and warm-start (second-instance event, Windows/Linux), store pending URL if not authenticated." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="NFR Performance" snippet="Deep link URL parsing: &lt; 10ms. Route validation: &lt; 20ms. Navigation dispatch: &lt; 50ms from URL received to SPA route change. Cold-start navigation: &lt; 2 seconds (launch app + navigate)." />
+    </docs>
+    <code>
+      <artifact path="src-electron/services/DeepLinkHandler.ts" kind="service" reason="NEW - Main process deep link handler, protocol registration, event listeners" />
+      <artifact path="src/utils/deepLinkParser.ts" kind="utility" reason="NEW - URL parsing and validation (regex, extract route type and params)" />
+      <artifact path="src/services/DeepLinkRouter.ts" kind="service" reason="NEW - Route dispatching (parsed route → SPA navigation)" />
+      <artifact path="src/stores/authStore.ts" kind="store" reason="Existing - needs pending URL storage for auth-required deep links" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Electron)">
+        <package name="electron" version="39.x" note="app.setAsDefaultProtocolClient, open-url event, second-instance event" />
+        <package name="svelte" version="5.x" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Electron main process. Protocol registration varies by platform (electron-builder handles this).
+    - **Platform-Specific:** macOS uses 'open-url' event. Windows/Linux use 'second-instance' event (single-instance lock).
+    - **URL Format:** holokai://route/id?params. Validate route type, sanitize params (prevent path traversal, XSS).
+    - **Authentication:** Check authStore.isAuthenticated. If not authenticated, store pending URL, navigate to login. After login, process pending URL.
+    - **Error Handling:** Malformed URLs → show error toast, log warning, don't crash. Invalid routes → show toast "Unknown route", fallback to home.
+    - **Single Instance:** Use app.requestSingleInstanceLock() to prevent multiple app instances. Second launch sends URL to first instance, then exits.
+  </constraints>
+
+  <interfaces>
+    <interface name="DeepLinkHandler.register()" kind="TypeScript method" signature="register(): void - Calls app.setAsDefaultProtocolClient('holokai'), listens for open-url and second-instance events" path="src-electron/services/DeepLinkHandler.ts" />
+    <interface name="DeepLinkParser.parse()" kind="TypeScript function" signature="parse(url: string): DeepLinkRoute | null - Validates URL format, extracts route type and params, returns null for malformed URLs" path="src/utils/deepLinkParser.ts" />
+    <interface name="DeepLinkRouter.route()" kind="TypeScript method" signature="route(route: DeepLinkRoute): void - Dispatches to SPA navigation based on route type (thread, project, workflow, settings)" path="src/services/DeepLinkRouter.ts" />
+    <interface name="IPC Handler: deep-link-navigate" kind="IPC handler" signature="ipcRenderer.on('deep-link-navigate', (event, url: string) =&gt; {DeepLinkRouter.handleURL(url)})" path="src/services/DeepLinkRouter.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test URL parsing for all supported routes. Test invalid URL rejection (malformed, unknown routes). Test route dispatching (verify correct navigation calls). Test cold-start and warm-start scenarios. Test auth-required deep links (redirect to login, then navigate).</standards>
+    <locations>tests/unit/utils/, tests/unit/services/, tests/integration/</locations>
+    <ideas>
+      <test ac="1" idea="Unit test: parse('holokai://thread/abc-123') returns {type: 'thread', params: {id: 'abc-123'}}" />
+      <test ac="2,3,4" idea="Unit test: Parse all supported routes (project, workflow, settings), verify correct route type extracted" />
+      <test ac="5" idea="Unit test: parse('holokai://settings/notifications') returns {type: 'settings', params: {section: 'notifications'}}" />
+      <test ac="9" idea="Unit test: parse('holokai://invalid') returns null, parse('invalid-url') returns null" />
+      <test ac="6,7" idea="Integration test: App closed, trigger 'open-url' event with holokai://thread/abc, verify app launches, navigates to thread" />
+      <test ac="8" idea="Integration test: App open, trigger 'second-instance' event with URL, verify window focused, navigates to route" />
+      <test ac="10" idea="Integration test: User not authenticated, deep link to holokai://thread/abc, verify redirected to login, URL stored as pending, after login navigates to thread" />
+      <test ac="9" idea="Integration test: Trigger deep link with malformed URL, verify error toast shown, app doesn't crash" />
+    </ideas>
+  </tests>
+</story-context>

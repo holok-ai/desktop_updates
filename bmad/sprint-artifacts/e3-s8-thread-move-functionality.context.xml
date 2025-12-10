@@ -1,0 +1,191 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e3-s8-thread-move-functionality" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>8</storyId>
+    <title>Thread Copy Functionality (Bidirectional)</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e3-s8-thread-move-functionality.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop application user</asA>
+    <iWant>to copy threads bidirectionally between personal and project contexts with automatic file migration</iWant>
+    <soThat>I can move my work between personal and collaborative spaces while preserving all content and attachments</soThat>
+    <tasks>
+      - Implement Thread Context Menu (right-click shows "Copy to Personal" OR "Copy to Project...")
+      - Implement Copy to Personal Flow (permission check, API call, file migration download)
+      - Implement Copy to Project Flow (project selection dialog, permission check, file migration upload)
+      - Implement File Migration Service (download Storage Service → local, upload local → Storage Service)
+      - Implement Transactional Copy with Rollback (wrap in transaction, rollback on failure)
+      - Implement Copy Semantics (original thread unchanged, new thread created)
+      - Implement Cache Invalidation (invalidate project threads cache)
+      - Testing (E2E bidirectional copy, file migration, rollback, performance)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC-1">Right-click thread shows "Copy to Personal" OR "Copy to Project..." option</criterion>
+    <criterion id="AC-2">Copy to Personal: Permission check (user must be thread owner)</criterion>
+    <criterion id="AC-3">Copy to Personal: Thread copied with all messages to personal context</criterion>
+    <criterion id="AC-4">Copy to Personal: Project files in Storage Service downloaded to local filesystem</criterion>
+    <criterion id="AC-5">Copy to Project: Dialog shows list of user's projects (editor/owner roles only)</criterion>
+    <criterion id="AC-6">Copy to Project: Permission check (must have edit access to target project)</criterion>
+    <criterion id="AC-7">Copy to Project: Personal local files uploaded to Storage Service</criterion>
+    <criterion id="AC-8">Thread without files copies in &lt;3s</criterion>
+    <criterion id="AC-9">Thread with files: file migration (upload or download) before copy completes</criterion>
+    <criterion id="AC-10">Thread with files copies in &lt;10s for up to 10MB total attachments</criterion>
+    <criterion id="AC-11">File migration failure rolls back thread copy (atomic operation, transactional)</criterion>
+    <criterion id="AC-12">Copied thread appears in target context, original thread remains unchanged (copy semantics, not move)</criterion>
+    <criterion id="AC-13">Cache invalidation for target project threads (if copying to project)</criterion>
+    <criterion id="AC-14">API endpoint: POST /api/threads/copy with { sourceThreadId, targetContext, projectId? }</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-3.md">
+        <section name="Bidirectional Thread Copy">
+          Copy to Personal: Project thread → Personal context
+          - Permission: Only thread owner can copy
+          - File migration: Download Storage Service files to local filesystem
+
+          Copy to Project: Personal thread → Project context
+          - Permission: Must have edit access (editor/owner role)
+          - File migration: Upload local files to Storage Service
+
+          Copy Semantics: Original thread remains in source context, copy created in target
+        </section>
+        <section name="File Storage Bifurcation">
+          Personal Threads: Files stored locally ({user_data_dir}/threads/{threadId}/attachments/{fileId})
+          Project Threads: Files stored in Storage Service (https://storage.moku.ai/projects/{projectId}/threads/{threadId}/files/{fileId})
+          Migration Direction:
+          - Personal → Project: Upload local files to Storage Service
+          - Project → Personal: Download Storage Service files to local filesystem
+        </section>
+        <section name="Thread Copy Flow">
+          Option A: Copy to Personal
+          1. Right-click project thread → "Copy to Personal"
+          2. Permission check: User must be thread owner
+          3. API call: POST /api/threads/copy with { sourceThreadId, targetContext: 'personal' }
+          4. File Migration: Download files from Storage Service, save locally
+          5. Create new personal thread (new IDs)
+          6. Update attachment references: storage URL → local path
+          7. If migration fails: Rollback, show error
+          8. Original project thread unchanged
+
+          Option B: Copy to Project
+          1. Right-click personal thread → "Copy to Project..."
+          2. Dialog: Select target project (editor/owner roles only)
+          3. Permission check: Must have edit access
+          4. API call: POST /api/threads/copy with { sourceThreadId, targetContext: 'project', projectId }
+          5. File Migration: Upload local files to Storage Service
+          6. Create new project thread (new IDs)
+          7. Update attachment references: local path → storage URL
+          8. If migration fails: Rollback, show error
+          9. Original personal thread unchanged
+          10. Invalidate project threads cache
+        </section>
+        <section name="Performance Targets">
+          - Copy without files: &lt;3s
+          - Copy with files: &lt;10s for up to 10MB total attachments
+          - File migration: Streaming for large files (no memory overflow)
+          - Rollback: &lt;1s (clean up partial files)
+        </section>
+      </doc>
+    </docs>
+    <code>
+      <file path="src/lib/components/modals/MoveThreadModal.svelte">
+        Thread move/copy modal component
+        Will support bidirectional copy with project selection
+      </file>
+      <file path="src/lib/services/thread.service.ts">
+        Will add copyThread method
+        IPC call to backend
+      </file>
+      <file path="src-electron/ipc-handlers/thread-handler.ts">
+        Will add IPC handler for threads:copy
+        Coordinates with file service for migration
+      </file>
+      <file path="src-electron/services/file-storage.service.ts">
+        File storage service for local file operations
+        Will integrate with Storage Service API for cloud files
+      </file>
+    </code>
+    <dependencies>
+      <dependency name="electron">IPC for thread copy operations</dependency>
+      <dependency name="svelte">Modal components, context menu</dependency>
+      <dependency name="BLOCKER: E5-S1">File Service required for file migration logic</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="permission">Copy to Personal: User must be thread owner</constraint>
+    <constraint type="permission">Copy to Project: Must have edit access (editor/owner role)</constraint>
+    <constraint type="integration">BLOCKER: E5-S1 (File Service) required for file migration</constraint>
+    <constraint type="integration">Mitigation: Implement thread copy WITHOUT files first, add file migration when E5 complete</constraint>
+    <constraint type="performance">Copy without files: &lt;3s</constraint>
+    <constraint type="performance">Copy with files: &lt;10s for up to 10MB</constraint>
+    <constraint type="reliability">File migration failure must rollback thread copy (atomic operation)</constraint>
+    <constraint type="semantics">Copy semantics: Original thread unchanged, new thread created</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="ThreadCopyService">
+      <method name="copyToPersonal" signature="copyToPersonal(threadId: string): Promise&lt;ThreadCopyResult&gt;">
+        Copies project thread to personal context with file migration
+      </method>
+      <method name="copyToProject" signature="copyToProject(threadId: string, projectId: string): Promise&lt;ThreadCopyResult&gt;">
+        Copies personal thread to project context with file migration
+      </method>
+    </interface>
+    <interface name="API">
+      <method name="POST /api/threads/copy" signature="{ sourceThreadId: string, targetContext: 'personal'|'project', projectId?: string }">
+        Copies thread with file migration
+        Returns: { newThreadId, messageCount, fileCount, fileMigrationStatus }
+      </method>
+    </interface>
+    <interface name="IPC">
+      <method name="threads:copy" signature="ipcRenderer.invoke('threads:copy', threadId, { targetContext, projectId? }): Promise&lt;ThreadCopyResult&gt;">
+        Copies thread bidirectionally
+      </method>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests: Permission checks (owner for personal, editor/owner for project)
+      - Unit tests: File migration logic (upload/download, rollback on failure)
+      - E2E tests: Copy personal → project with files (upload to Storage Service)
+      - E2E tests: Copy project → personal with files (download to local)
+      - E2E tests: Copy without files (&lt;3s)
+      - E2E tests: Copy with 10MB files (&lt;10s)
+      - E2E tests: File migration failure rollback (simulate network failure, verify thread not created)
+      - E2E tests: Copy semantics (original thread unchanged, both threads exist)
+      - Integration tests: Cache invalidation (verify project threads cache updated)
+      - Performance tests: Copy timing benchmarks
+    </standards>
+    <locations>
+      - src/lib/services/__tests__/thread-copy.test.ts
+      - e2e/thread-copy.spec.ts
+      - integration/file-migration.spec.ts
+      - performance/thread-copy-benchmarks.test.ts
+    </locations>
+    <ideas>
+      <idea maps-to="AC-1">Test right-click on project thread shows "Copy to Personal"</idea>
+      <idea maps-to="AC-1">Test right-click on personal thread shows "Copy to Project..."</idea>
+      <idea maps-to="AC-2">Test copy to personal: owner succeeds, non-owner fails</idea>
+      <idea maps-to="AC-3">E2E: Copy project thread to personal, verify all messages copied</idea>
+      <idea maps-to="AC-4">E2E: Copy project thread with files, verify files downloaded to local</idea>
+      <idea maps-to="AC-5">Test project selection dialog filters by editor/owner roles</idea>
+      <idea maps-to="AC-6">Test copy to project: editor succeeds, viewer fails</idea>
+      <idea maps-to="AC-7">E2E: Copy personal thread with files, verify files uploaded to Storage Service</idea>
+      <idea maps-to="AC-8">Performance: Copy thread without files, verify &lt;3s</idea>
+      <idea maps-to="AC-9,AC-10">Performance: Copy thread with 10MB files, verify &lt;10s</idea>
+      <idea maps-to="AC-11">E2E: Simulate file upload failure, verify thread copy rolled back</idea>
+      <idea maps-to="AC-12">E2E: Verify original thread unchanged after copy, both threads exist</idea>
+      <idea maps-to="AC-13">Integration: Verify project threads cache invalidated after copy</idea>
+      <idea maps-to="AC-14">Integration: Test API endpoint POST /api/threads/copy</idea>
+    </ideas>
+  </tests>
+</story-context>

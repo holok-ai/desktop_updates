@@ -1,0 +1,185 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e3-s1-project-service-desktop" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>1</storyId>
+    <title>Project Service Desktop</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e3-s1-project-service-desktop.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop application developer</asA>
+    <iWant>a ProjectService layer that handles CRUD operations, member management, and API coordination with the Moku API</iWant>
+    <soThat>the desktop application can manage project collaboration features with proper caching, retry logic, and permission enforcement</soThat>
+    <tasks>
+      - Implement ProjectService Core (CRUD operations: create, list, get, update, delete)
+      - Implement Member Management (getMembers, addMember, removeMember, updateMemberRole)
+      - Implement Permission System (hasPermission with role permission matrix)
+      - Implement API Retry Logic (max 3 attempts, exponential backoff)
+      - Integration and Testing (unit tests, permission matrix, retry logic, E2E CRUD flow)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC-1">ProjectService.create() successfully creates project via Moku API and caches result</criterion>
+    <criterion id="AC-2">ProjectService.list() returns user's owned + shared projects</criterion>
+    <criterion id="AC-3">ProjectService.get() retrieves project from cache (if fresh) or API (if stale)</criterion>
+    <criterion id="AC-4">ProjectService.update() modifies project and invalidates cache</criterion>
+    <criterion id="AC-5">ProjectService.delete() removes project and all associated cache entries</criterion>
+    <criterion id="AC-6">ProjectService.getMembers() returns member list from cache or API</criterion>
+    <criterion id="AC-7">ProjectService.addMember() adds member and invalidates members cache</criterion>
+    <criterion id="AC-8">ProjectService.removeMember() removes member with role validation (must be owner)</criterion>
+    <criterion id="AC-9">ProjectService.hasPermission() correctly evaluates user role against permission matrix</criterion>
+    <criterion id="AC-10">All API calls include retry logic (3 attempts, exponential backoff)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-3.md">
+        <section name="Services and Modules">
+          ProjectService: CRUD operations, member management, invitations, API coordination
+          - Inputs: Project data, member operations, invitation requests
+          - Outputs: Project entities, operation results
+        </section>
+        <section name="Data Models and Contracts">
+          Project Entity: { id, name, description, type: 'personal'|'shared', color, icon, ownerId, createdAt, updatedAt, memberCount, threadCount }
+          ProjectMember Entity: { projectId, userId, role: 'owner'|'editor'|'viewer', addedAt, addedBy }
+          Role Permission Matrix: Owner/Editor/Viewer × Permissions (view, create_thread, invite_member, etc.)
+        </section>
+        <section name="APIs and Interfaces">
+          Moku API Endpoints:
+          - POST /api/projects - Create project
+          - GET /api/projects - List user's projects
+          - GET /api/projects/{id} - Get project details
+          - PATCH /api/projects/{id} - Update project
+          - DELETE /api/projects/{id} - Delete project (CASCADE)
+          - GET /api/projects/{id}/members - List members
+          - POST /api/projects/{id}/members - Add member
+          - DELETE /api/projects/{id}/members/{userId} - Remove member
+          - PATCH /api/projects/{id}/members/{userId} - Update member role
+          - POST /api/projects/{id}/upgrade-to-shared - Upgrade personal to shared
+        </section>
+        <section name="Non-Functional Requirements">
+          Performance:
+          - Project list retrieval: &lt;300ms (cache hit), &lt;1s (cache miss / API call)
+          - Project creation: &lt;2s end-to-end
+          - Member list retrieval: &lt;200ms (cached), &lt;800ms (API call)
+          - Cache lookup: &lt;10ms
+
+          Security:
+          - Role-based permissions enforced at desktop layer
+          - Defense in depth: Moku API also enforces permissions
+          - JWT tokens passed with all API requests
+
+          Reliability:
+          - Retry logic for API calls: max 3 attempts, exponential backoff (1s, 2s, 4s)
+          - Graceful degradation: if Moku API unavailable, show cached data with staleness warning
+        </section>
+      </doc>
+    </docs>
+    <code>
+      <file path="src/lib/services/project.service.ts">
+        Existing ProjectService implementation pattern:
+        - Singleton pattern with getInstance()
+        - Event listeners for project created/updated/deleted
+        - wrapElectronCall for error handling
+        - Methods: loadProjects, createProject, updateProject, deleteProject, getThreadCount
+      </file>
+      <file path="src/lib/stores/project.store.ts">
+        Project store pattern:
+        - Svelte writable store
+        - Methods: setProjects, addProject, updateProject, deleteProject
+        - Sorting by updatedAt
+      </file>
+      <file path="src/lib/types/project.type.ts">
+        Existing Project type: { id, title, description, createdAt, updatedAt, deletedAt, metadata, privacyMode }
+        NEW Project type will add: { type: 'personal'|'shared', color, icon, memberCount, threadCount }
+      </file>
+      <file path="src-electron/ipc-handlers/project-handler.ts">
+        IPC handler pattern:
+        - ipcMain.handle for each operation
+        - toRendererProject conversion function
+        - broadcast function for events
+        - Performance logging with logPerformance
+        - Authentication checks
+      </file>
+    </code>
+    <dependencies>
+      <dependency name="electron">Electron IPC for main/renderer communication</dependency>
+      <dependency name="svelte">Svelte stores for reactive state</dependency>
+      <dependency name="typescript">Type safety for API contracts</dependency>
+      <dependency name="axios">HTTP client for Moku API calls</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architectural">All project data stored on Moku API (cloud-first for collaboration)</constraint>
+    <constraint type="architectural">Desktop maintains read-through cache with 5-minute TTL</constraint>
+    <constraint type="architectural">RBAC enforced at both API and desktop layers (defense in depth)</constraint>
+    <constraint type="performance">API calls must include retry logic (3 attempts, exponential backoff)</constraint>
+    <constraint type="security">Permission checks before every mutating operation</constraint>
+    <constraint type="integration">BLOCKER: E1-S4 (Project API Implementation) must be complete</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="IProjectService">
+      <method name="create" signature="create(data: CreateProjectRequest): Promise&lt;Project&gt;">
+        Creates project via Moku API and caches result
+      </method>
+      <method name="list" signature="list(): Promise&lt;Project[]&gt;">
+        Returns user's owned + shared projects from cache or API
+      </method>
+      <method name="get" signature="get(projectId: string): Promise&lt;Project&gt;">
+        Retrieves project from cache (if fresh) or API (if stale)
+      </method>
+      <method name="update" signature="update(projectId: string, data: UpdateProjectRequest): Promise&lt;Project&gt;">
+        Updates project and invalidates cache
+      </method>
+      <method name="delete" signature="delete(projectId: string): Promise&lt;void&gt;">
+        Deletes project and all associated cache entries
+      </method>
+      <method name="getMembers" signature="getMembers(projectId: string): Promise&lt;ProjectMember[]&gt;">
+        Returns member list from cache or API
+      </method>
+      <method name="addMember" signature="addMember(projectId: string, userId: string, role: ProjectMemberRole): Promise&lt;ProjectMember&gt;">
+        Adds member and invalidates members cache
+      </method>
+      <method name="removeMember" signature="removeMember(projectId: string, userId: string): Promise&lt;void&gt;">
+        Removes member with role validation (must be owner)
+      </method>
+      <method name="hasPermission" signature="hasPermission(projectId: string, permission: ProjectPermission): Promise&lt;boolean&gt;">
+        Evaluates user role against permission matrix
+      </method>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests: 85%+ coverage target
+      - Mock Moku API for unit tests
+      - Test all permission matrix combinations (3 roles × 10 permissions = 30 test cases)
+      - Integration tests with real cache
+      - E2E tests for full CRUD flow
+      - Performance benchmarks: API latency P50/P95/P99
+    </standards>
+    <locations>
+      - src/lib/services/__tests__/project.service.test.ts
+      - src-electron/ipc-handlers/__tests__/project-handler.test.ts
+      - e2e/project-service.spec.ts
+    </locations>
+    <ideas>
+      <idea maps-to="AC-1">Test project creation via Moku API, verify cached result with 5-minute TTL</idea>
+      <idea maps-to="AC-2">Test list() returns mix of owned and shared projects</idea>
+      <idea maps-to="AC-3">Test cache hit scenario (fresh data) vs cache miss (expired data)</idea>
+      <idea maps-to="AC-4">Test update invalidates cache, next get() fetches from API</idea>
+      <idea maps-to="AC-5">Test delete removes project and cascades to cache (members, threads)</idea>
+      <idea maps-to="AC-6">Test getMembers with cache hit/miss scenarios</idea>
+      <idea maps-to="AC-7">Test addMember invalidates cache, next getMembers fetches fresh</idea>
+      <idea maps-to="AC-8">Test removeMember: owner succeeds, non-owner fails, last owner prevented</idea>
+      <idea maps-to="AC-9">Test hasPermission: owner can invite, editor cannot, viewer cannot delete</idea>
+      <idea maps-to="AC-10">Test retry logic: simulate API failures, verify exponential backoff (1s, 2s, 4s)</idea>
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,74 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e9-s3-workflow-creation-ui-gui-builder" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>3</storyId>
+    <title>Story 9.3: Workflow Creation UI (GUI Builder)</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e9-s3-workflow-creation-ui-gui-builder.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>**workflow creator**</asA>
+    <iWant>**a visual GUI workflow builder with timeline/flowchart view</iWant>
+    <soThat>**I can create custom workflows without writing code manually, while retaining full control over workflow definition**.</soThat>
+    <tasks>
+
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">**AC-3.1:** Timeline or flowchart view functional (user can add/remove/reorder steps)</criterion>
+    <criterion id="2">**AC-3.2:** Step editor allows configuring all step types (Ask User, Generate Output, Run Script, Conditional)</criterion>
+    <criterion id="3">**AC-3.3:** Template editor with split view (code + preview) functional</criterion>
+    <criterion id="4">**AC-3.4:** Form builder auto-generates template from dragged sections (or defer to post-MVP)</criterion>
+    <criterion id="5">**AC-3.5:** Raw YAML editor with syntax highlighting and validation functional</criterion>
+    <criterion id="6">**AC-3.6:** GUI ↔ YAML sync works bidirectionally</criterion>
+    <criterion id="7">**AC-3.7:** Workflow saved as .wfpkg bundle in &quot;My Workflows/custom/&quot;</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-9.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 9 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test: **AC-3.1:** Timeline or flowchart view functional (user can add/remove/reorder s...</idea>
+      <idea ac="2">Test: **AC-3.2:** Step editor allows configuring all step types (Ask User, Generate Ou...</idea>
+      <idea ac="3">Test: **AC-3.3:** Template editor with split view (code + preview) functional...</idea>
+      <idea ac="4">Test: **AC-3.4:** Form builder auto-generates template from dragged sections (or defer...</idea>
+      <idea ac="5">Test: **AC-3.5:** Raw YAML editor with syntax highlighting and validation functional...</idea>
+    </ideas>
+  </tests>
+</story-context>

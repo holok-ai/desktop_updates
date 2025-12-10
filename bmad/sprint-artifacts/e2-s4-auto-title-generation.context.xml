@@ -1,0 +1,88 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e2-s4" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>4</storyId>
+    <title>Auto-Title Generation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e2-s4-auto-title-generation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>threads to automatically generate meaningful titles</iWant>
+    <soThat>I can easily identify conversations in the thread list</soThat>
+    <tasks>
+      - Detect 2nd exchange completion trigger (4 messages on main branch)
+      - Generate title using LLM with first 2 exchanges as context
+      - Update thread title in UI and backend (PATCH API call)
+      - Implement manual title editing with inline input
+      - Add title generation settings toggle
+      - Handle edge cases (title exists, generation disabled, API errors)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Title generated after 2nd assistant response (4 messages total on main branch) (TM §4.1)</criterion>
+    <criterion id="2">Title max 50 characters, truncated with ellipsis if longer (TM §4.2)</criterion>
+    <criterion id="3">Title editable by user after generation (TM §4.3)</criterion>
+    <criterion id="4">No duplicate generation calls for same thread (TM §4.1)</criterion>
+    <criterion id="5">Skip if title already exists (manually set or previously generated)</criterion>
+    <criterion id="6">Uses thread's configured model for generation</criterion>
+    <criterion id="7">Generation happens asynchronously without blocking UI</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Services and Modules - AutoTitleService" snippet="Generate thread titles after 2nd exchange. Inputs: Thread messages (first 2 exchanges). Outputs: Title string (50 char max). AI call, async, non-blocking." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Thread Title Generation Contract" snippet="TitleGenerationRequest: {threadId, messages (4 total)}. TitleGenerationResponse: {title (max 50 chars), confidence, fallback}. Fallback: 'New Thread' if AI fails." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Workflows - Auto-Title Generation Trigger" snippet="After assistant response saved, check message_count = 2 user messages (2nd exchange complete), call AutoTitleService.generateTitle(), update thread title, emit event to refresh UI." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="NFR Performance" snippet="Auto-title generation: &lt;3 seconds (AI call, async, non-blocking). Title generation success rate metric tracked." />
+    </docs>
+    <code>
+      <artifact path="src/services/TitleGenerationService.ts" kind="service" reason="NEW - Title generation logic with AI integration" />
+      <artifact path="src/components/ThreadHeader.svelte" kind="component" reason="Existing component - needs title display and edit functionality" />
+      <artifact path="src/components/EditableTitle.svelte" kind="component" reason="NEW - Inline title editor component" />
+      <artifact path="src/services/ThreadService.ts" kind="service" reason="Existing service - needs trigger logic after 2nd exchange" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Node.js/Electron)">
+        <package name="electron" version="39.x" />
+        <package name="svelte" version="5.x" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Desktop-only. Title generated client-side, then synced to backend via PATCH API.
+    - **Trigger Condition:** Exactly 4 messages on main branch (branchIndex = 0): 2 user + 2 assistant messages.
+    - **Generation Logic:** Uses thread's configured LLM model. Prompt includes first 2 exchanges for context. Max 50 chars, truncate with "..." if longer.
+    - **Async Execution:** Non-blocking. Generate in background, update UI when complete via store update.
+    - **Idempotency:** Flag titleGenerationTriggered = true prevents duplicate calls. Skip if thread.title already set.
+    - **Error Handling:** Fallback to "Untitled Thread" if AI fails or times out (&gt;3s). Don't break thread on failure.
+  </constraints>
+
+  <interfaces>
+    <interface name="TitleGenerationService.generateTitle()" kind="TypeScript method" signature="generateTitle(threadId: string, messages: Message[]): Promise&lt;string&gt; - Calls LLM with first 2 exchanges, returns title (max 50 chars). Fallback 'Untitled Thread' on error." path="src/services/TitleGenerationService.ts" />
+    <interface name="EditableTitle.svelte" kind="Svelte component" signature="Props: {title: string, onSave: (newTitle: string) =&gt; Promise&lt;void&gt;}. Renders title, click to edit, save on Enter, cancel on Escape." path="src/components/EditableTitle.svelte" />
+    <interface name="ThreadService.onMessageAdded()" kind="TypeScript method" signature="Hook called after message added. Checks if 4 messages on main branch, triggers title generation if needed." path="src/services/ThreadService.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test trigger condition: 4 messages on main branch. Test title generation with mocked AI responses. Test truncation at 50 chars. Test fallback on AI failure. Test idempotency (no duplicate calls). Test manual editing flow.</standards>
+    <locations>tests/unit/services/, tests/unit/components/, tests/integration/</locations>
+    <ideas>
+      <test ac="1,4" idea="Unit test: Add 4 messages (2 user, 2 assistant) on main branch, verify generateTitle() called once" />
+      <test ac="1" idea="Unit test: Add 4 messages with branches (branchIndex != 0), verify title NOT generated (only count main branch)" />
+      <test ac="2" idea="Unit test: Mock AI returns 70-char title, verify truncated to 50 chars with '...'" />
+      <test ac="5" idea="Unit test: Thread has existing title, add 4 messages, verify no generation triggered" />
+      <test ac="6" idea="Unit test: Thread uses model 'gpt-4', verify AI call uses gpt-4 model" />
+      <test ac="7" idea="Integration test: Generate title, verify UI not blocked (can continue chatting while generating)" />
+      <test ac="3" idea="E2E test: Click title, edit to 'My Custom Title', press Enter, verify saved and displayed" />
+      <test ac="1" idea="Integration test: AI times out (&gt;3s), verify fallback to 'Untitled Thread', thread remains functional" />
+    </ideas>
+  </tests>
+</story-context>

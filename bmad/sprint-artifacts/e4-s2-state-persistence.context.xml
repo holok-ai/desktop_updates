@@ -1,0 +1,93 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e4-s2" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>2</storyId>
+    <title>State Persistence</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e4-s2-state-persistence.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop user</asA>
+    <iWant>the application to remember my window position, sidebar state, and preferences</iWant>
+    <soThat>my workspace layout persists across sessions</soThat>
+    <tasks>
+      - Create StateStore service with electron-store
+      - Implement window state persistence (position, size, maximized)
+      - Implement sidebar state persistence (collapsed, width, expanded sections)
+      - Implement user preferences persistence (theme, fontSize, lastActive)
+      - Implement state versioning and migration system
+      - Add state export/import utilities (optional)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Window opens at last position and size (CORE §9.1)</criterion>
+    <criterion id="2">Sidebar collapse/expand state remembered (CORE §9.1)</criterion>
+    <criterion id="3">Theme preference remembered (light/dark/system) (CORE §9.2)</criterion>
+    <criterion id="4">Last active project/thread restored on app launch (CORE §9.2)</criterion>
+    <criterion id="5">Old state formats automatically migrated to new versions (CORE §9.4)</criterion>
+    <criterion id="6">Corrupt state handled gracefully (reset to defaults, log error)</criterion>
+    <criterion id="7">Multi-monitor changes handled (window stays visible on available screens)</criterion>
+    <criterion id="8">State changes debounced to avoid excessive disk writes</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Services and Modules - StateStore" snippet="Application state persistence. Inputs: State updates (window, sidebar, prefs). Outputs: Persisted state, restored on launch. Owner: Main Process. Uses electron-store (JSON file storage)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Data Models - StateSchema" snippet="interface StateSchema {version, window: {x, y, width, height, maximized, displayBounds}, sidebar: {collapsed, width, expandedSections}, preferences: {theme, fontSize, defaultModel, notifications, lastActive}}" />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Workflows - E4-S2 Implementation Sequence" snippet="Install electron-store, create StateStore wrapper, define StateSchema, implement get/set/delete, create WindowStateManager, listen for window resize/move (debounced 500ms), save/restore state, handle multi-monitor, implement migrations." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="NFR Performance" snippet="State read operations: &lt; 5ms (in-memory cache). State write operations: &lt; 50ms (debounced, written to disk). Window resize/move debounce delay: 500ms (prevent excessive writes)." />
+    </docs>
+    <code>
+      <artifact path="src-electron/services/StateStore.ts" kind="service" reason="NEW - Main process state management using electron-store wrapper" />
+      <artifact path="src-electron/services/WindowStateManager.ts" kind="service" reason="NEW - Window position/size tracking with debounce" />
+      <artifact path="src/stores/sidebarStore.ts" kind="store" reason="NEW - Renderer sidebar state (synced with StateStore)" />
+      <artifact path="src/stores/preferencesStore.ts" kind="store" reason="NEW - Renderer preferences (synced with StateStore)" />
+      <artifact path="src/utils/stateMigrations.ts" kind="utility" reason="NEW - Version migration functions" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Electron)">
+        <package name="electron-store" version="11.x" note="State persistence (JSON file storage)" />
+        <package name="electron" version="39.x" note="BrowserWindow API, safeStorage" />
+        <package name="svelte" version="5.x" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Electron main process. State stored in JSON file via electron-store.
+    - **File Location:** ~/.config/holokai-desktop/config.json (Linux/Mac) or %APPDATA%\holokai-desktop\config.json (Windows).
+    - **Debouncing:** Window resize/move events debounced (500ms delay). Preferences saved immediately (infrequent changes).
+    - **Multi-Monitor:** Check if saved {x, y} within any display bounds. If offscreen, center on primary display.
+    - **State Migration:** Version field in state. On load, check version, run migrations sequentially (v1→v2→v3→current).
+    - **Error Handling:** Corrupt state file → reset to defaults, log error, don't crash. JSON parse errors caught gracefully.
+    - **Security:** State file encrypted using Electron safeStorage API. Permissions: read/write for current user only (chmod 600).
+  </constraints>
+
+  <interfaces>
+    <interface name="StateStore.get()" kind="TypeScript method" signature="get&lt;K extends keyof StateSchema&gt;(key: K): StateSchema[K] | undefined - Type-safe state getter" path="src-electron/services/StateStore.ts" />
+    <interface name="StateStore.set()" kind="TypeScript method" signature="set&lt;K extends keyof StateSchema&gt;(key: K, value: StateSchema[K]): void - Type-safe state setter, writes to disk" path="src-electron/services/StateStore.ts" />
+    <interface name="StateStore.migrate()" kind="TypeScript method" signature="migrate(fromVersion: number, toVersion: number): void - Runs migration functions sequentially, updates version field" path="src-electron/services/StateStore.ts" />
+    <interface name="WindowStateManager.saveWindowState()" kind="TypeScript method" signature="saveWindowState(bounds: {x, y, width, height}, maximized: boolean): void - Debounced (500ms), saves window state to StateStore" path="src-electron/services/WindowStateManager.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test get/set/delete operations. Test debounce logic (verify save delayed by 500ms). Test migration functions (v1→v2, v2→v3). Test corrupt state handling (reset to defaults). Test multi-monitor fallback (offscreen position → center on primary).</standards>
+    <locations>tests/unit/services/, tests/integration/</locations>
+    <ideas>
+      <test ac="1" idea="Integration test: Resize window to 1200x800, move to (100, 100), restart app, verify window at same position/size" />
+      <test ac="2" idea="Integration test: Collapse sidebar, restart app, verify sidebar still collapsed" />
+      <test ac="3" idea="Integration test: Set theme to 'dark', restart app, verify dark theme applied on startup" />
+      <test ac="4" idea="Integration test: View thread ID 'abc123', restart app, verify thread ID stored in lastActive" />
+      <test ac="5" idea="Unit test: Seed v1 state {version: 1, window: {...}}, start app, verify migrated to v2 {version: 2, window: {...}, newField: default}" />
+      <test ac="6" idea="Unit test: Corrupt config.json (invalid JSON), start app, verify state reset to defaults, app doesn't crash" />
+      <test ac="7" idea="Integration test: Save position on secondary monitor (x=2000), disconnect monitor, restart, verify window centered on primary monitor" />
+      <test ac="8" idea="Unit test: Trigger 10 window resize events in 100ms, verify only 1 save after 500ms debounce" />
+    </ideas>
+  </tests>
+</story-context>
