@@ -1,0 +1,79 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e9-s4-workflow-packaging-service" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>4</storyId>
+    <title>Story 9.4: Workflow Packaging Service</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e9-s4-workflow-packaging-service.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>**workflow creator**</asA>
+    <iWant>**workflows to be packaged into standardized</iWant>
+    <soThat>**workflows can be securely distributed, installed, and verified in the marketplace**.</soThat>
+    <tasks>
+      <task>Task 1: Implement WorkflowPackagingService class</task>
+      <task>Task 2: Define WorkflowManifest TypeScript interface</task>
+      <task>Task 3: Create JSON schema for manifest validation</task>
+      <task>Task 4: Add IPC handlers for packaging operations</task>
+      <task>Task 5: Write unit tests for WorkflowPackagingService</task>
+      <task>Task 6: Write integration tests for packaging workflow</task>
+      <task>Task 7: Add dependencies to package.json</task>
+      <task>Task 8: Create test fixtures for workflow packages</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">**AC-4.1**: Workflow directory correctly packaged into .wfpkg bundle (ZIP format)</criterion>
+    <criterion id="2">**AC-4.2**: Manifest.json validated against JSON schema (required fields, version format)</criterion>
+    <criterion id="3">**AC-4.3**: .wfpkg file correctly compressed (can be extracted with standard zip tools)</criterion>
+    <criterion id="4">**AC-4.4**: SHA-256 hash generated for package integrity</criterion>
+    <criterion id="5">**AC-4.5**: Package extraction works (round-trip: directory → package → extract)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-9.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 9 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test: **AC-4.1**: Workflow directory correctly packaged into .wfpkg bundle (ZIP format...</idea>
+      <idea ac="2">Test: **AC-4.2**: Manifest.json validated against JSON schema (required fields, versio...</idea>
+      <idea ac="3">Test: **AC-4.3**: .wfpkg file correctly compressed (can be extracted with standard zip...</idea>
+      <idea ac="4">Test: **AC-4.4**: SHA-256 hash generated for package integrity...</idea>
+      <idea ac="5">Test: **AC-4.5**: Package extraction works (round-trip: directory → package → extract)...</idea>
+    </ideas>
+  </tests>
+</story-context>

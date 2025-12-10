@@ -1,0 +1,71 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e8-s5-accessibility-audit" v="1.0">
+  <metadata>
+    <epicId>8</epicId>
+    <storyId>5</storyId>
+    <title>Story 8.5: Accessibility Audit</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e8-s5-accessibility-audit.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>**Holokai Desktop user with accessibility needs**</asA>
+    <iWant>**the application to meet WCAG 2.1 AA accessibility standards**</iWant>
+    <soThat>**I can use screen readers, keyboard navigation, and high-contrast modes to effectively interact with all application features**.</soThat>
+    <tasks>
+      <task>Task 1: Audit color contrast</task>
+      <task>Task 2: Add ARIA labels to interactive elements</task>
+      <task>Task 3: Ensure keyboard navigation works</task>
+      <task>Task 4: Implement focus trap for modals and dialogs</task>
+      <task>Task 5: Test with screen readers</task>
+      <task>Task 6: Ensure high-contrast mode compatibility</task>
+      <task>Task 7: Set up automated accessibility testing in CI</task>
+      <task>Task 8: Document and fix identified issues</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-8.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 8 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,85 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e9-s8-marketplace-trust-safety" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>8</storyId>
+    <title>Story 9.8: Marketplace Trust &amp; Safety</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e9-s8-marketplace-trust-safety.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>**Holokai platform administrator**</asA>
+    <iWant>**automated security re-scanning and community moderation tools for marketplace workflows**</iWant>
+    <soThat>**malicious or compromised workflows can be detected and removed, maintaining marketplace trust and user safety**.</soThat>
+    <tasks>
+      <task>Task 1: Backend - Security Re-scanning Service</task>
+      <task>Task 2: Backend - Community Reporting API</task>
+      <task>Task 3: Backend - Investigation Queue API</task>
+      <task>Task 4: Backend - Workflow Disabling API</task>
+      <task>Task 5: Backend - Appeal Process</task>
+      <task>Task 6: Backend - Transparency Report Generation</task>
+      <task>Task 7: Desktop - Report Workflow UI</task>
+      <task>Task 8: Desktop - Disabled Workflow Warning</task>
+      <task>Task 9: Admin UI - Investigation Queue</task>
+      <task>Task 10: Admin UI - Transparency Report View</task>
+      <task>Task 11: Testing - Security Re-scanning</task>
+      <task>Task 12: Testing - Community Reporting</task>
+      <task>Task 13: Testing - Workflow Disabling</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">**AC-8.1: Weekly Re-scans** - Weekly re-scans functional (automated cron job)</criterion>
+    <criterion id="2">**AC-8.2: Community Report Button** - Community report button functional (users can flag workflows)</criterion>
+    <criterion id="3">**AC-8.3: Investigation Queue** - Holokai investigation queue shows flagged workflows with reports</criterion>
+    <criterion id="4">**AC-8.4: Workflow Disabling** - Malicious workflows can be disabled (removed from marketplace, users warned)</criterion>
+    <criterion id="5">**AC-8.5: Appeal Process** - Appeal process functional (authors can contest disabling)</criterion>
+    <criterion id="6">**AC-8.6: Transparency Report** - Transparency report published monthly (# workflows scanned, flagged, disabled)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-9.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 9 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test: **AC-8.1: Weekly Re-scans** - Weekly re-scans functional (automated cron job)...</idea>
+      <idea ac="2">Test: **AC-8.2: Community Report Button** - Community report button functional (users ...</idea>
+      <idea ac="3">Test: **AC-8.3: Investigation Queue** - Holokai investigation queue shows flagged work...</idea>
+      <idea ac="4">Test: **AC-8.4: Workflow Disabling** - Malicious workflows can be disabled (removed fr...</idea>
+      <idea ac="5">Test: **AC-8.5: Appeal Process** - Appeal process functional (authors can contest disa...</idea>
+    </ideas>
+  </tests>
+</story-context>

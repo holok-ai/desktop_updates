@@ -1,0 +1,225 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Database Schema Migration</title>
+    <status>done</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <updatedAt>2025-12-08</updatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>bmad/sprint-artifacts/e1-s1-database-schema-migration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>backend developer</asA>
+    <iWant>to create Flyway database migrations for Phase 2 schema changes</iWant>
+    <soThat>the database schema supports thread branching, project collaboration, and insights features with full audit trail support</soThat>
+    <tasks>
+      <task id="1" ac="1,2,3,4,5,6,7,8" completed="true">Create consolidated V2.1 migration for all Phase 2 tables with full audit support (desktop_threads, desktop_messages, projects, project_members, saved_reports)</task>
+      <task id="2" ac="2,3" completed="true">Verify schema alignment with BaseEntity audit pattern and Moku/Holo standards</task>
+    </tasks>
+    <architectureDecisions>
+      <decision>All desktop tables now align with Moku/Holo audit standards using dual ownership tracking: created_user_id (UUID business ownership) and created_by/last_modified_by (VARCHAR system audit)</decision>
+      <decision>Consolidated single V2.1 migration instead of separate V2.1-V2.5 migrations for simpler deployment and atomic schema updates</decision>
+      <decision>Renamed created_by UUID field to created_user_id for clarity, added created_by VARCHAR for Spring Security system audit</decision>
+      <decision>Desktop tables (desktop_threads, desktop_messages) use client-generated UUIDs for offline-first architecture</decision>
+    </architectureDecisions>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1" completed="true">V2.1 migration creates all Phase 2 tables with full audit support (desktop_threads, desktop_messages, projects, project_members, saved_reports)</criterion>
+    <criterion id="2" completed="true">All tables include audit columns: created_user_id (UUID business ownership), created_by/last_modified_by (VARCHAR system audit)</criterion>
+    <criterion id="3" completed="true">All tables follow Moku/Holo audit standards (extend BaseEntity pattern, @Audited for Hibernate Envers)</criterion>
+    <criterion id="4" completed="true">Schema includes proper timestamps (created_at, updated_at, deleted_at) with auto-update triggers</criterion>
+    <criterion id="5" completed="true">All CHECK constraints enforce valid enum values (status, type, role, branch_type)</criterion>
+    <criterion id="6" completed="true">All foreign key constraints correctly cascade deletes or set NULL as specified</criterion>
+    <criterion id="7" completed="true">All indexes exist on foreign key columns and frequently queried fields (type, status, updated_at, project_id, user_id)</criterion>
+    <criterion id="8" completed="true">Unique indexes prevent duplicate memberships and idempotent message IDs</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/database-schema-2025-11-25.md</path>
+        <title>Database Schema Specification</title>
+        <section>§2-5: Phase 2 schema definitions</section>
+        <snippet>Complete database schema for desktop_threads, desktop_messages, projects, project_members, workflows, workflow_executions, saved_reports tables with all columns, constraints, indexes, and views.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>§Data Models (lines 72-219)</section>
+        <snippet>Detailed entity definitions with SQL DDL, CHECK constraints, foreign key behavior, and JSONB column specifications for all Phase 2 database changes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>§Workflows - E1-S1 (lines 337-349)</section>
+        <snippet>Database Migration Sequence with 10 detailed steps covering creation, testing, rollback scripts, and version control commit process.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>§Dependencies (lines 541-555)</section>
+        <snippet>Backend dependencies: PostgreSQL Driver 42.7+, Flyway 10.x, Testcontainers 1.19+ for migration testing, JUnit 5.10+ for test framework.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>§NFRs - Performance (lines 427-428)</section>
+        <snippet>Migration performance: Each Flyway migration must complete in &lt; 5 minutes on databases with up to 100K threads. Use CREATE INDEX CONCURRENTLY to avoid table locks &gt; 30 seconds.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>§Risks (lines 744-762)</section>
+        <snippet>RISK-1 (Medium): Database migration may exceed 5-minute target on production. Mitigation: Test on production-sized dataset clone, use concurrent indexes. RISK-7 (Medium): Rollback scripts may not handle data transformations correctly. Mitigation: Test rollback with realistic data, document data loss scenarios.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-2025-11-25.md</path>
+        <title>System Architecture</title>
+        <section>§1.2 Service Responsibilities</section>
+        <snippet>Moku API: Spring Boot REST service responsible for Users, orgs, projects, threads, workflows, insights. Backend technology stack: Spring Boot REST + PostgreSQL 14+.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics-and-stories-2025-11-25.md</path>
+        <title>Epics and Stories</title>
+        <section>§E1-S1 (lines 84-142)</section>
+        <snippet>Story breakdown with requirement references to DB §8.2-8.6 for each migration (V2.1-V2.5), detailed task list with subtasks for each schema change, and acceptance criteria.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>moku/api/src/main/resources/db/migration/V2.1__desktop_mvp_schema.sql</path>
+        <kind>migration</kind>
+        <symbol>V2.1__desktop_mvp_schema</symbol>
+        <lines>1-542</lines>
+        <reason>Consolidated Flyway migration creating all 5 Phase 2 tables (desktop_threads, desktop_messages, projects, project_members, saved_reports) with full audit support, views, and triggers</reason>
+      </artifact>
+      <artifact>
+        <path>moku/api/src/main/java/ai/holok/moku/model/DesktopThread.java</path>
+        <kind>entity</kind>
+        <symbol>DesktopThread</symbol>
+        <lines>1-112</lines>
+        <reason>Desktop thread entity extending BaseEntity with @Audited annotation, demonstrates audit pattern for future desktop entities. Updated in E1-S2 to align with audit standards.</reason>
+      </artifact>
+      <artifact>
+        <path>moku/api/src/main/java/ai/holok/moku/common/domain/BaseEntity.java</path>
+        <kind>base-entity</kind>
+        <symbol>BaseEntity</symbol>
+        <lines>1-60</lines>
+        <reason>Base entity providing audit fields (created_by, last_modified_by, created_at, updated_at) inherited by all desktop entities</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <backend desc="Moku API - Spring Boot backend (separate repository)">
+        <package name="PostgreSQL Driver" version="42.7+" />
+        <package name="Flyway" version="10.x" />
+        <package name="Spring Boot" version="3.2+" />
+        <package name="Spring Data JPA" version="3.2+" />
+        <package name="Hibernate Envers" version="6.4+" note="Required for @Audited entity change tracking" />
+        <package name="HikariCP" version="5.1+" />
+        <package name="Testcontainers" version="1.19+" />
+        <package name="JUnit" version="5.10+" />
+        <package name="Mockito" version="5.x" />
+      </backend>
+      <database>
+        <package name="PostgreSQL" version="14+" />
+        <package name="pg_stat_statements" version="extension" />
+      </database>
+      <desktop desc="This project - Electron + Svelte (not directly involved in this story)">
+        <package name="electron" version="39.x" />
+        <package name="svelte" version="5.x" />
+        <package name="typescript" version="5.9.3" />
+      </desktop>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint id="1" type="audit-architecture" priority="critical">ALL desktop tables MUST align with Moku/Holo audit standards. Dual ownership tracking required: created_user_id (UUID NOT NULL) for business ownership, created_by/last_modified_by (VARCHAR 255) for system audit. Entities must extend BaseEntity, use @Audited annotation for Hibernate Envers, and @EntityListeners(AuditingEntityListener.class) for Spring Boot auditing.</constraint>
+    <constraint id="2" type="migration-standards">Use Flyway for versioned migrations. Consolidated V2.1 migration for all Phase 2 tables preferred over separate V2.1-V2.5 migrations for atomic deployment. Migrations must be idempotent where possible.</constraint>
+    <constraint id="3" type="performance">All migrations must complete in &lt; 5 minutes on databases with up to 100K threads. Use CREATE INDEX CONCURRENTLY to avoid table locks &gt; 30 seconds.</constraint>
+    <constraint id="4" type="backward-compatibility">Phase 1 desktop app must continue working after migration (additive changes only). Existing desktop_threads and desktop_messages data must remain intact. New columns use sensible defaults or nullable.</constraint>
+    <constraint id="5" type="data-integrity">All foreign key constraints must use proper CASCADE/SET NULL behavior. CHECK constraints enforce enum values at database level. Unique indexes prevent data corruption.</constraint>
+    <constraint id="6" type="client-generated-ids">Desktop tables (desktop_threads, desktop_messages) use client-generated UUIDs for offline-first architecture. Entities must override BaseEntity.id field to remove @GeneratedValue annotation.</constraint>
+    <constraint id="7" type="testing">Testing deferred to integration with desktop app. Row-Level Security (RLS) prevents unit tests without full auth flow. Schema verification via end-to-end testing in E1-S2, E1-S3, E1-S4.</constraint>
+    <constraint id="8" type="repository">Moku API backend is a SEPARATE repository from this desktop project. Migration files located at: moku-api/src/main/resources/db/migration/</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Flyway Migration API</name>
+      <kind>Database migration framework</kind>
+      <signature>
+        Class: V2_1__add_thread_branching.java (or .sql)
+        Methods: migrate() - Executes schema changes
+        Naming convention: V{version}__{description}.{sql|java}
+      </signature>
+      <path>moku-api/src/main/resources/db/migration/</path>
+    </interface>
+    <interface>
+      <name>PostgreSQL JDBC Driver</name>
+      <kind>Database connection</kind>
+      <signature>
+        Connection URL: jdbc:postgresql://localhost:5432/holokai_db
+        Driver class: org.postgresql.Driver
+        Required: PostgreSQL 14+ for JSONB improvements and performance
+      </signature>
+      <path>N/A - External dependency</path>
+    </interface>
+    <interface>
+      <name>Testcontainers PostgreSQL Module</name>
+      <kind>Integration testing framework</kind>
+      <signature>
+        @Container PostgreSQLContainer postgresqlContainer = new PostgreSQLContainer("postgres:14")
+        Usage: Spin up isolated PostgreSQL instance for migration testing
+      </signature>
+      <path>moku-api/src/test/java/</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use Testcontainers for PostgreSQL integration tests to ensure migrations run in isolated environment. Spring Boot Test with @SpringBootTest for migration testing framework. JUnit 5 for test structure. Test on both clean database and Phase 1 seeded database for backward compatibility. Verify schema matches spec using pg_dump comparison. Test constraint violations by attempting invalid inserts.
+    </standards>
+    <locations>
+      <location>moku-api/src/test/java/com/holokai/moku/migrations/</location>
+      <location>moku-api/src/test/resources/db/testdata/</location>
+    </locations>
+    <ideas>
+      <idea ac="1">MigrationTest_CleanDatabase: Start Testcontainers PostgreSQL, run V2.1-V2.5 migrations, verify all tables/columns/constraints exist via pg_catalog queries</idea>
+      <idea ac="2">MigrationTest_Phase1Compatibility: Seed Phase 1 data (users, threads, messages), run V2.1-V2.5, verify data integrity with SELECT queries checking FK validity</idea>
+      <idea ac="3">MigrationTest_SchemaMatch: After migration, pg_dump schema and compare to database-schema-2025-11-25.md spec (programmatic DDL comparison)</idea>
+      <idea ac="4">RollbackTest_AllMigrations: Run V2.1-V2.5, then execute rollback scripts in reverse order (V2.5 → V2.1), verify original schema restored</idea>
+      <idea ac="5">ConstraintTest_CheckConstraints: Attempt invalid inserts (type='invalid', branch_index=3, role='superadmin') and assert constraint violation exceptions</idea>
+      <idea ac="6">ConstraintTest_ForeignKeyCascade: Insert parent records (projects, threads), delete parents, verify child records cascade deleted or set NULL per spec</idea>
+      <idea ac="7">IndexTest_AllIndexes: Query pg_indexes WHERE tablename IN ('desktop_threads', 'projects', 'project_members') and assert all expected indexes present</idea>
+      <idea ac="8">ConstraintTest_UniqueIndexes: Attempt duplicate project_members insert (same project_id, user_id) and duplicate messages (same thread_id, client_message_id), assert unique violation</idea>
+    </ideas>
+  </tests>
+
+  <lessonsLearned>
+    <lesson category="architecture">
+      <title>Audit Architecture Matters Early</title>
+      <description>Initially created desktop_threads without audit alignment. Later discovered ALL desktop tables lacked audit trail, unlike Moku/Holo entities. Lesson: Verify architecture patterns across all new tables before implementation to avoid rework.</description>
+      <impact>Significant rework required to align V2.1 migration with audit standards after initial implementation</impact>
+    </lesson>
+    <lesson category="data-modeling">
+      <title>Dual Ownership Concepts</title>
+      <description>Desktop tables need TWO ownership concepts: Business ownership (created_user_id UUID - which app user owns/created the entity) and System audit (created_by/last_modified_by VARCHAR - which system user from Spring Security context made changes). Both are critical for compliance and debugging.</description>
+      <impact>Changed field naming from created_by (UUID) to created_user_id (UUID) to clarify distinction, added created_by (VARCHAR) for system audit</impact>
+    </lesson>
+    <lesson category="inheritance">
+      <title>BaseEntity Inheritance with Overrides</title>
+      <description>DesktopThread successfully extends BaseEntity while overriding id field for client-generated UUIDs. This pattern works for offline-first architecture while maintaining audit capabilities. Override id field and remove @GeneratedValue annotation.</description>
+      <impact>Enables offline-first desktop architecture while maintaining full audit trail compatibility with Moku/Holo patterns</impact>
+    </lesson>
+    <lesson category="migration-strategy">
+      <title>Consolidated vs Incremental Migrations</title>
+      <description>Single V2.1 migration (all tables) proved simpler than V2.1-V2.5 (separate migrations). For Phase 2, atomic schema deployment was preferable. Reduces complexity, easier rollback, simpler deployment.</description>
+      <impact>Changed from planned V2.1-V2.5 separate migrations to single consolidated V2.1 migration containing all 5 tables</impact>
+    </lesson>
+  </lessonsLearned>
+</story-context>

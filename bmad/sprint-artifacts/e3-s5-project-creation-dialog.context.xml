@@ -1,0 +1,146 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e3-s5-project-creation-dialog" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>5</storyId>
+    <title>Project Creation Dialog</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e3-s5-project-creation-dialog.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop application user</asA>
+    <iWant>a project creation dialog with fields for name, description, type (Personal/Shared), color (from Moku Web palette), and icon</iWant>
+    <soThat>I can create new projects with consistent branding and visual organization</soThat>
+    <tasks>
+      - Implement Dialog UI and Form (modal dialog with name, description, type, color, icon fields)
+      - Implement Project Type Selector (Personal/Shared radio buttons with help text)
+      - Implement Moku Web Color Picker (12 predefined colors, no custom hex input)
+      - Implement Icon Selector (Moku Web icon set, grid/list view)
+      - Implement Client-Side Validation (name 1-100 chars, type required, color from palette)
+      - Implement Project Creation Flow (call ProjectService.create, show loading, navigate on success)
+      - Verify Database Foreign Key (ON DELETE CASCADE for project_id in desktop_threads)
+      - Performance and Testing (creation &lt;2s P95, E2E tests, error handling)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC-1">Dialog opens when "New Project" clicked</criterion>
+    <criterion id="AC-2">Form fields: name (required, 1-100 chars), description (optional), type selector (Personal/Shared, required), color (predefined Moku Web palette - 12 colors), icon (selector)</criterion>
+    <criterion id="AC-3">Type selector defaults to "Personal" with help text explaining the difference</criterion>
+    <criterion id="AC-4">Color picker shows ONLY predefined palette (no custom hex input)</criterion>
+    <criterion id="AC-5">Client-side validation prevents submission with invalid data (name length, color from palette, type selection)</criterion>
+    <criterion id="AC-6">"Create" button calls ProjectService.create() with type and shows loading state</criterion>
+    <criterion id="AC-7">Success: dialog closes, navigates to new project</criterion>
+    <criterion id="AC-8">Failure: error message shown, user can retry</criterion>
+    <criterion id="AC-9">Project creation completes in &lt;2s (P95)</criterion>
+    <criterion id="AC-10">Database foreign key created with ON DELETE CASCADE for project_id</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-3.md">
+        <section name="Project Creation Flow">
+          1. User clicks "New Project" button in sidebar
+          2. ProjectCreationDialog opens with form fields
+          3. User fills: name (required), description (optional), type (Personal/Shared, defaults to Personal), color (from Moku Web palette - 12 colors), icon (selector)
+          4. Client-side validation: name 1-100 chars, no special chars, type selected, color from predefined palette
+          5. User clicks "Create"
+          6. ProjectService.create() calls Moku API POST /api/projects
+          7. API returns new project with generated ID and type field
+          8. API creates foreign key with ON DELETE CASCADE for project_id
+          9. ProjectService adds to cache with 5-minute TTL
+          10. UI navigates to new project detail view
+        </section>
+        <section name="Moku Web Color Palette">
+          12 predefined colors: #3B82F6 (Blue), #10B981 (Green), #F59E0B (Amber), #EF4444 (Red),
+          #8B5CF6 (Purple), #EC4899 (Pink), #06B6D4 (Cyan), #84CC16 (Lime),
+          #F97316 (Orange), #6366F1 (Indigo), #14B8A6 (Teal), #A855F7 (Violet)
+        </section>
+        <section name="Project Type Selector">
+          Personal Project: Single-member, only owner can access, can be upgraded to shared later
+          Shared Project: Multi-member, team collaboration, can add/remove members
+        </section>
+        <section name="Input Validation">
+          Name: Required, 1-100 characters, alphanumeric + spaces + hyphens (regex: ^[a-zA-Z0-9\s\-]+$)
+          Description: Optional, max 500 characters
+          Color: Must be one of MOKU_PROJECT_COLORS (exact hex match)
+          Icon: Must be valid icon identifier from Moku Web icon set
+        </section>
+      </doc>
+    </docs>
+    <code>
+      <file path="src/lib/components/modals/ProjectFormModal.svelte">
+        May exist - project form modal component
+        Will add type selector and Moku Web color picker
+      </file>
+      <file path="src/lib/components/projects/ProjectCreatePanel.svelte">
+        Project creation panel component
+        Will integrate with ProjectCreationDialog
+      </file>
+      <file path="src/lib/services/project.service.ts">
+        ProjectService.createProject(title, description, type, color, icon)
+        IPC call to backend
+      </file>
+      <file path="src-electron/ipc-handlers/project-handler.ts">
+        IPC handler for project:create
+        Validates inputs, creates project, broadcasts event
+      </file>
+    </code>
+    <dependencies>
+      <dependency name="svelte">Modal component, form validation</dependency>
+      <dependency name="electron">IPC for project creation</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="design">Moku Web color palette (12 predefined colors, no custom hex input)</constraint>
+    <constraint type="design">Project type selector: Personal (default) or Shared</constraint>
+    <constraint type="validation">Name: 1-100 chars, alphanumeric + spaces + hyphens only</constraint>
+    <constraint type="performance">Project creation: &lt;2s end-to-end (P95)</constraint>
+    <constraint type="database">ON DELETE CASCADE foreign key for project_id in desktop_threads</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="CreateProjectRequest">
+      <field name="name" type="string">Project name (1-100 chars)</field>
+      <field name="description" type="string?">Optional description (max 500 chars)</field>
+      <field name="type" type="'personal' | 'shared'">Project type (default: 'personal')</field>
+      <field name="color" type="string">Hex color from MOKU_PROJECT_COLORS</field>
+      <field name="icon" type="string">Icon identifier from Moku Web icon set</field>
+    </interface>
+    <interface name="IPC">
+      <method name="projects:create" signature="ipcRenderer.invoke('projects:create', { name, description, type, color, icon }): Promise&lt;Project&gt;">
+        Creates project via Moku API
+      </method>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests: Form validation (name, color from palette, type selection, icon)
+      - E2E tests: Full creation flow (open dialog → fill form → submit → navigate)
+      - E2E tests: Error handling (API failure, retry flow)
+      - Manual tests: Color picker UI (verify 12 colors, no custom hex), icon selector UX
+      - Integration tests: Verify ON DELETE CASCADE foreign key (create → delete → verify threads deleted)
+    </standards>
+    <locations>
+      - src/lib/components/modals/__tests__/ProjectFormModal.test.ts
+      - e2e/project-creation.spec.ts
+      - integration/cascade-delete.spec.ts
+    </locations>
+    <ideas>
+      <idea maps-to="AC-1">Test dialog opens when "New Project" button clicked in sidebar</idea>
+      <idea maps-to="AC-2">Test form has all required fields: name, description, type, color, icon</idea>
+      <idea maps-to="AC-3">Test type selector defaults to "Personal" with help text</idea>
+      <idea maps-to="AC-4">Test color picker shows only 12 Moku Web colors, no custom hex input</idea>
+      <idea maps-to="AC-5">Test validation: empty name fails, name &gt;100 chars fails, invalid color fails</idea>
+      <idea maps-to="AC-6">Test "Create" button calls ProjectService.create() with type field</idea>
+      <idea maps-to="AC-7">Test success: dialog closes, navigates to /projects/{newProjectId}</idea>
+      <idea maps-to="AC-8">Test failure: API error shown, dialog stays open, user can retry</idea>
+      <idea maps-to="AC-9">Benchmark creation end-to-end, verify &lt;2s (P95)</idea>
+      <idea maps-to="AC-10">Integration test: create project → delete → verify CASCADE deleted threads</idea>
+    </ideas>
+  </tests>
+</story-context>

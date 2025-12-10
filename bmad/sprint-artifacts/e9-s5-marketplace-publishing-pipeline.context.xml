@@ -1,0 +1,64 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e9-s5-marketplace-publishing-pipeline" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>5</storyId>
+    <title>Story 9.5: Marketplace Publishing Pipeline</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e9-s5-marketplace-publishing-pipeline.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>workflow creator</asA>
+    <iWant>to publish my custom workflows to the marketplace with automated security scanning and human review</iWant>
+    <soThat>I can share my workflows with the community and earn revenue while ensuring platform safety.</soThat>
+    <tasks>
+      <task>Task 1: Backend - Marketplace Submission Endpoint (AC-5.1)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-9.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 9 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+
+    </ideas>
+  </tests>
+</story-context>

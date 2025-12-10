@@ -1,0 +1,118 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e1-s2" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>2</storyId>
+    <title>Thread API Updates</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e1-s2-thread-api-updates.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>backend developer</asA>
+    <iWant>to update thread endpoints for ownership and branching support</iWant>
+    <soThat>threads can support personal and project types with proper authorization</soThat>
+    <tasks>
+      - Add type, owner_id, project_id, created_by fields to ThreadDTO and ThreadEntity (AC: #1)
+      - Update GET /api/threads endpoint with type and projectId filters (AC: #2, #3, #4, #9)
+      - Update POST /api/threads endpoint for project thread creation (AC: #5, #6)
+      - Implement authorization checks using AuthorizationService (AC: #7, #8)
+      - Update PATCH /api/threads/{id} endpoint for new fields (AC: #1)
+      - Add backward compatibility testing (AC: #1, #5, #6)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">ThreadDTO includes new fields: type, ownerId, projectId, createdBy (per API §3.1)</criterion>
+    <criterion id="2">GET /api/threads?type=personal returns only personal threads (project_id IS NULL)</criterion>
+    <criterion id="3">GET /api/threads?type=project returns only project threads (project_id IS NOT NULL)</criterion>
+    <criterion id="4">GET /api/threads?projectId={uuid} returns threads for specific project only</criterion>
+    <criterion id="5">POST /api/threads with projectId creates project thread (type='project', project_id set)</criterion>
+    <criterion id="6">POST /api/threads without projectId creates personal thread (type='personal', project_id NULL)</criterion>
+    <criterion id="7">Personal threads accessible only by owner (user_id matches JWT sub)</criterion>
+    <criterion id="8">Project threads require project membership (AuthorizationService enforces view role minimum)</criterion>
+    <criterion id="9">Thread list pagination works correctly (page, size parameters, totalElements count accurate)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Services and Modules - ThreadController/Service/Repository" snippet="ThreadController handles Thread CRUD endpoints, filtering, pagination. ThreadService handles business logic, authorization checks. ThreadRepository handles database queries, filtering by type/project." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="APIs - Thread API Endpoints (lines 223-249)" snippet="GET /api/threads?type={personal|project|all}&projectId={uuid}&page={int}&size={int} → Response: PagedResponse&lt;ThreadDTO&gt;. POST /api/threads Request: {title?, projectId?, metadata?} → Response: ThreadDTO (201 Created). PATCH /api/threads/{threadId} Request: {title?, status?, metadata?} → Response: ThreadDTO (200 OK)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Data Models - Desktop Thread Entity (Updated)" snippet="New Phase 2 fields: type VARCHAR(20) DEFAULT 'personal' ('personal' | 'project'), owner_id UUID NOT NULL, project_id UUID (nullable, FK to projects), created_by UUID NOT NULL. CHECK constraints: type IN ('personal', 'project'), (type = 'personal' AND project_id IS NULL) OR (type = 'project' AND project_id IS NOT NULL)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Authorization Service Interface" snippet="requireThreadAccess(UUID threadId, UUID userId) checks thread access (owner for personal, project membership for project threads). requireThreadModify(UUID threadId, UUID userId) checks modify permission (owner for personal, edit+ for project threads)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Acceptance Criteria #9-#17" snippet="AC#9: ThreadDTO includes new fields. AC#10-#12: Type and projectId filters work. AC#13-#14: Project/personal thread creation works. AC#15-#16: Authorization enforced. AC#17: Pagination works correctly." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Workflows §E1-S2/S3 (lines 350-362)" snippet="1. Update ThreadEntity with new columns. 2. Update ThreadDTO to expose new fields. 3. Update ThreadMapper for entity ↔ DTO conversion. 4. Add type/projectId filters to ThreadRepository.findByUser(). 5. Inject AuthorizationService into ThreadController. 6. Add authorization checks before thread operations." />
+      <doc path="docs/architecture-2025-11-25.md" title="System Architecture" section="§1.2 Service Responsibilities - Moku API" snippet="Moku API (Spring Boot) handles authentication, authorization, data persistence, API gateway. Provides REST endpoints for threads, messages, projects, workflows." />
+    </docs>
+    <code>
+      <artifact path="src-electron/preload.ts" kind="interface" symbol="Thread" lines="179-187" reason="Desktop Thread interface consumed by UI - reference for API DTO structure (currently missing type/ownerId/projectId fields)" />
+      <artifact path="src-electron/preload.ts" kind="interface" symbol="ThreadAPI" lines="29-44" reason="Desktop ThreadAPI defines getAll() with projectId filter, create(), update() - shows expected API contract from Desktop perspective" />
+      <artifact path="src-electron/repository/thread-repository.ts" kind="interface" symbol="Thread" lines="55-63" reason="Desktop ThreadRepository interface for local storage - reference for thread data model structure" />
+      <artifact path="src/lib/types/project.type.ts" kind="interface" symbol="Project" lines="4-13" reason="Desktop Project interface - shows projectId structure expected in Thread references" />
+      <artifact path="tests/unit/ipc/thread-handler.spec.ts" kind="test" reason="Existing thread handler unit tests - reference for test patterns (vitest, mocking IPC)" />
+      <artifact path="tests/e2e/thread-management.spec.ts" kind="test" reason="Existing thread management e2e tests - reference for integration test patterns (Playwright)" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Node.js/Electron)">
+        <package name="electron" version="39.x" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+        <package name="playwright" />
+      </ecosystem>
+      <ecosystem name="Backend (Moku API - Spring Boot)" note="Separate repository">
+        <package name="Spring Boot" version="3.2+" />
+        <package name="Spring Data JPA" version="3.2+" />
+        <package name="PostgreSQL Driver" version="42.7+" />
+        <package name="Flyway" version="10.x" />
+        <package name="Jackson" version="2.17+" />
+        <package name="Spring Security" version="6.2+" />
+        <package name="Lombok" version="1.18+" />
+        <package name="JUnit 5" version="5.10+" />
+        <package name="Mockito" version="5.x" />
+        <package name="Testcontainers" version="1.19+" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Repository Separation:** Moku API backend is SEPARATE repository from this desktop project. ThreadController/Service/Repository implementation is in Moku API codebase, NOT in this desktop project.
+    - **Desktop Role:** This desktop project CONSUMES Moku API endpoints. Desktop changes for this story are minimal (TypeScript interface updates to match new API fields).
+    - **API Layer Standards:** Use Spring Boot REST conventions (@RestController, @GetMapping, @PostMapping, @PatchMapping). All endpoints return standardized JSON responses with consistent error handling (4xx/5xx with error codes).
+    - **Pagination:** Must support limit/cursor for list operations to handle large datasets.
+    - **Authorization:** Authorization checks must execute before any data mutations or sensitive reads.
+    - **Service Layer Patterns:** ThreadService handles business logic (validation, authorization delegation, entity creation). ThreadRepository handles data access (JPA queries, filtering, pagination). AuthorizationService provides centralized permission checks. Use @Transactional annotation on service methods.
+    - **DTO/Entity Mapping:** Use ThreadMapper for entity ↔ DTO conversion. DTOs expose only necessary fields to API consumers. Entities contain JPA annotations and database-specific logic. Never expose entities directly in API responses.
+    - **Authorization Rules:** Personal threads: owner_id must match JWT sub claim. Project threads: User must be project member with at least 'view' role. Edit operations: User must be owner (personal) or have 'edit' role (project). AuthorizationService.requireThreadAccess() throws AccessDeniedException if unauthorized.
+    - **Backward Compatibility:** API changes must be additive only (new fields optional). Phase 1 desktop app must continue working after deployment. New ThreadDTO fields have sensible defaults for existing threads.
+    - **Dependency on E1-S1:** Database schema changes from E1-S1 must be applied first (V2.1 migration). New columns (type, owner_id, project_id, created_by) must exist in database. Verify E1-S1 is complete before starting this story.
+    - **Dependency on E1-S5:** AuthorizationService will be implemented in E1-S5. For this story, create AuthorizationService stub/interface if E1-S5 not complete. Actual authorization logic will be implemented by E1-S5.
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /api/threads" kind="REST endpoint" signature="GET /api/threads?type={personal|project|all}&projectId={uuid}&page={int}&size={int} → Response: PagedResponse&lt;ThreadDTO&gt; {content: [{id, title, type, ownerId, projectId, status, createdAt, updatedAt, messageCount, branchCount}], totalElements: int, totalPages: int}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ThreadController.java" />
+    <interface name="GET /api/threads/{threadId}" kind="REST endpoint" signature="GET /api/threads/{threadId} → Response: ThreadDetailDTO {id, title, type, ownerId, projectId, createdBy, status, createdAt, updatedAt, metadata, messages: [MessageDTO]}" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ThreadController.java" />
+    <interface name="POST /api/threads" kind="REST endpoint" signature="POST /api/threads Request: {title?, projectId?, metadata?} → Response: ThreadDTO (201 Created)" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ThreadController.java" />
+    <interface name="PATCH /api/threads/{threadId}" kind="REST endpoint" signature="PATCH /api/threads/{threadId} Request: {title?, status?, metadata?} → Response: ThreadDTO (200 OK). NOTE: type, projectId, ownerId, createdBy are immutable after creation (return 400 if client attempts to change)" path="Moku API - moku-api/src/main/java/com/holokai/moku/controllers/ThreadController.java" />
+    <interface name="AuthorizationService.requireThreadAccess()" kind="Java method" signature="public void requireThreadAccess(UUID threadId, UUID userId) throws AccessDeniedException - Checks thread access (owner for personal, project membership for project threads)" path="Moku API - moku-api/src/main/java/com/holokai/moku/services/AuthorizationService.java" />
+    <interface name="AuthorizationService.requireThreadModify()" kind="Java method" signature="public void requireThreadModify(UUID threadId, UUID userId) throws AccessDeniedException - Checks modify permission (owner for personal, edit+ for project threads)" path="Moku API - moku-api/src/main/java/com/holokai/moku/services/AuthorizationService.java" />
+  </interfaces>
+
+  <tests>
+    <standards>Use JUnit 5 for test structure. Use Mockito 5.x for mocking services/repositories. Use Spring Boot Test with @SpringBootTest for integration tests. Use Testcontainers for PostgreSQL database in integration tests. Test service logic: ThreadService method behavior with mocked repository. Test repository queries: ThreadRepository filter logic with mocked data. Test API endpoints: ThreadController with real HTTP requests (MockMvc or RestAssured). Test authorization: Verify 403 responses for unauthorized access. Test pagination: Create large dataset, verify page/size/totalElements.</standards>
+    <locations>moku-api/src/test/java/com/holokai/moku/ (unit and integration tests for Moku API backend)</locations>
+    <ideas>
+      <test ac="1" idea="Unit test: ThreadMapperTest verifying new fields (type, ownerId, projectId, createdBy) serialize/deserialize correctly between ThreadEntity and ThreadDTO" />
+      <test ac="2" idea="Integration test: GET /api/threads?type=personal, create 5 personal + 5 project threads, verify only 5 personal returned" />
+      <test ac="3" idea="Integration test: GET /api/threads?type=project, verify only project threads returned (project_id IS NOT NULL)" />
+      <test ac="4" idea="Integration test: GET /api/threads?projectId={uuid}, create threads in project A and B, query for A, verify only A threads returned" />
+      <test ac="5" idea="Integration test: POST /api/threads with projectId, verify response has type='project', project_id set correctly" />
+      <test ac="6" idea="Integration test: POST /api/threads without projectId, verify response has type='personal', project_id=NULL" />
+      <test ac="7" idea="Integration test: Create personal thread as userA, attempt GET as userB, expect 403 Forbidden" />
+      <test ac="8" idea="Integration test: Create project thread, attempt GET as non-member, expect 403. GET as member with view role, expect 200" />
+      <test ac="9" idea="Integration test: Create 100 threads, GET /api/threads?page=0&size=50, verify 50 returned, totalElements=100, totalPages=2" />
+      <test ac="1" idea="Integration test: PATCH /api/threads/{id} with attempt to change type field, expect 400 Bad Request with message 'Field is immutable'" />
+      <test ac="1,5,6" idea="Integration test: Query Phase 1 thread (migrated with V2.1 defaults) after migration, expect 200 with type='personal', project_id=NULL" />
+    </ideas>
+  </tests>
+</story-context>

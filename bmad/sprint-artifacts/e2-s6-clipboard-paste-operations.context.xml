@@ -1,0 +1,92 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e2-s6" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>6</storyId>
+    <title>Clipboard Paste Operations</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e2-s6-clipboard-paste-operations.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>to paste text, images, and files into the input</iWant>
+    <soThat>I can quickly attach content from other applications</soThat>
+    <tasks>
+      - Handle text paste (preserve default browser behavior)
+      - Detect and handle image paste with thumbnail generation
+      - Detect and handle file paste with validation
+      - Convert to pending attachments with preview
+      - Validate file type and size (allowlist, max 10MB)
+      - Implement thumbnail generation for images (Canvas API)
+      - Handle paste errors gracefully with error toasts
+      - Add drag-and-drop support (bonus)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Pasting text works in input box (default behavior preserved) (TM §6.5)</criterion>
+    <criterion id="2">Pasting image (screenshot) creates attachment preview (TM §6.6)</criterion>
+    <criterion id="3">Pasting file creates attachment preview (TM §6.6)</criterion>
+    <criterion id="4">Invalid files show error toast with specific reason (FS §3.2)</criterion>
+    <criterion id="5">Multiple files in single paste operation supported</criterion>
+    <criterion id="6">Image thumbnails generated for pasted images</criterion>
+    <criterion id="7">File size validation before accepting paste (max 10MB per file)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="APIs and Interfaces - Clipboard API" snippet="ClipboardService.handlePaste(event): Process clipboard data, validate files, create pending attachments with thumbnails." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="NFR Security - Input Sanitization" snippet="Clipboard paste operations sanitize HTML/scripts before insertion (XSS prevention). File paste validates file types against allowlist (images, PDFs only per PRD File Attachments spec). Reject executable files, scripts, and unknown MIME types." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Traceability - AC-6" snippet="Paste validates file types against allowlist (images: png/jpg/gif, PDFs). Paste sanitizes HTML content to prevent XSS attacks. Executable files, scripts, and unknown MIME types rejected with error message." />
+    </docs>
+    <code>
+      <artifact path="src/components/MessageInput.svelte" kind="component" reason="Existing component - needs paste event handler" />
+      <artifact path="src/components/AttachmentChip.svelte" kind="component" reason="NEW - Display pending attachments with preview and remove button" />
+      <artifact path="src/utils/fileValidator.ts" kind="utility" reason="NEW - File type and size validation logic" />
+      <artifact path="src/utils/thumbnailGenerator.ts" kind="utility" reason="NEW - Image thumbnail generation using Canvas API" />
+      <artifact path="src/types/attachment.ts" kind="interface" reason="NEW - PendingAttachment interface definition" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Browser APIs)">
+        <package name="svelte" version="5.x" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+        <note>Uses browser ClipboardEvent API and Canvas API (no external packages)</note>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Uses browser ClipboardEvent API. Image thumbnails generated client-side with Canvas API.
+    - **File Validation:** Allowlist: images (png, jpg, gif), PDFs. Max 10MB per file. Reject executables, scripts, unknown MIME types.
+    - **XSS Prevention:** Sanitize HTML content before insertion. Strip script tags, javascript: URLs, onerror handlers.
+    - **Multiple Files:** Loop through event.clipboardData.files, validate each, create pending attachments.
+    - **Thumbnail Generation:** Resize to 200x200px maintaining aspect ratio. Convert to data URL for preview.
+    - **Error Handling:** Show toast for: "File type not supported: {type}", "File too large: {size}MB (max 10MB)", "Invalid file extension: {ext}".
+    - **Dependency on E4-S1:** NotificationService for error toasts. Dependency on E5-S1: File upload (actual upload happens in E5-S1).
+  </constraints>
+
+  <interfaces>
+    <interface name="handlePaste()" kind="TypeScript function" signature="handlePaste(event: ClipboardEvent): Promise&lt;PasteResult&gt; - Processes clipboard data, validates files, generates thumbnails, creates pending attachments" path="src/components/MessageInput.svelte" />
+    <interface name="validateFile()" kind="TypeScript function" signature="validateFile(file: File): {valid: boolean, error?: string} - Checks MIME type, extension, size against allowlist/limits" path="src/utils/fileValidator.ts" />
+    <interface name="generateThumbnail()" kind="TypeScript function" signature="generateThumbnail(file: File, maxSize?: number): Promise&lt;string&gt; - Generates thumbnail data URL using Canvas API, max 200x200px" path="src/utils/thumbnailGenerator.ts" />
+    <interface name="PendingAttachment" kind="TypeScript interface" signature="{id: string, file: File | Blob, filename: string, mimeType: string, sizeBytes: number, thumbnail?: string, status: 'pending' | 'uploading' | 'uploaded' | 'error'}" path="src/types/attachment.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test file validator with valid/invalid files. Test thumbnail generator with various image sizes. Test MIME type and extension validation. Test paste handler with images, files, text. Test XSS sanitization with malicious HTML.</standards>
+    <locations>tests/unit/utils/, tests/unit/components/, tests/integration/</locations>
+    <ideas>
+      <test ac="1" idea="Unit test: Paste plain text 'hello', verify inserted at cursor position in input" />
+      <test ac="2,6" idea="Unit test: Paste image (mock clipboard with image/png blob), verify thumbnail generated, PendingAttachment created" />
+      <test ac="3,5" idea="Unit test: Paste 3 files (mock clipboard.files), verify 3 PendingAttachment objects created" />
+      <test ac="4,7" idea="Unit test: Paste 15MB file, verify error toast 'File too large: 15MB (max 10MB)', attachment NOT created" />
+      <test ac="4" idea="Unit test: Paste .exe file, verify error toast 'File type not supported: application/x-msdownload'" />
+      <test ac="6" idea="Unit test: generateThumbnail(1000x1000 image, 200), verify output data URL dimensions ≤ 200x200" />
+      <test ac="4" idea="Security test: Paste HTML with &lt;script&gt;alert(1)&lt;/script&gt;, verify script stripped before insertion" />
+      <test ac="5" idea="Integration test: Paste clipboard with 2 images + 1 PDF, verify 3 attachment chips rendered" />
+    </ideas>
+  </tests>
+</story-context>
