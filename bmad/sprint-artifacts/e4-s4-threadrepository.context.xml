@@ -1,0 +1,102 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e4-s4" v="1.0">
+  <metadata>
+    <epicId>4</epicId>
+    <storyId>4</storyId>
+    <title>ThreadRepository (Cache Layer)</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e4-s4-threadrepository.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop user</asA>
+    <iWant>threads cached locally with compression and encryption</iWant>
+    <soThat>I can access threads quickly offline and my data is secure</soThat>
+    <tasks>
+      - Create ThreadRepository base class and interface
+      - Implement compression layer using pako (gzip)
+      - Implement encryption layer using AES-256-GCM with OS keychain integration
+      - Implement thread storage operations (save, read, delete, list)
+      - Implement lazy loading for messages (50 message chunks, cursor pagination)
+      - Implement LRU cache policy (500MB max, 24-hour protection)
+      - Implement cache management utilities (stats, clear, eviction)
+      - Add error handling and recovery (corrupt files, disk full)
+      - Implement cache warming on app startup
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Threads cached locally with gzip compression (ARCH §3.4)</criterion>
+    <criterion id="2">Cache encrypted with AES-256-GCM (ARCH §3.4)</criterion>
+    <criterion id="3">LRU eviction when cache exceeds 500MB (ARCH §3.4)</criterion>
+    <criterion id="4">Messages load in chunks of 50 with cursor-based pagination (ARCH §3.4)</criterion>
+    <criterion id="5">Corrupt cache files handled gracefully (delete and re-fetch) (ARCH §3.4)</criterion>
+    <criterion id="6">Cache stats available: {size, count, oldest, newest} (ARCH §3.4)</criterion>
+    <criterion id="7">Compression achieves ~70% size reduction for text-heavy threads</criterion>
+    <criterion id="8">Encryption key stored securely in OS keychain</criterion>
+    <criterion id="9">Thread index maintained for fast listing without reading all files</criterion>
+    <criterion id="10">Never evict threads accessed in last 24 hours</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Services and Modules - ThreadRepository" snippet="Local thread cache management. Inputs: Thread/message data. Outputs: Compressed+encrypted files, cache stats. Owner: Main Process. Uses gzip compression, AES-256-GCM encryption, LRU eviction (500MB max)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Data Models - ThreadCacheEntry" snippet="interface ThreadCacheEntry {threadId, filePath (e.g. ~/.holokai/cache/threads/{id}.dat), sizeBytes (compressed + encrypted), lastAccessedAt (epoch ms), createdAt, messageCount, compressionRatio}" />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Data Models - EncryptedFileHeader" snippet="File structure on disk: [Header (JSON, 128 bytes)] + [IV (12 bytes)] + [Encrypted Data] + [Auth Tag (16 bytes)]. Header: {version, algorithm: 'AES-256-GCM', ivLength: 12, authTagLength: 16, compressedSizeBytes}" />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="Workflows - E4-S4 Implementation Sequence" snippet="Install pako and keytar, create cache directory (~/.holokai/cache/threads/), create EncryptionService (AES-256-GCM, generate key, store in OS keychain via keytar), create CompressionService (pako gzip), create ThreadRepository (write: compress → encrypt → write, read: read → decrypt → decompress), implement lazy loading (50 message chunks, cursor), implement LRU eviction, handle corrupt files (delete + re-fetch)." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4.md" title="Epic 4 Technical Specification" section="NFR Performance" snippet="Cache write (1000-message thread): &lt; 100ms (compress + encrypt + write). Cache read (1000-message thread): &lt; 150ms (read + decrypt + decompress). Compression ratio target: 70% size reduction (text-heavy threads)." />
+    </docs>
+    <code>
+      <artifact path="src/repositories/base.repository.ts" kind="base class" reason="NEW - Common repository utilities" />
+      <artifact path="src/repositories/thread.repository.ts" kind="repository" reason="NEW - ThreadRepository implementation with cache, compression, encryption" />
+      <artifact path="src/services/CryptoService.ts" kind="service" reason="NEW - AES-256-GCM encryption/decryption" />
+      <artifact path="src/services/CompressionService.ts" kind="service" reason="NEW - gzip compression/decompression using pako" />
+      <artifact path="src/services/CacheManager.ts" kind="service" reason="NEW - LRU eviction policy, cache stats" />
+    </code>
+    <dependencies>
+      <ecosystem name="Desktop (Node.js)">
+        <package name="keytar" version="^7.9.0" note="OS keychain integration for encryption keys" />
+        <package name="pako" version="^2.1.0" note="gzip compression/decompression" />
+        <package name="uuid" version="^9.0.0" note="Cache entry ID generation" />
+        <package name="typescript" version="5.9+" />
+        <package name="vitest" />
+      </ecosystem>
+      <note>Uses Node.js built-in crypto module for AES-256-GCM encryption</note>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Desktop Implementation:** Main process only (file system access, encryption). Renderer accesses via IPC.
+    - **Cache Directory:** ~/.holokai/cache/threads/ with index.json and {threadId}.dat files. File permissions: chmod 600 (read/write for current user only).
+    - **Encryption:** AES-256-GCM with authenticated encryption. IV randomly generated per write (12 bytes). Auth tag verified on decrypt (16 bytes, detects tampering). Encryption key stored in OS keychain via keytar, never exposed to renderer or logs.
+    - **Compression:** gzip via pako library. Target 70% size reduction for text-heavy threads. Skip compression for small threads (&lt;10KB).
+    - **LRU Eviction:** Triggered when cache &gt; 500MB. Sort threads by lastAccessedAt ascending (oldest first). Skip threads accessed in last 24 hours. Evict until cache &lt; 500MB.
+    - **Error Handling:** Corrupt cache file (auth tag verification fails) → delete file, remove from index, log error, re-fetch from API. Disk full → evict LRU threads, log warning.
+  </constraints>
+
+  <interfaces>
+    <interface name="ThreadRepository.getThread()" kind="TypeScript method" signature="getThread(id: string): Promise&lt;Thread | null&gt; - Read .dat file → decrypt → decompress → parse JSON. Returns null on cache miss. Updates lastAccessedAt in index." path="src/repositories/thread.repository.ts" />
+    <interface name="ThreadRepository.saveThread()" kind="TypeScript method" signature="saveThread(thread: Thread): Promise&lt;void&gt; - Serialize → compress (gzip) → encrypt (AES-256-GCM) → write {threadId}.dat. Update index with entry." path="src/repositories/thread.repository.ts" />
+    <interface name="ThreadRepository.getMessages()" kind="TypeScript method" signature="getMessages(threadId: string, options?: {limit?: number (default 50), before?: string (cursor), after?: string}): Promise&lt;{messages: Message[], hasMore: boolean, cursor?: string}&gt; - Lazy load message chunks with cursor pagination." path="src/repositories/thread.repository.ts" />
+    <interface name="CacheManager.evictLRU()" kind="TypeScript method" signature="evictLRU(targetSizeBytes: number): Promise&lt;number&gt; - Evict oldest accessed threads until cache &lt; targetSizeBytes. Returns bytes evicted. Skips threads accessed in last 24h." path="src/services/CacheManager.ts" />
+    <interface name="CryptoService.encrypt()" kind="TypeScript method" signature="encrypt(data: Buffer, key: Buffer): {ciphertext: Buffer, iv: Buffer, authTag: Buffer} - AES-256-GCM encryption with authenticated encryption." path="src/services/CryptoService.ts" />
+  </interfaces>
+
+  <tests>
+    <standards>Use vitest for unit tests. Test compression/decompression round trip. Test encryption/decryption round trip with auth tag verification. Test LRU eviction logic (oldest first, 24h protection). Test lazy loading pagination (50 message chunks, cursor). Test corrupt file handling (auth tag failure → delete + re-fetch). Test keychain key storage/retrieval.</standards>
+    <locations>tests/unit/services/, tests/unit/repositories/, tests/integration/, tests/performance/</locations>
+    <ideas>
+      <test ac="1,7" idea="Unit test: Compress 1000-message thread (text-heavy), verify compressed size ~30% of original (70% reduction)" />
+      <test ac="2,8" idea="Unit test: Generate encryption key, store in keychain via keytar, restart app, load key from keychain, verify matches" />
+      <test ac="2" idea="Unit test: Encrypt data with AES-256-GCM, verify ciphertext not equal to plaintext, decrypt, verify matches original" />
+      <test ac="2,5" idea="Unit test: Tamper with ciphertext (modify 1 byte), attempt decrypt, verify auth tag failure, handles gracefully" />
+      <test ac="3,10" idea="Integration test: Fill cache to 501MB, trigger eviction, verify evicts oldest accessed threads, skips threads accessed in last 24h" />
+      <test ac="4" idea="Unit test: Create thread with 200 messages, call getMessages(limit=50), verify returns first 50, hasMore=true, cursor present" />
+      <test ac="4" idea="Unit test: Call getMessages with cursor, verify returns next 50 messages (messages 51-100)" />
+      <test ac="5" idea="Integration test: Corrupt .dat file (delete last 10 bytes), attempt read, verify error caught, file deleted, re-fetch from API triggered" />
+      <test ac="6,9" idea="Unit test: Save 5 threads, call getCacheStats(), verify {totalThreads: 5, totalSizeBytes: sum, oldestAccess, newestAccess}" />
+      <test ac="1,2" idea="Integration test: Save thread → restart app → load thread, verify matches original (full compression + encryption round trip)" />
+    </ideas>
+  </tests>
+</story-context>

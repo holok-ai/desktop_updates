@@ -1,0 +1,41 @@
+retainedFiles: []
+history:
+  - date: '2025-12-03T16:53:01.092Z'
+    deleted: 35
+    retained: 0
+    files:
+      - core\agents\bmad-master.md
+      - core\resources\excalidraw\README.md
+      - core\resources\excalidraw\excalidraw-helpers.md
+      - core\resources\excalidraw\library-loader.md
+      - core\resources\excalidraw\validate-json-instructions.md
+      - core\workflows\brainstorming\steps\step-01-session-setup.md
+      - core\workflows\brainstorming\steps\step-01b-continue.md
+      - core\workflows\brainstorming\steps\step-02a-user-selected.md
+      - core\workflows\brainstorming\steps\step-02b-ai-recommended.md
+      - core\workflows\brainstorming\steps\step-02c-random-selection.md
+      - core\workflows\brainstorming\steps\step-02d-progressive-flow.md
+      - core\workflows\brainstorming\steps\step-03-technique-execution.md
+      - core\workflows\brainstorming\steps\step-04-idea-organization.md
+      - core\workflows\brainstorming\template.md
+      - core\workflows\brainstorming\workflow.md
+      - core\workflows\party-mode\steps\step-01-agent-loading.md
+      - core\workflows\party-mode\steps\step-02-discussion-orchestration.md
+      - core\workflows\party-mode\steps\step-03-graceful-exit.md
+      - core\workflows\party-mode\workflow.md
+      - _cfg\agent-manifest.csv
+      - _cfg\agents\core-bmad-master.customize.yaml
+      - _cfg\files-manifest.csv
+      - _cfg\manifest.yaml
+      - _cfg\task-manifest.csv
+      - _cfg\tool-manifest.csv
+      - _cfg\workflow-manifest.csv
+      - core\agents\bmad-web-orchestrator.agent.xml
+      - core\config.yaml
+      - core\tasks\advanced-elicitation-methods.csv
+      - core\tasks\advanced-elicitation.xml
+      - core\tasks\index-docs.xml
+      - core\tasks\validate-workflow.xml
+      - core\tasks\workflow.xml
+      - core\tools\shard-doc.xml
+      - core\workflows\brainstorming\brain-methods.csv

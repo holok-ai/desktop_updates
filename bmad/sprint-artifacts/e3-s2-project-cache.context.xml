@@ -1,0 +1,130 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e3-s2-project-cache" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>2</storyId>
+    <title>Project Cache</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e3-s2-project-cache.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop application developer</asA>
+    <iWant>an in-memory ProjectCache with TTL-based expiration and manual refresh</iWant>
+    <soThat>project data can be retrieved quickly without repeated API calls while allowing users to fetch fresh data on demand</soThat>
+    <tasks>
+      - Implement Core Cache Structure (CacheEntry interface, ProjectCacheStore, set/get methods)
+      - Implement Cache Invalidation (invalidate, invalidatePattern, clear methods)
+      - Implement Cache Metrics (hit/miss counters, getHitRate method)
+      - Implement Memory Management (memory tracking, LRU eviction if needed)
+      - Testing (TTL expiration, hit/miss, pattern matching, memory usage &lt;50MB for 1000 entries)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC-1">ProjectCache stores entries with TTL (default 5 minutes)</criterion>
+    <criterion id="AC-2">ProjectCache.get() returns cached data if not expired, null if expired</criterion>
+    <criterion id="AC-3">ProjectCache.set() stores data with expiration timestamp</criterion>
+    <criterion id="AC-4">ProjectCache.invalidate() removes specific cache entry</criterion>
+    <criterion id="AC-5">ProjectCache.invalidatePattern() removes all matching entries (e.g., 'projects:*')</criterion>
+    <criterion id="AC-6">Cache hit rate measured and logged</criterion>
+    <criterion id="AC-7">Memory usage stays &lt;50MB for 1000 cached projects</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-3.md">
+        <section name="Data Models and Contracts">
+          CacheEntry&lt;T&gt;: { data: T, cachedAt: Date, ttl: number (default 300000ms), expiresAt: Date }
+          ProjectCacheStore: { projects: Map&lt;string, CacheEntry&lt;Project&gt;&gt;, members: Map&lt;string, CacheEntry&lt;ProjectMember[]&gt;&gt;, lastPollTime: Date }
+        </section>
+        <section name="APIs and Interfaces">
+          IProjectCache: get&lt;T&gt;(key), set&lt;T&gt;(key, value, ttl?), invalidate(key), invalidatePattern(pattern), clear()
+          Cache Key Patterns:
+          - project:{projectId} - Individual project
+          - projects:list:{userId} - User's project list
+          - members:{projectId} - Project member list
+          - projects:* - Wildcard for all project-related keys
+        </section>
+        <section name="Performance Requirements">
+          - Cache lookup: &lt;10ms for any cached entity
+          - Cache hit rate target: &gt;90% for project/member lookups
+          - Memory footprint: &lt;50MB for 1000 cached projects
+          - TTL: 5 minutes default (configurable)
+        </section>
+      </doc>
+    </docs>
+    <code>
+      <file path="src/lib/stores/project.store.ts">
+        Existing store pattern uses Svelte writable stores
+        Cache will integrate with this pattern for reactive updates
+      </file>
+      <file path="src/lib/services/project.service.ts">
+        ProjectService will use ProjectCache for all API calls
+        Read-through cache pattern: cache miss triggers API fetch
+      </file>
+    </code>
+    <dependencies>
+      <dependency name="typescript">Type safety for cache entries and generics</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architectural">In-memory only (cache not persisted to disk in MVP)</constraint>
+    <constraint type="architectural">TTL-based expiration (default 5 minutes, configurable per entry)</constraint>
+    <constraint type="architectural">Manual refresh only (no automatic polling in MVP)</constraint>
+    <constraint type="architectural">Read-through pattern: cache miss triggers API fetch in ProjectService</constraint>
+    <constraint type="performance">Cache lookup must complete in &lt;10ms</constraint>
+    <constraint type="performance">Memory usage must stay &lt;50MB for 1000 cached projects</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="IProjectCache">
+      <method name="get" signature="get&lt;T&gt;(key: string): T | null">
+        Returns cached data if not expired, null if expired or missing
+      </method>
+      <method name="set" signature="set&lt;T&gt;(key: string, value: T, ttl?: number): void">
+        Stores data with TTL and calculates expiresAt timestamp
+      </method>
+      <method name="invalidate" signature="invalidate(key: string): void">
+        Removes specific cache entry by key
+      </method>
+      <method name="invalidatePattern" signature="invalidatePattern(pattern: string): void">
+        Removes all cache entries matching pattern (e.g., 'projects:*')
+      </method>
+      <method name="clear" signature="clear(): void">
+        Removes all cache entries
+      </method>
+      <method name="getHitRate" signature="getHitRate(): number">
+        Returns cache hit rate percentage
+      </method>
+      <method name="getMemoryUsage" signature="getMemoryUsage(): number">
+        Returns estimated memory usage in bytes
+      </method>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests: 90%+ coverage for cache logic
+      - Performance tests: lookup speed &lt;10ms, memory usage &lt;50MB
+      - Integration tests: cache integration with ProjectService
+    </standards>
+    <locations>
+      - src/lib/services/__tests__/project-cache.test.ts
+      - performance/cache-benchmarks.test.ts
+    </locations>
+    <ideas>
+      <idea maps-to="AC-1">Test cache entry created with 5-minute TTL by default</idea>
+      <idea maps-to="AC-2">Test get() returns data before expiration, null after expiration</idea>
+      <idea maps-to="AC-3">Test set() stores data with correct expiresAt = cachedAt + ttl</idea>
+      <idea maps-to="AC-4">Test invalidate() removes specific key, other keys unaffected</idea>
+      <idea maps-to="AC-5">Test invalidatePattern('projects:*') removes all project keys, leaves others</idea>
+      <idea maps-to="AC-6">Test hit/miss counters increment correctly, getHitRate() calculates percentage</idea>
+      <idea maps-to="AC-7">Test memory usage with 100/500/1000 cached projects, verify &lt;50MB for 1000</idea>
+      <idea maps-to="AC-2,AC-3">Test custom TTL: set with 1-minute TTL, verify expiration after 1 minute</idea>
+      <idea maps-to="AC-5">Test cascade invalidation: invalidating project invalidates related members</idea>
+    </ideas>
+  </tests>
+</story-context>

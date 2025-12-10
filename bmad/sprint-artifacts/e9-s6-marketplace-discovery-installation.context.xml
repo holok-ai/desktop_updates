@@ -1,0 +1,84 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e9-s6-marketplace-discovery-installation" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>6</storyId>
+    <title>Story 9.6: Marketplace Discovery &amp; Installation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e9-s6-marketplace-discovery-installation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>Holokai Desktop user</asA>
+    <iWant>to browse and install workflows from the marketplace</iWant>
+    <soThat>I can extend my workflow capabilities with community-created templates without building from scratch.</soThat>
+    <tasks>
+      <task>Task 1: Marketplace Browse UI Component</task>
+      <task>Task 2: Workflow Detail Page Component</task>
+      <task>Task 3: Permission Disclosure Dialog</task>
+      <task>Task 4: Installation Location Picker</task>
+      <task>Task 5: MarketplaceService IPC Implementation (Main Process)</task>
+      <task>Task 6: IPC Handlers Registration</task>
+      <task>Task 7: Installation Flow Integration</task>
+      <task>Task 8: Update Notifications UI</task>
+      <task>Task 9: Integration with Epic 7 Workflow List</task>
+      <task>Task 10: Review and Rating UI</task>
+      <task>Task 11: E2E Testing</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">**AC-6.1: Marketplace Browse UI** - Marketplace browse UI with search, filters (category, pricing), sort (popular, highest rated) works</criterion>
+    <criterion id="2">**AC-6.2: Workflow Detail Page** - Workflow detail page shows all info (description, permissions, trust indicators, reviews)</criterion>
+    <criterion id="3">**AC-6.3: Permission Disclosure** - Permission disclosure shown before installation (mandatory)</criterion>
+    <criterion id="4">**AC-6.4: Installation Location** - Installation flow allows choosing &quot;My Workflows&quot; vs team project</criterion>
+    <criterion id="5">**AC-6.5: Workflow Execution** - Installed workflows appear in workflow list and are executable</criterion>
+    <criterion id="6">**AC-6.6: Update Notifications** - Update notifications shown when new versions available</criterion>
+    <criterion id="7">**AC-6.7: Trust Indicators** - Trust indicators displayed (security scan badge, install count, rating, verified publisher)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-9.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 9 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test: **AC-6.1: Marketplace Browse UI** - Marketplace browse UI with search, filters (...</idea>
+      <idea ac="2">Test: **AC-6.2: Workflow Detail Page** - Workflow detail page shows all info (descript...</idea>
+      <idea ac="3">Test: **AC-6.3: Permission Disclosure** - Permission disclosure shown before installat...</idea>
+      <idea ac="4">Test: **AC-6.4: Installation Location** - Installation flow allows choosing &quot;My Workfl...</idea>
+      <idea ac="5">Test: **AC-6.5: Workflow Execution** - Installed workflows appear in workflow list and...</idea>
+    </ideas>
+  </tests>
+</story-context>

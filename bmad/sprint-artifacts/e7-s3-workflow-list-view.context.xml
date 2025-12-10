@@ -1,0 +1,64 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e7-s3-workflow-list-view" v="1.0">
+  <metadata>
+    <epicId>7</epicId>
+    <storyId>3</storyId>
+    <title>Story 7.3: Workflow List View</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e7-s3-workflow-list-view.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>to view a list of available workflows in the project sidebar</iWant>
+    <soThat>I can discover, filter, and execute workflows relevant to my current project.</soThat>
+    <tasks>
+      <task>Task 1: Create WorkflowList Component (AC: 3.1, 3.3, 3.6)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-7.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 7 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+
+    </ideas>
+  </tests>
+</story-context>

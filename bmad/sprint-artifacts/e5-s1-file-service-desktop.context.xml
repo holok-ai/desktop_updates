@@ -1,0 +1,87 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/e5-s1-file-service-desktop" v="1.0">
+  <metadata>
+    <epicId>5</epicId>
+    <storyId>1</storyId>
+    <title>Story 5.1: File Service Desktop</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/e5-s1-file-service-desktop.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>desktop application developer</asA>
+    <iWant>a unified FileService with intelligent storage routing (personal → local</iWant>
+    <soThat>file attachments work seamlessly across personal and project contexts with proper progress tracking and error handling.</soThat>
+    <tasks>
+      <task>Task 1: Implement Storage Routing Logic (AC: 1-2)</task>
+      <task>Task 2: Implement Upload Progress Tracking (AC: 3)</task>
+      <task>Task 3: Implement Retry Logic (AC: 4)</task>
+      <task>Task 4: Implement File Validation (AC: 5-6)</task>
+      <task>Task 5: Implement Download Operations (AC: 7)</task>
+      <task>Task 6: Implement Attachment Metadata Operations (AC: 8)</task>
+      <task>Task 7: Implement File Deletion with Reference Counting (AC: 9)</task>
+      <task>Task 8: Implement Thread Move File Migration (AC: 11)</task>
+      <task>Task 9: Create Database Schema (desktop_attachments table)</task>
+      <task>Task 10: Testing and Performance (AC: 10)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">FileService.upload() successfully uploads file to local filesystem for personal threads</criterion>
+    <criterion id="2">FileService.upload() successfully uploads file to Storage Service for project threads</criterion>
+    <criterion id="3">Upload progress events emitted every 100ms with percentage, loaded, total</criterion>
+    <criterion id="4">Upload retry logic: 3 attempts with exponential backoff on network failure</criterion>
+    <criterion id="5">File size validation: reject files &gt;10MB, show error message</criterion>
+    <criterion id="6">MIME type validation: accept images, PDFs, text, code; reject executables</criterion>
+    <criterion id="7">FileService.download() returns file blob from local filesystem or Storage Service</criterion>
+    <criterion id="8">FileService.getAttachments(messageId) returns all attachments for message</criterion>
+    <criterion id="9">FileService.deleteAttachment() uses reference counting: deletes file only if last reference</criterion>
+    <criterion id="10">Upload completes in &lt;5s for 10MB file (P95, Storage Service)</criterion>
+    <criterion id="11">FileService.migrateAttachments() migrates local files to Storage Service for thread move (Epic 3 integration)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <techSpec>docs/sprint-artifacts/tech-spec-epic-5.md</techSpec>
+    </docs>
+    <code>
+      <!-- Relevant existing code files will be identified during implementation -->
+    </code>
+    <dependencies>
+      <dependency>Epic 5 Tech Spec</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Desktop application architecture (Electron multi-process)</constraint>
+    <constraint>IPC communication patterns between main and renderer processes</constraint>
+    <constraint>State management using Svelte stores</constraint>
+    <constraint>TypeScript for type safety</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces and API signatures will be documented during implementation -->
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests using Vitest</standard>
+      <standard>Integration tests for IPC communication</standard>
+      <standard>E2E tests using Playwright</standard>
+      <standard>Target 85%+ code coverage</standard>
+    </standards>
+    <locations>
+      <location>Unit tests: src/**/*.test.ts</location>
+      <location>Integration tests: tests/integration/**/*.test.ts</location>
+      <location>E2E tests: tests/e2e/**/*.spec.ts</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test: FileService.upload() successfully uploads file to local filesystem for personal ...</idea>
+      <idea ac="2">Test: FileService.upload() successfully uploads file to Storage Service for project th...</idea>
+      <idea ac="3">Test: Upload progress events emitted every 100ms with percentage, loaded, total...</idea>
+      <idea ac="4">Test: Upload retry logic: 3 attempts with exponential backoff on network failure...</idea>
+      <idea ac="5">Test: File size validation: reject files &gt;10MB, show error message...</idea>
+    </ideas>
+  </tests>
+</story-context>

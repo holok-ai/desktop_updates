@@ -40,13 +40,13 @@ development_status:
   e1-s1-database-schema-migration: done
   e1-s2-thread-api-updates: done
   e1-s3-message-api-updates: done
-  e1-s4-project-api-implementation: ready-for-dev
-  e1-s5-authorization-service: ready-for-dev
+  e1-s4-project-api-implementation: done
+  e1-s5-authorization-service: done
   epic-1-retrospective: optional
 
   # Epic 2: Thread Branching
   epic-2: contexted
-  e2-s1-message-tree-data-model-desktop: ready-for-dev
+  e2-s1-message-tree-data-model-desktop: in-progress
   e2-s2-retry-flow-implementation: ready-for-dev
   e2-s3-branch-visualization-ui: ready-for-dev
   e2-s4-auto-title-generation: ready-for-dev
