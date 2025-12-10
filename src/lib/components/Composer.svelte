@@ -251,7 +251,7 @@
     <div class="textarea-wrapper">
       <textarea
         bind:value={text}
-        placeholder="Write a message..."
+        placeholder="Enter a prompt ..."
         rows={3}
         disabled={isStreaming}
         aria-label="Message input. Press Enter to send, Shift+Enter for new line"
@@ -459,14 +459,19 @@
     gap: calc(var(--inline-spacing) * 0.5);
     padding: 8px;
     border-radius: var(--border-radius);
-    border: 1px solid var(--primary-color);
-    background: var(--primary-color);
-    color: var(--primary-color-text);
+    background: var(--surface-sidebar-primary);
+    color: #fff;
     font-weight: 600;
     font-size: 0.875rem;
     transition: all 0.2s;
     white-space: nowrap;
     min-width: fit-content;
+  }
+
+  :global(html.dark) .composer-send {
+    background: #edece5;
+    color: #000;
+    border-color: #edece5;
   }
 
   .composer-send {
@@ -495,8 +500,13 @@
   }
 
   .composer-send:hover:not(:disabled) {
-    background: var(--primary-600);
-    border-color: var(--primary-600);
+    background: #0a1a2e;
+    border-color: #0a1a2e;
+  }
+
+  :global(html.dark) .composer-send:hover:not(:disabled) {
+    background: #fff;
+    border-color: #fff;
   }
 
   .attach-button:disabled,
