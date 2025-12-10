@@ -8,11 +8,13 @@
   import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
+  import FileWriteNotification from './chat/FileWriteNotification.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
+  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
 
   interface Props {
     thread?: Thread | null;
@@ -48,6 +50,7 @@
 
   // Watch for prop changes and update model configuration from thread metadata
   $effect(() => {
+    const previousThreadId = currentThread?.id;
     currentThread = thread;
 
     // Extract model configuration from thread metadata
@@ -76,6 +79,11 @@
 
     // Clear error state when switching threads to prevent stale errors
     error = '';
+    // Clear file write events when switching threads
+    if (previousThreadId !== thread?.id) {
+      fileWriteEventService.clear();
+      fileWriteEventsByMessageId = {};
+    }
   });
 
   // State management
@@ -103,6 +111,39 @@
   let isSavingTitle = $state(false);
   let titleInputRef: HTMLInputElement | null = $state(null);
   const TITLE_MAX_LENGTH = 200;
+
+  const fileWriteEventService = new FileWriteEventService();
+  let fileWriteEventsByMessageId = $state<Record<string, FileWriteEvent[]>>({});
+
+  function eventsChanged(
+    current: Record<string, FileWriteEvent[]>,
+    next: Record<string, FileWriteEvent[]>,
+  ): boolean {
+    const currentKeys = Object.keys(current);
+    const nextKeys = Object.keys(next);
+    if (currentKeys.length !== nextKeys.length) return true;
+    for (const key of currentKeys) {
+      const currList = current[key] ?? [];
+      const nextList = next[key] ?? [];
+      if (currList.length !== nextList.length) return true;
+      for (let i = 0; i < currList.length; i += 1) {
+        const c = currList[i];
+        const n = nextList[i];
+        if (
+          c.id !== n.id ||
+          c.status !== n.status ||
+          c.filePath !== n.filePath ||
+          c.success !== n.success ||
+          c.error !== n.error ||
+          c.bytesWritten !== n.bytesWritten ||
+          c.previousSizeBytes !== n.previousSizeBytes
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   // Load showComments preference from localStorage
   onMount(() => {
@@ -480,9 +521,36 @@
   onMount(() => {
     outboxService.init();
 
+    // Set up callback for file write event updates
+    fileWriteEventService.setUpdateCallback(() => {
+      const allEvents = fileWriteEventService.getAllEvents();
+      if (eventsChanged(fileWriteEventsByMessageId, allEvents)) {
+        fileWriteEventsByMessageId = { ...allEvents };
+      }
+    });
+
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
+    let unsubToolUse: (() => void) | undefined;
+
     try {
+      if (window.electronAPI?.chat?.onToolUse) {
+        unsubToolUse = window.electronAPI.chat.onToolUse(
+          (data: {
+            toolName: string;
+            input: unknown;
+            stage: 'start' | 'complete';
+            toolCallId: string;
+            result?: unknown;
+          }) => {
+            const updatedEvents = fileWriteEventService.handleToolUse(data, messages);
+            if (eventsChanged(fileWriteEventsByMessageId, updatedEvents)) {
+              fileWriteEventsByMessageId = updatedEvents;
+            }
+          },
+        );
+      }
+
       if (window.electronAPI?.thread?.onThreadUpdated) {
         unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
           // Only update if it's our current thread
@@ -523,6 +591,7 @@
 
     return () => {
       if (unsubThreadUpdated) unsubThreadUpdated();
+      if (unsubToolUse) unsubToolUse();
       if (unsubToolStatus) unsubToolStatus();
       cleanup();
     };
@@ -743,6 +812,22 @@
             {showComments}
             on:copied={(event) => showToast(event.detail.message)}
           />
+          {#if fileWriteEventsByMessageId[m.id]}
+            <div class="file-write-events">
+              {#each fileWriteEventsByMessageId[m.id] as evt (evt.id)}
+                <FileWriteNotification
+                  filePath={evt.filePath}
+                  created={evt.created}
+                  bytesWritten={evt.bytesWritten ?? 0}
+                  content={evt.content}
+                  previousSizeBytes={evt.previousSizeBytes}
+                  overwriteRequested={evt.overwriteRequested}
+                  error={evt.success === false ? evt.error : null}
+                  status={evt.status}
+                />
+              {/each}
+            </div>
+          {/if}
         {/each}
       {/if}
 
@@ -1150,6 +1235,13 @@
     overflow: auto;
     margin-top: var(--content-padding);
     padding-right: var(--inline-spacing);
+  }
+
+  .file-write-events {
+    margin-top: var(--inline-spacing);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .composer {
