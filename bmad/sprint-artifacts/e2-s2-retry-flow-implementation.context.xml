@@ -58,7 +58,7 @@
 
   <constraints>
     - **Desktop Implementation:** Desktop-only (Electron + Svelte). NOT backend Moku API.
-    - **Branch Limit:** Maximum 2 retry branches per message (branchIndex 0, 1, 2). Enforce client-side before API call.
+    - **Branch Limit:** Maximum 9 retry branches per message (branchIndex 0-9). Enforce client-side before API call.
     - **Error Handling:** Throw error "Maximum retry branches reached (max: 2)" if limit exceeded. Show toast notification.
     - **Attachment References:** Carried-forward attachments use same fileId (no duplication), new attachments uploaded separately.
     - **Dependency on E2-S1:** Message tree data model must be implemented first (parentMessageId, branchIndex fields).

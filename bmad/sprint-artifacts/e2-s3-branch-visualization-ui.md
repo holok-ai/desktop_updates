@@ -210,7 +210,7 @@ function detectBranchPoints(messages: Message[]): string[] {
 
 **From E2-S2:**
 - Retry flow creates new branches that need visualization
-- Branch limit of 2 retries (branchIndex 0, 1, 2)
+- Branch limit of 2 retries (branchIndex 0-9)
 
 ## Dev Agent Record
 

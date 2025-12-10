@@ -16,7 +16,7 @@
     <tasks>
       - Add parent_message_id, branch_index, attachments, client_message_id fields to MessageDTO and MessageEntity (AC: #1, #7)
       - Update POST /api/threads/{id}/messages endpoint for branching support (AC: #2, #3, #4, #6)
-      - Implement branch validation logic (max 2 retries per parent) (AC: #5)
+      - Implement branch validation logic (max 9 retries per parent) (AC: #5)
       - Implement idempotency check on client_message_id (AC: #6)
       - Update GET /api/threads/{id}/messages endpoint to include branch info (AC: #1, #8)
       - Update error handling for message creation edge cases (AC: #4, #5, #6)
@@ -36,7 +36,7 @@
 
   <artifacts>
     <docs>
-      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Data Models - Desktop Message Entity (Updated)" snippet="New Phase 2 fields: parent_message_id UUID (nullable, self-referencing FK), branch_index INTEGER DEFAULT 0 (0=original, 1-2=retries), attachments JSONB [{fileId, filename, mimeType, sizeBytes, storageType}], client_message_id VARCHAR(255) for idempotency. CHECK constraints: role IN ('user', 'assistant', 'system'), branch_index >= 0 AND branch_index <= 2. UNIQUE INDEX on (thread_id, client_message_id) WHERE client_message_id IS NOT NULL." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Data Models - Desktop Message Entity (Updated)" snippet="New Phase 2 fields: parent_message_id UUID (nullable, self-referencing FK), branch_index INTEGER DEFAULT 0 (0=original, 1-9=retries), attachments JSONB [{fileId, filename, mimeType, sizeBytes, storageType}], client_message_id VARCHAR(255) for idempotency. CHECK constraints: role IN ('user', 'assistant', 'system'), branch_index >= 0 AND branch_index <= 2. UNIQUE INDEX on (thread_id, client_message_id) WHERE client_message_id IS NOT NULL." />
       <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="APIs - Thread API Endpoints (lines 246-249)" snippet="POST /api/threads/{threadId}/messages Request: {content, parentMessageId?, branchIndex?, attachments?, clientMessageId?} → Response: MessageDTO (201 Created or 200 OK if idempotent)." />
       <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Workflows §E1-S2/S3 (lines 350-362)" snippet="1. Update MessageEntity with branching fields (parent_message_id, branch_index, attachments, client_message_id). 2. Update MessageDTO to expose new fields. 3. Add branch validation logic in MessageService (count existing branches for parent). 4. Add idempotency check on client_message_id in MessageService." />
       <doc path="docs/sprint-artifacts/tech-spec-epic-1.md" title="Epic 1 Technical Specification" section="Acceptance Criteria #18-#25" snippet="AC#18: MessageDTO has new fields. AC#19-#21: Branching fields accepted/validated. AC#22: Branch index 0-2 accepted, 3+ rejected. AC#23: Idempotency on clientMessageId. AC#24: Attachments JSONB works. AC#25: Messages ordered by created_at." />
@@ -64,7 +64,7 @@
 
   <constraints>
     - **Repository Separation:** Moku API backend is SEPARATE repository. MessageController/Service/Repository implementation is in Moku API codebase, NOT in this desktop project.
-    - **Message Branching Model:** Root messages: parentMessageId = null, branchIndex = 0. Child messages: parentMessageId points to parent, branchIndex indicates retry attempt (0=original, 1-2=retries). Maximum 3 branches per parent (branch_index 0, 1, 2). Tree reconstruction: Client receives flat list ordered by created_at, reconstructs tree using parent references.
+    - **Message Branching Model:** Root messages: parentMessageId = null, branchIndex = 0. Child messages: parentMessageId points to parent, branchIndex indicates retry attempt (0=original, 1-9=retries). Maximum 10 branches per parent (branch_index 0-9). Tree reconstruction: Client receives flat list ordered by created_at, reconstructs tree using parent references.
     - **Idempotency:** client_message_id is optional. If provided, duplicate requests return existing message with 200 OK (not 201 Created). Unique index on (thread_id, client_message_id) WHERE client_message_id IS NOT NULL prevents duplicates. Log idempotent hits for monitoring.
     - **Branch Validation:** branchIndex 0-2 accepted. Values 3+ rejected with 400 error "Maximum retry branches reached". Database CHECK constraint enforces range. Unique constraint on (parent_message_id, branch_index) prevents race conditions.
     - **Parent Validation:** parentMessageId must exist in same thread. Query MessageRepository to validate. Return 400 Bad Request if invalid or belongs to different thread.
@@ -81,7 +81,7 @@
   </interfaces>
 
   <tests>
-    <standards>Use JUnit 5 for test structure. Use Mockito 5.x for mocking services/repositories. Use Spring Boot Test with @SpringBootTest for integration tests. Use Testcontainers for PostgreSQL database. Test JSONB serialization: Create message with attachments array, save, read back, verify structure. Test idempotency: POST twice with same clientMessageId, verify second returns 200 with existing message. Test branch validation: Create 3 branches (0, 1, 2), attempt 4th, expect 400. Test parent validation: POST with invalid parentMessageId, expect 400.</standards>
+    <standards>Use JUnit 5 for test structure. Use Mockito 5.x for mocking services/repositories. Use Spring Boot Test with @SpringBootTest for integration tests. Use Testcontainers for PostgreSQL database. Test JSONB serialization: Create message with attachments array, save, read back, verify structure. Test idempotency: POST twice with same clientMessageId, verify second returns 200 with existing message. Test branch validation: Create 3 branches (0-9), attempt 4th, expect 400. Test parent validation: POST with invalid parentMessageId, expect 400.</standards>
     <locations>moku-api/src/test/java/com/holokai/moku/ (unit and integration tests for Moku API backend)</locations>
     <ideas>
       <test ac="1,7" idea="Unit test: MessageMapperTest verifying new fields (parentMessageId, branchIndex, attachments, clientMessageId) serialize/deserialize correctly" />

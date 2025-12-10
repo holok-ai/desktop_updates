@@ -62,7 +62,7 @@
   <constraints>
     - **Desktop Implementation:** Svelte components for branch visualization. NOT backend work.
     - **Performance:** Maintain 60fps during lane scrolling. Use CSS Grid for efficient layout. Consider virtualization for long message lists.
-    - **Layout:** Single column until branch detected. Maximum 3 lanes visible (branchIndex 0, 1, 2). Nested branches limited to 2 levels for UX clarity.
+    - **Layout:** Single column until branch detected. Maximum 3 lanes visible (branchIndex 0-9). Nested branches limited to 2 levels for UX clarity.
     - **Styling:** Lane width 400px, 16px gap, 2px borders. Active lane highlighted with primary color border. Inactive lanes dimmed (opacity 0.6).
     - **Dependency on E2-S1, E2-S2:** Requires message tree data model and retry flow to create branches to visualize.
   </constraints>

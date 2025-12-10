@@ -546,7 +546,7 @@ Enhanced conversation management with dual-sidebar layout, thread branching, and
 **2. Thread Branching (Retry)**
 - **Branch Structure:**
   - Message tree via `parentMessageId`
-  - Maximum 2 retry branches per divergence point (branchIndex: 0=original, 1-2=retries)
+  - Maximum 9 retry branches per divergence point (branchIndex: 0=original, 1-9=retries)
   - Visual lane-based UI (horizontal lanes show branches side-by-side)
 - **User Actions:**
   - "Retry" button on any user message

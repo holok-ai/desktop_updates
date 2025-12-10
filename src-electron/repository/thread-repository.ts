@@ -27,6 +27,8 @@ export interface Message {
   editedAt?: number;
   versions?: MessageVersion[];
   isEdited?: boolean;
+  parentMessageId: string | null;
+  branchIndex: number; // 0-9: branch index for retry attempts (max 10 branches per parent)
 }
 
 /**

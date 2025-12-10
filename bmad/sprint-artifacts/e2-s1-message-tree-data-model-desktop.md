@@ -12,7 +12,7 @@ so that messages can form a tree structure for branching conversations.
 
 1. Messages form valid tree via parentMessageId (TM §2.1)
 2. Context assembly follows correct branch path by walking up tree (TM §2.3)
-3. Branch limit (max 2 retries = branchIndex 0,1,2) enforced locally before API call (TM §2.2)
+3. Branch limit (max 9 retries = branchIndex 0-9) enforced locally before API call (TM §2.2)
 4. MessageRepository queries support tree operations (get by parent, get branches)
 5. Root messages have parentMessageId = null
 6. assembleContext() returns ordered array from root to current message
@@ -20,7 +20,7 @@ so that messages can form a tree structure for branching conversations.
 ## Tasks / Subtasks
 
 - [ ] Update Message interface with tree fields (AC: #1, #5)
-  - [ ] Add to src/types/message.ts: parentMessageId: string | null, branchIndex: 0 | 1 | 2
+  - [ ] Add to src/types/message.ts: parentMessageId: string | null, branchIndex: 0-9 (number)
   - [ ] Update MessageDTO interface to match
   - [ ] Update message creation/parsing functions
 
@@ -39,9 +39,9 @@ so that messages can form a tree structure for branching conversations.
 
 - [ ] Implement getNextBranchIndex() with limit check (AC: #3)
   - [ ] Query existing branches for given parentMessageId
-  - [ ] Find max branchIndex currently used (0, 1, or 2)
-  - [ ] Return next index if < 2
-  - [ ] Throw error "Maximum retry branches reached (max: 2)" if at limit
+  - [ ] Find max branchIndex currently used (0-9)
+  - [ ] Return next index if < 9
+  - [ ] Throw error "Maximum retry branches reached (max: 9)" if at limit
   - [ ] Use for client-side validation before API call
 
 - [ ] Update cache support for branched messages (AC: #1)
@@ -53,8 +53,8 @@ so that messages can form a tree structure for branching conversations.
 
 **Tree Structure:**
 - Root messages: parentMessageId = null, branchIndex = 0
-- Child messages: parentMessageId = parent UUID, branchIndex = 0-2
-- Branch siblings: same parentMessageId, different branchIndex
+- Child messages: parentMessageId = parent UUID, branchIndex = 0-9
+- Branch siblings: same parentMessageId, different branchIndex (max 10 branches per parent)
 
 **Context Assembly Algorithm:**
 ```typescript

@@ -265,7 +265,7 @@ GET /api/threads/{threadId}/messages
   "branchPoints": [
     {
       "messageId": "msg-uuid-3",
-      "branches": [0, 1, 2]
+      "branches": [0-9]
     }
   ]
 }
@@ -322,7 +322,7 @@ POST /api/threads/{threadId}/messages
 **Validation Rules:**
 - `parentMessageId` required except for first message
 - `branchIndex` must be 0-2
-- Maximum 2 retry branches per parent (branchIndex 1 and 2)
+- Maximum 9 retry branches per parent (branchIndex 1 and 2)
 - Content max 32KB
 - `clientMessageId` for idempotency
 
@@ -1779,7 +1779,7 @@ public class AuthorizationService {
 - [ ] Add `parent_message_id`, `branch_index`, `attachments` to desktop_messages
 - [ ] Add `type`, `owner_id`, `project_id`, `created_by` to desktop_threads
 - [ ] Update `AppendMessageRequestDTO` for branching
-- [ ] Add branch validation (max 2 retries per parent)
+- [ ] Add branch validation (max 9 retries per parent)
 - [ ] Add `POST /api/threads/{id}/generate-title` endpoint
 - [ ] Update thread list to include `branchCount`
 
@@ -1820,7 +1820,7 @@ public class AuthorizationService {
 
 | Decision | Value |
 |----------|-------|
-| Message branching | `parentMessageId` tree, max 2 retries (branchIndex 1-2) |
+| Message branching | `parentMessageId` tree, max 9 retries (branchIndex 1-2) |
 | Thread ownership | `type` + `ownerId` pattern |
 | Project access | Role-based (view/edit/admin) via `project_members` |
 | Workflow versioning | Integer version, `parentId` for forks |

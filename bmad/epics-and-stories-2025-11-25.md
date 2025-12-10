@@ -210,12 +210,12 @@ E8: UI/UX Polish (after E2, E3)
   - [ ] Accept `client_message_id` for idempotency
   - [ ] Accept `attachments` array with fileId references
   - [ ] Validate parent message exists in same thread
-  - [ ] Validate branch_index is 0, 1, or 2
-- [ ] Add branch validation (max 2 retries per parent) `TM §2.2`
+  - [ ] Validate branch_index is 0-9
+- [ ] Add branch validation (max 9 retries per parent) `TM §2.2`
   - [ ] Query existing messages with same parent_message_id
   - [ ] Count distinct branch_index values
   - [ ] Reject if requested branch_index already exists
-  - [ ] Reject if branch_index > 2
+  - [ ] Reject if branch_index > 9
   - [ ] Return clear error: "Maximum retry branches reached"
 - [ ] Add idempotency check on `client_message_id` `API §3.5`
   - [ ] Add unique index on (thread_id, client_message_id)
@@ -386,7 +386,7 @@ E8: UI/UX Polish (after E2, E3)
 - [ ] Add `parentMessageId`, `branchIndex` to Message interface `TM §2.1`
   - [ ] Update `src/types/message.ts` with new fields
   - [ ] Add TypeScript types for branching (parentMessageId: string | null)
-  - [ ] Add branchIndex: 0 | 1 | 2 type constraint
+  - [ ] Add branchIndex: number (0-9) type constraint
   - [ ] Update message creation functions
 - [ ] Update MessageRepository for tree queries `ARCH §5.2`
   - [ ] Add `getMessagesByParentId(parentId)` method

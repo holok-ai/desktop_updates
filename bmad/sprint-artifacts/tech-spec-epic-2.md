@@ -9,14 +9,14 @@ Status: Draft
 
 ## Overview
 
-Epic 2 implements a message tree structure enabling users to retry prompts and create alternative conversation branches without losing original responses. This feature addresses the core user need (US-13 from PRD §3.2) to explore different prompt variations while maintaining conversation history. The implementation supports up to 2 retry branches per divergence point (branchIndex: 0=original, 1-2=retries) with visual lane-based UI representation, automatic title generation after the second exchange, and enhanced clipboard operations for copying/pasting between branches.
+Epic 2 implements a message tree structure enabling users to retry prompts and create alternative conversation branches without losing original responses. This feature addresses the core user need (US-13 from PRD §3.2) to explore different prompt variations while maintaining conversation history. The implementation supports up to 9 retry branches per divergence point (branchIndex: 0=original, 1-9=retries) with visual lane-based UI representation, automatic title generation after the second exchange, and enhanced clipboard operations for copying/pasting between branches.
 
 ## Objectives and Scope
 
 **In Scope:**
 - Message tree data model with `parentMessageId` and `branchIndex` fields
 - Retry button on user messages with prompt editing capability
-- Branch creation flow with maximum 2 retry branches per divergence point
+- Branch creation flow with maximum 9 retry branches per divergence point
 - Lane-based branch visualization UI component
 - Automatic thread title generation after 2nd message exchange
 - Enhanced clipboard operations (copy-to-input, copy-to-clipboard, copy code blocks)
@@ -25,7 +25,7 @@ Epic 2 implements a message tree structure enabling users to retry prompts and c
 - Branch limit validation and user feedback
 
 **Out of Scope:**
-- More than 2 retry branches per message (enforced limit per PRD §3.2.2)
+- More than 9 retry branches per message (enforced limit per PRD §3.2.2)
 - Merging or collapsing branches
 - Branch comparison/diff views
 - Undo/redo for branch operations (deferred to Phase 3)
@@ -43,7 +43,7 @@ This epic extends the existing thread architecture (Architecture §3, §5.2) wit
 - **ChatWindow UI** - New MessageBranch component for lane visualization (Architecture §8.1)
 
 **Architectural Constraints:**
-- Maximum 2 retry branches enforced at service layer (PRD §3.2.2)
+- Maximum 9 retry branches enforced at service layer (PRD §3.2.2)
 - Message tree stored in local SQLite (`desktop_messages` table with `parentMessageId`, `branchIndex` columns per Architecture §10.3)
 - Synchronization with Moku API requires branch-aware conflict resolution
 - Clipboard operations maintain desktop-first architecture with fallback to web clipboard API
@@ -78,7 +78,7 @@ interface Message {
 
   // Tree structure fields (NEW)
   parentMessageId: string | null;  // null for root messages
-  branchIndex: number;              // 0=original, 1-2=retries
+  branchIndex: 0=original, 1-9=retries
 
   // Existing fields
   attachments?: Attachment[];
@@ -97,7 +97,7 @@ CREATE TABLE desktop_messages (
   content TEXT NOT NULL,
   timestamp INTEGER NOT NULL,
   parent_message_id TEXT,           -- FK to desktop_messages.id
-  branch_index INTEGER DEFAULT 0,   -- 0, 1, or 2
+  branch_index INTEGER DEFAULT 0,   -- 0-9
   attachments TEXT,                 -- JSON
   metadata TEXT,                    -- JSON
   status TEXT NOT NULL,
@@ -119,7 +119,7 @@ interface BranchLimitCheck {
   parentMessageId: string;
   existingBranches: number;  // Count of siblings with same parentMessageId
   canCreateBranch: boolean;  // true if existingBranches < 2
-  errorMessage?: string;     // "Maximum 2 retry branches per message"
+  errorMessage?: string;     // "Maximum 9 retry branches per message"
 }
 ```
 
@@ -152,7 +152,7 @@ async submit(
   // 1. Validate branch limit
   const siblings = await this.getSiblingBranches(parentMessageId);
   if (siblings.length >= 2 && branchIndex === undefined) {
-    throw new BranchLimitError('Maximum 2 retry branches per message');
+    throw new BranchLimitError('Maximum 9 retry branches per message');
   }
 
   // 2. Assign branchIndex (auto-increment or explicit)
@@ -262,7 +262,7 @@ interface ClipboardService {
 3. **Branch Limit Validation**
    - Frontend calls `threads:validateBranchLimit(parentMessageId)`
    - Backend counts existing siblings: `SELECT COUNT(*) WHERE parent_message_id = ? AND role = 'user'`
-   - If count >= 2, show error: "Maximum 2 retry branches per message"
+   - If count >= 9, show error: "Maximum 9 retry branches per message"
    - Otherwise, proceed
 
 4. **Branch Creation**
@@ -361,7 +361,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - Cache invalidation failures: worst case is stale UI until next refresh (non-critical)
 
 **Data Consistency:**
-- Branch index constraints enforced at database level (CHECK constraint: branch_index IN (0,1,2))
+- Branch index constraints enforced at database level (CHECK constraint: branch_index IN (0-9))
 - Orphaned messages prevented by foreign key constraints
 - Tree cycles prevented by application logic (parentMessageId cannot reference descendants)
 
@@ -439,7 +439,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 
 **AC-1: Message Tree Structure (E2-S1)**
 - [ ] `desktop_messages` table has `parent_message_id` column (TEXT, nullable, FK to desktop_messages.id)
-- [ ] `desktop_messages` table has `branch_index` column (INTEGER, default 0, CHECK constraint: IN (0,1,2))
+- [ ] `desktop_messages` table has `branch_index` column (INTEGER, default 0, CHECK constraint: IN (0-9))
 - [ ] `desktop_messages` table has `deleted_at` column (INTEGER, nullable) for soft deletes
 - [ ] Indexes created: `idx_messages_parent`, `idx_messages_thread_tree`, `idx_messages_deleted`
 - [ ] MessageRepository.getSiblingBranches(parentMessageId) returns all non-deleted messages with same parent (WHERE deleted_at IS NULL)
@@ -455,15 +455,15 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - [ ] Clicking retry opens prompt editor pre-filled with original prompt text
 - [ ] Attachments from original message carried forward by default in editor
 - [ ] User can edit prompt and modify attachments before submitting retry
-- [ ] Branch creation validates limit: if 2 siblings exist, show error "Maximum 2 retry branches per message"
-- [ ] New branch assigned branchIndex = count of existing siblings (0, 1, or 2)
+- [ ] Branch creation validates limit: if 2 siblings exist, show error "Maximum 9 retry branches per message"
+- [ ] New branch assigned branchIndex = count of existing siblings (0-9)
 - [ ] User message created with correct parentMessageId and branchIndex
 - [ ] AI response saved with parentMessageId = new user message ID, branchIndex = 0
 - [ ] Full retry flow completes in <2 seconds (excluding AI generation time)
 
 **AC-3: Branch Visualization UI (E2-S3)**
 - [ ] Branched messages render in separate vertical lanes (side-by-side layout)
-- [ ] Maximum 3 lanes visible simultaneously (original + 2 retries)
+- [ ] Maximum 10 lanes visible simultaneously (original + 9 retries)
 - [ ] Lane scrolling maintains 60fps performance (measured via DevTools)
 - [ ] Active branch visually highlighted with border or background color
 - [ ] User can click to switch between branches
@@ -625,7 +625,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
   - No duplicate messages in path
   - Sibling branches never in path content
 - **Verify branch index constraints:**
-  - branchIndex always 0, 1, or 2
+  - branchIndex always 0-9
   - No gaps (if branchIndex 2 exists, branchIndex 1 also exists)
 
 **Test Frameworks & Tools:**

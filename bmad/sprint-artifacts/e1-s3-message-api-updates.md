@@ -55,7 +55,7 @@ so that messages can have parent-child relationships and support retry branches.
   - [ ] Write integration test: POST message with invalid parentMessageId (expect 400 validation error)
   - [ ] Write integration test: POST message with parentMessageId from different thread (expect 400)
 
-- [ ] Implement branch validation logic (max 2 retries per parent) (AC: #5)
+- [ ] Implement branch validation logic (max 9 retries per parent) (AC: #5)
   - [ ] Query existing messages: MessageRepository.findByThreadIdAndParentMessageId(threadId, parentMessageId)
   - [ ] Count distinct branch_index values for same parent
   - [ ] Validate branchIndex is 0 to 9 (CHECK constraint range)
@@ -105,8 +105,8 @@ so that messages can have parent-child relationships and support retry branches.
 
 **Message Branching Model:**
 - Root messages: parentMessageId = null, branchIndex = 0
-- Child messages: parentMessageId points to parent, branchIndex indicates retry attempt (0=original, 1-2=retries)
-- Maximum 3 branches per parent (branch_index 0, 1, 2) [Source: Tech Spec Epic 1 §Data Models]
+- Child messages: parentMessageId points to parent, branchIndex indicates retry attempt (0=original, 1-9=retries)
+- Maximum 10 branches per parent (branch_index 0-9) [Source: Tech Spec Epic 1 §Data Models]
 - Tree reconstruction: Client receives flat list ordered by created_at, reconstructs tree using parent references
 
 **Idempotency Pattern:**
@@ -153,7 +153,7 @@ so that messages can have parent-child relationships and support retry branches.
 **Integration Testing:**
 - POST /api/threads/{id}/messages with all parameter combinations
 - Idempotency: Same clientMessageId twice (first 201, second 200)
-- Branch validation: Attempt branchIndex 0, 1, 2, 3 (3 should fail)
+- Branch validation: Attempt branchIndex 0-9, then 10 (10 should fail)
 - Parent validation: Invalid parentMessageId (expect 400)
 - Concurrent branch creation: Race condition handling (unique constraint)
 - GET /api/threads/{id}/messages: Verify ordering and new fields
