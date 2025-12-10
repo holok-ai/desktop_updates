@@ -14,27 +14,20 @@ export function formatToolDescriptions(tools: ToolDefinition[]): string {
 
 export function buildToolInstructionPrompt(toolDescriptions: string): string {
   return [
-    'You can modify files using the write_file tool function.',
-
-    'CRITICAL RULES:',
-    '1. When user asks to create/read/modify a file, IMMEDIATELY call the tool - do NOT ask for permission first',
-    '2. For file content: Generate the COMPLETE, ACTUAL content that should be written to the file',
-    '   - CRITICAL: Put the FULL content in the "content" field of the tool call JSON, NOT in your response text',
-    '   - Generate the actual content based on what the user requests - if they ask for specific content, include it all',
-    '   - NEVER use placeholders like "...", "etc", or "and so on" in the "content" field',
-    '   - The "content" field must contain the EXACT text that should be in the file',
-    '   - Generate complete, usable content - do not summarize or truncate the actual content',
-    '3. When you need to use a tool, respond ONLY with JSON in this shape:',
-    '   {"tool": "tool_name", "input": { ... }}',
-    '   Do not add any text outside this JSON.',
-    '4. After calling a tool, you will receive a result starting with:',
-    '   - "TOOL SUCCEEDED" - operation worked',
-    '   - "TOOL FAILED" - operation failed',
+    'When the user asks to read, create, or modify files, use the appropriate tool.',
     '',
-    '- NEVER explain how tools work.',
-    '- NEVER include tool-related text in your response unless a tool operation fails.',
-    '- For non-file questions, respond normally without using any tools.',
-    toolDescriptions ? `Available tools:\n\n${toolDescriptions}` : 'No tools available.',
-  ].join('\n\n');
+    'Tool calling format:',
+    '{"tool": "tool_name", "input": {...}}',
+    '',
+    'RULES:',
+    '- Call tools immediately without asking permission',
+    '- For write_file: Put COMPLETE content in the "content" field (no placeholders or "...")',
+    '- When calling a tool, respond ONLY with the JSON (nothing else)',
+    '- After tool execution, you will receive the result',
+    '- Then provide a natural response to the user based on the result',
+    '- NEVER mention tools, JSON, or technical details in your user-facing response',
+    '- For non-file questions, respond normally',
+    '',
+    toolDescriptions ? `Tools:\n${toolDescriptions}` : '',
+  ].join('\n');
 }
-

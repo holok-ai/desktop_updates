@@ -296,18 +296,18 @@ export class PerplexityChatProvider implements IChatProvider {
       if (error.startsWith('FILE_EXISTS:')) {
         const match = error.match(/FILE_EXISTS:\s*'([^']+)'/);
         const filePath = match ? match[1] : 'the file';
-        return `TOOL FAILED - File already exists: ${filePath} already exists. To overwrite it, the user must say to overwrite it.`;
+        return `File already exists: ${filePath} already exists. To overwrite it, the user must say to overwrite it.`;
       }
 
       if (error.startsWith('ACCESS_DENIED:')) {
-        return `TOOL FAILED - Access denied: ${error.replace('ACCESS_DENIED: ', '')}`;
+        return `Access denied: ${error.replace('ACCESS_DENIED: ', '')}`;
       }
 
       if (error.startsWith('PERMISSION_DENIED:')) {
-        return `TOOL FAILED - Permission denied: ${error.replace('PERMISSION_DENIED: ', '')}`;
+        return `Permission denied: ${error.replace('PERMISSION_DENIED: ', '')}`;
       }
 
-      return `TOOL FAILED - ${error}`;
+      return error;
     }
 
     switch (toolName) {
@@ -319,9 +319,21 @@ export class PerplexityChatProvider implements IChatProvider {
         };
         const filePath = data.path || 'unknown';
         if (data.created) {
-          return `TOOL SUCCEEDED - File created successfully at ${filePath}.`;
+          return `File created at ${filePath}`;
         }
-        return `TOOL SUCCEEDED - File updated successfully at ${filePath}.`;
+        return `File updated at ${filePath}`;
+      }
+      case 'read_file': {
+        // For read_file, return the actual file content
+        return typeof result.data === 'string' 
+          ? result.data 
+          : JSON.stringify(result.data);
+      }
+      case 'read_folder': {
+        // For read_folder, return the folder listing
+        return typeof result.data === 'string' 
+          ? result.data 
+          : JSON.stringify(result.data);
       }
       default:
         return JSON.stringify({
