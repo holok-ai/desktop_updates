@@ -416,16 +416,26 @@
     }
   }
 
+  .message.user {
+    display: flex;
+    justify-content: flex-end;
+    flex-direction: column;
+    align-items: end;
+  }
+
   .message.user .message-content {
     background: var(--surface-card);
     padding: 0.5rem;
     border-radius: 6px;
+    text-align: left;
+    max-width: 80%;
   }
 
   .message.assistant .message-content {
     background: transparent;
     padding: 0.5rem;
     border-radius: 6px;
+    text-align: left;
   }
 
   .message.failed .message-content {
@@ -506,12 +516,14 @@
   }
 
   .message-actions {
-    position: absolute;
-    right: 0.5rem;
-    top: 0;
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  .message.user .message-actions {
+    left: 0.5rem;
+    right: auto;
   }
 
   .copy-button {
@@ -622,6 +634,10 @@
     gap: 0.5rem;
     margin-top: 0.25rem;
     position: relative;
+  }
+
+  .message.user .message-footer {
+    justify-content: flex-end;
   }
 
   .message-meta {

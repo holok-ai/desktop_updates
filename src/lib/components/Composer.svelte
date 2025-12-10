@@ -129,7 +129,9 @@
 
   async function send() {
     let payload = text.trim();
-    if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming) return;
+    if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming) {
+      return;
+    }
 
     const filesToProcess = [...selectedFiles];
     text = ''; // Clear input immediately
@@ -300,9 +302,9 @@
         class="composer-send"
         type="button"
         onclick={send}
-        disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
+        disabled={isStreaming}
         aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-        aria-disabled={isStreaming || (!text.trim() && selectedFiles.length === 0)}
+        aria-disabled={isStreaming}
         class:sending={isStreaming}
       >
         <svg
@@ -319,7 +321,7 @@
             d="M13 7l5 5m0 0l-5 5m5-5H6"
           />
         </svg>
-        <span class="button-text">Send</span>
+        <span class="button-text text-white dark:text-black">Send</span>
       </button>
     </div>
   </div>
@@ -433,16 +435,15 @@
     align-self: stretch;
   }
 
-  .attach-button,
-  .composer-send {
+  .attach-button {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: calc(var(--inline-spacing) * 0.5);
     padding: 8px;
     border-radius: var(--border-radius);
-    border: 1px solid var(--surface-border);
-    background: var(--surface-card);
+    border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+    background: transparent;
     color: var(--primary-color);
     font-weight: 500;
     font-size: 0.875rem;
@@ -452,10 +453,23 @@
   }
 
   .composer-send {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--inline-spacing) * 0.5);
+    padding: 8px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--primary-color);
     background: var(--primary-color);
-    border-color: var(--primary-color);
     color: var(--primary-color-text);
     font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+    min-width: fit-content;
+  }
+
+  .composer-send {
     margin-top: auto;
   }
 
@@ -475,8 +489,9 @@
   }
 
   .attach-button:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary-color) 60%, transparent);
+    color: color-mix(in srgb, var(--primary-color) 90%, transparent);
   }
 
   .composer-send:hover:not(:disabled) {
