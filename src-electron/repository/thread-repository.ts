@@ -228,8 +228,9 @@ export class ThreadRepository {
     let thread = this.threadsById.get(threadId);
     if (!thread) {
       log.info('[ThreadRepository] Thread not in cache, fetching:', threadId);
-      thread = await this.loadThread(threadId);
-      if (!thread) throw new Error(`Thread not found: ${threadId}`);
+      const loadedThread = await this.loadThread(threadId);
+      if (!loadedThread) throw new Error(`Thread not found: ${threadId}`);
+      thread = loadedThread;
     }
 
     const message = this.mapDTOToMessage(messageDTO, thread.title);

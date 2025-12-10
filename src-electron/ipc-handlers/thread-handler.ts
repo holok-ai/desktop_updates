@@ -58,7 +58,7 @@ function generateId(): string {
 /**
  * Initialize sample data (kept for test compatibility)
  */
-export function initializeSampleData(): void {
+export async function initializeSampleData(): Promise<void> {
   const now = Date.now();
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * 60 * 60 * 1000;
@@ -157,14 +157,14 @@ export function initializeSampleData(): void {
 
   const svc: ThreadRepository = threadRepository;
 
-  samples.forEach((s) => {
-    const thread = svc.createThread({
+  for (const s of samples) {
+    const thread = await svc.createThread({
       title: s.title,
       description: s.description,
       tags: s.tags,
     });
     svc.setThreadTimestamps(thread.id, s.createdAt, s.updatedAt);
-  });
+  }
 }
 
 // Export helpers for tests
@@ -173,20 +173,19 @@ export { broadcast, generateId };
 export function registerThreadHandlers(): void {
   // No external persistence; threadsService is memory-only
   // Ensure sample data exists for handlers that expect initial items (tests rely on this)
-  try {
-    const existing = threadRepository.listThreads();
-    if (!existing || existing.length === 0) initializeSampleData();
-  } catch (_e) {
+  threadRepository.listThreads().then(async (existing) => {
+    if (!existing || existing.length === 0) await initializeSampleData();
+  }).catch(_e => {
     // ignore initialization errors in test environments
-  }
+  });
 
   ipcMain.handle(
     'thread:getAll',
-    (
+    async (
       _event,
       options?: { projectId?: string | null; includeProjectOnly?: boolean },
     ): Promise<RendererThread[]> => {
-      const list = threadRepository.listThreads();
+      const list = await threadRepository.listThreads();
       let filtered = list;
 
       // Privacy mode filtering
@@ -207,38 +206,38 @@ export function registerThreadHandlers(): void {
       const mapped = filtered
         .map((t) => toRendererThread(t))
         .filter((x): x is RendererThread => x !== null);
-      return Promise.resolve(mapped);
+      return mapped;
     },
   );
 
-  ipcMain.handle('thread:getById', (_event, id: string): Promise<RendererThread | null> => {
-    const t = threadRepository.loadThread(id);
-    return Promise.resolve(toRendererThread(t));
+  ipcMain.handle('thread:getById', async (_event, id: string): Promise<RendererThread | null> => {
+    const t = await threadRepository.loadThread(id);
+    return toRendererThread(t);
   });
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle('thread:getMessages', (_event, id: string): Promise<Message[]> => {
+  ipcMain.handle('thread:getMessages', async (_event, id: string): Promise<Message[]> => {
     // Privacy enforcement hook (no-op without caller context)
-    const t0 = threadRepository.loadThread(id);
+    const t0 = await threadRepository.loadThread(id);
     if (t0 && t0.metadata?.projectId) {
       const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
       if (proj && proj.privacyMode === 'project_only') {
         // In future, enforce caller/project context here
       }
     }
-    const t = threadRepository.loadThread(id);
-    if (!t) return Promise.resolve([]);
+    const t = await threadRepository.loadThread(id);
+    if (!t) return [];
     const items: Message[] = t.messages
       .filter((m) => !m.deletedAt)
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((m) => ({ ...m }));
-    return Promise.resolve(items);
+    return items;
   });
 
   // Duplicate message (Run again) — create a new user prompt from existing user message
   ipcMain.handle(
     'thread:duplicateMessage',
-    (
+    async (
       _event,
       threadId: string,
       messageId: string,
@@ -254,48 +253,48 @@ export function registerThreadHandlers(): void {
 
       // Authorization check
       if (!auth.isAuthenticated()) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
           thread_id: threadId,
-        });
+        };
       }
 
       const currentUser = auth.getUser();
-      const internal = threadRepository.loadThread(threadId);
+      const internal = await threadRepository.loadThread(threadId);
       if (!internal) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 404,
           error: 'THREAD_NOT_FOUND',
           thread_id: threadId,
-        });
+        };
       }
 
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
           thread_id: threadId,
-        });
+        };
       }
 
       try {
         // Inline duplicate logic to avoid calling potentially untyped exported helper in tests
-        const threadObj = threadRepository.loadThread(threadId);
+        const threadObj = await threadRepository.loadThread(threadId);
         if (!threadObj) throw new Error(`Thread not found: ${threadId}`);
         const original = threadObj.messages.find((m) => m.id === messageId);
         if (!original) throw new Error(`Message not found: ${messageId}`);
         if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
-        const msg: Message = threadRepository.appendMessage(threadId, {
+        const msg: Message = await threadRepository.appendMessage(threadId, {
           role: 'user',
           content: original.content,
           metadata: original.metadata,
         });
-        const rt = toRendererThread(threadRepository.loadThread(threadId));
+        const rt = toRendererThread(await threadRepository.loadThread(threadId));
         if (!rt) throw new Error('Failed to convert thread after duplicate');
 
         broadcast('thread:updated', rt);
@@ -305,24 +304,24 @@ export function registerThreadHandlers(): void {
           timestamp: new Date(msg.createdAt).toISOString(),
         });
 
-        return Promise.resolve({
+        return {
           success: true,
           message: { id: msg.id, role: msg.role, content: msg.content, createdAt: msg.createdAt },
           thread: rt,
-        } as const);
+        } as const;
       } catch (e: unknown) {
         if (e instanceof Error) {
           if (e.message === 'CAN_ONLY_DUPLICATE_USER_PROMPTS') {
-            return Promise.resolve({
+            return {
               success: false,
               status: 400,
               error: e.message,
               thread_id: threadId,
-            });
+            };
           }
-          return Promise.resolve({ success: false, status: 400, error: e.message });
+          return { success: false, status: 400, error: e.message };
         }
-        return Promise.resolve({ success: false, status: 400, error: String(e) });
+        return { success: false, status: 400, error: String(e) };
       }
     },
   );
@@ -350,19 +349,19 @@ export function registerThreadHandlers(): void {
         }
       }
 
-      const th = threadRepository.createThread(metadata);
+      const th = await threadRepository.createThread(metadata);
       const rt = toRendererThread(th);
       if (!rt) throw new Error('Failed to convert created thread');
       broadcast('thread:created', rt);
       perfLog.end({ threadId: th.id });
-      return Promise.resolve(rt);
+      return rt;
     },
   );
 
   ipcMain.handle(
     'thread:update',
-    (_event, id: string, updates: Partial<RendererThread>): Promise<RendererThread> => {
-      const existing = threadRepository.loadThread(id);
+    async (_event, id: string, updates: Partial<RendererThread>): Promise<RendererThread> => {
+      const existing = await threadRepository.loadThread(id);
       if (!existing) throw new Error(`Thread with id ${id} not found`);
 
       // Merge metadata and top-level fields
@@ -375,7 +374,7 @@ export function registerThreadHandlers(): void {
       }
 
       const updated: ReturnType<(typeof threadRepository)['saveThread']> =
-        threadRepository.saveThread({
+        await threadRepository.saveThread({
           ...existing,
           title: typeof updates.title === 'string' ? updates.title : existing.title,
           metadata: newMetadata,
@@ -386,14 +385,14 @@ export function registerThreadHandlers(): void {
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
       broadcast('thread:updated', rt);
-      return Promise.resolve(rt);
+      return rt;
     },
   );
 
   // Rename thread with validation and title history tracking
   ipcMain.handle(
     'thread:renameThread',
-    (
+    async (
       _event,
       threadId: string,
       newTitle: string,
@@ -405,36 +404,36 @@ export function registerThreadHandlers(): void {
 
       // Authorization check
       if (!auth.isAuthenticated()) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
-        });
+        };
       }
 
       const currentUser = auth.getUser();
-      const internal = threadRepository.loadThread(threadId);
+      const internal = await threadRepository.loadThread(threadId);
       if (!internal) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 404,
           error: 'THREAD_NOT_FOUND',
-        });
+        };
       }
 
       // Ownership check
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
-        });
+        };
       }
 
       try {
         // Get all existing thread titles for duplicate checking
-        const allThreads = threadRepository.listThreads();
+        const allThreads = await threadRepository.listThreads();
         const existingTitles = allThreads.filter((t) => t.id !== threadId).map((t) => t.title);
 
         // Validate the new title
@@ -445,18 +444,18 @@ export function registerThreadHandlers(): void {
         );
 
         if (!validation.valid) {
-          return Promise.resolve({
+          return {
             success: false,
             status: 400,
             error: validation.error || 'Invalid title',
             code: validation.code,
-          });
+          };
         }
 
         // Rename the thread (uses sanitized title from validation)
         const sanitizedTitle = validation.sanitizedTitle || newTitle;
         const userId = currentUser?.id;
-        const updated = threadRepository.renameThread(threadId, sanitizedTitle, userId);
+        const updated = await threadRepository.renameThread(threadId, sanitizedTitle, userId);
 
         const rt = toRendererThread(updated);
         if (!rt) throw new Error('Failed to convert thread after rename');
@@ -466,29 +465,29 @@ export function registerThreadHandlers(): void {
 
         threadLog.info(`Thread ${threadId} renamed to "${sanitizedTitle}"`);
 
-        return Promise.resolve({
+        return {
           success: true,
           thread: rt,
-        });
+        };
       } catch (error) {
         const err = error as Error;
         threadLog.error(`Failed to rename thread ${threadId}:`, err);
 
         // Map repository errors to appropriate status codes
         if (err.message === 'TITLE_EMPTY' || err.message === 'TITLE_TOO_LONG') {
-          return Promise.resolve({
+          return {
             success: false,
             status: 400,
             error: err.message,
             code: err.message,
-          });
+          };
         }
 
-        return Promise.resolve({
+        return {
           success: false,
           status: 500,
           error: err.message || 'Failed to rename thread',
-        });
+        };
       }
     },
   );
@@ -496,7 +495,7 @@ export function registerThreadHandlers(): void {
   // Undo the most recent rename operation
   ipcMain.handle(
     'thread:undoRename',
-    (
+    async (
       _event,
       threadId: string,
     ): Promise<
@@ -507,36 +506,36 @@ export function registerThreadHandlers(): void {
 
       // Authorization check
       if (!auth.isAuthenticated()) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
-        });
+        };
       }
 
       const currentUser = auth.getUser();
-      const internal = threadRepository.loadThread(threadId);
+      const internal = await threadRepository.loadThread(threadId);
       if (!internal) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 404,
           error: 'THREAD_NOT_FOUND',
-        });
+        };
       }
 
       // Ownership check
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
-        });
+        };
       }
 
       try {
         // Undo the rename
-        const updated = threadRepository.undoRenameThread(threadId);
+        const updated = await threadRepository.undoRenameThread(threadId);
 
         const rt = toRendererThread(updated);
         if (!rt) throw new Error('Failed to convert thread after undo rename');
@@ -546,57 +545,57 @@ export function registerThreadHandlers(): void {
 
         threadLog.info(`Undo rename for thread ${threadId}, restored title: "${updated.title}"`);
 
-        return Promise.resolve({
+        return {
           success: true,
           thread: rt,
-        });
+        };
       } catch (e: unknown) {
         if (e instanceof Error) {
           threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
 
           // Map repository errors
           if (e.message === 'NO_RENAME_HISTORY') {
-            return Promise.resolve({
+            return {
               success: false,
               status: 400,
               error: 'No rename history available',
               code: 'NO_RENAME_HISTORY',
-            });
+            };
           }
 
-          return Promise.resolve({
+          return {
             success: false,
             status: 500,
             error: e.message || 'Failed to undo rename',
-          });
+          };
         }
         threadLog.error(`Failed to undo rename for thread ${threadId}:`, e);
-        return Promise.resolve({
+        return {
           success: false,
           status: 500,
           error: String(e) || 'Failed to undo rename',
-        });
+        };
       }
     },
   );
 
-  ipcMain.handle('thread:delete', (_event, id: string): Promise<boolean> => {
-    const deleted = threadRepository.deleteThread(id);
+  ipcMain.handle('thread:delete', async (_event, id: string): Promise<boolean> => {
+    const deleted = await threadRepository.deleteThread(id);
     if (deleted) broadcast('thread:deleted', id);
-    return Promise.resolve(deleted);
+    return deleted;
   });
 
   // Soft delete thread (set deletedAt/status) and broadcast deletion
-  ipcMain.handle('thread:softDelete', (_event, id: string): Promise<boolean> => {
-    const ok = threadRepository.softDeleteThread(id);
+  ipcMain.handle('thread:softDelete', async (_event, id: string): Promise<boolean> => {
+    const ok = await threadRepository.softDeleteThread(id);
     if (ok) broadcast('thread:deleted', id);
-    return Promise.resolve(ok);
+    return ok;
   });
 
   // Append message with idempotency and auth checks (memory approach)
   ipcMain.handle(
     'thread:appendMessage',
-    (
+    async (
       _event,
       threadId: string,
       payload: {
@@ -617,23 +616,23 @@ export function registerThreadHandlers(): void {
 
       // Authorization check
       if (!auth.isAuthenticated()) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
           thread_id: threadId,
-        });
+        };
       }
 
       const currentUser = auth.getUser();
-      const internal = threadRepository.loadThread(threadId);
+      const internal = await threadRepository.loadThread(threadId);
       if (!internal) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 404,
           error: 'THREAD_NOT_FOUND',
           thread_id: threadId,
-        });
+        };
       }
 
       // Privacy enforcement hook (no-op without caller context)
@@ -647,23 +646,23 @@ export function registerThreadHandlers(): void {
       // Ownership check if thread has userId
       const ownerId = (internal.metadata?.userId as string | undefined) ?? undefined;
       if (ownerId && currentUser && ownerId !== currentUser.id) {
-        return Promise.resolve({
+        return {
           success: false,
           status: 403,
           error: 'THREAD_ACCESS_DENIED',
           thread_id: threadId,
-        });
+        };
       }
 
       try {
-        const msg: Message = threadRepository.appendMessage(threadId, {
+        const msg: Message = await threadRepository.appendMessage(threadId, {
           role: payload.role,
           content: payload.content,
           metadata: payload.metadata,
           clientMessageId: payload.client_message_id,
         });
 
-        const rt = toRendererThread(threadRepository.loadThread(threadId));
+        const rt = toRendererThread(await threadRepository.loadThread(threadId));
         if (!rt) throw new Error('Failed to convert thread after append');
 
         // Broadcast thread updated and audit event
@@ -674,7 +673,7 @@ export function registerThreadHandlers(): void {
           timestamp: new Date(msg.createdAt).toISOString(),
         });
 
-        return Promise.resolve({
+        return {
           success: true,
           message: {
             id: msg.id,
@@ -683,18 +682,18 @@ export function registerThreadHandlers(): void {
             createdAt: msg.createdAt,
           },
           thread: rt,
-        } as const);
+        } as const;
       } catch (e) {
         const err = e as Error;
         if (err.message === 'MESSAGE_TOO_LARGE') {
-          return Promise.resolve({
+          return {
             success: false,
             status: 413,
             error: 'MESSAGE_TOO_LARGE',
             thread_id: threadId,
-          });
+          };
         }
-        return Promise.resolve({ success: false, status: 400, error: String(e) });
+        return { success: false, status: 400, error: String(e) };
       }
     },
   );
@@ -702,7 +701,7 @@ export function registerThreadHandlers(): void {
   // Add user prompt (creates thread if id null)
   ipcMain.handle(
     'thread:addUserPrompt',
-    (
+    async (
       _event,
       threadId: string | null,
       prompt: string,
@@ -718,7 +717,7 @@ export function registerThreadHandlers(): void {
     }> => {
       // Merge metadata into opts for createThread
       const createOpts = opts.metadata ? { ...opts, ...opts.metadata } : opts;
-      const res = threadRepository.addUserPrompt(threadId, prompt, createOpts);
+      const res = await threadRepository.addUserPrompt(threadId, prompt, createOpts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread');
       const msg = {
@@ -728,16 +727,16 @@ export function registerThreadHandlers(): void {
         createdAt: res.message.createdAt,
       };
       broadcast('thread:updated', rt);
-      return Promise.resolve({ thread: rt, message: msg });
+      return { thread: rt, message: msg };
     },
   );
 
   // Add assistant response
   ipcMain.handle(
     'thread:addAssistantResponse',
-    (_event, threadId: string, response: string, model?: string) => {
+    async (_event, threadId: string, response: string, model?: string) => {
       // Check if title generation will happen
-      const threadBefore = threadRepository.loadThread(threadId);
+      const threadBefore = await threadRepository.loadThread(threadId);
       let willGenerateTitle = false;
 
       if (threadBefore) {
@@ -753,8 +752,8 @@ export function registerThreadHandlers(): void {
       }
 
       // Add the assistant response (this may trigger auto-title generation)
-      const msg = threadRepository.addAssistantResponse(threadId, response, model);
-      const threadObj = threadRepository.loadThread(threadId);
+      const msg = await threadRepository.addAssistantResponse(threadId, response, model);
+      const threadObj = await threadRepository.loadThread(threadId);
       const thread = toRendererThread(threadObj);
       if (!thread) throw new Error('Failed to convert thread after assistant response');
 
@@ -767,19 +766,19 @@ export function registerThreadHandlers(): void {
       }
 
       broadcast('thread:updated', thread);
-      return Promise.resolve({
+      return {
         id: msg.id,
         role: msg.role,
         content: msg.content,
         createdAt: msg.createdAt,
-      });
+      };
     },
   );
 
   // Save prompt and multiple responses atomically
   ipcMain.handle(
     'thread:savePromptAndResponses',
-    (
+    async (
       _event,
       threadId: string | null,
       prompt: string,
@@ -788,17 +787,19 @@ export function registerThreadHandlers(): void {
     ) => {
       // Check if title generation will happen (only for new threads with responses)
       let willGenerateTitle = false;
-      if ((!threadId || !threadRepository.loadThread(threadId)) && responses.length > 0) {
-        const hasTitle = opts.title && opts.title.trim() !== '';
-        willGenerateTitle = !hasTitle;
+      if (!threadId || !(await threadRepository.loadThread(threadId))) {
+        if (responses.length > 0) {
+          const hasTitle = opts.title && opts.title.trim() !== '';
+          willGenerateTitle = !hasTitle;
 
-        if (willGenerateTitle) {
-          threadLog.debug('[thread-handler] Title generation will trigger for new thread');
-          // Note: we don't have threadId yet, will emit finished event after creation
+          if (willGenerateTitle) {
+            threadLog.debug('[thread-handler] Title generation will trigger for new thread');
+            // Note: we don't have threadId yet, will emit finished event after creation
+          }
         }
       }
 
-      const res = threadRepository.savePromptAndResponses(threadId, prompt, responses, opts);
+      const res = await threadRepository.savePromptAndResponses(threadId, prompt, responses, opts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread after savePromptAndResponses');
 
@@ -823,7 +824,7 @@ export function registerThreadHandlers(): void {
         createdAt: m.createdAt,
       }));
       broadcast('thread:updated', rt);
-      return Promise.resolve({ thread: rt, promptMessage, responseMessages });
+      return { thread: rt, promptMessage, responseMessages };
     },
   );
 
@@ -838,19 +839,19 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:deleteMessagesAfter called', { threadId, messageId });
 
       try {
-        threadRepository.deleteMessagesAfter(threadId, messageId);
-        const thread = threadRepository.loadThread(threadId);
+        await threadRepository.deleteMessagesAfter(threadId, messageId);
+        const thread = await threadRepository.loadThread(threadId);
         const rt = thread ? toRendererThread(thread) : null;
 
         if (!rt) throw new Error('Failed to load thread after deletion');
 
         broadcast('thread:updated', rt);
 
-        return Promise.resolve({ success: true, thread: rt });
+        return { success: true, thread: rt };
       } catch (error) {
         const err = error as Error;
         threadLog.error('[IPC] Error deleting messages after:', err);
-        return Promise.resolve({ success: false, error: err.message });
+        return { success: false, error: err.message };
       }
     },
   );
@@ -858,7 +859,7 @@ export function registerThreadHandlers(): void {
   // Move thread to/from project
   ipcMain.handle(
     'thread:moveToProject',
-    (
+    async (
       _event,
       threadId: string,
       targetProjectId: string | null,
@@ -870,7 +871,7 @@ export function registerThreadHandlers(): void {
         throw new Error('Authentication required');
       }
 
-      const thread = threadRepository.loadThread(threadId);
+      const thread = await threadRepository.loadThread(threadId);
       if (!thread) {
         throw new Error(`Thread not found: ${threadId}`);
       }
@@ -887,7 +888,7 @@ export function registerThreadHandlers(): void {
       if (currentProjectId === targetProjectId) {
         const rt = toRendererThread(thread);
         if (!rt) throw new Error('Failed to convert thread');
-        return Promise.resolve(rt);
+        return rt;
       }
 
       // Update thread metadata with new project assignment
@@ -910,7 +911,7 @@ export function registerThreadHandlers(): void {
         newMetadata.contextHandling = options.contextHandling;
       }
 
-      const updated = threadRepository.updateThreadMetadata(threadId, newMetadata);
+      const updated = await threadRepository.updateThreadMetadata(threadId, newMetadata);
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
 
@@ -921,7 +922,7 @@ export function registerThreadHandlers(): void {
         toProject: targetProjectId ?? 'general',
       });
 
-      return Promise.resolve(rt);
+      return rt;
     },
   );
 
@@ -940,8 +941,8 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:updateMessage called', { threadId, messageId });
 
       try {
-        const updatedMessage = threadRepository.updateMessage(threadId, messageId, newContent);
-        const thread = threadRepository.loadThread(threadId);
+        const updatedMessage = await threadRepository.updateMessage(threadId, messageId, newContent);
+        const thread = await threadRepository.loadThread(threadId);
         const rt = thread ? toRendererThread(thread) : null;
 
         if (!rt) throw new Error('Failed to load thread after update');
@@ -953,15 +954,15 @@ export function registerThreadHandlers(): void {
           timestamp: new Date(updatedMessage.editedAt ?? Date.now()).toISOString(),
         });
 
-        return Promise.resolve({
+        return {
           success: true as const,
           message: updatedMessage,
           thread: rt,
-        });
+        };
       } catch (error) {
         const err = error as Error;
         threadLog.error('[IPC] Error updating message:', err);
-        return Promise.resolve({ success: false, error: err.message });
+        return { success: false, error: err.message };
       }
     },
   );
@@ -979,12 +980,12 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:getMessageVersions called', { threadId, messageId });
 
       try {
-        const versions = threadRepository.getMessageVersions(threadId, messageId);
-        return Promise.resolve({ success: true, versions });
+        const versions = await threadRepository.getMessageVersions(threadId, messageId);
+        return { success: true, versions };
       } catch (error) {
         const err = error as Error;
         threadLog.error('[IPC] Error getting message versions:', err);
-        return Promise.resolve({ success: false, error: err.message });
+        return { success: false, error: err.message };
       }
     },
   );
@@ -1004,12 +1005,12 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:updateMessageMetadata called', { threadId, messageId });
 
       try {
-        const updatedMessage = threadRepository.updateMessageMetadata(
+        const updatedMessage = await threadRepository.updateMessageMetadata(
           threadId,
           messageId,
           metadataUpdates,
         );
-        const thread = threadRepository.loadThread(threadId);
+        const thread = await threadRepository.loadThread(threadId);
         const rt = thread ? toRendererThread(thread) : null;
 
         if (!rt) throw new Error('Failed to load thread after metadata update');
@@ -1021,15 +1022,15 @@ export function registerThreadHandlers(): void {
           timestamp: new Date().toISOString(),
         });
 
-        return Promise.resolve({
+        return {
           success: true as const,
           message: updatedMessage,
           thread: rt,
-        });
+        };
       } catch (error) {
         const err = error as Error;
         threadLog.error('[IPC] Error updating message metadata:', err);
-        return Promise.resolve({ success: false, error: err.message });
+        return { success: false, error: err.message };
       }
     },
   );
