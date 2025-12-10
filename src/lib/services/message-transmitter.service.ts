@@ -107,6 +107,8 @@ export class MessageTransmitter {
       status: initialStatus,
       clientMessageId,
       retryCount: 0,
+      parentMessageId: null,
+      branchIndex: 0,
     };
 
     this.callbacks.onMessageAdd(userMsg);
@@ -164,6 +166,8 @@ export class MessageTransmitter {
         content: responseText,
         createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
         status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
+        parentMessageId: null,
+        branchIndex: 0,
       };
 
       this.callbacks.onMessageAdd(assistantMsg);
@@ -184,6 +188,8 @@ export class MessageTransmitter {
           content: saved.promptMessage.content,
           createdAt: saved.promptMessage.createdAt,
           status: MESSAGE_STATUS.SENT,
+          parentMessageId: null,
+          branchIndex: 0,
         },
         ...saved.responseMessages.map(
           (m): Message => ({
@@ -192,6 +198,8 @@ export class MessageTransmitter {
             content: m.content,
             createdAt: m.createdAt,
             status: MESSAGE_STATUS.SENT,
+            parentMessageId: null,
+            branchIndex: 0,
           }),
         ),
       ];
@@ -266,6 +274,8 @@ export class MessageTransmitter {
                   ? assistantPersist.message.createdAt
                   : Date.now(),
                 status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
+                parentMessageId: null,
+                branchIndex: 0,
               };
 
               this.callbacks.onMessageAdd(assistantMsg);
