@@ -374,7 +374,7 @@ export function registerThreadHandlers(): void {
       }
 
       const updated: ReturnType<(typeof threadRepository)['saveThread']> =
-        await threadRepository.saveThread({
+        threadRepository.saveThread({
           ...existing,
           title: typeof updates.title === 'string' ? updates.title : existing.title,
           metadata: newMetadata,
@@ -715,9 +715,8 @@ export function registerThreadHandlers(): void {
       thread: RendererThread;
       message: { id: string; role: string; content: string; createdAt: number };
     }> => {
-      // Merge metadata into opts for createThread
-      const createOpts = opts.metadata ? { ...opts, ...opts.metadata } : opts;
-      const res = await threadRepository.addUserPrompt(threadId, prompt, createOpts);
+      // Pass opts directly - metadata is already properly structured
+      const res = await threadRepository.addUserPrompt(threadId, prompt, opts);
       const rt = toRendererThread(res.thread);
       if (!rt) throw new Error('Failed to convert thread');
       const msg = {
@@ -839,7 +838,7 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:deleteMessagesAfter called', { threadId, messageId });
 
       try {
-        await threadRepository.deleteMessagesAfter(threadId, messageId);
+        threadRepository.deleteMessagesAfter(threadId, messageId);
         const thread = await threadRepository.loadThread(threadId);
         const rt = thread ? toRendererThread(thread) : null;
 
@@ -911,7 +910,7 @@ export function registerThreadHandlers(): void {
         newMetadata.contextHandling = options.contextHandling;
       }
 
-      const updated = await threadRepository.updateThreadMetadata(threadId, newMetadata);
+      const updated = threadRepository.updateThreadMetadata(threadId, newMetadata);
       const rt = toRendererThread(updated);
       if (!rt) throw new Error('Failed to convert updated thread');
 
@@ -941,7 +940,7 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:updateMessage called', { threadId, messageId });
 
       try {
-        const updatedMessage = await threadRepository.updateMessage(threadId, messageId, newContent);
+        const updatedMessage = threadRepository.updateMessage(threadId, messageId, newContent);
         const thread = await threadRepository.loadThread(threadId);
         const rt = thread ? toRendererThread(thread) : null;
 
@@ -970,17 +969,15 @@ export function registerThreadHandlers(): void {
   // Get message versions
   ipcMain.handle(
     'thread:getMessageVersions',
-    async (
+    (
       _event,
       threadId: string,
       messageId: string,
-    ): Promise<
-      { success: true; versions: MessageVersion[] } | { success: false; error: string }
-    > => {
+    ): { success: true; versions: MessageVersion[] } | { success: false; error: string } => {
       threadLog.info('[IPC] thread:getMessageVersions called', { threadId, messageId });
 
       try {
-        const versions = await threadRepository.getMessageVersions(threadId, messageId);
+        const versions = threadRepository.getMessageVersions(threadId, messageId);
         return { success: true, versions };
       } catch (error) {
         const err = error as Error;
@@ -1005,7 +1002,7 @@ export function registerThreadHandlers(): void {
       threadLog.info('[IPC] thread:updateMessageMetadata called', { threadId, messageId });
 
       try {
-        const updatedMessage = await threadRepository.updateMessageMetadata(
+        const updatedMessage = threadRepository.updateMessageMetadata(
           threadId,
           messageId,
           metadataUpdates,

@@ -1,7 +1,3 @@
-import { randomUUID } from 'crypto';
-import { app } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
 import log from 'electron-log';
 import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
@@ -71,18 +67,11 @@ export interface Thread {
   deletedAt?: number | null;
 }
 
-function generateId(prefix = ''): string {
-  return `${prefix}${randomUUID()}`;
-}
-
 export class ThreadRepository {
+  // API-first architecture - no longer loading from local disk
+  // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
-
-  constructor() {
-    // API-first architecture - no longer loading from local disk
-    // Threads are fetched from Moku API on demand
-  }
 
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
     const request: CreateThreadRequest = {
@@ -92,8 +81,16 @@ export class ThreadRepository {
     };
 
     log.info('[ThreadRepository] Creating thread via API:', request.title);
+    log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(metadata, null, 2));
+
     const threadDTO = await threadApiService.createThread(request);
+
+    log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
+    log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+
     const thread = this.mapDTOToThread(threadDTO);
+
+    log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
     // Cache locally for session
     this.threadsById.set(thread.id, thread);
@@ -121,16 +118,40 @@ export class ThreadRepository {
 
   public async loadThread(threadId: string): Promise<Thread | null> {
     // Check cache first
-    if (this.threadsById.has(threadId)) {
-      log.info('[ThreadRepository] Thread found in cache:', threadId);
-      return this.cloneThread(this.threadsById.get(threadId)!);
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      log.info('[ThreadRepository] Thread found in cache:', threadId, 'with', cachedThread.messages.length, 'messages');
+
+      // If thread is in cache but has no messages, we need to load them from API
+      // This happens when listThreads() cached the thread without messages
+      if (cachedThread.messages.length === 0) {
+        log.info('[ThreadRepository] Thread has no messages, fetching from API');
+        try {
+          const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+          cachedThread.messages = messagesResponse.content.map((dto) =>
+            this.mapDTOToMessage(dto, cachedThread.title),
+          );
+          this.threadsById.set(threadId, cachedThread);
+          log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
+        } catch (error) {
+          log.error('[ThreadRepository] Failed to load messages for cached thread:', error);
+        }
+      }
+
+      return this.cloneThread(cachedThread);
     }
 
     // Fetch from API
     try {
       log.info('[ThreadRepository] Fetching thread from API:', threadId);
       const threadDTO = await threadApiService.getThread(threadId);
+
+      log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
+      log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+
       const thread = this.mapDTOToThread(threadDTO);
+
+      log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
       // Fetch messages for the thread
       const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
@@ -151,7 +172,6 @@ export class ThreadRepository {
 
   public async listThreads(options?: { projectId?: string; page?: number; size?: number }): Promise<Thread[]> {
     try {
-      log.info('[ThreadRepository] Fetching threads from API');
       const response = await threadApiService.getThreads({
         type: options?.projectId ? 'project' : undefined,
         projectId: options?.projectId,
@@ -160,11 +180,12 @@ export class ThreadRepository {
         sort: 'createdAt,desc',
       });
 
-      const threads = response.content.map((dto) => this.mapDTOToThread(dto));
+      const threads = response.content.map((dto) => {
+        return this.mapDTOToThread(dto);
+      });
 
       // Update cache
       threads.forEach((thread) => this.threadsById.set(thread.id, thread));
-      log.info('[ThreadRepository] Fetched and cached', threads.length, 'threads');
 
       return threads.map((t) => this.cloneThread(t));
     } catch (error) {
@@ -242,10 +263,12 @@ export class ThreadRepository {
 
     // Update idempotency index
     if (payload.clientMessageId) {
-      if (!this.idempotencyIndex.has(threadId)) {
-        this.idempotencyIndex.set(threadId, new Map());
+      let byThread = this.idempotencyIndex.get(threadId);
+      if (!byThread) {
+        byThread = new Map();
+        this.idempotencyIndex.set(threadId, byThread);
       }
-      this.idempotencyIndex.get(threadId)!.set(payload.clientMessageId, message.id);
+      byThread.set(payload.clientMessageId, message.id);
     }
 
     log.info('[ThreadRepository] Message created and cached:', message.id);
@@ -574,7 +597,7 @@ export class ThreadRepository {
 
     try {
       log.info('[ThreadRepository] Soft deleting thread via API:', threadId);
-      await threadApiService.updateThread(threadId, { status: 'deleted' });
+      await threadApiService.deleteThread(threadId);
 
       // Update local cache
       thread.deletedAt = Date.now();
@@ -775,15 +798,19 @@ export class ThreadRepository {
   /**
    * Map ThreadDTO from API to internal Thread model.
    * Converts ISO-8601 timestamps to epoch milliseconds.
+   * Preserves custom metadata from API (including model configuration).
    */
   private mapDTOToThread(dto: ThreadDTO): Thread {
     return {
       id: dto.id,
       title: dto.title,
       metadata: {
+        // Standard fields
         type: dto.type,
         projectId: dto.projectId,
         status: dto.status,
+        // Merge in custom metadata from API (provider, modelAccessName, url, etc.)
+        ...(dto.metadata || {}),
       },
       messages: [], // Messages loaded separately
       createdAt: new Date(dto.createdAt).getTime(),

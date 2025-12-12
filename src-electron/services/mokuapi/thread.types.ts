@@ -16,6 +16,7 @@ export interface ThreadDTO {
   status: 'active' | 'archived' | 'deleted';
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
+  metadata?: Record<string, unknown>; // Custom metadata including model configuration
 }
 
 /**

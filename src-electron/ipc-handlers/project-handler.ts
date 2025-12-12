@@ -180,7 +180,7 @@ export function registerProjectHandlers(): void {
         for (const thread of projectThreads) {
           const newMetadata = { ...thread.metadata };
           delete newMetadata.projectId;
-          await threadRepository.updateThreadMetadata(thread.id, newMetadata);
+          threadRepository.updateThreadMetadata(thread.id, newMetadata);
         }
         projectLog.info('Unassigned threads from project', {
           projectId: String(id),

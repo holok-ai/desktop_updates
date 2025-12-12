@@ -299,22 +299,18 @@
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
 
-      // Extract only serializable metadata fields for IPC
-      const metadata = formData.metadata
-        ? {
-            modelId: formData.metadata.modelId,
-            modelTitle: formData.metadata.modelTitle,
-            modelAccessName: formData.metadata.modelAccessName,
-            provider: formData.metadata.provider,
-            url: formData.metadata.url,
-          }
-        : undefined;
-
-      // Create thread with prompt atomically, passing full metadata with model config
+      // Create thread with prompt atomically, passing metadata fields at top level
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
-        metadata,
+        // Spread metadata fields at top level, not nested
+        ...(formData.metadata ? {
+          modelId: formData.metadata.modelId,
+          modelTitle: formData.metadata.modelTitle,
+          modelAccessName: formData.metadata.modelAccessName,
+          provider: formData.metadata.provider,
+          url: formData.metadata.url,
+        } : {}),
       });
       const created = res.thread as Thread;
       threads.addThread(created);

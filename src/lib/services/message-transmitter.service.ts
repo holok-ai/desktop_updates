@@ -28,6 +28,26 @@ export class MessageTransmitter {
   }
 
   /**
+   * Extract message metadata from thread metadata
+   */
+  private extractMessageMetadata(thread: Thread | null): Record<string, unknown> {
+    if (thread?.metadata === undefined) {
+      console.warn('[MessageTransmitter] No thread metadata available, using defaults');
+      return { provider: 'unknown', model: 'unknown' };
+    }
+
+    const provider = thread.metadata.provider as string | undefined;
+    const model = thread.metadata.modelAccessName as string | undefined;
+
+    if (provider === undefined || provider === '' || model === undefined || model === '') {
+      console.warn('[MessageTransmitter] Missing provider or model in thread metadata:', thread.metadata);
+      return { provider: provider ?? 'unknown', model: model ?? 'unknown' };
+    }
+
+    return { provider, model };
+  }
+
+  /**
    * Update message status
    */
   updateMessageStatus(messageId: string, status: MessageStatus, errorMsg?: string): void {
@@ -51,10 +71,14 @@ export class MessageTransmitter {
     );
 
     try {
+      // Fetch thread to get correct metadata
+      const thread = await threadService.getThread(threadId);
+      const metadata = this.extractMessageMetadata(thread);
+
       const persistPromise = threadService.appendMessage(threadId, {
         role: message.role,
         content: message.content,
-        metadata: { provider: 'ollama', model: 'llama3:latest' },
+        metadata,
         clientMessageId: message.clientMessageId,
       });
 
@@ -67,7 +91,7 @@ export class MessageTransmitter {
       } else {
         throw new Error(persisted.error);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Failed to send';
       this.updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
       await outboxService.updateMessageStatus(message.id, MESSAGE_STATUS.FAILED, errorMsg);
@@ -153,10 +177,12 @@ export class MessageTransmitter {
 
     if (thread !== null && isPermanent) {
       // Append assistant response to existing thread
+      const metadata = this.extractMessageMetadata(thread);
+
       const assistantPersist = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
-        metadata: { provider: 'ollama', model: 'llama3:latest' },
+        metadata,
         clientMessageId: crypto.randomUUID(),
       });
 
@@ -173,10 +199,13 @@ export class MessageTransmitter {
       this.callbacks.onMessageAdd(assistantMsg);
     } else {
       // No thread yet: persist both prompt + response atomically
+      const metadata = this.extractMessageMetadata(thread);
+      const modelName = typeof metadata.model === 'string' && metadata.model !== '' ? metadata.model : 'unknown';
+
       const saved = await window.electronAPI.thread.savePromptAndResponses(
         null,
         userMessage,
-        [{ text: responseText, model: 'llama3:latest' }],
+        [{ text: responseText, model: modelName }],
         { title: thread?.title ?? '', description: thread?.description ?? '' },
       );
 
@@ -246,10 +275,13 @@ export class MessageTransmitter {
             chatHandler.setStreaming(true);
             chatHandler.setupTokenListener();
 
+            const metadata = this.extractMessageMetadata(thread);
+            const modelName = typeof metadata.model === 'string' && metadata.model !== '' ? metadata.model : 'unknown';
+
             const request = {
               messages: [{ role: 'user', content: pendingMsg.message.content }],
               streaming: true,
-              model: 'llama3:latest',
+              model: modelName,
             };
 
             const result = await wrapElectronCall(
@@ -262,7 +294,7 @@ export class MessageTransmitter {
               const assistantPersist = await threadService.appendMessage(thread.id, {
                 role: 'assistant',
                 content: responseText,
-                metadata: { provider: 'ollama', model: 'llama3:latest' },
+                metadata,
                 clientMessageId: crypto.randomUUID(),
               });
 

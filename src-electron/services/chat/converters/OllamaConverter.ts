@@ -8,21 +8,29 @@ import type { ChatRequest as OllamaChatRequest } from 'ollama';
 export class OllamaConverter {
   private constructor() {}
 
+  private static extractThreadId(
+    request: ChatRequest | ChatRequestWithOptions,
+  ): string | undefined {
+    const threadId = (request as { thread_id?: string }).thread_id;
+    if (typeof threadId === 'string' && threadId.length > 0) {
+      return threadId;
+    }
+
+    return undefined;
+  }
+
   /**
    * Convert internal ChatRequest to Ollama-specific format
    */
   static toOllamaRequest(request: ChatRequest): OllamaChatRequest {
+    const threadId = this.extractThreadId(request);
     let _ret: OllamaChatRequest = {
       model: request.model,
       messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
     return _ret;
-    // return {
-    //     model: request.model,
-    //     messages: request.messages.map(m => ({ role: m.role, content: m.content })),
-    //     stream: request.streaming !== false
-    // };
   }
 
   /**
@@ -30,11 +38,13 @@ export class OllamaConverter {
    */
   static toOllamaRequestWithOptions(request: ChatRequestWithOptions): OllamaChatRequest {
     const options = request.options || {};
+    const threadId = this.extractThreadId(request);
 
     const ollamaRequest: OllamaChatRequest = {
       model: request.model,
       messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
 
     // Build options object only with defined values

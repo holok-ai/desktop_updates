@@ -86,8 +86,6 @@ export class MokuService {
   public async exchangeApiKeyForAccessToken(
     apiKey: string,
   ): Promise<{ accessToken: string; expires_in: number }> {
-    log.info('[MokuService] Exchanging apiKey for accessToken');
-
     const mokuApiUrl = this.getMokuApiUrl();
 
     const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
@@ -103,7 +101,6 @@ export class MokuService {
     }
 
     const { accessToken, expires_in } = (await response.json()) as TokenRefreshResponse;
-    log.info('[MokuService] Successfully received accessToken');
 
     return { accessToken, expires_in };
   }
@@ -142,8 +139,6 @@ export class MokuService {
    * Fetches all pages and returns a complete list of applications
    */
   public async getAllApplications(): Promise<ApplicationSummary[]> {
-    log.info('[MokuService] Fetching all applications');
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -158,8 +153,6 @@ export class MokuService {
 
     while (hasMore) {
       try {
-        log.info(`[MokuService] Fetching applications page ${page}`);
-
         const response = await fetch(`${mokuApiUrl}/api/applications?page=${page}&size=1000`, {
           method: 'GET',
           headers: {
@@ -183,17 +176,11 @@ export class MokuService {
         allApps = allApps.concat(data.content);
         hasMore = data.hasNext;
         page++;
-
-        log.info(
-          `[MokuService] Fetched ${data.content.length} applications (page ${data.page + 1}/${data.totalPages})`,
-        );
       } catch (error) {
         log.error('[MokuService] Error fetching applications:', error);
         throw error;
       }
     }
-
-    log.info(`[MokuService] Successfully fetched ${allApps.length} total applications`);
 
     // Convert arrays to Sets for modelNames, guards, and evaluators
     return allApps.map((app) => ({
@@ -209,8 +196,6 @@ export class MokuService {
    * Fetches full application information including models array
    */
   public async getApplicationDetail(applicationId: string): Promise<ApplicationDetail> {
-    log.info(`[MokuService] Fetching application detail for ID: ${applicationId}`);
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -239,8 +224,6 @@ export class MokuService {
       }
 
       const data = (await response.json()) as ApplicationDetail;
-      log.info(`[MokuService] Successfully fetched application detail: ${data.name}`);
-
       return data;
     } catch (error) {
       log.error('[MokuService] Error fetching application detail:', error);
@@ -253,8 +236,6 @@ export class MokuService {
    * Fetches full agent information including chat configuration with Holo API URL
    */
   public async getAgentDetail(agentId: string): Promise<AgentChatConfig> {
-    log.info(`[MokuService] Fetching agent detail for ID: ${agentId}`);
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -283,8 +264,6 @@ export class MokuService {
       }
 
       const data = (await response.json()) as AgentChatConfig;
-      log.info(`[MokuService] Successfully fetched agent detail: ${data.name}`);
-
       return data;
     } catch (error) {
       log.error('[MokuService] Error fetching agent detail:', error);

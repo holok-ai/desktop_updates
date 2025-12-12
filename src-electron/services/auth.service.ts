@@ -33,6 +33,7 @@ export interface AuthState {
   user: UserProfile | null;
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
+  isTestMode?: boolean; // Flag to indicate test tokens are being used
 }
 
 /**
@@ -62,6 +63,10 @@ export class AuthService {
   constructor() {
     // Load stored auth data on initialization
     this.loadStoredAuth();
+
+    // For Playwright E2E tests - load tokens from environment variable
+    this.loadTestTokens();
+
     log.info('[AuthService] Initialized with Exchange Code Flow');
   }
 
@@ -119,6 +124,61 @@ export class AuthService {
     } catch (error) {
       log.error('[AuthService] Error loading stored auth:', error);
       this.clearStoredAuth();
+    }
+  }
+
+  /**
+   * Load authentication tokens from environment variable (for Playwright E2E tests)
+   * This bypasses encryption and allows tests to inject valid auth tokens
+   */
+  private loadTestTokens(): void {
+    const testTokensJson = process.env.PLAYWRIGHT_TEST_TOKENS;
+    if (!testTokensJson) {
+      return; // Not in test mode
+    }
+
+    try {
+      log.info('[AuthService] Loading test tokens from PLAYWRIGHT_TEST_TOKENS');
+      const testData = JSON.parse(testTokensJson) as {
+        accessToken?: string;
+        apiKey?: string;
+        expiresAt?: number;
+        user?: {
+          id: string;
+          email: string;
+          name?: string;
+          picture?: string;
+          organizationId?: string;
+        };
+      };
+
+      // Set tokens
+      if (testData.accessToken) {
+        this.currentAuthState.tokens = {
+          accessToken: testData.accessToken,
+          apiKey: testData.apiKey ?? '',
+          expiresAt: testData.expiresAt ?? Date.now() + 24 * 60 * 60 * 1000, // Default to 24h from now
+        };
+      }
+
+      // Set user profile
+      if (testData.user) {
+        this.currentAuthState.user = {
+          id: testData.user.id,
+          email: testData.user.email,
+          name: testData.user.name ?? 'Test User',
+          picture: testData.user.picture,
+          organizationId: testData.user.organizationId,
+        };
+      }
+
+      // Mark as authenticated and in test mode
+      this.currentAuthState.isAuthenticated = true;
+      this.currentAuthState.isTestMode = true; // Flag for UI/test awareness
+
+      log.info('[AuthService] Test tokens loaded successfully (TEST MODE) for user:', testData.user?.email);
+    } catch (error) {
+      log.error('[AuthService] Failed to parse PLAYWRIGHT_TEST_TOKENS:', error);
     }
   }
 
@@ -207,9 +267,7 @@ export class AuthService {
       log.info('[AuthService] Successfully received apiKey');
 
       // Step 2: Exchange apiKey for accessToken via MokuService
-      log.info('[AuthService] Step 2: Exchanging apiKey for accessToken');
       const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
-      log.info('[AuthService] Successfully received accessToken');
 
       // Create tokens object
       const tokens: AuthTokens = {
@@ -251,10 +309,6 @@ export class AuthService {
         unknown
       >;
 
-      // Log the full payload to see what fields are available
-      log.info('[AuthService] JWT payload fields:', Object.keys(payload));
-      log.info('[AuthService] JWT payload:', JSON.stringify(payload, null, 2));
-
       // Extract user information with type assertions
       const subject = payload.subject as string | undefined;
       const sub = payload.sub as string | undefined;
@@ -285,10 +339,6 @@ export class AuthService {
       // Final fallback
       extractedName = extractedName ?? 'User';
 
-      log.info('[AuthService] Extracted user email:', userEmail);
-      log.info('[AuthService] Extracted user name:', extractedName);
-      log.info('[AuthService] Extracted organizationId:', organizationId);
-
       if (!organizationId) {
         log.warn('[AuthService] ⚠️  WARNING: organizationId not found in JWT token!');
       }
@@ -316,11 +366,8 @@ export class AuthService {
    * Uses cached apiKey to obtain new access token from Moku API.
    */
   public async refreshAccessToken(): Promise<AuthTokens> {
-    log.info('[AuthService] Refreshing access token');
-
     // Check if token is still valid
     if (this.isTokenValid()) {
-      log.info('[AuthService] Token still valid, no refresh needed');
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       return this.currentAuthState.tokens!;
     }
@@ -334,9 +381,10 @@ export class AuthService {
     try {
       const apiKey = this.currentAuthState.tokens.apiKey;
 
-      log.info('[AuthService] Calling token refresh via MokuService');
       const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
-      log.info('[AuthService] Token refresh successful');
+
+      // Extract user info from the new access token to ensure it's up to date
+      const updatedUser = this.extractUserFromToken(accessToken);
 
       // Update tokens
       const newTokens: AuthTokens = {
@@ -345,10 +393,8 @@ export class AuthService {
         expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
       };
 
-      // Store updated tokens
-      if (this.currentAuthState.user) {
-        this.storeAuthData(newTokens, this.currentAuthState.user);
-      }
+      // Store updated tokens with updated user profile
+      this.storeAuthData(newTokens, updatedUser);
 
       return newTokens;
     } catch (error) {
@@ -410,8 +456,6 @@ export class AuthService {
         tokens,
         isAuthenticated: true,
       };
-
-      log.info('[AuthService] Auth data stored securely');
     } catch (error) {
       log.error('[AuthService] Error storing auth data:', error);
       throw error;

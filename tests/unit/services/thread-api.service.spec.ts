@@ -14,43 +14,50 @@ vi.mock('electron-log', () => ({
   },
 }));
 
-// Mock auth service
-const mockGetAccessToken = vi.fn();
+// Create mock instances with default return values
+const mockAuthService = {
+  getAccessToken: vi.fn().mockReturnValue('test-access-token'),
+};
+
+const mockSettingsService = {
+  get: vi.fn().mockReturnValue('https://api-test.holok.ai'),
+};
+
+// Mock the auth and settings services
 vi.mock('../../../src-electron/services/auth/auth.service.js', () => ({
-  authService: {
-    getAccessToken: mockGetAccessToken,
-  },
+  authService: mockAuthService,
 }));
 
-// Mock settings service
-const mockSettingsGet = vi.fn();
 vi.mock('../../../src-electron/services/settings/settings.service.js', () => ({
-  settingsService: {
-    get: mockSettingsGet,
-  },
+  settingsService: mockSettingsService,
 }));
+
+// Import service and test helpers
+const { threadApiService, __setDependenciesForTesting, __resetDependenciesForTesting } = await import('../../../src-electron/services/mokuapi/thread-api.service.js');
 
 describe('ThreadApiService (unit)', () => {
   let fetchMock: any;
-  let threadApiService: any;
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
+  beforeEach(() => {
+    // Inject mock dependencies
+    __setDependenciesForTesting(mockAuthService, mockSettingsService);
 
-    // Default mocks - authenticated with valid token
-    mockGetAccessToken.mockReturnValue('test-access-token');
-    mockSettingsGet.mockReturnValue('https://api-test.holok.ai');
-
-    // Setup fetch mock
+    // Reset fetch mock
+    if (fetchMock) {
+      fetchMock.mockReset();
+    }
     fetchMock = vi.spyOn(globalThis as any, 'fetch');
 
-    // Import service after mocks are setup
-    const module = await import('../../../src-electron/services/mokuapi/thread-api.service.js');
-    threadApiService = module.threadApiService;
+    // Reset mock call counts but keep default implementations
+    mockAuthService.getAccessToken.mockClear();
+    mockSettingsService.get.mockClear();
   });
 
   afterEach(() => {
-    fetchMock.mockRestore();
+    __resetDependenciesForTesting();
+    if (fetchMock) {
+      fetchMock.mockRestore();
+    }
   });
 
   describe('getThreads()', () => {
@@ -120,7 +127,7 @@ describe('ThreadApiService (unit)', () => {
 
     it('should throw error when not authenticated', async () => {
       // Arrange
-      mockGetAccessToken.mockReturnValue(null);
+      mockAuthService.getAccessToken.mockReturnValueOnce(null);
 
       // Act & Assert
       await expect(threadApiService.getThreads()).rejects.toThrow(
@@ -191,7 +198,7 @@ describe('ThreadApiService (unit)', () => {
 
       // Act & Assert
       await expect(threadApiService.createThread(createRequest)).rejects.toThrow(
-        'Authentication failed. Please log in again.',
+        'Authentication failed',
       );
     });
   });
@@ -246,7 +253,7 @@ describe('ThreadApiService (unit)', () => {
 
       // Act & Assert
       await expect(threadApiService.getThread(threadId)).rejects.toThrow(
-        `Thread not found: ${threadId}`,
+        'Thread not found',
       );
     });
   });

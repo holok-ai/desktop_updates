@@ -347,7 +347,9 @@
         messages: [...historyMessages, { role: 'user', content: userMessage }],
         streaming: true,
         model: modelName,
+        ...(currentThread?.id && { thread_id: currentThread.id }),
       };
+      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
 
       const result = await window.electronAPI.chat.chat(request);
 
@@ -421,6 +423,7 @@
         messages: historyMessages,
         streaming: true,
         model: modelName,
+        ...(currentThread?.id && { thread_id: currentThread.id }),
       };
 
       const chatResult = await window.electronAPI.chat.chat(request);
@@ -570,6 +573,7 @@
             messages: [{ role: 'user', content: initialPrompt }],
             streaming: true,
             model: modelName,
+            ...(currentThread?.id && { thread_id: currentThread.id }),
           };
 
           const result = await window.electronAPI.chat.chat(request);

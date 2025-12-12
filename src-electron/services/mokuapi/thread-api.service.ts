@@ -16,6 +16,52 @@ import type {
   MessageFilters,
 } from './thread.types.js';
 
+// Import dependencies directly (singleton pattern ensures single instance)
+import { getAuthService } from '../../ipc-handlers/auth-handler.js';
+import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
+import type { AuthService } from '../auth.service.js';
+import type { SettingsService } from '../settings.service.js';
+
+// For testing only - allow mock injection
+let mockAuthService: AuthService | null = null;
+let mockSettingsService: SettingsService | null = null;
+
+function getAuthServiceInternal(): AuthService {
+  // If mock injected for testing, use that
+  if (mockAuthService) {
+    return mockAuthService;
+  }
+  // Otherwise use real service
+  return getAuthService();
+}
+
+function getSettingsServiceInternal(): SettingsService {
+  // If mock injected for testing, use that
+  if (mockSettingsService) {
+    return mockSettingsService;
+  }
+  // Otherwise use real service
+  return getSettingsService();
+}
+
+/**
+ * For testing only - inject mock dependencies
+ * @internal
+ */
+export function __setDependenciesForTesting(auth: AuthService, settings: SettingsService): void {
+  mockAuthService = auth;
+  mockSettingsService = settings;
+}
+
+/**
+ * For testing only - reset dependencies
+ * @internal
+ */
+export function __resetDependenciesForTesting(): void {
+  mockAuthService = null;
+  mockSettingsService = null;
+}
+
 /**
  * Service for making authenticated thread/message API calls to Moku backend.
  * Follows the same patterns as MokuService for authentication and error handling.
@@ -25,10 +71,11 @@ class ThreadApiService {
    * Get access token from AuthService.
    * Returns null if user is not authenticated.
    */
-  private getAccessToken(): string | null {
+  private async getAccessToken(): Promise<string | null> {
     try {
-      const { authService } = require('../auth/auth.service.js');
-      return authService.getAccessToken();
+      const authSvc = getAuthServiceInternal();
+      const token = await authSvc.getAccessToken();
+      return token;
     } catch (error) {
       log.error('[ThreadApiService] Failed to get access token:', error);
       return null;
@@ -41,8 +88,7 @@ class ThreadApiService {
    */
   private getMokuApiUrl(): string {
     try {
-      const { settingsService } = require('../settings/settings.service.js');
-      return settingsService.get('mokuApiUrl') || 'https://api.holok.ai';
+      return getSettingsServiceInternal().getMokuApiUrl() || 'https://api.holok.ai';
     } catch (error) {
       log.warn('[ThreadApiService] Failed to get Moku API URL, using default:', error);
       return 'https://api.holok.ai';
@@ -61,7 +107,7 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async getThreads(filters?: ThreadFilters): Promise<PagedResponse<ThreadDTO>> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -97,7 +143,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<ThreadDTO>;
-    log.info('[ThreadApiService] Successfully fetched threads:', data.content.length, 'items');
     return data;
   }
 
@@ -109,7 +154,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async getThread(threadId: string): Promise<ThreadDTO> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -152,24 +197,45 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createThread(request: CreateThreadRequest): Promise<ThreadDTO> {
-    const accessToken = this.getAccessToken();
+    log.info('[ThreadApiService] createThread called with:', request);
+
+    const accessToken = await this.getAccessToken();
+    log.info('[ThreadApiService] Access token retrieved:', accessToken ? `YES (${accessToken.substring(0, 20)}...)` : 'NO');
+
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
 
     const mokuApiUrl = this.getMokuApiUrl();
+    log.info('[ThreadApiService] Moku API URL:', mokuApiUrl);
+
     const url = `${mokuApiUrl}/api/threads`;
+    log.info('[ThreadApiService] Full URL:', url);
 
     log.info('[ThreadApiService] Creating thread:', request.title);
+    log.info('[ThreadApiService] Request body:', JSON.stringify(request));
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+    let response;
+    try {
+      log.info('[ThreadApiService] About to call fetch...');
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
+      log.info('[ThreadApiService] Fetch completed, status:', response.status);
+    } catch (fetchError) {
+      log.error('[ThreadApiService] Fetch error:', fetchError);
+      log.error('[ThreadApiService] Fetch error details:', {
+        message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        name: fetchError instanceof Error ? fetchError.name : 'unknown',
+        stack: fetchError instanceof Error ? fetchError.stack : 'no stack',
+      });
+      throw fetchError;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -195,7 +261,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async updateThread(threadId: string, request: UpdateThreadRequest): Promise<ThreadDTO> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -239,7 +305,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async deleteThread(threadId: string): Promise<void> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -286,7 +352,7 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async getMessages(threadId: string, filters?: MessageFilters): Promise<PagedResponse<MessageDTO>> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -336,7 +402,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async getMessage(messageId: string): Promise<MessageDTO> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -380,7 +446,7 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createMessage(threadId: string, request: CreateMessageRequest): Promise<MessageDTO> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -437,7 +503,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async updateMessage(messageId: string, request: UpdateMessageRequest): Promise<MessageDTO> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -481,7 +547,7 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async deleteMessage(messageId: string): Promise<void> {
-    const accessToken = this.getAccessToken();
+    const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
