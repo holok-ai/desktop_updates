@@ -374,9 +374,11 @@
 <style>
   .threads-page {
     max-width: 1200px;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .loading {
@@ -389,10 +391,15 @@
     display: flex;
     gap: var(--content-padding);
     flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .threads-grid > .w-full {
     height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .error-banner {

@@ -331,7 +331,7 @@
   {#if isThreadActivity && !isCollapsed}
     <div class="new-thread-container">
       <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
-        <i class="pi pi-plus text-black"></i>
+        <i class="pi pi-plus text-black dark:text-white"></i>
         <span>New Thread ...</span>
       </button>
     </div>
@@ -502,6 +502,10 @@
 
   .new-thread-btn i {
     font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
   }
 
   :global(html.dark) .new-thread-btn {

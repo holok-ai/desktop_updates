@@ -10,6 +10,7 @@
   import CommentDisplay from './CommentDisplay.svelte';
   import CommentEditor from './CommentEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
+  import { toastStore } from '$lib/services/toast.service';
 
   interface Props {
     message: Message;
@@ -105,10 +106,10 @@
         document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      dispatch('copied', { message: 'Prompt copied to clipboard' });
+      toastStore.show(`Prompt copied to clipboard`, { variant: 'success' });
     } catch (error) {
       console.error('Copy failed', error);
-      dispatch('copied', { message: 'Failed to copy prompt' });
+      toastStore.show(`Failed to copy prompt`, { variant: 'error' });
     }
   }
 
@@ -310,12 +311,6 @@
         <span class="edited-indicator" title="Message was edited">✎ Edited</span>
       {/if}
     </span>
-    {#if message.status}
-      <span class="message-status" class:status-failed={message.status === MESSAGE_STATUS.FAILED}>
-        <span class="status-icon">{getStatusIcon(message.status)}</span>
-        <span class="status-text">{getStatusText(message.status)}</span>
-      </span>
-    {/if}
     <div class="message-actions">
       {#if message.status !== MESSAGE_STATUS.SENDING}
         <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
@@ -630,7 +625,6 @@
   .message-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
     margin-top: 0.25rem;
     position: relative;

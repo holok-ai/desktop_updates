@@ -889,6 +889,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     border: 1px solid var(--surface-border);
     border-radius: var(--border-radius);
     padding: var(--content-padding);
@@ -899,9 +901,10 @@
     padding: var(--content-padding) 0;
     border-bottom: 1px solid var(--surface-border);
     position: sticky;
-    top: -31px;
+    top: 0;
     z-index: 5;
     background: var(--surface-main);
+    flex-shrink: 0;
   }
 
   .header-content {
@@ -1232,7 +1235,10 @@
 
   .messages {
     flex: 1;
-    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
     margin-top: var(--content-padding);
     padding-right: var(--inline-spacing);
   }
@@ -1246,6 +1252,11 @@
 
   .composer {
     margin-top: var(--content-padding);
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-main);
+    padding-top: var(--content-padding);
   }
 
   .message-content {
