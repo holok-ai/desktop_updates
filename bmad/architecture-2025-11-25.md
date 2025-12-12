@@ -223,7 +223,7 @@ The data model includes six primary entity types with well-defined relationships
   - Removing attachment = exclude from new branch's array
   - Adding attachment = new `fileId` created
   - File deletion only when no message references exist
-- **Storage Split**: Personal threads use local filesystem, project threads use Storage Service
+- **Storage Split**: Personal files use local filesystem, project files use Storage Service. Threads and messages for both types always use Moku API with local caching
 - **UUID Generation**: Thread IDs are desktop-generated (UUID v4) for offline-first support
 - **Auto-Titling**: Threads get titles automatically after 2nd message exchange
 
@@ -233,70 +233,43 @@ The data model includes six primary entity types with well-defined relationships
 
 | Data Type | Personal | Project |
 |-----------|----------|---------|
-| Thread metadata | ThreadRepository (cached) + Moku | Moku API (cached) |
-| Messages | ThreadRepository (encrypted, compressed) | Moku API (cached) |
+| Thread metadata | Moku API (cached locally) | Moku API (cached locally) |
+| Messages | Moku API (cached locally) | Moku API (cached locally) |
 | File content | Local filesystem | Storage Service |
-| File metadata | ThreadRepository | Moku API |
-| Workflows | WorkflowRepository + Moku | Moku API |
+| File metadata | Moku API | Moku API |
+| Workflows | Moku API | Moku API |
 
-### 3.4 ThreadRepository Architecture
+### 3.4 Local Cache Architecture
 
-The desktop uses a **ThreadRepository** instead of SQLite for local data persistence. This provides compression, encryption, and LRU cache management.
+The desktop uses an encrypted local cache for performance when accessing Moku API data. Both personal and project threads/messages are stored in Moku API and cached locally with encryption and LRU eviction.
 
-ThreadRepository provides compressed, encrypted local storage for personal threads with LRU cache management, lazy message loading (paginated in chunks of 50), and single-file storage format (.dat files).
+**Cache Characteristics:**
+- **Storage:** All threads and messages stored in Moku API (both personal and project types)
+- **Local Cache:** Encrypted local cache with AES-256-GCM for performance
+- **TTL:** 5 minutes for thread lists, 2 minutes for messages
+- **Eviction:** LRU policy when cache exceeds size limits
+- **Lazy Loading:** Messages loaded in chunks of 50 for large threads
 
-**Key methods:** `getThread`, `saveThread`, `getMessages` (with pagination), cache management
-
-**→ See ThreadRepository interface:** [`architecture-detailed-code-2025-11-25.md` § 2.1](./architecture-detailed-code-2025-11-25.md#21-thread-interfaces)
-
-#### Storage Format
+**Cache Directory Structure:**
 
 ```
 ~/.holokai/
 ├── cache/
-│   ├── threads/
-│   │   ├── {threadId}.dat      # Compressed + encrypted thread + messages
-│   │   └── ...
-│   ├── index.json              # LRU index with access timestamps
-│   └── cache.meta              # Cache statistics
+│   ├── encrypted/             # Encrypted cache data
+│   │   ├── threads.cache      # Thread metadata cache
+│   │   ├── messages.cache     # Message content cache
+│   │   └── files.cache        # Project file cache (encrypted)
+│   └── index.json             # LRU index with access timestamps
 └── config/
     └── preferences.json
 ```
 
-#### Key Features
-
-| Feature | Implementation |
-|---------|----------------|
-| **Compression** | gzip compression before encryption (typically 60-80% reduction) |
-| **Encryption** | AES-256-GCM with key derived from user credentials |
-| **LRU Cache** | Max entries configurable (default: 100 threads), evicts least recently used |
-| **Lazy Loading** | Messages loaded in chunks of 50 for large threads |
-| **Single File** | Each thread stored as single `.dat` file (metadata + all messages) |
-
-#### Lazy Loading for Large Threads
-
-For threads with many messages, the repository supports pagination:
-
-```typescript
-// Initial load - get most recent 50 messages
-const result = await threadRepo.getMessages(threadId, { limit: 50 });
-// result: { messages: [...], hasMore: true, cursor: "msg-id-50" }
-
-// Load more - get next 50 messages
-const moreResult = await threadRepo.getMessages(threadId, {
-  limit: 50,
-  before: result.cursor
-});
-// result: { messages: [...], hasMore: true, cursor: "msg-id-100" }
-```
-
-#### Cache Policy
+**Cache Policy:**
 
 | Condition | Action |
 |-----------|--------|
 | Cache exceeds max entries | Evict LRU threads until under limit |
-| Thread accessed | Update access timestamp, move to front of LRU |
-| Thread modified | Save immediately, update access timestamp |
+| TTL expires | Refetch from Moku API |
 | User logout | Clear all cached data |
 | Manual clear | User can clear cache from Settings |
 
@@ -384,7 +357,7 @@ ThreadService manages thread lifecycle including creation, prompt submission wit
 
 ### 5.3 File Service (Storage Split)
 
-FileService handles upload/download with automatic storage routing - personal threads use local filesystem, project threads use Storage Service with presigned URLs and encrypted local caching.
+FileService handles upload/download with automatic storage routing - personal project files use local filesystem, project files use Storage Service with presigned URLs and encrypted local caching.
 
 **Key features:** Storage type detection, presigned URL handling, encrypted cache layer, download resumption
 
@@ -1002,12 +975,12 @@ App
 |----------|-------|
 | Architecture | Electron + Svelte, main/renderer process separation |
 | API Pattern | REST with JWT auth, presigned URLs for files |
-| Local Storage | ThreadRepository (no SQLite) with compression + encryption + LRU |
+| Thread/Message Storage | Moku API for both personal and project types, with encrypted local cache (TTL: 2-5 min) |
 | Cache Strategy | Dual cache (personal/project), LRU + TTL |
 | Encryption | AES-256-GCM for messages/files, 8-hour key rotation |
 | Thread Branching | Tree structure via parentMessageId, max 2 retries |
 | Large Threads | Lazy loading in chunks of 50 messages |
-| File Storage | Personal=local, Project=Storage Service |
+| File Storage | Personal=local filesystem, Project=Storage Service |
 | Collaboration | Polling (MVP), RabbitMQ (future) |
 | Offline Mode | **Not supported** - requires network connection |
 | State Persistence | JSON file with versioned migrations |
@@ -1581,12 +1554,12 @@ Features:
 |----------|-------|-------|
 | Architecture | Electron + Svelte, main/renderer process separation | |
 | API Pattern | REST with JWT auth, presigned URLs for files | |
-| Local Storage | ThreadRepository (no SQLite) with compression + encryption + LRU | |
+| Thread/Message Storage | Moku API for both personal and project types, with encrypted local cache (TTL: 2-5 min) | |
 | Cache Strategy | Dual cache (personal/project), LRU + TTL | |
 | Encryption | AES-256-GCM for messages/files, 8-hour key rotation | |
 | Thread Branching | Tree structure via parentMessageId, max 2 retries | |
 | Large Threads | Lazy loading in chunks of 50 messages | |
-| File Storage | Personal=local, Project=Storage Service | |
+| File Storage | Personal=local filesystem, Project=Storage Service | |
 | Collaboration | Polling (MVP), RabbitMQ (future) | |
 | Offline Mode | **Not supported** - requires network connection | |
 | State Persistence | JSON file with versioned migrations | |
