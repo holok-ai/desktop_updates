@@ -546,7 +546,7 @@ Enhanced conversation management with dual-sidebar layout, thread branching, and
 **2. Thread Branching (Retry)**
 - **Branch Structure:**
   - Message tree via `parentMessageId`
-  - Maximum 2 retry branches per divergence point (branchIndex: 0=original, 1-2=retries)
+  - Maximum 9 retry branches per divergence point (branchIndex: 0=original, 1-9=retries)
   - Visual lane-based UI (horizontal lanes show branches side-by-side)
 - **User Actions:**
   - "Retry" button on any user message
@@ -1249,9 +1249,9 @@ Electron-based desktop application with notifications, state persistence, deep l
 
 | Data Type | Personal | Project | Rationale |
 |-----------|----------|---------|-----------|
-| Thread metadata | Local + Moku | Moku API only | Personal: fast access; Project: shared |
-| Messages | Local (encrypted) | Moku API (cached locally) | Personal: offline access; Project: sync required |
-| Files | Local filesystem | Storage Service (S3/Blob) | Personal: small files; Project: large files, shared |
+| Thread metadata | Moku API (cached locally) | Moku API (cached locally) | Both stored via Moku API; cached for performance |
+| Messages | Moku API (cached locally) | Moku API (cached locally) | Both stored via Moku API; cached for performance |
+| Files | Local filesystem | Storage Service (S3/Blob) | Personal: local only; Project: shared cloud storage |
 | Workflows | Moku API | Moku API | Always synced for execution engine |
 | Credentials | Moku API (encrypted) | Moku API (encrypted) | Never stored locally (security) |
 
@@ -1259,8 +1259,8 @@ Electron-based desktop application with notifications, state persistence, deep l
 
 | Cache Type | Personal | Project | TTL | Eviction |
 |------------|----------|---------|-----|----------|
-| Thread list | LRU | LRU | None (personal), 5min (project) | LRU when >1,000 threads |
-| Messages | LRU | LRU | None (personal), 2min (project) | LRU when >100MB |
+| Thread list | LRU | LRU | 5min (both types) | LRU when >1,000 threads |
+| Messages | LRU | LRU | 2min (both types) | LRU when >100MB |
 | Files | Permanent | Encrypted | None (personal), 3 days (project) | Manual clear or TTL |
 | Workflow definitions | N/A | LRU | 10min | LRU when >500 workflows |
 

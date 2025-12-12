@@ -210,12 +210,12 @@ E8: UI/UX Polish (after E2, E3)
   - [ ] Accept `client_message_id` for idempotency
   - [ ] Accept `attachments` array with fileId references
   - [ ] Validate parent message exists in same thread
-  - [ ] Validate branch_index is 0, 1, or 2
-- [ ] Add branch validation (max 2 retries per parent) `TM §2.2`
+  - [ ] Validate branch_index is 0-9
+- [ ] Add branch validation (max 9 retries per parent) `TM §2.2`
   - [ ] Query existing messages with same parent_message_id
   - [ ] Count distinct branch_index values
   - [ ] Reject if requested branch_index already exists
-  - [ ] Reject if branch_index > 2
+  - [ ] Reject if branch_index > 9
   - [ ] Return clear error: "Maximum retry branches reached"
 - [ ] Add idempotency check on `client_message_id` `API §3.5`
   - [ ] Add unique index on (thread_id, client_message_id)
@@ -386,7 +386,7 @@ E8: UI/UX Polish (after E2, E3)
 - [ ] Add `parentMessageId`, `branchIndex` to Message interface `TM §2.1`
   - [ ] Update `src/types/message.ts` with new fields
   - [ ] Add TypeScript types for branching (parentMessageId: string | null)
-  - [ ] Add branchIndex: 0 | 1 | 2 type constraint
+  - [ ] Add branchIndex: number (0-9) type constraint
   - [ ] Update message creation functions
 - [ ] Update MessageRepository for tree queries `ARCH §5.2`
   - [ ] Add `getMessagesByParentId(parentId)` method
@@ -1211,75 +1211,89 @@ E8: UI/UX Polish (after E2, E3)
 
 ---
 
-#### E4-S4: ThreadRepository
+#### E4-S4: Local Cache Service
 **Size:** L
-**Description:** Local thread cache with compression, encryption, LRU policy, and lazy loading.
+**Description:** Encrypted caching layer for Moku API data (threads, messages) with TTL-based expiration, LRU eviction, and lazy loading support.
 
 **Requirement References:**
 | Task | Document | Section |
 |------|----------|---------|
-| ThreadRepository interface | ARCH | §3.4 |
-| Storage format | ARCH | §3.4 |
-| Compression/encryption | ARCH | §3.4 |
-| Lazy loading | ARCH | §3.4 |
-| Cache policy | ARCH | §3.4 |
+| Local Cache Architecture | ARCH | §3.4 |
+| Cache Strategy | ARCH | §4.1-4.2 |
+| TTL Configuration | TLC | §3.2 |
+| Encryption | ARCH | §7.1 |
+| Storage Split | ARCH | §3.3 |
 
 **Tasks:**
-- [ ] Create ThreadRepository interface and base class `ARCH §3.4`
-  - [ ] Create `src/repositories/base.repository.ts` with common utilities
-  - [ ] Create `src/repositories/thread.repository.ts`
-  - [ ] Define ThreadRepository interface with thread/message operations
-  - [ ] Create cache directory at `~/.holokai/cache/threads/`
-  - [ ] Add dependency injection for crypto and compression services
-- [ ] Implement compression layer `ARCH §3.4`
-  - [ ] Use gzip compression for thread data
-  - [ ] Compress on write, decompress on read
-  - [ ] Target ~70% size reduction for text-heavy threads
-  - [ ] Add compression stats to CacheStats
-- [ ] Implement encryption layer `ARCH §3.4`
-  - [ ] Use AES-256-GCM encryption
+- [ ] Create LocalCacheService class `ARCH §3.4`
+  - [ ] Create `src/services/LocalCacheService.ts`
+  - [ ] Define CacheEntry interface with data, timestamp, TTL, accessCount
+  - [ ] Create cache directory at `~/.holokai/cache/encrypted/`
+  - [ ] Add dependency injection for crypto service
+  - [ ] Use Map-based in-memory cache with disk persistence
+- [ ] Implement encryption layer `ARCH §7.1`
+  - [ ] Use AES-256-GCM encryption for all cached data
   - [ ] Generate per-installation encryption key
-  - [ ] Store key securely in OS keychain (keytar)
-  - [ ] Encrypt after compression, decrypt before decompression
-  - [ ] Handle key rotation (future consideration)
-- [ ] Implement thread storage operations `ARCH §3.4`
-  - [ ] `saveThread(thread)` - compress, encrypt, write to `{threadId}.dat`
-  - [ ] `getThread(id)` - read, decrypt, decompress, update LRU timestamp
-  - [ ] `deleteThread(id)` - remove file and update index
-  - [ ] `listThreads(options)` - list from index with filtering/sorting
-  - [ ] Maintain thread index file for fast listing
-- [ ] Implement lazy loading for messages `ARCH §3.4`
-  - [ ] `getMessages(threadId, { limit: 50, before?, after? })`
-  - [ ] Return `{ messages, hasMore, cursor }` structure
-  - [ ] Default chunk size: 50 messages
-  - [ ] Support cursor-based pagination (before/after)
-  - [ ] Load newest messages first (descending order)
-  - [ ] Cache message positions for efficient seeking
-- [ ] Implement LRU cache policy `ARCH §3.4`
-  - [ ] Track last access time per thread
-  - [ ] Implement `evictLRU(targetSizeBytes)` method
-  - [ ] Default max cache size: 500MB
-  - [ ] Evict oldest accessed threads when over limit
-  - [ ] Never evict threads accessed in last 24 hours
-  - [ ] Add `getCacheStats()` method (size, count, oldest, newest)
-- [ ] Implement cache management utilities `ARCH §3.4`
-  - [ ] `clearCache()` - remove all cached threads
-  - [ ] Automatic cache cleanup on app startup
-  - [ ] Handle corrupt/unreadable cache files gracefully
-  - [ ] Log cache operations for debugging
+  - [ ] Store key securely in OS keychain (Electron safeStorage)
+  - [ ] Encrypt before writing to disk, decrypt after reading
+  - [ ] Handle key rotation on 8-hour intervals
+- [ ] Implement thread list caching with TTL `ARCH §3.4, §4.2`
+  - [ ] `cacheThreadList(threads, ttl=300000)` - 5 minute TTL
+  - [ ] `getThreadList()` - return cached list if not expired, else null
+  - [ ] Store as `threads.cache` encrypted file
+  - [ ] Include timestamp and TTL metadata
+  - [ ] Auto-invalidate on expiration
+- [ ] Implement message caching with TTL `ARCH §3.4, §4.2`
+  - [ ] `cacheMessages(threadId, messages, ttl=120000)` - 2 minute TTL
+  - [ ] `getMessages(threadId)` - return cached if not expired, else null
+  - [ ] Store as `messages-{threadId}.cache` encrypted files
+  - [ ] Support lazy loading: cache chunks of 50 messages
+  - [ ] Shorter TTL due to frequent updates
+- [ ] Implement project file cache `ARCH §3.4, §4.2`
+  - [ ] `cacheFile(fileId, content, ttl=259200000)` - 3 day TTL
+  - [ ] `getFile(fileId)` - return cached file if not expired
+  - [ ] Store as `files-{fileId}.cache` encrypted files
+  - [ ] Only cache project files (personal files stay local)
+- [ ] Implement LRU eviction policy `ARCH §4.2`
+  - [ ] Track access timestamps for all cache entries
+  - [ ] Implement `evictLRU()` method
+  - [ ] Trigger eviction when total cache size exceeds 500MB
+  - [ ] Evict oldest accessed entries first
+  - [ ] Never evict entries accessed in last 5 minutes
+  - [ ] Update access timestamp on every get operation
+- [ ] Implement cache invalidation methods `TLC §3.4`
+  - [ ] `invalidateThread(threadId)` - remove specific thread cache
+  - [ ] `invalidateMessages(threadId)` - remove message cache for thread
+  - [ ] `invalidateThreadList()` - clear thread list cache
+  - [ ] `invalidateAll()` - clear entire cache (logout)
+  - [ ] `invalidateExpired()` - remove all expired entries
+- [ ] Add cache statistics and monitoring `ARCH §3.4`
+  - [ ] `getCacheStats()` - return size, entry count, hit rate, miss rate
+  - [ ] Track cache hits/misses for performance monitoring
+  - [ ] Track total cache size in bytes
+  - [ ] Emit events for cache operations (hit, miss, eviction)
+- [ ] Implement lazy loading support for large message sets `ARCH §3.4`
+  - [ ] Support chunked message caching (50 messages per chunk)
+  - [ ] Cache key includes chunk info: `messages-{threadId}-chunk-{n}`
+  - [ ] `getMessageChunk(threadId, offset, limit)` method
+  - [ ] Return `{ messages, hasMore, nextOffset }` structure
+  - [ ] Load chunks on-demand from Moku API if not cached
 - [ ] Add error handling and recovery `ARCH §3.4`
-  - [ ] Handle file system errors gracefully
-  - [ ] Recover from corrupt cache files (delete and re-fetch)
-  - [ ] Handle encryption/decryption failures
+  - [ ] Handle file system errors gracefully (fallback to Moku API)
+  - [ ] Recover from corrupt cache files (delete and refetch)
+  - [ ] Handle encryption/decryption failures (invalidate and refetch)
+  - [ ] Log cache errors for debugging
   - [ ] Emit events for cache errors
 
 **Acceptance Criteria:**
-- Threads cached locally with compression (gzip) `ARCH §3.4`
-- Cache encrypted with AES-256-GCM `ARCH §3.4`
-- LRU eviction when cache exceeds 500MB `ARCH §3.4`
-- Messages load in chunks of 50 with pagination `ARCH §3.4`
-- Corrupt cache files handled gracefully `ARCH §3.4`
-- Cache stats available for monitoring `ARCH §3.4`
+- All Moku API data (threads/messages) cached with encryption `ARCH §3.4, §7.1`
+- TTL expiration triggers refetch from Moku API `ARCH §4.2`
+- Thread list: 5min TTL, Messages: 2min TTL, Files: 3 day TTL `ARCH §4.2`
+- LRU eviction when cache exceeds 500MB `ARCH §4.2`
+- Cache invalidation works on logout and manual clear `TLC §3.4`
+- Corrupt cache files handled gracefully with refetch `ARCH §3.4`
+- Cache stats available for monitoring (size, hits, misses) `ARCH §3.4`
+- Lazy loading supports chunked message retrieval (50/chunk) `ARCH §3.4`
 
 ---
 
@@ -1294,7 +1308,7 @@ E8: UI/UX Polish (after E2, E3)
 
 #### E5-S1: File Service (Desktop)
 **Size:** M
-**Description:** Unified file service with storage routing and reference counting.
+**Description:** Unified file service with storage routing (personal=local, shared=remote) and reference counting for safe deletion.
 
 **Requirement References:**
 | Task | Document | Section |
@@ -1312,10 +1326,10 @@ E8: UI/UX Polish (after E2, E3)
   - [ ] Define FileMetadata interface
   - [ ] Add `upload()`, `download()`, `delete()` methods
 - [ ] Implement storage routing (local vs remote) `PROJ §3.2`
-  - [ ] Check thread type (personal vs project)
-  - [ ] Personal threads: use LocalFileRepository
-  - [ ] Project threads: use StorageAPIClient
-  - [ ] Add helper `getStorageTarget(threadId)`
+  - [ ] Check project type (personal vs shared)
+  - [ ] Personal project files: use LocalFileRepository
+  - [ ] Project files: use StorageAPIClient
+  - [ ] Add helper `getStorageTarget(projectType)`
 - [ ] Integrate with Storage Service API `FS §3`
   - [ ] Use StorageAPIClient for remote operations
   - [ ] Handle auth headers via AuthService
@@ -1342,8 +1356,8 @@ E8: UI/UX Polish (after E2, E3)
   - [ ] Return clear error message for UI
 
 **Acceptance Criteria:**
-- Personal thread files stored locally `PROJ §3.1`
-- Project thread files stored via Storage Service `PROJ §3.2`
+- Files in personal projects stored locally on filesystem `PROJ §3.1`
+- Files in shared projects stored via Storage Service (S3/Blob) `PROJ §3.2`
 - Progress reported during upload `FS §3.3`
 - Errors handled gracefully `FS §3.4`
 - File deletion blocked if referenced by any message `ARCH §3.2`
@@ -2362,7 +2376,7 @@ E8: UI/UX Polish (after E2, E3)
 
 ### Phase 2: Core Features (Week 3-4)
 
-**Peter:** E4-S1, E4-S2, E4-S3, E4-S4 (Notifications, State, Deep links, ThreadRepository)
+**Peter:** E4-S1, E4-S2, E4-S3, E4-S4 (Notifications, State, Deep links, Local Cache Service)
 **Dev A:** E2-S2, E2-S3 (Retry flow, Branch UI)
 **Dev B:** E3-S4, E3-S5, E3-S6 (Project UI)
 

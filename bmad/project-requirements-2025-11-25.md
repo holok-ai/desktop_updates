@@ -42,7 +42,7 @@ Projects enable teams to compartmentalize work, share context, and collaborate o
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘              │
 │                                                                              │
 │  MEMBERS: View | Edit | Admin                                               │
-│  STORAGE: Storage Service (remote, cached locally)                          │
+│  STORAGE: Threads/Messages=Moku API (cached), Files=Storage Service         │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,8 +52,9 @@ Projects enable teams to compartmentalize work, share context, and collaborate o
 |--------|------------------------|---------|
 | Owner | User | Project (shared) |
 | Access | Owner only | Project members |
+| Thread/Message storage | Moku API (cached locally) | Moku API (cached locally) |
 | File storage | Local filesystem | Storage Service |
-| Cache TTL | Infinity | 5 min (threads), 2 min (messages) |
+| Cache TTL | 5 min (threads), 2 min (messages) | 5 min (threads), 2 min (messages) |
 | Workflows | Personal scope | Project scope |
 | Collaboration | None | View/Edit/Admin roles |
 
@@ -156,30 +157,35 @@ interface ProjectMember {
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         STORAGE ARCHITECTURE                                 │
 │                                                                              │
-│  PERSONAL (Thread List)              PROJECT                                │
-│  ──────────────────────              ───────                                │
+│  PERSONAL PROJECT                    SHARED PROJECT                         │
+│  ────────────────                    ──────────────                         │
 │                                                                              │
-│  Threads    → Local DB               Threads    → Moku API (cached)         │
-│  Messages   → Local DB (encrypted)   Messages   → Moku API (cached)         │
+│  Threads    → Moku API (cached)      Threads    → Moku API (cached)         │
+│  Messages   → Moku API (cached)      Messages   → Moku API (cached)         │
 │  Files      → Local filesystem       Files      → Storage Service           │
-│  Workflows  → Local DB               Workflows  → Moku API                  │
+│  Workflows  → Moku API               Workflows  → Moku API                  │
 │                                                                              │
-│  No TTL, LRU eviction only           TTL + LRU eviction                     │
-│  No sharing                          Shared via member roles                │
+│  TTL: 5min (threads), 2min (msgs)    TTL: 5min (threads), 2min (msgs)      │
+│  LRU eviction when cache > 500MB     LRU eviction when cache > 500MB       │
+│  No sharing (owner only)             Shared via member roles                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 3.2 File Storage Decision
 
+**File storage is determined by PROJECT type (personal vs shared), not thread type.**
+
 ```typescript
-function getStorageLocation(context: { threadType: 'personal' | 'project' }): StorageType {
-  if (context.threadType === 'personal') {
-    return 'local';      // Local filesystem, encrypted
+function getStorageLocation(context: { projectType: 'personal' | 'shared' }): StorageType {
+  if (context.projectType === 'personal') {
+    return 'local';      // Local filesystem
   } else {
     return 'remote';     // Storage Service, presigned URLs
   }
 }
 ```
+
+**Note:** Thread and message storage is ALWAYS Moku API for both personal and shared projects. Only FILE storage differs.
 
 ### 3.3 Storage Service Integration
 
