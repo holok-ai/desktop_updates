@@ -21,7 +21,10 @@
 
   .content {
     flex: 1;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     padding: 2rem;
     background: var(--surface-main);
     transition: all 0.3s ease;

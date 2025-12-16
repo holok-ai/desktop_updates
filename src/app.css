@@ -192,3 +192,9 @@ select {
   border: 1px solid var(--input-border);
   color: var(--text-primary);
 }
+
+i, .pi {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
