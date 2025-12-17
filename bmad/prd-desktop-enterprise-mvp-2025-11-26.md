@@ -429,6 +429,198 @@ Integrate Model Context Protocol (MCP) ecosystem (257+ community servers) plus n
 
 ---
 
+#### 3.3.5 Enterprise MCP Governance & Security (P0 - Critical Differentiator)
+
+**Description:**
+Organizational-level control over MCP server access, providing IT administrators with comprehensive governance tools to whitelist approved servers, monitor usage, enforce security policies, and maintain compliance. This is a **critical competitive differentiator** positioning Holokai as the only platform offering MCP-specific enterprise controls.
+
+**Competitive Context:**
+- **Market Gap:** Only 2/13 competitors have MCP support; only 1/13 (Cody) has organizational MCP control (maturity unclear)
+- **AI Governance Players:** Witness.ai and Credo.ai provide broad AI governance but NOT MCP-specific controls
+- **Holokai's Advantage:** First-to-market with comprehensive MCP-specific organizational governance
+
+**User Stories:**
+- **US-7a:** As a CISO, I want to whitelist approved MCP servers so employees can't connect to unapproved/malicious servers
+- **US-7b:** As a compliance officer, I want complete audit trails of MCP usage (who used which server, when, with what data) for SOC 2/GDPR reporting
+- **US-7c:** As an IT admin, I want to review and approve employee requests for new MCP servers before they're enabled
+- **US-7d:** As a security officer, I want to enforce data classification policies (e.g., "PII data cannot flow to external MCP servers")
+- **US-7e:** As an IT leader, I want real-time monitoring of MCP usage with alerts for suspicious activity
+
+**Key Requirements:**
+
+**1. MCP Server Whitelist/Blacklist Management**
+- **Whitelist Model (Default-Deny):**
+  - Admin maintains approved MCP server list per organization
+  - Employees can ONLY connect to whitelisted servers
+  - Blacklist for explicitly prohibited servers (overrides whitelist)
+  - Pre-approved list: 20 MVP servers auto-whitelisted for Phase 1 (Pilot)
+
+- **Server Registry:**
+  - Each MCP server has: `serverId`, `name`, `vendor`, `version`, `approvalStatus` (approved/pending/rejected), `securityRating` (low/medium/high risk)
+  - Admin UI shows: server details, data access scope, approval history, usage stats
+
+- **Version Pinning:**
+  - Pin specific MCP server versions for stability
+  - Block automatic updates without admin approval
+  - Rollback capability if new version causes issues
+
+**2. MCP Server Approval Workflow**
+- **Request Flow:**
+  1. Employee attempts to use unapproved MCP server → Desktop shows "Request Access" prompt
+  2. Employee submits request with business justification
+  3. Request routed to IT admin/department head (based on governance phase)
+  4. Admin reviews: server details, data access scope, security rating, vendor reputation
+  5. Admin approves/rejects with optional expiration date (e.g., 90-day trial)
+  6. Employee notified; server becomes available immediately upon approval
+
+- **Bulk Approval:**
+  - Admin can approve server for: individual user, department, entire organization
+  - Pre-approve common servers (e.g., "All marketing team members can use HubSpot MCP server")
+
+**3. MCP Security Scanning & Risk Assessment**
+- **Automated Security Review:**
+  - Scan MCP server package for vulnerabilities (npm audit, Snyk integration)
+  - Check vendor reputation (community downloads, GitHub stars, security incidents)
+  - Analyze data access scope (read-only vs. write, PII access, network access)
+  - Generate security rating: LOW (read-only, no PII), MEDIUM (write access), HIGH (PII access, network calls)
+
+- **Manual Review Checkpoints:**
+  - Admin dashboard shows security report for each server
+  - Warning indicators: "This server requests PII access", "This server makes external network calls"
+  - Recommended action: "Approve with restrictions" or "Reject - high risk"
+
+**4. MCP Usage Monitoring & Audit Logs**
+- **Real-Time Monitoring Dashboard:**
+  - Active MCP connections per server
+  - API call volume per server (last hour/day/week)
+  - Error rates per server
+  - Top users by MCP usage
+  - Suspicious activity alerts (unusual API call patterns, data exfiltration indicators)
+
+- **Comprehensive Audit Trail:**
+  - **Event Types:** MCP server connected, tool invoked, resource accessed, server disconnected, approval granted/rejected
+  - **Logged Data:** `timestamp`, `userId`, `mcpServerId`, `action`, `dataAccessed` (sanitized), `success/failure`, `ipAddress`
+  - **Retention:** 2 years (configurable for compliance requirements)
+  - **Export:** CSV, JSON for compliance reporting
+
+- **Alerting:**
+  - Real-time alerts for: unapproved server access attempts, unusual API call volume, failed authentications, data policy violations
+  - Delivery: Email, Slack, PagerDuty integration
+  - Configurable thresholds (e.g., alert if user makes >1000 API calls/hour)
+
+**5. MCP-Specific Data Governance Policies**
+- **Data Classification Rules:**
+  - Define data types: PII, Financial, Confidential, Public
+  - Policy enforcement: "PII data cannot flow to MCP servers rated HIGH risk", "Financial data requires 2FA before MCP access"
+  - Workflow-level controls: Workflows accessing PII require admin approval before execution
+
+- **Geo-Restrictions:**
+  - Block MCP servers hosted in specific countries (GDPR compliance)
+  - Example: "No data can flow to servers in countries without adequate data protection laws"
+
+- **Usage Quotas:**
+  - Per-server quotas: Max API calls per day/month per server
+  - Per-user quotas: Max MCP API calls per day per user
+  - Quota exceeded → Soft limit (alert) or Hard limit (block)
+
+- **Network Access Controls:**
+  - MCP servers can ONLY access allowlisted domains
+  - Example: GitHub MCP server can only connect to `*.github.com`, `api.github.com`
+  - Block unencrypted HTTP connections (enforce HTTPS only)
+
+**6. Progressive MCP Governance Integration**
+- **Phase 1 (Pilot - 25-50 users):**
+  - Permissive: 20 pre-approved MCP servers enabled
+  - Monitoring: Usage tracking, audit logs enabled
+  - Limits: No quotas; monitoring only
+  - Alerts: Suspicious activity monitoring (log only, no blocking)
+
+- **Phase 2 (Department - 100-250 users):**
+  - Department-level approvals: Department heads approve MCP servers for their teams
+  - Whitelist enforcement: Employees must request unapproved servers
+  - Quotas: 1,000 API calls/day per user
+  - Alerts: Real-time alerts to department heads
+
+- **Phase 3 (Enterprise - 250+ users):**
+  - Full governance: Organizational whitelist, approval workflows mandatory
+  - Data policies: PII restrictions, geo-restrictions enforced
+  - Advanced quotas: Per-server, per-department quotas
+  - Compliance reporting: Automated SOC 2, GDPR, PCI DSS reports
+
+**7. MCP Governance Admin UI**
+- **Server Management Page:**
+  - Table: Approved servers (name, version, usage, risk rating, actions)
+  - Actions: View details, update version, revoke approval, configure quotas
+  - Search/filter: By category, risk rating, usage volume
+
+- **Approval Queue:**
+  - Pending requests (employee name, server requested, justification, timestamp)
+  - Quick actions: Approve/Reject with comments
+  - Bulk actions: Approve all from department, reject all HIGH risk
+
+- **Monitoring Dashboard:**
+  - Real-time charts: MCP API calls over time, top servers, error rates
+  - Alert feed: Recent suspicious activity, quota exceeded warnings
+  - Audit log search: Filter by user, server, date range
+
+- **Policy Configuration:**
+  - Data classification rules (define PII fields, confidential data patterns)
+  - Geo-restriction settings (select blocked countries)
+  - Quota settings (per-user, per-server limits)
+  - Alert thresholds (API call volume, error rate triggers)
+
+**Acceptance Criteria:**
+- [ ] Whitelist/blacklist system: Employees can ONLY connect to approved MCP servers
+- [ ] Approval workflow: Employee requests → Admin reviews → Approve/Reject flow functional
+- [ ] Security scanning: Automated security rating (LOW/MEDIUM/HIGH) generated for each server
+- [ ] Real-time monitoring: Dashboard shows active connections, API call volume, error rates
+- [ ] Audit logs: Complete MCP usage trail (who, what, when) with 2-year retention
+- [ ] Alerts: Suspicious activity triggers real-time alerts (email/Slack)
+- [ ] Data policies: PII restrictions enforced (workflows with PII cannot use HIGH-risk servers)
+- [ ] Geo-restrictions: MCP servers in blocked countries cannot be accessed
+- [ ] Usage quotas: Per-user and per-server quotas enforced; soft/hard limits configurable
+- [ ] Progressive governance: MCP controls integrate with Phase 1/2/3 governance model
+- [ ] Admin UI: Server management, approval queue, monitoring dashboard, policy config fully functional
+- [ ] Compliance export: Audit logs exportable in CSV/JSON for SOC 2, GDPR, PCI DSS reporting
+
+**Technical Implementation:**
+- **Database:**
+  - `mcp_servers` table: `id`, `name`, `vendor`, `version`, `approvalStatus`, `securityRating`, `whitelisted`, `blacklisted`, `quotaLimit`, `allowedDomains[]`
+  - `mcp_approvals` table: `id`, `serverId`, `requestedBy`, `approvedBy`, `status`, `justification`, `approvedAt`, `expiresAt`
+  - `mcp_audit_log` table: `id`, `userId`, `serverId`, `action`, `timestamp`, `dataAccessed`, `ipAddress`, `success`
+  - `mcp_policies` table: `id`, `orgId`, `policyType` (data_classification/geo_restriction/quota), `config` (JSONB)
+
+- **MCP Gateway Proxy:**
+  - All MCP connections routed through gateway proxy (Moku API layer)
+  - Proxy enforces: whitelist check, quota limits, data policies, audit logging
+  - Blocks unapproved connections before reaching MCP server
+
+- **Security Scanner Service:**
+  - Background job: Scan new MCP servers for vulnerabilities
+  - Integration: npm audit, Snyk API, GitHub API (for repo analysis)
+  - Output: Security report JSON stored in `mcp_servers.securityReport`
+
+- **Monitoring Service:**
+  - Real-time stream: MCP gateway logs → Monitoring service → Dashboard
+  - Anomaly detection: ML-based detection of unusual patterns (data exfiltration, brute force)
+  - Alerting: Trigger alerts via webhook (email, Slack, PagerDuty)
+
+**Dependencies:**
+- Moku API: MCP gateway proxy, whitelist/blacklist enforcement, audit log storage
+- Desktop: MCP connection attempts routed through Moku gateway (not direct)
+- Security scanning: npm audit, Snyk API, GitHub API
+- Monitoring: Real-time log streaming (e.g., Kafka, Redis Streams)
+- Alerting: Email service, Slack API, PagerDuty integration
+
+**Rollout Strategy:**
+- **MVP (Month 4):** Basic whitelist/approval workflow, monitoring dashboard, audit logs
+- **Post-MVP (Month 6):** Advanced features (security scanning, data policies, geo-restrictions, anomaly detection)
+
+**Competitive Differentiation:**
+> **"Enterprise MCP Platform: The only solution providing organizational control over Model Context Protocol servers. Give developers the MCP ecosystem they love, with the security and governance IT demands."**
+
+---
+
 ### 3.4 Feature 3: Progressive Governance System (P0 - Unique Differentiator)
 
 **Description:**
@@ -653,6 +845,200 @@ Shared workspaces for team collaboration on threads, workflows, and files. Enabl
 **Dependencies:**
 - Moku API: Project CRUD, member management, file storage integration
 - Storage Service: Presigned URLs for file uploads/downloads
+
+---
+
+#### 3.6.1 Progressive Project Transition (P1 - Competitive Differentiator)
+
+**Description:**
+Seamless conversion mechanism enabling users to transition personal projects ("My Workflows") to shared team projects without rebuilding content. This is a **key competitive differentiator** as no other platform offers smooth personal→shared progression.
+
+**Competitive Context:**
+- **Market Gap:** 6/13 competitors have project concepts, but NONE offer progressive personal→shared transition
+- **Binary Choice Problem:** Current tools force upfront decision (personal OR shared), creating adoption friction
+- **Holokai's Advantage:** Only solution where users start personal, then share with team when ready (no rebuild required)
+
+**User Stories:**
+- **US-16a:** As a power user, I want to convert my personal workflows to a team project with one click, so my team can benefit from my work
+- **US-16b:** As a department head, I want to promote successful personal experiments to department-wide projects, so we can scale what works
+- **US-16c:** As a user, I want to understand exactly what changes when I convert personal→shared (privacy, permissions, storage), so I make informed decisions
+- **US-16d:** As a team member, I want to "fork" a shared project back to personal if I leave the team, so I retain my work
+
+**Key Requirements:**
+
+**1. Conversion Flow (Personal → Team)**
+- **Entry Points:**
+  - From "My Workflows" project: Click "Share with Team" button
+  - From workflow detail: "Convert to Team Project" option
+  - From admin dashboard: Bulk promote successful personal projects
+
+- **Conversion Wizard:**
+  - **Step 1: Choose Project Type**
+    - Option A: Create new team project from personal content
+    - Option B: Merge personal content into existing team project
+
+  - **Step 2: Select Content**
+    - Choose which workflows/threads to include (multi-select)
+    - Preview: "3 workflows, 12 threads, 5 files will be shared"
+    - Option to exclude sensitive content
+
+  - **Step 3: Configure Team Settings**
+    - Project name, description, color, icon
+    - Initial team members (invite colleagues)
+    - Default member role (Viewer/Editor)
+    - Visibility (Private invite-only OR Org-wide)
+
+  - **Step 4: Privacy & Permissions**
+    - Warning: "Shared content will be visible to team members"
+    - Option: "Keep original personal copies" (fork vs. move)
+    - Permission inheritance: Who can edit converted workflows?
+
+  - **Step 5: Confirm & Convert**
+    - Summary: What changes, what stays the same
+    - Checklist: Storage location changes (local → cloud), permissions change, audit logs enabled
+    - Final confirmation: "Convert to Team Project"
+
+- **Post-Conversion:**
+  - Personal project remains (empty or with copies, based on user choice)
+  - New team project appears in secondary sidebar
+  - Team members receive invitation notifications
+  - Conversion audit log entry created
+
+**2. Storage Migration (Personal → Shared)**
+- **File Migration:**
+  - Personal files (local filesystem) → Upload to Storage Service (S3/Blob)
+  - Background job: Copy files, generate presigned URLs, update references
+  - Progress indicator: "Migrating 15 files to cloud storage (5/15 complete)"
+  - Rollback capability if migration fails
+
+- **Thread/Workflow Migration:**
+  - Update `projectId` in database (threads, workflows, files)
+  - Maintain message history, branch structure, attachment references
+  - No data loss during migration
+
+- **Cache Invalidation:**
+  - Clear personal project cache
+  - Initialize team project cache
+  - Notify all team members to refresh
+
+**3. Reverse Conversion (Team → Personal)**
+- **Fork Project:**
+  - Team member can "fork" shared project to personal workspace
+  - Creates copy of workflows/threads (not move)
+  - Files remain in Storage Service (user gets copy references)
+  - Use case: Team member leaves organization, wants to retain work
+
+- **Access Revocation:**
+  - When user removed from team project → Loses access to shared content
+  - Option during removal: "Create personal fork for this user?"
+  - Preserves user's contributions while enforcing access control
+
+**4. Progressive Transition Stages**
+- **Stage 1: Fully Personal**
+  - Single user, local files, no sharing
+  - No governance controls
+  - Example: "My Workflows" default project
+
+- **Stage 2: Shared - Experimental (2-5 users)**
+  - Small team collaboration (e.g., 2 colleagues testing workflows)
+  - Files migrated to Storage Service
+  - Basic RBAC (Viewer/Editor roles)
+  - No approval workflows yet
+
+- **Stage 3: Department Project (5-25 users)**
+  - Department-level collaboration
+  - Department head has Owner role
+  - Department-level governance applies (Phase 2 controls)
+  - Workflow sharing requires department head approval (optional)
+
+- **Stage 4: Organizational Project (25+ users)**
+  - Org-wide visibility (anyone can join)
+  - Full governance controls (Phase 3)
+  - Workflow sharing requires admin approval
+  - Compliance reporting enabled
+
+**5. Permission Inheritance Rules**
+- **During Conversion:**
+  - Personal workflows → Team workflows (owner retains edit rights)
+  - Personal threads → Team threads (all members can read, original author can edit)
+  - Personal files → Team files (all members can download)
+
+- **Team Member Roles:**
+  - **Viewer:** Can read workflows/threads, execute workflows, cannot edit
+  - **Editor:** Can create/edit own workflows, contribute to threads
+  - **Owner:** Original creator retains Owner role in converted project
+
+**6. Data Classification & Privacy**
+- **Pre-Conversion Check:**
+  - Scan personal content for PII, confidential data
+  - Warning: "This workflow accesses PII. Are you sure you want to share?"
+  - Option: "Review content before sharing" (opens preview)
+
+- **Selective Sharing:**
+  - User can exclude sensitive workflows/threads from conversion
+  - "Share 5 of 8 workflows" (leave 3 private)
+
+**7. Adoption Tracking & Analytics**
+- **Conversion Metrics:**
+  - Track: % of users who convert personal → team
+  - Time to first conversion (days from account creation)
+  - Conversion funnel: Start wizard → Complete conversion
+  - Dropout analysis: Where do users abandon conversion?
+
+- **Success Indicators:**
+  - Personal project converted to team project with 3+ members
+  - Converted workflows executed by team members (not just creator)
+  - Team members contribute new workflows to converted project
+
+**Acceptance Criteria:**
+- [ ] "Share with Team" button visible in "My Workflows" project settings
+- [ ] Conversion wizard guides user through 5 steps (project type, content selection, team settings, privacy, confirm)
+- [ ] File migration works: Personal files (local) → Storage Service (cloud) without data loss
+- [ ] Thread/workflow migration preserves: message history, branches, attachments, metadata
+- [ ] Permission inheritance: Original creator retains Owner role in team project
+- [ ] Team members receive invitation notifications immediately after conversion
+- [ ] Reverse conversion (fork): Team member can create personal copy of shared project
+- [ ] Data classification check: Warning shown if PII detected in shared content
+- [ ] Audit log: Conversion events logged (who converted, when, which content)
+- [ ] Progress indicator: File migration shows real-time progress (X/Y files migrated)
+- [ ] Rollback: If migration fails, revert to pre-conversion state
+
+**Technical Implementation:**
+- **Conversion Service:**
+  - `ProjectConversionService.ts` handles conversion logic
+  - Methods: `convertToTeamProject()`, `forkToPersonal()`, `validateConversion()`, `migrateFiles()`
+
+- **Database Changes:**
+  - `project_conversions` table: `id`, `fromProjectId`, `toProjectId`, `userId`, `status`, `createdAt`, `completedAt`
+  - Update `projectId` in: `workflows`, `threads`, `files`, `messages` tables
+  - Add `originalCreator` field to workflows/threads (track original owner after conversion)
+
+- **File Migration Service:**
+  - Background job: Copy local files → Storage Service
+  - Progress tracking: `file_migrations` table: `fileId`, `status` (pending/in_progress/completed/failed), `progress` (bytes uploaded)
+  - Rollback mechanism: Keep local copies until migration confirmed successful
+
+- **UI Components:**
+  - `ConversionWizard.svelte` - Multi-step wizard component
+  - `ContentSelector.svelte` - Multi-select grid for workflows/threads
+  - `MigrationProgress.svelte` - Real-time progress indicator
+
+**Dependencies:**
+- Moku API: Conversion service, file migration, permission updates
+- Storage Service: Upload personal files to cloud storage
+- Desktop: Conversion wizard UI, progress tracking
+
+**Rollout Strategy:**
+- **MVP (Month 4):** Basic conversion (personal → team, single-step UI)
+- **Post-MVP (Month 6):** Full wizard (5-step flow), fork capability, data classification checks
+
+**Competitive Differentiation:**
+> **"Start Personal, Scale to Teams: The only platform where workflows seamlessly transition from individual experimentation to enterprise collaboration. No rebuilding required."**
+
+**Success Metrics:**
+- **Conversion Rate:** 20%+ of users convert personal project to team within 90 days
+- **Team Engagement:** 80%+ of team members execute converted workflows within 30 days
+- **Migration Success:** 99%+ file migrations complete without data loss
 
 ---
 
