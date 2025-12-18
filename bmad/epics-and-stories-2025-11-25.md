@@ -415,36 +415,36 @@ E8: UI/UX Polish (after E2, E3)
 
 ---
 
-#### E2-S2: Retry Flow Implementation
+#### E2-S2: Prompt Variation Flow Implementation
 **Size:** L
-**Description:** Implement retry button and branch creation flow with attachment handling.
+**Description:** Implement "Create Variation" button and branch creation flow with attachment handling.
 
 **Requirement References:**
 | Task | Document | Section |
 |------|----------|---------|
-| Retry button behavior | TM | §3.1 |
+| Prompt variation button behavior | TM | §3.1 |
 | Branch creation flow | TM | §3.2 |
 | Error handling | TM | §3.3 |
 | Branch attachment behavior | ARCH | §3.2 |
 
 **Tasks:**
-- [ ] Add Retry button to user messages `TM §3.1`
-  - [ ] Create RetryButton component
+- [ ] Add "Create Variation" button to user messages `TM §3.1`
+  - [ ] Create PromptVariationButton component
   - [ ] Show only on user role messages (not assistant/system)
   - [ ] Position in message action bar (hover reveal)
   - [ ] Disable if branch limit reached (show tooltip explaining why)
-- [ ] Implement `createRetry()` in ThreadService `TM §3.2`
+- [ ] Implement `createPromptVariation()` in ThreadService `TM §3.2`
   - [ ] Calculate next branchIndex via getNextBranchIndex()
   - [ ] Set parentMessageId to parent of original message
   - [ ] Create new user message with updated prompt
   - [ ] Submit to API and await assistant response
   - [ ] Handle streaming response
 - [ ] Show prompt input with original text copied `TM §3.1`
-  - [ ] Create RetryInputModal or expand existing input
+  - [ ] Create PromptVariationInputModal or expand existing input
   - [ ] Pre-populate with original message content
   - [ ] Focus input and select all text
-  - [ ] Show "Retry" button instead of "Send"
-- [ ] Copy attachment references to retry input (shared references) `ARCH §3.2`
+  - [ ] Show "Create Variation" button instead of "Send"
+- [ ] Copy attachment references to prompt variation input (shared references) `ARCH §3.2`
   - [ ] Get attachments array from original message
   - [ ] Create shallow copy of attachment objects (same fileIds)
   - [ ] Display as editable attachment chips
@@ -454,23 +454,23 @@ E8: UI/UX Polish (after E2, E3)
   - [ ] Remove from local array (not from storage)
   - [ ] Update UI to reflect removal
 - [ ] Allow user to add new attachments before submitting `ARCH §3.2`
-  - [ ] Enable file picker / drag-drop on retry input
+  - [ ] Enable file picker / drag-drop on prompt variation input
   - [ ] Upload new files (new fileIds)
   - [ ] Add to attachments array
-- [ ] Submit retry with correct parentMessageId and branchIndex `TM §3.2`
+- [ ] Submit prompt variation with correct parentMessageId and branchIndex `TM §3.2`
   - [ ] Use parent of original message as parentMessageId
   - [ ] Use calculated branchIndex
   - [ ] Include modified attachments array
   - [ ] Generate client_message_id for idempotency
 - [ ] Handle branch limit error gracefully `TM §3.3`
-  - [ ] Catch "Maximum retry branches reached" error
+  - [ ] Catch "Maximum variation branches reached" error
   - [ ] Show user-friendly toast message
-  - [ ] Keep retry modal open so user doesn't lose edits
+  - [ ] Keep prompt variation modal open so user doesn't lose edits
   - [ ] Suggest deleting an existing branch
 
 **Acceptance Criteria:**
-- Retry button visible on user messages (not assistant) `TM §3.1`
-- Clicking Retry opens input with original prompt `TM §3.1`
+- "Create Variation" button visible on user messages (not assistant) `TM §3.1`
+- Clicking "Create Variation" opens input with original prompt `TM §3.1`
 - Original attachments shown as editable chips `ARCH §3.2`
 - User can remove/add attachments before submitting `ARCH §3.2`
 - Kept attachments use shared fileId references (not copies) `ARCH §3.2`
@@ -2377,7 +2377,7 @@ E8: UI/UX Polish (after E2, E3)
 ### Phase 2: Core Features (Week 3-4)
 
 **Peter:** E4-S1, E4-S2, E4-S3, E4-S4 (Notifications, State, Deep links, Local Cache Service)
-**Dev A:** E2-S2, E2-S3 (Retry flow, Branch UI)
+**Dev A:** E2-S2, E2-S3 (Prompt Variation flow, Branch UI)
 **Dev B:** E3-S4, E3-S5, E3-S6 (Project UI)
 
 ### Phase 3: Integration (Week 5-6)

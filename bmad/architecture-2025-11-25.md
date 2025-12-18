@@ -218,7 +218,7 @@ The data model includes six primary entity types with well-defined relationships
 - **FileAttachment & ProjectFile**: Split storage model (local for personal, remote for projects) with shared reference semantics
 
 **Key Design Patterns:**
-- **Branch Attachment Behavior**: Attachments use shared references (not copies) across retry branches - files are immutable once uploaded
+- **Branch Attachment Behavior**: Attachments use shared references (not copies) across prompt variation branches - files are immutable once uploaded
   - Same attachments across branches = same `fileId` references
   - Removing attachment = exclude from new branch's array
   - Adding attachment = new `fileId` created
@@ -349,9 +349,9 @@ The main process is organized into five layers: **Core** (auth, state, notificat
 
 ### 5.2 Thread Service (with Branching)
 
-ThreadService manages thread lifecycle including creation, prompt submission with branching support, context assembly for branches, retry branch creation, auto-title generation, and thread migration between personal/project contexts.
+ThreadService manages thread lifecycle including creation, prompt submission with branching support, context assembly for branches, prompt variation creation, auto-title generation, and thread migration between personal/project contexts.
 
-**Key methods:** `createThread`, `submitPrompt`, `assembleContext`, `createRetry`, `generateTitle`, `moveThread`
+**Key methods:** `createThread`, `submitPrompt`, `assembleContext`, `createPromptVariation`, `generateTitle`, `moveThread`
 
 **→ See ThreadService class definition:** [`architecture-detailed-code-2025-11-25.md` § 3.2](./architecture-detailed-code-2025-11-25.md#32-threadservice-class)
 
@@ -936,7 +936,7 @@ App
 ### Phase 2.2: Thread Enhancements
 - [ ] Message tree structure
 - [ ] Branch visualization (lanes)
-- [ ] Retry flow (max 2 branches)
+- [ ] Prompt Variation flow (max 2 branches)
 - [ ] Auto-title generation
 - [ ] Clipboard operations
 
