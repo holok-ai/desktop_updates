@@ -13,6 +13,15 @@ import log from 'electron-log';
 import type { ApplicationSummary, ApplicationDetail } from './application.types.js';
 import type { PagedResponse } from './paging.types.js';
 import type { AgentListItem, AgentChatConfig } from './agent.types.js';
+import type {
+    ProjectDTO,
+    ProjectDetailDTO,
+    ProjectCreateRequest,
+    ProjectUpdateRequest,
+    ProjectFilters,
+    ProjectUpdatesResponse,
+} from './project.types.js';
+import { projectApiService } from './project-api.service.js';
 
 /**
  * Response from /api/auth/exchange-code endpoint
@@ -269,6 +278,131 @@ export class MokuService {
       log.error('[MokuService] Error fetching agent detail:', error);
       throw error;
     }
+  }
+
+  // ============================================================================
+  // Project Operations
+  // ============================================================================
+
+  /**
+   * Get all projects where user is a member with pagination support
+   * Fetches all pages and returns a complete list of projects
+   */
+  public async getAllProjects(): Promise<ProjectDTO[]> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    let allProjects: ProjectDTO[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await projectApiService.getProjects({ page, size: 1000 });
+        allProjects = allProjects.concat(response.content);
+        hasMore = response.hasNext;
+        page++;
+      } catch (error) {
+        log.error('[MokuService] Error fetching projects:', error);
+        throw error;
+      }
+    }
+
+    return allProjects;
+  }
+
+  /**
+   * Get projects with pagination control
+   * Returns paginated response for controlled loading
+   */
+  public async getProjects(filters?: ProjectFilters): Promise<PagedResponse<ProjectDTO>> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getProjects(filters);
+  }
+
+  /**
+   * Get project detail by ID
+   * Fetches full project information including user's role
+   */
+  public async getProjectDetail(projectId: string): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getProject(projectId);
+  }
+
+  /**
+   * Create a new project
+   * Creator is automatically added as owner member
+   */
+  public async createProject(request: ProjectCreateRequest): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.createProject(request);
+  }
+
+  /**
+   * Update an existing project
+   * Requires owner role
+   */
+  public async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.updateProject(projectId, request);
+  }
+
+  /**
+   * Delete a project (soft delete)
+   * Requires owner role
+   */
+  public async deleteProject(projectId: string): Promise<void> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.deleteProject(projectId);
+  }
+
+  /**
+   * Get project updates since a specific timestamp
+   * Returns counts of updated threads, members, and workflows
+   */
+  public async getProjectUpdates(projectId: string, since: string): Promise<ProjectUpdatesResponse> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getUpdates(projectId, since);
   }
 }
 
