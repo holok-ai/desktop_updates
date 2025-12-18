@@ -24,7 +24,7 @@ Enable teams to collaborate on AI-powered conversations and automate repetitive 
 |-----------|--------|-------------|
 | Increase team adoption | 40% of users in shared projects | Project membership metrics |
 | Reduce repetitive prompting | 25% reduction in duplicate prompts | Workflow execution vs manual prompts |
-| Improve conversation quality | 15% increase in continued threads | Thread length and retry usage |
+| Improve conversation quality | 15% increase in continued threads | Thread length and variation usage |
 | Enterprise readiness | SOC 2 compliance requirements met | Security audit |
 
 ### 1.4 Success Metrics
@@ -107,24 +107,24 @@ Enable teams to collaborate on AI-powered conversations and automate repetitive 
 
 #### 3.2.1 Thread Management with Branching (P0)
 
-**Description:** Enhanced conversation management with tree-based message structure supporting retry/exploration branches.
+**Description:** Enhanced conversation management with tree-based message structure supporting prompt variation/exploration branches.
 
 **User Stories:**
-- As a user, I want to retry a prompt with modifications without losing the original response
+- As a user, I want to create prompt variations with modifications without losing the original response
 - As a user, I want to explore up to 2 alternative paths from any point in a conversation
 - As a user, I want threads to auto-generate titles after the second exchange
 - As a user, I want to copy a previous prompt to quickly reuse it
 
 **Key Requirements:**
 - Message tree structure via `parentMessageId`
-- Maximum 2 retry branches per divergence point (branchIndex 0-2)
+- Maximum 2 variation branches per divergence point (branchIndex 0-2)
 - Visual lane-based UI for viewing branches
 - Auto-title generation after 2nd exchange (max 50 chars)
 - Copy prompt to input box functionality
 - Copy response/code to system clipboard
 
 **Acceptance Criteria:**
-- [ ] User can click "Retry" on any user message to create a branch
+- [ ] User can click "Create Variation" on any user message to create a branch
 - [ ] Branch limit (2) is enforced with clear user feedback
 - [ ] Context assembly follows the correct branch path
 - [ ] Titles auto-generate and can be manually edited
@@ -444,7 +444,7 @@ Database changes:
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `enableBranching` | Thread retry branching | true |
+| `enableBranching` | Thread prompt variation branching | true |
 | `enableProjects` | Project collaboration | true |
 | `enableWorkflows` | Workflow templates | false (beta) |
 | `enableInsights` | Insights dashboard | true |

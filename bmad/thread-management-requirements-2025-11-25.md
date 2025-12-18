@@ -9,7 +9,7 @@
 This document defines the core thread management functionality for Holokai Desktop:
 1. **Thread creation** - UUID assignment, model selection, initial prompt
 2. **Conversation flow** - history as context, local + audit storage
-3. **Message branching** - retry creates parallel lanes, max 2 branches per point
+3. **Message branching** - prompt variation creates parallel lanes, max 2 branches per point
 4. **Auto-title generation** - triggered after second exchange
 5. **Copy command** - quick prompt reuse within thread
 
@@ -138,7 +138,7 @@ interface Message {
   id: string;                           // UUID v4
   threadId: string;                     // parent thread
   parentMessageId: string | null;       // null for first message, enables branching
-  branchIndex: number;                  // 0 = original path, 1-9 = retry branches
+  branchIndex: number;                  // 0 = original path, 1-9 = variation branches
 
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -178,10 +178,10 @@ Message Tree Example:
 
 [M1: user] ──► [M2: assistant] ──► [M3: user] ──► [M4: assistant] ──► [M5: user] ...
     │              │                   │
-    │              │                   └──► [M3a: user (retry)] ──► [M4a: assistant] ...
+    │              │                   └──► [M3a: user (variation)] ──► [M4a: assistant] ...
     │              │                   │         branchIndex: 1
     │              │                   │
-    │              │                   └──► [M3b: user (retry)] ──► [M4b: assistant] ...
+    │              │                   └──► [M3b: user (variation)] ──► [M4b: assistant] ...
     │              │                             branchIndex: 2
     │              │
     parentMessageId: null   parentMessageId: M1
@@ -190,16 +190,16 @@ Message Tree Example:
 **Key Rules:**
 - `parentMessageId: null` = root message (first in thread)
 - `branchIndex: 0` = original conversation path
-- `branchIndex: 1` = first retry branch at that point
-- `branchIndex: 2-9` = additional retry branches at that point
-- Maximum 9 retry branches per divergence point (branchIndex 1-9)
+- `branchIndex: 1` = first variation branch at that point
+- `branchIndex: 2-9` = additional variation branches at that point
+- Maximum 9 variation branches per divergence point (branchIndex 1-9)
 
 ### 2.3 Branch Constraints
 
 ```typescript
 const MAX_BRANCHES_PER_POINT = 2;
 
-function canCreateRetry(parentMessageId: string): boolean {
+function canCreateVariation(parentMessageId: string): boolean {
   const existingBranches = messages.filter(m =>
     m.parentMessageId === parentMessageId &&
     m.branchIndex > 0
@@ -353,28 +353,28 @@ async function submitPrompt(
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Retry Implementation
+### 4.2 Prompt Variation Implementation
 
 ```typescript
-interface RetryRequest {
+interface PromptVariationRequest {
   threadId: string;
-  originalMessageId: string;   // the user message being retried
+  originalMessageId: string;   // the user message being varied
   newPrompt: string;           // edited prompt (may be same as original)
 }
 
-async function createRetry(request: RetryRequest): Promise<Message> {
+async function createPromptVariation(request: PromptVariationRequest): Promise<Message> {
   const originalMessage = await messageRepository.get(request.originalMessageId);
 
   if (originalMessage.role !== 'user') {
-    throw new Error('Can only retry user messages');
+    throw new Error('Can only create variations of user messages');
   }
 
   // Get the parent of the original message (the context endpoint)
   const contextEndpoint = originalMessage.parentMessageId;
 
   // Check branch limit
-  if (!canCreateRetry(contextEndpoint)) {
-    throw new Error('Maximum retry branches reached (2)');
+  if (!canCreateVariation(contextEndpoint)) {
+    throw new Error('Maximum variation branches reached (2)');
   }
 
   const branchIndex = getNextBranchIndex(contextEndpoint);
@@ -391,13 +391,13 @@ async function createRetry(request: RetryRequest): Promise<Message> {
 
 ### 4.3 Branch Continuation
 
-After a retry, user can continue on either branch:
+After creating a prompt variation, user can continue on either branch:
 
 ```typescript
-// User clicks in retry lane and types new prompt
+// User clicks in variation lane and types new prompt
 async function continueOnBranch(
   threadId: string,
-  lastMessageInBranch: string,  // the assistant response in the retry lane
+  lastMessageInBranch: string,  // the assistant response in the variation lane
   newPrompt: string
 ): Promise<Message> {
   const lastMessage = await messageRepository.get(lastMessageInBranch);
@@ -426,7 +426,7 @@ async function continueOnBranch(
 │                                                                              │
 │  At branch point, split into lanes:                                         │
 │  ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐         │
-│  │ Original (idx 0)  │ │ Retry 1 (idx 1)   │ │ ... Retry 9 (idx 9) │       │
+│  │ Original (idx 0)  │ │ Variation 1 (idx 1)│ │ ... Variation 9 (idx 9)│   │
 │  │ Message 3         │ │ Message 3a        │ │ Message 3b        │         │
 │  │ Message 4         │ │ Message 4a        │ │ (empty or...)     │         │
 │  │ Message 5         │ │ ...               │ │                   │         │
@@ -434,7 +434,7 @@ async function continueOnBranch(
 │                                                                              │
 │  Each lane is independently scrollable                                      │
 │  Active lane (where user is typing) highlighted                             │
-│  Max 3 lanes visible (original + 2 retries)                                 │
+│  Max 3 lanes visible (original + 2 variations)                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -532,7 +532,7 @@ Title:`;
 | Max length | 50 characters |
 | Model | Same as thread's model |
 | Audit | Marked as `excludeFromHistory: true` |
-| Retry | User can manually edit title anytime |
+| Manual Edit | User can manually edit title anytime |
 
 ---
 
@@ -742,7 +742,7 @@ interface ClipboardContents {
 │  │ User                                                      12:30 PM  │    │
 │  │ How do I implement authentication in a Node.js app?                 │    │
 │  │                                                                      │    │
-│  │                                          [Retry] [Copy]             │    │
+│  │                                          [Create Variation] [Copy]   │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -757,7 +757,7 @@ interface ClipboardContents {
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │  BUTTON LEGEND:                                                              │
-│  [Retry]         - Create retry branch (user messages only)                 │
+│  [Create Variation] - Create variation branch (user messages only)          │
 │  [Copy]          - Copy to input box (user messages only)                   │
 │  [Copy Code]     - Copy code block to clipboard                             │
 │  [Copy Response] - Copy full response to clipboard                          │
@@ -786,7 +786,7 @@ interface ThreadViewState {
   threadId: string;
   activeBranchPath: string[];   // array of messageIds representing current path
   activeLeafMessageId: string;  // last message in active branch
-  expandedBranches: Set<string>; // branch points with visible retry lanes
+  expandedBranches: Set<string>; // branch points with visible variation lanes
 }
 
 // When user clicks in a branch lane, update active path
@@ -813,7 +813,7 @@ function buildPathToRoot(messageId: string): string[] {
 ### 7.2 Branch Collapse/Expand
 
 ```typescript
-// User can collapse retry lanes to focus on one branch
+// User can collapse variation lanes to focus on one branch
 function toggleBranchVisibility(branchPointMessageId: string): void {
   if (viewState.expandedBranches.has(branchPointMessageId)) {
     viewState.expandedBranches.delete(branchPointMessageId);
@@ -838,7 +838,7 @@ function toggleBranchVisibility(branchPointMessageId: string): void {
 
 - [ ] `createThread()` - thread initialization flow
 - [ ] `submitPrompt()` - context assembly and submission
-- [ ] `createRetry()` - branch creation with limit check
+- [ ] `createPromptVariation()` - branch creation with limit check
 - [ ] `assembleContext()` - walk tree to build history
 - [ ] `generateTitle()` - auto-title after 2nd exchange
 - [ ] `copyPromptToInput()` - internal copy command
@@ -846,7 +846,7 @@ function toggleBranchVisibility(branchPointMessageId: string): void {
 ### 8.3 UI Components
 
 - [ ] Branch lane visualization
-- [ ] Retry button on user messages
+- [ ] "Create Variation" button on user messages
 - [ ] Copy button on user messages
 - [ ] Copy Response button on assistant messages
 - [ ] Copy Code button on code blocks
@@ -878,9 +878,9 @@ function toggleBranchVisibility(branchPointMessageId: string): void {
 |----------|-------|
 | Thread ID generation | UUID v4, generated by Desktop |
 | Message tree structure | `parentMessageId` links |
-| Max retry branches | 9 per divergence point |
-| Branch index values | 0 = original, 1-9 = retry branches |
-| Retry context | History up to branch point (not full thread) |
+| Max variation branches | 9 per divergence point |
+| Branch index values | 0 = original, 1-9 = variation branches |
+| Variation context | History up to branch point (not full thread) |
 | Auto-title trigger | After 2nd exchange |
 | Auto-title max length | 50 characters |
 | Auto-title input | First 2 exchanges (4 messages) |

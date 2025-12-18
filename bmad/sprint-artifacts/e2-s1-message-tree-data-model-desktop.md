@@ -12,7 +12,7 @@ so that messages can form a tree structure for branching conversations.
 
 1. Messages form valid tree via parentMessageId (TM §2.1)
 2. Context assembly follows correct branch path by walking up tree (TM §2.3)
-3. Branch limit (max 9 retries = branchIndex 0-9) enforced locally before API call (TM §2.2)
+3. Branch limit (max 9 variations = branchIndex 0-9) enforced locally before API call (TM §2.2)
 4. MessageRepository queries support tree operations (get by parent, get branches)
 5. Root messages have parentMessageId = null
 6. assembleContext() returns ordered array from root to current message
@@ -41,7 +41,7 @@ so that messages can form a tree structure for branching conversations.
   - [ ] Query existing branches for given parentMessageId
   - [ ] Find max branchIndex currently used (0-9)
   - [ ] Return next index if < 9
-  - [ ] Throw error "Maximum retry branches reached (max: 9)" if at limit
+  - [ ] Throw error "Maximum variation branches reached (max: 9)" if at limit
   - [ ] Use for client-side validation before API call
 
 - [ ] Update cache support for branched messages (AC: #1)

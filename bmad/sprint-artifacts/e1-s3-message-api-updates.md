@@ -6,7 +6,7 @@ Status: done
 
 As a backend developer,
 I want to update message endpoints for branching support,
-so that messages can have parent-child relationships and support retry branches.
+so that messages can have parent-child relationships and support variation branches.
 
 ## Acceptance Criteria
 
@@ -14,7 +14,7 @@ so that messages can have parent-child relationships and support retry branches.
 2. POST /api/threads/{id}/messages accepts parentMessageId and branchIndex in request body
 3. First message in thread can have null parentMessageId (root message)
 4. Subsequent messages require valid parentMessageId that exists in same thread (validation error if invalid)
-5. Branch index 0-9 accepted, values 3+ rejected with error "Maximum retry branches reached"
+5. Branch index 0-9 accepted, values 10+ rejected with error "Maximum variation branches reached"
 6. Duplicate clientMessageId returns existing message with 200 OK (idempotent, not 201 Created)
 7. Attachments array serialized/deserialized correctly from JSONB [{fileId, filename, mimeType, sizeBytes}]
 8. GET /api/threads/{id}/messages returns messages ordered by created_at for tree reconstruction
@@ -55,11 +55,11 @@ so that messages can have parent-child relationships and support retry branches.
   - [ ] Write integration test: POST message with invalid parentMessageId (expect 400 validation error)
   - [ ] Write integration test: POST message with parentMessageId from different thread (expect 400)
 
-- [ ] Implement branch validation logic (max 9 retries per parent) (AC: #5)
+- [ ] Implement branch validation logic (max 9 variations per parent) (AC: #5)
   - [ ] Query existing messages: MessageRepository.findByThreadIdAndParentMessageId(threadId, parentMessageId)
   - [ ] Count distinct branch_index values for same parent
   - [ ] Validate branchIndex is 0 to 9 (CHECK constraint range)
-  - [ ] If branchIndex > 9, return 400 Bad Request with message: "Maximum retry branches reached (max: 9)"
+  - [ ] If branchIndex > 9, return 400 Bad Request with message: "Maximum variation branches reached (max: 9)"
   - [ ] If branchIndex already exists for this parent, return 409 Conflict with message: "Branch index already exists for this parent"
   - [ ] Add database-level unique constraint on (parent_message_id, branch_index) to prevent race conditions
   - [ ] Write unit test: MessageService.validateBranchIndex() with mock repository data
@@ -105,7 +105,7 @@ so that messages can have parent-child relationships and support retry branches.
 
 **Message Branching Model:**
 - Root messages: parentMessageId = null, branchIndex = 0
-- Child messages: parentMessageId points to parent, branchIndex indicates retry attempt (0=original, 1-9=retries)
+- Child messages: parentMessageId points to parent, branchIndex indicates variation (0=original, 1-9=variations)
 - Maximum 10 branches per parent (branch_index 0-9) [Source: Tech Spec Epic 1 §Data Models]
 - Tree reconstruction: Client receives flat list ordered by created_at, reconstructs tree using parent references
 
@@ -229,7 +229,7 @@ Implementation completed in Moku API repository: `/c/Projects/repos/holokai/moku
 
 **Branch Validation (AC #5):**
 - Accept branchIndex 0-9
-- Reject branchIndex >= 10 with error "Maximum retry branches reached (max: 9)"
+- Reject branchIndex >= 10 with error "Maximum variation branches reached (max: 9)"
 - Prevent duplicate branchIndex for same parent (IllegalStateException → 409 Conflict)
 
 **Parent Message Validation (AC #4):**
