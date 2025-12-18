@@ -1,15 +1,28 @@
 import type { GUID } from './app.type.js';
+
 export type ProjectPrivacyMode = 'default' | 'project_only';
 
+/**
+ * Project type matching backend API structure
+ */
 export interface Project {
-  id: GUID;
-  title: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date | null;
-  metadata?: Record<string, unknown>;
-  privacyMode: ProjectPrivacyMode;
+    id: GUID;
+    name: string;
+    description: string | null;
+    type: string;
+    status: string;
+    active: boolean;
+    memberCount: number;
+    createdBy: string;
+    organizationId: string;
+    userRole: string; // 'owner' | 'editor' | 'viewer'
+    metadata: Record<string, unknown> | null;
+    createdAt: Date;
+    updatedAt: Date;
+    // Legacy fields for backward compatibility
+    title?: string; // Alias for name
+    deletedAt?: Date | null;
+    privacyMode?: ProjectPrivacyMode;
 }
 
 export type ProjectCreateInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
