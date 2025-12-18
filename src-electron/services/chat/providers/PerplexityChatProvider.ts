@@ -1,10 +1,7 @@
 import Perplexity from '@perplexity-ai/perplexity_ai';
 import type PerplexityClient from '@perplexity-ai/perplexity_ai';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
-import {
-  buildToolInstructionPrompt,
-  formatToolDescriptions,
-} from '../utils/toolInstruction.js';
+import { buildToolInstructionPrompt, formatToolDescriptions } from '../utils/toolInstruction.js';
 import type { IChatProvider, ToolUse } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import {
@@ -13,6 +10,7 @@ import {
   type PerplexityChatRequestNonStreaming,
   type PerplexityChatRequestStreaming,
 } from '../converters/PerplexityAIConverter.js';
+import { ModelCapabilityService } from '../ModelCapabilityService.js';
 
 type ChatMessageOutput = PerplexityClient.ChatMessageOutput;
 type ChatCompletionChunkLike = {
@@ -69,7 +67,16 @@ export class PerplexityChatProvider implements IChatProvider {
   }
 
   public supportsTools(): boolean {
-    return true;
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'perplexity');
+    return result.supported;
+  }
+
+  /**
+   * Get the reason why tools are not supported (if applicable)
+   */
+  public getToolSupportError(): string | undefined {
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'perplexity');
+    return result.reason;
   }
 
   public async chatWithTools(
@@ -325,15 +332,11 @@ export class PerplexityChatProvider implements IChatProvider {
       }
       case 'read_file': {
         // For read_file, return the actual file content
-        return typeof result.data === 'string' 
-          ? result.data 
-          : JSON.stringify(result.data);
+        return typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
       }
       case 'read_folder': {
         // For read_folder, return the folder listing
-        return typeof result.data === 'string' 
-          ? result.data 
-          : JSON.stringify(result.data);
+        return typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
       }
       default:
         return JSON.stringify({

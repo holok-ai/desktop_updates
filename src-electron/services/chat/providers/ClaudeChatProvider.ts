@@ -5,6 +5,7 @@ import type { IChatProvider, ToolUse } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
 import { ClaudeConverter } from '../converters/ClaudeConverter.js';
+import { ModelCapabilityService } from '../ModelCapabilityService.js';
 
 type ClaudeTool = {
   name: string;
@@ -119,7 +120,16 @@ export class ClaudeChatProvider implements IChatProvider {
    * Check if provider supports tool calling
    */
   public supportsTools(): boolean {
-    return true; // Claude natively supports tool calling
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'anthropic');
+    return result.supported;
+  }
+
+  /**
+   * Get the reason why tools are not supported (if applicable)
+   */
+  public getToolSupportError(): string | undefined {
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'anthropic');
+    return result.reason;
   }
 
   /**

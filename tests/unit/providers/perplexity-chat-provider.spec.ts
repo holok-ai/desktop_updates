@@ -50,7 +50,11 @@ describe('PerplexityChatProvider', () => {
     );
 
     // Pass actual URL since the provider doesn't normalize empty strings
-    const provider = new PerplexityChatProvider('https://api.perplexity.ai', 'api-key', '');
+    const provider = new PerplexityChatProvider(
+      'https://api.perplexity.ai',
+      'api-key',
+      'pplx-70b-online',
+    );
     const tokens: string[] = [];
     await provider.chat({ model: 'pplx-70b-online', messages: [], streaming: false }, (t) =>
       tokens.push(t),

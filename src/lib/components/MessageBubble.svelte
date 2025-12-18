@@ -3,7 +3,7 @@
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
-  import { createEventDispatcher, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import type { Attachment, ResponseComment } from '../../../src-shared/types/attachment.types';
   import AttachmentPreview from './AttachmentPreview.svelte';
   import CommentBubbleIcon from './CommentBubbleIcon.svelte';
@@ -21,22 +21,6 @@
     isStreaming?: boolean;
     showComments?: boolean;
   }
-
-  const dispatch = createEventDispatcher<{ copied: { message: string } }>();
-
-  const STATUS_ICON = {
-    [MESSAGE_STATUS.SENDING]: '●',
-    [MESSAGE_STATUS.SENT]: '✓',
-    [MESSAGE_STATUS.FAILED]: '⚠',
-    [MESSAGE_STATUS.PENDING_OFFLINE]: '○',
-  } as const;
-
-  const STATUS_TEXT = {
-    [MESSAGE_STATUS.SENDING]: 'Sending...',
-    [MESSAGE_STATUS.SENT]: 'Sent',
-    [MESSAGE_STATUS.FAILED]: 'Failed',
-    [MESSAGE_STATUS.PENDING_OFFLINE]: 'Offline',
-  } as const;
 
   let {
     message,
@@ -71,16 +55,6 @@
     }
     prevShowComments = showComments;
   });
-
-  function getStatusIcon(status?: MessageStatus): string {
-    if (!status) return '';
-    return STATUS_ICON[status];
-  }
-
-  function getStatusText(status?: MessageStatus): string {
-    if (!status) return '';
-    return STATUS_TEXT[status];
-  }
 
   function getOpacity(status?: MessageStatus): number {
     return status === MESSAGE_STATUS.SENDING || status === MESSAGE_STATUS.PENDING_OFFLINE ? 0.5 : 1;
