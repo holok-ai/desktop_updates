@@ -81,6 +81,20 @@
   });
 
   let filteredThreads = $state<Thread[]>([]);
+
+  // Separate projects into personal and shared, sorted by name
+  const personalProjects = $derived(
+    $projects
+      .filter((p) => p.type === 'personal')
+      .sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''))
+  );
+
+  const sharedProjects = $derived(
+    $projects
+      .filter((p) => p.type === 'shared')
+      .sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''))
+  );
+
   const hasListItems = $derived(
     isThreadActivity
       ? filteredThreads.length > 0
@@ -376,19 +390,45 @@
             <p>No projects available yet.</p>
           </div>
         {:else if !isCollapsed}
-          {#each $projects as project (project.id)}
-            <ProjectListItem
-              {project}
-              isSelected={selectedProjectId === project.id}
-              on:click={(e) => {
-                const item = e.detail as { id: string; label: string; route?: string };
-                const foundProject = $projects.find((p) => p.id === item.id);
-                if (foundProject) {
-                  selectProject(foundProject);
-                }
-              }}
-            />
-          {/each}
+          <!-- Personal Projects Section -->
+          {#if personalProjects.length > 0}
+            <div class="project-section-header">Personal Projects</div>
+            {#each personalProjects as project (project.id)}
+              <div class="project-item-indented">
+                <ProjectListItem
+                  {project}
+                  isSelected={selectedProjectId === project.id}
+                  on:click={(e) => {
+                    const item = e.detail as { id: string; label: string; route?: string };
+                    const foundProject = $projects.find((p) => p.id === item.id);
+                    if (foundProject) {
+                      selectProject(foundProject);
+                    }
+                  }}
+                />
+              </div>
+            {/each}
+          {/if}
+
+          <!-- Shared Projects Section -->
+          {#if sharedProjects.length > 0}
+            <div class="project-section-header">Shared Projects</div>
+            {#each sharedProjects as project (project.id)}
+              <div class="project-item-indented">
+                <ProjectListItem
+                  {project}
+                  isSelected={selectedProjectId === project.id}
+                  on:click={(e) => {
+                    const item = e.detail as { id: string; label: string; route?: string };
+                    const foundProject = $projects.find((p) => p.id === item.id);
+                    if (foundProject) {
+                      selectProject(foundProject);
+                    }
+                  }}
+                />
+              </div>
+            {/each}
+          {/if}
         {/if}
       {/if}
     </ul>
@@ -664,6 +704,26 @@
 
   :global(html.dark) .activity-list-sidebar .empty-state,
   :global(:root.dark) .activity-list-sidebar .empty-state {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Project section styles */
+  .project-section-header {
+    padding: 0.75rem 1rem 0.5rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sidebar-accordion-title-color);
+    opacity: 0.7;
+  }
+
+  .project-item-indented {
+    padding-left: 1rem;
+  }
+
+  :global(html.dark) .project-section-header,
+  :global(:root.dark) .project-section-header {
     color: rgba(255, 255, 255, 0.7);
   }
 

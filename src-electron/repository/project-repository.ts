@@ -103,19 +103,21 @@ export class ProjectRepository {
     }
 
     /**
-     * List personal projects (type="personal" created by user)
+     * List personal projects (type="personal")
+     * Note: API already filters to only return personal projects created by user
      */
-    public listPersonalProjects(userId: string): Project[] {
+    public listPersonalProjects(): Project[] {
         return Array.from(this.projectsById.values())
-            .filter((p) => p.status === 'active' && p.type === 'personal' && p.createdBy === userId)
+            .filter((p) => p.status === 'active' && p.type === 'personal')
             .map((p) => this.cloneProject(p))
             .sort((a, b) => a.name.localeCompare(b.name));
     }
 
     /**
-     * List shared projects (type="shared" where user is a member)
+     * List shared projects (type="shared")
+     * Note: API already filters to only return shared projects where user is a member
      */
-    public listSharedProjects(userId: string): Project[] {
+    public listSharedProjects(): Project[] {
         return Array.from(this.projectsById.values())
             .filter((p) => p.status === 'active' && p.type === 'shared')
             .map((p) => this.cloneProject(p))
