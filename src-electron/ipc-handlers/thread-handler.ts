@@ -193,14 +193,8 @@ export function registerThreadHandlers(): void {
         // When viewing a specific project, only show threads from that project
         filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
       } else if (!options?.includeProjectOnly) {
-        // When viewing general threads, exclude threads from project_only projects
-        filtered = list.filter((t) => {
-          const projectId = t.metadata?.projectId as GUID | undefined;
-          if (!projectId) return true; // Include threads not in any project
-          const project = projectRepository.getProject(projectId);
-          // Exclude if project has project_only privacy mode
-          return !project || project.privacyMode !== 'project_only';
-        });
+        // When viewing general threads, include all threads regardless of project
+        filtered = list;
       }
 
       const mapped = filtered
@@ -217,14 +211,6 @@ export function registerThreadHandlers(): void {
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
   ipcMain.handle('thread:getMessages', async (_event, id: string): Promise<Message[]> => {
-    // Privacy enforcement hook (no-op without caller context)
-    const t0 = await threadRepository.loadThread(id);
-    if (t0 && t0.metadata?.projectId) {
-      const proj = projectRepository.getProject(t0.metadata.projectId as GUID);
-      if (proj && proj.privacyMode === 'project_only') {
-        // In future, enforce caller/project context here
-      }
-    }
     const t = await threadRepository.loadThread(id);
     if (!t) return [];
     const items: Message[] = t.messages
@@ -633,14 +619,6 @@ export function registerThreadHandlers(): void {
           error: 'THREAD_NOT_FOUND',
           thread_id: threadId,
         };
-      }
-
-      // Privacy enforcement hook (no-op without caller context)
-      if (typeof internal.metadata?.projectId === 'string') {
-        const proj = projectRepository.getProject(internal.metadata.projectId as GUID);
-        if (proj && proj.privacyMode === 'project_only') {
-          // In future, enforce caller/project context here
-        }
       }
 
       // Ownership check if thread has userId

@@ -6,9 +6,10 @@
 import log from 'electron-log';
 import type { ProjectDTO, ProjectDetailDTO } from '../services/mokuapi/project.types.js';
 import { projectApiService } from '../services/mokuapi/project-api.service.js';
+import type { GUID } from '../../src/lib/types/app.type.js';
 
 export interface Project {
-    id: string;
+    id: GUID;
     name: string;
     description: string | null;
     type: string;
@@ -24,7 +25,7 @@ export interface Project {
 }
 
 export class ProjectRepository {
-    private readonly projectsById: Map<string, Project> = new Map();
+    private readonly projectsById: Map<GUID, Project> = new Map();
     private lastLoadTime: number = 0;
     private readonly CACHE_TTL = 60000; // 1 minute cache TTL
 
@@ -68,7 +69,7 @@ export class ProjectRepository {
      * Get a single project by ID
      * Fetches from API if not in cache
      */
-    public async getProject(projectId: string): Promise<Project | null> {
+    public async getProject(projectId: GUID): Promise<Project | null> {
         // Check cache first
         const cached = this.projectsById.get(projectId);
         if (cached) {
@@ -153,7 +154,7 @@ export class ProjectRepository {
      * Update an existing project via API
      */
     public async updateProject(
-        projectId: string,
+        projectId: GUID,
         updates: { name?: string; description?: string | null; metadata?: Record<string, unknown> | null }
     ): Promise<Project> {
         try {
@@ -175,7 +176,7 @@ export class ProjectRepository {
     /**
      * Delete a project via API (soft delete)
      */
-    public async deleteProject(projectId: string): Promise<void> {
+    public async deleteProject(projectId: GUID): Promise<void> {
         try {
             log.info('[ProjectRepository] Deleting project:', projectId);
             await projectApiService.deleteProject(projectId);
@@ -202,7 +203,7 @@ export class ProjectRepository {
      */
     private mapDTOToProject(dto: ProjectDTO): Project {
         return {
-            id: dto.id,
+            id: dto.id as GUID,
             name: dto.name,
             description: dto.description,
             type: dto.type,
@@ -223,7 +224,7 @@ export class ProjectRepository {
      */
     private mapDetailDTOToProject(dto: ProjectDetailDTO): Project {
         return {
-            id: dto.id,
+            id: dto.id as GUID,
             name: dto.name,
             description: dto.description,
             type: dto.type,
