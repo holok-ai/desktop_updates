@@ -132,12 +132,22 @@ export class ThreadRepository {
           log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
 
           messagesResponse.content.forEach((dto, index) => {
-            log.info(`[ThreadRepository] Message ${index}: id=${dto.id}, role=${dto.role}, contentLength=${dto.content ? JSON.stringify(dto.content).length : 0}, parentId=${dto.parentMessageId}, branchIndex=${dto.branchIndex}`);
+            const contentPreview = typeof dto.content === 'string'
+              ? dto.content.substring(0, 100)
+              : JSON.stringify(dto.content).substring(0, 100);
+            log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
           });
 
           cachedThread.messages = messagesResponse.content.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
+
+          log.info('[ThreadRepository] Mapped messages:', cachedThread.messages.length);
+          cachedThread.messages.forEach((msg, index) => {
+            const contentPreview = msg.content.substring(0, 100);
+            log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
+          });
+
           this.threadsById.set(threadId, cachedThread);
           log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
         } catch (error) {
@@ -167,7 +177,10 @@ export class ThreadRepository {
       log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
 
       messagesResponse.content.forEach((dto, index) => {
-        log.info(`[ThreadRepository] Message ${index}: id=${dto.id}, role=${dto.role}, contentLength=${dto.content ? JSON.stringify(dto.content).length : 0}, parentId=${dto.parentMessageId}, branchIndex=${dto.branchIndex}`);
+        const contentPreview = typeof dto.content === 'string'
+          ? dto.content.substring(0, 100)
+          : JSON.stringify(dto.content).substring(0, 100);
+        log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
       });
 
       thread.messages = messagesResponse.content.map((dto) =>
@@ -176,7 +189,8 @@ export class ThreadRepository {
 
       log.info('[ThreadRepository] Mapped messages:', thread.messages.length);
       thread.messages.forEach((msg, index) => {
-        log.info(`[ThreadRepository] Mapped message ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, parentId=${msg.parentMessageId}, branchIndex=${msg.branchIndex}`);
+        const contentPreview = msg.content.substring(0, 100);
+        log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
       });
 
       // Update cache
