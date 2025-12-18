@@ -128,6 +128,13 @@ export class ThreadRepository {
         log.info('[ThreadRepository] Thread has no messages, fetching from API');
         try {
           const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+          log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
+          log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+
+          messagesResponse.content.forEach((dto, index) => {
+            log.info(`[ThreadRepository] Message ${index}: id=${dto.id}, role=${dto.role}, contentLength=${dto.content ? JSON.stringify(dto.content).length : 0}, parentId=${dto.parentMessageId}, branchIndex=${dto.branchIndex}`);
+          });
+
           cachedThread.messages = messagesResponse.content.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
@@ -154,10 +161,23 @@ export class ThreadRepository {
       log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
       // Fetch messages for the thread
+      log.info('[ThreadRepository] Fetching messages for thread:', threadId);
       const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+      log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
+      log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+
+      messagesResponse.content.forEach((dto, index) => {
+        log.info(`[ThreadRepository] Message ${index}: id=${dto.id}, role=${dto.role}, contentLength=${dto.content ? JSON.stringify(dto.content).length : 0}, parentId=${dto.parentMessageId}, branchIndex=${dto.branchIndex}`);
+      });
+
       thread.messages = messagesResponse.content.map((dto) =>
         this.mapDTOToMessage(dto, thread.title),
       );
+
+      log.info('[ThreadRepository] Mapped messages:', thread.messages.length);
+      thread.messages.forEach((msg, index) => {
+        log.info(`[ThreadRepository] Mapped message ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, parentId=${msg.parentMessageId}, branchIndex=${msg.branchIndex}`);
+      });
 
       // Update cache
       this.threadsById.set(thread.id, thread);
@@ -229,21 +249,9 @@ export class ThreadRepository {
       }
     }
 
-    // Content size check (API will also validate, but fail fast locally)
+    // Content size check
     const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
     if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
-
-    const request: CreateMessageRequest = {
-      role: payload.role,
-      content: payload.content,
-      parentMessageId: payload.parentMessageId ?? null,
-      branchIndex: payload.branchIndex ?? 0,
-      clientMessageId: payload.clientMessageId,
-      metadata: payload.metadata,
-    };
-
-    log.info('[ThreadRepository] Creating message via API for thread:', threadId);
-    const messageDTO = await threadApiService.createMessage(threadId, request);
 
     // Get thread from cache or fetch it
     let thread = this.threadsById.get(threadId);
@@ -254,11 +262,27 @@ export class ThreadRepository {
       thread = loadedThread;
     }
 
-    const message = this.mapDTOToMessage(messageDTO, thread.title);
+    // Create local message object (no API call)
+    // Messages are created by Holo system and fetched via API later
+    const now = Date.now();
+    const message: Message = {
+      id: crypto.randomUUID(), // Temporary local ID
+      title: thread.title,
+      role: payload.role,
+      content: payload.content,
+      createdAt: now,
+      metadata: payload.metadata as MessageMetadata | undefined,
+      clientMessageId: payload.clientMessageId,
+      deletedAt: null,
+      parentMessageId: payload.parentMessageId ?? null,
+      branchIndex: payload.branchIndex ?? 0,
+    };
+
+    log.info('[ThreadRepository] Created local message (no API call):', message.id);
 
     // Update local cache
     thread.messages.push(message);
-    thread.updatedAt = Date.now();
+    thread.updatedAt = now;
     this.threadsById.set(thread.id, thread);
 
     // Update idempotency index
@@ -271,7 +295,7 @@ export class ThreadRepository {
       byThread.set(payload.clientMessageId, message.id);
     }
 
-    log.info('[ThreadRepository] Message created and cached:', message.id);
+    log.info('[ThreadRepository] Message cached locally (will be fetched from API later)');
     return { ...message };
   }
 
