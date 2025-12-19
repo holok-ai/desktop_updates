@@ -146,7 +146,7 @@ describe('OpenAIChatProvider', () => {
     expect(calls[0].model).toBe('m2');
   });
 
-  it('supportsTools returns true only for GPT-4 defaults', async () => {
+  it('supportsTools returns true for GPT-4 and GPT-3.5-turbo, false for base GPT-3', async () => {
     class MockOpenAI {
       chat = { completions: { create: vi.fn() } };
     }
@@ -158,9 +158,11 @@ describe('OpenAIChatProvider', () => {
 
     const gpt4Provider = new OpenAIChatProvider('http://x', 'k', 'gpt-4o');
     const gpt35Provider = new OpenAIChatProvider('http://x', 'k', 'gpt-3.5-turbo');
+    const gpt3Provider = new OpenAIChatProvider('http://x', 'k', 'gpt-3');
 
     expect(gpt4Provider.supportsTools()).toBe(true);
-    expect(gpt35Provider.supportsTools()).toBe(false);
+    expect(gpt35Provider.supportsTools()).toBe(true); // GPT-3.5-turbo DOES support tools
+    expect(gpt3Provider.supportsTools()).toBe(false); // Base GPT-3 does NOT
   });
 
   it('chatWithTools handles streaming function calls and loops results into conversation', async () => {

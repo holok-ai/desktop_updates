@@ -202,7 +202,7 @@ describe('ChatService - File Tools Integration (unit)', () => {
     expect((toolUseCalls[1].notification as any).result?.success).toBe(true);
   });
 
-  it('should fallback to regular chat when provider does not support tools', async () => {
+  it('should return friendly message when provider does not support tools', async () => {
     // Create a provider without tool support
     const nonToolProvider = {
       chat: vi.fn(async (request: ChatRequest, onTokenReceived?: (token: string) => void) => {
@@ -212,6 +212,10 @@ describe('ChatService - File Tools Integration (unit)', () => {
       }),
       chatWithOptions: vi.fn(),
       supportsTools: vi.fn(() => false),
+      getToolSupportError: vi.fn(
+        () =>
+          'This model does not support tool calling. Please use a model like GPT-4, Claude, or Llama 3 70B for tasks requiring file operations.',
+      ),
     };
 
     ChatProviderFactory.createProvider.mockReturnValue(nonToolProvider);
@@ -241,8 +245,9 @@ describe('ChatService - File Tools Integration (unit)', () => {
     await serviceNoTools.chatWithFileTools(request, onTokenReceived);
 
     expect(nonToolProvider.supportsTools).toHaveBeenCalled();
-    expect(nonToolProvider.chat).toHaveBeenCalled();
-    expect(receivedTokens).toBe('Regular response');
+    // Should NOT call regular chat - instead returns friendly message
+    expect(nonToolProvider.chat).not.toHaveBeenCalled();
+    expect(receivedTokens).toContain('does not support tool calling');
   });
 
   it('should fallback when provider does not have chatWithTools method', async () => {
@@ -255,6 +260,7 @@ describe('ChatService - File Tools Integration (unit)', () => {
       }),
       chatWithOptions: vi.fn(),
       supportsTools: vi.fn(() => true),
+      getToolSupportError: vi.fn(() => 'Tool calling not available for this model.'),
       // chatWithTools is missing
     };
 
@@ -281,8 +287,9 @@ describe('ChatService - File Tools Integration (unit)', () => {
       receivedTokens += token;
     });
 
-    expect(incompleteProvider.chat).toHaveBeenCalled();
-    expect(receivedTokens).toBe('Fallback response');
+    // Should NOT call regular chat - instead returns friendly message
+    expect(incompleteProvider.chat).not.toHaveBeenCalled();
+    expect(receivedTokens).toContain('Tool calling not available');
   });
 
   it('should set working directory for file tools', () => {

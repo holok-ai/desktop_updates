@@ -5,6 +5,7 @@ import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMess
 import { OllamaConverter } from '../converters/OllamaConverter.js';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
 import { buildToolInstructionPrompt, formatToolDescriptions } from '../utils/toolInstruction.js';
+import { ModelCapabilityService } from '../ModelCapabilityService.js';
 
 type ToolUseRequest = {
   id: string;
@@ -72,7 +73,16 @@ export class OllamaChatProvider implements IChatProvider {
   }
 
   public supportsTools(): boolean {
-    return this.toolSupportEnabled;
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'ollama');
+    return result.supported && this.toolSupportEnabled;
+  }
+
+  /**
+   * Get the reason why tools are not supported (if applicable)
+   */
+  public getToolSupportError(): string | undefined {
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'ollama');
+    return result.reason;
   }
 
   public async chatWithTools(

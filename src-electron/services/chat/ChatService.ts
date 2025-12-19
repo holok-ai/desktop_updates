@@ -145,8 +145,18 @@ export class ChatService {
       !this.provider.supportsTools() ||
       !this.provider.chatWithTools
     ) {
-      log.warn('[ChatService] Provider does not support tools, falling back to regular chat');
-      return this.chat(request, onTokenReceived);
+      // Get friendly error message if available
+      const errorMessage =
+        this.provider.getToolSupportError?.() ||
+        'This model does not support tool calling. Please use a model like GPT-4, Claude, or Llama 3 70B for tasks requiring file operations.';
+
+      log.warn('[ChatService] Provider does not support tools:', errorMessage);
+
+      // Send friendly message as normal chat response instead of throwing error
+      if (onTokenReceived) {
+        onTokenReceived(errorMessage);
+      }
+      return;
     }
 
     const tools = this.fileToolsService.getToolDefinitions();
