@@ -147,15 +147,15 @@ export class ChatService {
     ) {
       // Get friendly error message if available
       const errorMessage =
-        this.provider.getToolSupportError?.() ||
-        'This model does not support tool calling. Please use a model like GPT-4, Claude, or Llama 3 70B for tasks requiring file operations.';
+        this.provider.getToolSupportError?.() || 'This model does not support tool calling.';
 
-      log.warn('[ChatService] Provider does not support tools:', errorMessage);
+      log.warn(
+        '[ChatService] Provider does not support tools, falling back to regular chat:',
+        errorMessage,
+      );
 
-      // Send friendly message as normal chat response instead of throwing error
-      if (onTokenReceived) {
-        onTokenReceived(errorMessage);
-      }
+      // Fall back to regular chat instead of blocking
+      await this.chat(request, onTokenReceived);
       return;
     }
 
