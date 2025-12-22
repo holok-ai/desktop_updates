@@ -6,8 +6,18 @@ import {
   type ProviderConfig,
 } from './factories/ChatProviderFactory.js';
 import { AuditService } from './audit/AuditService.js';
-import { FileToolsService, type ToolResult } from '../file-tools.service.js';
+import {
+  FileToolsService,
+  type ToolResult,
+  type ToolStatusCallback,
+} from '../file-tools.service.js';
 import log from 'electron-log';
+
+export interface ToolUseNotification {
+  toolCallId: string;
+  stage: 'start' | 'complete';
+  result?: ToolResult;
+}
 
 /**
  * Main service class that provides a unified interface for chat functionality
@@ -103,35 +113,80 @@ export class ChatService {
   }
 
   /**
+   * Set callback for tool status updates (for UI feedback during long operations)
+   * @param callback - Function to call when tool status changes
+   */
+  public setToolStatusCallback(callback: ToolStatusCallback | null): void {
+    this.fileToolsService.setStatusCallback(callback);
+  }
+
+  /**
    * Send chat with file tools enabled
    * Automatically handles tool execution lifecycle and falls back to regular chat
    * if the provider doesn't support tools
    * @param request The chat request containing messages and model
    * @param onTokenReceived Callback function to handle streamed tokens
    * @param onToolUse Callback to notify when LLM uses a tool
+   * @param onToolStatus Callback to notify about tool execution status (for UI feedback)
    */
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-    onToolUse?: (toolName: string, input: unknown) => void,
+    onToolUse?: (toolName: string, input: unknown, notification?: ToolUseNotification) => void,
+    onToolStatus?: ToolStatusCallback,
   ): Promise<void> {
+    // Set up status callback for this request
+    if (onToolStatus) {
+      this.fileToolsService.setStatusCallback(onToolStatus);
+    }
     // Check if provider supports tools
     if (
       !this.provider.supportsTools ||
       !this.provider.supportsTools() ||
       !this.provider.chatWithTools
     ) {
-      log.warn('[ChatService] Provider does not support tools, falling back to regular chat');
-      return this.chat(request, onTokenReceived);
+      // Get friendly error message if available
+      const errorMessage =
+        this.provider.getToolSupportError?.() || 'This model does not support tool calling.';
+
+      log.warn(
+        '[ChatService] Provider does not support tools, falling back to regular chat:',
+        errorMessage,
+      );
+
+      // Fall back to regular chat instead of blocking
+      await this.chat(request, onTokenReceived);
+      return;
     }
 
     const tools = this.fileToolsService.getToolDefinitions();
 
     const handleToolUse = async (toolUse: ToolUse): Promise<ToolResult> => {
       if (onToolUse) {
-        onToolUse(toolUse.name, toolUse.input);
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'start',
+          toolCallId: toolUse.id,
+        });
       }
-      return await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+
+      let result: ToolResult;
+      try {
+        result = await this.fileToolsService.executeTool(toolUse.name, toolUse.input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        log.error('[ChatService] executeTool failed', { tool: toolUse.name, error: message });
+        result = { success: false, error: message };
+      }
+
+      if (onToolUse) {
+        onToolUse(toolUse.name, toolUse.input, {
+          stage: 'complete',
+          toolCallId: toolUse.id,
+          result,
+        });
+      }
+
+      return result;
     };
 
     const { callback, complete } = this.auditService.createWrappedCallback(
@@ -146,6 +201,11 @@ export class ChatService {
     } catch (error) {
       complete(error);
       throw error;
+    } finally {
+      // Clear status callback after request completes
+      if (onToolStatus) {
+        this.fileToolsService.setStatusCallback(null);
+      }
     }
   }
 

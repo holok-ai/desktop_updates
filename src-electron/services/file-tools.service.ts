@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import log from 'electron-log';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /**
@@ -63,13 +64,25 @@ export interface WriteFileParams {
 export interface WriteFileResult {
   path: string;
   created: boolean;
-  bytes_written: number;
+  bytesWritten: number;
   metadata: {
     size: number;
     modified: number;
     encoding: string;
+    previousSize?: number;
   };
 }
+
+/**
+ * Tool status for UI feedback during long operations
+ */
+export interface ToolStatus {
+  toolName: string;
+  state: 'in_progress' | 'complete';
+  message?: string;
+}
+
+export type ToolStatusCallback = (status: ToolStatus) => void;
 
 export class FileToolsService {
   private workingDirectory: string;
@@ -77,6 +90,11 @@ export class FileToolsService {
   private allowedPaths: Set<string>;
   private maxFileSize: number = 10 * 1024 * 1024; // 10MB
   private maxFolderFiles: number = 1000;
+  private statusCallback: ToolStatusCallback | null = null;
+
+  // Thresholds for status display
+  private static readonly STATUS_DELAY_MS = 2000; // Show status after 2 seconds
+  private static readonly LARGE_FILE_SIZE = 1024 * 1024; // 1MB - show status immediately
 
   constructor(workingDir?: string, allowedPaths?: string[]) {
     this.workingDirectory = workingDir || process.cwd();
@@ -168,12 +186,12 @@ export class FileToolsService {
             },
             content: {
               type: 'string',
-              description: 'The content to write to the file',
+              description: 'The content to write to the file.',
             },
             overwrite: {
               type: 'boolean',
               description:
-                'If true, overwrite existing file. If false, fail if file exists. Default: false',
+                'This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE.',
             },
             encoding: {
               type: 'string',
@@ -188,31 +206,131 @@ export class FileToolsService {
   }
 
   /**
+   * Set the callback for tool status updates
+   * @param callback - Function to call when tool status changes
+   */
+  public setStatusCallback(callback: ToolStatusCallback | null): void {
+    this.statusCallback = callback;
+  }
+
+  /**
+   * Emit a tool status event if callback is set
+   */
+  private emitStatus(toolName: string, state: 'in_progress' | 'complete', message?: string): void {
+    if (this.statusCallback) {
+      this.statusCallback({ toolName, state, message });
+    }
+  }
+
+  /**
+   * Get user-friendly message for tool operation
+   */
+  private getToolStatusMessage(toolName: string, input: Record<string, unknown>): string {
+    switch (toolName) {
+      case 'read_folder': {
+        const folderPath = input.path as string;
+        return `Reading folder: ${folderPath}`;
+      }
+      case 'read_file': {
+        const filePath = (input.file_path || input.path) as string;
+        return `Reading file: ${filePath}`;
+      }
+      case 'write_file': {
+        const writePath = input.path as string;
+        return `Writing file: ${writePath}`;
+      }
+      default:
+        return `Executing: ${toolName}`;
+    }
+  }
+
+  /**
+   * Check if we should show status immediately (large file)
+   */
+  private async shouldShowStatusImmediately(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (toolName === 'read_file') {
+      const userPath = (input.file_path || input.path) as string;
+      const resolvedPath = this.resolvePath(userPath);
+      try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const stats = await fs.promises.stat(resolvedPath);
+        return stats.size > FileToolsService.LARGE_FILE_SIZE;
+      } catch {
+        return false;
+      }
+    }
+    if (toolName === 'write_file') {
+      const content = input.content as string;
+      return Boolean(content && content.length > FileToolsService.LARGE_FILE_SIZE);
+    }
+    return false;
+  }
+
+  /**
    * Execute a tool by name with input parameters
    */
   public async executeTool(toolName: string, input: Record<string, unknown>): Promise<ToolResult> {
     log.info(`[FileTools] Executing: ${toolName}`, { input });
 
+    // Enforce default overwrite=false for write_file unless explicitly set to true
+    if (toolName === 'write_file' && !('overwrite' in input)) {
+      input.overwrite = false;
+    }
+
+    const statusMessage = this.getToolStatusMessage(toolName, input);
+    let statusTimeout: ReturnType<typeof setTimeout> | null = null;
+    let statusShown = false;
+
+    // Check if we should show status immediately (large file)
+    const showImmediately = await this.shouldShowStatusImmediately(toolName, input);
+    if (showImmediately) {
+      this.emitStatus(toolName, 'in_progress', statusMessage);
+      statusShown = true;
+    } else {
+      // Set up delayed status (show after 2 seconds)
+      statusTimeout = setTimeout(() => {
+        this.emitStatus(toolName, 'in_progress', statusMessage);
+        statusShown = true;
+      }, FileToolsService.STATUS_DELAY_MS);
+    }
+
     try {
+      let result: ToolResult;
       switch (toolName) {
         case 'read_folder':
-          return await this.readFolder(input);
+          result = await this.readFolder(input);
+          break;
         case 'read_file':
-          return await this.readFile(input);
+          result = await this.readFile(input);
+          break;
         case 'write_file':
-          return await this.writeFile(input as unknown as WriteFileParams);
+          result = await this.writeFile(input as unknown as WriteFileParams);
+          break;
         default:
-          return {
+          result = {
             success: false,
             error: `Unknown tool: ${toolName}`,
           };
       }
+
+      return result;
     } catch (error) {
       log.error(`[FileTools] Error executing ${toolName}:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    } finally {
+      // Clear timeout and emit complete status
+      if (statusTimeout) {
+        clearTimeout(statusTimeout);
+      }
+      if (statusShown) {
+        this.emitStatus(toolName, 'complete');
+      }
     }
   }
 
@@ -379,12 +497,9 @@ export class FileToolsService {
    * Create or update a file with the specified content
    */
   private async writeFile(params: WriteFileParams): Promise<ToolResult> {
-    const {
-      path: userPath,
-      content,
-      overwrite = false,
-      encoding = 'utf-8',
-    } = params;
+    // Explicitly default overwrite to false if not provided
+    const overwrite = params.overwrite === true;
+    const { path: userPath, content, encoding = 'utf-8' } = params;
 
     const allowedEncodings: Array<'utf-8' | 'ascii' | 'latin1'> = ['utf-8', 'ascii', 'latin1'];
     if (!allowedEncodings.includes(encoding)) {
@@ -426,7 +541,15 @@ export class FileToolsService {
       };
     }
 
+    let previousSize: number | undefined;
+
     try {
+      if (fileExists) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const existingStats = await fs.promises.stat(resolvedPath);
+        previousSize = existingStats.size;
+      }
+
       log.info('[FileToolsService] write_file operation', {
         path: resolvedPath,
         overwrite,
@@ -446,11 +569,12 @@ export class FileToolsService {
         data: {
           path: resolvedPath,
           created: !fileExists,
-          bytes_written: bytesWritten,
+          bytesWritten: bytesWritten,
           metadata: {
             size: stats.size,
             modified: stats.mtimeMs,
             encoding,
+            previousSize: previousSize,
           },
         },
       };
@@ -574,6 +698,24 @@ export class FileToolsService {
   }
 
   /**
+   * Check if a path starts with a folder, handling case-insensitivity on Windows
+   * @param whiteList - The allowed folder path
+   * @param promptString - The path to check
+   * @returns True if promptString starts with whiteList
+   */
+  private startsWithFolder(whiteList: string, promptString: string): boolean {
+    const isWindows = os.platform() === 'win32';
+
+    if (isWindows) {
+      // Case-insensitive comparison on Windows
+      return promptString.toLowerCase().startsWith(whiteList.toLowerCase());
+    }
+
+    // Case-sensitive comparison on Unix-like systems
+    return promptString.startsWith(whiteList);
+  }
+
+  /**
    * Check if a path is allowed with detailed reason
    * @returns Object with allowed status and reason for denial
    */
@@ -583,7 +725,7 @@ export class FileToolsService {
   } {
     // Check blacklist first
     for (const blacklisted of this.blacklistedPaths) {
-      if (absolutePath.startsWith(blacklisted)) {
+      if (this.startsWithFolder(blacklisted, absolutePath)) {
         return { allowed: false, reason: 'blacklist' };
       }
     }
@@ -592,7 +734,7 @@ export class FileToolsService {
     if (this.allowedPaths.size > 0) {
       let isInAllowedPath = false;
       for (const allowed of this.allowedPaths) {
-        if (absolutePath.startsWith(allowed)) {
+        if (this.startsWithFolder(allowed, absolutePath)) {
           isInAllowedPath = true;
           break;
         }

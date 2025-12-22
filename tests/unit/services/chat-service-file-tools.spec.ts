@@ -125,6 +125,7 @@ describe('ChatService - File Tools Integration (unit)', () => {
           // Simulate LLM requesting a tool
           if (onToolUse) {
             const result = await onToolUse({
+              id: 'tool-call-1',
               name: 'read_folder',
               input: { path: '/test/path' },
             });
@@ -173,9 +174,17 @@ describe('ChatService - File Tools Integration (unit)', () => {
       receivedTokens += token;
     };
 
-    const toolUseCalls: Array<{ toolName: string; input: unknown }> = [];
-    const onToolUse = (toolName: string, input: unknown): void => {
-      toolUseCalls.push({ toolName, input });
+    const toolUseCalls: Array<{
+      toolName: string;
+      input: unknown;
+      notification?: unknown;
+    }> = [];
+    const onToolUse = (
+      toolName: string,
+      input: unknown,
+      notification?: { stage: 'start' | 'complete'; toolCallId: string; result?: ToolResult },
+    ): void => {
+      toolUseCalls.push({ toolName, input, notification });
     };
 
     await service.chatWithFileTools(request, onTokenReceived, onToolUse);
@@ -183,11 +192,17 @@ describe('ChatService - File Tools Integration (unit)', () => {
     expect(mockProvider.supportsTools).toHaveBeenCalled();
     expect(mockProvider.chatWithTools).toHaveBeenCalled();
     expect(receivedTokens).toContain('Using tools');
-    expect(toolUseCalls).toHaveLength(1);
+
+    // Expect two notifications: start and complete
+    expect(toolUseCalls).toHaveLength(2);
     expect(toolUseCalls[0].toolName).toBe('read_folder');
+    expect((toolUseCalls[0].notification as any).stage).toBe('start');
+    expect(toolUseCalls[1].toolName).toBe('read_folder');
+    expect((toolUseCalls[1].notification as any).stage).toBe('complete');
+    expect((toolUseCalls[1].notification as any).result?.success).toBe(true);
   });
 
-  it('should fallback to regular chat when provider does not support tools', async () => {
+  it('should return friendly message when provider does not support tools', async () => {
     // Create a provider without tool support
     const nonToolProvider = {
       chat: vi.fn(async (request: ChatRequest, onTokenReceived?: (token: string) => void) => {
@@ -197,6 +212,10 @@ describe('ChatService - File Tools Integration (unit)', () => {
       }),
       chatWithOptions: vi.fn(),
       supportsTools: vi.fn(() => false),
+      getToolSupportError: vi.fn(
+        () =>
+          'This model does not support tool calling. Please use a model like GPT-4, Claude, or Llama 3 70B for tasks requiring file operations.',
+      ),
     };
 
     ChatProviderFactory.createProvider.mockReturnValue(nonToolProvider);
@@ -226,8 +245,9 @@ describe('ChatService - File Tools Integration (unit)', () => {
     await serviceNoTools.chatWithFileTools(request, onTokenReceived);
 
     expect(nonToolProvider.supportsTools).toHaveBeenCalled();
-    expect(nonToolProvider.chat).toHaveBeenCalled();
-    expect(receivedTokens).toBe('Regular response');
+    // Should NOT call regular chat - instead returns friendly message
+    expect(nonToolProvider.chat).not.toHaveBeenCalled();
+    expect(receivedTokens).toContain('does not support tool calling');
   });
 
   it('should fallback when provider does not have chatWithTools method', async () => {
@@ -240,6 +260,7 @@ describe('ChatService - File Tools Integration (unit)', () => {
       }),
       chatWithOptions: vi.fn(),
       supportsTools: vi.fn(() => true),
+      getToolSupportError: vi.fn(() => 'Tool calling not available for this model.'),
       // chatWithTools is missing
     };
 
@@ -266,8 +287,9 @@ describe('ChatService - File Tools Integration (unit)', () => {
       receivedTokens += token;
     });
 
-    expect(incompleteProvider.chat).toHaveBeenCalled();
-    expect(receivedTokens).toBe('Fallback response');
+    // Should NOT call regular chat - instead returns friendly message
+    expect(incompleteProvider.chat).not.toHaveBeenCalled();
+    expect(receivedTokens).toContain('Tool calling not available');
   });
 
   it('should set working directory for file tools', () => {

@@ -4,6 +4,8 @@ import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OllamaConverter } from '../converters/OllamaConverter.js';
 import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
+import { buildToolInstructionPrompt, formatToolDescriptions } from '../utils/toolInstruction.js';
+import { ModelCapabilityService } from '../ModelCapabilityService.js';
 
 type ToolUseRequest = {
   id: string;
@@ -71,7 +73,16 @@ export class OllamaChatProvider implements IChatProvider {
   }
 
   public supportsTools(): boolean {
-    return this.toolSupportEnabled;
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'ollama');
+    return result.supported && this.toolSupportEnabled;
+  }
+
+  /**
+   * Get the reason why tools are not supported (if applicable)
+   */
+  public getToolSupportError(): string | undefined {
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'ollama');
+    return result.reason;
   }
 
   public async chatWithTools(
@@ -195,8 +206,10 @@ export class OllamaChatProvider implements IChatProvider {
       const response = await this.sendToolAwareRequest(conversation, baseRequest);
       const assistantContent = response.message?.content?.trim();
 
+      // If empty content, try a regular fallback response
       if (!assistantContent) {
-        return;
+        console.warn('[OllamaChatProvider] Empty response from tool-aware request, using fallback');
+        break;
       }
 
       const parsedToolCall = this.tryParseToolInvocation(assistantContent);
@@ -209,11 +222,7 @@ export class OllamaChatProvider implements IChatProvider {
         };
         const result = await onToolUse(toolUse);
 
-        const toolResultContent = JSON.stringify({
-          success: result.success,
-          data: result.data ?? null,
-          error: result.error ?? null,
-        });
+        const toolResultContent = this.formatToolResult(parsedToolCall.tool, result);
 
         conversation = [
           ...conversation,
@@ -229,27 +238,19 @@ export class OllamaChatProvider implements IChatProvider {
       return;
     }
 
-    throw new Error('Tool loop exceeded maximum iterations');
+    // If we reach here, either:
+    // 1. Empty response received
+    // 2. Max iterations exceeded (all responses were tool calls)
+    // Fall back to regular chat without tools
+    console.warn(
+      '[OllamaChatProvider] Tool loop did not produce final response, falling back to regular chat',
+    );
+    await this.fallbackToStandardChat(request, onTokenReceived);
   }
 
   private buildToolInstruction(tools: ToolDefinition[]): string {
-    const toolDescriptions = tools
-      .map((tool) => {
-        const params =
-          tool.input_schema?.properties && Object.keys(tool.input_schema.properties).length > 0
-            ? JSON.stringify(tool.input_schema.properties, null, 2)
-            : '{}';
-        return `Tool: ${tool.name}\nDescription: ${tool.description}\nParameters: ${params}`;
-      })
-      .join('\n\n');
-
-    return [
-      'You can inspect project files using special tools.',
-      'When you need to use a tool, respond ONLY with JSON using this shape:',
-      '{"tool":"tool_name","input":{...}}',
-      'After you receive tool results, continue the conversation normally.',
-      toolDescriptions ? `Available tools:\n\n${toolDescriptions}` : 'No tools available.',
-    ].join('\n\n');
+    const toolDescriptions = formatToolDescriptions(tools);
+    return buildToolInstructionPrompt(toolDescriptions);
   }
 
   private async sendToolAwareRequest(
@@ -282,17 +283,28 @@ export class OllamaChatProvider implements IChatProvider {
       const parsed = JSON.parse(trimmed) as {
         tool?: unknown;
         input?: unknown;
+        [key: string]: unknown;
       };
 
-      if (
-        typeof parsed.tool === 'string' &&
-        parsed.tool.length > 0 &&
-        parsed.input &&
-        typeof parsed.input === 'object'
-      ) {
+      if (typeof parsed.tool !== 'string' || parsed.tool.length === 0) {
+        return null;
+      }
+
+      // Handle standard format: {"tool": "...", "input": {...}}
+      if (parsed.input && typeof parsed.input === 'object') {
         return {
           tool: parsed.tool,
           input: parsed.input as Record<string, unknown>,
+        };
+      }
+
+      // Handle alternative format: {"tool": "...", "path": "...", "content": "...", ...}
+      // Extract all properties except "tool" as the input
+      const { tool: _tool, ...rest } = parsed;
+      if (Object.keys(rest).length > 0) {
+        return {
+          tool: parsed.tool,
+          input: rest as Record<string, unknown>,
         };
       }
     } catch {
@@ -300,5 +312,58 @@ export class OllamaChatProvider implements IChatProvider {
     }
 
     return null;
+  }
+
+  private formatToolResult(toolName: string, result: ToolResult): string {
+    if (!result.success) {
+      const error = result.error || 'Unknown error occurred';
+
+      // Format FILE_EXISTS error in a user-friendly way
+      if (error.startsWith('FILE_EXISTS:')) {
+        const match = error.match(/FILE_EXISTS:\s*'([^']+)'/);
+        const filePath = match ? match[1] : 'the file';
+        return `File already exists: ${filePath} already exists. To overwrite it, the user must say to overwrite it.`;
+      }
+
+      // Format other errors
+      if (error.startsWith('ACCESS_DENIED:')) {
+        return `Access denied: ${error.replace('ACCESS_DENIED: ', '')}`;
+      }
+
+      if (error.startsWith('PERMISSION_DENIED:')) {
+        return `Permission denied: ${error.replace('PERMISSION_DENIED: ', '')}`;
+      }
+
+      return error;
+    }
+
+    switch (toolName) {
+      case 'write_file': {
+        const data = result.data as {
+          path?: string;
+          created?: boolean;
+          bytesWritten?: number;
+        };
+        const filePath = data.path || 'unknown';
+        if (data.created) {
+          return `File created at ${filePath}`;
+        }
+        return `File updated at ${filePath}`;
+      }
+      case 'read_file': {
+        // For read_file, return the actual file content
+        return typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+      }
+      case 'read_folder': {
+        // For read_folder, return the folder listing
+        return typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+      }
+      default:
+        return JSON.stringify({
+          success: result.success,
+          data: result.data ?? null,
+          error: result.error ?? null,
+        });
+    }
   }
 }

@@ -3,13 +3,14 @@
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
-  import { createEventDispatcher, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import type { Attachment, ResponseComment } from '../../../src-shared/types/attachment.types';
   import AttachmentPreview from './AttachmentPreview.svelte';
   import CommentBubbleIcon from './CommentBubbleIcon.svelte';
   import CommentDisplay from './CommentDisplay.svelte';
   import CommentEditor from './CommentEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
+  import { toastStore } from '$lib/services/toast.service';
 
   interface Props {
     message: Message;
@@ -20,22 +21,6 @@
     isStreaming?: boolean;
     showComments?: boolean;
   }
-
-  const dispatch = createEventDispatcher<{ copied: { message: string } }>();
-
-  const STATUS_ICON = {
-    [MESSAGE_STATUS.SENDING]: '●',
-    [MESSAGE_STATUS.SENT]: '✓',
-    [MESSAGE_STATUS.FAILED]: '⚠',
-    [MESSAGE_STATUS.PENDING_OFFLINE]: '○',
-  } as const;
-
-  const STATUS_TEXT = {
-    [MESSAGE_STATUS.SENDING]: 'Sending...',
-    [MESSAGE_STATUS.SENT]: 'Sent',
-    [MESSAGE_STATUS.FAILED]: 'Failed',
-    [MESSAGE_STATUS.PENDING_OFFLINE]: 'Offline',
-  } as const;
 
   let {
     message,
@@ -71,16 +56,6 @@
     prevShowComments = showComments;
   });
 
-  function getStatusIcon(status?: MessageStatus): string {
-    if (!status) return '';
-    return STATUS_ICON[status];
-  }
-
-  function getStatusText(status?: MessageStatus): string {
-    if (!status) return '';
-    return STATUS_TEXT[status];
-  }
-
   function getOpacity(status?: MessageStatus): number {
     return status === MESSAGE_STATUS.SENDING || status === MESSAGE_STATUS.PENDING_OFFLINE ? 0.5 : 1;
   }
@@ -105,10 +80,10 @@
         document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      dispatch('copied', { message: 'Prompt copied to clipboard' });
+      toastStore.show(`Prompt copied to clipboard`, { variant: 'success' });
     } catch (error) {
       console.error('Copy failed', error);
-      dispatch('copied', { message: 'Failed to copy prompt' });
+      toastStore.show(`Failed to copy prompt`, { variant: 'error' });
     }
   }
 
@@ -310,12 +285,6 @@
         <span class="edited-indicator" title="Message was edited">✎ Edited</span>
       {/if}
     </span>
-    {#if message.status}
-      <span class="message-status" class:status-failed={message.status === MESSAGE_STATUS.FAILED}>
-        <span class="status-icon">{getStatusIcon(message.status)}</span>
-        <span class="status-text">{getStatusText(message.status)}</span>
-      </span>
-    {/if}
     <div class="message-actions">
       {#if message.status !== MESSAGE_STATUS.SENDING}
         <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
@@ -416,16 +385,26 @@
     }
   }
 
+  .message.user {
+    display: flex;
+    justify-content: flex-end;
+    flex-direction: column;
+    align-items: end;
+  }
+
   .message.user .message-content {
     background: var(--surface-card);
     padding: 0.5rem;
     border-radius: 6px;
+    text-align: left;
+    max-width: 80%;
   }
 
   .message.assistant .message-content {
     background: transparent;
     padding: 0.5rem;
     border-radius: 6px;
+    text-align: left;
   }
 
   .message.failed .message-content {
@@ -506,12 +485,14 @@
   }
 
   .message-actions {
-    position: absolute;
-    right: 0.5rem;
-    top: 0;
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  .message.user .message-actions {
+    left: 0.5rem;
+    right: auto;
   }
 
   .copy-button {
@@ -618,10 +599,13 @@
   .message-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
     margin-top: 0.25rem;
     position: relative;
+  }
+
+  .message.user .message-footer {
+    justify-content: flex-end;
   }
 
   .message-meta {

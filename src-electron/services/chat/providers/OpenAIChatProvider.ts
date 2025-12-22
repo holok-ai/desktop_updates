@@ -11,6 +11,7 @@ import type { ToolDefinition, ToolResult } from '../../file-tools.service.js';
 import type { IChatProvider } from '../interfaces/IChatProvider.js';
 import type { ChatRequest, ChatRequestWithOptions } from '../interfaces/ChatMessage.js';
 import { OpenAIConverter } from '../converters/OpenAIConverter.js';
+import { ModelCapabilityService } from '../ModelCapabilityService.js';
 
 type ToolUseRequest = {
   id: string;
@@ -140,8 +141,16 @@ export class OpenAIChatProvider implements IChatProvider {
   }
 
   public supportsTools(): boolean {
-    const normalized = (this.defaultModel || '').toLowerCase();
-    return normalized.includes('gpt-4');
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'openai');
+    return result.supported;
+  }
+
+  /**
+   * Get the reason why tools are not supported (if applicable)
+   */
+  public getToolSupportError(): string | undefined {
+    const result = ModelCapabilityService.checkToolSupport(this.defaultModel, 'openai');
+    return result.reason;
   }
 
   public async chatWithTools(

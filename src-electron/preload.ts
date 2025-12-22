@@ -26,6 +26,8 @@ import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/pro
  * Example API group for thread-related operations.
  * Each API group should have a clear, limited set of functions.
  */
+type AuthProvider = 'microsoft' | 'google' | 'oauth2';
+
 export interface ThreadAPI {
   // Get all threads with optional privacy filtering
   getAll: (options?: {
@@ -330,7 +332,7 @@ export interface AuthAPI {
   exchangeCode: (code: string, codeVerifier: string) => Promise<AuthState>;
 
   // Mock login for testing
-  mockLogin: (provider: 'microsoft' | 'google' | 'oauth2') => Promise<AuthState>;
+  mockLogin: (provider: AuthProvider) => Promise<AuthState>;
 
   // Get authentication state
   getAuthState: () => Promise<AuthState>;
@@ -364,7 +366,7 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
-  provider: 'microsoft' | 'google' | 'oauth2';
+  provider: AuthProvider;
 }
 
 /**
@@ -406,6 +408,14 @@ export interface LogAPI {
  *
  * Chat service operations for interacting with LLM providers.
  */
+export type ToolUseEventPayload = {
+  toolName: string;
+  input: unknown;
+  stage: 'start' | 'complete';
+  toolCallId: string;
+  result?: unknown;
+};
+
 export interface ChatAPI {
   // Initialize/Create a chat service instance
   createProvider: (
@@ -437,7 +447,16 @@ export interface ChatAPI {
   offToken: () => void;
 
   // Listen for tool use events (event-based)
-  onToolUse: (callback: (data: { toolName: string; input: unknown }) => void) => () => void;
+  onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;
+
+  // Listen for tool status events (for UI feedback during long operations)
+  onToolStatus: (
+    callback: (status: {
+      toolName: string;
+      state: 'in_progress' | 'complete';
+      message?: string;
+    }) => void,
+  ) => () => void;
 
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
@@ -548,8 +567,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exchangeCode: (code: string, codeVerifier: string) =>
       ipcRenderer.invoke('auth:exchangeCode', code, codeVerifier),
 
-    mockLogin: (provider: 'microsoft' | 'google' | 'oauth2') =>
-      ipcRenderer.invoke('auth:mockLogin', provider),
+    mockLogin: (provider: AuthProvider) => ipcRenderer.invoke('auth:mockLogin', provider),
 
     getAuthState: () => ipcRenderer.invoke('auth:getAuthState'),
 
@@ -632,16 +650,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:setFileToolsWorkingDirectory', dir),
 
     // 10. Listen for tool use events
-    onToolUse: (callback: (data: { toolName: string; input: unknown }) => void): (() => void) => {
+    onToolUse: (callback: (data: ToolUseEventPayload) => void): (() => void) => {
       const subscription = (
         _event: IpcRendererEvent,
-        data: { toolName: string; input: unknown },
+        data: ToolUseEventPayload,
       ): void => callback(data);
       ipcRenderer.on('chat:toolUse', subscription);
 
       // Return cleanup function
       return (): void => {
         ipcRenderer.removeListener('chat:toolUse', subscription);
+      };
+    },
+
+    // 11. Listen for tool status events (for UI feedback during long operations)
+    onToolStatus: (
+      callback: (status: {
+        toolName: string;
+        state: 'in_progress' | 'complete';
+        message?: string;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        status: { toolName: string; state: 'in_progress' | 'complete'; message?: string },
+      ): void => callback(status);
+      ipcRenderer.on('chat:toolStatus', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.removeListener('chat:toolStatus', subscription);
       };
     },
   },

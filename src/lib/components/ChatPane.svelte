@@ -8,11 +8,13 @@
   import { threadService } from '$lib/services/thread.service';
   import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
+  import FileWriteNotification from './chat/FileWriteNotification.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
+  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
 
   interface Props {
     thread?: Thread | null;
@@ -48,6 +50,7 @@
 
   // Watch for prop changes and update model configuration from thread metadata
   $effect(() => {
+    const previousThreadId = currentThread?.id;
     currentThread = thread;
 
     // Extract model configuration from thread metadata
@@ -76,6 +79,11 @@
 
     // Clear error state when switching threads to prevent stale errors
     error = '';
+    // Clear file write events when switching threads
+    if (previousThreadId !== thread?.id) {
+      fileWriteEventService.clear();
+      fileWriteEventsByMessageId = {};
+    }
   });
 
   // State management
@@ -89,6 +97,7 @@
   let showMoveModal = $state(false);
   let showVersionsFor = $state<{ messageId: string; content: string } | undefined>(undefined);
   let showComments = $state(false);
+  let toolStatusMessage = $state<string | null>(null); // For tool status balloon
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
 
   // Scrolling state
@@ -102,6 +111,39 @@
   let isSavingTitle = $state(false);
   let titleInputRef: HTMLInputElement | null = $state(null);
   const TITLE_MAX_LENGTH = 200;
+
+  const fileWriteEventService = new FileWriteEventService();
+  let fileWriteEventsByMessageId = $state<Record<string, FileWriteEvent[]>>({});
+
+  function eventsChanged(
+    current: Record<string, FileWriteEvent[]>,
+    next: Record<string, FileWriteEvent[]>,
+  ): boolean {
+    const currentKeys = Object.keys(current);
+    const nextKeys = Object.keys(next);
+    if (currentKeys.length !== nextKeys.length) return true;
+    for (const key of currentKeys) {
+      const currList = current[key] ?? [];
+      const nextList = next[key] ?? [];
+      if (currList.length !== nextList.length) return true;
+      for (let i = 0; i < currList.length; i += 1) {
+        const c = currList[i];
+        const n = nextList[i];
+        if (
+          c.id !== n.id ||
+          c.status !== n.status ||
+          c.filePath !== n.filePath ||
+          c.success !== n.success ||
+          c.error !== n.error ||
+          c.bytesWritten !== n.bytesWritten ||
+          c.previousSizeBytes !== n.previousSizeBytes
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   // Load showComments preference from localStorage
   onMount(() => {
@@ -351,7 +393,8 @@
       };
       console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
 
-      const result = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const result = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -426,7 +469,8 @@
         ...(currentThread?.id && { thread_id: currentThread.id }),
       };
 
-      const chatResult = await window.electronAPI.chat.chat(request);
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      const chatResult = await window.electronAPI.chat.chatWithFileTools(request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -467,7 +511,8 @@
     await transmitter.processPendingMessages(thread, map, {
       setupTokenListener,
       getResponseText: () => responseText,
-      chat: (request) => window.electronAPI.chat.chat(request),
+      // Use chatWithFileTools for all requests - tools are invisible to user
+      chat: (request) => window.electronAPI.chat.chatWithFileTools(request),
       setStreaming: (streaming) => {
         isStreaming = streaming;
       },
@@ -479,9 +524,36 @@
   onMount(() => {
     outboxService.init();
 
+    // Set up callback for file write event updates
+    fileWriteEventService.setUpdateCallback(() => {
+      const allEvents = fileWriteEventService.getAllEvents();
+      if (eventsChanged(fileWriteEventsByMessageId, allEvents)) {
+        fileWriteEventsByMessageId = { ...allEvents };
+      }
+    });
+
     // Listen for thread updates from backend
     let unsubThreadUpdated: (() => void) | undefined;
+    let unsubToolUse: (() => void) | undefined;
+
     try {
+      if (window.electronAPI?.chat?.onToolUse) {
+        unsubToolUse = window.electronAPI.chat.onToolUse(
+          (data: {
+            toolName: string;
+            input: unknown;
+            stage: 'start' | 'complete';
+            toolCallId: string;
+            result?: unknown;
+          }) => {
+            const updatedEvents = fileWriteEventService.handleToolUse(data, messages);
+            if (eventsChanged(fileWriteEventsByMessageId, updatedEvents)) {
+              fileWriteEventsByMessageId = updatedEvents;
+            }
+          },
+        );
+      }
+
       if (window.electronAPI?.thread?.onThreadUpdated) {
         unsubThreadUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread) => {
           // Only update if it's our current thread
@@ -503,8 +575,27 @@
     } catch {
       // ignore if API not available
     }
+
+    // Listen for tool status events (for UI feedback during long operations)
+    let unsubToolStatus: (() => void) | undefined;
+    try {
+      if (window.electronAPI?.chat?.onToolStatus) {
+        unsubToolStatus = window.electronAPI.chat.onToolStatus((status) => {
+          if (status.state === 'in_progress') {
+            toolStatusMessage = status.message || `${status.toolName}...`;
+          } else {
+            toolStatusMessage = null;
+          }
+        });
+      }
+    } catch {
+      // ignore if API not available
+    }
+
     return () => {
       if (unsubThreadUpdated) unsubThreadUpdated();
+      if (unsubToolUse) unsubToolUse();
+      if (unsubToolStatus) unsubToolStatus();
       cleanup();
     };
   });
@@ -576,7 +667,8 @@
             ...(currentThread?.id && { thread_id: currentThread.id }),
           };
 
-          const result = await window.electronAPI.chat.chat(request);
+          // Use chatWithFileTools for all requests - tools are invisible to user
+          const result = await window.electronAPI.chat.chatWithFileTools(request);
 
           if (!result.success) {
             error = result.error || 'Chat failed';
@@ -724,6 +816,22 @@
             {showComments}
             on:copied={(event) => showToast(event.detail.message)}
           />
+          {#if fileWriteEventsByMessageId[m.id]}
+            <div class="file-write-events">
+              {#each fileWriteEventsByMessageId[m.id] as evt (evt.id)}
+                <FileWriteNotification
+                  filePath={evt.filePath}
+                  created={evt.created}
+                  bytesWritten={evt.bytesWritten ?? 0}
+                  content={evt.content}
+                  previousSizeBytes={evt.previousSizeBytes}
+                  overwriteRequested={evt.overwriteRequested}
+                  error={evt.success === false ? evt.error : null}
+                  status={evt.status}
+                />
+              {/each}
+            </div>
+          {/if}
         {/each}
       {/if}
 
@@ -734,6 +842,14 @@
             <MarkdownRenderer content={responseText} enableCopy={true} />
           </div>
           <div class="message-meta">Streaming... ●</div>
+        </div>
+      {/if}
+
+      <!-- Tool status balloon (shown during long tool operations) -->
+      {#if toolStatusMessage}
+        <div class="tool-status-balloon">
+          <span class="tool-status-spinner">⟳</span>
+          <span class="tool-status-text">{toolStatusMessage}</span>
         </div>
       {/if}
     </div>
@@ -777,6 +893,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     border: 1px solid var(--surface-border);
     border-radius: var(--border-radius);
     padding: var(--content-padding);
@@ -787,9 +905,10 @@
     padding: var(--content-padding) 0;
     border-bottom: 1px solid var(--surface-border);
     position: sticky;
-    top: -31px;
+    top: 0;
     z-index: 5;
     background: var(--surface-main);
+    flex-shrink: 0;
   }
 
   .header-content {
@@ -1120,13 +1239,28 @@
 
   .messages {
     flex: 1;
-    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
     margin-top: var(--content-padding);
     padding-right: var(--inline-spacing);
   }
 
+  .file-write-events {
+    margin-top: var(--inline-spacing);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .composer {
     margin-top: var(--content-padding);
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-main);
+    padding-top: var(--content-padding);
   }
 
   .message-content {
@@ -1137,5 +1271,50 @@
 
   .no-messages {
     color: var(--text-secondary);
+  }
+
+  /* Tool status balloon - shows during long tool operations */
+  .tool-status-balloon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    background: var(--surface-overlay, #2a2a2a);
+    border: 1px solid var(--surface-border, #444);
+    border-radius: var(--border-radius, 6px);
+    color: var(--text-secondary, #aaa);
+    font-size: 0.85rem;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .tool-status-spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+    font-size: 1rem;
+  }
+
+  .tool-status-text {
+    font-style: italic;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

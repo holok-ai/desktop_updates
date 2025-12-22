@@ -1,5 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import { ChatService } from '../services/chat/ChatService.js';
+import { ChatService, type ToolUseNotification } from '../services/chat/ChatService.js';
 import type {
   ChatRequest,
   ChatRequestWithOptions,
@@ -183,9 +183,17 @@ export function registerChatHandlers(auth?: AuthService): void {
             // Send streaming tokens back to renderer
             event.sender.send('chat:token', token);
           },
-          (toolName: string, input: unknown) => {
-            // Send tool use notifications back to renderer
-            event.sender.send('chat:toolUse', { toolName, input });
+          (toolName: string, input: unknown, notification?: ToolUseNotification) => {
+            // Send tool use notifications back to renderer, including stage/result payload
+            event.sender.send('chat:toolUse', {
+              toolName,
+              input,
+              ...notification,
+            });
+          },
+          (status) => {
+            // Send tool status notifications back to renderer (for UI feedback)
+            event.sender.send('chat:toolStatus', status);
           },
         );
         log.info('[IPC] Chat message with file tools sent successfully');

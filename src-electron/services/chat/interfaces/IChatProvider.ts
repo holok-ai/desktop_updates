@@ -35,6 +35,12 @@ export interface IChatProvider {
   supportsTools?(): boolean;
 
   /**
+   * Get friendly error message if tools are not supported
+   * Returns undefined if tools are supported
+   */
+  getToolSupportError?(): string | undefined;
+
+  /**
    * Send chat with tools enabled (optional - only for providers that support it)
    */
   chatWithTools?(
