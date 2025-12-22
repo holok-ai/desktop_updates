@@ -103,7 +103,15 @@
         const found = $projects.find((project) => project.id === projectId);
         if (found) {
           selectedProjectId = projectId;
-          loadThreadCount(projectId);
+          // Load full project details with members
+          (async () => {
+            try {
+              await projectService.getProjectById(projectId);
+              await loadThreadCount(projectId);
+            } catch (error) {
+              console.error('Failed to load project details:', error);
+            }
+          })();
           // Ensure threads list is fresh when switching projects
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {
@@ -256,10 +264,10 @@
           <div class="stat-value">{threadCount}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Privacy</div>
+          <div class="stat-label">Type</div>
           <div class="stat-value">
-            <span class={selectedProject.privacyMode === 'project_only' ? 'badge danger' : 'badge'}>
-              {selectedProject.privacyMode === 'project_only' ? 'Project Only' : 'Default'}
+            <span class={selectedProject.type === 'shared' ? 'badge shared' : 'badge personal'}>
+              {selectedProject.type === 'shared' ? 'Shared' : 'Personal'}
             </span>
           </div>
         </div>
@@ -272,6 +280,27 @@
           <div class="stat-value">{new Date(selectedProject.updatedAt).toLocaleDateString()}</div>
         </div>
       </div>
+
+      {#if selectedProject.members && selectedProject.members.length > 0}
+        <div class="members-section">
+          <h3>Project Members</h3>
+          <div class="members-list">
+            {#each selectedProject.members as member (member.id)}
+              <div class="member-item">
+                <div class="member-info">
+                  <div class="member-name">{member.userName}</div>
+                  <div class="member-email">{member.email}</div>
+                </div>
+                <div class="member-role">
+                  <span class="role-badge role-{member.memberRole}">
+                    {member.memberRole}
+                  </span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       {#if threadsLoading}
         <div class="empty-threads">
@@ -509,9 +538,99 @@
     font-size: 0.875rem;
   }
 
-  .badge.danger {
-    background: rgba(220, 53, 69, 0.1);
-    border-color: rgba(220, 53, 69, 0.35);
-    color: #ff6b6b;
+  .badge.personal {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #3b82f6;
+  }
+
+  .badge.shared {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.35);
+    color: #a855f7;
+  }
+
+  .members-section {
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .members-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+  }
+
+  .members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .member-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--surface-main);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+
+  .member-item:hover {
+    background: var(--surface-hover);
+  }
+
+  .member-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .member-name {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .member-email {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .member-role {
+    display: flex;
+    align-items: center;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .role-badge.role-owner {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #ef4444;
+  }
+
+  .role-badge.role-editor {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #3b82f6;
+  }
+
+  .role-badge.role-viewer {
+    background: rgba(107, 114, 128, 0.1);
+    border: 1px solid rgba(107, 114, 128, 0.35);
+    color: #6b7280;
   }
 </style>

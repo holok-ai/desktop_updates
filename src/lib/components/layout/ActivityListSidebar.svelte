@@ -321,6 +321,20 @@
 
     if (requestNavigation(proceed)) proceed();
   }
+
+  /**
+   * Navigate to project creation interface
+   */
+  function handleNewProject() {
+    const proceed = () => {
+      // Clear any selected project and navigate to projects page (shows create form)
+      selectedProjectId = null;
+      storageService.removeLastProjectId();
+      push(ROUTE.PROJECTS);
+    };
+
+    if (requestNavigation(proceed)) proceed();
+  }
 </script>
 
 <aside
@@ -347,6 +361,16 @@
       <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
         <i class="pi pi-plus text-black"></i>
         <span>New Thread ...</span>
+      </button>
+    </div>
+  {/if}
+
+  <!-- New Project button - only visible for Projects activity when not collapsed -->
+  {#if isProjectsActivity && !isCollapsed}
+    <div class="new-thread-container">
+      <button class="new-thread-btn" onclick={handleNewProject} aria-label="Create new project">
+        <i class="pi pi-plus text-black"></i>
+        <span>New Project ...</span>
       </button>
     </div>
   {/if}

@@ -6,6 +6,10 @@
 import log from 'electron-log';
 import type { ProjectDTO, ProjectDetailDTO } from '../services/mokuapi/project.types.js';
 import { projectApiService } from '../services/mokuapi/project-api.service.js';
+import { userApiService } from '../services/mokuapi/user-api.service.js';
+import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
+import { projectMemberApiService } from '../services/mokuapi/project-member-api.service.js';
+import type { MemberDTO } from '../services/mokuapi/project-member-api.service.js';
 import type { GUID } from '../../src/lib/types/app.type.js';
 
 export interface Project {
@@ -22,6 +26,7 @@ export interface Project {
     metadata: Record<string, unknown> | null;
     createdAt: Date;
     updatedAt: Date;
+    members: MemberDTO[];
 }
 
 export class ProjectRepository {
@@ -67,23 +72,26 @@ export class ProjectRepository {
 
     /**
      * Get a single project by ID
-     * Fetches from API if not in cache
+     * Always fetches fresh from API with members
      */
     public async getProject(projectId: GUID): Promise<Project | null> {
-        // Check cache first
-        const cached = this.projectsById.get(projectId);
-        if (cached) {
-            log.debug('[ProjectRepository] Returning cached project:', projectId);
-            return this.cloneProject(cached);
-        }
-
-        // Load from API
         try {
             log.info('[ProjectRepository] Fetching project from API:', projectId);
             const dto = await projectApiService.getProject(projectId);
-            const project = this.mapDetailDTOToProject(dto);
 
-            // Cache it
+            // Fetch members for the project
+            let members: MemberDTO[] = [];
+            try {
+                members = await projectMemberApiService.getProjectMembers(projectId);
+                log.info('[ProjectRepository] Loaded', members.length, 'members for project:', projectId);
+            } catch (error) {
+                log.warn('[ProjectRepository] Failed to load members for project:', projectId, error);
+                // Continue with empty members array
+            }
+
+            const project = this.mapDetailDTOToProject(dto, members);
+
+            // Update cache with fresh data
             this.projectsById.set(project.id, project);
 
             return this.cloneProject(project);
@@ -138,7 +146,15 @@ export class ProjectRepository {
                 metadata: metadata || null,
             });
 
-            const project = this.mapDetailDTOToProject(dto);
+            // Fetch members for the newly created project
+            let members: MemberDTO[] = [];
+            try {
+                members = await projectMemberApiService.getProjectMembers(dto.id);
+            } catch (error) {
+                log.warn('[ProjectRepository] Failed to load members for new project:', dto.id, error);
+            }
+
+            const project = this.mapDetailDTOToProject(dto, members);
 
             // Add to cache
             this.projectsById.set(project.id, project);
@@ -161,7 +177,16 @@ export class ProjectRepository {
             log.info('[ProjectRepository] Updating project:', projectId);
             const dto = await projectApiService.updateProject(projectId, updates);
 
-            const project = this.mapDetailDTOToProject(dto);
+            // Always fetch fresh members
+            let members: MemberDTO[] = [];
+            try {
+                members = await projectMemberApiService.getProjectMembers(projectId);
+                log.info('[ProjectRepository] Loaded', members.length, 'members for updated project:', projectId);
+            } catch (error) {
+                log.warn('[ProjectRepository] Failed to load members for updated project:', projectId, error);
+            }
+
+            const project = this.mapDetailDTOToProject(dto, members);
 
             // Update cache
             this.projectsById.set(project.id, project);
@@ -216,13 +241,14 @@ export class ProjectRepository {
             metadata: null,
             createdAt: new Date(dto.createdAt),
             updatedAt: new Date(dto.updatedAt),
+            members: [], // Members not loaded in list view
         };
     }
 
     /**
      * Map ProjectDetailDTO (detail view) to Project domain model
      */
-    private mapDetailDTOToProject(dto: ProjectDetailDTO): Project {
+    private mapDetailDTOToProject(dto: ProjectDetailDTO, members: MemberDTO[] = []): Project {
         return {
             id: dto.id as GUID,
             name: dto.name,
@@ -237,6 +263,7 @@ export class ProjectRepository {
             metadata: dto.metadata,
             createdAt: new Date(dto.createdAt),
             updatedAt: new Date(dto.updatedAt),
+            members: members,
         };
     }
 
@@ -258,7 +285,42 @@ export class ProjectRepository {
             metadata: project.metadata ? { ...project.metadata } : null,
             createdAt: new Date(project.createdAt),
             updatedAt: new Date(project.updatedAt),
+            members: [...project.members],
         };
+    }
+
+    /**
+     * Search users in the organization
+     * @param searchTerm Optional search term for name/email (null/undefined returns all active users)
+     * @returns Array of user summaries
+     */
+    public async searchUsers(searchTerm?: string | null): Promise<UserSummaryDTO[]> {
+        try {
+            log.info('[ProjectRepository] Searching users', { searchTerm });
+            const response = await userApiService.searchUsers(searchTerm);
+            log.info('[ProjectRepository] Found', response.content.length, 'users');
+            return response.content;
+        } catch (error) {
+            log.error('[ProjectRepository] Failed to search users:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get project members
+     * @param projectId The project ID
+     * @returns Array of member DTOs with user information
+     */
+    public async getProjectMembers(projectId: GUID): Promise<MemberDTO[]> {
+        try {
+            log.info('[ProjectRepository] Getting members for project', { projectId });
+            const members = await projectMemberApiService.getProjectMembers(projectId);
+            log.info('[ProjectRepository] Retrieved', members.length, 'members');
+            return members;
+        } catch (error) {
+            log.error('[ProjectRepository] Failed to get project members:', error);
+            throw error;
+        }
     }
 }
 

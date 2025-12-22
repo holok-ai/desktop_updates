@@ -8,7 +8,7 @@ import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
-import type { Project, ProjectPrivacyMode } from '$lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
 
 /**
  * Preload Script with Context Bridge
@@ -236,6 +236,9 @@ export interface ProjectAPI {
 
   // Get thread count for a project
   getThreads: (projectId: GUID) => Promise<number>;
+
+  // Search users in organization
+  searchUsers: (searchTerm?: string | null) => Promise<UserSummaryDTO[]>;
 
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
@@ -940,6 +943,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('project:delete', id, options),
 
     getThreads: (projectId: GUID) => ipcRenderer.invoke('project:getThreads', projectId),
+
+    searchUsers: (searchTerm?: string | null) =>
+      ipcRenderer.invoke('project:searchUsers', searchTerm),
 
     // Event listeners with cleanup function
     onProjectCreated: (callback: (project: Project) => void): (() => void) => {

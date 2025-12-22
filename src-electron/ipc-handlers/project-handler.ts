@@ -4,13 +4,24 @@ import { threadRepository } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
-import type { Project, ProjectPrivacyMode } from '../../src/lib/types/project.type.js';
+import type { Project, ProjectPrivacyMode, MemberDTO as FrontendMemberDTO } from '../../src/lib/types/project.type.js';
+import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
+import type { MemberDTO as BackendMemberDTO } from '../services/mokuapi/project-member-api.service.js';
+import type { Project as BackendProject } from '../repository/project-repository.js';
 import { GUID } from '../../src/lib/types/app.type.js';
 
 const projectLog = createScopedLogger('project');
 
-function toRendererProject(p: Project | null): Project | null {
+function toRendererProject(p: BackendProject | null): Project | null {
     if (!p) return null;
+
+    const mapMember = (m: BackendMemberDTO): FrontendMemberDTO => ({
+        id: m.id,
+        userId: m.userId,
+        userName: m.userName,
+        email: m.userEmail,
+        memberRole: m.role,
+    });
 
     return {
         id: p.id,
@@ -27,6 +38,7 @@ function toRendererProject(p: Project | null): Project | null {
         metadata: p.metadata ? { ...p.metadata } : null,
         createdAt: new Date(p.createdAt.toISOString()),
         updatedAt: new Date(p.updatedAt.toISOString()),
+        members: p.members.map(mapMember),
         // Legacy fields
         deletedAt: null,
         privacyMode: 'default',
@@ -76,12 +88,13 @@ export function registerProjectHandlers(): void {
             data: {
                 title: string;
                 description?: string;
+                type?: string;
                 metadata?: Record<string, unknown>;
                 privacyMode?: ProjectPrivacyMode;
             },
         ): Promise<Project> => {
             const perfLog = logPerformance('project:create');
-            projectLog.info('Create called', { title: data.title });
+            projectLog.info('Create called', { title: data.title, type: data.type });
 
             const auth = getAuthService();
             if (!auth.isAuthenticated()) {
@@ -96,7 +109,7 @@ export function registerProjectHandlers(): void {
                 const project = await projectRepository.createProject(
                     data.title.trim(),
                     data.description?.trim(),
-                    undefined, // type
+                    data.type, // type parameter
                     data.metadata,
                 );
                 const rp = toRendererProject(project);
@@ -225,6 +238,30 @@ export function registerProjectHandlers(): void {
         return projectThreads.length;
     });
 
+    // Search users in organization
+    ipcMain.handle(
+        'project:searchUsers',
+        async (_event, searchTerm?: string | null): Promise<UserSummaryDTO[]> => {
+            const perfLog = logPerformance('project:searchUsers');
+            projectLog.info('Search users called', { searchTerm });
+
+            const auth = getAuthService();
+            if (!auth.isAuthenticated()) {
+                throw new Error('Authentication required');
+            }
+
+            try {
+                const users = await projectRepository.searchUsers(searchTerm);
+                perfLog.end({ userCount: users.length });
+                return users;
+            } catch (error) {
+                projectLog.error('Failed to search users', error);
+                perfLog.end({ error: true });
+                throw error;
+            }
+        },
+    );
+
     projectLog.info('Handlers registered');
 }
 
@@ -235,5 +272,6 @@ export function unregisterProjectHandlers(): void {
     ipcMain.removeHandler('project:update');
     ipcMain.removeHandler('project:delete');
     ipcMain.removeHandler('project:getThreads');
+    ipcMain.removeHandler('project:searchUsers');
     projectLog.info('Handlers unregistered');
 }
