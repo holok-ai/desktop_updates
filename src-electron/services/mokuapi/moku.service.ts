@@ -13,6 +13,15 @@ import log from 'electron-log';
 import type { ApplicationSummary, ApplicationDetail } from './application.types.js';
 import type { PagedResponse } from './paging.types.js';
 import type { AgentListItem, AgentChatConfig } from './agent.types.js';
+import type {
+    ProjectDTO,
+    ProjectDetailDTO,
+    ProjectCreateRequest,
+    ProjectUpdateRequest,
+    ProjectFilters,
+    ProjectUpdatesResponse,
+} from './project.types.js';
+import { projectApiService } from './project-api.service.js';
 
 /**
  * Response from /api/auth/exchange-code endpoint
@@ -86,8 +95,6 @@ export class MokuService {
   public async exchangeApiKeyForAccessToken(
     apiKey: string,
   ): Promise<{ accessToken: string; expires_in: number }> {
-    log.info('[MokuService] Exchanging apiKey for accessToken');
-
     const mokuApiUrl = this.getMokuApiUrl();
 
     const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
@@ -103,7 +110,6 @@ export class MokuService {
     }
 
     const { accessToken, expires_in } = (await response.json()) as TokenRefreshResponse;
-    log.info('[MokuService] Successfully received accessToken');
 
     return { accessToken, expires_in };
   }
@@ -142,8 +148,6 @@ export class MokuService {
    * Fetches all pages and returns a complete list of applications
    */
   public async getAllApplications(): Promise<ApplicationSummary[]> {
-    log.info('[MokuService] Fetching all applications');
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -158,8 +162,6 @@ export class MokuService {
 
     while (hasMore) {
       try {
-        log.info(`[MokuService] Fetching applications page ${page}`);
-
         const response = await fetch(`${mokuApiUrl}/api/applications?page=${page}&size=1000`, {
           method: 'GET',
           headers: {
@@ -183,17 +185,11 @@ export class MokuService {
         allApps = allApps.concat(data.content);
         hasMore = data.hasNext;
         page++;
-
-        log.info(
-          `[MokuService] Fetched ${data.content.length} applications (page ${data.page + 1}/${data.totalPages})`,
-        );
       } catch (error) {
         log.error('[MokuService] Error fetching applications:', error);
         throw error;
       }
     }
-
-    log.info(`[MokuService] Successfully fetched ${allApps.length} total applications`);
 
     // Convert arrays to Sets for modelNames, guards, and evaluators
     return allApps.map((app) => ({
@@ -209,8 +205,6 @@ export class MokuService {
    * Fetches full application information including models array
    */
   public async getApplicationDetail(applicationId: string): Promise<ApplicationDetail> {
-    log.info(`[MokuService] Fetching application detail for ID: ${applicationId}`);
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -239,8 +233,6 @@ export class MokuService {
       }
 
       const data = (await response.json()) as ApplicationDetail;
-      log.info(`[MokuService] Successfully fetched application detail: ${data.name}`);
-
       return data;
     } catch (error) {
       log.error('[MokuService] Error fetching application detail:', error);
@@ -253,8 +245,6 @@ export class MokuService {
    * Fetches full agent information including chat configuration with Holo API URL
    */
   public async getAgentDetail(agentId: string): Promise<AgentChatConfig> {
-    log.info(`[MokuService] Fetching agent detail for ID: ${agentId}`);
-
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
@@ -283,13 +273,136 @@ export class MokuService {
       }
 
       const data = (await response.json()) as AgentChatConfig;
-      log.info(`[MokuService] Successfully fetched agent detail: ${data.name}`);
-
       return data;
     } catch (error) {
       log.error('[MokuService] Error fetching agent detail:', error);
       throw error;
     }
+  }
+
+  // ============================================================================
+  // Project Operations
+  // ============================================================================
+
+  /**
+   * Get all projects where user is a member with pagination support
+   * Fetches all pages and returns a complete list of projects
+   */
+  public async getAllProjects(): Promise<ProjectDTO[]> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    let allProjects: ProjectDTO[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await projectApiService.getProjects({ page, size: 1000 });
+        allProjects = allProjects.concat(response.content);
+        hasMore = response.hasNext;
+        page++;
+      } catch (error) {
+        log.error('[MokuService] Error fetching projects:', error);
+        throw error;
+      }
+    }
+
+    return allProjects;
+  }
+
+  /**
+   * Get projects with pagination control
+   * Returns paginated response for controlled loading
+   */
+  public async getProjects(filters?: ProjectFilters): Promise<PagedResponse<ProjectDTO>> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getProjects(filters);
+  }
+
+  /**
+   * Get project detail by ID
+   * Fetches full project information including user's role
+   */
+  public async getProjectDetail(projectId: string): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getProject(projectId);
+  }
+
+  /**
+   * Create a new project
+   * Creator is automatically added as owner member
+   */
+  public async createProject(request: ProjectCreateRequest): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.createProject(request);
+  }
+
+  /**
+   * Update an existing project
+   * Requires owner role
+   */
+  public async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailDTO> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.updateProject(projectId, request);
+  }
+
+  /**
+   * Delete a project (soft delete)
+   * Requires owner role
+   */
+  public async deleteProject(projectId: string): Promise<void> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.deleteProject(projectId);
+  }
+
+  /**
+   * Get project updates since a specific timestamp
+   * Returns counts of updated threads, members, and workflows
+   */
+  public async getProjectUpdates(projectId: string, since: string): Promise<ProjectUpdatesResponse> {
+    const accessToken = this.getAccessToken();
+
+    if (!accessToken) {
+      log.error('[MokuService] No access token available');
+      throw new Error('Not authenticated. Please log in first.');
+    }
+
+    return await projectApiService.getUpdates(projectId, since);
   }
 }
 

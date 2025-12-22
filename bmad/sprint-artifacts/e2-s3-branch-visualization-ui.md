@@ -105,7 +105,7 @@ so that I can understand the conversation tree structure at a glance.
       <Messages />
     </BranchLane>
     <BranchLane active={false} index={1}>
-      <LaneHeader>Branch 1 (Retry 1)</LaneHeader>
+      <LaneHeader>Branch 1 (Variation 1)</LaneHeader>
       <Messages />
     </BranchLane>
   </BranchLanes>
@@ -177,7 +177,7 @@ function detectBranchPoints(messages: Message[]): string[] {
 
 **Dependencies:**
 - E2-S1: Message tree data model
-- E2-S2: Retry flow (creates branches to visualize)
+- E2-S2: Prompt Variation flow (creates branches to visualize)
 
 ### Testing Framework
 
@@ -193,7 +193,7 @@ function detectBranchPoints(messages: Message[]): string[] {
 
 **E2E Tests:**
 - Navigate branched conversation
-- Click retry → verify new lane appears
+- Click Create Variation → verify new lane appears
 - Collapse/expand lanes
 - Responsive layout on different viewport sizes
 
@@ -209,8 +209,8 @@ function detectBranchPoints(messages: Message[]): string[] {
 - Tree traversal utilities for context assembly
 
 **From E2-S2:**
-- Retry flow creates new branches that need visualization
-- Branch limit of 2 retries (branchIndex 0, 1, 2)
+- Prompt Variation flow creates new branches that need visualization
+- Branch limit of 9 variations (branchIndex 0-9)
 
 ## Dev Agent Record
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
-  import type { Project, ProjectPrivacyMode } from '$lib/types/project.type';
+  import type { Project } from '$lib/types/project.type';
 
   let {
     show = $bindable(false),
@@ -12,23 +12,6 @@
   let projectDescription = $state('');
   let isSubmitting = $state(false);
   let error = $state('');
-  let privacyMode = $state<ProjectPrivacyMode>('default');
-  let initialPrivacyMode = $state<ProjectPrivacyMode>('default');
-
-  const privacyChoices: { id: 'default' | 'project_only'; title: string; description: string }[] = [
-    {
-      id: 'default',
-      title: 'Default',
-      description:
-        'Allow memories to surface between this project and outside chats when policy allows.',
-    },
-    {
-      id: 'project_only',
-      title: 'Project Only',
-      description:
-        'Keep context and memories locked to this project. Nothing flows in or out without migration.',
-    },
-  ];
 
   const isEditMode = $derived(!!project);
   const modalTitle = $derived(isEditMode ? 'Edit Project' : 'Create New Project');
@@ -50,13 +33,9 @@
       if (project) {
         projectName = project.title;
         projectDescription = project.description || '';
-        privacyMode = project.privacyMode ?? 'default';
-        initialPrivacyMode = privacyMode;
       } else {
         projectName = '';
         projectDescription = '';
-        privacyMode = 'default';
-        initialPrivacyMode = 'default';
       }
     }
     lastShownState = show;
@@ -73,31 +52,17 @@
 
     try {
       if (isEditMode && project) {
-        if (initialPrivacyMode !== privacyMode && privacyMode === 'project_only') {
-          const ok = window.confirm(
-            'Switching to Project Only will isolate memories and context to this project. This may hide context from general chats and other projects. Proceed?',
-          );
-          if (!ok) {
-            isSubmitting = false;
-            return;
-          }
-        }
         await projectService.updateProject(project.id, {
           title: projectName.trim(),
           description: projectDescription.trim() || undefined,
-          privacyMode,
         });
       } else {
-        await projectService.createProject(
-          projectName.trim(),
-          projectDescription.trim() || undefined,
-          privacyMode,
-        );
+        // This modal is only for editing, creation happens in ProjectCreatePanel
+        throw new Error('Cannot create projects from this modal');
       }
 
       projectName = '';
       projectDescription = '';
-      privacyMode = 'default';
       show = false;
     } catch (err) {
       error =
@@ -158,48 +123,17 @@
         ></textarea>
       </div>
 
-      <div class="form-group">
-        <span class="field-label">Privacy Mode</span>
-        <div class="privacy-options" role="radiogroup" aria-label="Privacy mode">
-          {#each privacyChoices as choice (choice.id)}
-            <label class="privacy-option-wrapper">
-              <input
-                type="radio"
-                name="privacy-mode"
-                value={choice.id}
-                bind:group={privacyMode}
-                disabled={isSubmitting}
-                class="sr-only"
-              />
-              <button
-                type="button"
-                class="privacy-option"
-                class:active={privacyMode === choice.id}
-                class:disabled={isSubmitting}
-                aria-pressed={privacyMode === choice.id}
-                disabled={isSubmitting}
-                onclick={() => {
-                  if (!isSubmitting) {
-                    privacyMode = choice.id;
-                  }
-                }}
-              >
-                <div class="option-header">
-                  <span class="option-title">{choice.title}</span>
-                  {#if privacyMode === choice.id}
-                    <span class="option-badge">Selected</span>
-                  {/if}
-                </div>
-                <p class="option-description">{choice.description}</p>
-              </button>
-            </label>
-          {/each}
+      {#if isEditMode && project}
+        <div class="form-group">
+          <span class="field-label">Project Type</span>
+          <div class="read-only-field">
+            <span class={project.type === 'shared' ? 'type-badge shared' : 'type-badge personal'}>
+              {project.type === 'shared' ? 'Shared' : 'Personal'}
+            </span>
+          </div>
+          <div class="field-hint">Project type cannot be changed after creation.</div>
         </div>
-        <div class="privacy-hint">
-          Changes apply in under 2 seconds across all threads. Organization policy may limit your
-          options.
-        </div>
-      </div>
+      {/if}
     </form>
   {/snippet}
 </BaseModal>
@@ -256,105 +190,37 @@
     color: var(--text-primary);
   }
 
-  .privacy-options {
-    display: grid;
-    gap: 12px;
-  }
-
-  .privacy-option-wrapper {
-    display: block;
-  }
-
-  .privacy-option {
-    width: 100%;
-    text-align: left;
+  .read-only-field {
+    padding: 10px 12px;
     background: var(--surface-overlay);
     border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: inherit;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition:
-      border-color 0.2s ease,
-      box-shadow 0.2s ease,
-      background 0.2s ease;
-    color: var(--text-primary);
-    cursor: pointer;
-    font-family: inherit;
-    font-size: inherit;
+    border-radius: 6px;
   }
 
-  .privacy-option:hover:not(:disabled) {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+  .type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
-  .privacy-option:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
+  .type-badge.personal {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #3b82f6;
   }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
+  .type-badge.shared {
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    color: #a855f7;
   }
 
-  .privacy-option.active {
-    border-color: var(--primary-color);
-    background: rgba(66, 133, 244, 0.08);
-  }
-
-  .privacy-option:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-    box-shadow: none;
-  }
-
-  .privacy-option:disabled:hover {
-    border-color: var(--surface-border);
-    box-shadow: none;
-  }
-
-  .option-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .option-title {
-    font-weight: 600;
-    font-size: 15px;
-  }
-
-  .option-badge {
-    background: var(--primary-color);
-    color: #fff;
-    border-radius: 14px;
-    font-size: 12px;
-    padding: 2px 10px;
-  }
-
-  .option-description {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
-
-  .privacy-hint {
-    margin-top: 8px;
+  .field-hint {
+    margin-top: 6px;
     font-size: 12px;
     color: var(--text-secondary);
+    font-style: italic;
   }
 </style>

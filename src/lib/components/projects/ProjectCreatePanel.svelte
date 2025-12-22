@@ -1,7 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { projectService } from '$lib/services/project.service';
-  import type { ProjectPrivacyMode } from '$lib/types/project.type';
   import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
@@ -9,25 +8,24 @@
 
   let projectName = $state('');
   let projectDescription = $state('');
-  let privacyMode = $state<ProjectPrivacyMode>('default');
+  let projectType = $state<'personal' | 'shared'>('personal');
   let isSubmitting = $state(false);
   let error = $state('');
 
-  const privacyChoices: {
-    id: ProjectPrivacyMode;
+  const typeChoices: {
+    id: 'personal' | 'shared';
     title: string;
     description: string;
   }[] = [
     {
-      id: 'default',
-      title: 'Default',
-      description:
-        'Allow memories to surface between this project and outside chats when policy allows.',
+      id: 'personal',
+      title: 'Personal',
+      description: 'A private project accessible only to you.',
     },
     {
-      id: 'project_only',
-      title: 'Project Only',
-      description: 'Keep context and memories locked to this project.',
+      id: 'shared',
+      title: 'Shared',
+      description: 'A collaborative project that can be shared with team members.',
     },
   ];
 
@@ -35,14 +33,14 @@
     const dirty =
       projectName.trim().length > 0 ||
       projectDescription.trim().length > 0 ||
-      privacyMode !== 'default';
+      projectType !== 'personal';
     setUnsavedChanges('add-project', dirty);
   });
 
   function resetForm() {
     projectName = '';
     projectDescription = '';
-    privacyMode = 'default';
+    projectType = 'personal';
     error = '';
     clearUnsavedChanges('add-project');
   }
@@ -61,7 +59,8 @@
       const project = await projectService.createProject(
         projectName.trim(),
         projectDescription.trim() || undefined,
-        privacyMode,
+        undefined, // privacyMode - no longer used
+        projectType,
       );
       dispatch('created', { projectId: project.id });
       resetForm();
@@ -100,21 +99,18 @@
       </div>
 
       <div class="form-group">
-        <span class="field-label">Privacy Mode</span>
-        <div class="privacy-options">
-          {#each privacyChoices as choice (choice.id)}
+        <span class="field-label">Project Type *</span>
+        <div class="type-options">
+          {#each typeChoices as choice (choice.id)}
             <button
               type="button"
-              class="privacy-option"
-              class:active={privacyMode === choice.id}
-              onclick={() => (privacyMode = choice.id)}
+              class="type-option"
+              class:active={projectType === choice.id}
+              onclick={() => (projectType = choice.id)}
               disabled={isSubmitting}
             >
               <div class="option-header">
                 <span>{choice.title}</span>
-                {#if privacyMode === choice.id}
-                  <span class="badge">Selected</span>
-                {/if}
               </div>
               <p>{choice.description}</p>
             </button>
@@ -175,13 +171,13 @@
     min-height: 120px;
   }
 
-  .privacy-options {
+  .type-options {
     display: grid;
     gap: 1rem;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 
-  .privacy-option {
+  .type-option {
     border: 1px solid var(--surface-border);
     border-radius: 12px;
     padding: 1rem;
@@ -194,12 +190,12 @@
       background 0.2s ease;
   }
 
-  .privacy-option.active {
+  .type-option.active {
     border-color: var(--primary-color);
     background: color-mix(in srgb, var(--primary-color) 12%, transparent);
   }
 
-  .privacy-option .option-header {
+  .type-option .option-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -207,7 +203,7 @@
     font-weight: 600;
   }
 
-  .privacy-option p {
+  .type-option p {
     margin: 0;
     font-size: 0.875rem;
     color: var(--text-secondary);

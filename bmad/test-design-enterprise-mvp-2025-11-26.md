@@ -41,7 +41,7 @@ This test design document defines user acceptance tests for Holokai Desktop Ente
 
 **Thread Management:**
 - ✅ Threads persist locally without data loss
-- ✅ Thread branching supports max 3 branches (original + 2 retries)
+- ✅ Thread branching supports max 10 branches (original + 9 retries)
 - ✅ Auto-generated thread titles accurate 90%+ of the time
 - ✅ Thread search returns relevant results in <100ms
 
@@ -234,25 +234,25 @@ This test design document defines user acceptance tests for Holokai Desktop Ente
 
 ---
 
-#### Test Case TH-06: Max 2 Retries Limit
-**Objective:** Verify Desktop enforces max 2 retries per message
+#### Test Case TH-06: Max 9 Retries Limit
+**Objective:** Verify Desktop enforces max 9 retries per message
 
 **Preconditions:**
 - Test Case TH-04 passed
-- Message has 2 branches (original + 1 retry)
+- Message has 9 branches (original + 8 retries)
 
 **Test Steps:**
-1. Click "Retry" button again (attempt 3rd retry)
+1. Click "Retry" button again (attempt 10th retry)
 2. Observe Desktop allows 1 more retry
-3. Observe 3 total branches exist (original + 2 retries)
-4. Click "Retry" button again (attempt 4th retry)
+3. Observe 10 total branches exist (original + 9 retries)
+4. Click "Retry" button again (attempt 11th retry)
 5. Observe error message or disabled button
 
 **Expected Results:**
-- ✅ Desktop allows up to 2 retries (3 total branches: branchIndex 0, 1, 2)
-- ✅ After 3 branches exist, "Retry" button becomes disabled
-- ✅ Tooltip shows: "Maximum 2 retries reached"
-- ✅ User cannot create 4th branch
+- ✅ Desktop allows up to 9 retries (10 total branches: branchIndex 0-9)
+- ✅ After 10 branches exist, "Retry" button becomes disabled
+- ✅ Tooltip shows: "Maximum 9 retries reached"
+- ✅ User cannot create 11th branch
 
 **Test Data:**
 - Branches: 0 (original), 1 (retry 1), 2 (retry 2)

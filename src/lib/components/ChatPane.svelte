@@ -389,7 +389,9 @@
         messages: [...historyMessages, { role: 'user', content: userMessage }],
         streaming: true,
         model: modelName,
+        ...(currentThread?.id && { thread_id: currentThread.id }),
       };
+      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
 
       // Use chatWithFileTools for all requests - tools are invisible to user
       const result = await window.electronAPI.chat.chatWithFileTools(request);
@@ -464,6 +466,7 @@
         messages: historyMessages,
         streaming: true,
         model: modelName,
+        ...(currentThread?.id && { thread_id: currentThread.id }),
       };
 
       // Use chatWithFileTools for all requests - tools are invisible to user
@@ -661,6 +664,7 @@
             messages: [{ role: 'user', content: initialPrompt }],
             streaming: true,
             model: modelName,
+            ...(currentThread?.id && { thread_id: currentThread.id }),
           };
 
           // Use chatWithFileTools for all requests - tools are invisible to user

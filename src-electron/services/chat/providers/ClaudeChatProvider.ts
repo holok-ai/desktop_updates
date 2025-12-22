@@ -69,6 +69,7 @@ export class ClaudeChatProvider implements IChatProvider {
     const modelToUse = request.model || this.defaultModel;
     const claudeRequest = ClaudeConverter.toClaudeRequest({ ...request, model: modelToUse });
     const threadId = (claudeRequest as { thread_id?: string }).thread_id;
+    console.log('[ClaudeChatProvider] thread_id:', threadId);
 
     try {
       const shouldStream = request.streaming !== false;
@@ -302,6 +303,7 @@ export class ClaudeChatProvider implements IChatProvider {
     originalRequest: ChatRequest,
   ): Promise<ClaudeResponse | null> {
     const requestWithThreadId = originalRequest as { thread_id?: string };
+    console.log('[ClaudeChatProvider] streamWithTools thread_id:', requestWithThreadId.thread_id);
     const stream = this.client.messages
       .stream({
         model,
@@ -332,6 +334,7 @@ export class ClaudeChatProvider implements IChatProvider {
     originalRequest: ChatRequest,
   ): Promise<ClaudeResponse | null> {
     const requestWithThreadId = originalRequest as { thread_id?: string };
+    console.log('[ClaudeChatProvider] nonStreamingWithTools thread_id:', requestWithThreadId.thread_id);
     const response = await this.client.messages.create({
       model,
       messages,
@@ -367,6 +370,7 @@ export class ClaudeChatProvider implements IChatProvider {
       model: modelToUse,
     });
     const threadId = (claudeRequest as { thread_id?: string }).thread_id;
+    console.log('[ClaudeChatProvider] chatWithOptions thread_id:', threadId);
 
     try {
       const shouldStream = request.streaming !== false;

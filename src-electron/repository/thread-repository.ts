@@ -1,11 +1,14 @@
-import { randomUUID } from 'crypto';
-import { app } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
 import log from 'electron-log';
 import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
 import { titleGeneratorService } from '../services/title-generator.service.js';
+import { threadApiService } from '../services/mokuapi/thread-api.service.js';
+import type {
+  ThreadDTO,
+  MessageDTO,
+  CreateThreadRequest,
+  CreateMessageRequest,
+} from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -27,6 +30,8 @@ export interface Message {
   editedAt?: number;
   versions?: MessageVersion[];
   isEdited?: boolean;
+  parentMessageId: string | null;
+  branchIndex: number; // 0-9: branch index for retry attempts (max 10 branches per parent)
 }
 
 /**
@@ -62,30 +67,35 @@ export interface Thread {
   deletedAt?: number | null;
 }
 
-function generateId(prefix = ''): string {
-  return `${prefix}${randomUUID()}`;
-}
-
 export class ThreadRepository {
+  // API-first architecture - no longer loading from local disk
+  // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
-  constructor() {
-    this.loadFromDisk();
-  }
-
-  public createThread(metadata: ThreadMetadata = {}): Thread {
-    const now = Date.now();
-    const thread: Thread = {
-      id: generateId('thread_'),
-      title: typeof metadata.title === 'string' ? metadata.title : '',
-      metadata: { ...metadata },
-      messages: [],
-      createdAt: now,
-      updatedAt: now,
+  public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
+    const request: CreateThreadRequest = {
+      title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
+      projectId: metadata.projectId as string | null | undefined,
+      metadata: metadata,
     };
+
+    log.info('[ThreadRepository] Creating thread via API:', request.title);
+    log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(metadata, null, 2));
+
+    const threadDTO = await threadApiService.createThread(request);
+
+    log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
+    log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+
+    const thread = this.mapDTOToThread(threadDTO);
+
+    log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
+
+    // Cache locally for session
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    log.info('[ThreadRepository] Thread created and cached:', thread.id);
+
     return this.cloneThread(thread);
   }
 
@@ -102,79 +112,204 @@ export class ThreadRepository {
         }
       : { ...thread, createdAt: thread.createdAt ?? now, updatedAt: now };
     this.threadsById.set(toSave.id, toSave);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
     return this.cloneThread(toSave);
   }
 
-  public loadThread(threadId: string): Thread | null {
-    const thread = this.threadsById.get(threadId);
-    return thread ? this.cloneThread(thread) : null;
+  public async loadThread(threadId: string): Promise<Thread | null> {
+    // Check cache first
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      log.info('[ThreadRepository] Thread found in cache:', threadId, 'with', cachedThread.messages.length, 'messages');
+
+      // If thread is in cache but has no messages, we need to load them from API
+      // This happens when listThreads() cached the thread without messages
+      if (cachedThread.messages.length === 0) {
+        log.info('[ThreadRepository] Thread has no messages, fetching from API');
+        try {
+          const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+          log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
+          log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+
+          messagesResponse.content.forEach((dto, index) => {
+            const contentPreview = typeof dto.content === 'string'
+              ? dto.content.substring(0, 100)
+              : JSON.stringify(dto.content).substring(0, 100);
+            log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
+          });
+
+          cachedThread.messages = messagesResponse.content.map((dto) =>
+            this.mapDTOToMessage(dto, cachedThread.title),
+          );
+
+          log.info('[ThreadRepository] Mapped messages:', cachedThread.messages.length);
+          cachedThread.messages.forEach((msg, index) => {
+            const contentPreview = msg.content.substring(0, 100);
+            log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
+          });
+
+          this.threadsById.set(threadId, cachedThread);
+          log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
+        } catch (error) {
+          log.error('[ThreadRepository] Failed to load messages for cached thread:', error);
+        }
+      }
+
+      return this.cloneThread(cachedThread);
+    }
+
+    // Fetch from API
+    try {
+      log.info('[ThreadRepository] Fetching thread from API:', threadId);
+      const threadDTO = await threadApiService.getThread(threadId);
+
+      log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
+      log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+
+      const thread = this.mapDTOToThread(threadDTO);
+
+      log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
+
+      // Fetch messages for the thread
+      log.info('[ThreadRepository] Fetching messages for thread:', threadId);
+      const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+      log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
+      log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+
+      messagesResponse.content.forEach((dto, index) => {
+        const contentPreview = typeof dto.content === 'string'
+          ? dto.content.substring(0, 100)
+          : JSON.stringify(dto.content).substring(0, 100);
+        log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
+      });
+
+      thread.messages = messagesResponse.content.map((dto) =>
+        this.mapDTOToMessage(dto, thread.title),
+      );
+
+      log.info('[ThreadRepository] Mapped messages:', thread.messages.length);
+      thread.messages.forEach((msg, index) => {
+        const contentPreview = msg.content.substring(0, 100);
+        log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
+      });
+
+      // Update cache
+      this.threadsById.set(thread.id, thread);
+      log.info('[ThreadRepository] Thread fetched and cached:', threadId, 'with', thread.messages.length, 'messages');
+
+      return this.cloneThread(thread);
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to load thread:', error);
+      return null;
+    }
   }
 
-  public listThreads(): Thread[] {
-    return Array.from(this.threadsById.values())
-      .filter((t) => !t.deletedAt && t.metadata?.status !== 'deleted')
-      .map((t) => this.cloneThread(t))
-      .sort((a, b) => b.createdAt - a.createdAt);
+  public async listThreads(options?: { projectId?: string; page?: number; size?: number }): Promise<Thread[]> {
+    try {
+      const response = await threadApiService.getThreads({
+        type: options?.projectId ? 'project' : undefined,
+        projectId: options?.projectId,
+        page: options?.page || 0,
+        size: options?.size || 50,
+        sort: 'createdAt,desc',
+      });
+
+      const threads = response.content.map((dto) => {
+        return this.mapDTOToThread(dto);
+      });
+
+      // Update cache
+      threads.forEach((thread) => this.threadsById.set(thread.id, thread));
+
+      return threads.map((t) => this.cloneThread(t));
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to list threads:', error);
+      return [];
+    }
   }
 
-  public addMessage(threadId: string, role: MessageRole, content: string): Message {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    const message: Message = {
-      id: generateId('msg_'),
-      title: thread.title,
+  public async addMessage(threadId: string, role: MessageRole, content: string): Promise<Message> {
+    // Use appendMessage with default branching parameters
+    return this.appendMessage(threadId, {
       role,
       content,
-      createdAt: Date.now(),
-    };
-    thread.messages.push(message);
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
-    return { ...message };
+      parentMessageId: null,
+      branchIndex: 0,
+    });
   }
 
-  public appendMessage(
+  public async appendMessage(
     threadId: string,
     payload: {
       role: MessageRole;
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
+      parentMessageId?: string | null;
+      branchIndex?: number;
     },
-  ): Message {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
-    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+  ): Promise<Message> {
+    // Check local idempotency cache first
     if (payload.clientMessageId) {
       const byThread = this.idempotencyIndex.get(threadId);
       const existingId = byThread?.get(payload.clientMessageId);
       if (existingId) {
-        const found = thread.messages.find((m) => m.id === existingId);
-        if (found) return { ...found };
+        const thread = this.threadsById.get(threadId);
+        const found = thread?.messages.find((m) => m.id === existingId);
+        if (found) {
+          log.info('[ThreadRepository] Message found in local idempotency cache:', existingId);
+          return { ...found };
+        }
       }
     }
+
+    // Content size check
+    const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
+    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+
+    // Get thread from cache or fetch it
+    let thread = this.threadsById.get(threadId);
+    if (!thread) {
+      log.info('[ThreadRepository] Thread not in cache, fetching:', threadId);
+      const loadedThread = await this.loadThread(threadId);
+      if (!loadedThread) throw new Error(`Thread not found: ${threadId}`);
+      thread = loadedThread;
+    }
+
+    // Create local message object (no API call)
+    // Messages are created by Holo system and fetched via API later
+    const now = Date.now();
     const message: Message = {
-      id: generateId('msg_'),
+      id: crypto.randomUUID(), // Temporary local ID
       title: thread.title,
       role: payload.role,
       content: payload.content,
-      createdAt: Date.now(),
-      metadata: payload.metadata ? { ...payload.metadata } : undefined,
+      createdAt: now,
+      metadata: payload.metadata as MessageMetadata | undefined,
       clientMessageId: payload.clientMessageId,
       deletedAt: null,
+      parentMessageId: payload.parentMessageId ?? null,
+      branchIndex: payload.branchIndex ?? 0,
     };
+
+    log.info('[ThreadRepository] Created local message (no API call):', message.id);
+
+    // Update local cache
     thread.messages.push(message);
-    thread.updatedAt = Date.now();
+    thread.updatedAt = now;
     this.threadsById.set(thread.id, thread);
+
+    // Update idempotency index
     if (payload.clientMessageId) {
-      if (!this.idempotencyIndex.has(threadId)) this.idempotencyIndex.set(threadId, new Map());
-      const index = this.idempotencyIndex.get(threadId);
-      if (index) index.set(payload.clientMessageId, message.id);
+      let byThread = this.idempotencyIndex.get(threadId);
+      if (!byThread) {
+        byThread = new Map();
+        this.idempotencyIndex.set(threadId, byThread);
+      }
+      byThread.set(payload.clientMessageId, message.id);
     }
-    this.saveToDisk();
+
+    log.info('[ThreadRepository] Message cached locally (will be fetched from API later)');
     return { ...message };
   }
 
@@ -182,7 +317,7 @@ export class ThreadRepository {
    * Duplicate an existing message within the same thread by message id.
    * Preserves exact content and metadata. Only user prompts may be duplicated.
    */
-  public duplicateMessage(threadId: string, messageId: string): Message {
+  public async duplicateMessage(threadId: string, messageId: string): Promise<Message> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     const original = thread.messages.find((m) => m.id === messageId);
@@ -196,23 +331,23 @@ export class ThreadRepository {
     });
   }
 
-  public addUserPrompt(
+  public async addUserPrompt(
     threadId: string | null | undefined,
     prompt: string,
     opts: ThreadMetadata = {},
-  ): { thread: Thread; message: Message } {
+  ): Promise<{ thread: Thread; message: Message }> {
     let tid = threadId;
     if (!tid) {
-      const th = this.createThread(opts);
+      const th = await this.createThread(opts);
       tid = th.id;
     }
-    const message = this.addMessage(tid, 'user', prompt);
-    const thread = this.loadThread(tid);
+    const message = await this.addMessage(tid, 'user', prompt);
+    const thread = await this.loadThread(tid);
     if (!thread) throw new Error(`Thread disappeared after creation: ${tid}`);
     return { thread, message };
   }
 
-  public addAssistantResponse(threadId: string, response: string, model?: string): Message {
+  public async addAssistantResponse(threadId: string, response: string, model?: string): Promise<Message> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     if (model) {
@@ -253,18 +388,22 @@ export class ThreadRepository {
             existingTitles,
           );
 
-          // Update thread title
+          // Update thread title locally
           thread.title = uniqueTitle;
           thread.metadata = { ...thread.metadata, title: uniqueTitle };
           thread.updatedAt = Date.now();
           this.threadsById.set(thread.id, thread);
 
-          // IMPORTANT: Save to disk immediately
-          this.saveToDisk();
-
-          log.info(
-            `[ThreadRepository] ✅ Auto-generated title for thread ${threadId}: "${uniqueTitle}"`,
-          );
+          // Update title via API
+          try {
+            await threadApiService.updateThread(threadId, { title: uniqueTitle });
+            log.info(
+              `[ThreadRepository] ✅ Auto-generated and updated title for thread ${threadId}: "${uniqueTitle}"`,
+            );
+          } catch (error) {
+            log.error('[ThreadRepository] Failed to update title via API:', error);
+            // Continue with local title change
+          }
         } catch (error) {
           log.error('[ThreadRepository] ❌ Failed to generate title:', error);
           // Continue without title - addMessage will still work
@@ -295,7 +434,7 @@ export class ThreadRepository {
     thread.metadata = merged;
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
     return this.cloneThread(thread);
   }
 
@@ -307,7 +446,7 @@ export class ThreadRepository {
    * @returns The updated thread
    * @throws Error if thread not found or title is invalid
    */
-  public renameThread(threadId: string, newTitle: string, userId?: string): Thread {
+  public async renameThread(threadId: string, newTitle: string, userId?: string): Promise<Thread> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
 
@@ -344,23 +483,30 @@ export class ThreadRepository {
     // Add new entry to history
     titleHistory.push(historyEntry);
 
-    // Update thread
-    thread.title = trimmedTitle;
-    thread.metadata = {
-      ...thread.metadata,
-      title: trimmedTitle,
-      titleHistory,
-    };
-    thread.updatedAt = now;
+    try {
+      log.info('[ThreadRepository] Renaming thread via API:', threadId);
+      await threadApiService.updateThread(threadId, { title: trimmedTitle });
 
-    this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+      // Update local cache
+      thread.title = trimmedTitle;
+      thread.metadata = {
+        ...thread.metadata,
+        title: trimmedTitle,
+        titleHistory,
+      };
+      thread.updatedAt = now;
 
-    log.info(
-      `[ThreadRepository] ✅ Renamed thread ${threadId}: "${previousTitle}" → "${trimmedTitle}"`,
-    );
+      this.threadsById.set(thread.id, thread);
 
-    return this.cloneThread(thread);
+      log.info(
+        `[ThreadRepository] ✅ Renamed thread ${threadId}: "${previousTitle}" → "${trimmedTitle}"`,
+      );
+
+      return this.cloneThread(thread);
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to rename thread:', error);
+      throw error;
+    }
   }
 
   /**
@@ -369,7 +515,7 @@ export class ThreadRepository {
    * @returns The updated thread with previous title restored
    * @throws Error if thread not found or no rename history available
    */
-  public undoRenameThread(threadId: string): Thread {
+  public async undoRenameThread(threadId: string): Promise<Thread> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
 
@@ -385,24 +531,31 @@ export class ThreadRepository {
     // Remove the last entry from history
     const updatedHistory = titleHistory.slice(0, -1);
 
-    // Update thread with previous title
-    const now = Date.now();
-    thread.title = previousTitle;
-    thread.metadata = {
-      ...thread.metadata,
-      title: previousTitle,
-      titleHistory: updatedHistory,
-    };
-    thread.updatedAt = now;
+    try {
+      log.info('[ThreadRepository] Undoing rename via API:', threadId);
+      await threadApiService.updateThread(threadId, { title: previousTitle });
 
-    this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+      // Update local cache
+      const now = Date.now();
+      thread.title = previousTitle;
+      thread.metadata = {
+        ...thread.metadata,
+        title: previousTitle,
+        titleHistory: updatedHistory,
+      };
+      thread.updatedAt = now;
 
-    log.info(
-      `[ThreadRepository] ↩️  Undid rename for thread ${threadId}: "${lastEntry.title}" → "${previousTitle}"`,
-    );
+      this.threadsById.set(thread.id, thread);
 
-    return this.cloneThread(thread);
+      log.info(
+        `[ThreadRepository] ↩️  Undid rename for thread ${threadId}: "${lastEntry.title}" → "${previousTitle}"`,
+      );
+
+      return this.cloneThread(thread);
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to undo rename:', error);
+      throw error;
+    }
   }
 
   public setThreadModel(threadId: string, model: string): Thread {
@@ -422,19 +575,19 @@ export class ThreadRepository {
       .map((t) => this.cloneThread(t));
   }
 
-  public savePromptAndResponses(
+  public async savePromptAndResponses(
     threadId: string | null | undefined,
     prompt: string,
     responses: { text: string; model?: string }[],
     opts: { title?: string; description?: string } = {},
-  ): { thread: Thread; promptMessage: Message; responseMessages: Message[] } {
-    const { thread, message: promptMessage } = this.addUserPrompt(threadId, prompt, opts);
+  ): Promise<{ thread: Thread; promptMessage: Message; responseMessages: Message[] }> {
+    const { thread, message: promptMessage } = await this.addUserPrompt(threadId, prompt, opts);
     const responseMessages: Message[] = [];
     for (const r of responses) {
-      const resp = this.addAssistantResponse(thread.id, r.text, r.model);
+      const resp = await this.addAssistantResponse(thread.id, r.text, r.model);
       responseMessages.push(resp);
     }
-    const t = this.loadThread(thread.id);
+    const t = await this.loadThread(thread.id);
     if (!t) throw new Error(`Thread not found after save: ${thread.id}`);
     return { thread: t, promptMessage, responseMessages };
   }
@@ -445,23 +598,32 @@ export class ThreadRepository {
     thread.messages = messages.map((m) => ({ ...m }));
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
     return this.cloneThread(thread);
   }
 
-  public deleteThread(threadId: string): boolean {
+  public async deleteThread(threadId: string): Promise<boolean> {
     // Delete associated files before deleting thread
     fileStorageService.deleteThreadFiles(threadId).catch((error) => {
       console.error('[ThreadRepository] Failed to delete thread files:', error);
       // Continue with thread deletion even if file deletion fails
     });
 
-    const deleted = this.threadsById.delete(threadId);
-    if (deleted) this.saveToDisk();
-    return deleted;
+    try {
+      log.info('[ThreadRepository] Deleting thread via API:', threadId);
+      await threadApiService.deleteThread(threadId);
+
+      // Remove from local cache
+      const deleted = this.threadsById.delete(threadId);
+      log.info('[ThreadRepository] Thread deleted:', threadId);
+      return deleted;
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to delete thread:', error);
+      return false;
+    }
   }
 
-  public softDeleteThread(threadId: string): boolean {
+  public async softDeleteThread(threadId: string): Promise<boolean> {
     const thread = this.threadsById.get(threadId);
     if (!thread) return false;
 
@@ -471,18 +633,28 @@ export class ThreadRepository {
       // Continue with soft delete even if file deletion fails
     });
 
-    thread.deletedAt = Date.now();
-    thread.metadata = { ...thread.metadata, status: 'deleted' };
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
-    return true;
+    try {
+      log.info('[ThreadRepository] Soft deleting thread via API:', threadId);
+      await threadApiService.deleteThread(threadId);
+
+      // Update local cache
+      thread.deletedAt = Date.now();
+      thread.metadata = { ...thread.metadata, status: 'deleted' };
+      thread.updatedAt = Date.now();
+      this.threadsById.set(thread.id, thread);
+
+      log.info('[ThreadRepository] Thread soft deleted:', threadId);
+      return true;
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to soft delete thread:', error);
+      return false;
+    }
   }
 
   public clearAll(): void {
     this.threadsById.clear();
     this.idempotencyIndex.clear();
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
   }
 
   public setThreadTimestamps(threadId: string, createdAt: number, updatedAt: number): Thread {
@@ -491,7 +663,7 @@ export class ThreadRepository {
     thread.createdAt = createdAt;
     thread.updatedAt = updatedAt;
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
     return this.cloneThread(thread);
   }
 
@@ -520,7 +692,7 @@ export class ThreadRepository {
 
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
 
     return {
       ...message,
@@ -555,7 +727,7 @@ export class ThreadRepository {
 
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
 
     return {
       ...message,
@@ -590,7 +762,7 @@ export class ThreadRepository {
 
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
   }
 
   public deleteMessagesAfter(threadId: string, messageId: string): void {
@@ -604,7 +776,105 @@ export class ThreadRepository {
     thread.messages = thread.messages.slice(0, messageIndex + 1);
     thread.updatedAt = Date.now();
     this.threadsById.set(thread.id, thread);
-    this.saveToDisk();
+    // Note: No longer saving to disk - API-first architecture
+  }
+
+  /**
+   * Get a single message by ID within a thread.
+   * Used for tree traversal operations.
+   */
+  public getMessage(threadId: string, messageId: string): Message | null {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) return null;
+    const message = thread.messages.find((m) => m.id === messageId);
+    return message ? { ...message } : null;
+  }
+
+  /**
+   * Get all child messages for a specific parent message.
+   * Returns messages where parentMessageId matches the given parent ID.
+   */
+  public getMessagesByParentId(threadId: string, parentId: string | null): Message[] {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) return [];
+    return thread.messages
+      .filter((m) => m.parentMessageId === parentId)
+      .map((m) => ({ ...m }));
+  }
+
+  /**
+   * Get all branch siblings for a message (messages with same parent but different branchIndex).
+   * Used to find all retry branches at a divergence point.
+   */
+  public getBranchesForMessage(threadId: string, messageId: string): Message[] {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) return [];
+    const message = thread.messages.find((m) => m.id === messageId);
+    if (!message) return [];
+
+    // Find all messages with the same parent (including the original message)
+    return thread.messages
+      .filter((m) => m.parentMessageId === message.parentMessageId)
+      .map((m) => ({ ...m }))
+      .sort((a, b) => a.branchIndex - b.branchIndex);
+  }
+
+  /**
+   * Get all root messages in a thread (messages with parentMessageId = null).
+   * In a linear conversation, there's typically one root. In branched conversations,
+   * the first message is the root.
+   */
+  public getRootMessages(threadId: string): Message[] {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) return [];
+    return thread.messages
+      .filter((m) => m.parentMessageId === null)
+      .map((m) => ({ ...m }))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  /**
+   * Map ThreadDTO from API to internal Thread model.
+   * Converts ISO-8601 timestamps to epoch milliseconds.
+   * Preserves custom metadata from API (including model configuration).
+   */
+  private mapDTOToThread(dto: ThreadDTO): Thread {
+    return {
+      id: dto.id,
+      title: dto.title,
+      metadata: {
+        // Standard fields
+        type: dto.type,
+        projectId: dto.projectId,
+        status: dto.status,
+        // Merge in custom metadata from API (provider, modelAccessName, url, etc.)
+        ...(dto.metadata || {}),
+      },
+      messages: [], // Messages loaded separately
+      createdAt: new Date(dto.createdAt).getTime(),
+      updatedAt: new Date(dto.updatedAt).getTime(),
+      deletedAt: dto.status === 'deleted' ? Date.now() : null,
+    };
+  }
+
+  /**
+   * Map MessageDTO from API to internal Message model.
+   * Converts ISO-8601 timestamps to epoch milliseconds.
+   */
+  private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
+    return {
+      id: dto.id,
+      title: threadTitle,
+      role: dto.role as MessageRole,
+      content: dto.content,
+      createdAt: new Date(dto.createdAt).getTime(),
+      metadata: dto.metadata as MessageMetadata | undefined,
+      clientMessageId: dto.clientMessageId,
+      deletedAt: null,
+      editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
+      parentMessageId: dto.parentMessageId,
+      branchIndex: dto.branchIndex,
+    };
   }
 
   private cloneThread(thread: Thread): Thread {
@@ -619,62 +889,31 @@ export class ThreadRepository {
     };
   }
 
+  /**
+   * @deprecated No longer used - API-first architecture.
+   * Threads are fetched from Moku API on demand.
+   * Kept for backward compatibility.
+   */
   private getStorePath(): string | null {
-    try {
-      const userData = app.getPath('userData');
-      return path.join(userData, 'threads-storage.json');
-    } catch {
-      return null;
-    }
+    return null;
   }
 
+  /**
+   * @deprecated No longer used - API-first architecture.
+   * All thread operations now persist to Moku API directly.
+   * Kept for backward compatibility but does nothing.
+   */
   private saveToDisk(): void {
-    try {
-      const storePath = this.getStorePath();
-      if (!storePath) return;
-      const payload = { version: 1, threads: Array.from(this.threadsById.values()) };
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.writeFileSync(storePath, JSON.stringify(payload), 'utf-8');
-    } catch {
-      // ignore IO errors
-    }
+    // No-op: API-first architecture - threads persist via API calls
   }
 
+  /**
+   * @deprecated No longer used - API-first architecture.
+   * Threads are fetched from Moku API via loadThread/listThreads.
+   * Kept for backward compatibility but does nothing.
+   */
   private loadFromDisk(): void {
-    try {
-      const storePath = this.getStorePath();
-      if (!storePath) return;
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      if (!fs.existsSync(storePath)) return;
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const data = fs.readFileSync(storePath, 'utf-8');
-      const parsed = JSON.parse(data) as { version?: number; threads?: Thread[] };
-      const threads = Array.isArray(parsed.threads) ? parsed.threads : [];
-      this.threadsById.clear();
-      this.idempotencyIndex.clear();
-      for (const t of threads) {
-        if (typeof t.id !== 'string' || !Array.isArray(t.messages)) continue;
-        this.threadsById.set(t.id, {
-          id: t.id,
-          title: t.title ?? '',
-          metadata: { ...(t.metadata ?? {}) },
-          messages: t.messages.map((m) => ({ ...m })),
-          createdAt: t.createdAt ?? Date.now(),
-          updatedAt: t.updatedAt ?? Date.now(),
-          deletedAt: t.deletedAt ?? null,
-        });
-        for (const m of t.messages) {
-          const key = typeof m.clientMessageId === 'string' ? m.clientMessageId : undefined;
-          if (key) {
-            if (!this.idempotencyIndex.has(t.id)) this.idempotencyIndex.set(t.id, new Map());
-            const index = this.idempotencyIndex.get(t.id);
-            if (index) index.set(key, m.id);
-          }
-        }
-      }
-    } catch {
-      // ignore malformed store
-    }
+    // No-op: API-first architecture - threads loaded via API calls
   }
 }
 

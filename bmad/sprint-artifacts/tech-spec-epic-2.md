@@ -9,14 +9,14 @@ Status: Draft
 
 ## Overview
 
-Epic 2 implements a message tree structure enabling users to retry prompts and create alternative conversation branches without losing original responses. This feature addresses the core user need (US-13 from PRD §3.2) to explore different prompt variations while maintaining conversation history. The implementation supports up to 2 retry branches per divergence point (branchIndex: 0=original, 1-2=retries) with visual lane-based UI representation, automatic title generation after the second exchange, and enhanced clipboard operations for copying/pasting between branches.
+Epic 2 implements a message tree structure enabling users to create prompt variations and alternative conversation branches without losing original responses. This feature addresses the core user need (US-13 from PRD §3.2) to explore different prompt variations while maintaining conversation history. The implementation supports up to 9 variation branches per divergence point (branchIndex: 0=original, 1-9=variations) with visual lane-based UI representation, automatic title generation after the second exchange, and enhanced clipboard operations for copying/pasting between branches.
 
 ## Objectives and Scope
 
 **In Scope:**
 - Message tree data model with `parentMessageId` and `branchIndex` fields
-- Retry button on user messages with prompt editing capability
-- Branch creation flow with maximum 2 retry branches per divergence point
+- "Create Variation" button on user messages with prompt editing capability
+- Branch creation flow with maximum 9 variation branches per divergence point
 - Lane-based branch visualization UI component
 - Automatic thread title generation after 2nd message exchange
 - Enhanced clipboard operations (copy-to-input, copy-to-clipboard, copy code blocks)
@@ -25,7 +25,7 @@ Epic 2 implements a message tree structure enabling users to retry prompts and c
 - Branch limit validation and user feedback
 
 **Out of Scope:**
-- More than 2 retry branches per message (enforced limit per PRD §3.2.2)
+- More than 9 variation branches per message (enforced limit per PRD §3.2.2)
 - Merging or collapsing branches
 - Branch comparison/diff views
 - Undo/redo for branch operations (deferred to Phase 3)
@@ -43,13 +43,13 @@ This epic extends the existing thread architecture (Architecture §3, §5.2) wit
 - **ChatWindow UI** - New MessageBranch component for lane visualization (Architecture §8.1)
 
 **Architectural Constraints:**
-- Maximum 2 retry branches enforced at service layer (PRD §3.2.2)
+- Maximum 9 variation branches enforced at service layer (PRD §3.2.2)
 - Message tree stored in local SQLite (`desktop_messages` table with `parentMessageId`, `branchIndex` columns per Architecture §10.3)
 - Synchronization with Moku API requires branch-aware conflict resolution
 - Clipboard operations maintain desktop-first architecture with fallback to web clipboard API
 
 **Data Flow:**
-User clicks Retry → Edit prompt → ThreadService.submit(parentId, branchIndex) → Check branch limit → Create new message → Update tree → Refresh UI lanes
+User clicks "Create Variation" → Edit prompt → ThreadService.submit(parentId, branchIndex) → Check branch limit → Create new message → Update tree → Refresh UI lanes
 
 ## Detailed Design
 
@@ -78,7 +78,7 @@ interface Message {
 
   // Tree structure fields (NEW)
   parentMessageId: string | null;  // null for root messages
-  branchIndex: number;              // 0=original, 1-2=retries
+  branchIndex: 0=original, 1-9=variations
 
   // Existing fields
   attachments?: Attachment[];
@@ -97,7 +97,7 @@ CREATE TABLE desktop_messages (
   content TEXT NOT NULL,
   timestamp INTEGER NOT NULL,
   parent_message_id TEXT,           -- FK to desktop_messages.id
-  branch_index INTEGER DEFAULT 0,   -- 0, 1, or 2
+  branch_index INTEGER DEFAULT 0,   -- 0-9
   attachments TEXT,                 -- JSON
   metadata TEXT,                    -- JSON
   status TEXT NOT NULL,
@@ -119,7 +119,7 @@ interface BranchLimitCheck {
   parentMessageId: string;
   existingBranches: number;  // Count of siblings with same parentMessageId
   canCreateBranch: boolean;  // true if existingBranches < 2
-  errorMessage?: string;     // "Maximum 2 retry branches per message"
+  errorMessage?: string;     // "Maximum 9 variation branches per message"
 }
 ```
 
@@ -152,7 +152,7 @@ async submit(
   // 1. Validate branch limit
   const siblings = await this.getSiblingBranches(parentMessageId);
   if (siblings.length >= 2 && branchIndex === undefined) {
-    throw new BranchLimitError('Maximum 2 retry branches per message');
+    throw new BranchLimitError('Maximum 9 variation branches per message');
   }
 
   // 2. Assign branchIndex (auto-increment or explicit)
@@ -247,11 +247,11 @@ interface ClipboardService {
 
 ### Workflows and Sequencing
 
-**Retry Flow Sequence:**
+**Prompt Variation Flow Sequence:**
 
-1. **User Initiates Retry**
-   - User hovers over user message → Retry button appears
-   - User clicks Retry button
+1. **User Initiates Prompt Variation**
+   - User hovers over user message → "Create Variation" button appears
+   - User clicks "Create Variation" button
    - UI displays prompt editor pre-filled with original prompt
 
 2. **Prompt Editing** (optional)
@@ -262,7 +262,7 @@ interface ClipboardService {
 3. **Branch Limit Validation**
    - Frontend calls `threads:validateBranchLimit(parentMessageId)`
    - Backend counts existing siblings: `SELECT COUNT(*) WHERE parent_message_id = ? AND role = 'user'`
-   - If count >= 2, show error: "Maximum 2 retry branches per message"
+   - If count >= 9, show error: "Maximum 9 variation branches per message"
    - Otherwise, proceed
 
 4. **Branch Creation**
@@ -314,7 +314,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - Context assembly for branched conversations: <500ms (includes sibling branch metadata)
 - UI lane rendering: 60fps for up to 3 visible branches simultaneously
 - Auto-title generation: <3 seconds (AI call, async, non-blocking)
-- Retry button interaction: <100ms from click to prompt editor display
+- "Create Variation" button interaction: <100ms from click to prompt editor display
 
 **Throughput:**
 - Support concurrent branch creation across multiple threads
@@ -356,12 +356,12 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - If branch visualization component crashes, fall back to linear message view with branch indicators
 
 **Error Recovery:**
-- Failed branch creation: user can retry immediately (state not corrupted)
+- Failed branch creation: user can attempt again immediately (state not corrupted)
 - SQLite transaction failures logged and reported to user: "Unable to create branch, please try again"
 - Cache invalidation failures: worst case is stale UI until next refresh (non-critical)
 
 **Data Consistency:**
-- Branch index constraints enforced at database level (CHECK constraint: branch_index IN (0,1,2))
+- Branch index constraints enforced at database level (CHECK constraint: branch_index IN (0-9))
 - Orphaned messages prevented by foreign key constraints
 - Tree cycles prevented by application logic (parentMessageId cannot reference descendants)
 
@@ -386,7 +386,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - **ERROR:** Clipboard paste sanitization blocked malicious content (threat type)
 
 **Tracing:**
-- Distributed trace for full retry flow: UI click → validation → branch creation → AI call → UI update
+- Distributed trace for full prompt variation flow: UI click → validation → branch creation → AI call → UI update
 - Trace context assembly operations (especially for deep trees)
 - Instrument SQLite query execution for tree operations
 
@@ -401,7 +401,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - **E1-S1: Database Schema Migration** - MUST be complete before E2-S1 can start
   - Requires `parent_message_id` and `branch_index` columns in `desktop_messages` table
   - Requires indexes: `idx_messages_parent`, `idx_messages_thread_tree`
-- **E1-S2: Thread API Updates** - MUST be complete before E2-S2 can implement retry flow
+- **E1-S2: Thread API Updates** - MUST be complete before E2-S2 can implement prompt variation flow
   - Requires ThreadService.submit() interface defined
 - **E1-S3: Message API Updates** - MUST be complete before E2-S1 can implement tree queries
   - Requires MessageRepository interface with CRUD operations
@@ -439,7 +439,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 
 **AC-1: Message Tree Structure (E2-S1)**
 - [ ] `desktop_messages` table has `parent_message_id` column (TEXT, nullable, FK to desktop_messages.id)
-- [ ] `desktop_messages` table has `branch_index` column (INTEGER, default 0, CHECK constraint: IN (0,1,2))
+- [ ] `desktop_messages` table has `branch_index` column (INTEGER, default 0, CHECK constraint: IN (0-9))
 - [ ] `desktop_messages` table has `deleted_at` column (INTEGER, nullable) for soft deletes
 - [ ] Indexes created: `idx_messages_parent`, `idx_messages_thread_tree`, `idx_messages_deleted`
 - [ ] MessageRepository.getSiblingBranches(parentMessageId) returns all non-deleted messages with same parent (WHERE deleted_at IS NULL)
@@ -450,20 +450,20 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - [ ] Context assembly includes path to root, sibling branches excluded from full content (metadata only)
 - [ ] ThreadCache updated to handle branch-aware invalidation
 
-**AC-2: Retry Button and Branch Creation (E2-S2)**
-- [ ] Retry button appears on hover over any user message
-- [ ] Clicking retry opens prompt editor pre-filled with original prompt text
+**AC-2: Prompt Variation Button and Branch Creation (E2-S2)**
+- [ ] "Create Variation" button appears on hover over any user message
+- [ ] Clicking "Create Variation" opens prompt editor pre-filled with original prompt text
 - [ ] Attachments from original message carried forward by default in editor
-- [ ] User can edit prompt and modify attachments before submitting retry
-- [ ] Branch creation validates limit: if 2 siblings exist, show error "Maximum 2 retry branches per message"
-- [ ] New branch assigned branchIndex = count of existing siblings (0, 1, or 2)
+- [ ] User can edit prompt and modify attachments before submitting prompt variation
+- [ ] Branch creation validates limit: if 2 siblings exist, show error "Maximum 9 variation branches per message"
+- [ ] New branch assigned branchIndex = count of existing siblings (0-9)
 - [ ] User message created with correct parentMessageId and branchIndex
 - [ ] AI response saved with parentMessageId = new user message ID, branchIndex = 0
-- [ ] Full retry flow completes in <2 seconds (excluding AI generation time)
+- [ ] Full prompt variation flow completes in <2 seconds (excluding AI generation time)
 
 **AC-3: Branch Visualization UI (E2-S3)**
 - [ ] Branched messages render in separate vertical lanes (side-by-side layout)
-- [ ] Maximum 3 lanes visible simultaneously (original + 2 retries)
+- [ ] Maximum 10 lanes visible simultaneously (original + 9 variations)
 - [ ] Lane scrolling maintains 60fps performance (measured via DevTools)
 - [ ] Active branch visually highlighted with border or background color
 - [ ] User can click to switch between branches
@@ -499,7 +499,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 | AC ID | PRD Reference | Spec Section | Component/API | Test Approach |
 |-------|---------------|--------------|---------------|---------------|
 | AC-1 | PRD §3.2.2 (Message tree) | Data Models §4.2 | MessageRepository, desktop_messages schema | Unit: tree query tests (getSiblingBranches, getPathToRoot)<br>Integration: E2E message creation with parent relationships |
-| AC-2 | PRD §3.2.2 (Retry button) | APIs & Workflows §4.3, §4.4 | ThreadService.submit(), BranchLimitCheck | Unit: branch validation logic, limit enforcement<br>Integration: Full retry flow with prompt editing<br>E2E: UI click → branch creation → AI response |
+| AC-2 | PRD §3.2.2 (Prompt variation button) | APIs & Workflows §4.3, §4.4 | ThreadService.submit(), BranchLimitCheck | Unit: branch validation logic, limit enforcement<br>Integration: Full prompt variation flow with prompt editing<br>E2E: UI click → branch creation → AI response |
 | AC-3 | Architecture §8.1 (Lane UI) | Services §4.1 | BranchVisualizationUI component, react-window | Visual regression tests (Percy/Chromatic)<br>Performance: FPS monitoring during scroll (Lighthouse) |
 | AC-4 | PRD §3.2.2 (Auto-title) | Workflows §4.4 | AutoTitleService, AI integration | Unit: title generation with mocked AI<br>Integration: trigger after 2nd message<br>E2E: verify title appears in thread list |
 | AC-5 | PRD §3.2 (Clipboard) | APIs §4.3 | ClipboardService.copy*() methods | Unit: clipboard API mocks<br>Manual: actual system clipboard verification |
@@ -510,7 +510,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 **Risks:**
 
 1. **RISK:** Deep message trees (>10 levels) may cause performance degradation in context assembly
-   - **Impact:** High - affects core retry functionality
+   - **Impact:** High - affects core prompt variation functionality
    - **Mitigation:** Monitor tree depth metrics, alert if >5 levels; implement context window limits for AI
 
 2. **RISK:** Concurrent branch creation across devices (when Moku API sync added) could create conflicts
@@ -527,7 +527,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 
 **Assumptions:**
 
-1. **ASSUMPTION:** Users will rarely create more than 2-3 retry branches per message (hence limit of 2)
+1. **ASSUMPTION:** Users will rarely create more than 2-3 variation branches per message (hence limit of 2)
    - **Validation:** Track branch creation patterns in Alpha; adjust limit if needed
 
 2. **ASSUMPTION:** Title generation via AI will succeed >95% of the time
@@ -556,7 +556,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 ~~3. **QUESTION:** Should we show "branch created" notifications to user, or silent operation?~~
    - **DECISION:** NO notifications - silent operation
    - **Decided by:** UX review (2025-11-27)
-   - **Rationale:** Since the user is explicitly creating branches via "Retry" button, no notification needed. User action → immediate visual feedback (new branch appears in UI) is sufficient. Notification would be redundant and noisy.
+   - **Rationale:** Since the user is explicitly creating branches via "Create Variation" button, no notification needed. User action → immediate visual feedback (new branch appears in UI) is sufficient. Notification would be redundant and noisy.
    - **Implementation:** No notification system integration required for branching
 
 ~~4. **QUESTION:** What happens to branches when original message deleted? Cascade delete or preserve orphaned branches?~~
@@ -596,15 +596,15 @@ Context includes metadata about siblings F and H for AI awareness but not full c
   - File type validation: accept images/PDFs, reject executables
 
 **2. Integration Tests**
-- **Full retry flow:** UI click → validation → branch creation → AI call → UI update → verify state
+- **Full prompt variation flow:** UI click → validation → branch creation → AI call → UI update → verify state
 - **Auto-title trigger:** Create 2nd message → verify title generated → verify UI updated
 - **Cache invalidation:** Create branch → verify cache cleared → verify fresh data loaded
 - **SQLite transaction rollback:** Simulate AI failure → verify no orphaned user messages
 - **Cross-epic integration:** Branch creation with attachments (when E5 complete)
 
 **3. E2E Tests (Playwright)**
-- **Happy path:** User retries message, edits prompt, receives new response in new lane
-- **Branch limit:** User creates 2 retries successfully, 3rd shows error message
+- **Happy path:** User creates prompt variation, edits prompt, receives new response in new lane
+- **Branch limit:** User creates 2 variations successfully, 3rd shows error message
 - **Branch visualization:** Verify 3 lanes render, user can switch between them, scroll works
 - **Copy/paste operations:** Copy message to clipboard, paste into new thread, verify content
 - **Thread sync:** Branch created → syncs to Moku API (when cloud sync implemented)
@@ -625,7 +625,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
   - No duplicate messages in path
   - Sibling branches never in path content
 - **Verify branch index constraints:**
-  - branchIndex always 0, 1, or 2
+  - branchIndex always 0-9
   - No gaps (if branchIndex 2 exists, branchIndex 1 also exists)
 
 **Test Frameworks & Tools:**
@@ -639,7 +639,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 **Edge Cases to Test:**
 
 1. **Deep trees (>10 levels):** Verify no stack overflow, acceptable performance
-2. **Concurrent branch creation:** Two users retry same message simultaneously
+2. **Concurrent branch creation:** Two users create variations of same message simultaneously
 3. **Soft delete edge cases:**
    - Soft delete message with child branches → children become orphaned in UI but remain in database
    - Soft delete parent message → descendants excluded from tree queries

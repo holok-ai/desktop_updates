@@ -25,7 +25,7 @@
   <acceptanceCriteria>
     <criterion id="1">Messages form valid tree via parentMessageId (TM §2.1)</criterion>
     <criterion id="2">Context assembly follows correct branch path by walking up tree (TM §2.3)</criterion>
-    <criterion id="3">Branch limit (max 2 retries = branchIndex 0,1,2) enforced locally before API call (TM §2.2)</criterion>
+    <criterion id="3">Branch limit (max 9 variations = branchIndex 0-9) enforced locally before API call (TM §2.2)</criterion>
     <criterion id="4">MessageRepository queries support tree operations (get by parent, get branches)</criterion>
     <criterion id="5">Root messages have parentMessageId = null</criterion>
     <criterion id="6">assembleContext() returns ordered array from root to current message</criterion>
@@ -33,8 +33,8 @@
 
   <artifacts>
     <docs>
-      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Data Models - Message Entity (Enhanced for Tree Structure)" snippet="Tree structure fields: parentMessageId: string | null (null for root messages), branchIndex: number (0=original, 1-2=retries). Maximum 2 retry branches enforced at service layer." />
-      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Database Schema - desktop_messages table" snippet="parent_message_id TEXT FK to desktop_messages.id, branch_index INTEGER DEFAULT 0 (0, 1, or 2). CREATE INDEX idx_messages_parent ON desktop_messages(parent_message_id). CREATE INDEX idx_messages_thread_tree ON desktop_messages(thread_id, parent_message_id, branch_index). Soft delete: deleted_at INTEGER." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Data Models - Message Entity (Enhanced for Tree Structure)" snippet="Tree structure fields: parentMessageId: string | null (null for root messages), branchIndex: number (0=original, 1-9=variations). Maximum 9 variation branches enforced at service layer." />
+      <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="Database Schema - desktop_messages table" snippet="parent_message_id TEXT FK to desktop_messages.id, branch_index INTEGER DEFAULT 0 (0-9). CREATE INDEX idx_messages_parent ON desktop_messages(parent_message_id). CREATE INDEX idx_messages_thread_tree ON desktop_messages(thread_id, parent_message_id, branch_index). Soft delete: deleted_at INTEGER." />
       <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="MessageRepository - New Methods" snippet="getSiblingBranches(parentMessageId): Promise&lt;Message[]&gt;, getMessageTree(threadId): Promise&lt;MessageTreeNode[]&gt;, getPathToRoot(messageId): Promise&lt;Message[]&gt;. All filter out soft-deleted messages: WHERE deleted_at IS NULL." />
       <doc path="docs/sprint-artifacts/tech-spec-epic-2.md" title="Epic 2 Technical Specification" section="ThreadService.submit() - Enhanced Signature" snippet="async submit(threadId, parentMessageId, prompt, branchIndex?) validates branch limit (max 2 siblings), auto-assigns branchIndex, creates user message with tree metadata, assembles context (include parent + sibling branches), submits to AI service." />
     </docs>
@@ -56,7 +56,7 @@
   <constraints>
     - **Desktop Implementation:** This story is Desktop-only (Electron + TypeScript). NOT backend Moku API. Implements local message tree structure in Desktop SQLite database.
     - **Tree Structure:** Root messages: parentMessageId = null, branchIndex = 0. Child messages: parentMessageId = parent UUID, branchIndex = 0-2. Branch siblings: same parentMessageId, different branchIndex.
-    - **Branch Limit:** Maximum 2 retry branches per message (branchIndex 0, 1, 2). Enforce client-side before API call. Throw error "Maximum retry branches reached (max: 2)" if limit exceeded.
+    - **Branch Limit:** Maximum 9 variation branches per message (branchIndex 0-9). Enforce client-side before API call. Throw error "Maximum variation branches reached (max: 9)" if limit exceeded.
     - **Context Assembly Algorithm:** Walk up tree from current message via parentMessageId links. Collect messages in array. Reverse array for root-to-current order. Return ordered array for LLM context. Algorithm: while (current) { path.unshift(current); current = current.parentMessageId ? getMessage(current.parentMessageId) : null; }
     - **Soft Delete:** Messages use deleted_at timestamp (not hard delete). All tree queries filter out deleted messages: WHERE deleted_at IS NULL.
     - **Cache Invalidation:** Update ThreadCache to store tree structure. Invalidate branch cache when new branch created. Cache assembleContext() results for performance.
@@ -72,7 +72,7 @@
   </interfaces>
 
   <tests>
-    <standards>Use vitest for unit tests. Test tree structure: create root message (parentMessageId=null), create child with parentMessageId=root.id, verify tree relationship. Test branch limit: create 3 branches (0,1,2) for same parent, attempt 4th, expect error. Test assembleContext: create tree (root → child1 → child2), call assembleContext(child2.id), verify returns [root, child1, child2]. Test soft delete filtering: mark message deleted_at=now, verify getSiblingBranches excludes it.</standards>
+    <standards>Use vitest for unit tests. Test tree structure: create root message (parentMessageId=null), create child with parentMessageId=root.id, verify tree relationship. Test branch limit: create 3 branches (0-9) for same parent, attempt 4th, expect error. Test assembleContext: create tree (root → child1 → child2), call assembleContext(child2.id), verify returns [root, child1, child2]. Test soft delete filtering: mark message deleted_at=now, verify getSiblingBranches excludes it.</standards>
     <locations>tests/unit/repositories/, tests/unit/services/, tests/unit/utils/</locations>
     <ideas>
       <test ac="1,5" idea="Unit test: Create root message with parentMessageId=null, branchIndex=0, verify saved correctly" />
@@ -81,7 +81,7 @@
       <test ac="4" idea="Unit test: getSiblingBranches with soft-deleted sibling - create 2 siblings, mark 1 deleted (deleted_at=now), verify only returns non-deleted" />
       <test ac="2,6" idea="Unit test: assembleContext(leafMessageId) - create tree root→child1→child2, call with child2.id, verify returns [root, child1, child2] in order" />
       <test ac="2,6" idea="Unit test: assembleContext with branched path - create root→(branch0, branch1), verify assembleContext(branch1) returns [root, branch1] not branch0" />
-      <test ac="3" idea="Unit test: getNextBranchIndex(parentId) - no existing branches, verify returns 0. 1 branch exists, returns 1. 2 branches exist, returns 2. 3 branches exist, throws error 'Maximum retry branches reached'" />
+      <test ac="3" idea="Unit test: getNextBranchIndex(parentId) - no existing branches, verify returns 0. 1 branch exists, returns 1. 2 branches exist, returns 2. 9 branches exist, throws error 'Maximum variation branches reached'" />
       <test ac="3" idea="Integration test: ThreadService.submit() with 3 existing branches - call submit with branchIndex=3, verify throws BranchLimitError before API call" />
       <test ac="1,4" idea="Integration test: Create thread with multiple branches, query getMessagesByParentId(rootId), verify returns all immediate children" />
     </ideas>

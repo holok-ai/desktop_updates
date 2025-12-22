@@ -8,6 +8,7 @@
 
   let isLoading = false;
   let isMockLoading = false;
+  let isKeyLoading = false;
   let provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft';
   let toastMessage = '';
   let toastTimeout: number | null = null;
@@ -89,6 +90,33 @@
     }
   }
 
+  async function handleKeyLogin() {
+    isKeyLoading = true;
+    try {
+      // Re-fetch auth state from backend (useful if test tokens were loaded but UI missed the update)
+      const authState = await window.electronAPI.auth.getAuthState();
+
+      if (authState.isAuthenticated) {
+        authStore.setAuthState(authState);
+        window.electronAPI.log.info('Key login successful');
+
+        if (authState.user?.name) {
+          const message = `${authState.user.name} logged in.`;
+          toastStore.show(message, { variant: 'success' });
+        }
+        navigateHome();
+      } else {
+        throw new Error('No authentication found. For test mode, set PLAYWRIGHT_TEST_TOKENS environment variable.');
+      }
+    } catch (error) {
+      const message = formatAuthError(error);
+      window.electronAPI.log.error('Key login failed', error);
+      showToast(message);
+    } finally {
+      isKeyLoading = false;
+    }
+  }
+
   function showToast(message: string, duration = 4000): void {
     toastMessage = message;
     if (toastTimeout) {
@@ -150,7 +178,11 @@
       {isMockLoading ? 'Signing in...' : 'Sign In (Mock)'}
     </button>
 
-    <p class="note">Mock login is for testing purposes only</p>
+    <button onclick={handleKeyLogin} disabled={isKeyLoading} class="key-button">
+      {isKeyLoading ? 'Signing in...' : 'Login With Key'}
+    </button>
+
+    <p class="note">Mock login and key login are for testing purposes only</p>
   </div>
 </div>
 
@@ -221,7 +253,8 @@
     border-color: var(--primary-600);
   }
 
-  .mock-button {
+  .mock-button,
+  .key-button {
     background: var(--surface-100);
     color: var(--text-primary);
     border: 1px solid var(--surface-border);
@@ -232,9 +265,14 @@
     transition: all 0.2s;
   }
 
-  .mock-button:hover:not(:disabled) {
+  .mock-button:hover:not(:disabled),
+  .key-button:hover:not(:disabled) {
     background: var(--surface-hover);
     border-color: var(--surface-border);
+  }
+
+  .key-button {
+    margin-top: calc(var(--inline-spacing) * 0.8);
   }
 
   button:disabled {

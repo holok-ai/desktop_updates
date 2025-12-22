@@ -27,20 +27,35 @@ export class PerplexityAIConverter {
     return { role: 'user', content: message.content };
   }
 
+  private static extractThreadId(
+    request: ChatRequest | ChatRequestWithOptions,
+  ): string | undefined {
+    const threadId = (request as { thread_id?: string }).thread_id;
+    if (typeof threadId === 'string' && threadId.length > 0) {
+      return threadId;
+    }
+
+    return undefined;
+  }
+
   static toPerplexityRequest(request: ChatRequest): PerplexityChatRequest {
+    const threadId = this.extractThreadId(request);
     return {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
   }
 
   static toPerplexityRequestWithOptions(request: ChatRequestWithOptions): PerplexityChatRequest {
     const options = request.options || {};
+    const threadId = this.extractThreadId(request);
     const perplexityRequest: PerplexityChatRequest = {
       model: request.model,
       messages: request.messages.map((m) => this.mapMessage(m)),
       stream: request.streaming !== false,
+      ...(threadId ? { thread_id: threadId } : {}),
     };
 
     if (options.temperature !== undefined) {

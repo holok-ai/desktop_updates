@@ -1,7 +1,7 @@
 import type { GUID } from '$lib/types/app.type';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { projects } from '../stores/project.store';
-import type { Project, ProjectPrivacyMode } from '../types/project.type.js';
+import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '../types/project.type.js';
 
 export class ProjectService {
   private static instance: ProjectService | null = null;
@@ -48,9 +48,10 @@ export class ProjectService {
     title: string,
     description?: string,
     privacyMode?: ProjectPrivacyMode,
+    type?: string,
   ): Promise<Project> {
     return wrapElectronCall(
-      () => window.electronAPI.project.create({ title, description, privacyMode }),
+      () => window.electronAPI.project.create({ title, description, privacyMode, type }),
       'Failed to create project',
     );
   }
@@ -85,6 +86,24 @@ export class ProjectService {
       'Failed to get thread count',
       0,
     );
+  }
+
+  public async searchUsers(searchTerm?: string | null): Promise<UserSummaryDTO[]> {
+    return wrapElectronCall(
+      () => window.electronAPI.project.searchUsers(searchTerm),
+      'Failed to search users',
+    );
+  }
+
+  public async getProjectById(id: GUID): Promise<Project | null> {
+    const project = await wrapElectronCall(
+      () => window.electronAPI.project.getById(id),
+      'Failed to get project',
+    );
+    if (project) {
+      projects.updateProject(project);
+    }
+    return project;
   }
 
   public cleanup(): void {

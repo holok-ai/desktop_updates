@@ -48,6 +48,10 @@ class ThreadService {
     return window.electronAPI.thread.softDelete(id);
   }
 
+  async getThread(id: string): Promise<Thread | null> {
+    return window.electronAPI.thread.getById(id);
+  }
+
   async getMessages(id: string): Promise<Message[]> {
     return window.electronAPI.thread.getMessages(id);
   }
