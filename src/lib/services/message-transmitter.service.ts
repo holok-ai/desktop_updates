@@ -133,6 +133,8 @@ export class MessageTransmitter {
       retryCount: 0,
       parentMessageId: null,
       branchIndex: 0,
+      branchType: null,
+      modelId: null,
     };
 
     this.callbacks.onMessageAdd(userMsg);
@@ -194,6 +196,8 @@ export class MessageTransmitter {
         status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
         parentMessageId: null,
         branchIndex: 0,
+        branchType: null,
+        modelId: null,
       };
 
       this.callbacks.onMessageAdd(assistantMsg);
@@ -219,6 +223,8 @@ export class MessageTransmitter {
           status: MESSAGE_STATUS.SENT,
           parentMessageId: null,
           branchIndex: 0,
+          branchType: null,
+          modelId: null,
         },
         ...saved.responseMessages.map(
           (m): Message => ({
@@ -229,6 +235,8 @@ export class MessageTransmitter {
             status: MESSAGE_STATUS.SENT,
             parentMessageId: null,
             branchIndex: 0,
+            branchType: null,
+            modelId: null,
           }),
         ),
       ];
@@ -308,6 +316,8 @@ export class MessageTransmitter {
                 status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
                 parentMessageId: null,
                 branchIndex: 0,
+                branchType: null,
+                modelId: null,
               };
 
               this.callbacks.onMessageAdd(assistantMsg);

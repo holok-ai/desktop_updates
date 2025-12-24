@@ -18,6 +18,8 @@ export interface MessageVersion {
   editedAt: number;
 }
 
+export type BranchType = 'prompt-variation' | 'model-variation' | null;
+
 export interface Message {
   id: UUID;
   title: string;
@@ -31,7 +33,9 @@ export interface Message {
   versions?: MessageVersion[];
   isEdited?: boolean;
   parentMessageId: string | null;
-  branchIndex: number; // 0-9: branch index for retry attempts (max 10 branches per parent)
+  branchIndex: number;
+  branchType: BranchType;
+  modelId?: string | null;
 }
 
 /**
@@ -247,6 +251,8 @@ export class ThreadRepository {
       clientMessageId?: string;
       parentMessageId?: string | null;
       branchIndex?: number;
+      branchType?: BranchType;
+      modelId?: string | null;
     },
   ): Promise<Message> {
     // Check local idempotency cache first
@@ -290,6 +296,8 @@ export class ThreadRepository {
       deletedAt: null,
       parentMessageId: payload.parentMessageId ?? null,
       branchIndex: payload.branchIndex ?? 0,
+      branchType: payload.branchType ?? null,
+      modelId: payload.modelId ?? null,
     };
 
     log.info('[ThreadRepository] Created local message (no API call):', message.id);
@@ -874,6 +882,8 @@ export class ThreadRepository {
       editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
       parentMessageId: dto.parentMessageId,
       branchIndex: dto.branchIndex,
+      branchType: (dto.branchType as BranchType) ?? null,
+      modelId: dto.model ?? null,
     };
   }
 
