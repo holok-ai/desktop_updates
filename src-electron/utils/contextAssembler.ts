@@ -1,4 +1,4 @@
-import type { Message } from '../repository/thread-repository.js';
+import type { BranchType, Message } from '../repository/thread-repository.js';
 import type { ThreadRepository } from '../repository/thread-repository.js';
 
 /**
@@ -42,49 +42,42 @@ export function assembleContext(
   return path;
 }
 
-/**
- * Gets the next available branch index for creating a retry branch.
- * Validates that we haven't exceeded the maximum of 10 branches (0-9).
- *
- * @param threadId - The thread containing the messages
- * @param parentMessageId - The parent message ID to branch from
- * @param repository - ThreadRepository instance for data access
- * @returns The next available branch index (0-9)
- * @throws Error if maximum retry branches (9) has been reached
- *
- * @example
- * // Parent has children with branchIndex 0, 1, 2
- * const nextIndex = getNextBranchIndex(threadId, parentId, repo);
- * // Returns: 3
- */
 export function getNextBranchIndex(
   threadId: string,
   parentMessageId: string | null,
+  branchType: Exclude<BranchType, null>,
   repository: ThreadRepository,
 ): number {
-  // Get all existing children of this parent
   const siblings = repository.getMessagesByParentId(threadId, parentMessageId);
 
-  if (siblings.length === 0) {
-    // No existing children, start with index 0
-    return 0;
+  if (branchType === 'prompt-variation') {
+    const hasPromptVariation = siblings.some((m) => m.branchType === 'prompt-variation');
+    if (hasPromptVariation) {
+      throw new Error('Only one prompt variation allowed');
+    }
+    return 1;
   }
 
-  // Find the maximum branch index currently used
-  const maxIndex = Math.max(...siblings.map((m) => m.branchIndex ?? 0));
-
-  // Check if we've hit the limit (0-9 = 10 total branches)
-  if (maxIndex >= 9) {
-    throw new Error('Maximum retry branches reached (max: 9)');
+  const usedIndices = new Set<number>();
+  for (const m of siblings) {
+    if (typeof m.branchIndex === 'number') {
+      usedIndices.add(m.branchIndex);
+    }
   }
 
-  // Return next available index
-  return maxIndex + 1;
+  for (let i = 1; i <= 9; i += 1) {
+    if (!usedIndices.has(i)) {
+      return i;
+    }
+  }
+
+  throw new Error('Maximum variation branches reached (max: 9)');
 }
 
 /**
  * Gets all messages in the active branch path from root to a specific message.
- * This is a convenience wrapper around assembleContext for external use.
+ * This is a convenience wrapper around assembleContext for external use and
+ * is intended to back the "Continue with this branch" command.
  *
  * @param threadId - The thread containing the message
  * @param messageId - The message ID to build context for
@@ -97,30 +90,4 @@ export function getActiveBranchPath(
   repository: ThreadRepository,
 ): Message[] {
   return assembleContext(threadId, messageId, repository);
-}
-
-/**
- * Validates if a message can have another retry branch created.
- * Checks if the branch limit (10 branches, indices 0-9) has been reached.
- *
- * @param threadId - The thread containing the message
- * @param messageId - The message to check
- * @param repository - ThreadRepository instance
- * @returns true if another branch can be created, false otherwise
- */
-export function canCreateRetryBranch(
-  threadId: string,
-  messageId: string,
-  repository: ThreadRepository,
-): boolean {
-  const message = repository.getMessage(threadId, messageId);
-  if (!message) return false;
-
-  try {
-    // Attempt to get next branch index - if it throws, we're at the limit
-    getNextBranchIndex(threadId, message.parentMessageId, repository);
-    return true;
-  } catch {
-    return false;
-  }
 }
