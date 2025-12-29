@@ -14,25 +14,7 @@ import log from 'electron-log';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { ProjectDetailDTO } from '../services/mokuapi/project.types.js';
-
-/**
- * Project entity with canonical 'title' field
- * Maps from Moku API's 'name' field to our 'title' convention
- */
-export interface Project {
-  id: string;
-  title: string; // Canonical display name (mapped from API 'name')
-  description: string | null;
-  type: string;
-  createdBy: string;
-  organizationId: string;
-  status: string;
-  metadata: Record<string, unknown> | null;
-  memberCount: number;
-  createdAt: string; // ISO-8601
-  updatedAt: string; // ISO-8601
-  userRole: string; // 'owner' | 'editor' | 'viewer'
-}
+import type { Project } from '../types/project.types.js';
 
 /**
  * LRU Node for tracking access order
@@ -179,15 +161,15 @@ export class ProjectCache {
         id: projectDTO.id,
         title: projectDTO.name, // API uses 'name', we use 'title'
         description: projectDTO.description,
-        type: projectDTO.type,
+        type: projectDTO.type as Project['type'],
         createdBy: projectDTO.createdBy,
         organizationId: projectDTO.organizationId,
-        status: projectDTO.status,
-        metadata: projectDTO.metadata,
+        status: projectDTO.status as Project['status'],
+        metadata: projectDTO.metadata as Project['metadata'],
         memberCount: projectDTO.memberCount,
         createdAt: projectDTO.createdAt,
         updatedAt: projectDTO.updatedAt,
-        userRole: projectDTO.userRole,
+        userRole: projectDTO.userRole as Project['userRole'],
       };
 
       // Store in memory
