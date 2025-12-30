@@ -124,6 +124,10 @@ class ProjectApiService {
             },
         });
 
+        console.log({
+            accessToken
+        })
+
         if (!response.ok) {
             const errorText = await response.text();
             log.error('[ProjectApiService] Get projects failed:', response.status, errorText);

@@ -1,7 +1,22 @@
 import type { GUID } from '$lib/types/app.type';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { projects } from '../stores/project.store';
-import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '../types/project.type.js';
+import type { Project, UserSummaryDTO } from '../types/project.type.js';
+
+/**
+ * Input for creating a new project
+ * Matches the structure expected by E3-S1 API
+ */
+export interface CreateProjectInput {
+  title: string;
+  description?: string;
+  type?: 'personal' | 'shared';
+  metadata?: {
+    color?: string;
+    icon?: string;
+    [key: string]: unknown;
+  };
+}
 
 export class ProjectService {
   private static instance: ProjectService | null = null;
@@ -44,32 +59,28 @@ export class ProjectService {
     projects.setProjects(allProjects);
   }
 
-  public async createProject(
-    title: string,
-    description?: string,
-    privacyMode?: ProjectPrivacyMode,
-    type?: string,
-  ): Promise<Project> {
+  public async createProject(input: CreateProjectInput): Promise<Project> {
     return wrapElectronCall(
-      () => window.electronAPI.project.create({ title, description, privacyMode, type }),
+      () => window.electronAPI.project.create(input),
       'Failed to create project',
     );
   }
 
   public async updateProject(
     id: GUID,
-    updates: { title?: string; description?: string; privacyMode?: ProjectPrivacyMode },
+    updates: {
+      title?: string;
+      description?: string;
+      metadata?: {
+        color?: string;
+        icon?: string;
+        [key: string]: unknown;
+      };
+    },
   ): Promise<Project> {
     return wrapElectronCall(
       () => window.electronAPI.project.update(id, updates),
       'Failed to update project',
-    );
-  }
-
-  public async setPrivacyMode(id: GUID, mode: ProjectPrivacyMode): Promise<Project> {
-    return wrapElectronCall(
-      () => window.electronAPI.project.update(id, { privacyMode: mode }),
-      'Failed to set privacy mode',
     );
   }
 
@@ -100,7 +111,7 @@ export class ProjectService {
       () => window.electronAPI.project.getById(id),
       'Failed to get project',
     );
-    if (project) {
+    if (project !== null) {
       projects.updateProject(project);
     }
     return project;

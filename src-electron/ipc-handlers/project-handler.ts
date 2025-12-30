@@ -51,7 +51,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:list', async (): Promise<Project[]> => {
     log.info('[IPC:project:list]');
     return await projectService.list();
-  });
+    });
 
   /**
    * Get a single project by ID
@@ -59,12 +59,12 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
     log.info('[IPC:project:get]', projectId);
     return await projectService.get(projectId);
-  });
+    });
 
   /**
    * Update a project
    */
-  ipcMain.handle(
+    ipcMain.handle(
     'project:update',
     async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
       log.info('[IPC:project:update]', projectId);
@@ -98,13 +98,13 @@ export function registerProjectHandlers(): void {
     async (_, projectId: string, permission: ProjectPermission): Promise<void> => {
       log.debug('[IPC:project:hasPermission]', projectId, permission);
       await projectService.hasPermission(projectId, permission);
-    },
-  );
+        },
+    );
 
   /**
    * Check permission without throwing (returns boolean)
    */
-  ipcMain.handle(
+    ipcMain.handle(
     'project:checkPermission',
     async (_, projectId: string, permission: ProjectPermission): Promise<boolean> => {
       log.debug('[IPC:project:checkPermission]', projectId, permission);
@@ -143,13 +143,13 @@ export function registerProjectHandlers(): void {
       broadcast('project:memberAdded', projectId, member);
 
       return member;
-    },
-  );
+        },
+    );
 
   /**
    * Remove a member from a project
    */
-  ipcMain.handle(
+    ipcMain.handle(
     'project:removeMember',
     async (_, projectId: string, memberId: string): Promise<void> => {
       log.info('[IPC:project:removeMember]', projectId, memberId);
@@ -157,13 +157,13 @@ export function registerProjectHandlers(): void {
 
       // Broadcast member removed event
       broadcast('project:memberRemoved', projectId, memberId);
-    },
-  );
+        },
+    );
 
   /**
    * Update a member's role
    */
-  ipcMain.handle(
+    ipcMain.handle(
     'project:updateMemberRole',
     async (
       _,
@@ -178,8 +178,8 @@ export function registerProjectHandlers(): void {
       broadcast('project:memberRoleUpdated', projectId, member);
 
       return member;
-    },
-  );
+        },
+    );
 
   log.info('[ProjectHandler] All project IPC handlers registered');
 }
@@ -188,11 +188,11 @@ export function registerProjectHandlers(): void {
  * Clean up handlers on app quit
  */
 export function unregisterProjectHandlers(): void {
-  ipcMain.removeHandler('project:create');
+    ipcMain.removeHandler('project:create');
   ipcMain.removeHandler('project:list');
   ipcMain.removeHandler('project:get');
-  ipcMain.removeHandler('project:update');
-  ipcMain.removeHandler('project:delete');
+    ipcMain.removeHandler('project:update');
+    ipcMain.removeHandler('project:delete');
   ipcMain.removeHandler('project:hasPermission');
   ipcMain.removeHandler('project:checkPermission');
   ipcMain.removeHandler('project:getUserRole');

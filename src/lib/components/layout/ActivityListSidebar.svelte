@@ -2,7 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import ThreadListItem from '../common/ThreadListItem.svelte';
-  import ProjectListItem from '../common/ProjectListItem.svelte';
+  import ProjectSidebar from '../projects/ProjectSidebar.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
@@ -82,18 +82,6 @@
 
   let filteredThreads = $state<Thread[]>([]);
 
-  // Separate projects into personal and shared, sorted by name
-  const personalProjects = $derived(
-    $projects
-      .filter((p) => p.type === 'personal')
-      .sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''))
-  );
-
-  const sharedProjects = $derived(
-    $projects
-      .filter((p) => p.type === 'shared')
-      .sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''))
-  );
 
   const hasListItems = $derived(
     isThreadActivity
@@ -321,20 +309,6 @@
 
     if (requestNavigation(proceed)) proceed();
   }
-
-  /**
-   * Navigate to project creation interface
-   */
-  function handleNewProject() {
-    const proceed = () => {
-      // Clear any selected project and navigate to projects page (shows create form)
-      selectedProjectId = null;
-      storageService.removeLastProjectId();
-      push(ROUTE.PROJECTS);
-    };
-
-    if (requestNavigation(proceed)) proceed();
-  }
 </script>
 
 <aside
@@ -365,97 +339,46 @@
     </div>
   {/if}
 
-  <!-- New Project button - only visible for Projects activity when not collapsed -->
-  {#if isProjectsActivity && !isCollapsed}
-    <div class="new-thread-container">
-      <button class="new-thread-btn" onclick={handleNewProject} aria-label="Create new project">
-        <i class="pi pi-plus text-black"></i>
-        <span>New Project ...</span>
-      </button>
-    </div>
-  {/if}
-
   <div class="sidebar-scroll flex-1 overflow-y-auto">
-    <ul class="list-items">
-      {#if isThreadActivity}
-        {#if filteredThreads.length === 0 && !isCollapsed}
-          <div class="empty-state">
-            <p>No threads available yet.</p>
-          </div>
-        {:else if !isCollapsed}
-          {#each filteredThreads as thread (thread.id)}
-            <ThreadListItem
-              {thread}
-              isSelected={selectedThreadId === thread.id}
-              showActions={true}
-              on:click={(e) => void select(e.detail)}
-              on:rename={(e) => {
-                const item = e.detail as { id: string; label: string };
-                handleRenameStart(item);
-              }}
-              on:delete={async (e) => {
-                const item = e.detail as { id: string };
-                if (item?.id?.startsWith('temp_')) {
-                  threads.deleteThread(item.id);
-                  return;
-                }
-                try {
-                  await threadService.softDelete(item.id);
-                } catch (err) {
-                  console.error('Failed to delete thread', err);
-                }
-              }}
-            />
-          {/each}
-        {/if}
-      {:else if isProjectsActivity}
-        {#if $projects.length === 0 && !isCollapsed}
-          <div class="empty-state">
-            <p>No projects available yet.</p>
-          </div>
-        {:else if !isCollapsed}
-          <!-- Personal Projects Section -->
-          {#if personalProjects.length > 0}
-            <div class="project-section-header">Personal Projects</div>
-            {#each personalProjects as project (project.id)}
-              <div class="project-item-indented">
-                <ProjectListItem
-                  {project}
-                  isSelected={selectedProjectId === project.id}
-                  on:click={(e) => {
-                    const item = e.detail as { id: string; label: string; route?: string };
-                    const foundProject = $projects.find((p) => p.id === item.id);
-                    if (foundProject) {
-                      selectProject(foundProject);
-                    }
-                  }}
-                />
-              </div>
-            {/each}
-          {/if}
-
-          <!-- Shared Projects Section -->
-          {#if sharedProjects.length > 0}
-            <div class="project-section-header">Shared Projects</div>
-            {#each sharedProjects as project (project.id)}
-              <div class="project-item-indented">
-                <ProjectListItem
-                  {project}
-                  isSelected={selectedProjectId === project.id}
-                  on:click={(e) => {
-                    const item = e.detail as { id: string; label: string; route?: string };
-                    const foundProject = $projects.find((p) => p.id === item.id);
-                    if (foundProject) {
-                      selectProject(foundProject);
-                    }
-                  }}
-                />
-              </div>
+    {#if isProjectsActivity}
+      <!-- E3-S4: Use dedicated ProjectSidebar component for projects -->
+      <ProjectSidebar collapsed={isCollapsed} />
+    {:else}
+      <ul class="list-items">
+        {#if isThreadActivity}
+          {#if filteredThreads.length === 0 && !isCollapsed}
+            <div class="empty-state">
+              <p>No threads available yet.</p>
+            </div>
+          {:else if !isCollapsed}
+            {#each filteredThreads as thread (thread.id)}
+              <ThreadListItem
+                {thread}
+                isSelected={selectedThreadId === thread.id}
+                showActions={true}
+                on:click={(e) => void select(e.detail)}
+                on:rename={(e) => {
+                  const item = e.detail as { id: string; label: string };
+                  handleRenameStart(item);
+                }}
+                on:delete={async (e) => {
+                  const item = e.detail as { id: string };
+                  if (item?.id?.startsWith('temp_')) {
+                    threads.deleteThread(item.id);
+                    return;
+                  }
+                  try {
+                    await threadService.softDelete(item.id);
+                  } catch (err) {
+                    console.error('Failed to delete thread', err);
+                  }
+                }}
+              />
             {/each}
           {/if}
         {/if}
-      {/if}
-    </ul>
+      </ul>
+    {/if}
   </div>
 
   <!-- Resize handle -->
@@ -732,26 +655,6 @@
 
   :global(html.dark) .activity-list-sidebar .empty-state,
   :global(:root.dark) .activity-list-sidebar .empty-state {
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  /* Project section styles */
-  .project-section-header {
-    padding: 0.75rem 1rem 0.5rem 1rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--sidebar-accordion-title-color);
-    opacity: 0.7;
-  }
-
-  .project-item-indented {
-    padding-left: 1rem;
-  }
-
-  :global(html.dark) .project-section-header,
-  :global(:root.dark) .project-section-header {
     color: rgba(255, 255, 255, 0.7);
   }
 

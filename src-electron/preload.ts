@@ -965,16 +965,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Project API Implementation
    */
   project: {
-    getAll: () => ipcRenderer.invoke('project:getAll'),
+    getAll: () => ipcRenderer.invoke('project:list'),
 
-    getById: (id: GUID) => ipcRenderer.invoke('project:getById', id),
+    getById: (id: GUID) => ipcRenderer.invoke('project:get', id),
 
-    create: (data: { title: string; description?: string; metadata?: Record<string, unknown> }) =>
-      ipcRenderer.invoke('project:create', data),
+    create: (data: {
+      title: string;
+      description?: string;
+      type?: 'personal' | 'shared';
+      metadata?: Record<string, unknown>;
+      privacyMode?: string; // Legacy field, will be ignored
+    }) => ipcRenderer.invoke('project:create', data),
 
     update: (
       id: GUID,
-      updates: { title?: string; description?: string; metadata?: Record<string, unknown> },
+      updates: {
+        title?: string;
+        description?: string;
+        metadata?: Record<string, unknown>;
+        privacyMode?: string; // Legacy field, will be ignored
+      },
     ) => ipcRenderer.invoke('project:update', id, updates),
 
     delete: (id: GUID, options?: { deleteThreads?: boolean }) =>
