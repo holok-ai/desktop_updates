@@ -19,6 +19,7 @@
   import { toastStore } from '$lib/services/toast.service';
 
   let selectedProjectId: string | null = $state(null);
+  let showCreatePanel = $state(false); // Track if we should show create panel
   let isLoading = $state(true);
   let showFormModal = $state(false);
   let showDeleteModal = $state(false);
@@ -92,10 +93,14 @@
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
 
-      // Check for ?createProject param to open create modal
-      if (params.has('createProject') && !showFormModal) {
-        handleCreate();
-        void replace(ROUTE.PROJECTS);
+      // Check for ?create param to show create panel
+      if (params.has('create')) {
+        selectedProjectId = null;
+        showCreatePanel = true;
+        storageService.removeLastProjectId();
+        return; // Stop here to show create panel
+      } else {
+        showCreatePanel = false;
       }
 
       const projectId = params.get('projectId') as GUID | null;
@@ -121,7 +126,7 @@
           replace(ROUTE.PROJECTS);
         }
       } else {
-        // No projectId in URL - show creation page
+        // No projectId in URL - show empty state
         selectedProjectId = null;
       }
     });
@@ -237,7 +242,8 @@
   {/if}
   {#if isLoading}
     <div class="loading">Loading projects...</div>
-  {:else if !selectedProject}
+  {:else if showCreatePanel || !selectedProject}
+    <!-- Show create form when ?create=true OR no project selected -->
     <ProjectCreatePanel on:created={handleProjectCreated} />
   {:else}
     <div class="project-detail">
@@ -490,6 +496,15 @@
 
   .empty-threads p {
     margin: 0;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
   }
 
   .error-banner {

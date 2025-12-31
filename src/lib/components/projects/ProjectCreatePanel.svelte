@@ -1,16 +1,53 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { projectService } from '$lib/services/project.service';
+  import { projectService, type CreateProjectInput } from '$lib/services/project.service';
   import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
+  import { push } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
+  import MokuColorGrid from '$lib/components/common/MokuColorGrid.svelte';
+  import MokuIconPicker from '$lib/components/common/MokuIconPicker.svelte';
+  import {
+    MOKU_COLOR_PALETTE,
+    VALID_PROJECT_ICONS,
+    PROJECT_TITLE_MAX_LENGTH,
+    PROJECT_DESCRIPTION_MAX_LENGTH,
+  } from '$lib/constants/project-validation';
 
   const dispatch = createEventDispatcher<{ created: { projectId: string } }>();
 
-  let projectName = $state('');
+  // Form state using Svelte 5 Runes
+  let projectTitle = $state('');
   let projectDescription = $state('');
   let projectType = $state<'personal' | 'shared'>('personal');
+  let selectedColor = $state<(typeof MOKU_COLOR_PALETTE)[number]>(MOKU_COLOR_PALETTE[0]); // Default: Blue
+  let selectedIcon = $state<(typeof VALID_PROJECT_ICONS)[number]>(VALID_PROJECT_ICONS[0]); // Default: folder
   let isSubmitting = $state(false);
   let error = $state('');
+  let hasAttemptedSubmit = $state(false); // Track if user has tried to submit
+
+  // Validation using $derived
+  const titleError = $derived(() => {
+    const trimmed = projectTitle.trim();
+    if (!trimmed) return 'Project title is required';
+    if (trimmed.length > PROJECT_TITLE_MAX_LENGTH) {
+      return `Title cannot exceed ${PROJECT_TITLE_MAX_LENGTH} characters`;
+    }
+    // Regex: alphanumeric + spaces + hyphens only
+    if (!/^[a-zA-Z0-9\s\-]+$/.test(trimmed)) {
+      return 'Title can only contain letters, numbers, spaces, and hyphens';
+    }
+    return '';
+  });
+
+  const descriptionError = $derived(() => {
+    if (projectDescription.length > PROJECT_DESCRIPTION_MAX_LENGTH) {
+      return `Description cannot exceed ${PROJECT_DESCRIPTION_MAX_LENGTH} characters`;
+    }
+    return '';
+  });
+
+  const isFormValid = $derived(!titleError() && !descriptionError());
 
   const typeChoices: {
     id: 'personal' | 'shared';
@@ -20,35 +57,47 @@
     {
       id: 'personal',
       title: 'Personal',
-      description: 'A private project accessible only to you.',
+      description: 'Only you can access. Can be upgraded to shared later.',
     },
     {
       id: 'shared',
       title: 'Shared',
-      description: 'A collaborative project that can be shared with team members.',
+      description: 'Invite team members to collaborate.',
     },
   ];
 
   $effect(() => {
     const dirty =
-      projectName.trim().length > 0 ||
+      projectTitle.trim().length > 0 ||
       projectDescription.trim().length > 0 ||
       projectType !== 'personal';
     setUnsavedChanges('add-project', dirty);
   });
 
   function resetForm() {
-    projectName = '';
+    projectTitle = '';
     projectDescription = '';
     projectType = 'personal';
+    selectedColor = MOKU_COLOR_PALETTE[0];
+    selectedIcon = VALID_PROJECT_ICONS[0];
     error = '';
+    hasAttemptedSubmit = false;
     clearUnsavedChanges('add-project');
+  }
+
+  function handleCancel() {
+    clearUnsavedChanges('add-project');
+    push(ROUTE.PROJECTS); // Go back to projects list without ?create param
   }
 
   async function handleSubmit(event?: Event) {
     event?.preventDefault();
-    if (!projectName.trim()) {
-      error = 'Project name is required';
+
+    // Mark that user has attempted to submit (show validation errors from now on)
+    hasAttemptedSubmit = true;
+
+    if (!isFormValid) {
+      error = titleError() || descriptionError();
       return;
     }
 
@@ -56,14 +105,23 @@
     error = '';
 
     try {
-      const project = await projectService.createProject(
-        projectName.trim(),
-        projectDescription.trim() || undefined,
-        undefined, // privacyMode - no longer used
-        projectType,
-      );
+      const input: CreateProjectInput = {
+        title: projectTitle.trim(),
+        description: projectDescription.trim() || undefined,
+        type: projectType,
+        metadata: {
+          color: selectedColor,
+          icon: selectedIcon,
+        },
+      };
+
+      const project = await projectService.createProject(input);
+
       dispatch('created', { projectId: project.id });
-      resetForm();
+      clearUnsavedChanges('add-project');
+
+      // Navigate to project detail view
+      push(`/projects?projectId=${project.id}`);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to create project. Please try again.';
     } finally {
@@ -75,37 +133,59 @@
 <CreatePageLayout>
   {#snippet form()}
     <form class="project-form" onsubmit={handleSubmit}>
+      <!-- Title Field with Inline Validation -->
       <div class="form-group">
-        <label for="project-name">Project Name *</label>
+        <label for="project-title">Project Title *</label>
         <input
-          id="project-name"
+          id="project-title"
           type="text"
-          bind:value={projectName}
-          placeholder="Enter project name"
+          bind:value={projectTitle}
+          placeholder="Enter project title"
+          aria-label="Project title"
+          aria-invalid={hasAttemptedSubmit && !!titleError()}
+          aria-describedby={hasAttemptedSubmit && titleError() ? 'title-error' : undefined}
           required
           disabled={isSubmitting}
         />
+        {#if hasAttemptedSubmit && titleError()}
+          <span id="title-error" class="error-text" role="alert">{titleError()}</span>
+        {/if}
       </div>
 
+      <!-- Description Field with Character Counter -->
       <div class="form-group">
-        <label for="project-description">Description</label>
+        <div class="label-with-counter">
+          <label for="project-description">Description</label>
+          <span class="char-counter" class:error={descriptionError()}>
+            {projectDescription.length}/{PROJECT_DESCRIPTION_MAX_LENGTH}
+          </span>
+        </div>
         <textarea
           id="project-description"
           bind:value={projectDescription}
           placeholder="Add a short description"
           rows="4"
+          aria-label="Project description"
+          aria-invalid={hasAttemptedSubmit && !!descriptionError()}
+          aria-describedby={hasAttemptedSubmit && descriptionError() ? 'description-error' : undefined}
           disabled={isSubmitting}
         ></textarea>
+        {#if hasAttemptedSubmit && descriptionError()}
+          <span id="description-error" class="error-text" role="alert">{descriptionError()}</span>
+        {/if}
       </div>
 
+      <!-- Type Selector -->
       <div class="form-group">
         <span class="field-label">Project Type *</span>
-        <div class="type-options">
+        <div class="type-options" role="radiogroup" aria-label="Project type">
           {#each typeChoices as choice (choice.id)}
             <button
               type="button"
               class="type-option"
               class:active={projectType === choice.id}
+              role="radio"
+              aria-checked={projectType === choice.id}
               onclick={() => (projectType = choice.id)}
               disabled={isSubmitting}
             >
@@ -118,15 +198,32 @@
         </div>
       </div>
 
+      <!-- Color Picker -->
+      <div class="form-group">
+        <span class="field-label">Color</span>
+        <MokuColorGrid bind:value={selectedColor} disabled={isSubmitting} />
+      </div>
+
+      <!-- Icon Picker -->
+      <div class="form-group">
+        <span class="field-label">Icon</span>
+        <MokuIconPicker bind:value={selectedIcon} disabled={isSubmitting} />
+      </div>
+
       {#if error}
-        <div class="error-banner">{error}</div>
+        <div class="error-banner" role="alert">{error}</div>
       {/if}
 
       <footer class="actions">
-        <button type="button" class="ghost" onclick={resetForm} disabled={isSubmitting}>
-          Reset
+        <button type="button" class="ghost" onclick={handleCancel} disabled={isSubmitting}>
+          Cancel
         </button>
-        <button type="submit" class="primary" disabled={isSubmitting || !projectName.trim()}>
+        <button
+          type="submit"
+          class="primary"
+          disabled={isSubmitting || !isFormValid}
+          aria-busy={isSubmitting}
+        >
           {isSubmitting ? 'Creating...' : 'Create Project'}
         </button>
       </footer>
@@ -141,11 +238,39 @@
     gap: 1.5rem;
   }
 
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .form-group label,
   .field-label {
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     display: inline-block;
+  }
+
+  .label-with-counter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .char-counter {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .char-counter.error {
+    color: var(--error-color);
+    font-weight: 600;
+  }
+
+  .error-text {
+    font-size: 0.875rem;
+    color: var(--error-color);
+    margin-top: 0.25rem;
   }
 
   input,
@@ -159,11 +284,22 @@
     font-size: 1rem;
   }
 
+  input[aria-invalid='true'],
+  textarea[aria-invalid='true'] {
+    border-color: var(--error-color);
+  }
+
   input:focus,
   textarea:focus {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 35%, transparent);
+  }
+
+  input[aria-invalid='true']:focus,
+  textarea[aria-invalid='true']:focus {
+    border-color: var(--error-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--error-color) 35%, transparent);
   }
 
   textarea {
@@ -208,14 +344,6 @@
     font-size: 0.875rem;
     color: var(--text-secondary);
     line-height: 1.4;
-  }
-
-  .badge {
-    background: var(--primary-color);
-    color: #fff;
-    padding: 0.15rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
   }
 
   .error-banner {

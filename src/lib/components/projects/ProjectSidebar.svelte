@@ -102,7 +102,7 @@
 
   // AC-4: Navigate to project creation view
   function handleNewProject(): void {
-    push(ROUTE.PROJECTS_CREATE);
+    push(`${ROUTE.PROJECTS}?create=true`);
   }
 
   // AC-7: Handle delete click (owner only)
