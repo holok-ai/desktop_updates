@@ -9,8 +9,7 @@ export interface Project {
     id: GUID;
     name: string;
     description: string | null;
-    type: string;
-    status: string;
+    type: 'personal' | 'shared';
     active: boolean;
     memberCount: number;
     createdBy: string;

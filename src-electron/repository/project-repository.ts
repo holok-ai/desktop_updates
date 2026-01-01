@@ -16,8 +16,7 @@ export interface Project {
     id: GUID;
     name: string;
     description: string | null;
-    type: string;
-    status: string;
+    type: 'personal' | 'shared';
     active: boolean;
     memberCount: number;
     createdBy: string;
@@ -106,7 +105,7 @@ export class ProjectRepository {
      */
     public listProjects(): Project[] {
         return Array.from(this.projectsById.values())
-            .filter((p) => p.status === 'active')
+            .filter((p) => p.active)
             .map((p) => this.cloneProject(p))
             .sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -117,7 +116,7 @@ export class ProjectRepository {
      */
     public listPersonalProjects(): Project[] {
         return Array.from(this.projectsById.values())
-            .filter((p) => p.status === 'active' && p.type === 'personal')
+            .filter((p) => p.active && p.type === 'personal')
             .map((p) => this.cloneProject(p))
             .sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -128,7 +127,7 @@ export class ProjectRepository {
      */
     public listSharedProjects(): Project[] {
         return Array.from(this.projectsById.values())
-            .filter((p) => p.status === 'active' && p.type === 'shared')
+            .filter((p) => p.active && p.type === 'shared')
             .map((p) => this.cloneProject(p))
             .sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -142,7 +141,7 @@ export class ProjectRepository {
             const dto = await projectApiService.createProject({
                 name,
                 description: description || null,
-                type: type || null,
+                type: (type as 'personal' | 'shared') || null,
                 metadata: metadata || null,
             });
 
@@ -232,7 +231,6 @@ export class ProjectRepository {
             name: dto.name,
             description: dto.description,
             type: dto.type,
-            status: dto.status,
             active: dto.active,
             memberCount: dto.memberCount,
             createdBy: '', // Not available in list DTO
@@ -254,8 +252,7 @@ export class ProjectRepository {
             name: dto.name,
             description: dto.description,
             type: dto.type,
-            status: dto.status,
-            active: dto.status === 'active',
+            active: dto.active,
             memberCount: dto.memberCount,
             createdBy: dto.createdBy,
             organizationId: dto.organizationId,
@@ -276,7 +273,6 @@ export class ProjectRepository {
             name: project.name,
             description: project.description,
             type: project.type,
-            status: project.status,
             active: project.active,
             memberCount: project.memberCount,
             createdBy: project.createdBy,

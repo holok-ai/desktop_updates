@@ -869,7 +869,6 @@ export class ThreadRepository {
       content: dto.content,
       createdAt: new Date(dto.createdAt).getTime(),
       metadata: dto.metadata as MessageMetadata | undefined,
-      clientMessageId: dto.clientMessageId,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
       parentMessageId: dto.parentMessageId,

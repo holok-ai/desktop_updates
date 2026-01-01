@@ -28,8 +28,7 @@ function toRendererProject(p: BackendProject | null): Project | null {
         name: p.name,
         title: p.name, // For backward compatibility
         description: p.description,
-        type: p.type,
-        status: p.status,
+        type: p.type as 'personal' | 'shared',
         active: p.active,
         memberCount: p.memberCount,
         createdBy: p.createdBy,
