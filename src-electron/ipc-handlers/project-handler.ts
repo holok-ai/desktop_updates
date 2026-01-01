@@ -1,7 +1,48 @@
-/**
- * Project IPC Handler
- * Exposes ProjectService methods to renderer via IPC
- */
+import { ipcMain, BrowserWindow } from 'electron';
+import { projectRepository } from '../repository/project-repository.js';
+import { threadRepository } from '../repository/thread-repository.js';
+import { createScopedLogger, logPerformance } from '../utils/logger.js';
+import { getAuthService } from './auth-handler.js';
+
+import type { Project, ProjectPrivacyMode, MemberDTO as FrontendMemberDTO } from '../../src/lib/types/project.type.js';
+import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
+import type { MemberDTO as BackendMemberDTO } from '../services/mokuapi/project-member-api.service.js';
+import type { Project as BackendProject } from '../repository/project-repository.js';
+import { GUID } from '../../src/lib/types/app.type.js';
+
+const projectLog = createScopedLogger('project');
+
+function toRendererProject(p: BackendProject | null): Project | null {
+    if (!p) return null;
+
+    const mapMember = (m: BackendMemberDTO): FrontendMemberDTO => ({
+        id: m.id,
+        userId: m.userId,
+        userName: m.userName,
+        email: m.userEmail,
+        memberRole: m.role,
+    });
+
+    return {
+        id: p.id,
+        name: p.name,
+        title: p.name, // For backward compatibility
+        description: p.description,
+        type: p.type as 'personal' | 'shared',
+        active: p.active,
+        memberCount: p.memberCount,
+        createdBy: p.createdBy,
+        organizationId: p.organizationId,
+        userRole: p.userRole,
+        metadata: p.metadata ? { ...p.metadata } : null,
+        createdAt: new Date(p.createdAt.toISOString()),
+        updatedAt: new Date(p.updatedAt.toISOString()),
+        members: p.members.map(mapMember),
+        // Legacy fields
+        deletedAt: null,
+        privacyMode: 'default',
+    };
+}
 
 import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
