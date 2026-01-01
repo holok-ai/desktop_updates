@@ -52,9 +52,7 @@ export interface MemberDTO {
     userName: string;
     userEmail: string;
     role: string;
-    createdBy: string;
     createdAt: string;
-    expiresAt: string | null;
 }
 
 class ProjectMemberApiService {
