@@ -48,6 +48,8 @@ Thumbs.db
 .bmad/
 .gemini/
 .qwen/
+.bmad-core/
+web-bundles/
 
 # Package manager files
 package-lock.json

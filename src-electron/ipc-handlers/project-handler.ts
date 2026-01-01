@@ -44,233 +44,203 @@ function toRendererProject(p: BackendProject | null): Project | null {
     };
 }
 
+import { ipcMain, BrowserWindow } from 'electron';
+import log from 'electron-log';
+import { projectService } from '../services/ProjectService.js';
+import type {
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  ProjectMember,
+  AddMemberInput,
+  UpdateMemberRoleInput,
+  ProjectPermission,
+  ProjectRole,
+} from '../types/project.types.js';
+
+/**
+ * Broadcast an event to all renderer windows
+ */
 function broadcast(channel: string, ...args: unknown[]): void {
-    const windows = BrowserWindow.getAllWindows();
-    for (const window of windows) {
-        window.webContents.send(channel, ...(args as [unknown]));
-    }
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send(channel, ...args);
+  });
 }
 
+/**
+ * Register IPC handlers for project operations
+ */
 export function registerProjectHandlers(): void {
-    // Get all projects (loads from API)
-    ipcMain.handle('project:getAll', async (): Promise<Project[]> => {
-        const perfLog = logPerformance('project:getAll');
-        try {
-            const list = await projectRepository.loadProjects();
-            const mapped = list.map((p) => toRendererProject(p)).filter((x): x is Project => x !== null);
-            perfLog.end({ count: mapped.length });
-            return mapped;
-        } catch (error) {
-            projectLog.error('Failed to load projects', error);
-            perfLog.end({ error: true });
-            throw error;
-        }
-    });
+  // ==================== CRUD Operations ====================
 
-    // Get project by ID
-    ipcMain.handle('project:getById', async (_event, id: GUID): Promise<Project | null> => {
-        projectLog.info('Get project by id', { projectId: String(id) });
-        try {
-            const project = await projectRepository.getProject(id);
-            return toRendererProject(project);
-        } catch (error) {
-            projectLog.error('Failed to get project', error);
-            throw error;
-        }
-    });
+  /**
+   * Create a new project
+   */
+  ipcMain.handle('project:create', async (_, input: CreateProjectInput): Promise<Project> => {
+    log.info('[IPC:project:create]', input.title);
+    const project = await projectService.create(input);
 
-    // Create project
-    ipcMain.handle(
-        'project:create',
-        async (
-            _event,
-            data: {
-                title: string;
-                description?: string;
-                type?: string;
-                metadata?: Record<string, unknown>;
-                privacyMode?: ProjectPrivacyMode;
-            },
-        ): Promise<Project> => {
-            const perfLog = logPerformance('project:create');
-            projectLog.info('Create called', { title: data.title, type: data.type });
+    // Broadcast creation event
+    broadcast('project:created', project);
 
-            const auth = getAuthService();
-            if (!auth.isAuthenticated()) {
-                throw new Error('Authentication required');
-            }
+    return project;
+  });
 
-            if (!data.title || data.title.trim().length === 0) {
-                throw new Error('Project title is required');
-            }
+  /**
+   * List all projects for current user
+   */
+  ipcMain.handle('project:list', async (): Promise<Project[]> => {
+    log.info('[IPC:project:list]');
+    return await projectService.list();
+  });
 
-            try {
-                const project = await projectRepository.createProject(
-                    data.title.trim(),
-                    data.description?.trim(),
-                    data.type, // type parameter
-                    data.metadata,
-                );
-                const rp = toRendererProject(project);
-                if (!rp) throw new Error('Failed to convert created project');
+  /**
+   * Get a single project by ID
+   */
+  ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
+    log.info('[IPC:project:get]', projectId);
+    return await projectService.get(projectId);
+  });
 
-                broadcast('project:created', rp);
-                perfLog.end({ projectId: project.id });
-                return rp;
-            } catch (error) {
-                projectLog.error('Failed to create project', error);
-                perfLog.end({ error: true });
-                throw error;
-            }
-        },
-    );
+  /**
+   * Update a project
+   */
+  ipcMain.handle(
+    'project:update',
+    async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
+      log.info('[IPC:project:update]', projectId);
+      const project = await projectService.update(projectId, input);
 
-    // Update/rename project
-    ipcMain.handle(
-        'project:update',
-        async (
-            _event,
-            id: GUID,
-            updates: {
-                title?: string;
-                description?: string;
-                metadata?: Record<string, unknown>;
-                privacyMode?: ProjectPrivacyMode;
-            },
-        ): Promise<Project> => {
-            const perfLog = logPerformance('project:update');
-            projectLog.info('Update called');
+      // Broadcast update event
+      broadcast('project:updated', project);
 
-            const auth = getAuthService();
-            if (!auth.isAuthenticated()) {
-                throw new Error('Authentication required');
-            }
+      return project;
+    },
+  );
 
-            if (updates.title !== undefined && updates.title.trim().length === 0) {
-                throw new Error('Project title cannot be empty');
-            }
+  /**
+   * Delete a project
+   */
+  ipcMain.handle('project:delete', async (_, projectId: string): Promise<void> => {
+    log.info('[IPC:project:delete]', projectId);
+    await projectService.delete(projectId);
 
-            try {
-                const updateData: { name?: string; description?: string | null; metadata?: Record<string, unknown> | null } = {};
-                if (updates.title !== undefined) updateData.name = updates.title.trim();
-                if (updates.description !== undefined) updateData.description = updates.description.trim();
-                if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
+    // Broadcast deletion event
+    broadcast('project:deleted', projectId);
+  });
 
-                const updated = await projectRepository.updateProject(id, updateData);
-                const rp = toRendererProject(updated);
-                if (!rp) throw new Error('Failed to convert updated project');
+  // ==================== Permission Checks ====================
 
-                broadcast('project:updated', rp);
-                perfLog.end({ projectId: id });
-                return rp;
-            } catch (error) {
-                projectLog.error('Failed to update project', error);
-                perfLog.end({ error: true });
-                throw error;
-            }
-        },
-    );
+  /**
+   * Check if user has permission (throws on failure)
+   */
+  ipcMain.handle(
+    'project:hasPermission',
+    async (_, projectId: string, permission: ProjectPermission): Promise<void> => {
+      log.debug('[IPC:project:hasPermission]', projectId, permission);
+      await projectService.hasPermission(projectId, permission);
+    },
+  );
 
-    // Delete project
-    ipcMain.handle(
-        'project:delete',
-        async (_event, id: GUID, options?: { deleteThreads?: boolean }): Promise<boolean> => {
-            const perfLog = logPerformance('project:delete');
-            projectLog.info('Delete called', { projectId: String(id), options });
+  /**
+   * Check permission without throwing (returns boolean)
+   */
+  ipcMain.handle(
+    'project:checkPermission',
+    async (_, projectId: string, permission: ProjectPermission): Promise<boolean> => {
+      log.debug('[IPC:project:checkPermission]', projectId, permission);
+      return await projectService.checkPermission(projectId, permission);
+    },
+  );
 
-            const auth = getAuthService();
-            if (!auth.isAuthenticated()) {
-                throw new Error('Authentication required');
-            }
+  /**
+   * Get user's role in a project
+   */
+  ipcMain.handle('project:getUserRole', async (_, projectId: string): Promise<ProjectRole> => {
+    log.debug('[IPC:project:getUserRole]', projectId);
+    return await projectService.getUserRole(projectId);
+  });
 
-            try {
-                const project = await projectRepository.getProject(id);
-                if (!project) {
-                    return false;
-                }
+  // ==================== Member Management ====================
 
-                // Handle thread deletion/reassignment
-                if (options?.deleteThreads) {
-                    // Delete all threads associated with this project
-                    const threads = await threadRepository.listThreads();
-                    const projectThreads = threads.filter((t) => t.metadata?.projectId === id);
+  /**
+   * Get project members
+   */
+  ipcMain.handle('project:getMembers', async (_, projectId: string): Promise<ProjectMember[]> => {
+    log.info('[IPC:project:getMembers]', projectId);
+    return await projectService.getMembers(projectId);
+  });
 
-                    for (const thread of projectThreads) {
-                        await threadRepository.softDeleteThread(thread.id);
-                    }
-                    projectLog.info('Deleted associated threads', {
-                        projectId: String(id),
-                        threadCount: projectThreads.length,
-                    });
-                } else {
-                    // Unassign threads from project (set projectId to undefined)
-                    const threads = await threadRepository.listThreads();
-                    const projectThreads = threads.filter((t) => t.metadata?.projectId === id);
+  /**
+   * Add a member to a project
+   */
+  ipcMain.handle(
+    'project:addMember',
+    async (_, projectId: string, input: AddMemberInput): Promise<ProjectMember> => {
+      log.info('[IPC:project:addMember]', projectId, input.email);
+      const member = await projectService.addMember(projectId, input);
 
-                    for (const thread of projectThreads) {
-                        const newMetadata = { ...thread.metadata };
-                        delete newMetadata.projectId;
-                        threadRepository.updateThreadMetadata(thread.id, newMetadata);
-                    }
-                    projectLog.info('Unassigned threads from project', {
-                        projectId: String(id),
-                        threadCount: projectThreads.length,
-                    });
-                }
+      // Broadcast member added event
+      broadcast('project:memberAdded', projectId, member);
 
-                await projectRepository.deleteProject(id);
-                broadcast('project:deleted', id);
-                perfLog.end({ projectId: id, deleted: true });
-                return true;
-            } catch (error) {
-                projectLog.error('Failed to delete project', error);
-                perfLog.end({ error: true });
-                throw error;
-            }
-        },
-    );
+      return member;
+    },
+  );
 
-    // Get threads for a project
-    ipcMain.handle('project:getThreads', async (_event, projectId: GUID): Promise<number> => {
-        const threads = await threadRepository.listThreads();
-        const projectThreads = threads.filter((t) => t.metadata?.projectId === projectId);
-        return projectThreads.length;
-    });
+  /**
+   * Remove a member from a project
+   */
+  ipcMain.handle(
+    'project:removeMember',
+    async (_, projectId: string, memberId: string): Promise<void> => {
+      log.info('[IPC:project:removeMember]', projectId, memberId);
+      await projectService.removeMember(projectId, memberId);
 
-    // Search users in organization
-    ipcMain.handle(
-        'project:searchUsers',
-        async (_event, searchTerm?: string | null): Promise<UserSummaryDTO[]> => {
-            const perfLog = logPerformance('project:searchUsers');
-            projectLog.info('Search users called', { searchTerm });
+      // Broadcast member removed event
+      broadcast('project:memberRemoved', projectId, memberId);
+    },
+  );
 
-            const auth = getAuthService();
-            if (!auth.isAuthenticated()) {
-                throw new Error('Authentication required');
-            }
+  /**
+   * Update a member's role
+   */
+  ipcMain.handle(
+    'project:updateMemberRole',
+    async (
+      _,
+      projectId: string,
+      memberId: string,
+      input: UpdateMemberRoleInput,
+    ): Promise<ProjectMember> => {
+      log.info('[IPC:project:updateMemberRole]', projectId, memberId, input.role);
+      const member = await projectService.updateMemberRole(projectId, memberId, input);
 
-            try {
-                const users = await projectRepository.searchUsers(searchTerm);
-                perfLog.end({ userCount: users.length });
-                return users;
-            } catch (error) {
-                projectLog.error('Failed to search users', error);
-                perfLog.end({ error: true });
-                throw error;
-            }
-        },
-    );
+      // Broadcast member role updated event
+      broadcast('project:memberRoleUpdated', projectId, member);
 
-    projectLog.info('Handlers registered');
+      return member;
+    },
+  );
+
+  log.info('[ProjectHandler] All project IPC handlers registered');
 }
 
+/**
+ * Clean up handlers on app quit
+ */
 export function unregisterProjectHandlers(): void {
-    ipcMain.removeHandler('project:getAll');
-    ipcMain.removeHandler('project:getById');
-    ipcMain.removeHandler('project:create');
-    ipcMain.removeHandler('project:update');
-    ipcMain.removeHandler('project:delete');
-    ipcMain.removeHandler('project:getThreads');
-    ipcMain.removeHandler('project:searchUsers');
-    projectLog.info('Handlers unregistered');
+  ipcMain.removeHandler('project:create');
+  ipcMain.removeHandler('project:list');
+  ipcMain.removeHandler('project:get');
+  ipcMain.removeHandler('project:update');
+  ipcMain.removeHandler('project:delete');
+  ipcMain.removeHandler('project:hasPermission');
+  ipcMain.removeHandler('project:checkPermission');
+  ipcMain.removeHandler('project:getUserRole');
+  ipcMain.removeHandler('project:getMembers');
+  ipcMain.removeHandler('project:addMember');
+  ipcMain.removeHandler('project:removeMember');
+  ipcMain.removeHandler('project:updateMemberRole');
+
+  log.info('[ProjectHandler] All project IPC handlers unregistered');
 }

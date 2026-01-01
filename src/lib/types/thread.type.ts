@@ -6,6 +6,8 @@ export interface MessageVersion {
   editedAt: number;
 }
 
+export type BranchType = 'prompt-variation' | 'model-variation' | null;
+
 export interface Message {
   id: string;
   clientMessageId?: string;
@@ -21,5 +23,7 @@ export interface Message {
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
   parentMessageId: string | null;
-  branchIndex: number; // 0-9: branch index for retry attempts (max 10 branches per parent)
+  branchIndex: number;
+  branchType: BranchType;
+  modelId?: string | null;
 }
