@@ -14,6 +14,7 @@
   import type { GUID } from '$lib/types/app.type.js';
   import { storageService } from '$lib/services/storage.service';
   import ProjectCreatePanel from '$lib/components/projects/ProjectCreatePanel.svelte';
+  import ProjectDetailView from '$lib/components/projects/ProjectDetailView.svelte';
   import { clearUnsavedChanges } from '$lib/stores/navigation-guard.store';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
@@ -246,103 +247,8 @@
     <!-- Show create form when ?create=true OR no project selected -->
     <ProjectCreatePanel on:created={handleProjectCreated} />
   {:else}
-    <div class="project-detail">
-      <div class="project-header">
-        <div class="project-info">
-          <h1>{selectedProject.title}</h1>
-          {#if selectedProject.description}
-            <p class="description">{selectedProject.description}</p>
-          {/if}
-        </div>
-        <div class="project-actions">
-          <button class="btn-secondary" onclick={handleEdit}>
-            <i class="pi pi-pencil"></i> Edit
-          </button>
-          <button class="btn-danger" onclick={handleDelete}>
-            <i class="pi pi-trash"></i> Delete
-          </button>
-        </div>
-      </div>
-
-      <div class="project-stats">
-        <div class="stat-card">
-          <div class="stat-label">Threads</div>
-          <div class="stat-value">{threadCount}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Type</div>
-          <div class="stat-value">
-            <span class={selectedProject.type === 'shared' ? 'badge shared' : 'badge personal'}>
-              {selectedProject.type === 'shared' ? 'Shared' : 'Personal'}
-            </span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Created</div>
-          <div class="stat-value">{new Date(selectedProject.createdAt).toLocaleDateString()}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Last Updated</div>
-          <div class="stat-value">{new Date(selectedProject.updatedAt).toLocaleDateString()}</div>
-        </div>
-      </div>
-
-      {#if selectedProject.members && selectedProject.members.length > 0}
-        <div class="members-section">
-          <h3>Project Members</h3>
-          <div class="members-list">
-            {#each selectedProject.members as member (member.id)}
-              <div class="member-item">
-                <div class="member-info">
-                  <div class="member-name">{member.userName}</div>
-                  <div class="member-email">{member.email}</div>
-                </div>
-                <div class="member-role">
-                  <span class="role-badge role-{member.memberRole}">
-                    {member.memberRole}
-                  </span>
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      {#if threadsLoading}
-        <div class="empty-threads">
-          <p>Loading threads...</p>
-        </div>
-      {:else if projectThreads.length === 0}
-        <div class="project-content">
-          <h3>Project Threads</h3>
-          <div class="empty-threads">
-            <p>
-              {#if threadCount > 0}
-                No visible threads found yet. Try switching views or reopening Threads.
-              {:else}
-                No threads in this project yet
-              {/if}
-            </p>
-          </div>
-        </div>
-      {:else}
-        <div class="project-content">
-          <h3>Project Threads</h3>
-          <div class="project-thread-list">
-            {#each projectThreads as thread (thread.id)}
-              <ThreadListItem
-                {thread}
-                isSelected={false}
-                showActions={false}
-                on:click={() => {
-                  openThreadById(thread.id, selectedProject?.id ?? null);
-                }}
-              />
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
+    <!-- E3-S6: Use ProjectDetailView component for tabbed dashboard -->
+    <ProjectDetailView project={selectedProject} />
   {/if}
 </div>
 
