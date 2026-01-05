@@ -442,7 +442,7 @@ class ThreadApiService {
    *
    * @param threadId - Thread ID
    * @param request - Message creation request
-   * @returns Created message data (201) or existing message if idempotent (200)
+   * @returns Created message data
    * @throws Error if not authenticated or request fails
    */
   async createMessage(threadId: string, request: CreateMessageRequest): Promise<MessageDTO> {
@@ -484,13 +484,7 @@ class ThreadApiService {
 
     const data = (await response.json()) as MessageDTO;
 
-    // Log whether this was a new creation (201) or idempotent duplicate (200)
-    if (response.status === 200) {
-      log.info('[ThreadApiService] Idempotent message creation (duplicate clientMessageId):', data.id);
-    } else {
-      log.info('[ThreadApiService] Successfully created message:', data.id);
-    }
-
+    log.info('[ThreadApiService] Successfully created message:' , data.id);
     return data;
   }
 

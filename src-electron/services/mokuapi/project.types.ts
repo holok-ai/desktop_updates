@@ -10,8 +10,7 @@ export interface ProjectDTO {
     id: string;
     name: string;
     description: string | null;
-    type: string;
-    status: string;
+    type: 'personal' | 'shared';
     active: boolean;
     memberCount: number;
     createdAt: string; // ISO-8601 timestamp
@@ -25,10 +24,10 @@ export interface ProjectDetailDTO {
     id: string;
     name: string;
     description: string | null;
-    type: string;
+    type: 'personal' | 'shared';
     createdBy: string;
     organizationId: string;
-    status: string;
+    active: boolean;
     metadata: Record<string, unknown> | null;
     memberCount: number;
     createdAt: string; // ISO-8601 timestamp
@@ -42,7 +41,7 @@ export interface ProjectDetailDTO {
 export interface ProjectCreateRequest {
     name: string;
     description?: string | null;
-    type?: string | null;
+    type?: 'personal' | 'shared' | null;
     metadata?: Record<string, unknown> | null;
 }
 
