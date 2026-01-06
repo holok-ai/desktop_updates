@@ -124,9 +124,6 @@ class ProjectApiService {
             },
         });
 
-        console.log({
-            accessToken
-        })
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -233,6 +230,7 @@ class ProjectApiService {
 
         const data = (await response.json()) as ProjectDetailDTO;
         log.info('[ProjectApiService] Successfully created project:', data.id);
+        log.info('[ProjectApiService] Response:', JSON.stringify(data));
         return data;
     }
 

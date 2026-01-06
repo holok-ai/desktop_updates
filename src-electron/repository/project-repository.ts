@@ -229,7 +229,7 @@ export class ProjectRepository {
         return {
             id: dto.id as GUID,
             name: dto.name,
-            description: dto.description,
+            description: dto.description ?? null,
             type: dto.type,
             active: dto.active,
             memberCount: dto.memberCount,
@@ -252,7 +252,7 @@ export class ProjectRepository {
             name: dto.name,
             description: dto.description,
             type: dto.type,
-            active: dto.active,
+            active: dto.status === 'active', // Map status to active boolean
             memberCount: dto.memberCount,
             createdBy: dto.createdBy,
             organizationId: dto.organizationId,

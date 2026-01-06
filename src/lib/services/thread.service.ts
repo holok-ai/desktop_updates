@@ -26,9 +26,12 @@ class ThreadService {
   async getAll(options?: {
     projectId?: string | null;
     includeProjectOnly?: boolean;
+    updateStore?: boolean;
   }): Promise<Thread[]> {
     const allThreads = await window.electronAPI.thread.getAll(options);
-    threads.setThreads(allThreads);
+    if (options?.updateStore !== false) {
+      threads.setThreads(allThreads);
+    }
     return allThreads;
   }
 

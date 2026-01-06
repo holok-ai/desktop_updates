@@ -18,6 +18,27 @@ export interface CreateProjectInput {
   };
 }
 
+/**
+ * Map backend Project (uses 'title') to frontend Project (uses 'name')
+ */
+function mapBackendToFrontendProject(backendProject: Project): Project {
+  const backendTitle =
+    'title' in backendProject ? (backendProject as { title?: string }).title : undefined;
+  return {
+    ...backendProject,
+    name: backendTitle ?? backendProject.name ?? '',
+    // Ensure createdAt/updatedAt are Date objects
+    createdAt:
+      typeof backendProject.createdAt === 'string'
+        ? new Date(backendProject.createdAt)
+        : backendProject.createdAt,
+    updatedAt:
+      typeof backendProject.updatedAt === 'string'
+        ? new Date(backendProject.updatedAt)
+        : backendProject.updatedAt,
+  };
+}
+
 export class ProjectService {
   private static instance: ProjectService | null = null;
   private unsubscribes: (() => void)[] = [];
@@ -33,14 +54,16 @@ export class ProjectService {
 
   private initializeEventListeners(): void {
     // Listen for project created events
-    const unsubCreated = window.electronAPI.project.onProjectCreated((project: Project) => {
-      projects.addProject(project);
+    const unsubCreated = window.electronAPI.project.onProjectCreated((backendProject: Project) => {
+      const frontendProject = mapBackendToFrontendProject(backendProject);
+      projects.addProject(frontendProject);
     });
     this.unsubscribes.push(unsubCreated);
 
     // Listen for project updated events
-    const unsubUpdated = window.electronAPI.project.onProjectUpdated((project: Project) => {
-      projects.updateProject(project);
+    const unsubUpdated = window.electronAPI.project.onProjectUpdated((backendProject: Project) => {
+      const frontendProject = mapBackendToFrontendProject(backendProject);
+      projects.updateProject(frontendProject);
     });
     this.unsubscribes.push(unsubUpdated);
 
@@ -51,12 +74,27 @@ export class ProjectService {
     this.unsubscribes.push(unsubDeleted);
   }
 
-  public async loadProjects(): Promise<void> {
-    const allProjects = await wrapElectronCall(
-      () => window.electronAPI.project.getAll(),
+  public async loadProjects(forceRefresh = false): Promise<void> {
+    // Ensure project repository cache is loaded/refreshed first
+    await wrapElectronCall(
+      () => window.electronAPI.project.loadProjects(forceRefresh),
       'Failed to load projects',
     );
-    projects.setProjects(allProjects);
+
+    // Fetch grouped lists from cache
+    const [personal, shared] = await Promise.all([
+      wrapElectronCall(
+        () => window.electronAPI.project.listPersonalProjects(),
+        'Failed to load personal projects',
+      ),
+      wrapElectronCall(
+        () => window.electronAPI.project.listSharedProjects(),
+        'Failed to load shared projects',
+      ),
+    ]);
+
+    const combined = [...personal, ...shared].map((p) => mapBackendToFrontendProject(p));
+    projects.setProjects(combined);
   }
 
   public async createProject(input: CreateProjectInput): Promise<Project> {
@@ -107,14 +145,19 @@ export class ProjectService {
   }
 
   public async getProjectById(id: GUID): Promise<Project | null> {
-    const project = await wrapElectronCall(
+    const backendProject = await wrapElectronCall(
       () => window.electronAPI.project.getById(id),
       'Failed to get project',
     );
-    if (project !== null) {
-      projects.updateProject(project);
+
+    if (backendProject !== null) {
+      const frontendProject = mapBackendToFrontendProject(backendProject);
+      // Update store so UI can display the full project details
+      // This is safe because it's only called once per project selection
+      projects.updateProject(frontendProject);
+      return frontendProject;
     }
-    return project;
+    return null;
   }
 
   public cleanup(): void {

@@ -232,6 +232,28 @@ export class ThreadRepository {
     }
   }
 
+  /**
+   * Get total thread count for a project.
+   *
+   * Uses the threads list endpoint and reads `totalElements` to avoid paging through all results.
+   */
+  public async getProjectThreadCount(projectId: string): Promise<number> {
+    try {
+      const response = await threadApiService.getThreads({
+        type: 'project',
+        projectId,
+        page: 0,
+        size: 1,
+        sort: 'createdAt,desc',
+      });
+
+      return response.totalElements;
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to get project thread count:', error);
+      return 0;
+    }
+  }
+
   public async addMessage(threadId: string, role: MessageRole, content: string): Promise<Message> {
     // Use appendMessage with default branching parameters
     return this.appendMessage(threadId, {

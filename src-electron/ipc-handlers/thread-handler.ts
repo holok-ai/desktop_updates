@@ -185,12 +185,15 @@ export function registerThreadHandlers(): void {
       _event,
       options?: { projectId?: string | null; includeProjectOnly?: boolean },
     ): Promise<RendererThread[]> => {
-      const list = await threadRepository.listThreads();
+      // Pass options to listThreads to use server-side filtering
+      const list = await threadRepository.listThreads({
+        projectId: options?.projectId || undefined,
+      });
       let filtered = list;
 
-      // Privacy mode filtering
+      // Privacy mode filtering (for legacy or fallback cases)
       if (options?.projectId) {
-        // When viewing a specific project, only show threads from that project
+        // Double check filter if server-side filtering didn't happen for some reason
         filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
       } else if (!options?.includeProjectOnly) {
         // When viewing general threads, include all threads regardless of project

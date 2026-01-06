@@ -211,6 +211,15 @@ export interface ProjectAPI {
   // Get all projects
   getAll: () => Promise<Project[]>;
 
+  // Load projects into cache (TTL). If forceRefresh=true, bypass cache.
+  loadProjects: (forceRefresh?: boolean) => Promise<void>;
+
+  // List cached personal projects
+  listPersonalProjects: () => Promise<Project[]>;
+
+  // List cached shared projects
+  listSharedProjects: () => Promise<Project[]>;
+
   // Get a single project by ID
   getById: (id: GUID) => Promise<Project | null>;
 
@@ -966,6 +975,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   project: {
     getAll: () => ipcRenderer.invoke('project:list'),
+
+    loadProjects: (forceRefresh?: boolean) =>
+      ipcRenderer.invoke('project:loadProjects', forceRefresh),
+
+    listPersonalProjects: () => ipcRenderer.invoke('project:listPersonalProjects'),
+
+    listSharedProjects: () => ipcRenderer.invoke('project:listSharedProjects'),
 
     getById: (id: GUID) => ipcRenderer.invoke('project:get', id),
 

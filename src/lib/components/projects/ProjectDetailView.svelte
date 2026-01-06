@@ -1,39 +1,28 @@
 <script lang="ts">
   import { querystring, replace, push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { threads } from '$lib/stores/thread.store';
   import { projectService } from '$lib/services/project.service';
   import { threadService } from '$lib/services/thread.service';
   import { toastStore } from '$lib/services/toast.service';
-  import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
-  import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
+  import ProjectEditPanel from '$lib/components/projects/ProjectEditPanel.svelte';
+  import { PROJECT_ICON_SVGS } from '$lib/constants/project-icons';
   import type { Project } from '$lib/types/project.type';
+  import ProjectThreadsTab from '$lib/components/projects/detail-tabs/ProjectThreadsTab.svelte';
+  import ProjectMembersTab from '$lib/components/projects/detail-tabs/ProjectMembersTab.svelte';
+  import ProjectFilesTab from '$lib/components/projects/detail-tabs/ProjectFilesTab.svelte';
+  import ProjectSettingsTab from '$lib/components/projects/detail-tabs/ProjectSettingsTab.svelte';
 
   // Props
   let { project }: { project: Project | null } = $props();
 
   // Tab state
-  type TabId = 'threads' | 'members' | 'files' | 'settings';
+  type TabId = 'threads' | 'members' | 'files' | 'settings' | 'edit';
   let activeTab = $state<TabId>('threads');
   let isRefreshing = $state(false);
   let refreshError = $state<string | null>(null);
-
-  // Modal state for Settings tab
-  let showEditModal = $state(false);
-  let projectToEdit = $state<Project | null>(null);
-
-  // Filter threads by current project
-  const projectThreads = $derived(
-    project
-      ? $threads.filter((t) => {
-          const threadProjectId = t.metadata?.projectId as string | undefined;
-          return threadProjectId === project.id;
-        })
-      : []
-  );
-
-  // Thread count for badge display
-  const threadCount = $derived(projectThreads.length);
+  // Threads tab badge count (emitted by ProjectThreadsTab)
+  let threadCount = $state(0);
+  let threadsReloadToken = $state(0);
 
   // Member count for badge display
   const memberCount = $derived(project?.members?.length ?? 0);
@@ -49,7 +38,7 @@
       const tabParam = params.get('tab') as TabId | null;
       
       // Validate tab parameter and set active tab
-      if (tabParam && ['threads', 'members', 'files', 'settings'].includes(tabParam)) {
+      if (tabParam && ['threads', 'members', 'files', 'settings', 'edit'].includes(tabParam)) {
         activeTab = tabParam;
       } else if (!tabParam) {
         // Default to threads tab if no tab param
@@ -61,6 +50,7 @@
 
   /**
    * Change active tab and update URL
+   * When Settings tab is clicked, redirect to edit mode if user has permission
    */
   function setActiveTab(tab: TabId): void {
     const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
@@ -73,7 +63,13 @@
     if (projectId) {
       newParams.set('projectId', projectId);
     }
-    newParams.set('tab', tab);
+    
+    // If Settings tab is clicked and user can edit, go to edit mode instead
+    if (tab === 'settings' && canEditProject) {
+      newParams.set('tab', 'edit');
+    } else {
+      newParams.set('tab', tab);
+    }
     
     replace(`${ROUTE.PROJECTS}?${newParams.toString()}`);
   }
@@ -100,23 +96,15 @@
     const { id } = event.detail;
     
     try {
-      // TODO: Implement thread deletion via service
-      // await threadService.softDelete(id);
-      console.log('Delete thread:', id);
+      const ok = await threadService.delete(id);
+      if (!ok) {
+        throw new Error('Failed to delete thread');
+      }
+      toastStore.show('Thread deleted', { variant: 'success' });
     } catch (error) {
-      console.error('Failed to delete thread:', error);
       refreshError = error instanceof Error ? error.message : 'Failed to delete thread';
+      toastStore.show(refreshError, { variant: 'error' });
     }
-  }
-
-  /**
-   * Handle thread rename
-   */
-  function handleThreadRename(event: CustomEvent<{ id: string; label: string }>): void {
-    const { id, label } = event.detail;
-    
-    // TODO: Implement thread rename via modal
-    console.log('Rename thread:', id, label);
   }
 
   /**
@@ -134,13 +122,10 @@
   }
 
   /**
-   * Open edit project modal (Settings tab)
+   * Handle project updated from edit panel
    */
-  function handleEditProject(): void {
-    if (!project || !canEditProject) return;
-    
-    projectToEdit = project;
-    showEditModal = true;
+  function handleProjectUpdated(event: CustomEvent<{ projectId: string }>): void {
+    toastStore.show('Project updated successfully', { variant: 'success' });
   }
 
   /**
@@ -159,8 +144,8 @@
       // 2. Refresh tab-specific data based on active tab
       switch (activeTab) {
         case 'threads':
-          // Reload threads for this project
-          await threadService.getAll({ includeProjectOnly: true });
+          // Ask threads tab to reload
+          threadsReloadToken += 1;
           break;
         
         case 'members':
@@ -206,8 +191,19 @@
     <!-- Header with project info and refresh button -->
     <div class="detail-header">
       <div class="header-info">
-        <div class="project-icon">
-          <i class="pi pi-folder"></i>
+        <div 
+          class="project-icon" 
+          style="background-color: {project.metadata?.color || '#3B82F6'};"
+        >
+          {#if project.metadata?.icon && typeof project.metadata.icon === 'string' && PROJECT_ICON_SVGS[project.metadata.icon]}
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d={PROJECT_ICON_SVGS[project.metadata.icon]} fill="currentColor" />
+            </svg>
+          {:else}
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d={PROJECT_ICON_SVGS['folder']} fill="currentColor" />
+            </svg>
+          {/if}
         </div>
         <div class="project-meta">
           <h1 class="project-title">{project.title}</h1>
@@ -273,37 +269,18 @@
           aria-labelledby="threads-tab"
           class="tab-panel"
         >
-          {#if projectThreads.length === 0}
-            <div class="empty-state">
-              <i class="pi pi-comments"></i>
-              <h3>No threads yet</h3>
-              <p>Create a new thread to get started with this project</p>
-              <button class="btn-primary" onclick={handleNewThread}>
-                <i class="pi pi-plus"></i>
-                <span>New Thread</span>
-              </button>
-            </div>
-          {:else}
-            <div class="thread-list-header">
-              <h2 class="thread-list-title">Threads ({threadCount})</h2>
-              <button class="btn-primary" onclick={handleNewThread}>
-                <i class="pi pi-plus"></i>
-                <span>New Thread</span>
-              </button>
-            </div>
-            <div class="thread-list">
-              {#each projectThreads as thread (thread.id)}
-                <ThreadListItem
-                  {thread}
-                  isSelected={false}
-                  showActions={true}
-                  on:click={handleThreadClick}
-                  on:rename={handleThreadRename}
-                  on:delete={handleThreadDelete}
-                />
-              {/each}
-            </div>
-          {/if}
+          <ProjectThreadsTab
+            projectId={project.id}
+            reloadToken={threadsReloadToken}
+            on:threadClick={handleThreadClick}
+            on:newThread={handleNewThread}
+            on:threadDelete={handleThreadDelete}
+            on:threadCountChanged={(e) => (threadCount = e.detail.count)}
+            on:error={(e) => {
+              refreshError = e.detail.message;
+              toastStore.show(e.detail.message, { variant: 'error' });
+            }}
+          />
         </div>
       {:else if activeTab === 'members'}
         <div
@@ -312,58 +289,7 @@
           aria-labelledby="members-tab"
           class="tab-panel"
         >
-          {#if !project?.members || project.members.length === 0}
-            <div class="empty-state">
-              <i class="pi pi-users"></i>
-              <h3>You're the only member</h3>
-              <p>Invite team members to collaborate on this project</p>
-              <p class="info-note">
-                <i class="pi pi-info-circle"></i>
-                Member management will be available in Settings
-              </p>
-            </div>
-          {:else}
-            <div class="members-section">
-              <div class="members-header">
-                <h2 class="members-title">Members ({project.members.length})</h2>
-              </div>
-
-              <!-- Active Members List -->
-              <div class="members-list">
-                {#each project.members as member (member.id)}
-                  <div class="member-card">
-                    <div class="member-avatar">
-                      <i class="pi pi-user"></i>
-                    </div>
-                    <div class="member-info">
-                      <div class="member-name">{member.userName}</div>
-                      <div class="member-email">{member.email}</div>
-                    </div>
-                    <div class="member-role">
-                      <span class="role-badge role-{member.memberRole.toLowerCase()}">
-                        {member.memberRole}
-                      </span>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-
-              <!-- Pending Invitations (Future) -->
-              <div class="pending-invitations">
-                <h3 class="section-title">Pending Invitations</h3>
-                <div class="empty-invitations">
-                  <i class="pi pi-envelope"></i>
-                  <p>No pending invitations</p>
-                </div>
-              </div>
-
-              <!-- Info Note -->
-              <div class="info-banner">
-                <i class="pi pi-info-circle"></i>
-                <span>To invite members or manage roles, use the Settings tab or project actions menu.</span>
-              </div>
-            </div>
-          {/if}
+          <ProjectMembersTab {project} />
         </div>
       {:else if activeTab === 'files'}
         <div
@@ -372,40 +298,7 @@
           aria-labelledby="files-tab"
           class="tab-panel"
         >
-          <div class="placeholder-future">
-            <div class="placeholder-icon">
-              <i class="pi pi-folder"></i>
-            </div>
-            <h3 class="placeholder-title">File Management</h3>
-            <p class="placeholder-description">
-              File management for project collaboration will be available in a future update.
-            </p>
-            <div class="placeholder-features">
-              <h4>Coming Soon:</h4>
-              <ul>
-                <li>
-                  <i class="pi pi-check"></i>
-                  <span>Upload and share files with team members</span>
-                </li>
-                <li>
-                  <i class="pi pi-check"></i>
-                  <span>Version control and file history</span>
-                </li>
-                <li>
-                  <i class="pi pi-check"></i>
-                  <span>File preview and inline comments</span>
-                </li>
-                <li>
-                  <i class="pi pi-check"></i>
-                  <span>Integration with Storage Service (S3/Azure)</span>
-                </li>
-              </ul>
-            </div>
-            <div class="placeholder-note">
-              <i class="pi pi-info-circle"></i>
-              <span>This feature is planned for Phase 3 (Epic 9: File Attachments)</span>
-            </div>
-          </div>
+          <ProjectFilesTab />
         </div>
       {:else if activeTab === 'settings'}
         <div
@@ -414,133 +307,31 @@
           aria-labelledby="settings-tab"
           class="tab-panel"
         >
-          {#if project}
-            <div class="settings-section">
-              <!-- Header with Edit button -->
-              <div class="settings-header">
-                <h2 class="settings-title">Project Settings</h2>
-                {#if canEditProject}
-                  <button class="btn-secondary" onclick={handleEditProject}>
-                    <i class="pi pi-pencil"></i>
-                    <span>Edit Project</span>
-                  </button>
-                {/if}
-              </div>
-
-              <!-- Project Details -->
-              <div class="settings-group">
-                <h3 class="group-title">Details</h3>
-                <div class="settings-grid">
-                  <!-- Title -->
-                  <div class="setting-item">
-                    <div class="setting-label">Project Title</div>
-                    <div class="setting-value">{project.title}</div>
-                  </div>
-
-                  <!-- Description -->
-                  <div class="setting-item full-width">
-                    <div class="setting-label">Description</div>
-                    <div class="setting-value">
-                      {project.description || 'No description provided'}
-                    </div>
-                  </div>
-
-                  <!-- Type -->
-                  <div class="setting-item">
-                    <div class="setting-label">Type</div>
-                    <div class="setting-value">
-                      <span class="type-badge type-{project.type}">
-                        {project.type === 'shared' ? 'Shared' : 'Personal'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Status -->
-                  <div class="setting-item">
-                    <div class="setting-label">Status</div>
-                    <div class="setting-value">
-                      <span class="status-badge status-{project.active ? 'active' : 'inactive'}">
-                        {project.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Created -->
-                  <div class="setting-item">
-                    <div class="setting-label">Created</div>
-                    <div class="setting-value">
-                      {new Date(project.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </div>
-                  </div>
-
-                  <!-- Updated -->
-                  <div class="setting-item">
-                    <div class="setting-label">Last Updated</div>
-                    <div class="setting-value">
-                      {new Date(project.updatedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Appearance (if metadata exists) -->
-              {#if project.metadata}
-                <div class="settings-group">
-                  <h3 class="group-title">Appearance</h3>
-                  <div class="settings-grid">
-                    <!-- Color -->
-                    {#if typeof project.metadata.color === 'string'}
-                      <div class="setting-item">
-                        <div class="setting-label">Color</div>
-                        <div class="setting-value">
-                          <div class="color-indicator" style="background-color: {project.metadata.color}"></div>
-                        </div>
-                      </div>
-                    {/if}
-
-                    <!-- Icon -->
-                    {#if typeof project.metadata.icon === 'string'}
-                      <div class="setting-item">
-                        <div class="setting-label">Icon</div>
-                        <div class="setting-value">
-                          <i class="pi pi-{project.metadata.icon}"></i>
-                          <span>{project.metadata.icon}</span>
-                        </div>
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              {/if}
-
-              <!-- Info Notes -->
-              <div class="settings-info">
-                <div class="info-box">
-                  <i class="pi pi-info-circle"></i>
-                  <div>
-                    <strong>Note:</strong> To delete this project, use the delete button in the sidebar.
-                    {#if !canEditProject}
-                      Only the project owner can edit or delete this project.
-                    {/if}
-                  </div>
-                </div>
-              </div>
+          <ProjectSettingsTab {project} />
+        </div>
+      {:else if activeTab === 'edit'}
+        <div
+          id="edit-panel"
+          role="tabpanel"
+          aria-labelledby="edit-tab"
+          class="tab-panel"
+        >
+          {#if project && canEditProject}
+            <ProjectEditPanel 
+              {project}
+              on:updated={handleProjectUpdated}
+            />
+          {:else}
+            <div class="empty-state">
+              <i class="pi pi-lock"></i>
+              <h3>No Permission</h3>
+              <p>You don't have permission to edit this project</p>
             </div>
           {/if}
         </div>
       {/if}
     </div>
   </div>
-
-  <!-- Edit Project Modal -->
-  <ProjectFormModal bind:show={showEditModal} bind:project={projectToEdit} />
 {:else}
   <div class="empty-state">
     <i class="pi pi-folder-open"></i>
@@ -585,8 +376,8 @@
     width: 48px;
     height: 48px;
     border-radius: 8px;
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    /* Background color set via inline style from metadata.color */
+    color: white;
     font-size: 24px;
     flex-shrink: 0;
   }
@@ -774,490 +565,6 @@
     padding: 24px;
   }
 
-  /* Thread list */
-  .thread-list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .thread-list-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 6px;
-    background: var(--primary-color);
-    color: var(--text-on-primary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-primary:hover {
-    background: var(--primary-color-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  .btn-primary:active {
-    transform: translateY(0);
-  }
-
-  .btn-primary i {
-    font-size: 14px;
-  }
-
-  .thread-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  /* Members section */
-  .members-section {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  .members-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .members-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .members-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .member-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--background-secondary);
-    transition: all 0.2s;
-  }
-
-  .member-card:hover {
-    border-color: var(--border-color-hover);
-    background: var(--background-hover);
-  }
-
-  .member-avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: var(--text-on-primary);
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  .member-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .member-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .member-email {
-    font-size: 13px;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .member-role {
-    flex-shrink: 0;
-  }
-
-  .role-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: capitalize;
-  }
-
-  .role-badge.role-owner {
-    background: var(--error-background);
-    color: var(--error-text);
-  }
-
-  .role-badge.role-editor {
-    background: var(--warning-background);
-    color: var(--warning-text);
-  }
-
-  .role-badge.role-viewer {
-    background: var(--info-background);
-    color: var(--info-text);
-  }
-
-  /* Pending invitations */
-  .pending-invitations {
-    padding-top: 24px;
-    border-top: 1px solid var(--border-color);
-  }
-
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 16px 0;
-  }
-
-  .empty-invitations {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px;
-    border: 1px dashed var(--border-color);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  .empty-invitations i {
-    font-size: 48px;
-    margin-bottom: 12px;
-    opacity: 0.3;
-  }
-
-  .empty-invitations p {
-    font-size: 14px;
-    margin: 0;
-  }
-
-  /* Info banner */
-  .info-banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: var(--info-background);
-    border: 1px solid var(--info-border);
-    color: var(--info-text);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .info-banner i {
-    font-size: 18px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .info-note {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-top: 8px;
-  }
-
-  .info-note i {
-    font-size: 14px;
-    opacity: 0.7;
-  }
-
-  /* Placeholder for future features */
-  .placeholder-future {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 60px 40px;
-    text-align: center;
-  }
-
-  .placeholder-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: var(--background-secondary);
-    border: 2px solid var(--border-color);
-    margin-bottom: 24px;
-  }
-
-  .placeholder-icon i {
-    font-size: 40px;
-    color: var(--text-secondary);
-    opacity: 0.5;
-  }
-
-  .placeholder-title {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 12px 0;
-  }
-
-  .placeholder-description {
-    font-size: 15px;
-    color: var(--text-secondary);
-    margin: 0 0 32px 0;
-    line-height: 1.6;
-  }
-
-  .placeholder-features {
-    width: 100%;
-    text-align: left;
-    padding: 24px;
-    border-radius: 8px;
-    background: var(--background-secondary);
-    border: 1px solid var(--border-color);
-  }
-
-  .placeholder-features h4 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 16px 0;
-    text-align: center;
-  }
-
-  .placeholder-features ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .placeholder-features li {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  .placeholder-features li i {
-    font-size: 16px;
-    color: var(--success-text);
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .placeholder-note {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 24px;
-    padding: 12px 16px;
-    border-radius: 6px;
-    background: var(--info-background);
-    border: 1px solid var(--info-border);
-    color: var(--info-text);
-    font-size: 13px;
-  }
-
-  .placeholder-note i {
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  /* Settings section */
-  .settings-section {
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-  }
-
-  .settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .settings-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--background);
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-secondary:hover {
-    background: var(--background-hover);
-    border-color: var(--border-color-hover);
-  }
-
-  .btn-secondary i {
-    font-size: 14px;
-  }
-
-  .settings-group {
-    padding: 24px;
-    border-radius: 8px;
-    background: var(--background-secondary);
-    border: 1px solid var(--border-color);
-  }
-
-  .group-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 20px 0;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .settings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-  }
-
-  .setting-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .setting-item.full-width {
-    grid-column: 1 / -1;
-  }
-
-  .setting-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .setting-value {
-    font-size: 15px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .type-badge,
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: capitalize;
-  }
-
-  .type-badge.type-shared {
-    background: var(--primary-background);
-    color: var(--primary-text);
-  }
-
-  .type-badge.type-personal {
-    background: var(--info-background);
-    color: var(--info-text);
-  }
-
-  .status-badge.status-active {
-    background: var(--success-background);
-    color: var(--success-text);
-  }
-
-  .status-badge.status-inactive {
-    background: var(--error-background);
-    color: var(--error-text);
-  }
-
-  .color-indicator {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-  }
-
-  .settings-info {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .info-box {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 8px;
-    background: var(--info-background);
-    border: 1px solid var(--info-border);
-    color: var(--info-text);
-    font-size: 14px;
-    line-height: 1.6;
-  }
-
-  .info-box i {
-    font-size: 18px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
   /* Empty state */
   .empty-state {
     display: flex;
@@ -1271,8 +578,7 @@
   }
 
   .empty-state i {
-    font-size: 64px;
-    margin-bottom: 16px;
+    font-size: 24px;
     opacity: 0.3;
   }
 
@@ -1286,7 +592,7 @@
   .empty-state p {
     font-size: 14px;
     margin: 0 0 24px 0;
-    max-width: 400px;
+    max-width: 4000px;
   }
 
   /* Dark mode adjustments */
@@ -1308,5 +614,6 @@
   :global(.dark-mode) .btn-icon:hover:not(:disabled) {
     background: var(--background-hover);
   }
+
 </style>
 

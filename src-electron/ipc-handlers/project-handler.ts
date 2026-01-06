@@ -1,52 +1,10 @@
-import { ipcMain, BrowserWindow } from 'electron';
-import { projectRepository } from '../repository/project-repository.js';
-import { threadRepository } from '../repository/thread-repository.js';
-import { createScopedLogger, logPerformance } from '../utils/logger.js';
-import { getAuthService } from './auth-handler.js';
-
-import type { Project, ProjectPrivacyMode, MemberDTO as FrontendMemberDTO } from '../../src/lib/types/project.type.js';
-import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
-import type { MemberDTO as BackendMemberDTO } from '../services/mokuapi/project-member-api.service.js';
-import type { Project as BackendProject } from '../repository/project-repository.js';
-import { GUID } from '../../src/lib/types/app.type.js';
-
-const projectLog = createScopedLogger('project');
-
-function toRendererProject(p: BackendProject | null): Project | null {
-    if (!p) return null;
-
-    const mapMember = (m: BackendMemberDTO): FrontendMemberDTO => ({
-        id: m.id,
-        userId: m.userId,
-        userName: m.userName,
-        email: m.userEmail,
-        memberRole: m.role,
-    });
-
-    return {
-        id: p.id,
-        name: p.name,
-        title: p.name, // For backward compatibility
-        description: p.description,
-        type: p.type as 'personal' | 'shared',
-        active: p.active,
-        memberCount: p.memberCount,
-        createdBy: p.createdBy,
-        organizationId: p.organizationId,
-        userRole: p.userRole,
-        metadata: p.metadata ? { ...p.metadata } : null,
-        createdAt: new Date(p.createdAt.toISOString()),
-        updatedAt: new Date(p.updatedAt.toISOString()),
-        members: p.members.map(mapMember),
-        // Legacy fields
-        deletedAt: null,
-        privacyMode: 'default',
-    };
-}
-
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
 import { projectService } from '../services/ProjectService.js';
+import { projectRepository } from '../repository/project-repository.js';
+import { threadRepository } from '../repository/thread-repository.js';
 import type {
   Project,
   CreateProjectInput,
@@ -88,11 +46,37 @@ export function registerProjectHandlers(): void {
 
   /**
    * List all projects for current user
+   * Uses ProjectRepository cache.
    */
-  ipcMain.handle('project:list', async (): Promise<Project[]> => {
+  ipcMain.handle('project:list', async (): Promise<unknown[]> => {
     log.info('[IPC:project:list]');
-    return await projectService.list();
-    });
+    await projectRepository.loadProjects(false);
+    return projectRepository.listProjects();
+  });
+
+  /**
+   * Load projects (cached with TTL) - can be forced to refresh.
+   */
+  ipcMain.handle('project:loadProjects', async (_event, forceRefresh?: boolean): Promise<void> => {
+    log.info('[IPC:project:loadProjects]', { forceRefresh: forceRefresh === true });
+    await projectRepository.loadProjects(forceRefresh === true);
+  });
+
+  /**
+   * List personal projects from cache
+   */
+  ipcMain.handle('project:listPersonalProjects', (): unknown[] => {
+    log.info('[IPC:project:listPersonalProjects]');
+    return projectRepository.listPersonalProjects();
+  });
+
+  /**
+   * List shared projects from cache
+   */
+  ipcMain.handle('project:listSharedProjects', (): unknown[] => {
+    log.info('[IPC:project:listSharedProjects]');
+    return projectRepository.listSharedProjects();
+  });
 
   /**
    * Get a single project by ID
@@ -100,12 +84,23 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
     log.info('[IPC:project:get]', projectId);
     return await projectService.get(projectId);
-    });
+  });
+
+  /**
+   * Get thread count for a project
+   * Uses ThreadRepository (API access is encapsulated there).
+   */
+  ipcMain.handle('project:getThreads', async (_, projectId: string): Promise<number> => {
+    log.info('[IPC:project:getThreads]', projectId);
+    const count = await threadRepository.getProjectThreadCount(projectId);
+    log.debug(`[IPC:project:getThreads] Found ${count} threads for project ${projectId}`);
+    return count;
+  });
 
   /**
    * Update a project
    */
-    ipcMain.handle(
+  ipcMain.handle(
     'project:update',
     async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
       log.info('[IPC:project:update]', projectId);
@@ -139,13 +134,13 @@ export function registerProjectHandlers(): void {
     async (_, projectId: string, permission: ProjectPermission): Promise<void> => {
       log.debug('[IPC:project:hasPermission]', projectId, permission);
       await projectService.hasPermission(projectId, permission);
-        },
-    );
+    },
+  );
 
   /**
    * Check permission without throwing (returns boolean)
    */
-    ipcMain.handle(
+  ipcMain.handle(
     'project:checkPermission',
     async (_, projectId: string, permission: ProjectPermission): Promise<boolean> => {
       log.debug('[IPC:project:checkPermission]', projectId, permission);
@@ -184,13 +179,13 @@ export function registerProjectHandlers(): void {
       broadcast('project:memberAdded', projectId, member);
 
       return member;
-        },
-    );
+    },
+  );
 
   /**
    * Remove a member from a project
    */
-    ipcMain.handle(
+  ipcMain.handle(
     'project:removeMember',
     async (_, projectId: string, memberId: string): Promise<void> => {
       log.info('[IPC:project:removeMember]', projectId, memberId);
@@ -198,13 +193,13 @@ export function registerProjectHandlers(): void {
 
       // Broadcast member removed event
       broadcast('project:memberRemoved', projectId, memberId);
-        },
-    );
+    },
+  );
 
   /**
    * Update a member's role
    */
-    ipcMain.handle(
+  ipcMain.handle(
     'project:updateMemberRole',
     async (
       _,
@@ -219,8 +214,8 @@ export function registerProjectHandlers(): void {
       broadcast('project:memberRoleUpdated', projectId, member);
 
       return member;
-        },
-    );
+    },
+  );
 
   log.info('[ProjectHandler] All project IPC handlers registered');
 }
@@ -229,11 +224,12 @@ export function registerProjectHandlers(): void {
  * Clean up handlers on app quit
  */
 export function unregisterProjectHandlers(): void {
-    ipcMain.removeHandler('project:create');
+  ipcMain.removeHandler('project:create');
   ipcMain.removeHandler('project:list');
   ipcMain.removeHandler('project:get');
-    ipcMain.removeHandler('project:update');
-    ipcMain.removeHandler('project:delete');
+  ipcMain.removeHandler('project:getThreads');
+  ipcMain.removeHandler('project:update');
+  ipcMain.removeHandler('project:delete');
   ipcMain.removeHandler('project:hasPermission');
   ipcMain.removeHandler('project:checkPermission');
   ipcMain.removeHandler('project:getUserRole');

@@ -52,12 +52,9 @@
     (async () => {
       try {
         await projectService.loadProjects();
-        // Load all threads including project_only ones for project views
-        try {
-          await threadService.getAll({ includeProjectOnly: true });
-        } catch (e) {
-          console.error('Failed to load threads:', e);
-        }
+        // We no longer load all threads here. 
+        // ProjectDetailView will fetch threads for the selected project.
+        
         // Keep threadCount in sync with live updates
         try {
           offUpdated = window.electronAPI.thread.onThreadUpdated(async () => {
@@ -106,18 +103,23 @@
 
       const projectId = params.get('projectId') as GUID | null;
       if (projectId) {
-        const found = $projects.find((project) => project.id === projectId);
+        // Only check if project exists, don't access store reactively
+        const currentProjects = $projects; // Capture once, don't make reactive
+        const found = currentProjects.find((project) => project.id === projectId);
         if (found) {
-          selectedProjectId = projectId;
-          // Load full project details with members
-          (async () => {
-            try {
-              await projectService.getProjectById(projectId);
-              await loadThreadCount(projectId);
-            } catch (error) {
-              console.error('Failed to load project details:', error);
-            }
-          })();
+          // Only fetch if this is a new project selection
+          if (selectedProjectId !== projectId) {
+            selectedProjectId = projectId;
+            // Load full project details with members
+            (async () => {
+              try {
+                await projectService.getProjectById(projectId);
+                await loadThreadCount(projectId);
+              } catch (error) {
+                console.error('Failed to load project details:', error);
+              }
+            })();
+          }
           // Ensure threads list is fresh when switching projects
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {

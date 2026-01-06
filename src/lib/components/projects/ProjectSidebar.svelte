@@ -11,10 +11,11 @@
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
   import ProjectListItem from '../common/ProjectListItem.svelte';
-  import DeleteProjectModal from '../modals/DeleteProjectModal.svelte';
+  import { deleteProjectModalStore } from '$lib/stores/delete-project-modal.store';
+  import { toastStore } from '$lib/services/toast.service';
   import { push, querystring } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import type { Project } from '$lib/types/project.type';
+  import type { GUID } from '$lib/types/app.type';
 
   // Props
   const { collapsed = false } = $props<{ collapsed?: boolean }>();
@@ -27,20 +28,16 @@
   // Selected project state (from URL)
   let selectedProjectId = $state<string | null>(null);
 
-  // Delete modal state
-  let showDeleteModal = $state(false);
-  let projectToDelete = $state<Project | null>(null);
-
   // Derive personal and shared projects from store
   // AC-2: Group by type - "Personal" (type=personal) and "Shared" (type=shared)
   const personalProjects = $derived(
     $projects
       .filter((p) => p.type === 'personal')
       .sort((a, b) => {
-        // Sort by title (AC-3: use 'title' field)
-        const titleA = a.title || a.name || '';
-        const titleB = b.title || b.name || '';
-        return titleA.localeCompare(titleB);
+        // Sort by name
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        return nameA.localeCompare(nameB);
       })
   );
 
@@ -48,9 +45,9 @@
     $projects
       .filter((p) => p.type === 'shared')
       .sort((a, b) => {
-        const titleA = a.title || a.name || '';
-        const titleB = b.title || b.name || '';
-        return titleA.localeCompare(titleB);
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        return nameA.localeCompare(nameB);
       })
   );
 
@@ -89,9 +86,7 @@
     error = null;
 
     try {
-      // TODO: Add cache invalidation call when available
-      // await window.electronAPI.project.invalidateCache();
-      await projectService.loadProjects();
+      await projectService.loadProjects(true);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to refresh projects';
       console.error('[ProjectSidebar] Refresh error:', err);
@@ -105,22 +100,53 @@
     push(`${ROUTE.PROJECTS}?create=true`);
   }
 
-  // AC-7: Handle delete click (owner only)
-  function handleDeleteClick(project: Project): void {
-    projectToDelete = project;
-    showDeleteModal = true;
-  }
-
-  // Handle delete modal confirmation
-  function handleDeleted(): void {
-    projectToDelete = null;
-    showDeleteModal = false;
-  }
-
   // AC-9: Handle project item click - navigate to project detail
   function handleProjectClick(event: CustomEvent<{ id: string }>): void {
     const projectId = event.detail.id;
     push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+  }
+
+  // Permission check state (only loading indicator needed)
+  let isCheckingPermission = $state(false);
+
+  /**
+   * Handle delete click from project list item
+   * Fetches project details to check userRole before showing delete modal
+   */
+  async function handleDeleteClick(event: CustomEvent<{ id: string }>): Promise<void> {
+    const projectId = event.detail.id as GUID;
+    isCheckingPermission = true;
+
+    try {
+      // Fetch full project details to check userRole
+      const project = await projectService.getProjectById(projectId);
+      
+      if (!project) {
+        toastStore.show('Project not found', { variant: 'error' });
+        return;
+      }
+
+      // Check if user is owner
+      if (project.userRole === 'owner') {
+        // Open global delete modal via store
+        deleteProjectModalStore.open({
+          id: project.id as GUID,
+          title: project.title || project.name || 'Untitled Project',
+        });
+      } else {
+        // Show permission error via toast
+        toastStore.show(
+          `Only project owners can delete projects.`,
+          { variant: 'error' }
+        );
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to check permissions';
+      toastStore.show(errorMessage, { variant: 'error' });
+      console.error('[ProjectSidebar] Permission check error:', err);
+    } finally {
+      isCheckingPermission = false;
+    }
   }
 </script>
 
@@ -201,8 +227,7 @@
               {project}
               isSelected={selectedProjectId === project.id}
               on:click={handleProjectClick}
-              on:delete={() => handleDeleteClick(project)}
-              showDelete={project.userRole === 'owner'}
+              on:delete={handleDeleteClick}
             />
           {/each}
         {/if}
@@ -221,8 +246,7 @@
               {project}
               isSelected={selectedProjectId === project.id}
               on:click={handleProjectClick}
-              on:delete={() => handleDeleteClick(project)}
-              showDelete={project.userRole === 'owner'}
+              on:delete={handleDeleteClick}
             />
           {/each}
         {/if}
@@ -256,10 +280,15 @@
       {/if}
     </div>
   {/if}
+  
+  <!-- Loading overlay for permission check -->
+  {#if isCheckingPermission}
+    <div class="checking-overlay">
+      <div class="spinner"></div>
+      <p>Checking permissions...</p>
+    </div>
+  {/if}
 </div>
-
-<!-- AC-8: Delete Project Modal -->
-<DeleteProjectModal bind:show={showDeleteModal} bind:project={projectToDelete} on:deleted={handleDeleted} />
 
 <style>
   /* AC-1: Secondary Sidebar (280px fixed width) */
@@ -497,6 +526,32 @@
 
   .project-list::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+  }
+
+  /* Checking overlay */
+  .checking-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 9999;
+  }
+
+  .checking-overlay .spinner {
+    width: 32px;
+    height: 32px;
+  }
+
+  .checking-overlay p {
+    color: white;
+    font-size: 14px;
   }
 </style>
 

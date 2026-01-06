@@ -7,7 +7,11 @@
 import log from 'electron-log';
 import { projectApiService } from './mokuapi/project-api.service.js';
 import { projectCache } from '../cache/ProjectCache.js';
-import type { ProjectDetailDTO } from './mokuapi/project.types.js';
+import type {
+  ProjectDTO,
+  ProjectDetailDTO,
+  ProjectCreateRequest,
+} from './mokuapi/project.types.js';
 import type {
   Project,
   ProjectRole,
@@ -41,33 +45,15 @@ function mapDTOToProject(dto: ProjectDetailDTO): Project {
     id: dto.id,
     title: dto.name, // API uses 'name', we use 'title'
     description: dto.description,
-    type: dto.type as 'personal' | 'shared',
+    type: dto.type,
     createdBy: dto.createdBy,
     organizationId: dto.organizationId,
-    status: dto.status as 'active' | 'archived' | 'deleted',
+    status: dto.status as Project['status'],
     metadata: dto.metadata as Project['metadata'],
     memberCount: dto.memberCount,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
     userRole: dto.userRole as ProjectRole,
-  };
-}
-
-/**
- * Map CreateProjectInput to API request
- * Converts 'title' → 'name' for API
- */
-function mapCreateInputToDTO(input: CreateProjectInput): {
-  name: string;
-  description?: string | null;
-  type?: string | null;
-  metadata?: Record<string, unknown> | null;
-} {
-  return {
-    name: input.title, // We use 'title', API expects 'name'
-    description: input.description,
-    type: input.type,
-    metadata: input.metadata,
   };
 }
 
@@ -124,8 +110,18 @@ export class ProjectService {
     }
 
     // Create via API with retry
+    const createRequest: ProjectCreateRequest = {
+      name: input.title, // We use 'title', API expects 'name'
+      description: input.description,
+      type: input.type || 'personal',
+      metadata: input.metadata || null,
+      userRole: 'owner', // Creator is always owner
+      active: true, // New projects are active by default
+      status: 'active', // New projects start as active
+    };
+
     const dto = await ApiRetry.execute(
-      () => projectApiService.createProject(mapCreateInputToDTO(input)),
+      () => projectApiService.createProject(createRequest),
       DEFAULT_RETRY_CONFIG,
       'ProjectService.create',
     );
@@ -142,38 +138,23 @@ export class ProjectService {
   /**
    * List all projects for current user
    * AC-2: Returns owned and shared projects
+   * NOTE: List view returns minimal data. Use get(id) for full details.
    */
-  async list(): Promise<Project[]> {
+  async list(): Promise<ProjectDTO[]> {
     const startTime = Date.now();
     log.info('[ProjectService] Listing projects');
 
     // Fetch from API with retry
     const response = await ApiRetry.execute(
-      () => projectApiService.getProjects({ size: 1000 }), // TODO: Handle pagination
+      () => projectApiService.getProjects(),
       DEFAULT_RETRY_CONFIG,
       'ProjectService.list',
     );
 
-    // Cache all projects
-    const projects: Project[] = [];
-    for (const dto of response.content) {
-      // Map to full ProjectDetailDTO for caching
-      const detailDTO: ProjectDetailDTO = {
-        ...dto,
-        createdBy: '', // Not in list view
-        organizationId: '', // Not in list view
-        metadata: null, // Not in list view
-        userRole: 'viewer', // Default, will be overwritten on detail fetch
-      };
-
-      await projectCache.set(dto.id, detailDTO);
-      projects.push(mapDTOToProject(detailDTO));
-    }
-
     const duration = Date.now() - startTime;
-    log.info(`[ProjectService] Listed ${projects.length} projects in ${duration}ms`);
+    log.info(`[ProjectService] Listed ${response.content.length} projects in ${duration}ms`);
 
-    return projects;
+    return response.content;
   }
 
   /**
