@@ -102,23 +102,31 @@ CHECK ((type = 'personal' AND project_id IS NULL) OR (type = 'project' AND proje
 id UUID PRIMARY KEY
 thread_id UUID NOT NULL (FK)
 **parent_message_id UUID (nullable, self-referencing FK)**
-**branch_index INTEGER DEFAULT 0 -- 0=original, 1-2=retries**
+**branch_index INTEGER DEFAULT 0 -- 0=original, 1-9=retries (expanded from 1-2)**
+**branch_type VARCHAR(50) -- Optional branch type classification**
+**is_closed BOOLEAN DEFAULT false -- Whether this branch is closed for further responses**
 role VARCHAR(20) -- 'user' | 'assistant' | 'system'
 content TEXT (max 32KB)
+**model VARCHAR(100) -- LLM model used (e.g., 'claude-3-opus', 'gpt-4')**
+**provider VARCHAR(50) -- Provider name (e.g., 'anthropic', 'openai')**
 **attachments JSONB -- [{fileId, filename, mimeType, sizeBytes, storageType}]**
 metadata JSONB
-**client_message_id VARCHAR(255) -- for idempotency**
+**client_message_id VARCHAR(255) -- for idempotency (also exposed as request_id in API)**
+**created_user_id UUID NOT NULL -- User who created the message**
 created_at TIMESTAMP
+**updated_at TIMESTAMP -- Last modification timestamp**
 deleted_at TIMESTAMP
 
 -- Constraints:
 CHECK (role IN ('user', 'assistant', 'system'))
-CHECK (branch_index >= 0 AND branch_index <= 2)
+CHECK (branch_index >= 0 AND branch_index <= 9)
 UNIQUE INDEX on (thread_id, client_message_id) WHERE client_message_id IS NOT NULL
 
 -- Audit Table: desktop_messages_audit (in holokai_audit schema)
 -- Created by Hibernate Envers for @Audited entities
 -- Contains: id, revision_id, revision_type, all entity columns, {field}_modified columns
+
+-- Note: Branch index expanded from 0-2 to 0-9 to support up to 10 retry branches per message
 ```
 
 **Project Entity (New):**

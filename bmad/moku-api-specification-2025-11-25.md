@@ -66,12 +66,15 @@ This specification defines the complete Moku API (Spring Boot) implementation re
 | GET | `/api/threads` | List threads for current user |
 | GET | `/api/threads/{id}` | Get thread by ID |
 | GET | `/api/threads/{id}/messages` | Get messages for thread |
+| GET | `/api/threads/{threadId}/messages/{messageId}` | Get single message by ID |
 | POST | `/api/threads` | Create new thread |
 | PATCH | `/api/threads/{id}` | Update thread metadata |
 | POST | `/api/threads/{id}/messages` | Append message to thread |
-| POST | `/api/threads/{id}/move` | Move thread to/from project |
-| POST | `/api/threads/{id}/generate-title` | Generate title from content |
-| POST | `/api/threads/{id}/soft-delete` | Soft delete thread |
+| PATCH | `/api/threads/{threadId}/messages/{messageId}` | Update message content/metadata |
+| DELETE | `/api/threads/{threadId}/messages/{messageId}` | Delete message |
+| POST | `/api/threads/{id}/move` | **[FUTURE]** Move thread to/from project |
+| POST | `/api/threads/{id}/generate-title` | **[FUTURE]** Generate title from content |
+| POST | `/api/threads/{id}/soft-delete` | **[FUTURE]** Soft delete thread |
 | DELETE | `/api/threads/{id}` | Permanently delete thread |
 
 ### 2.2 Project Endpoints (`/api/projects`)
@@ -203,9 +206,16 @@ GET /api/threads/{threadId}
       "threadId": "550e8400-e29b-41d4-a716-446655440000",
       "parentMessageId": null,
       "branchIndex": 0,
+      "branchType": null,
+      "isClosed": false,
       "role": "user",
       "content": "How do I implement JWT authentication?",
+      "model": null,
+      "provider": null,
+      "requestId": "client-generated-uuid-1",
+      "createdUserId": "user-uuid",
       "createdAt": 1732492800000,
+      "updatedAt": 1732492800000,
       "metadata": null,
       "attachments": []
     },
@@ -214,12 +224,17 @@ GET /api/threads/{threadId}
       "threadId": "550e8400-e29b-41d4-a716-446655440000",
       "parentMessageId": "msg-uuid-1",
       "branchIndex": 0,
+      "branchType": null,
+      "isClosed": false,
       "role": "assistant",
       "content": "Here's how to implement JWT...",
+      "model": "claude-3-opus",
+      "provider": "anthropic",
+      "requestId": null,
+      "createdUserId": "user-uuid",
       "createdAt": 1732492830000,
+      "updatedAt": 1732492830000,
       "metadata": {
-        "model": "claude-3-opus",
-        "provider": "anthropic",
         "tokens": {
           "prompt": 25,
           "completion": 450,
@@ -255,9 +270,16 @@ GET /api/threads/{threadId}/messages
       "threadId": "thread-uuid",
       "parentMessageId": null,
       "branchIndex": 0,
+      "branchType": null,
+      "isClosed": false,
       "role": "user",
       "content": "...",
+      "model": null,
+      "provider": null,
+      "requestId": "client-generated-uuid",
+      "createdUserId": "user-uuid",
       "createdAt": 1732492800000,
+      "updatedAt": 1732492800000,
       "metadata": null,
       "attachments": []
     }
@@ -321,8 +343,8 @@ POST /api/threads/{threadId}/messages
 
 **Validation Rules:**
 - `parentMessageId` required except for first message
-- `branchIndex` must be 0-2
-- Maximum 9 retry branches per parent (branchIndex 1 and 2)
+- `branchIndex` must be 0-9
+- Maximum 10 branches per parent (branchIndex 0-9)
 - Content max 32KB
 - `clientMessageId` for idempotency
 
@@ -335,9 +357,16 @@ POST /api/threads/{threadId}/messages
     "threadId": "thread-uuid",
     "parentMessageId": "msg-uuid-2",
     "branchIndex": 0,
+    "branchType": null,
+    "isClosed": false,
     "role": "user",
     "content": "Can you explain the token validation?",
+    "model": null,
+    "provider": null,
+    "requestId": "client-generated-uuid",
+    "createdUserId": "user-uuid",
     "createdAt": 1732496400000,
+    "updatedAt": 1732496400000,
     "metadata": null,
     "attachments": [...]
   },
@@ -348,7 +377,131 @@ POST /api/threads/{threadId}/messages
 }
 ```
 
-### 3.6 Move Thread
+### 3.6 Get Single Message
+
+```
+GET /api/threads/{threadId}/messages/{messageId}
+```
+
+**Description:** Retrieve a single message by its ID within a thread.
+
+**Authorization:** User must have read access to the thread (owner for personal threads, any member for project threads)
+
+**Response:**
+
+```json
+{
+  "id": "msg-uuid-1",
+  "threadId": "thread-uuid",
+  "parentMessageId": null,
+  "branchIndex": 0,
+  "branchType": null,
+  "isClosed": false,
+  "role": "user",
+  "content": "How do I implement JWT authentication?",
+  "model": null,
+  "provider": null,
+  "requestId": "client-generated-uuid",
+  "createdUserId": "user-uuid",
+  "createdAt": 1732492800000,
+  "updatedAt": 1732492800000,
+  "metadata": null,
+  "attachments": []
+}
+```
+
+**Error Responses:**
+- `404 NOT_FOUND`: Thread or message not found
+- `403 ACCESS_DENIED`: User doesn't have access to thread
+
+### 3.7 Update Message
+
+```
+PATCH /api/threads/{threadId}/messages/{messageId}
+```
+
+**Description:** Update message content or metadata. Typically used to edit user messages before regenerating assistant responses.
+
+**Authorization:**
+- Personal threads: Owner only
+- Project threads: Message creator or Admin role
+
+**Request:**
+
+```json
+{
+  "content": "Updated message content",
+  "metadata": {
+    "edited": true,
+    "editedAt": 1732496500000
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "msg-uuid-1",
+  "threadId": "thread-uuid",
+  "parentMessageId": null,
+  "branchIndex": 0,
+  "branchType": null,
+  "isClosed": false,
+  "role": "user",
+  "content": "Updated message content",
+  "model": null,
+  "provider": null,
+  "requestId": "client-generated-uuid",
+  "createdUserId": "user-uuid",
+  "createdAt": 1732492800000,
+  "updatedAt": 1732496500000,
+  "metadata": {
+    "edited": true,
+    "editedAt": 1732496500000
+  },
+  "attachments": []
+}
+```
+
+**Validation Rules:**
+- Content max 32KB
+- Cannot change `role`, `branchIndex`, `parentMessageId`, or other structural fields
+- Only `content` and `metadata` can be updated
+
+**Error Responses:**
+- `404 NOT_FOUND`: Thread or message not found
+- `403 ACCESS_DENIED`: User doesn't have permission to edit this message
+- `400 VALIDATION_ERROR`: Content exceeds limits or invalid fields provided
+
+### 3.8 Delete Message
+
+```
+DELETE /api/threads/{threadId}/messages/{messageId}
+```
+
+**Description:** Soft delete a message (sets `deletedAt` timestamp). Deleting a message also soft-deletes all its child messages (cascade).
+
+**Authorization:**
+- Personal threads: Owner only
+- Project threads: Message creator or Admin role
+
+**Response:** `204 No Content`
+
+**Behavior:**
+- Sets `deletedAt` timestamp on the message
+- Cascades deletion to all child messages (messages with `parentMessageId` pointing to this message)
+- Deleted messages are excluded from message list queries by default
+- Preserves message structure for potential recovery
+
+**Error Responses:**
+- `404 NOT_FOUND`: Thread or message not found
+- `403 ACCESS_DENIED`: User doesn't have permission to delete this message
+
+### 3.9 Move Thread
+
+> **⚠️ FUTURE ENDPOINT - NOT YET IMPLEMENTED**
+> This endpoint is planned for future development but not currently available in the Moku API.
 
 ```
 POST /api/threads/{threadId}/move
@@ -370,7 +523,10 @@ POST /api/threads/{threadId}/move
 
 **Response:** Updated ThreadDetailDTO
 
-### 3.7 Generate Title
+### 3.10 Generate Title
+
+> **⚠️ FUTURE ENDPOINT - NOT YET IMPLEMENTED**
+> This endpoint is planned for future development but not currently available in the Moku API.
 
 ```
 POST /api/threads/{threadId}/generate-title
@@ -386,6 +542,31 @@ Called by Desktop after 2nd exchange. Moku stores the generated title.
 }
 ```
 
+### 3.11 Soft Delete Thread
+
+> **⚠️ FUTURE ENDPOINT - NOT YET IMPLEMENTED**
+> This endpoint is planned for future development but not currently available in the Moku API.
+
+```
+POST /api/threads/{threadId}/soft-delete
+```
+
+**Description:** Soft delete a thread by setting its `deletedAt` timestamp. Soft-deleted threads can potentially be restored and are excluded from normal queries.
+
+**Authorization:**
+- Personal threads: Owner only
+- Project threads: Thread creator or Admin role
+
+**Response:** `204 No Content`
+
+**Behavior:**
+- Sets `deletedAt` timestamp on the thread
+- Thread becomes hidden from normal list queries
+- Messages within thread remain intact
+- Can be restored via future restore endpoint
+
+**Note:** Currently, use `DELETE /api/threads/{id}` for permanent deletion.
+
 ---
 
 ## 4. Project API Details
@@ -396,11 +577,13 @@ Called by Desktop after 2nd exchange. Moku stores the generated title.
 GET /api/projects
 ```
 
+**Implementation Note:** The API returns projects with convenience fields `userRole` and `memberCount` computed at query time. The `type` field indicates project visibility (`personal` or `shared`), and `active` boolean replaces the original `status` enum.
+
 **Query Parameters:**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| status | string | active | `active`, `archived`, `all` |
+| active | boolean | true | Filter by active status (true/false/all) |
 | role | string | - | Filter by user's role |
 
 **Response:**
@@ -412,9 +595,10 @@ GET /api/projects
       "id": "project-uuid",
       "name": "Q4 Marketing Campaign",
       "description": "AI-assisted marketing content",
+      "type": "shared",
       "createdBy": "user-uuid",
       "organizationId": null,
-      "status": "active",
+      "active": true,
       "createdAt": 1732400000000,
       "updatedAt": 1732496400000,
       "metadata": {
@@ -422,7 +606,7 @@ GET /api/projects
         "icon": "megaphone",
         "tags": ["marketing", "content"]
       },
-      "myRole": "admin",
+      "userRole": "admin",
       "threadCount": 15,
       "workflowCount": 3,
       "memberCount": 4
@@ -430,6 +614,13 @@ GET /api/projects
   ]
 }
 ```
+
+**Response Fields:**
+- `type`: Project visibility - `personal` (private) or `shared` (collaborative)
+- `active`: Boolean status instead of enum (true = active, false = archived)
+- `userRole`: Current user's role in this project (convenience field)
+- `memberCount`: Total project members (convenience field)
+- `threadCount`, `workflowCount`: Aggregate counts
 
 ### 4.2 Get Project
 
@@ -444,9 +635,10 @@ GET /api/projects/{projectId}
   "id": "project-uuid",
   "name": "Q4 Marketing Campaign",
   "description": "AI-assisted marketing content",
+  "type": "shared",
   "createdBy": "user-uuid",
   "organizationId": null,
-  "status": "active",
+  "active": true,
   "createdAt": 1732400000000,
   "updatedAt": 1732496400000,
   "metadata": {
@@ -458,11 +650,11 @@ GET /api/projects/{projectId}
       "maxStorageBytes": 5368709120
     }
   },
-  "myRole": "admin",
+  "userRole": "admin",
+  "memberCount": 4,
   "stats": {
     "threadCount": 15,
     "workflowCount": 3,
-    "memberCount": 4,
     "storageUsedBytes": 1073741824,
     "lastActivity": 1732496400000
   }
@@ -481,6 +673,7 @@ POST /api/projects
 {
   "name": "New Project",
   "description": "Project description",
+  "type": "personal",
   "organizationId": null,
   "metadata": {
     "color": "#10b981",
@@ -492,6 +685,13 @@ POST /api/projects
   }
 }
 ```
+
+**Fields:**
+- `name` (required): Project name
+- `description` (optional): Project description
+- `type` (required): Project type - `personal` or `shared`
+- `organizationId` (optional): Link to organization
+- `metadata` (optional): Additional settings and display options
 
 **Response:** `201 Created` with ProjectDetailDTO
 
@@ -534,7 +734,11 @@ POST /api/projects/{projectId}/archive
 POST /api/projects/{projectId}/restore
 ```
 
+**Description:** Archive a project by setting `active = false`. Restore by setting `active = true`. Archived projects are hidden from default queries but data remains intact.
+
 **Authorization:** Admin only
+
+**Response:** Updated ProjectDetailDTO with `active` field reflecting new state
 
 ### 4.7 Get Project Threads
 
@@ -1248,7 +1452,13 @@ public class DesktopMessage {
     private UUID parentMessageId;  // null for first message
 
     @Column(name = "branch_index", nullable = false)
-    private Integer branchIndex;  // 0=original, 1-2=retries
+    private Integer branchIndex;  // 0=original, 1-9=retry branches
+
+    @Column(name = "branch_type", length = 50)
+    private String branchType;  // Optional branch type classification
+
+    @Column(name = "is_closed", nullable = false)
+    private Boolean isClosed;  // Whether this branch is closed for further responses
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
@@ -1256,6 +1466,12 @@ public class DesktopMessage {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    @Column(length = 100)
+    private String model;  // LLM model used (e.g., 'claude-3-opus', 'gpt-4')
+
+    @Column(length = 50)
+    private String provider;  // Provider name (e.g., 'anthropic', 'openai')
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
@@ -1265,11 +1481,20 @@ public class DesktopMessage {
     @Column(columnDefinition = "jsonb")
     private List<FileAttachment> attachments;
 
-    @Column(name = "client_message_id")
-    private String clientMessageId;
+    @Column(name = "client_message_id", length = 255)
+    private String clientMessageId;  // For idempotency
+
+    @Column(name = "request_id", length = 255)
+    private String requestId;  // Request tracking identifier
+
+    @Column(name = "created_user_id", nullable = false)
+    private UUID createdUserId;  // User who created the message
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;  // Last modification timestamp
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -1293,6 +1518,9 @@ public class Project {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(nullable = false, length = 20)
+    private String type;  // 'personal' or 'shared'
+
     @Column(name = "created_by", nullable = false)
     private UUID createdBy;
 
@@ -1300,8 +1528,7 @@ public class Project {
     private UUID organizationId;
 
     @Column(nullable = false)
-    @Enumerated(EnumType.STRING)
-    private ProjectStatus status;  // ACTIVE, ARCHIVED, DELETED
+    private Boolean active;  // Active status (replaces status enum)
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
@@ -1315,8 +1542,17 @@ public class Project {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    // Convenience fields (computed/joined, not stored)
+    @Transient
+    private String userRole;  // Current user's role in project
+
+    @Transient
+    private Integer memberCount;  // Number of project members
 }
 ```
+
+**Note:** The implementation uses `active` boolean instead of a `status` enum. Additional convenience fields (`userRole`, `memberCount`) are computed at query time for API responses.
 
 ### 8.4 Project Member Entity
 
@@ -1496,34 +1732,55 @@ CREATE INDEX IF NOT EXISTS idx_desktop_threads_type ON desktop_threads(type);
 -- Update desktop_messages table for branching
 ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS parent_message_id UUID;
 ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS branch_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS branch_type VARCHAR(50);
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS is_closed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS model VARCHAR(100);
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS provider VARCHAR(50);
 ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS attachments JSONB;
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS request_id VARCHAR(255);
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS created_user_id UUID;
+ALTER TABLE desktop_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+
+-- Set created_user_id from thread owner for existing messages
+UPDATE desktop_messages dm
+SET created_user_id = (SELECT user_id FROM desktop_threads WHERE id = dm.thread_id)
+WHERE created_user_id IS NULL;
+
+-- Set updated_at = created_at for existing messages
+UPDATE desktop_messages SET updated_at = created_at WHERE updated_at IS NULL;
+
+ALTER TABLE desktop_messages ALTER COLUMN created_user_id SET NOT NULL;
+ALTER TABLE desktop_messages ALTER COLUMN updated_at SET NOT NULL;
 
 ALTER TABLE desktop_messages ADD CONSTRAINT desktop_messages_branch_check
-    CHECK (branch_index >= 0 AND branch_index <= 2);
+    CHECK (branch_index >= 0 AND branch_index <= 9);
 
 CREATE INDEX IF NOT EXISTS idx_desktop_messages_parent ON desktop_messages(parent_message_id)
     WHERE parent_message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_desktop_messages_branch ON desktop_messages(thread_id, branch_index);
+CREATE INDEX IF NOT EXISTS idx_desktop_messages_created_user ON desktop_messages(created_user_id);
 
 -- Projects table
 CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     description TEXT,
+    type VARCHAR(20) NOT NULL DEFAULT 'personal',
     created_by UUID NOT NULL REFERENCES users(id),
     organization_id UUID REFERENCES organizations(id),
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    active BOOLEAN NOT NULL DEFAULT true,
     metadata JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
 
-    CONSTRAINT projects_status_check CHECK (status IN ('active', 'archived', 'deleted'))
+    CONSTRAINT projects_type_check CHECK (type IN ('personal', 'shared'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_created_by ON projects(created_by) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id) WHERE organization_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_projects_active ON projects(active) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(type);
 
 -- Project members table
 CREATE TABLE IF NOT EXISTS project_members (
@@ -1624,7 +1881,14 @@ COMMENT ON TABLE saved_reports IS 'User-saved report configurations';
 COMMENT ON COLUMN desktop_threads.type IS 'Thread ownership type: personal or project';
 COMMENT ON COLUMN desktop_threads.owner_id IS 'Owner ID - user_id for personal, project_id for project';
 COMMENT ON COLUMN desktop_messages.parent_message_id IS 'Parent message for tree structure (null for root)';
-COMMENT ON COLUMN desktop_messages.branch_index IS 'Branch index: 0=original, 1-2=retry branches';
+COMMENT ON COLUMN desktop_messages.branch_index IS 'Branch index: 0=original, 1-9=retry branches';
+COMMENT ON COLUMN desktop_messages.branch_type IS 'Optional branch type classification';
+COMMENT ON COLUMN desktop_messages.is_closed IS 'Whether this branch is closed for further responses';
+COMMENT ON COLUMN desktop_messages.model IS 'LLM model used (e.g., claude-3-opus, gpt-4)';
+COMMENT ON COLUMN desktop_messages.provider IS 'Provider name (e.g., anthropic, openai)';
+COMMENT ON COLUMN desktop_messages.request_id IS 'Request tracking identifier';
+COMMENT ON COLUMN desktop_messages.created_user_id IS 'User who created the message';
+COMMENT ON COLUMN desktop_messages.updated_at IS 'Last modification timestamp';
 ```
 
 ### 9.2 Verification Queries
@@ -1639,13 +1903,20 @@ AND table_name IN ('projects', 'project_members', 'workflows', 'workflow_executi
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_name = 'desktop_messages'
-AND column_name IN ('parent_message_id', 'branch_index', 'attachments');
+AND column_name IN ('parent_message_id', 'branch_index', 'branch_type', 'is_closed',
+                    'model', 'provider', 'attachments', 'request_id', 'created_user_id', 'updated_at');
 
 -- Verify thread updates
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_name = 'desktop_threads'
 AND column_name IN ('type', 'owner_id', 'project_id', 'created_by');
+
+-- Verify project columns
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'projects'
+AND column_name IN ('type', 'active', 'created_by', 'organization_id');
 ```
 
 ---
@@ -1776,12 +2047,21 @@ public class AuthorizationService {
 
 ### 12.1 Phase 1 Updates (Thread Branching)
 
-- [ ] Add `parent_message_id`, `branch_index`, `attachments` to desktop_messages
-- [ ] Add `type`, `owner_id`, `project_id`, `created_by` to desktop_threads
-- [ ] Update `AppendMessageRequestDTO` for branching
-- [ ] Add branch validation (max 9 retries per parent)
+**Completed:**
+- [x] Add `parent_message_id`, `branch_index`, `attachments` to desktop_messages
+- [x] Add `branch_type`, `is_closed`, `model`, `provider`, `request_id`, `created_user_id`, `updated_at` to desktop_messages
+- [x] Add `type`, `owner_id`, `project_id`, `created_by` to desktop_threads
+- [x] Update `AppendMessageRequestDTO` for branching
+- [x] Add branch validation (max 10 branches, branchIndex 0-9)
+- [x] Implement `GET /api/threads/{threadId}/messages/{messageId}` endpoint
+- [x] Implement `PATCH /api/threads/{threadId}/messages/{messageId}` endpoint
+- [x] Implement `DELETE /api/threads/{threadId}/messages/{messageId}` endpoint
+- [x] Update thread list to include `branchCount`
+
+**Future/Planned:**
 - [ ] Add `POST /api/threads/{id}/generate-title` endpoint
-- [ ] Update thread list to include `branchCount`
+- [ ] Add `POST /api/threads/{id}/move` endpoint
+- [ ] Add `POST /api/threads/{id}/soft-delete` endpoint
 
 ### 12.2 Phase 2: Projects
 
@@ -1820,9 +2100,12 @@ public class AuthorizationService {
 
 | Decision | Value |
 |----------|-------|
-| Message branching | `parentMessageId` tree, max 9 retries (branchIndex 1-2) |
+| Message branching | `parentMessageId` tree, max 10 branches per message (branchIndex 0-9) |
 | Thread ownership | `type` + `ownerId` pattern |
+| Project types | `personal` or `shared` (via `type` field) |
+| Project status | Boolean `active` field (true/false) instead of status enum |
 | Project access | Role-based (view/edit/admin) via `project_members` |
+| Convenience fields | `userRole` and `memberCount` computed at query time |
 | Workflow versioning | Integer version, `parentId` for forks |
 | Cache invalidation | Polling via `/api/projects/{id}/updates` |
 | Content limit | 32KB per message |
