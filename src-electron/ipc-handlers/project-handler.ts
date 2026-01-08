@@ -31,8 +31,8 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
       }
       return 'active';
     })(),
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt ?? t.createdAt,
+    createdAt: new Date(t.createdAt),
+    updatedAt: new Date(t.updatedAt ?? t.createdAt),
     messages: t.messages || [],
     metadata: t.metadata ?? {},
   } as RendererThread;
