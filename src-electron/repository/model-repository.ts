@@ -97,7 +97,28 @@ export class ModelRepository {
         }
       }
 
-      log.info(`[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications`);
+      // Deduplicate models by provider + accessName combination
+      const seenModels = new Map<string, boolean>();
+      const uniqueModels: ModelDetails[] = [];
+
+      for (const model of this.models) {
+        const key = `${model.provider}:${model.accessName}`;
+        if (!seenModels.has(key)) {
+          seenModels.set(key, true);
+          uniqueModels.push(model);
+        } else {
+          log.debug(
+            `[ModelRepository] Skipping duplicate model: ${model.title} (${model.accessName}) from ${model.provider}`,
+          );
+        }
+      }
+
+      // Replace models array with deduplicated version
+      const duplicatesCount = this.models.length - uniqueModels.length;
+      this.models.length = 0;
+      this.models.push(...uniqueModels);
+
+      log.info(`[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications (removed ${duplicatesCount} duplicates)`);
     } catch (error) {
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
       // Don't throw - allow application to continue even if model refresh fails

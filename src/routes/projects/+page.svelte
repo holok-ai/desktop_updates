@@ -27,6 +27,7 @@
   let threadCount = $state(0);
   let threadsLoading = $state(false);
   let errorMessage = $state<string | null>(null);
+  let loadingProjectId: string | null = null; // Guard against multiple simultaneous loads
 
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
@@ -103,15 +104,22 @@
         const found = $projects.find((project) => project.id === projectId);
         if (found) {
           selectedProjectId = projectId;
-          // Load full project details with members
-          (async () => {
-            try {
-              await projectService.getProjectById(projectId);
-              await loadThreadCount(projectId);
-            } catch (error) {
-              console.error('Failed to load project details:', error);
-            }
-          })();
+          // Load full project details with members (only if not already loading)
+          if (loadingProjectId !== projectId) {
+            loadingProjectId = projectId;
+            (async () => {
+              try {
+                await projectService.getProjectById(projectId);
+                await loadThreadCount(projectId);
+              } catch (error) {
+                console.error('Failed to load project details:', error);
+              } finally {
+                if (loadingProjectId === projectId) {
+                  loadingProjectId = null;
+                }
+              }
+            })();
+          }
           // Ensure threads list is fresh when switching projects
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {
@@ -243,7 +251,7 @@
     <div class="project-detail">
       <div class="project-header">
         <div class="project-info">
-          <h1>{selectedProject.title}</h1>
+          <h1>{selectedProject.name}</h1>
           {#if selectedProject.description}
             <p class="description">{selectedProject.description}</p>
           {/if}

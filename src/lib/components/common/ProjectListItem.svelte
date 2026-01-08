@@ -11,7 +11,7 @@
   }>();
 
   function onClick() {
-    dispatch('click', { id: project.id, label: project.title, route: ROUTE.PROJECTS });
+    dispatch('click', { id: project.id, label: project.name, route: ROUTE.PROJECTS });
   }
 </script>
 
@@ -29,7 +29,7 @@
 >
   <div class="thread-content">
     <div class="thread-title-container">
-      <div class="thread-title">{project.title}</div>
+      <div class="thread-title">{project.name}</div>
     </div>
     {#if project.description}
       <div class="thread-meta">

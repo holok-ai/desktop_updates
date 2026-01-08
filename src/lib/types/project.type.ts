@@ -20,7 +20,6 @@ export interface Project {
     updatedAt: Date;
     members: MemberDTO[];
     // Legacy fields for backward compatibility
-    title?: string; // Alias for name
     deletedAt?: Date | null;
     privacyMode?: ProjectPrivacyMode;
 }
