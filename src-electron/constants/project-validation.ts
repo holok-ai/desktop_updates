@@ -51,10 +51,10 @@ export const VALID_PROJECT_ICONS = [
 ] as const;
 
 /**
- * Project title validation
+ * Project name validation
  */
-export const PROJECT_TITLE_MIN_LENGTH = 1;
-export const PROJECT_TITLE_MAX_LENGTH = 100;
+export const PROJECT_NAME_MIN_LENGTH = 1;
+export const PROJECT_NAME_MAX_LENGTH = 100;
 
 /**
  * Project description validation
@@ -144,19 +144,19 @@ export function isValidProjectIcon(icon: string): boolean {
 }
 
 /**
- * Validate project title
+ * Validate project name
  */
-export function validateProjectTitle(title: string): string | null {
-  if (!title || title.trim().length === 0) {
-    return 'Project title is required';
+export function validateProjectName(name: string): string | null {
+  if (!name || name.trim().length === 0) {
+    return 'Project name is required';
   }
 
-  if (title.length < PROJECT_TITLE_MIN_LENGTH) {
-    return `Project title must be at least ${PROJECT_TITLE_MIN_LENGTH} character`;
+  if (name.length < PROJECT_NAME_MIN_LENGTH) {
+    return `Project name must be at least ${PROJECT_NAME_MIN_LENGTH} character`;
   }
 
-  if (title.length > PROJECT_TITLE_MAX_LENGTH) {
-    return `Project title must be at most ${PROJECT_TITLE_MAX_LENGTH} characters`;
+  if (name.length > PROJECT_NAME_MAX_LENGTH) {
+    return `Project name must be at most ${PROJECT_NAME_MAX_LENGTH} characters`;
   }
 
   return null; // Valid

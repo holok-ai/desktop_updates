@@ -1,54 +1,247 @@
 <script lang="ts">
+  /**
+   * Home Page - Dashboard
+   * Displays overview of LLM models, recent projects, invitations, support, and metrics
+   */
   import { onMount } from 'svelte';
+  import { projects } from '$lib/stores/project.store';
+  import { modelService } from '$lib/services/model.service';
+  import type { ModelsByProvider, MockInvitation } from '$lib/types/dashboard.type';
+  import type { Project } from '$lib/types/project.type';
 
-  let platform = '';
-  let version = '';
+  // Dashboard Components
+  import ModelListCard from '$lib/components/dashboard/ModelListCard.svelte';
+  import RecentProjectsCard from '$lib/components/dashboard/RecentProjectsCard.svelte';
+  import InvitationsCard from '$lib/components/dashboard/InvitationsCard.svelte';
+  import SupportCard from '$lib/components/dashboard/SupportCard.svelte';
+  import ResourcesCard from '$lib/components/dashboard/ResourcesCard.svelte';
+  import MetricsChartsSection from '$lib/components/dashboard/MetricsChartsSection.svelte';
 
+  // State
+  let isLoading = $state(true);
+  let recentProjects = $state<Project[]>([]);
+  let availableModels = $state<ModelsByProvider>({});
+  let auditData = $state<any[]>([]);
+  let mockInvitations = $state<MockInvitation[]>([]);
+
+  /**
+   * Generate mock invitation data
+   */
+  function generateMockInvitations(): MockInvitation[] {
+    return [
+      {
+        id: 'inv-1',
+        projectId: 'mock-1',
+        projectName: 'Q1 Marketing Campaign',
+        invitedBy: { name: 'Sarah Chen', email: 'sarah.chen@holokai.com' },
+        invitedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        status: 'pending',
+        message: 'Join us for campaign planning and execution',
+      },
+      {
+        id: 'inv-2',
+        projectId: 'mock-2',
+        projectName: 'Product Analytics Dashboard',
+        invitedBy: { name: 'Michael Torres', email: 'michael.torres@holokai.com' },
+        invitedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        status: 'pending',
+      },
+      {
+        id: 'inv-3',
+        projectId: 'mock-3',
+        projectName: 'Customer Research Initiative',
+        invitedBy: { name: 'Emily Rodriguez', email: 'emily.r@holokai.com' },
+        invitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        status: 'pending',
+        message: 'Help us analyze customer feedback and insights',
+      },
+    ];
+  }
+
+  /**
+   * Load audit logs for metrics charts
+   */
+  async function loadAuditData(): Promise<void> {
+    try {
+      const logs = await window.electronAPI.chat.getAuditLogs();
+      auditData = logs || [];
+    } catch (error) {
+      console.error('[Dashboard] Error loading audit data:', error);
+      // Continue with empty array on error
+      auditData = [];
+    }
+  }
+
+  /**
+   * Load available models
+   */
+  async function loadModels(): Promise<void> {
+    try {
+      availableModels = await modelService.getAvailableModels();
+    } catch (error) {
+      console.error('[Dashboard] Error loading models:', error);
+      availableModels = {};
+    }
+  }
+
+  /**
+   * Initialize dashboard data
+   */
   onMount(async () => {
-    platform = await window.electronAPI.system.platform();
-    version = await window.electronAPI.system.version();
+    isLoading = true;
+
+    try {
+      // Load all data in parallel
+      await Promise.all([loadModels(), loadAuditData()]);
+
+      // Get recent projects from store (sorted by updatedAt desc)
+      recentProjects = $projects
+        .sort((a, b) => {
+          const aTime =
+            typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
+          const bTime =
+            typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
+          return bTime - aTime;
+        })
+        .slice(0, 5);
+
+      // Generate mock invitations
+      mockInvitations = generateMockInvitations();
+    } catch (error) {
+      console.error('[Dashboard] Error loading dashboard data:', error);
+    } finally {
+      isLoading = false;
+    }
   });
 </script>
 
-<div class="home">
-  <h1 class="mb-4">Welcome to Holokai Desktop</h1>
-  <p>
-    The Desktop application is an agent platform for automating personal and enterprise workflow
-    using AI.
-  </p>
+<div class="dashboard-page">
+  <div class="dashboard-scroll-area">
+    <div class="dashboard-content">
+      <!-- Header -->
+      <div class="dashboard-header">
+        <h1>Welcome to Holokai Desktop</h1>
+        <p class="subtitle">Your AI workflow command center</p>
+      </div>
 
-  <div class="system-info">
-    <h2 class="mb-4">System Information</h2>
-    <p class="mb-2"><strong>Platform:</strong> {platform}</p>
-    <p class="mb-2"><strong>Electron Version:</strong> {version}</p>
-  </div>
+      <!-- Loading State -->
+      {#if isLoading}
+        <div class="loading-state">
+          <i class="pi pi-spin pi-spinner loading-icon"></i>
+          <p>Loading dashboard...</p>
+        </div>
+      {:else}
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+          <ModelListCard {availableModels} />
+          <RecentProjectsCard {recentProjects} />
+          <InvitationsCard {mockInvitations} />
+          <SupportCard />
+          <ResourcesCard />
+        </div>
 
-  <div class="features">
-    <h2 class="mb-4">Desktop Highlights:</h2>
-    <ul class="ml-6 mt-4">
-      <li>Chat with your favorite LLM</li>
-      <li>Organize chats using threads</li>
-      <li>Use multiple AI providers and models</li>
-      <li>Optimize model interaction with advanced prompt retry and branching</li>
-    </ul>
+        <!-- Full-width Metrics Section -->
+        <div class="metrics-section">
+          <MetricsChartsSection {auditData} />
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
 <style>
-  .home {
-    max-width: 800px;
+  .dashboard-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
 
-  .system-info,
-  .features {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    background: var(--surface-card);
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  .dashboard-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
-  li {
-    margin-bottom: 0.5rem;
+  .dashboard-content {
+    max-width: 1400px;
+    margin-left: 30px;
+    margin-right: 1.5rem;
+    padding: 1.5rem 0;
+  }
+
+  .dashboard-header {
+    margin-bottom: 2rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+  }
+
+  .subtitle {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .loading-icon {
+    font-size: 3rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+  }
+
+  .loading-state p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .metrics-section {
+    margin-top: 1.5rem;
+  }
+
+  /* Responsive breakpoints */
+  @media (max-width: 768px) {
+    .dashboard-content {
+      margin-left: 1rem;
+      margin-right: 1rem;
+    }
+
+    .dashboard-header h1 {
+      font-size: 1.5rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+    }
+
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 </style>

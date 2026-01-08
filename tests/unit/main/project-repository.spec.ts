@@ -15,7 +15,7 @@ describe('ProjectRepository', () => {
 
       expect(project).toBeDefined();
       expect(typeof project.id).toBe('string');
-      expect(project.title).toBe('Test Project');
+      expect(project.name).toBe('Test Project');
       expect(project.createdAt).toBeDefined();
       expect(project.updatedAt).toBeDefined();
     });
@@ -97,7 +97,7 @@ describe('ProjectRepository', () => {
   describe('updateProject', () => {
     it('should update project title', () => {
       const project = repository.createProject('Old title');
-      const updated = repository.updateProject(project.id, { title: 'New title' });
+      const updated = repository.updateProject(project.id, { name: 'New title' });
 
       expect(updated.title).toBe('New title');
     });
@@ -132,13 +132,13 @@ describe('ProjectRepository', () => {
       const originalUpdatedAt = project.updatedAt;
 
       // Wait a bit to ensure timestamp difference
-      const updated = repository.updateProject(project.id, { title: 'Updated title' });
+      const updated = repository.updateProject(project.id, { name: 'Updated title' });
       expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
     });
 
     it('should throw error for non-existent project', () => {
       expect(() => {
-        repository.updateProject('non-existent-id', { title: 'New title' });
+        repository.updateProject('non-existent-id', { name: 'New title' });
       }).toThrow('Project not found');
     });
   });

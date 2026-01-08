@@ -74,7 +74,7 @@
       <div class="warning-icon">⚠️</div>
 
       <p class="warning-text">
-        Are you sure you want to delete <strong>{project.title}</strong>?
+        Are you sure you want to delete <strong>{project.name}</strong>?
       </p>
 
       {#if threadCount > 0}

@@ -31,7 +31,7 @@
     // Only initialize when modal opens (transitions from false to true)
     if (show && !lastShownState) {
       if (project) {
-        projectName = project.title;
+        projectName = project.name;
         projectDescription = project.description || '';
       } else {
         projectName = '';
@@ -53,7 +53,7 @@
     try {
       if (isEditMode && project) {
         await projectService.updateProject(project.id, {
-          title: projectName.trim(),
+          name: projectName.trim(),
           description: projectDescription.trim() || undefined,
         });
       } else {

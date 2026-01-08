@@ -243,7 +243,7 @@
     <div class="project-detail">
       <div class="project-header">
         <div class="project-info">
-          <h1>{selectedProject.title}</h1>
+          <h1>{selectedProject.name}</h1>
           {#if selectedProject.description}
             <p class="description">{selectedProject.description}</p>
           {/if}

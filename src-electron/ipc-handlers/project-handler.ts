@@ -31,7 +31,7 @@ export function registerProjectHandlers(): void {
    * Create a new project
    */
   ipcMain.handle('project:create', async (_, input: CreateProjectInput): Promise<Project> => {
-    log.info('[IPC:project:create]', input.title);
+    log.info('[IPC:project:create]', input.name);
     const project = await projectService.create(input);
 
     // Broadcast creation event
