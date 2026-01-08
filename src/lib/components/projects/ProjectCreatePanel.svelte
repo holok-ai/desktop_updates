@@ -210,14 +210,6 @@
     line-height: 1.4;
   }
 
-  .badge {
-    background: var(--primary-color);
-    color: #fff;
-    padding: 0.15rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-  }
-
   .error-banner {
     padding: 0.75rem 1rem;
     border-radius: 8px;
