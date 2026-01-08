@@ -29,6 +29,7 @@
   let threadCount = $state(0);
   let threadsLoading = $state(false);
   let errorMessage = $state<string | null>(null);
+  let loadingProjectId: string | null = null; // Guard against multiple simultaneous loads
 
   // Auth guard: redirect to login if not authenticated
   $effect(() => {

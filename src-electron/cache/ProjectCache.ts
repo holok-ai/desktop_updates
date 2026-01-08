@@ -152,14 +152,14 @@ export class ProjectCache {
 
   /**
    * Set a project in cache (memory + disk)
-   * Converts API DTO 'name' field to canonical 'title'
+   * Maps API DTO 'name' field to entity 'name'
    */
   public async set(id: string, projectDTO: ProjectDetailDTO): Promise<void> {
     try {
-      // Map DTO to Project entity (name → title)
+      // Map DTO to Project entity
       const project: Project = {
         id: projectDTO.id,
-        title: projectDTO.name, // API uses 'name', we use 'title'
+        name: projectDTO.name,
         description: projectDTO.description,
         type: projectDTO.type as Project['type'],
         createdBy: projectDTO.createdBy,
@@ -185,7 +185,7 @@ export class ProjectCache {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       await fs.writeFile(filePath, encrypted);
 
-      log.debug(`[ProjectCache] Set project: ${id} (${project.title})`);
+      log.debug(`[ProjectCache] Set project: ${id} (${project.name})`);
     } catch (error) {
       log.error(`[ProjectCache] Failed to set project ${id}:`, error);
       throw error;

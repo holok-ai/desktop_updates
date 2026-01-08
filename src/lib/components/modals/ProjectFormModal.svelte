@@ -98,7 +98,7 @@
     try {
       if (isEditMode && project) {
         await projectService.updateProject(project.id, {
-          title: projectName.trim(),
+          name: projectName.trim(),
           description: projectDescription.trim() || undefined,
           metadata: {
             color: selectedColor,

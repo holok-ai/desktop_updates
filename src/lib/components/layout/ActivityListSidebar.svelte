@@ -82,7 +82,6 @@
 
   let filteredThreads = $state<Thread[]>([]);
 
-
   const hasListItems = $derived(
     isThreadActivity
       ? filteredThreads.length > 0
@@ -170,7 +169,7 @@
       storageService.setLastProjectId(project.id);
       dispatch('select', {
         id: project.id,
-        label: project.title,
+        label: project.name,
         route: ROUTE.PROJECTS,
       });
       push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);

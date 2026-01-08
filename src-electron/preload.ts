@@ -470,6 +470,9 @@ export interface ChatAPI {
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
 
+  // Get audit logs with detailed metrics
+  getAuditLogs: () => Promise<unknown[]>;
+
   // Cleanup/close the provider
   close: () => Promise<{ success: boolean }>;
 }
@@ -642,6 +645,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // 5. Get audit/performance metrics
     getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
+
+    // 5a. Get audit logs with detailed metrics
+    getAuditLogs: () => ipcRenderer.invoke('chat:getAuditLogs'),
 
     // 6. Cleanup/close the provider
     close: () => ipcRenderer.invoke('chat:close'),

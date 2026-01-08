@@ -1,7 +1,7 @@
 /**
  * Project Domain Types
  * Desktop-side models for project collaboration features
- * These types use 'title' (not 'name') as per project conventions
+ * These types use 'name' to match API conventions
  */
 
 /**
@@ -50,11 +50,11 @@ export enum ProjectPermission {
 
 /**
  * Project entity (desktop model)
- * Uses 'title' as canonical display name (mapped from API 'name')
+ * Uses 'name' as canonical display name (matching API)
  */
 export interface Project {
   id: string;
-  title: string; // Canonical display name (API: 'name')
+  name: string; // Canonical display name
   description: string | null;
   type: ProjectType;
   createdBy: string;
@@ -76,8 +76,6 @@ export interface ProjectMetadata {
   color?: string;
   /** Lucide icon ID (e.g., 'folder', 'briefcase') */
   icon?: string;
-  /** Mirror of project title for consistency */
-  title?: string;
   /** Thread count (updated by API) */
   threadCount?: number;
   /** Any other metadata */
@@ -101,7 +99,7 @@ export interface ProjectMember {
  * Input for creating a new project
  */
 export interface CreateProjectInput {
-  title: string; // 1-100 characters
+  name: string; // 1-100 characters
   description?: string | null;
   type?: ProjectType;
   metadata?: ProjectMetadata;
@@ -111,7 +109,7 @@ export interface CreateProjectInput {
  * Input for updating a project
  */
 export interface UpdateProjectInput {
-  title?: string; // 1-100 characters
+  name?: string; // 1-100 characters
   description?: string | null;
   metadata?: ProjectMetadata;
 }

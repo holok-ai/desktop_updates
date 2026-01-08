@@ -24,7 +24,7 @@ import type {
 } from '../types/project.types.js';
 import { ValidationError, ForbiddenError, NotFoundError } from '../types/errors.js';
 import {
-  validateProjectTitle,
+  validateProjectName,
   validateProjectDescription,
   isValidMokuColor,
   isValidProjectIcon,
@@ -38,12 +38,11 @@ import { ApiRetry, DEFAULT_RETRY_CONFIG } from '../utils/apiretry.js';
 
 /**
  * Map API DTO to desktop Project model
- * Converts 'name' → 'title' as per project conventions
  */
 function mapDTOToProject(dto: ProjectDetailDTO): Project {
   return {
     id: dto.id,
-    title: dto.name, // API uses 'name', we use 'title'
+    name: dto.name,
     description: dto.description,
     type: dto.type,
     createdBy: dto.createdBy,
@@ -60,7 +59,6 @@ function mapDTOToProject(dto: ProjectDetailDTO): Project {
 
 /**
  * Map CreateProjectInput to API request
- * Converts 'title' → 'name' for API
  */
 function mapCreateInputToDTO(input: CreateProjectInput): {
   name: string;
@@ -69,7 +67,7 @@ function mapCreateInputToDTO(input: CreateProjectInput): {
   metadata?: Record<string, unknown> | null;
 } {
   return {
-    name: input.title, // We use 'title', API expects 'name'
+    name: input.name,
     description: input.description,
     type: input.type,
     metadata: input.metadata,
@@ -78,7 +76,6 @@ function mapCreateInputToDTO(input: CreateProjectInput): {
 
 /**
  * Map UpdateProjectInput to API request
- * Converts 'title' → 'name' for API
  */
 function mapUpdateInputToDTO(input: UpdateProjectInput): {
   name?: string;
@@ -86,7 +83,7 @@ function mapUpdateInputToDTO(input: UpdateProjectInput): {
   metadata?: Record<string, unknown> | null;
 } {
   return {
-    name: input.title, // We use 'title', API expects 'name'
+    name: input.name,
     description: input.description,
     metadata: input.metadata,
   };
@@ -99,16 +96,16 @@ function mapUpdateInputToDTO(input: UpdateProjectInput): {
 export class ProjectService {
   /**
    * Create a new project
-   * AC-1: Validates title, color (Moku palette), and icon (Lucide ID)
+   * AC-1: Validates name, color (Moku palette), and icon (Lucide ID)
    */
   async create(input: CreateProjectInput): Promise<Project> {
     const startTime = Date.now();
-    log.info('[ProjectService] Creating project:', input.title);
+    log.info('[ProjectService] Creating project:', input.name);
 
-    // Validate title
-    const titleError = validateProjectTitle(input.title);
-    if (titleError) {
-      throw new ValidationError(titleError, 'title');
+    // Validate name
+    const nameError = validateProjectName(input.name);
+    if (nameError) {
+      throw new ValidationError(nameError, 'name');
     }
 
     // Validate description
@@ -222,11 +219,11 @@ export class ProjectService {
     const startTime = Date.now();
     log.info('[ProjectService] Updating project:', id);
 
-    // Validate title if provided
-    if (input.title) {
-      const titleError = validateProjectTitle(input.title);
-      if (titleError) {
-        throw new ValidationError(titleError, 'title');
+    // Validate name if provided
+    if (input.name) {
+      const nameError = validateProjectName(input.name);
+      if (nameError) {
+        throw new ValidationError(nameError, 'name');
       }
     }
 
