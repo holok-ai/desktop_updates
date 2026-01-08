@@ -398,7 +398,7 @@ Database changes:
 | Svelte | UI framework | MIT |
 | Tailwind CSS | Styling | MIT |
 | PrimeNG | Components | MIT |
-| better-sqlite3 | Local cache | MIT |
+
 
 ---
 

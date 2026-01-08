@@ -840,7 +840,7 @@ Shared workspaces for team collaboration on threads, workflows, and files. Enabl
 - **Database:** `projects` table: `name`, `description`, `visibility`, `ownerId`
 - **Membership:** `project_members` table: `projectId`, `userId`, `role`
 - **File Storage:** Storage Service API for presigned URLs
-- **Cache:** better-sqlite3 with `project_cache` table: `projectId`, `lastUpdated`, `encryptedData`
+- **Cache:** In-memory cache with Moku API: `projectId`, `lastUpdated`, `encryptedData`
 
 **Dependencies:**
 - Moku API: Project CRUD, member management, file storage integration
@@ -1622,7 +1622,7 @@ Electron-based desktop application with notifications, state persistence, deep l
 | **Styling** | Tailwind CSS | 3.4.x | Utility-first, consistent design system |
 | **Component Library** | PrimeNG | Latest | Pre-built components (tables, charts, dialogs) |
 | **State Management** | Svelte Stores | Built-in | Simple, reactive state |
-| **Local Cache** | better-sqlite3 | Latest | Fast local storage, SQL queries |
+| **Local Cache** | In-memory cache | N/A | Fast in-memory caching, Moku API for persistence |
 | **Backend** | Spring Boot | Latest | Existing Moku API stack |
 | **Database** | PostgreSQL | 14+ | Relational, JSONB support, full-text search |
 | **File Storage** | S3/Azure Blob | N/A | Existing Storage Service |
@@ -1735,7 +1735,7 @@ Electron-based desktop application with notifications, state persistence, deep l
 | **Svelte** | UI framework | MIT | 5.x |
 | **Tailwind CSS** | Styling | MIT | 3.4.x |
 | **PrimeNG** | Component library | MIT | Latest |
-| **better-sqlite3** | Local cache | MIT | Latest |
+
 | **MCP SDK** | Model Context Protocol client | MIT | Latest |
 | **Slack SDK** | Native Slack integration | MIT | Latest |
 | **Google APIs** | Native Google Workspace integration | Apache 2.0 | Latest |

@@ -864,7 +864,7 @@ class DesktopInfoCollector {
   }
 
   async getLocalStorageInfo(): Promise<LocalStorageInfo> {
-    // Calculate sizes of local databases and files
+    // Calculate sizes of cached data and files
   }
 
   async checkConnections(): Promise<ConnectionStatus[]> {

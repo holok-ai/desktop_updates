@@ -256,7 +256,7 @@ The Phase 2 PRD is **tactically solid** for delivering collaborative features an
 | **State Management** | Zustand or Jotai (dual-sidebar complexity) | ❌ Svelte Stores | **CONCERN** |
 | **Backend API** | Node.js (Express/Fastify) OR Python (FastAPI) | ⚠️ Spring Boot (Moku API) | Existing |
 | **Database** | PostgreSQL | ✅ PostgreSQL | Aligned |
-| **Cache** | Redis | ❌ better-sqlite3 (local) | Different approach |
+| **Cache** | Redis | ❌ In-memory cache | Different approach |
 | **Object Storage** | AWS S3 or GCP Cloud Storage | ✅ S3/Azure Blob | Aligned |
 | **Message Queue** | RabbitMQ or AWS SQS | ❌ Not mentioned | Missing |
 | **LLM Providers** | Anthropic (Claude), OpenAI (GPT-4), Google (Gemini) | ⚠️ Holo API (abstraction) | Indirect |
@@ -294,9 +294,9 @@ The Phase 2 PRD is **tactically solid** for delivering collaborative features an
 
 **Minor Issues:**
 
-5. **Redis vs. better-sqlite3:**
+5. **Redis vs. In-memory cache:**
    - Product Brief suggests Redis for caching (distributed, scalable)
-   - PRD uses better-sqlite3 (local, desktop-only)
+   - PRD uses in-memory cache (local, desktop-only)
    - **Assessment:** Acceptable for desktop app context; Redis would be for server-side
 
 6. **GDPR Compliance:**
