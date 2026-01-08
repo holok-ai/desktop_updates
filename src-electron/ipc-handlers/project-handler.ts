@@ -12,7 +12,31 @@ import type {
   ProjectPermission,
   ProjectRole,
 } from '../types/project.types.js';
-import type { Thread } from '../preload.js';
+import type { Thread as RendererThread } from '../preload.js';
+import type { Thread as InternalThread } from '../repository/thread-repository.js';
+
+/**
+ * Helper to convert internal thread representation to renderer-friendly shape
+ */
+function toRendererThread(t: InternalThread | null): RendererThread | null {
+  if (!t) return null;
+  return {
+    id: t.id,
+    title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
+    description: t.metadata?.description ?? '',
+    status: (() => {
+      const s = t.metadata?.status;
+      if (typeof s === 'string') {
+        if (s === 'active' || s === 'archived' || s === 'deleted') return s;
+      }
+      return 'active';
+    })(),
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt ?? t.createdAt,
+    messages: t.messages || [],
+    metadata: t.metadata ?? {},
+  } as RendererThread;
+}
 
 /**
  * Broadcast an event to all renderer windows
@@ -104,10 +128,10 @@ export function registerProjectHandlers(): void {
   /**
    * Get threads for a project
    */
-  ipcMain.handle('project:getThreads', async (_, projectId: string): Promise<Thread[]> => {
+  ipcMain.handle('project:getThreads', async (_, projectId: string): Promise<RendererThread[]> => {
     log.info('[IPC:project:getThreads]', projectId);
     const threads = await threadRepository.listThreads({ projectId });
-    return threads;
+    return threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
   });
 
   // ==================== Permission Checks ====================
