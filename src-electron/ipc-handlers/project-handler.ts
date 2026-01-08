@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
 import { projectService } from '../services/ProjectService.js';
+import { threadRepository } from '../repository/thread-repository.js';
 import type {
   Project,
   CreateProjectInput,
@@ -11,6 +12,7 @@ import type {
   ProjectPermission,
   ProjectRole,
 } from '../types/project.types.js';
+import type { Thread } from '../preload.js';
 
 /**
  * Broadcast an event to all renderer windows
@@ -97,6 +99,15 @@ export function registerProjectHandlers(): void {
 
     // Broadcast deletion event
     broadcast('project:deleted', projectId);
+  });
+
+  /**
+   * Get threads for a project
+   */
+  ipcMain.handle('project:getThreads', async (_, projectId: string): Promise<Thread[]> => {
+    log.info('[IPC:project:getThreads]', projectId);
+    const threads = await threadRepository.listThreads({ projectId });
+    return threads;
   });
 
   // ==================== Permission Checks ====================
@@ -206,6 +217,7 @@ export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:getById'); // Alias
   ipcMain.removeHandler('project:update');
   ipcMain.removeHandler('project:delete');
+  ipcMain.removeHandler('project:getThreads');
   ipcMain.removeHandler('project:hasPermission');
   ipcMain.removeHandler('project:checkPermission');
   ipcMain.removeHandler('project:getUserRole');
