@@ -143,138 +143,178 @@
     });
 </script>
 
-<div class="mx-auto">
-  <div class="flex justify-between items-center mb-6">
-    <h1>Settings</h1>
-  </div>
-
-  {#if isLoading}
-    <div class="loading">Loading settings...</div>
-  {:else}
-    <section class="mb-6">
-      <h2 class="mb-2">Connection</h2>
-      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-        <div class="form-group">
-          <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
-          <input
-            id="moku-web-url"
-            type="url"
-            bind:value={settings.mokuWebUrl}
-            placeholder="https://moku.holokai.com"
-            class="w-full p-2 rounded border bg-transparent"
-          />
-          <small class="text-xs text-gray-500">URL of the Moku web application</small>
-        </div>
-
-        <div class="form-group">
-          <label for="moku-api-url" class="block text-sm font-medium mb-1">Moku API URL</label>
-          <input
-            id="moku-api-url"
-            type="url"
-            bind:value={settings.mokuApiUrl}
-            placeholder="https://api.moku.holokai.com"
-            class="w-full p-2 rounded border bg-transparent"
-          />
-          <small class="text-xs text-gray-500">URL of the Moku API server</small>
-        </div>
-
-        <div class="form-group">
-          <label for="holo-api-url" class="block text-sm font-medium mb-1">Holo API URL</label>
-          <input
-            id="holo-api-url"
-            type="url"
-            bind:value={settings.holoApiUrl}
-            placeholder={DEFAULT_HOLO_API_URL}
-            class="w-full p-2 rounded border bg-transparent"
-          />
-          <small class="text-xs text-gray-500">The base URL for the Holo API endpoint</small>
-          {#if holoApiUrlError}
-            <div class="text-xs text-red-500 mt-1">{holoApiUrlError}</div>
-          {/if}
-        </div>
+<div class="settings-page">
+  <div class="settings-scroll-area">
+    <div class="settings-content">
+      <div class="flex justify-between items-center mb-6">
+        <h1>Settings</h1>
       </div>
-    </section>
 
-    <section class="mb-6">
-      <h2 class="mb-2">Appearance</h2>
-      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-        <div class="form-group">
-          <span class="block text-sm font-medium mb-1">Theme</span>
-          <div class="flex items-center gap-6">
-            <label class="inline-flex items-center gap-2">
+      {#if isLoading}
+        <div class="loading">Loading settings...</div>
+      {:else}
+        <section class="mb-6">
+          <h2 class="mb-2">Connection</h2>
+          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
+            <div class="form-group">
+              <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
               <input
-                type="radio"
-                name="theme"
-                value={APP_THEME_MODE.DARK}
-                bind:group={settings.theme}
+                id="moku-web-url"
+                type="url"
+                bind:value={settings.mokuWebUrl}
+                placeholder="https://moku.holokai.com"
+                class="w-full p-2 rounded border bg-transparent"
               />
-              <span>Dark</span>
-            </label>
-            <label class="inline-flex items-center gap-2">
+              <small class="text-xs text-gray-500">URL of the Moku web application</small>
+            </div>
+
+            <div class="form-group">
+              <label for="moku-api-url" class="block text-sm font-medium mb-1">Moku API URL</label>
               <input
-                type="radio"
-                name="theme"
-                value={APP_THEME_MODE.LIGHT}
-                bind:group={settings.theme}
+                id="moku-api-url"
+                type="url"
+                bind:value={settings.mokuApiUrl}
+                placeholder="https://api.moku.holokai.com"
+                class="w-full p-2 rounded border bg-transparent"
               />
-              <span>Light</span>
+              <small class="text-xs text-gray-500">URL of the Moku API server</small>
+            </div>
+
+            <div class="form-group">
+              <label for="holo-api-url" class="block text-sm font-medium mb-1">Holo API URL</label>
+              <input
+                id="holo-api-url"
+                type="url"
+                bind:value={settings.holoApiUrl}
+                placeholder={DEFAULT_HOLO_API_URL}
+                class="w-full p-2 rounded border bg-transparent"
+              />
+              <small class="text-xs text-gray-500">The base URL for the Holo API endpoint</small>
+              {#if holoApiUrlError}
+                <div class="text-xs text-red-500 mt-1">{holoApiUrlError}</div>
+              {/if}
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-6">
+          <h2 class="mb-2">Appearance</h2>
+          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
+            <div class="form-group">
+              <span class="block text-sm font-medium mb-1">Theme</span>
+              <div class="flex items-center gap-6">
+                <label class="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={APP_THEME_MODE.DARK}
+                    bind:group={settings.theme}
+                  />
+                  <span>Dark</span>
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={APP_THEME_MODE.LIGHT}
+                    bind:group={settings.theme}
+                  />
+                  <span>Light</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-6">
+          <h2 class="mb-2">Allowed Directories</h2>
+          <div class="rounded-lg p-4 bg-[var(--surface-card)]">
+            <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
+          </div>
+        </section>
+
+        <section class="mb-6">
+          <h2 class="mb-2">Updates</h2>
+          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
+            <div class="text-sm">
+              <span class="font-medium">Current Version:</span>
+              {appVersion}
+            </div>
+            <div class="text-sm">
+              <span class="font-medium">Update Available:</span>
+              {#if settings.updateAvailable}
+                Yes ({settings.latestVersion || 'unknown'})
+              {:else}
+                No
+              {/if}
+            </div>
+            <label class="inline-flex items-center gap-2">
+              <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
+              <span>Enable automatic updates</span>
             </label>
           </div>
-        </div>
-      </div>
-    </section>
+        </section>
+      {/if}
+    </div>
+  </div>
 
-    <section class="mb-6">
-      <h2 class="mb-2">Allowed Directories</h2>
-      <div class="rounded-lg p-4 bg-[var(--surface-card)]">
-        <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
+  {#if !isLoading}
+    <div class="settings-footer">
+      <div class="settings-actions flex items-center gap-3">
+        <button
+          onclick={saveSettings}
+          disabled={!hasChanges}
+          class="btn-primary px-3 py-2 rounded bg-blue-700 text-white disabled:bg-[var(--surface-sidebar-primary)] disabled:text-gray-400 inline-flex items-center gap-1"
+        >
+          <i class="pi pi-check text-xs text-white"></i>
+          <span class="text-white">Save</span>
+        </button>
+        <button
+          onclick={cancelSettings}
+          disabled={!hasChanges}
+          class="btn-secondary px-3 py-2 rounded bg-white text-black disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          <i class="pi pi-times text-xs !text-black"></i>
+          <span class="!text-black">Cancel</span>
+        </button>
       </div>
-    </section>
-
-    <section class="mb-6">
-      <h2 class="mb-2">Updates</h2>
-      <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
-        <div class="text-sm">
-          <span class="font-medium">Current Version:</span>
-          {appVersion}
-        </div>
-        <div class="text-sm">
-          <span class="font-medium">Update Available:</span>
-          {#if settings.updateAvailable}
-            Yes ({settings.latestVersion || 'unknown'})
-          {:else}
-            No
-          {/if}
-        </div>
-        <label class="inline-flex items-center gap-2">
-          <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
-          <span>Enable automatic updates</span>
-        </label>
-      </div>
-    </section>
-
-    <div class="settings-actions flex items-center gap-3">
-      <button
-        onclick={saveSettings}
-        disabled={!hasChanges}
-        class="btn-primary px-3 py-2 rounded bg-blue-700 text-white disabled:bg-[var(--surface-sidebar-primary)] disabled:text-gray-400 inline-flex items-center gap-1"
-      >
-        <i class="pi pi-check text-xs text-white"></i>
-        <span class="text-white">Save</span>
-      </button>
-      <button
-        onclick={cancelSettings}
-        disabled={!hasChanges}
-        class="btn-secondary px-3 py-2 rounded bg-white text-black disabled:opacity-50 inline-flex items-center gap-1"
-      >
-        <i class="pi pi-times text-xs !text-black"></i>
-        <span class="!text-black">Cancel</span>
-      </button>
     </div>
   {/if}
 </div>
 
 <style>
+  .settings-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .settings-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .settings-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+
+  .settings-footer {
+    flex-shrink: 0;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    background: var(--background, #ffffff);
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .settings-actions {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
   .loading {
     text-align: center;
     padding: 3rem;
