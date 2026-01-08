@@ -97,20 +97,12 @@
     const isThreadsView = activity?.route === ROUTE.THREADS || activity?.id === 'threads';
     const isHomeView = activity?.route === ROUTE.HOME || activity?.id === 'home';
 
-    // Filter threads based on current view and privacy mode (no project filtering)
+    // Filter threads based on current view.
+    // Requirement: any thread with a projectId should NOT appear in the main Threads activity list.
     let visibleThreads = $threads;
     if (isThreadsView || isHomeView) {
-      // When viewing general threads or home, show threads from default mode projects + threads without projects
-      // Exclude threads from project_only projects
-      visibleThreads = $threads.filter((t) => {
-        const projectId = t.metadata?.projectId as string | undefined;
-        if (!projectId) return true; // Include threads not in any project
-
-        const project = $projects.find((p) => p.id === projectId);
-        // If project not found, include it (might not be loaded yet or might be deleted)
-        // If project found, only include if it's NOT project_only mode
-        return !project || project.privacyMode !== 'project_only';
-      });
+      // Show only personal threads (no projectId).
+      visibleThreads = $threads.filter((t) => !t.metadata?.projectId);
     }
 
     filteredThreads = visibleThreads;

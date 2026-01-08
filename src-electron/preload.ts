@@ -29,7 +29,11 @@ import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/pro
 type AuthProvider = 'microsoft' | 'google' | 'oauth2';
 
 export interface ThreadAPI {
-  // Get all threads with optional privacy filtering
+  // Get all threads with optional project filtering
+  // - projectId: null = personal threads only
+  // - projectId: string = specific project's threads
+  // - projectId: undefined = all threads
+  // - includeProjectOnly: for legacy compatibility
   getAll: (options?: {
     projectId?: string | null;
     includeProjectOnly?: boolean;
@@ -38,7 +42,7 @@ export interface ThreadAPI {
   // Get a single thread by ID
   getById: (id: string) => Promise<Thread | null>;
 
-  // Create a new thread
+  // Create a new thread (optionally within a project context)
   create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
 
   // Update an existing thread
@@ -94,6 +98,7 @@ export interface ThreadAPI {
       title?: string;
       description?: string;
       model?: string;
+      projectId?: string; // Associate thread with a project
       metadata?: Record<string, unknown>;
     },
   ) => Promise<{
@@ -666,10 +671,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // 10. Listen for tool use events
     onToolUse: (callback: (data: ToolUseEventPayload) => void): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: ToolUseEventPayload,
-      ): void => callback(data);
+      const subscription = (_event: IpcRendererEvent, data: ToolUseEventPayload): void =>
+        callback(data);
       ipcRenderer.on('chat:toolUse', subscription);
 
       // Return cleanup function

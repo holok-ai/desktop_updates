@@ -67,11 +67,18 @@
     modelSelectionTouched = false;
   }
 
-  function startThreadCreationFlow(prefillPrompt = '') {
+  function startThreadCreationFlow(
+    prefillPrompt = '',
+    options?: { projectId?: string | null },
+  ) {
     resetThreadForm(prefillPrompt);
     selectedThread = null;
     storageService.removeLastThreadId();
-    replace(ROUTE.THREADS);
+    const params = new URLSearchParams();
+    if (options?.projectId) {
+      params.set('projectId', options.projectId);
+    }
+    void replace(params.toString() ? `${ROUTE.THREADS}?${params.toString()}` : ROUTE.THREADS);
   }
 
   $effect(() => {
@@ -153,13 +160,22 @@
 
       const projectIdParam = params.get('projectId');
       currentProjectId = projectIdParam;
+      console.log('[querystring subscription] projectIdParam:', projectIdParam, 'currentProjectId:', currentProjectId);
       if (projectIdParam) {
         storageService.setLastProjectId(projectIdParam);
       }
 
       if (params.has('createThread')) {
-        startThreadCreationFlow();
-        void replace(ROUTE.THREADS);
+        console.log('[createThread detected] Stripping flag, preserving projectId:', projectIdParam);
+        // Clear createThread flag but preserve projectId so the create form
+        // can associate the new thread with the project.
+        // Don't call startThreadCreationFlow here - just strip the flag from URL
+        const newParams = new URLSearchParams();
+        if (projectIdParam) {
+          newParams.set('projectId', projectIdParam);
+        }
+        void replace(newParams.toString() ? `${ROUTE.THREADS}?${newParams.toString()}` : ROUTE.THREADS);
+        return; // Exit early to prevent further processing
       }
       const threadId = params.get('threadId');
       if (threadId) {
@@ -295,6 +311,8 @@
       return;
     }
 
+    console.log('[handleSave] currentProjectId:', currentProjectId);
+
     try {
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
@@ -303,6 +321,8 @@
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        // Pass projectId if creating from project context
+        // ...(currentProjectId ? { projectId: currentProjectId } : {}),
         // Spread metadata fields at top level, not nested
         ...(formData.metadata ? {
           modelId: formData.metadata.modelId,

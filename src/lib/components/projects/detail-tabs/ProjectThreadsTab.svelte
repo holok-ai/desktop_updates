@@ -16,15 +16,26 @@
 
   let threadsLoading = $state(false);
   let projectThreads = $state<Thread[]>([]);
+  let loadingGuard = $state<string | null>(null); // Prevent concurrent loads
 
   async function loadProjectThreads(): Promise<void> {
     if (!projectId) return;
+    
+    // Guard against concurrent loads
+    const loadKey = `${projectId}-${reloadToken}`;
+    if (loadingGuard === loadKey) {
+      console.log('[ProjectThreadsTab] Skipping duplicate load:', loadKey);
+      return;
+    }
+    
+    loadingGuard = loadKey;
     threadsLoading = true;
 
     try {
       projectThreads = await threadService.getAll({
         projectId,
-        updateStore: true,
+        // Do not pollute the global Threads store with project-scoped threads.
+        updateStore: false,
       });
       dispatch('threadCountChanged', { count: projectThreads.length });
     } catch (err) {
@@ -35,19 +46,14 @@
       dispatch('threadCountChanged', { count: 0 });
     } finally {
       threadsLoading = false;
+      // Keep guard active to prevent re-loads of same data
     }
   }
 
-  // Load on project change and on explicit refresh token bump
+  // Load on project change OR when reloadToken bumps (combined effect prevents duplicate loads)
   $effect(() => {
-    if (projectId) {
-      void loadProjectThreads();
-    }
-  });
-
-  $effect(() => {
-    // reloadToken is a "signal" used by parent to request reload
-    void reloadToken;
+    // Track both projectId and reloadToken changes
+    void reloadToken; // Include in dependencies but don't use value
     if (projectId) {
       void loadProjectThreads();
     }

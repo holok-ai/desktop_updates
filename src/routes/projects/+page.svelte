@@ -107,8 +107,9 @@
         const currentProjects = $projects; // Capture once, don't make reactive
         const found = currentProjects.find((project) => project.id === projectId);
         if (found) {
-          // Only fetch if this is a new project selection
-          if (selectedProject?.id !== projectId) {
+          // Only fetch if this is a new project selection AND not already loading
+          if (selectedProject?.id !== projectId && loadingProjectId !== projectId) {
+            loadingProjectId = projectId;
             selectedProjectStore.select(projectId);
             // Load full project details with members
             (async () => {
@@ -117,6 +118,10 @@
                 await loadThreadCount(projectId);
               } catch (error) {
                 console.error('Failed to load project details:', error);
+              } finally {
+                if (loadingProjectId === projectId) {
+                  loadingProjectId = null;
+                }
               }
             })();
           }

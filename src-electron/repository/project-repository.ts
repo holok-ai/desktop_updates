@@ -122,10 +122,7 @@ export class ProjectRepository {
    * List all cached projects sorted by name
    */
   public listProjects(): Project[] {
-    return Array.from(this.projectsById.values())
-      .filter((p) => p.status === 'active')
-      .map((p) => this.cloneProject(p))
-      .sort((a, b) => a.title.localeCompare(b.title));
+    return Array.from(this.projectsById.values()).map((p) => this.cloneProject(p));
   }
 
   /**
@@ -134,9 +131,8 @@ export class ProjectRepository {
    */
   public listPersonalProjects(): Project[] {
     return Array.from(this.projectsById.values())
-      .filter((p) => p.status === 'active' && p.type === 'personal')
-      .map((p) => this.cloneProject(p))
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .filter((p) => p.type === 'personal')
+      .map((p) => this.cloneProject(p));
   }
 
   /**
@@ -145,9 +141,8 @@ export class ProjectRepository {
    */
   public listSharedProjects(): Project[] {
     return Array.from(this.projectsById.values())
-      .filter((p) => p.status === 'active' && p.type === 'shared')
-      .map((p) => this.cloneProject(p))
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .filter((p) => p.type === 'shared')
+      .map((p) => this.cloneProject(p));
   }
 
   /**

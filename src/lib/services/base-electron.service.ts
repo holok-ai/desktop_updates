@@ -18,11 +18,17 @@ export abstract class BaseElectronService {
    * Get or create singleton instance of the service
    * Uses class name as key to support multiple service types
    */
-  protected static getSingletonInstance<T extends BaseElectronService>(this: new () => T): T {
+  protected static getSingletonInstance<T extends BaseElectronService>(
+    this: { prototype: T; name: string },
+  ): T {
     const className = this.name;
 
     if (!BaseElectronService.instances.has(className)) {
-      BaseElectronService.instances.set(className, new this());
+      // NOTE: Subclasses often use `private` constructors to enforce singleton usage.
+      // That makes them not assignable to `new () => T` in the type system.
+      // We intentionally cast here, since runtime construction is valid.
+      const Ctor = this as unknown as new () => T;
+      BaseElectronService.instances.set(className, new Ctor());
     }
 
     return BaseElectronService.instances.get(className) as T;

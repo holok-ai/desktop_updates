@@ -7,7 +7,6 @@ import type {
   ThreadDTO,
   MessageDTO,
   CreateThreadRequest,
-  CreateMessageRequest,
 } from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';

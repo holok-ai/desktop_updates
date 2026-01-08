@@ -68,6 +68,10 @@
   transition: all 0.2s ease;
 }
 
+.btn-primary span {
+  color: var(--text-on-primary);
+}
+
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-color-hover);
   transform: translateY(-1px);
@@ -134,4 +138,3 @@
 .btn-close:hover {
   background: rgba(0, 0, 0, 0.1);
 }
-

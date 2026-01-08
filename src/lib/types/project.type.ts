@@ -6,6 +6,7 @@ export type ProjectPrivacyMode = 'default' | 'project_only';
  * Project type matching backend API structure
  */
 export interface Project {
+    name: string;
     id: GUID;
     title: string; // Canonical display name
     description: string | null;

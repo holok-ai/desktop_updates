@@ -1,6 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
-import { projectRepository } from '../repository/project-repository.js';
 import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
 
@@ -14,7 +13,6 @@ import type {
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
-import { GUID } from '../../src/lib/types/app.type.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -173,11 +171,14 @@ export { broadcast, generateId };
 export function registerThreadHandlers(): void {
   // No external persistence; threadsService is memory-only
   // Ensure sample data exists for handlers that expect initial items (tests rely on this)
-  threadRepository.listThreads().then(async (existing) => {
-    if (!existing || existing.length === 0) await initializeSampleData();
-  }).catch(_e => {
-    // ignore initialization errors in test environments
-  });
+  threadRepository
+    .listThreads()
+    .then(async (existing) => {
+      if (!existing || existing.length === 0) await initializeSampleData();
+    })
+    .catch((_e) => {
+      // ignore initialization errors in test environments
+    });
 
   ipcMain.handle(
     'thread:getAll',
@@ -185,19 +186,18 @@ export function registerThreadHandlers(): void {
       _event,
       options?: { projectId?: string | null; includeProjectOnly?: boolean },
     ): Promise<RendererThread[]> => {
-      // Pass options to listThreads to use server-side filtering
+      // Use server-side filtering when projectId is specified
       const list = await threadRepository.listThreads({
         projectId: options?.projectId || undefined,
       });
       let filtered = list;
 
-      // Privacy mode filtering (for legacy or fallback cases)
+      // Client-side filtering based on context
       if (options?.projectId) {
-        // Double check filter if server-side filtering didn't happen for some reason
+        // In project context: show only threads belonging to this project
         filtered = list.filter((t) => t.metadata?.projectId === options.projectId);
-      } else if (!options?.includeProjectOnly) {
-        // When viewing general threads, include all threads regardless of project
-        filtered = list;
+      } else {
+        filtered = list.filter((t) => !t.metadata?.projectId);
       }
 
       const mapped = filtered
@@ -690,6 +690,7 @@ export function registerThreadHandlers(): void {
         title?: string;
         description?: string;
         model?: string;
+        projectId?: string; // Associate thread with a project
         metadata?: Record<string, unknown>;
       } = {},
     ): Promise<{

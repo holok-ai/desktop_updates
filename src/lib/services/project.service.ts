@@ -20,14 +20,14 @@ export interface CreateProjectInput {
 }
 
 /**
- * Map backend Project (uses 'title') to frontend Project (uses 'name')
+ * Normalize backend Project into renderer-safe shape.
+ * Ensures createdAt/updatedAt are Date objects.
  */
 function mapBackendToFrontendProject(backendProject: Project): Project {
-  const backendTitle =
-    'title' in backendProject ? (backendProject as { title?: string }).title : undefined;
+  const backendTitle = typeof backendProject.title === 'string' ? backendProject.title : '';
   return {
     ...backendProject,
-    name: backendTitle ?? backendProject.name ?? '',
+    title: backendTitle,
     // Ensure createdAt/updatedAt are Date objects
     createdAt:
       typeof backendProject.createdAt === 'string'
@@ -46,7 +46,7 @@ export class ProjectService extends BaseElectronService {
   }
 
   public static getInstance(): ProjectService {
-    return BaseElectronService.getSingletonInstance.call(this);
+    return this.getSingletonInstance();
   }
 
   protected initializeEventListeners(): void {

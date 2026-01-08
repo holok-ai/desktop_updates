@@ -159,7 +159,7 @@ export function registerProjectHandlers(): void {
     'project:update',
     async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
       log.info('[IPC:project:update]', projectId);
-
+      
       const project = await projectRepository.updateProject(projectId as GUID, input);
 
       // Broadcast update event
@@ -196,8 +196,8 @@ export function registerProjectHandlers(): void {
 
       const ok = await projectRepository.deleteProject(pid);
       if (ok) {
-        // Broadcast deletion event
-        broadcast('project:deleted', projectId);
+    // Broadcast deletion event
+    broadcast('project:deleted', projectId);
       }
       return ok;
     },

@@ -118,7 +118,6 @@
     const params = new URLSearchParams();
     params.set('createThread', 'true');
     params.set('projectId', project.id);
-    
     push(`${ROUTE.THREADS}?${params.toString()}`);
   }
 

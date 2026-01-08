@@ -11,7 +11,7 @@ export class ThreadService extends BaseElectronService {
   }
 
   public static getInstance(): ThreadService {
-    return BaseElectronService.getSingletonInstance.call(this);
+    return this.getSingletonInstance();
   }
 
   protected initializeEventListeners(): void {
@@ -41,7 +41,7 @@ export class ThreadService extends BaseElectronService {
   }): Promise<Thread[]> {
     const allThreads = await wrapElectronCall(
       () => window.electronAPI.thread.getAll(options),
-      'Failed to load threads'
+      'Failed to load threads',
     );
 
     if (options?.updateStore !== false) {
@@ -51,46 +51,54 @@ export class ThreadService extends BaseElectronService {
     return allThreads;
   }
 
+  /**
+   * Get only personal threads (threads without a projectId)
+   */
+  async listPersonal(): Promise<Thread[]> {
+    return this.getAll({ projectId: null, updateStore: true });
+  }
+
+  /**
+   * Get threads for a specific project
+   */
+  async listForProject(projectId: string): Promise<Thread[]> {
+    return this.getAll({ projectId, updateStore: true });
+  }
+
   async create(data: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> {
     return wrapElectronCall(
       () => window.electronAPI.thread.create(data),
-      'Failed to create thread'
+      'Failed to create thread',
     );
   }
 
   async update(id: string, updates: Partial<Thread>): Promise<Thread> {
     return wrapElectronCall(
       () => window.electronAPI.thread.update(id, updates),
-      'Failed to update thread'
+      'Failed to update thread',
     );
   }
 
   async delete(id: string): Promise<boolean> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.delete(id),
-      'Failed to delete thread'
-    );
+    return wrapElectronCall(() => window.electronAPI.thread.delete(id), 'Failed to delete thread');
   }
 
   async softDelete(id: string): Promise<boolean> {
     return wrapElectronCall(
       () => window.electronAPI.thread.softDelete(id),
-      'Failed to soft delete thread'
+      'Failed to soft delete thread',
     );
   }
 
   async getThread(id: string): Promise<Thread | null> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.getById(id),
-      'Failed to get thread'
-    );
+    return wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
   }
 
   async getMessages(id: string): Promise<Message[]> {
     return wrapElectronCallWithFallback(
       () => window.electronAPI.thread.getMessages(id),
       'Failed to get thread messages',
-      []
+      [],
     );
   }
 
@@ -101,7 +109,7 @@ export class ThreadService extends BaseElectronService {
   ): Promise<Thread> {
     return wrapElectronCall(
       () => window.electronAPI.thread.moveToProject(threadId, targetProjectId, options),
-      'Failed to move thread to project'
+      'Failed to move thread to project',
     );
   }
 
@@ -137,7 +145,7 @@ export class ThreadService extends BaseElectronService {
 
     const res: unknown = await wrapElectronCall(
       () => window.electronAPI.thread.appendMessage(threadId, wirePayload),
-      'Failed to append message to thread'
+      'Failed to append message to thread',
     );
 
     if (
@@ -174,7 +182,7 @@ export class ThreadService extends BaseElectronService {
   > {
     const res: unknown = await wrapElectronCall(
       () => window.electronAPI.thread.updateMessage(threadId, messageId, newContent),
-      'Failed to update message'
+      'Failed to update message',
     );
     return res as
       | { success: true; message: Message; thread: Thread }
@@ -190,7 +198,7 @@ export class ThreadService extends BaseElectronService {
   > {
     const res: unknown = await wrapElectronCall(
       () => window.electronAPI.thread.updateMessageMetadata(threadId, messageId, metadataUpdates),
-      'Failed to update message metadata'
+      'Failed to update message metadata',
     );
     return res as
       | { success: true; message: Message; thread: Thread }
@@ -239,7 +247,7 @@ export class ThreadService extends BaseElectronService {
   > {
     const res: unknown = await wrapElectronCall(
       () => window.electronAPI.thread.getMessageVersions(threadId, messageId),
-      'Failed to get message versions'
+      'Failed to get message versions',
     );
     return res as
       | { success: true; versions: Array<{ content: string; editedAt: number }> }
@@ -252,7 +260,7 @@ export class ThreadService extends BaseElectronService {
   ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
     const res: unknown = await wrapElectronCall(
       () => window.electronAPI.thread.deleteMessagesAfter(threadId, messageId),
-      'Failed to delete messages'
+      'Failed to delete messages',
     );
     return res as { success: true; thread: Thread } | { success: false; error: string };
   }

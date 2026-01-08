@@ -102,9 +102,6 @@ class ProjectApiService {
      */
     async getProjects(filters?: ProjectFilters): Promise<PagedResponse<ProjectDTO>> {
         const accessToken = await this.getAccessToken();
-        console.log({
-            accessToken
-        })
         if (!accessToken) {
             throw new Error('Not authenticated. Please log in.');
         }
