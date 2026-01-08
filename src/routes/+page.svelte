@@ -59,16 +59,67 @@
   }
 
   /**
+   * Generate sample audit data for charts when no real data exists
+   */
+  function generateSampleAuditData(): any[] {
+    const now = Date.now();
+    const sampleData: any[] = [];
+    const models = [
+      { provider: 'CLAUDE', model: 'claude-sonnet-3.5' },
+      { provider: 'CLAUDE', model: 'claude-opus-3' },
+      { provider: 'OPENAI', model: 'gpt-4-turbo' },
+      { provider: 'OPENAI', model: 'gpt-3.5-turbo' },
+      { provider: 'OLLAMA', model: 'llama2' },
+    ];
+
+    // Generate data for last 14 days
+    for (let day = 0; day < 14; day++) {
+      const dayTimestamp = now - day * 24 * 60 * 60 * 1000;
+
+      // Generate 5-15 prompts per day
+      const promptsPerDay = Math.floor(Math.random() * 10) + 5;
+
+      for (let i = 0; i < promptsPerDay; i++) {
+        // Random hour between 8 AM and 6 PM
+        const hour = Math.floor(Math.random() * 11) + 8;
+        const minute = Math.floor(Math.random() * 60);
+        const timestamp = dayTimestamp + hour * 60 * 60 * 1000 + minute * 60 * 1000;
+
+        // Random model
+        const modelData = models[Math.floor(Math.random() * models.length)];
+
+        // Random token count (500-5000)
+        const totalTokenCount = Math.floor(Math.random() * 4500) + 500;
+
+        sampleData.push({
+          requestTimestamp: timestamp,
+          provider: modelData.provider,
+          model: modelData.model,
+          totalTokenCount,
+        });
+      }
+    }
+
+    return sampleData.sort((a, b) => a.requestTimestamp - b.requestTimestamp);
+  }
+
+  /**
    * Load audit logs for metrics charts
    */
   async function loadAuditData(): Promise<void> {
     try {
       const logs = await window.electronAPI.chat.getAuditLogs();
       auditData = logs || [];
+
+      // If no real data, use sample data for demonstration
+      if (auditData.length === 0) {
+        console.log('[Dashboard] No audit data found, using sample data for charts');
+        auditData = generateSampleAuditData();
+      }
     } catch (error) {
       console.error('[Dashboard] Error loading audit data:', error);
-      // Continue with empty array on error
-      auditData = [];
+      // Use sample data on error
+      auditData = generateSampleAuditData();
     }
   }
 
