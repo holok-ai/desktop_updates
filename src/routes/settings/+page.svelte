@@ -298,13 +298,15 @@
 
   .settings-content {
     max-width: 800px;
-    margin: 0 auto;
-    padding: 1.5rem;
+    margin-left: 30px;
+    margin-right: 1.5rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
   }
 
   .settings-footer {
     flex-shrink: 0;
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.5rem 1rem 30px;
     border-top: 1px solid var(--border-color, #e5e7eb);
     background: var(--background, #ffffff);
     box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
@@ -312,7 +314,6 @@
 
   .settings-actions {
     max-width: 800px;
-    margin: 0 auto;
   }
 
   .loading {
