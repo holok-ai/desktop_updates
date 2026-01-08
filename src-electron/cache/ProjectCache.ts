@@ -164,7 +164,7 @@ export class ProjectCache {
         type: projectDTO.type as Project['type'],
         createdBy: projectDTO.createdBy,
         organizationId: projectDTO.organizationId,
-        status: projectDTO.status as Project['status'],
+        active: projectDTO.active,
         metadata: projectDTO.metadata as Project['metadata'],
         memberCount: projectDTO.memberCount,
         createdAt: projectDTO.createdAt,

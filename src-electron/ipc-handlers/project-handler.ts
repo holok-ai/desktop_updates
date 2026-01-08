@@ -79,6 +79,14 @@ export function registerProjectHandlers(): void {
   });
 
   /**
+   * Alias for project:list (backward compatibility)
+   */
+  ipcMain.handle('project:getAll', async (): Promise<Project[]> => {
+    log.info('[IPC:project:getAll]');
+    return await projectService.list();
+  });
+
+  /**
    * Get a single project by ID
    */
   ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
@@ -95,6 +103,14 @@ export function registerProjectHandlers(): void {
     const count = await threadRepository.getProjectThreadCount(projectId);
     log.debug(`[IPC:project:getThreads] Found ${count} threads for project ${projectId}`);
     return count;
+  });
+
+  /**
+   * Alias for project:get (backward compatibility)
+   */
+  ipcMain.handle('project:getById', async (_, projectId: string): Promise<Project> => {
+    log.info('[IPC:project:getById]', projectId);
+    return await projectService.get(projectId);
   });
 
   /**
@@ -226,8 +242,10 @@ export function registerProjectHandlers(): void {
 export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:create');
   ipcMain.removeHandler('project:list');
+  ipcMain.removeHandler('project:getAll'); // Alias
   ipcMain.removeHandler('project:get');
   ipcMain.removeHandler('project:getThreads');
+  ipcMain.removeHandler('project:getById'); // Alias
   ipcMain.removeHandler('project:update');
   ipcMain.removeHandler('project:delete');
   ipcMain.removeHandler('project:hasPermission');

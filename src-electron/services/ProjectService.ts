@@ -49,11 +49,30 @@ function mapDTOToProject(dto: ProjectDetailDTO): Project {
     createdBy: dto.createdBy,
     organizationId: dto.organizationId,
     status: dto.status as Project['status'],
+    active: dto.active,
     metadata: dto.metadata as Project['metadata'],
     memberCount: dto.memberCount,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
     userRole: dto.userRole as ProjectRole,
+  };
+}
+
+/**
+ * Map CreateProjectInput to API request
+ * Converts 'title' → 'name' for API
+ */
+function mapCreateInputToDTO(input: CreateProjectInput): {
+  name: string;
+  description?: string | null;
+  type?: 'personal' | 'shared' | null;
+  metadata?: Record<string, unknown> | null;
+} {
+  return {
+    name: input.title, // We use 'title', API expects 'name'
+    description: input.description,
+    type: input.type,
+    metadata: input.metadata,
   };
 }
 

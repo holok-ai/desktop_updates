@@ -44,7 +44,7 @@ This epic extends the existing thread architecture (Architecture §3, §5.2) wit
 
 **Architectural Constraints:**
 - Maximum 9 variation branches enforced at service layer (PRD §3.2.2)
-- Message tree stored in local SQLite (`desktop_messages` table with `parentMessageId`, `branchIndex` columns per Architecture §10.3)
+- Message tree stored in Moku database (`desktop_messages` table with `parentMessageId`, `branchIndex` columns per Architecture §10.3)
 - Synchronization with Moku API requires branch-aware conflict resolution
 - Clipboard operations maintain desktop-first architecture with fallback to web clipboard API
 
@@ -339,14 +339,14 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - Reject executable files, scripts, and unknown MIME types
 
 **Data Protection:**
-- Branch metadata stored in same SQLite database as messages (encrypted at rest per existing Desktop security model)
+- Branch metadata stored in same Moku API database as messages (encrypted at rest per existing Desktop security model)
 - No new PII or sensitive data introduced by branching feature
 - Clipboard operations use Electron's secure clipboard API
 
 ### Reliability/Availability
 
 **Transactional Integrity:**
-- Branch creation uses SQLite transactions: atomic commit of (user message + assistant response) or full rollback
+- Branch creation uses API transactions: atomic commit of (user message + assistant response) or full rollback
 - Concurrent branch creation handled via optimistic locking on parent message
 - If two users attempt to create 3rd branch simultaneously, second request fails gracefully with clear error
 
@@ -357,7 +357,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 
 **Error Recovery:**
 - Failed branch creation: user can attempt again immediately (state not corrupted)
-- SQLite transaction failures logged and reported to user: "Unable to create branch, please try again"
+- API transaction failures logged and reported to user: "Unable to create branch, please try again"
 - Cache invalidation failures: worst case is stale UI until next refresh (non-critical)
 
 **Data Consistency:**
@@ -388,7 +388,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 **Tracing:**
 - Distributed trace for full prompt variation flow: UI click → validation → branch creation → AI call → UI update
 - Trace context assembly operations (especially for deep trees)
-- Instrument SQLite query execution for tree operations
+- Instrument Moku API query execution for tree operations
 
 **Alerting:**
 - Alert if branch creation P95 > 1 second (performance degradation)
@@ -411,7 +411,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
   - Lighter weight than react-virtualized
   - Required for 60fps performance with multiple lanes
 - **Electron Clipboard API** - Native module (existing dependency, no version change)
-- **SQLite** (better-sqlite3 ^9.x) - Existing dependency, no changes needed
+- **Moku API Client** - Existing dependency for all data operations
 
 **Integration Points:**
 
@@ -533,7 +533,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 2. **ASSUMPTION:** Title generation via AI will succeed >95% of the time
    - **Validation:** Monitor `title.generation.success_rate` metric; implement better fallback if needed
 
-3. **ASSUMPTION:** SQLite transaction performance sufficient for concurrent branch operations
+3. **ASSUMPTION:** API transaction performance sufficient for concurrent branch operations
    - **Validation:** Load testing during E2-S2 implementation
 
 4. **ASSUMPTION:** Epic 1 database schema migration will include parent_message_id and branch_index columns
@@ -599,7 +599,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
 - **Full prompt variation flow:** UI click → validation → branch creation → AI call → UI update → verify state
 - **Auto-title trigger:** Create 2nd message → verify title generated → verify UI updated
 - **Cache invalidation:** Create branch → verify cache cleared → verify fresh data loaded
-- **SQLite transaction rollback:** Simulate AI failure → verify no orphaned user messages
+- **API transaction rollback:** Simulate AI failure → verify no orphaned user messages
 - **Cross-epic integration:** Branch creation with attachments (when E5 complete)
 
 **3. E2E Tests (Playwright)**
@@ -656,7 +656,7 @@ Context includes metadata about siblings F and H for AI awareness but not full c
    - AI returns empty string
    - AI returns >50 chars
    - Network failure during title generation
-6. **SQLite edge cases:**
+6. **Moku API edge cases:**
    - Database locked during branch creation
    - Disk full during write
    - Foreign key constraint violation

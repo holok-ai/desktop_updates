@@ -48,7 +48,7 @@ This epic implements the file storage bifurcation pattern (Architecture ยง5.3, ย
 - Personal threads: Files stored in `~/.holokai/files/` (local filesystem)
 - Project threads: Files stored in Storage Service (S3/Azure Blob via presigned URLs)
 - Cache encrypted at rest using desktop's master encryption key (Epic 4 dependency)
-- File metadata stored in local SQLite (`desktop_attachments` table)
+- File metadata stored in Moku database (`desktop_attachments` table)
 - No direct filesystem paths exposed to UI (all operations via FileService abstraction)
 
 **Data Flow:**

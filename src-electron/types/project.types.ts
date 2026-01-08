@@ -59,7 +59,7 @@ export interface Project {
   type: ProjectType;
   createdBy: string;
   organizationId: string;
-  status: ProjectStatus;
+  active: boolean;
   metadata: ProjectMetadata | null;
   memberCount: number;
   createdAt: string; // ISO-8601
