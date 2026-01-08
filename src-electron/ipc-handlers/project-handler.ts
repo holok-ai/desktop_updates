@@ -1,50 +1,4 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { projectRepository } from '../repository/project-repository.js';
-import { threadRepository } from '../repository/thread-repository.js';
-import { createScopedLogger, logPerformance } from '../utils/logger.js';
-import { getAuthService } from './auth-handler.js';
-
-import type { Project, ProjectPrivacyMode, MemberDTO as FrontendMemberDTO } from '../../src/lib/types/project.type.js';
-import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
-import type { MemberDTO as BackendMemberDTO } from '../services/mokuapi/project-member-api.service.js';
-import type { Project as BackendProject } from '../repository/project-repository.js';
-import { GUID } from '../../src/lib/types/app.type.js';
-
-const projectLog = createScopedLogger('project');
-
-function toRendererProject(p: BackendProject | null): Project | null {
-    if (!p) return null;
-
-    const mapMember = (m: BackendMemberDTO): FrontendMemberDTO => ({
-        id: m.id,
-        userId: m.userId,
-        userName: m.userName,
-        email: m.userEmail,
-        memberRole: m.role,
-    });
-
-    return {
-        id: p.id,
-        name: p.name,
-        title: p.name, // For backward compatibility
-        description: p.description,
-        type: p.type as 'personal' | 'shared',
-        active: p.active,
-        memberCount: p.memberCount,
-        createdBy: p.createdBy,
-        organizationId: p.organizationId,
-        userRole: p.userRole,
-        metadata: p.metadata ? { ...p.metadata } : null,
-        createdAt: new Date(p.createdAt.toISOString()),
-        updatedAt: new Date(p.updatedAt.toISOString()),
-        members: p.members.map(mapMember),
-        // Legacy fields
-        deletedAt: null,
-        privacyMode: 'default',
-    };
-}
-
-import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
 import { projectService } from '../services/ProjectService.js';
 import type {
@@ -95,10 +49,26 @@ export function registerProjectHandlers(): void {
   });
 
   /**
+   * Alias for project:list (backward compatibility)
+   */
+  ipcMain.handle('project:getAll', async (): Promise<Project[]> => {
+    log.info('[IPC:project:getAll]');
+    return await projectService.list();
+  });
+
+  /**
    * Get a single project by ID
    */
   ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
     log.info('[IPC:project:get]', projectId);
+    return await projectService.get(projectId);
+  });
+
+  /**
+   * Alias for project:get (backward compatibility)
+   */
+  ipcMain.handle('project:getById', async (_, projectId: string): Promise<Project> => {
+    log.info('[IPC:project:getById]', projectId);
     return await projectService.get(projectId);
   });
 
@@ -231,7 +201,9 @@ export function registerProjectHandlers(): void {
 export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:create');
   ipcMain.removeHandler('project:list');
+  ipcMain.removeHandler('project:getAll'); // Alias
   ipcMain.removeHandler('project:get');
+  ipcMain.removeHandler('project:getById'); // Alias
   ipcMain.removeHandler('project:update');
   ipcMain.removeHandler('project:delete');
   ipcMain.removeHandler('project:hasPermission');

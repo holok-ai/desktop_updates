@@ -44,7 +44,7 @@ function mapDTOToProject(dto: ProjectDetailDTO): Project {
     type: dto.type as 'personal' | 'shared',
     createdBy: dto.createdBy,
     organizationId: dto.organizationId,
-    status: dto.status as 'active' | 'archived' | 'deleted',
+    active: dto.active,
     metadata: dto.metadata as Project['metadata'],
     memberCount: dto.memberCount,
     createdAt: dto.createdAt,
@@ -60,7 +60,7 @@ function mapDTOToProject(dto: ProjectDetailDTO): Project {
 function mapCreateInputToDTO(input: CreateProjectInput): {
   name: string;
   description?: string | null;
-  type?: string | null;
+  type?: 'personal' | 'shared' | null;
   metadata?: Record<string, unknown> | null;
 } {
   return {
