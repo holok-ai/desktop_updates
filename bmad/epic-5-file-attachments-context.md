@@ -87,7 +87,7 @@ interface FileMetadata {
    - Track references per fileId
    - Increment when attachment added to message
    - Decrement when message deleted
-   - Store counts in local database
+   - Store counts via Moku API
 
 5. **Safe Deletion**
    - Check reference count before delete

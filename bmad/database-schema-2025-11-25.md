@@ -170,56 +170,75 @@ COMMENT ON COLUMN desktop_threads.deleted_at IS 'Soft delete timestamp (NULL if 
 
 ### 2.2 desktop_messages
 
-Stores messages within threads, supporting tree-based branching for retry functionality.
+Provides tree structure metadata for displaying branched conversations. Works in conjunction with llm_requests and llm_responses tables to reconstruct conversation threads with branches.
+
+**Purpose:** Desktop_messages contains records ONLY for user requests that are part of branches, enabling the UI to visualize and navigate branch structures. The actual request/response content is stored in llm_requests/llm_responses tables. Linear conversations (no branches) do not require desktop_messages records.
+
+**Relationship to llm_requests:**
+- `request_id`: Links to the specific llm_request for THIS message's content
+- `branch_point_request_id`: Links to the llm_request where branches diverge (identifies branch location)
+- `parent_message_id`: Creates the chain within a branch (null for first message in branch)
+- `branch_index`: Distinguishes sibling branches (0-10)
 
 ```sql
 CREATE TABLE desktop_messages (
     -- Primary Key
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Thread Association
     thread_id UUID NOT NULL,
 
-    -- Branching (Phase 2)
+    -- LLM Request References
+    request_id UUID,
+    branch_point_request_id UUID,
+
+    -- Branching Structure
     parent_message_id UUID,
     branch_index INTEGER NOT NULL DEFAULT 0,
+    branch_type VARCHAR(50) NOT NULL DEFAULT 'prompt_variation',
+    is_closed BOOLEAN NOT NULL DEFAULT false,
 
-    -- Message Content
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-
-    -- File Attachments (Phase 2)
-    attachments JSONB,
-
-    -- Flexible Metadata
-    metadata JSONB,
-
-    -- Idempotency
-    client_message_id VARCHAR(255),
+    -- Ownership
+    created_user_id UUID NOT NULL,
 
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
 
+    -- Audit fields
+    created_by VARCHAR(255),
+    last_modified_by VARCHAR(255),
+
     -- Constraints
-    CONSTRAINT desktop_messages_role_check
-        CHECK (role IN ('user', 'assistant', 'system')),
     CONSTRAINT desktop_messages_branch_check
-        CHECK (branch_index >= 0 AND branch_index <= 2),
-    CONSTRAINT desktop_messages_content_size
-        CHECK (length(content) <= 32768),
+        CHECK (branch_index >= 0 AND branch_index <= 10),
 
     -- Foreign Keys
     CONSTRAINT fk_desktop_messages_thread
         FOREIGN KEY (thread_id) REFERENCES desktop_threads(id) ON DELETE CASCADE,
     CONSTRAINT fk_desktop_messages_parent
-        FOREIGN KEY (parent_message_id) REFERENCES desktop_messages(id) ON DELETE CASCADE
+        FOREIGN KEY (parent_message_id) REFERENCES desktop_messages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_desktop_messages_request
+        FOREIGN KEY (request_id) REFERENCES llm_requests(id) ON DELETE SET NULL,
+    CONSTRAINT fk_desktop_messages_branch_point
+        FOREIGN KEY (branch_point_request_id) REFERENCES llm_requests(id) ON DELETE SET NULL,
+    CONSTRAINT fk_desktop_messages_created_user
+        FOREIGN KEY (created_user_id) REFERENCES app_users(id) ON DELETE CASCADE
 );
 
 -- Indexes
 CREATE INDEX idx_desktop_messages_thread_id
     ON desktop_messages(thread_id)
     WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_desktop_messages_request
+    ON desktop_messages(request_id)
+    WHERE request_id IS NOT NULL;
+
+CREATE INDEX idx_desktop_messages_branch_point
+    ON desktop_messages(branch_point_request_id)
+    WHERE branch_point_request_id IS NOT NULL;
 
 CREATE INDEX idx_desktop_messages_parent
     ON desktop_messages(parent_message_id)
@@ -233,22 +252,19 @@ CREATE INDEX idx_desktop_messages_created_at
     ON desktop_messages(thread_id, created_at ASC)
     WHERE deleted_at IS NULL;
 
-CREATE UNIQUE INDEX idx_desktop_messages_client_id
-    ON desktop_messages(thread_id, client_message_id)
-    WHERE client_message_id IS NOT NULL AND deleted_at IS NULL;
-
 -- Comments
-COMMENT ON TABLE desktop_messages IS 'Messages within desktop threads with branching support';
-COMMENT ON COLUMN desktop_messages.id IS 'Unique message identifier (UUID v4)';
+COMMENT ON TABLE desktop_messages IS 'Branch structure metadata for reconstructing conversation trees. Only contains user requests in branches. Content stored in llm_requests/llm_responses.';
+COMMENT ON COLUMN desktop_messages.id IS 'Unique desktop_message identifier (UUID v4), generated on record creation';
 COMMENT ON COLUMN desktop_messages.thread_id IS 'Parent thread reference';
-COMMENT ON COLUMN desktop_messages.parent_message_id IS 'Parent message for tree structure (NULL for root message)';
-COMMENT ON COLUMN desktop_messages.branch_index IS 'Branch index: 0=original path, 1-2=retry branches';
-COMMENT ON COLUMN desktop_messages.role IS 'Message role: user, assistant, or system';
-COMMENT ON COLUMN desktop_messages.content IS 'Message content (max 32KB)';
-COMMENT ON COLUMN desktop_messages.attachments IS 'File attachments array: [{fileId, filename, mimeType, sizeBytes, storageType}]';
-COMMENT ON COLUMN desktop_messages.metadata IS 'Flexible metadata: model, provider, tokens, etc.';
-COMMENT ON COLUMN desktop_messages.client_message_id IS 'Client-provided ID for idempotency';
-COMMENT ON COLUMN desktop_messages.created_at IS 'Message creation timestamp';
+COMMENT ON COLUMN desktop_messages.request_id IS 'Links to llm_requests.id - the specific request for THIS message';
+COMMENT ON COLUMN desktop_messages.branch_point_request_id IS 'Links to llm_requests.id - the request where branches diverge (identifies branch location in conversation)';
+COMMENT ON COLUMN desktop_messages.parent_message_id IS 'Links to previous desktop_messages.id in branch chain (NULL for first message in branch)';
+COMMENT ON COLUMN desktop_messages.branch_index IS 'Distinguishes sibling branches: 0-10';
+COMMENT ON COLUMN desktop_messages.branch_type IS 'Type of branch: prompt_variation, model_comparison, etc.';
+COMMENT ON COLUMN desktop_messages.is_closed IS 'Whether this branch has been closed/converged';
+COMMENT ON COLUMN desktop_messages.created_user_id IS 'User who created this branch';
+COMMENT ON COLUMN desktop_messages.created_at IS 'Branch message creation timestamp';
+COMMENT ON COLUMN desktop_messages.updated_at IS 'Last update timestamp';
 COMMENT ON COLUMN desktop_messages.deleted_at IS 'Soft delete timestamp';
 ```
 
