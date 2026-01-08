@@ -22,7 +22,6 @@
 
   // Loading and error states
   let isLoading = $state(false);
-  let isRefreshing = $state(false);
   let error = $state<string | null>(null);
 
   // Selected project state (from URL)
@@ -80,21 +79,6 @@
     }
   }
 
-  // AC-5: Refresh button handler - invalidate cache and reload
-  async function handleRefresh(): Promise<void> {
-    isRefreshing = true;
-    error = null;
-
-    try {
-      await projectService.loadProjects(true);
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to refresh projects';
-      console.error('[ProjectSidebar] Refresh error:', err);
-    } finally {
-      isRefreshing = false;
-    }
-  }
-
   // AC-4: Navigate to project creation view
   function handleNewProject(): void {
     push(`${ROUTE.PROJECTS}?create=true`);
@@ -131,7 +115,7 @@
         // Open global delete modal via store
         deleteProjectModalStore.open({
           id: project.id as GUID,
-          title: project.title || project.name || 'Untitled Project',
+          title: project.title || 'Untitled Project',
         });
       } else {
         // Show permission error via toast
@@ -151,49 +135,18 @@
 </script>
 
 <div class="project-sidebar">
-  <!-- Header with action buttons -->
+  <!-- AC-4: New Project button - full-width -->
   {#if !collapsed}
-    <div class="sidebar-header">
-      <h2 class="sidebar-title">Projects</h2>
-      <div class="action-buttons">
-      <!-- AC-4: Refresh button -->
+    <div class="new-project-container">
       <button
-        class="icon-button"
-        onclick={handleRefresh}
-        disabled={isRefreshing || isLoading}
-        title="Refresh projects"
-        aria-label="Refresh projects"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          class:spinning={isRefreshing}
-        >
-          <path
-            d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0 3.58 0 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z"
-            fill="currentColor"
-          />
-        </svg>
-      </button>
-
-      <!-- AC-4: New Project button -->
-      <button
-        class="primary-button"
+        class="new-project-btn"
         onclick={handleNewProject}
         disabled={isLoading}
         aria-label="Create new project"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M8 0C7.44772 0 7 0.447715 7 1V7H1C0.447715 7 0 7.44772 0 8C0 8.55228 0.447715 9 1 9H7V15C7 15.5523 7.44772 16 8 16C8.55228 16 9 15.5523 9 15V9H15C15.5523 9 16 8.55228 16 8C16 7.44772 15.5523 7 15 7H9V1C9 0.447715 8.55228 0 8 0Z"
-            fill="currentColor"
-          />
-        </svg>
-        <span>New</span>
+        <i class="pi pi-plus"></i>
+        <span>New Project ...</span>
       </button>
-    </div>
     </div>
   {/if}
 
@@ -208,7 +161,7 @@
   <!-- Loading state -->
   {#if isLoading && !collapsed}
     <div class="loading-container">
-      <div class="spinner"></div>
+      <i class="pi pi-spin pi-spinner text-2xl text-primary"></i>
       <p>Loading projects...</p>
     </div>
   {:else if !collapsed}
@@ -273,9 +226,6 @@
           </svg>
           <h4>No projects yet</h4>
           <p>Create your first project to get started</p>
-          <button class="create-first-button" onclick={handleNewProject}>
-            Create Project
-          </button>
         </div>
       {/if}
     </div>
@@ -284,7 +234,7 @@
   <!-- Loading overlay for permission check -->
   {#if isCheckingPermission}
     <div class="checking-overlay">
-      <div class="spinner"></div>
+      <i class="pi pi-spin pi-spinner text-3xl text-white"></i>
       <p>Checking permissions...</p>
     </div>
   {/if}
@@ -297,95 +247,43 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background-color: var(--sidebar-bg, #1a1a1a);
-    color: var(--text-primary, #ffffff);
+    background: var(--surface-sidebar-secondary);
+    color: var(--text-primary);
+    border-right: 1px solid var(--border-sidebar);
     overflow: hidden;
   }
 
-  /* Header */
-  .sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  /* New Project button - matches New Thread styling */
+  .new-project-container {
+    padding: 0 1rem 0.75rem 1rem;
   }
 
-  .sidebar-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-  }
-
-  .action-buttons {
+  .new-project-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  /* Icon button (Refresh) */
-  .icon-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background: var(--surface-sidebar-secondary);
+    color: var(--text-primary);
     border: none;
-    border-radius: 4px;
-    background-color: transparent;
-    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
-  .icon-button:hover:not(:disabled) {
-    background-color: var(--surface-hover, rgba(255, 255, 255, 0.05));
-    color: var(--text-primary, #ffffff);
+  .new-project-btn:hover:not(:disabled) {
+    background-color: var(--thread-list-hover-bg);
   }
 
-  .icon-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .new-project-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 35%, transparent);
   }
 
-  .icon-button svg.spinning {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  /* Primary button (New Project) */
-  .primary-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border: none;
-    border-radius: 4px;
-    background-color: var(--button-primary-bg, #3b82f6);
-    color: var(--button-primary-text, #ffffff);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .primary-button:hover:not(:disabled) {
-    background-color: var(--button-primary-hover, #2563eb);
-  }
-
-  .primary-button:disabled {
+  .new-project-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -396,10 +294,10 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    background-color: var(--error-bg, rgba(239, 68, 68, 0.1));
-    border-bottom: 1px solid var(--error-border, rgba(239, 68, 68, 0.3));
+    background-color: var(--error-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--error-color) 35%, transparent);
     font-size: 13px;
-    color: var(--error-text, #ef4444);
+    color: var(--error-color);
   }
 
   .retry-button {
@@ -414,7 +312,7 @@
   }
 
   .retry-button:hover {
-    background-color: var(--error-bg, rgba(239, 68, 68, 0.2));
+    background-color: color-mix(in srgb, var(--error-color) 20%, transparent);
   }
 
   /* Loading state */
@@ -425,15 +323,6 @@
     justify-content: center;
     padding: 2rem;
     gap: 1rem;
-  }
-
-  .spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid var(--surface-border, rgba(255, 255, 255, 0.1));
-    border-top-color: var(--accent-color, #3b82f6);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
   }
 
   /* Project list */
@@ -453,7 +342,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+    color: var(--text-secondary);
     padding: 1rem 1rem 0.5rem;
     margin: 0;
   }
@@ -462,7 +351,7 @@
   .empty-state {
     padding: 0.5rem 1rem;
     font-size: 13px;
-    color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+    color: var(--text-secondary);
     font-style: italic;
   }
 
@@ -477,37 +366,21 @@
   }
 
   .empty-state-main svg {
-    color: var(--text-secondary, rgba(255, 255, 255, 0.3));
+    color: var(--text-secondary);
+    opacity: 0.5;
   }
 
   .empty-state-main h4 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: var(--text-primary, #ffffff);
+    color: var(--text-primary);
   }
 
   .empty-state-main p {
     margin: 0;
     font-size: 14px;
-    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-  }
-
-  .create-first-button {
-    margin-top: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 6px;
-    background-color: var(--button-primary-bg, #3b82f6);
-    color: var(--button-primary-text, #ffffff);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .create-first-button:hover {
-    background-color: var(--button-primary-hover, #2563eb);
+    color: var(--text-secondary);
   }
 
   /* Scrollbar styling */
@@ -520,12 +393,12 @@
   }
 
   .project-list::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
 
   .project-list::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+    background: var(--scrollbar-thumb-hover);
   }
 
   /* Checking overlay */
@@ -542,11 +415,6 @@
     justify-content: center;
     gap: 1rem;
     z-index: 9999;
-  }
-
-  .checking-overlay .spinner {
-    width: 32px;
-    height: 32px;
   }
 
   .checking-overlay p {

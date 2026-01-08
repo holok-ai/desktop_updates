@@ -14,7 +14,7 @@
   let isHovered = $state(false);
 
   function onClick() {
-    dispatch('click', { id: project.id, label: project.name, route: ROUTE.PROJECTS });
+    dispatch('click', { id: project.id, label: project.title, route: ROUTE.PROJECTS });
   }
 
   function onDelete(e: MouseEvent) {
@@ -40,10 +40,10 @@
 >
   <div class="project-content">
     <div class="project-title-container">
-      <div class="project-title">{project.name}</div>
+      <div class="project-title">{project.title}</div>
       {#if showActions && isHovered}
         <div class="action-buttons">
-          <button class="action-button delete" title="Delete" onclick={onDelete}>
+          <button class="btn-icon-sm delete" title="Delete" onclick={onDelete}>
             <i class="pi pi-trash"></i>
           </button>
         </div>
@@ -70,11 +70,11 @@
   }
 
   .project-item:hover {
-    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
+    background-color: var(--thread-list-hover-bg);
   }
 
   .project-item.selected {
-    border-color: #3b82f6;
+    border-color: var(--accent-color);
     background-color: transparent;
   }
 
@@ -95,7 +95,7 @@
   .project-title {
     font-size: 11pt;
     font-weight: 600;
-    color: var(--thread-list-title-color, #fff);
+    color: var(--thread-list-title-color);
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -107,7 +107,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: var(--thread-list-meta-color, rgba(255, 255, 255, 0.7));
+    color: var(--thread-list-meta-color);
     line-height: 1.4;
   }
 
@@ -117,29 +117,7 @@
     align-items: center;
   }
 
-  .action-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    padding: 0;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 0.25rem;
-    transition: background-color 0.2s ease;
-  }
-
-  .action-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .action-button.delete {
-    color: #ef4444;
-  }
-
-  .action-button i {
-    font-size: 0.875rem;
+  .btn-icon-sm.delete {
+    color: var(--error-color);
   }
 </style>

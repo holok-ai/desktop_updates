@@ -2,6 +2,7 @@ import type { GUID } from '$lib/types/app.type';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { projects } from '../stores/project.store';
 import type { Project, UserSummaryDTO } from '../types/project.type.js';
+import { BaseElectronService } from './base-electron.service';
 
 /**
  * Input for creating a new project
@@ -39,39 +40,35 @@ function mapBackendToFrontendProject(backendProject: Project): Project {
   };
 }
 
-export class ProjectService {
-  private static instance: ProjectService | null = null;
-  private unsubscribes: (() => void)[] = [];
-
+export class ProjectService extends BaseElectronService {
   private constructor() {
-    this.initializeEventListeners();
+    super();
   }
 
   public static getInstance(): ProjectService {
-    ProjectService.instance ??= new ProjectService();
-    return ProjectService.instance;
+    return BaseElectronService.getSingletonInstance.call(this);
   }
 
-  private initializeEventListeners(): void {
+  protected initializeEventListeners(): void {
     // Listen for project created events
     const unsubCreated = window.electronAPI.project.onProjectCreated((backendProject: Project) => {
       const frontendProject = mapBackendToFrontendProject(backendProject);
       projects.addProject(frontendProject);
     });
-    this.unsubscribes.push(unsubCreated);
+    this.registerCleanup(unsubCreated);
 
     // Listen for project updated events
     const unsubUpdated = window.electronAPI.project.onProjectUpdated((backendProject: Project) => {
       const frontendProject = mapBackendToFrontendProject(backendProject);
       projects.updateProject(frontendProject);
     });
-    this.unsubscribes.push(unsubUpdated);
+    this.registerCleanup(unsubUpdated);
 
     // Listen for project deleted events
     const unsubDeleted = window.electronAPI.project.onProjectDeleted((projectId: GUID) => {
       projects.deleteProject(projectId);
     });
-    this.unsubscribes.push(unsubDeleted);
+    this.registerCleanup(unsubDeleted);
   }
 
   public async loadProjects(forceRefresh = false): Promise<void> {
@@ -158,13 +155,6 @@ export class ProjectService {
       return frontendProject;
     }
     return null;
-  }
-
-  public cleanup(): void {
-    for (const unsub of this.unsubscribes) {
-      unsub();
-    }
-    this.unsubscribes = [];
   }
 }
 

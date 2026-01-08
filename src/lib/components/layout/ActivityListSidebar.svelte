@@ -169,7 +169,7 @@
       storageService.setLastProjectId(project.id);
       dispatch('select', {
         id: project.id,
-        label: project.name,
+        label: project.title,
         route: ROUTE.PROJECTS,
       });
       push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
@@ -332,7 +332,7 @@
   {#if isThreadActivity && !isCollapsed}
     <div class="new-thread-container">
       <button class="new-thread-btn" onclick={handleNewThread} aria-label="Create new thread">
-        <i class="pi pi-plus text-black dark:text-white"></i>
+        <i class="pi pi-plus"></i>
         <span>New Thread ...</span>
       </button>
     </div>
@@ -464,7 +464,7 @@
     width: 100%;
     padding: 0.625rem 0.875rem;
     background: var(--surface-sidebar-secondary);
-    color: var(--primary-color-text, black);
+    color: var(--text-primary);
     border: none;
     border-radius: 0.5rem;
     font-size: 0.875rem;
@@ -474,32 +474,12 @@
   }
 
   .new-thread-btn:hover {
-    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
+    background-color: var(--thread-list-hover-bg);
   }
 
   .new-thread-btn:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
-  }
-
-  .new-thread-btn:active {
-    transform: translateY(0);
-  }
-
-  .new-thread-btn i {
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-  }
-
-  :global(html.dark) .new-thread-btn {
-    background: var(--primary-color);
-  }
-
-  :global(html.dark) .new-thread-btn:hover {
-    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 35%, transparent);
   }
 
   .collapse-toggle-btn {

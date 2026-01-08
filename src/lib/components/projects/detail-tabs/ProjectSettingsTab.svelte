@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { PROJECT_ICON_SVGS } from '$lib/constants/project-icons';
+  import { selectedProjectStore } from '$lib/stores/selected-project.store';
+  import ProjectIcon from '$lib/components/common/ProjectIcon.svelte';
   import type { Project } from '$lib/types/project.type';
 
-  let { project }: { project: Project } = $props();
+  const project = $derived($selectedProjectStore as Project);
 </script>
 
 <div class="settings-section">
@@ -82,15 +83,12 @@
           <div class="setting-item">
             <div class="setting-label">Icon</div>
             <div class="setting-value">
-              {#if PROJECT_ICON_SVGS[project.metadata.icon]}
-                <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d={PROJECT_ICON_SVGS[project.metadata.icon]} fill="currentColor" />
-                </svg>
-              {:else}
-                <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d={PROJECT_ICON_SVGS['folder']} fill="currentColor" />
-                </svg>
-              {/if}
+              <ProjectIcon
+                icon={project.metadata.icon}
+                color={typeof project.metadata.color === 'string' ? project.metadata.color : undefined}
+                size={24}
+                iconSize={20}
+              />
               <span class="icon-name">{project.metadata.icon}</span>
             </div>
           </div>
@@ -173,10 +171,6 @@
     color: var(--text-secondary);
     opacity: 0.8;
     font-family: monospace;
-  }
-
-  .setting-value svg {
-    flex-shrink: 0;
   }
 
   .type-badge,

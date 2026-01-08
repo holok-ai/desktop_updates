@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { selectedProjectStore } from '$lib/stores/selected-project.store';
   import { createEventDispatcher } from 'svelte';
   import { projectService, type CreateProjectInput } from '$lib/services/project.service';
   import { clearUnsavedChanges, setUnsavedChanges } from '$lib/stores/navigation-guard.store';
@@ -13,20 +14,84 @@
     PROJECT_TITLE_MAX_LENGTH,
     PROJECT_DESCRIPTION_MAX_LENGTH,
   } from '$lib/constants/project-validation';
+  import type { Project } from '$lib/types/project.type';
 
-  const dispatch = createEventDispatcher<{ created: { projectId: string } }>();
+  // Props
+  type FormMode = 'create' | 'edit';
 
-  // Form state using Svelte 5 Runes
+  let {
+    mode
+  }: {
+    mode: FormMode;
+  } = $props();
+
+  // Selected project from store (only used in edit mode)
+  const projectStoreValue = $derived($selectedProjectStore);
+  const project = $derived(mode === 'edit' ? projectStoreValue : null);
+
+  const dispatch = createEventDispatcher<{
+    created: { projectId: string };
+    updated: { projectId: string };
+    cancelled: void;
+  }>();
+
+  // Derived values based on mode
+  const isEditMode = $derived(mode === 'edit');
+  const guardKey = $derived(isEditMode ? 'edit-project' : 'add-project');
+
+  function normalizeColor(value: unknown): (typeof MOKU_COLOR_PALETTE)[number] {
+    if (typeof value !== 'string') return MOKU_COLOR_PALETTE[0];
+    const normalized = value.trim().toUpperCase();
+    const match = MOKU_COLOR_PALETTE.find((c) => c.toUpperCase() === normalized);
+    return match ?? MOKU_COLOR_PALETTE[0];
+  }
+
+  function normalizeIcon(value: unknown): (typeof VALID_PROJECT_ICONS)[number] {
+    if (typeof value !== 'string') return VALID_PROJECT_ICONS[0];
+    const normalized = value.trim().toLowerCase();
+    const match = VALID_PROJECT_ICONS.find((i) => i.toLowerCase() === normalized);
+    return match ?? VALID_PROJECT_ICONS[0];
+  }
+
+  // Form state (initialized via $effect to avoid capturing derived values in $state initializers)
   let projectTitle = $state('');
   let projectDescription = $state('');
+  let selectedColor = $state<(typeof MOKU_COLOR_PALETTE)[number]>(MOKU_COLOR_PALETTE[0]);
+  let selectedIcon = $state<(typeof VALID_PROJECT_ICONS)[number]>(VALID_PROJECT_ICONS[0]);
   let projectType = $state<'personal' | 'shared'>('personal');
-  let selectedColor = $state<(typeof MOKU_COLOR_PALETTE)[number]>(MOKU_COLOR_PALETTE[0]); // Default: Blue
-  let selectedIcon = $state<(typeof VALID_PROJECT_ICONS)[number]>(VALID_PROJECT_ICONS[0]); // Default: folder
+
   let isSubmitting = $state(false);
   let error = $state('');
-  let hasAttemptedSubmit = $state(false); // Track if user has tried to submit
+  let hasAttemptedSubmit = $state(false);
 
-  // Validation using $derived
+  // Re-init when switching mode or editing a different project
+  let initKey = $state<string | null>(null);
+  $effect(() => {
+    const key = mode === 'edit' && project ? `edit:${project.id}` : 'create';
+    if (initKey === key) return;
+    initKey = key;
+
+    if (mode === 'edit' && project) {
+      projectTitle = project.title || '';
+      projectDescription = project.description || '';
+      selectedColor = normalizeColor(project.metadata?.color);
+      selectedIcon = normalizeIcon(project.metadata?.icon);
+      projectType = project.type;
+    } else {
+      projectTitle = '';
+      projectDescription = '';
+      selectedColor = MOKU_COLOR_PALETTE[0];
+      selectedIcon = VALID_PROJECT_ICONS[0];
+      projectType = 'personal';
+    }
+
+    // Reset submit state when the form context changes
+    isSubmitting = false;
+    error = '';
+    hasAttemptedSubmit = false;
+  });
+
+  // Validation (shared between create and edit)
   const titleError = $derived(() => {
     const trimmed = projectTitle.trim();
     if (!trimmed) return 'Project title is required';
@@ -49,51 +114,39 @@
 
   const isFormValid = $derived(!titleError() && !descriptionError());
 
-  const typeChoices: {
-    id: 'personal' | 'shared';
-    title: string;
-    description: string;
-  }[] = [
-    {
-      id: 'personal',
-      title: 'Personal',
-      description: 'Only you can access. Can be upgraded to shared later.',
-    },
-    {
-      id: 'shared',
-      title: 'Shared',
-      description: 'Invite team members to collaborate.',
-    },
-  ];
+  // Track changes for navigation guard
+  const hasChanges = $derived(() => {
+    if (!isEditMode) {
+      // For create mode, any input is a change
+      return projectTitle.trim() !== '' ||
+             projectDescription.trim() !== '' ||
+             selectedColor !== MOKU_COLOR_PALETTE[0] ||
+             selectedIcon !== VALID_PROJECT_ICONS[0] ||
+             projectType !== 'personal';
+    }
 
-  $effect(() => {
-    const dirty =
-      projectTitle.trim().length > 0 ||
-      projectDescription.trim().length > 0 ||
-      projectType !== 'personal';
-    setUnsavedChanges('add-project', dirty);
+    // For edit mode, compare with original
+    if (!project) return false;
+    const originalTitle = project.title || '';
+    const originalDescription = project.description || '';
+    const originalColor = normalizeColor(project.metadata?.color);
+    const originalIcon = normalizeIcon(project.metadata?.icon);
+
+    return (
+      projectTitle.trim() !== originalTitle ||
+      projectDescription.trim() !== originalDescription ||
+      selectedColor !== originalColor ||
+      selectedIcon !== originalIcon
+    );
   });
 
-  function resetForm() {
-    projectTitle = '';
-    projectDescription = '';
-    projectType = 'personal';
-    selectedColor = MOKU_COLOR_PALETTE[0];
-    selectedIcon = VALID_PROJECT_ICONS[0];
-    error = '';
-    hasAttemptedSubmit = false;
-    clearUnsavedChanges('add-project');
-  }
+  $effect(() => {
+    setUnsavedChanges(guardKey, hasChanges());
+  });
 
-  function handleCancel() {
-    clearUnsavedChanges('add-project');
-    push(ROUTE.PROJECTS); // Go back to projects list without ?create param
-  }
-
+  // Submit handler - branches based on mode
   async function handleSubmit(event?: Event) {
     event?.preventDefault();
-
-    // Mark that user has attempted to submit (show validation errors from now on)
     hasAttemptedSubmit = true;
 
     if (!isFormValid) {
@@ -115,19 +168,53 @@
         },
       };
 
-      const project = await projectService.createProject(input);
-
-      dispatch('created', { projectId: project.id });
-      clearUnsavedChanges('add-project');
-
-      // Navigate to project detail view
-      push(`/projects?projectId=${project.id}`);
+      if (isEditMode && project) {
+        // Update existing project
+        await projectService.updateProject(project.id, input);
+        clearUnsavedChanges(guardKey);
+        dispatch('updated', { projectId: project.id });
+        push(`${ROUTE.PROJECTS}?projectId=${project.id}`);
+      } else {
+        // Create new project
+        const newProject = await projectService.createProject(input);
+        clearUnsavedChanges(guardKey);
+        dispatch('created', { projectId: newProject.id });
+        push(`${ROUTE.PROJECTS}?projectId=${newProject.id}`);
+      }
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to create project. Please try again.';
+      error = err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} project. Please try again.`;
     } finally {
       isSubmitting = false;
     }
   }
+
+  function handleCancel() {
+    clearUnsavedChanges(guardKey);
+    dispatch('cancelled');
+
+    if (isEditMode && project) {
+      push(`${ROUTE.PROJECTS}?projectId=${project.id}`);
+    } else {
+      push(ROUTE.PROJECTS);
+    }
+  }
+
+  const typeChoices: {
+    id: 'personal' | 'shared';
+    title: string;
+    description: string;
+  }[] = [
+    {
+      id: 'personal',
+      title: 'Personal',
+      description: 'Only you can access. Can be upgraded to shared later.',
+    },
+    {
+      id: 'shared',
+      title: 'Shared',
+      description: 'Invite team members to collaborate.',
+    },
+  ];
 </script>
 
 <CreatePageLayout>
@@ -175,27 +262,39 @@
         {/if}
       </div>
 
-      <!-- Type Selector -->
+      <!-- Type Field - Conditional rendering based on mode -->
       <div class="form-group">
-        <span class="field-label">Project Type *</span>
-        <div class="type-options" role="radiogroup" aria-label="Project type">
-          {#each typeChoices as choice (choice.id)}
-            <button
-              type="button"
-              class="type-option"
-              class:active={projectType === choice.id}
-              role="radio"
-              aria-checked={projectType === choice.id}
-              onclick={() => (projectType = choice.id)}
-              disabled={isSubmitting}
-            >
-              <div class="option-header">
-                <span>{choice.title}</span>
-              </div>
-              <p>{choice.description}</p>
-            </button>
-          {/each}
-        </div>
+        <span class="field-label">Project Type{isEditMode ? '' : ' *'}</span>
+
+        {#if isEditMode}
+          <!-- Edit mode: Read-only badge -->
+          <div class="read-only-field">
+            <span class="type-badge type-{project?.type}">
+              {project?.type === 'personal' ? 'Personal' : 'Shared'}
+            </span>
+            <span class="hint-text">Project type cannot be changed after creation</span>
+          </div>
+        {:else}
+          <!-- Create mode: Type selector -->
+          <div class="type-options" role="radiogroup" aria-label="Project type">
+            {#each typeChoices as choice (choice.id)}
+              <button
+                type="button"
+                class="type-option"
+                class:active={projectType === choice.id}
+                role="radio"
+                aria-checked={projectType === choice.id}
+                onclick={() => (projectType = choice.id)}
+                disabled={isSubmitting}
+              >
+                <div class="option-header">
+                  <span>{choice.title}</span>
+                </div>
+                <p>{choice.description}</p>
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
 
       <!-- Color Picker -->
@@ -215,16 +314,20 @@
       {/if}
 
       <footer class="actions">
-        <button type="button" class="ghost" onclick={handleCancel} disabled={isSubmitting}>
+        <button type="button" class="btn-ghost" onclick={handleCancel} disabled={isSubmitting}>
           Cancel
         </button>
         <button
           type="submit"
-          class="primary"
-          disabled={isSubmitting || !isFormValid}
+          class="btn-primary {isSubmitting ? 'btn-loading' : ''}"
+          disabled={isSubmitting || (hasAttemptedSubmit && !isFormValid) || (isEditMode && !hasChanges())}
           aria-busy={isSubmitting}
         >
-          {isSubmitting ? 'Creating...' : 'Create Project'}
+          {#if !isSubmitting}
+            {isEditMode ? 'Save Changes' : 'Create Project'}
+          {:else}
+            &nbsp;
+          {/if}
         </button>
       </footer>
     </form>
@@ -299,7 +402,7 @@
   input[aria-invalid='true']:focus,
   textarea[aria-invalid='true']:focus {
     border-color: var(--error-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--error-color) 35%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--error-color) 25%, transparent);
   }
 
   textarea {
@@ -307,6 +410,7 @@
     min-height: 120px;
   }
 
+  /* Type selector for create mode */
   .type-options {
     display: grid;
     gap: 1rem;
@@ -346,6 +450,43 @@
     line-height: 1.4;
   }
 
+  /* Read-only type display for edit mode */
+  .read-only-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface-ground);
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    width: fit-content;
+  }
+
+  .type-badge.type-personal {
+    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+    color: var(--primary-color);
+  }
+
+  .type-badge.type-shared {
+    background: color-mix(in srgb, var(--green-500) 15%, transparent);
+    color: var(--green-500);
+  }
+
+  .hint-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
   .error-banner {
     padding: 0.75rem 1rem;
     border-radius: 8px;
@@ -361,31 +502,6 @@
     flex-wrap: wrap;
   }
 
-  button {
-    border-radius: 999px;
-    padding: 0.75rem 1.5rem;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-  }
-
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .ghost {
-    background: transparent;
-    border: 1px solid var(--surface-border);
-    color: var(--text-primary);
-  }
-
-  .primary {
-    background: var(--primary-color);
-    color: #fff;
-  }
-
   @media (max-width: 560px) {
     .actions {
       flex-direction: column-reverse;
@@ -397,3 +513,4 @@
     }
   }
 </style>
+

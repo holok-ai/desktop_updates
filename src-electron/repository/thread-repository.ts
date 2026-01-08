@@ -469,6 +469,37 @@ export class ThreadRepository {
   }
 
   /**
+   * Assign/unassign a thread to/from a project (persists via API).
+   *
+   * @param threadId - Thread ID
+   * @param projectId - Target project ID or null to unassign
+   */
+  public async setThreadProjectId(threadId: string, projectId: string | null): Promise<Thread> {
+    const thread = this.threadsById.get(threadId) ?? (await this.loadThread(threadId));
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const nextMetadata: ThreadMetadata = { ...(thread.metadata ?? {}) };
+    nextMetadata.projectId = projectId;
+    // Keep type consistent for downstream filtering/UI
+    nextMetadata.type = projectId ? 'project' : 'personal';
+
+    try {
+      await threadApiService.updateThread(threadId, {
+        projectId,
+        metadata: nextMetadata as Record<string, unknown>,
+      });
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to update thread project assignment via API:', error);
+      // Still update local cache so UI isn't stuck; next fetch may reconcile
+    }
+
+    const updatedLocal = this.updateThreadMetadata(threadId, nextMetadata);
+    return this.cloneThread(updatedLocal);
+  }
+
+  /**
    * Rename a thread with title history tracking
    * @param threadId - The thread ID to rename
    * @param newTitle - The new title (will be validated)

@@ -56,6 +56,7 @@ export interface CreateThreadRequest {
 export interface UpdateThreadRequest {
   title?: string;
   status?: 'active' | 'archived' | 'deleted';
+  projectId?: string | null;
   metadata?: Record<string, unknown>;
 }
 

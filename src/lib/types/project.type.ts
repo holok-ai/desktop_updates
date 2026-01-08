@@ -7,7 +7,7 @@ export type ProjectPrivacyMode = 'default' | 'project_only';
  */
 export interface Project {
     id: GUID;
-    name: string;
+    title: string; // Canonical display name
     description: string | null;
     type: 'personal' | 'shared';
     active: boolean;

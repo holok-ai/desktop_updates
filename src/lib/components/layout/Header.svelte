@@ -27,7 +27,7 @@
   <div class="user-section">
     {#if $currentUser}
       <span>{$currentUser.name}</span>
-      <button class="logout-button" onclick={handleLogout}>Logout</button>
+      <button class="btn-ghost logout-button" onclick={handleLogout}>Logout</button>
     {/if}
   </div>
 </header>
@@ -56,17 +56,6 @@
   }
 
   .logout-button {
-    background: transparent;
-    border: 1px solid var(--surface-border);
     color: var(--text-active);
-    padding: calc(var(--inline-spacing) * 0.75) var(--content-padding);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .logout-button:hover {
-    background: var(--surface-hover);
-    border-color: var(--border-active);
   }
 </style>

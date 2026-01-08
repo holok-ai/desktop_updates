@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { selectedProjectStore } from '$lib/stores/selected-project.store';
   import type { Project } from '$lib/types/project.type';
 
-  let { project }: { project: Project } = $props();
+  const project = $derived($selectedProjectStore as Project);
+  // Type assertion is safe because parent only renders this when project exists
 </script>
 
 {#if !project?.members || project.members.length === 0}

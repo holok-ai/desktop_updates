@@ -13,13 +13,14 @@
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
   import { storageService } from '$lib/services/storage.service';
-  import ProjectCreatePanel from '$lib/components/projects/ProjectCreatePanel.svelte';
+  import ProjectFormPanel from '$lib/components/projects/ProjectFormPanel.svelte';
   import ProjectDetailView from '$lib/components/projects/ProjectDetailView.svelte';
   import { clearUnsavedChanges } from '$lib/stores/navigation-guard.store';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
 
-  let selectedProjectId: string | null = $state(null);
+  import { selectedProjectStore } from '$lib/stores/selected-project.store';
+
   let showCreatePanel = $state(false); // Track if we should show create panel
   let isLoading = $state(true);
   let showFormModal = $state(false);
@@ -40,9 +41,7 @@
   });
 
   // Derive selectedProject from store so it auto-updates
-  const selectedProject = $derived(
-    selectedProjectId ? ($projects.find((p) => p.id === selectedProjectId) ?? null) : null,
-  );
+  const selectedProject = $derived($selectedProjectStore);
 
   onMount(() => {
     isLoading = true;
@@ -94,7 +93,7 @@
 
       // Check for ?create param to show create panel
       if (params.has('create')) {
-        selectedProjectId = null;
+        selectedProjectStore.clear();
         showCreatePanel = true;
         storageService.removeLastProjectId();
         return; // Stop here to show create panel
@@ -109,8 +108,8 @@
         const found = currentProjects.find((project) => project.id === projectId);
         if (found) {
           // Only fetch if this is a new project selection
-          if (selectedProjectId !== projectId) {
-            selectedProjectId = projectId;
+          if (selectedProject?.id !== projectId) {
+            selectedProjectStore.select(projectId);
             // Load full project details with members
             (async () => {
               try {
@@ -125,13 +124,13 @@
           // No special refresh loop; list reacts to $threads via IPC updates
         } else {
           // Project not found (possibly deleted), clear selection
-          selectedProjectId = null;
+          selectedProjectStore.clear();
           storageService.removeLastProjectId();
           replace(ROUTE.PROJECTS);
         }
       } else {
         // No projectId in URL - show empty state
-        selectedProjectId = null;
+        selectedProjectStore.clear();
       }
     });
     return unsubscribe;
@@ -167,7 +166,7 @@
   function handleCreate() {
     projectToEdit = null;
     showFormModal = false;
-    selectedProjectId = null;
+    selectedProjectStore.clear();
     storageService.removeLastProjectId();
     replace(ROUTE.PROJECTS);
   }
@@ -180,7 +179,7 @@
   }
 
   function handleDeleteSuccess() {
-    selectedProjectId = null;
+    selectedProjectStore.clear();
     storageService.removeLastProjectId();
     replace(ROUTE.PROJECTS);
   }
@@ -228,7 +227,7 @@
     if (!projectId) {
       return;
     }
-    selectedProjectId = projectId;
+    selectedProjectStore.select(projectId);
     storageService.setLastProjectId(projectId);
     replace(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(projectId)}`);
   }
@@ -248,10 +247,10 @@
     <div class="loading">Loading projects...</div>
   {:else if showCreatePanel || !selectedProject}
     <!-- Show create form when ?create=true OR no project selected -->
-    <ProjectCreatePanel on:created={handleProjectCreated} />
+    <ProjectFormPanel mode="create" on:created={handleProjectCreated} />
   {:else}
     <!-- E3-S6: Use ProjectDetailView component for tabbed dashboard -->
-    <ProjectDetailView project={selectedProject} />
+    <ProjectDetailView />
   {/if}
 </div>
 
@@ -278,142 +277,6 @@
     justify-content: center;
     height: 100%;
     color: var(--text-secondary);
-  }
-
-  .project-detail {
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  .project-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--surface-border);
-  }
-
-  .project-info h1 {
-    margin: 0 0 0.5rem 0;
-    font-size: 2rem;
-    color: var(--text-primary);
-  }
-
-  .description {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 1rem;
-  }
-
-  .project-actions {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  .btn-secondary,
-  .btn-danger {
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .btn-secondary {
-    background: var(--surface-overlay);
-    color: var(--text-primary);
-  }
-
-  .btn-secondary:hover {
-    background: var(--surface-hover);
-  }
-
-  .btn-danger {
-    background: var(--error-color);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    filter: brightness(0.9);
-  }
-
-  .project-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .stat-card {
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    padding: 1.5rem;
-  }
-
-  .stat-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .stat-value {
-    font-size: 2rem;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .project-content {
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    padding: 1.5rem;
-  }
-
-  .project-thread-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 1rem;
-  }
-
-  .project-content h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-  }
-
-  .project-content p {
-    margin: 0;
-    color: var(--text-secondary);
-  }
-
-  .empty-threads {
-    text-align: center;
-    padding: 2rem;
-    color: var(--text-secondary);
-  }
-
-  .empty-threads p {
-    margin: 0;
-  }
-
-  .empty-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-    font-size: 1.1rem;
   }
 
   .error-banner {
@@ -451,110 +314,5 @@
 
   .error-close:hover {
     background: rgba(255, 255, 255, 0.2);
-  }
-  .badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    color: var(--text-primary);
-    font-size: 0.875rem;
-  }
-
-  .badge.personal {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: rgba(59, 130, 246, 0.35);
-    color: #3b82f6;
-  }
-
-  .badge.shared {
-    background: rgba(168, 85, 247, 0.1);
-    border-color: rgba(168, 85, 247, 0.35);
-    color: #a855f7;
-  }
-
-  .members-section {
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .members-section h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-  }
-
-  .members-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .member-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    background: var(--surface-main);
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-    transition: background 0.2s;
-  }
-
-  .member-item:hover {
-    background: var(--surface-hover);
-  }
-
-  .member-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .member-name {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .member-email {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-  }
-
-  .member-role {
-    display: flex;
-    align-items: center;
-  }
-
-  .role-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-transform: capitalize;
-  }
-
-  .role-badge.role-owner {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #ef4444;
-  }
-
-  .role-badge.role-editor {
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    color: #3b82f6;
-  }
-
-  .role-badge.role-viewer {
-    background: rgba(107, 114, 128, 0.1);
-    border: 1px solid rgba(107, 114, 128, 0.35);
-    color: #6b7280;
   }
 </style>

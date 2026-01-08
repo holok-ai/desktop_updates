@@ -106,7 +106,7 @@
           },
         });
       } else {
-        // This modal is only for editing, creation happens in ProjectCreatePanel
+        // This modal is only for editing; project creation happens via ProjectFormPanel (inline create flow).
         throw new Error('Cannot create projects from this modal');
       }
 

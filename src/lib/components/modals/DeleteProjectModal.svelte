@@ -20,8 +20,8 @@
   let error = $state('');
   let threadCount = $state(0);
 
-  // Get display title from either title or name field
-  const projectTitle = $derived(project ? (project.title || project.name || 'Untitled Project') : 'Untitled Project');
+  // Get display title from title field
+  const projectTitle = $derived(project ? (project.title || 'Untitled Project') : 'Untitled Project');
   const submitLabel = $derived(isDeleting ? 'Deleting...' : 'Delete Project');
 
   $effect(() => {
