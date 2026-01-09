@@ -87,6 +87,7 @@ class ThreadApiService {
    * Defaults to 'https://api.holok.ai' if not configured.
    */
   private getMokuApiUrl(): string {
+    log.info('[ThreadApiService] getMokuApiUrl called', getSettingsServiceInternal().getMokuApiUrl());
     try {
       return getSettingsServiceInternal().getMokuApiUrl() || 'https://api.holok.ai';
     } catch (error) {
@@ -402,6 +403,8 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async getMessage(messageId: string): Promise<MessageDTO> {
+    log.info('[ThreadApiService] getMessage called with:', messageId, 'mokuApiUrl:', this.getMokuApiUrl());
+
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
@@ -446,6 +449,8 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createMessage(threadId: string, request: CreateMessageRequest): Promise<MessageDTO> {
+    log.info('[ThreadApiService] createMessage called with:', request, 'mokuApiUrl:', this.getMokuApiUrl());
+
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');

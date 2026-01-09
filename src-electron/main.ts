@@ -163,6 +163,20 @@ function createMenu(): void {
       ],
     },
     {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo', label: 'Undo' },
+        { role: 'redo', label: 'Redo' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cut' },
+        { role: 'copy', label: 'Copy' },
+        { role: 'paste', label: 'Paste' },
+        { role: 'pasteAndMatchStyle', label: 'Paste and Match Style' },
+        { role: 'delete', label: 'Delete' },
+        { role: 'selectAll', label: 'Select All' },
+      ],
+    },
+    {
       label: 'Help',
       submenu: [
         {

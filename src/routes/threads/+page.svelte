@@ -369,7 +369,6 @@
 
 <style>
   .threads-page {
-    max-width: 1200px;
     flex: 1;
     min-height: 0;
     display: flex;

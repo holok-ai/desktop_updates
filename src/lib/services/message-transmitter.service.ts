@@ -1,7 +1,7 @@
 import { wrapElectronCall } from '$lib/utils/apiWrapper';
 import { MESSAGE_STATUS } from '$lib/constants/status.constant';
 import type { MessageStatus } from '$lib/types/status.type';
-import type { Message } from '$lib/types/thread.type';
+import type { Message, BranchType } from '$lib/types/thread.type';
 import { outboxService } from './outbox.service';
 import { threadService } from './thread.service';
 import type { Thread } from '../../../src-electron/preload';
@@ -80,6 +80,10 @@ export class MessageTransmitter {
         content: message.content,
         metadata,
         clientMessageId: message.clientMessageId,
+        parentMessageId: message.parentMessageId ?? null,
+        branchIndex: message.branchIndex ?? 0,
+        branchType: message.branchType ?? null,
+        modelId: message.modelId ?? null,
       });
 
       const persisted = await Promise.race([persistPromise, timeoutPromise]);
@@ -144,10 +148,28 @@ export class MessageTransmitter {
   /**
    * Send user message and handle persistence
    */
-  async sendUserMessage(userMsg: Message, thread: Thread | null, isOnline: boolean): Promise<void> {
+  async sendUserMessage(
+    userMsg: Message,
+    thread: Thread | null,
+    isOnline: boolean,
+    branchInfo?: {
+      parentMessageId: string | null;
+      branchIndex: number;
+      branchType: BranchType | null;
+      modelId: string | null;
+    },
+  ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
+
+    // Update message with branch info if provided
+    if (branchInfo) {
+      userMsg.parentMessageId = branchInfo.parentMessageId;
+      userMsg.branchIndex = branchInfo.branchIndex;
+      userMsg.branchType = branchInfo.branchType;
+      userMsg.modelId = branchInfo.modelId;
+    }
 
     // Add to outbox for resilience
     if (thread !== null && isPermanent) {
@@ -172,6 +194,7 @@ export class MessageTransmitter {
     responseText: string,
     thread: Thread | null,
     userMessage: string,
+    userMessageObj?: Message,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
@@ -181,11 +204,21 @@ export class MessageTransmitter {
       // Append assistant response to existing thread
       const metadata = this.extractMessageMetadata(thread);
 
+      // Use branch info from the user message if available
+      const parentMessageId = userMessageObj?.id ?? null;
+      const branchIndex = userMessageObj?.branchIndex ?? 0;
+      const branchType = userMessageObj?.branchType ?? null;
+      const modelId = userMessageObj?.modelId ?? null;
+
       const assistantPersist = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
         metadata,
         clientMessageId: crypto.randomUUID(),
+        parentMessageId,
+        branchIndex,
+        branchType,
+        modelId,
       });
 
       const assistantMsg: Message = {
@@ -194,10 +227,10 @@ export class MessageTransmitter {
         content: responseText,
         createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
         status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
-        parentMessageId: null,
-        branchIndex: 0,
-        branchType: null,
-        modelId: null,
+        parentMessageId,
+        branchIndex,
+        branchType,
+        modelId,
       };
 
       this.callbacks.onMessageAdd(assistantMsg);

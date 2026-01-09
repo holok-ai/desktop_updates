@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import type { Thread } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
-import type { Message } from '$lib/types/thread.type.js';
+import type { Message, BranchType } from '$lib/types/thread.type.js';
+import { getNextBranchIndex } from '$lib/utils/branch-utils.js';
 
 class ThreadService {
   constructor() {
@@ -71,6 +72,10 @@ class ThreadService {
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
+      parentMessageId?: string | null;
+      branchIndex?: number;
+      branchType?: BranchType;
+      modelId?: string | null;
     },
   ): Promise<
     | {
@@ -92,6 +97,18 @@ class ThreadService {
     };
     if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
       (wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
+    }
+    if (payload.parentMessageId !== undefined) {
+      (wirePayload as Record<string, unknown>).parent_message_id = payload.parentMessageId;
+    }
+    if (payload.branchIndex !== undefined) {
+      (wirePayload as Record<string, unknown>).branch_index = payload.branchIndex;
+    }
+    if (payload.branchType !== undefined && payload.branchType !== null) {
+      (wirePayload as Record<string, unknown>).branch_type = payload.branchType;
+    }
+    if (payload.modelId !== undefined && payload.modelId !== null) {
+      (wirePayload as Record<string, unknown>).model_id = payload.modelId;
     }
     const res: unknown = await window.electronAPI.thread.appendMessage(threadId, wirePayload);
     if (
@@ -205,6 +222,75 @@ class ThreadService {
   ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
     const res: unknown = await window.electronAPI.thread.deleteMessagesAfter(threadId, messageId);
     return res as { success: true; thread: Thread } | { success: false; error: string };
+  }
+
+  /**
+   * Create a prompt or model variation branch
+   * @param threadId - Thread ID
+   * @param originalMessageId - The user message being varied (we'll use its parent as the branch point)
+   * @param content - New prompt content
+   * @param branchType - 'prompt-variation' or 'model-variation'
+   * @param modelId - Model ID (required for model-variation)
+   * @param messages - Current messages array for calculating branch index
+   */
+  async createVariation(
+    threadId: string,
+    originalMessageId: string,
+    content: string,
+    branchType: BranchType,
+    modelId: string | null,
+    messages: Message[],
+  ): Promise<
+    | { success: true; message: Message; branchIndex: number }
+    | { success: false; error: string }
+  > {
+    // Find the original message to get its parent
+    const originalMessage = messages.find((m) => m.id === originalMessageId);
+    if (!originalMessage) {
+      return { success: false, error: 'Original message not found' };
+    }
+
+    // The parent of the variation is the original user message itself
+    const parentMessageId = originalMessageId;
+
+    // Calculate next branch index for this specific user message (will throw if limit reached)
+    let branchIndex: number;
+    try {
+      branchIndex = getNextBranchIndex(messages, parentMessageId, branchType);
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Branch limit reached' };
+    }
+
+    const clientMessageId = crypto.randomUUID();
+
+    const res = await this.appendMessage(threadId, {
+      role: 'user',
+      content,
+      metadata: {},
+      clientMessageId,
+      parentMessageId,
+      branchIndex,
+      branchType,
+      modelId,
+    });
+
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
+
+    const message: Message = {
+      id: res.message.id,
+      role: 'user',
+      content,
+      createdAt: res.message.createdAt,
+      clientMessageId,
+      parentMessageId,
+      branchIndex,
+      branchType,
+      modelId,
+    };
+
+    return { success: true, message, branchIndex };
   }
 }
 

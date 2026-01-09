@@ -282,43 +282,103 @@ export class ThreadRepository {
       thread = loadedThread;
     }
 
-    // Create local message object (no API call)
-    // Messages are created by Holo system and fetched via API later
-    const now = Date.now();
-    const message: Message = {
-      id: crypto.randomUUID(), // Temporary local ID
-      title: thread.title,
-      role: payload.role,
-      content: payload.content,
-      createdAt: now,
-      metadata: payload.metadata as MessageMetadata | undefined,
-      clientMessageId: payload.clientMessageId,
-      deletedAt: null,
-      parentMessageId: payload.parentMessageId ?? null,
-      branchIndex: payload.branchIndex ?? 0,
-      branchType: payload.branchType ?? null,
-      modelId: payload.modelId ?? null,
-    };
+    // Create message via API to persist branch information
+    try {
+      const createRequest: CreateMessageRequest = {
+        role: payload.role,
+        content: payload.content,
+        parentMessageId: payload.parentMessageId ?? null,
+        // branchIndex defaults to 0 (main branch) if not provided
+        branchIndex: payload.branchIndex ?? 0,
+        branchType: payload.branchType ?? undefined,
+        model: payload.modelId ?? undefined,
+        provider: payload.metadata?.provider as string | undefined,
+        metadata: payload.metadata,
+        // requestId should only be set for assistant messages with a valid LLM request ID
+        // For user messages, omit it (no LLM call yet)
+        // For assistant messages, it should come from the LLM audit (llm_requests table)
+        requestId: payload.role === 'assistant' && payload.metadata?.requestId 
+          ? (payload.metadata.requestId as string)
+          : undefined,
+      };
 
-    log.info('[ThreadRepository] Created local message (no API call):', message.id);
+      log.info('[ThreadRepository] Creating message via API with branch info:', threadId, JSON.stringify(createRequest, null, 2));
 
-    // Update local cache
-    thread.messages.push(message);
-    thread.updatedAt = now;
-    this.threadsById.set(thread.id, thread);
+      const messageDTO = await threadApiService.createMessage(threadId, createRequest);
+      
+      log.info('[ThreadRepository] MessageDTO received from API:', JSON.stringify(messageDTO, null, 2));
 
-    // Update idempotency index
-    if (payload.clientMessageId) {
-      let byThread = this.idempotencyIndex.get(threadId);
-      if (!byThread) {
-        byThread = new Map();
-        this.idempotencyIndex.set(threadId, byThread);
+      // Map DTO to internal Message format
+      const message: Message = {
+        id: messageDTO.id,
+        title: thread.title,
+        role: messageDTO.role as MessageRole,
+        content: messageDTO.content,
+        createdAt: new Date(messageDTO.createdAt).getTime(),
+        metadata: messageDTO.metadata as MessageMetadata | undefined,
+        clientMessageId: payload.clientMessageId,
+        deletedAt: null,
+        parentMessageId: messageDTO.parentMessageId,
+        branchIndex: messageDTO.branchIndex,
+        branchType: (messageDTO.branchType as BranchType) ?? null,
+        modelId: messageDTO.model ?? null,
+      };
+
+      log.info('[ThreadRepository] Message created via API:', message.id);
+
+      // Update local cache
+      thread.messages.push(message);
+      thread.updatedAt = Date.now();
+      this.threadsById.set(thread.id, thread);
+
+      // Update idempotency index
+      if (payload.clientMessageId) {
+        let byThread = this.idempotencyIndex.get(threadId);
+        if (!byThread) {
+          byThread = new Map();
+          this.idempotencyIndex.set(threadId, byThread);
+        }
+        byThread.set(payload.clientMessageId, message.id);
       }
-      byThread.set(payload.clientMessageId, message.id);
-    }
 
-    log.info('[ThreadRepository] Message cached locally (will be fetched from API later)');
-    return { ...message };
+      return { ...message };
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to create message via API, falling back to local cache:', error);
+      
+      // Fallback to local cache if API call fails
+      const now = Date.now();
+      const message: Message = {
+        id: crypto.randomUUID(), // Temporary local ID
+        title: thread.title,
+        role: payload.role,
+        content: payload.content,
+        createdAt: now,
+        metadata: payload.metadata as MessageMetadata | undefined,
+        clientMessageId: payload.clientMessageId,
+        deletedAt: null,
+        parentMessageId: payload.parentMessageId ?? null,
+        branchIndex: payload.branchIndex ?? 0,
+        branchType: payload.branchType ?? null,
+        modelId: payload.modelId ?? null,
+      };
+
+      // Update local cache
+      thread.messages.push(message);
+      thread.updatedAt = now;
+      this.threadsById.set(thread.id, thread);
+
+      // Update idempotency index
+      if (payload.clientMessageId) {
+        let byThread = this.idempotencyIndex.get(threadId);
+        if (!byThread) {
+          byThread = new Map();
+          this.idempotencyIndex.set(threadId, byThread);
+        }
+        byThread.set(payload.clientMessageId, message.id);
+      }
+
+      return { ...message };
+    }
   }
 
   /**

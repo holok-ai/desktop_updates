@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import AttachmentPreview from './AttachmentPreview.svelte';
   import type { Attachment } from '../../../src-shared/types/attachment.types';
+  import { copyToInputStore, clearCopyToInput } from '$lib/services/clipboard.service';
 
   // Props from ChatPane slot
   interface Props {
@@ -14,9 +16,24 @@
   let text = $state('');
   let selectedFiles = $state<File[]>([]);
   let fileInputRef: HTMLInputElement | undefined = $state();
+  let textareaRef: HTMLTextAreaElement | undefined = $state();
   let isDragging = $state(false);
   let dragCounter = $state(0); // Track nested drag enter/leave events
   let validationError = $state('');
+
+  // Listen for copy-to-input requests
+  let unsubCopyToInput: (() => void) | undefined;
+  onMount(() => {
+    unsubCopyToInput = copyToInputStore.subscribe((content) => {
+      if (content !== null) {
+        text = content;
+        clearCopyToInput();
+        // Focus the textarea
+        setTimeout(() => textareaRef?.focus(), 0);
+      }
+    });
+  });
+  onDestroy(() => unsubCopyToInput?.());
 
   function handleFileSelect() {
     fileInputRef?.click();
@@ -250,6 +267,7 @@
   <div class="input-container">
     <div class="textarea-wrapper">
       <textarea
+        bind:this={textareaRef}
         bind:value={text}
         placeholder="Enter a prompt ..."
         rows={3}

@@ -1,6 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
-import { projectRepository } from '../repository/project-repository.js';
 import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
 
@@ -11,10 +10,10 @@ import type {
   ThreadMetadata,
   Message,
   MessageVersion,
+  BranchType,
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
-import { GUID } from '../../src/lib/types/app.type.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -589,6 +588,10 @@ export function registerThreadHandlers(): void {
         content: string;
         metadata?: Record<string, unknown>;
         client_message_id?: string;
+        parent_message_id?: string | null;
+        branch_index?: number;
+        branch_type?: string;
+        model_id?: string | null;
       },
     ): Promise<
       | {
@@ -598,6 +601,7 @@ export function registerThreadHandlers(): void {
         }
       | { success: false; status: number; error: string; thread_id?: string }
     > => {
+      threadLog.info('[thread:appendMessage] IPC handler called with', payload);
       const auth = getAuthService();
 
       // Authorization check
@@ -633,11 +637,47 @@ export function registerThreadHandlers(): void {
       }
 
       try {
+        // Extract branch information from payload or metadata
+        const parentMessageId = payload.parent_message_id ?? 
+          (payload.metadata?.parentMessageId as string | undefined) ?? null;
+        const branchIndex = payload.branch_index ?? 
+          (typeof payload.metadata?.branchIndex === 'number' ? payload.metadata.branchIndex : undefined);
+        const branchType: BranchType = payload.branch_type === 'prompt-variation' || payload.branch_type === 'model-variation' 
+          ? payload.branch_type 
+          : (typeof payload.metadata?.branchType === 'string' && 
+             (payload.metadata.branchType === 'prompt-variation' || payload.metadata.branchType === 'model-variation')
+             ? payload.metadata.branchType as BranchType
+             : null);
+        const modelId = payload.model_id ?? 
+          (payload.metadata?.modelId as string | undefined) ?? null;
+
+        threadLog.info('[thread:appendMessage] Received payload:', JSON.stringify({
+          threadId,
+          role: payload.role,
+          content: payload.content,
+          metadata: payload.metadata,
+          client_message_id: payload.client_message_id,
+          parent_message_id: parentMessageId,
+          branch_index: branchIndex,
+          branch_type: branchType,
+          model_id: modelId,
+        }, null, 2));
+        threadLog.info('[thread:appendMessage] Calling threadRepository.appendMessage', { threadId });
         const msg: Message = await threadRepository.appendMessage(threadId, {
           role: payload.role,
           content: payload.content,
           metadata: payload.metadata,
           clientMessageId: payload.client_message_id,
+          parentMessageId,
+          branchIndex,
+          branchType,
+          modelId,
+        });
+
+        threadLog.info('[thread:appendMessage] Message created successfully', {
+          messageId: msg.id,
+          threadId,
+          role: msg.role,
         });
 
         const rt = toRendererThread(await threadRepository.loadThread(threadId));
@@ -651,6 +691,7 @@ export function registerThreadHandlers(): void {
           timestamp: new Date(msg.createdAt).toISOString(),
         });
 
+        threadLog.info('[thread:appendMessage] Successfully completed', { messageId: msg.id, threadId });
         return {
           success: true,
           message: {

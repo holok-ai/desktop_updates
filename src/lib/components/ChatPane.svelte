@@ -6,7 +6,7 @@
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
   import { threadService } from '$lib/services/thread.service';
-  import type { Message } from '$lib/types/thread.type';
+  import type { Message, BranchType } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
   import FileWriteNotification from './chat/FileWriteNotification.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
@@ -14,7 +14,10 @@
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
-  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
+import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
+  import VariationModal from './branching/VariationModal.svelte';
+  import BranchLane from './branching/BranchLane.svelte';
+  import { assembleContext } from '$lib/utils/branch-utils';
 
   interface Props {
     thread?: Thread | null;
@@ -83,6 +86,10 @@
     if (previousThreadId !== thread?.id) {
       fileWriteEventService.clear();
       fileWriteEventsByMessageId = {};
+      // Reset branch selection when switching threads
+      activeBranchIndex = null;
+      selectedBranchContextMessageId = null;
+      showBranches = true;
     }
   });
 
@@ -99,6 +106,329 @@
   let showComments = $state(false);
   let toolStatusMessage = $state<string | null>(null); // For tool status balloon
   const dispatch = createEventDispatcher<{ threadCreated: { thread: Thread; tempId?: string } }>();
+
+  // Branching state
+  let showVariationModalFor = $state<Message | null>(null);
+  let variationError = $state('');
+  let isCreatingVariation = $state(false);
+  let activeBranchIndex = $state<number | null>(null);
+  let showBranches = $state(true); // Show all branches by default, hide when one is selected
+  let streamingBranchIndex = $state<number | null>(null); // Track which branch is currently streaming
+  let selectedBranchContextMessageId = $state<string | null>(null); // Track the last message in the selected branch for context
+  // Track streaming text per branch index for parallel variations
+  let streamingTextByBranch = $state<Map<number, string>>(new Map());
+  // Track the branch we're currently sending from (doesn't affect visual selection)
+  let sendingBranchIndex = $state<number | null>(null);
+  let sendingBranchContextMessageId = $state<string | null>(null);
+
+  function setActiveBranch(branchIndex: number) {
+    activeBranchIndex = branchIndex;
+    showBranches = false; // Hide other branches when one is selected
+    
+    // Find the last message in this branch to use as context endpoint
+    const branchBox = branchBoxes.find(b => b.branchIndex === branchIndex);
+    if (!branchBox) {
+      selectedBranchContextMessageId = null;
+      return;
+    }
+    
+    // Find the last message in this branch by following the chain
+    let lastMessage: Message | null = null;
+    
+    if (branchIndex === 0) {
+      // Main branch: find the last message with branchIndex 0
+      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
+      const messagesWithChildren = new Set(mainBranchMessages
+        .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
+        .map(m => m.id));
+      
+      lastMessage = mainBranchMessages
+        .filter(m => !messagesWithChildren.has(m.id))
+        .sort((a, b) => b.createdAt - a.createdAt)[0] 
+        ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
+    } else {
+      // Variation branch: follow the chain from the variation user message
+      const branchMessages: Message[] = [branchBox.userMessage];
+      let current = branchBox.userMessage;
+      
+      while (true) {
+        const child = messages.find(m => 
+          m.parentMessageId === current.id && 
+          (m.branchIndex ?? 0) === branchIndex
+        );
+        if (!child) break;
+        branchMessages.push(child);
+        current = child;
+      }
+      
+      lastMessage = branchMessages[branchMessages.length - 1] ?? branchBox.userMessage;
+    }
+    
+    if (lastMessage) {
+      selectedBranchContextMessageId = lastMessage.id;
+    } else if (branchBox.assistantMessage) {
+      selectedBranchContextMessageId = branchBox.assistantMessage.id;
+    } else if (branchBox.userMessage) {
+      selectedBranchContextMessageId = branchBox.userMessage.id;
+    } else {
+      selectedBranchContextMessageId = null;
+    }
+  }
+
+  // Handler for sending messages within a specific branch
+  // This allows users to continue chatting in a branch without making it the active branch
+  async function sendMessageInBranch(message: string, branchIndex: number) {
+    // Find the branch box to get branch info
+    const branchBox = branchBoxes.find(b => b.branchIndex === branchIndex);
+    if (!branchBox) {
+      console.error('[ChatPane] Branch box not found for branchIndex:', branchIndex);
+      return;
+    }
+
+    // Find the last message in this specific branch by following the parent-child chain
+    let lastMessageInBranch: Message | null = null;
+    const branchUserMsg = branchBox.userMessage;
+    
+    if (branchIndex === 0) {
+      // Main branch: find the last message with branchIndex 0
+      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
+      const messagesWithChildren = new Set(mainBranchMessages
+        .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
+        .map(m => m.id));
+      
+      lastMessageInBranch = mainBranchMessages
+        .filter(m => !messagesWithChildren.has(m.id))
+        .sort((a, b) => b.createdAt - a.createdAt)[0] 
+        ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
+    } else {
+      // Variation branch: follow the chain from the variation user message
+      const branchMessages: Message[] = [branchUserMsg];
+      let current = branchUserMsg;
+      
+      // Follow the chain: find children of current message with matching branchIndex
+      while (true) {
+        const child = messages.find(m => 
+          m.parentMessageId === current.id && 
+          (m.branchIndex ?? 0) === branchIndex
+        );
+        if (!child) break;
+        branchMessages.push(child);
+        current = child;
+      }
+      
+      // The last message in the chain is the parent for the new message
+      lastMessageInBranch = branchMessages[branchMessages.length - 1] ?? branchUserMsg;
+    }
+
+    // Store branch info for this send without changing activeBranchIndex (which controls selection)
+    const branchInfo = {
+      branchIndex,
+      branchType: branchBox.branchType,
+      modelId: branchBox.userMessage.modelId ?? null,
+      parentMessageId: lastMessageInBranch?.id ?? null,
+      contextMessageId: lastMessageInBranch?.id ?? null,
+    };
+
+    // Set sending branch context (doesn't affect visual selection)
+    sendingBranchIndex = branchInfo.branchIndex;
+    sendingBranchContextMessageId = branchInfo.contextMessageId;
+    
+    try {
+      // Call sendMessage which will use the sending branch context
+      await sendMessage(message);
+    } finally {
+      // Clear sending branch context after sending
+      sendingBranchIndex = null;
+      sendingBranchContextMessageId = null;
+    }
+  }
+
+  function toggleBranches() {
+    showBranches = !showBranches;
+  }
+
+  // Update selected branch context when new assistant messages are added to the selected branch
+  $effect(() => {
+    if (activeBranchIndex !== null) {
+      // Find the latest assistant message for the selected branch
+      const latestAssistant = messages
+        .filter(m => m.role === 'assistant' && (m.branchIndex ?? 0) === activeBranchIndex)
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      
+      if (latestAssistant && latestAssistant.id !== selectedBranchContextMessageId) {
+        selectedBranchContextMessageId = latestAssistant.id;
+      }
+    }
+  });
+
+  // First fork point: any USER message that has at least one child with branchIndex > 0
+  const firstForkPointId = $derived.by(() => {
+    // Find the earliest user message that has variation children
+    // This ensures we show the first fork point in the conversation
+    let earliestForkPoint: { id: string; index: number } | null = null;
+    
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role !== 'user') continue;
+      
+      // Check if this message has variation children (children with branchIndex > 0)
+      // Variations are user messages with parentMessageId pointing to this message
+      const hasVariationChild = messages.some(
+        (m) => m.parentMessageId === msg.id && m.role === 'user' && (m.branchIndex ?? 0) > 0,
+      );
+      
+      if (hasVariationChild) {
+        if (!earliestForkPoint || i < earliestForkPoint.index) {
+          earliestForkPoint = { id: msg.id, index: i };
+        }
+      }
+    }
+    
+    return earliestForkPoint?.id ?? null;
+  });
+
+  // Helper function to get all messages in a branch by following the parent-child chain
+  function getAllMessagesInBranch(startMessageId: string, branchIndex: number): Message[] {
+    const branchMessages: Message[] = [];
+    const messageMap = new Map(messages.map(m => [m.id, m]));
+    
+    // Start from the branch's first user message
+    let current = messageMap.get(startMessageId);
+    if (!current) return [];
+    
+    branchMessages.push(current);
+    
+    // Follow the chain: find all children with matching branchIndex
+    // For branchIndex 0, also include messages with null/undefined branchIndex (legacy messages)
+    while (true) {
+      const child = messages.find(m => {
+        if (m.parentMessageId !== current!.id) return false;
+        
+        // For branchIndex 0, accept messages with branchIndex 0 or null/undefined (legacy)
+        if (branchIndex === 0) {
+          return (m.branchIndex ?? 0) === 0;
+        }
+        
+        // For other branch indices, require exact match
+        return (m.branchIndex ?? 0) === branchIndex;
+      });
+      
+      if (!child) {
+        // For branchIndex 0, also check for legacy messages that come right after in the array
+        // (handles case where old messages don't have parentMessageId set)
+        if (branchIndex === 0) {
+          const currentIndex = messages.findIndex(m => m.id === current!.id);
+          if (currentIndex >= 0 && currentIndex < messages.length - 1) {
+            const nextMsg = messages[currentIndex + 1];
+            // If next message is assistant with branchIndex 0/null and no parentMessageId, include it
+            if (nextMsg.role === 'assistant' && 
+                (nextMsg.branchIndex ?? 0) === 0 && 
+                !nextMsg.parentMessageId &&
+                !branchMessages.some(m => m.id === nextMsg.id)) {
+              branchMessages.push(nextMsg);
+              current = nextMsg;
+              continue;
+            }
+          }
+        }
+        break;
+      }
+      branchMessages.push(child);
+      current = child;
+    }
+    
+    return branchMessages.sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  // Build branch boxes (original + variations) for rendering
+  const branchBoxes = $derived.by(() => {
+    if (!firstForkPointId) return [];
+    const parent = messages.find((m) => m.id === firstForkPointId && m.role === 'user');
+    if (!parent) return [];
+
+    // Get all user messages that are children of the fork point (variations)
+    // Only include variations (branchIndex > 0), not the parent itself
+    const variationChildren = messages.filter(
+      (m) => m.parentMessageId === parent.id && m.role === 'user' && (m.branchIndex ?? 0) > 0
+    );
+    
+    // Include the parent (original branch) and all variations
+    // The parent should have branchIndex 0 or null
+    const userBranches = [parent, ...variationChildren];
+    userBranches.sort((a, b) => (a.branchIndex ?? 0) - (b.branchIndex ?? 0));
+
+    return userBranches.map((userMsg) => {
+      const userBranchIndex = userMsg.branchIndex ?? 0;
+      
+      // Get all messages in this branch (following the parent-child chain)
+      const allBranchMessages = getAllMessagesInBranch(userMsg.id, userBranchIndex);
+      
+      // Separate user and assistant messages for display
+      const userMessages = allBranchMessages.filter(m => m.role === 'user');
+      const assistantMessages = allBranchMessages.filter(m => m.role === 'assistant');
+
+      return {
+        branchIndex: userBranchIndex,
+        branchType: userMsg.branchType ?? null,
+        userMessage: userMsg, // First user message (for header/identification)
+        assistantMessage: assistantMessages[assistantMessages.length - 1] ?? null, // Last assistant message
+        allMessages: allBranchMessages, // All messages in the branch for display
+      };
+    });
+  });
+
+  // Get all message IDs that should be excluded from normal display (fork point + all its descendants)
+  const excludedMessageIds = $derived.by(() => {
+    if (!firstForkPointId) return new Set<string>();
+    const excluded = new Set<string>([firstForkPointId]);
+    
+    // Collect all descendants of the fork point (including all assistant responses and variations)
+    const queue = [firstForkPointId];
+    const visited = new Set<string>([firstForkPointId]);
+    
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const children = messages.filter((m) => m.parentMessageId === currentId);
+      for (const child of children) {
+        if (!visited.has(child.id)) {
+          visited.add(child.id);
+          excluded.add(child.id);
+          queue.push(child.id);
+        }
+      }
+    }
+    
+    // Also exclude the original assistant response if it comes right after the fork point
+    // (handles case where old messages don't have parentMessageId set)
+    const forkPointIndex = messages.findIndex((m) => m.id === firstForkPointId);
+    if (forkPointIndex >= 0 && forkPointIndex < messages.length - 1) {
+      const nextMsg = messages[forkPointIndex + 1];
+      if (nextMsg.role === 'assistant' && (nextMsg.branchIndex ?? 0) === 0) {
+        excluded.add(nextMsg.id);
+      }
+    }
+    
+    return excluded;
+  });
+
+  // Split messages into before and after fork point
+  const messagesBeforeFork = $derived.by(() => {
+    if (!firstForkPointId) {
+      // No fork point, show all non-excluded messages
+      return messages.filter((m) => !excludedMessageIds.has(m.id));
+    }
+    const forkPointIndex = messages.findIndex((m) => m.id === firstForkPointId);
+    if (forkPointIndex < 0) return messages.filter((m) => !excludedMessageIds.has(m.id));
+    return messages.slice(0, forkPointIndex).filter((m) => !excludedMessageIds.has(m.id));
+  });
+
+  const messagesAfterFork = $derived.by(() => {
+    if (!firstForkPointId) return [];
+    const forkPointIndex = messages.findIndex((m) => m.id === firstForkPointId);
+    if (forkPointIndex < 0) return [];
+    return messages.slice(forkPointIndex + 1).filter((m) => !excludedMessageIds.has(m.id));
+  });
+
 
   // Scrolling state
   let messagesContainer: HTMLDivElement | null = $state(null);
@@ -291,7 +621,7 @@
   });
 
   // Initialize chat service with provider configuration
-  async function initializeChatService(config: ProviderConfig) {
+  async function initializeChatService(config: ProviderConfig): Promise<boolean> {
     console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
 
     const result = await window.electronAPI.chat.createProvider(config.provider, {
@@ -302,11 +632,12 @@
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
       console.error('[ChatPane] Failed to create chat provider:', result.error);
-      return;
+      return false;
     }
 
     chatServiceCreated = true;
     currentProviderConfig = config;
+    return true;
   }
 
   function showToast(message: string, ms = 2500) {
@@ -362,19 +693,197 @@
 
     if (!userMessage.trim() && attachments.length === 0) return;
 
-    // Build conversation history from existing messages (oldest -> newest)
-    const historyMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Build conversation history based on selected branch context
+    let historyMessages: Array<{ role: string; content: string }>;
+    
+    // Use sending branch context if sending from a branch box, otherwise use active branch
+    const contextBranchIndex = sendingBranchIndex !== null ? sendingBranchIndex : activeBranchIndex;
+    const contextMessageId = sendingBranchContextMessageId ?? selectedBranchContextMessageId;
+    
+    if (contextBranchIndex !== null && contextMessageId && contextBranchIndex > 0) {
+      // For variation branches, we need to exclude the fork point messages
+      // and follow the variation path instead
+      // Example: if variation "ok3" is created from "ok2", we want:
+      // root -> ... -> "ok3" -> "ok3 response" (NOT including "ok2" or its response)
+      
+      const selectedMsg = messages.find(m => m.id === contextMessageId);
+      if (!selectedMsg) {
+        // Fallback to default
+        historyMessages = messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+      } else {
+        // Find the variation user message
+        // If selectedMsg is assistant, its parent is the variation user
+        // If selectedMsg is user, it is the variation user
+        let variationUserMsg: Message | undefined;
+        if (selectedMsg.role === 'assistant') {
+          variationUserMsg = messages.find(m => m.id === selectedMsg.parentMessageId);
+        } else {
+          variationUserMsg = selectedMsg;
+        }
+        
+        if (!variationUserMsg) {
+          // Fallback to default
+          historyMessages = messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
+        } else {
+          // Find the fork point user message (parent of variation user)
+          const forkPointUser = messages.find(m => m.id === variationUserMsg.parentMessageId);
+          
+          if (!forkPointUser) {
+            // No fork point found, use variation path as-is
+            const variationPath = assembleContext(messages, contextMessageId);
+            historyMessages = variationPath.map((m) => ({
+              role: m.role,
+              content: m.content,
+            }));
+          } else {
+            // Build path from root to the fork point's parent (messages before the fork)
+            const pathBeforeFork = forkPointUser.parentMessageId 
+              ? assembleContext(messages, forkPointUser.parentMessageId)
+              : [];
+            
+            // Get variation messages: variation user and variation assistant
+            const variationMessages: Message[] = [];
+            if (variationUserMsg) {
+              variationMessages.push(variationUserMsg);
+            }
+            if (selectedMsg.role === 'assistant') {
+              variationMessages.push(selectedMsg);
+            }
+            
+            // Combine: messages before fork -> variation messages
+            const fullPath = [...pathBeforeFork, ...variationMessages];
+            
+            historyMessages = fullPath.map((m) => ({
+              role: m.role,
+              content: m.content,
+            }));
+          }
+        }
+      }
+    } else if (contextBranchIndex === 0) {
+      // For main branch (branchIndex 0), use assembleContext normally
+      if (contextMessageId) {
+        const contextPath = assembleContext(messages, contextMessageId);
+        historyMessages = contextPath.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+      } else {
+        historyMessages = messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+      }
+    } else {
+      // Default: use all messages (main branch)
+      historyMessages = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+    }
 
     error = '';
 
-    // Create and add optimistic message
+    // Determine branch info for the new message
+    let parentMessageId: string | null = null;
+    let branchIndex: number = 0;
+    let branchType: BranchType | null = null;
+    let modelId: string | null = null;
+
+    // Use sendingBranchIndex if we're sending from a branch box, otherwise use activeBranchIndex
+    const branchIndexToUse = sendingBranchIndex !== null ? sendingBranchIndex : activeBranchIndex;
+
+    if (branchIndexToUse !== null) {
+      branchIndex = branchIndexToUse;
+      
+      // Get branchType and modelId from the branch's user message
+      const branchBox = branchBoxes.find(b => b.branchIndex === branchIndexToUse);
+      if (branchBox) {
+        branchType = branchBox.branchType;
+        modelId = branchBox.userMessage.modelId ?? null;
+      }
+
+      // Find the last message in the branch by following the parent-child chain
+      // Start from the branch's user message and follow the chain
+      let lastMessageInBranch: Message | null = null;
+      
+      // Use sendingBranchContextMessageId if available, otherwise find it
+      if (sendingBranchContextMessageId) {
+        lastMessageInBranch = messages.find(m => m.id === sendingBranchContextMessageId) ?? null;
+      }
+      
+      if (!lastMessageInBranch) {
+        if (branchIndexToUse === 0) {
+          // Main branch: find the last message with branchIndex 0 by following the chain
+          const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
+          // Find the message with no children (leaf node) or the latest one
+          const messagesWithChildren = new Set(mainBranchMessages
+            .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
+            .map(m => m.id));
+          
+          lastMessageInBranch = mainBranchMessages
+            .filter(m => !messagesWithChildren.has(m.id))
+            .sort((a, b) => b.createdAt - a.createdAt)[0] 
+            ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
+        } else {
+          // Variation branch: follow the chain from the variation user message
+          const branchUserMsg = branchBox?.userMessage;
+          if (branchUserMsg) {
+            // Find all messages in this branch by following parent-child chain
+            const branchMessages: Message[] = [branchUserMsg];
+            let current = branchUserMsg;
+            
+            // Follow the chain: find children of current message with matching branchIndex
+            while (true) {
+              const child = messages.find(m => 
+                m.parentMessageId === current.id && 
+                (m.branchIndex ?? 0) === branchIndexToUse
+              );
+              if (!child) break;
+              branchMessages.push(child);
+              current = child;
+            }
+            
+            // The last message in the chain is the parent for the new message
+            lastMessageInBranch = branchMessages[branchMessages.length - 1] ?? branchUserMsg;
+          }
+        }
+      }
+
+      if (lastMessageInBranch) {
+        parentMessageId = lastMessageInBranch.id;
+      }
+    } else {
+      // No active branch: find the last message in main branch
+      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
+      const lastMessage = mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
+      
+      if (lastMessage) {
+        parentMessageId = lastMessage.id;
+        branchIndex = 0;
+      }
+    }
+
+    // Create and add optimistic message with branch info
     const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
+    userMsg.parentMessageId = parentMessageId;
+    userMsg.branchIndex = branchIndex;
+    userMsg.branchType = branchType;
+    userMsg.modelId = modelId;
 
     // Send the user message (handles outbox and persistence)
-    await transmitter.sendUserMessage(userMsg, thread, isOnline);
+    await transmitter.sendUserMessage(userMsg, thread, isOnline, {
+      parentMessageId,
+      branchIndex,
+      branchType,
+      modelId,
+    });
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
@@ -401,7 +910,8 @@
         console.error('Chat failed:', result.error);
       } else {
         // After streaming completes, handle assistant response
-        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage);
+        // Pass the user message object so assistant can inherit branch info
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -477,7 +987,9 @@
         console.error('[ChatPane] Chat failed:', chatResult.error);
         showToast(`Error generating response: ${chatResult.error}`);
       } else {
-        await transmitter.handleAssistantResponse(responseText, currentThread, newContent);
+        // Find the edited user message to pass branch info
+        const editedUserMessage = messages.find(m => m.id === messageId);
+        await transmitter.handleAssistantResponse(responseText, currentThread, newContent, editedUserMessage);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -497,6 +1009,258 @@
     if (message) {
       showVersionsFor = { messageId, content: message.content };
     }
+  }
+
+  // Branching handlers
+  function handleCreateVariation(messageId: string) {
+    const message = messages.find((m) => m.id === messageId);
+    if (message && message.role === 'user') {
+      showVariationModalFor = message;
+      variationError = '';
+    }
+  }
+
+  async function handleSubmitVariation(content: string, branchType: BranchType, modelIds: string[]) {
+    if (!currentThread || !showVariationModalFor) return;
+
+    isCreatingVariation = true;
+    variationError = '';
+
+    try {
+      // For prompt variations, create a single variation
+      if (branchType === 'prompt-variation') {
+        const result = await threadService.createVariation(
+          currentThread.id,
+          showVariationModalFor.id,
+          content,
+          branchType,
+          null,
+          messages,
+        );
+
+        if (!result.success) {
+          variationError = result.error;
+          return;
+        }
+
+        messages = [...messages, result.message];
+        showVariationModalFor = null;
+        await generateResponseForVariation(result.message);
+      } else {
+        // For model variations, create one variation per selected model
+        const createdMessages: Message[] = [];
+        
+        for (const modelId of modelIds) {
+          const result = await threadService.createVariation(
+            currentThread.id,
+            showVariationModalFor.id,
+            content,
+            branchType,
+            modelId,
+            messages,
+          );
+
+          if (!result.success) {
+            variationError = result.error;
+            // Continue with other models even if one fails
+            continue;
+          }
+
+          createdMessages.push(result.message);
+          messages = [...messages, result.message];
+        }
+        
+        // Force reactivity update to ensure branch boxes are recalculated
+        // The messages array update should trigger derived values, but we ensure it here
+        messages = messages;
+        
+        showVariationModalFor = null;
+
+        // Generate responses for all created variations sequentially
+        // This ensures each variation gets its own token stream without conflicts
+        for (const message of createdMessages) {
+          await generateResponseForVariation(message);
+        }
+      }
+    } catch (e) {
+      variationError = e instanceof Error ? e.message : 'Failed to create variation';
+    } finally {
+      isCreatingVariation = false;
+    }
+  }
+
+  async function generateResponseForVariation(userMessage: Message) {
+    if (!currentThread) return;
+
+    // Use a local variable to capture response text for this specific variation
+    let variationResponseText = '';
+    const branchIndex = userMessage.branchIndex ?? null;
+
+    try {
+      // Track streaming state for this specific branch
+      isStreaming = true;
+      streamingBranchIndex = branchIndex;
+      // Initialize streaming text for this branch
+      streamingTextByBranch.set(branchIndex, '');
+      
+      // Set up token listener that captures to local variable and updates branch-specific streaming text
+      // When running in parallel, each variation will update its own branch's streaming text
+      window.electronAPI.chat.offToken();
+      window.electronAPI.chat.onToken((token: string) => {
+        variationResponseText = variationResponseText + token;
+        // Update branch-specific streaming text
+        streamingTextByBranch.set(branchIndex, variationResponseText);
+        // Also update shared responseText for backward compatibility
+        responseText = variationResponseText;
+        scrollToBottom('auto');
+        if (streamingMessageEl) {
+          streamingMessageEl.scrollIntoView({ block: 'end', behavior: 'auto' });
+        }
+      });
+
+      // For variations, only send the variation question to avoid confusion
+      // The AI should treat each variation as a separate conversation
+      const historyMessages = [{
+        role: 'user' as const,
+        content: userMessage.content,
+      }];
+
+      // Get model details if modelId is provided (for model variations)
+      let modelToUse = userMessage.modelId || modelName;
+      let providerToUse = modelProvider;
+      let urlToUse = modelUrl;
+
+      // If we have a modelId (accessName), try to find the model details to get provider/url
+      if (userMessage.modelId) {
+        try {
+          const allModels = await window.electronAPI.models.listAll();
+          const modelDetails = allModels.find(m => m.accessName === userMessage.modelId);
+          if (modelDetails) {
+            modelToUse = modelDetails.accessName;
+            providerToUse = modelDetails.provider;
+            urlToUse = modelDetails.url;
+          }
+        } catch (err) {
+          console.error('[ChatPane] Failed to get model details:', err);
+          // Fall back to using thread model
+        }
+      }
+
+      // Initialize chat service for this model if needed
+      // Check if model is different from current thread's model
+      const modelIsDifferent = modelToUse !== modelName || 
+        providerToUse !== modelProvider || 
+        urlToUse !== modelUrl;
+      
+      // Check if current provider config matches what we need
+      const configMatches = currentProviderConfig &&
+        currentProviderConfig.provider === providerToUse &&
+        currentProviderConfig.url === urlToUse &&
+        currentProviderConfig.model === modelToUse;
+      
+      // Initialize if: service not created, or model is different and config doesn't match
+      if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+        const initSuccess = await initializeChatService({
+          provider: providerToUse,
+          url: urlToUse,
+          model: modelToUse,
+        });
+        
+        if (!initSuccess) {
+          error = error || 'Chat service not initialized';
+          console.error('[ChatPane] Chat service not initialized for variation');
+          return;
+        }
+        
+        // Wait a bit for service to be ready
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      const request = {
+        messages: historyMessages,
+        streaming: true,
+        model: modelToUse,
+        ...(currentThread?.id && { thread_id: currentThread.id }),
+      };
+
+      // For variations, use plain chat (no tools) to avoid long-running tool loops
+      const result = await window.electronAPI.chat.chat(request);
+
+      if (!result.success) {
+        error = result.error || 'Chat failed';
+        console.error('[ChatPane] Variation chat failed:', result.error);
+        return;
+      }
+
+      // Wait a bit to ensure all tokens are received
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Save assistant response as part of the variation branch
+      // The assistant response should be a child of the variation user message
+      const metadata = {
+        parentMessageId: userMessage.id,
+        branchIndex: userMessage.branchIndex,
+      };
+      const assistantPersist = await threadService.appendMessage(currentThread.id, {
+        role: 'assistant',
+        content: variationResponseText,
+        metadata,
+        clientMessageId: crypto.randomUUID(),
+      });
+
+      const assistantMsg: Message = {
+        id: assistantPersist.success ? assistantPersist.message.id : crypto.randomUUID(),
+        role: 'assistant',
+        content: variationResponseText,
+        createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
+        parentMessageId: userMessage.id,
+        branchIndex: userMessage.branchIndex,
+        branchType: userMessage.branchType,
+        modelId: userMessage.modelId,
+      };
+
+      // Add assistant message to the local messages array
+      messages = [...messages, assistantMsg];
+      
+      // Clear streaming text for this branch
+      streamingTextByBranch.delete(branchIndex);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[ChatPane] Error generating variation response:', err);
+      // Clear streaming text on error
+      streamingTextByBranch.delete(branchIndex);
+    } finally {
+      // When running in parallel, multiple variations may be streaming
+      // Check if any branches are still streaming
+      const hasStreamingBranches = streamingTextByBranch.size > 0;
+      if (!hasStreamingBranches) {
+        isStreaming = false;
+        streamingBranchIndex = null;
+        responseText = '';
+      } else if (streamingBranchIndex === branchIndex) {
+        // If this was the last tracked branch, clear it
+        streamingBranchIndex = Array.from(streamingTextByBranch.keys())[0] ?? null;
+      }
+    }
+  }
+
+
+  function getAllDescendants(allMessages: Message[], startMessageId: string): Message[] {
+    const result: Message[] = [];
+    const queue = [startMessageId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const message = allMessages.find(m => m.id === currentId);
+      if (message) {
+        result.push(message);
+        // Add all children to queue
+        const children = allMessages.filter(m => m.parentMessageId === currentId);
+        queue.push(...children.map(c => c.id));
+      }
+    }
+
+    return result;
   }
 
   // Cleanup on unmount
@@ -805,54 +1569,99 @@
       {#if messages.length === 0}
         <div class="no-messages">No messages yet — send a prompt to start the conversation.</div>
       {:else}
-        {#each messages as m (m.id)}
-          <MessageBubble
-            message={m}
-            onRetry={retryMessage}
-            onEdit={handleEdit}
-            onShowVersions={handleShowVersions}
-            threadId={currentThread?.id}
-            {isStreaming}
-            {showComments}
-            on:copied={(event) => showToast(event.detail.message)}
-          />
-          {#if fileWriteEventsByMessageId[m.id]}
-            <div class="file-write-events">
-              {#each fileWriteEventsByMessageId[m.id] as evt (evt.id)}
-                <FileWriteNotification
-                  filePath={evt.filePath}
-                  created={evt.created}
-                  bytesWritten={evt.bytesWritten ?? 0}
-                  content={evt.content}
-                  previousSizeBytes={evt.previousSizeBytes}
-                  overwriteRequested={evt.overwriteRequested}
-                  error={evt.success === false ? evt.error : null}
-                  status={evt.status}
+        <!-- Show messages before fork point -->
+        {#each messagesBeforeFork as m (m.id)}
+          <div class="message-wrapper">
+            <MessageBubble
+              message={m}
+              onRetry={retryMessage}
+              onEdit={handleEdit}
+              onShowVersions={handleShowVersions}
+              onCreateVariation={handleCreateVariation}
+              threadId={currentThread?.id}
+              {isStreaming}
+              {showComments}
+            />
+          </div>
+        {/each}
+
+        <!-- Show branch lanes -->
+        {#if branchBoxes.length > 0}
+          {#if activeBranchIndex !== null && !showBranches}
+            <!-- Show only selected branch with toggle -->
+            <div class="branch-container-selected">
+              {#each branchBoxes.filter((b) => b.branchIndex === activeBranchIndex) as box (box.branchIndex)}
+                <BranchLane
+                  userMessage={box.userMessage}
+                  assistantMessage={box.assistantMessage}
+                  branchIndex={box.branchIndex}
+                  isSelected={true}
+                  onSelect={() => {}}
+                  hideHeader={false}
+                  streamingText={streamingTextByBranch.get(box.branchIndex) ?? null}
+                  onSendMessage={sendMessageInBranch}
+                  isStreaming={isStreaming && streamingBranchIndex === box.branchIndex}
+                  allMessages={box.allMessages}
                 />
               {/each}
+              <button class="branch-toggle-btn" onclick={toggleBranches} title="Show all branches">
+                <i class="pi pi-sitemap"></i>
+                <span>Show branches</span>
+              </button>
+            </div>
+          {:else}
+            {#if activeBranchIndex !== null}
+              <button class="branch-toggle-btn" onclick={toggleBranches} title="Hide branches">
+                <i class="pi pi-eye-slash"></i>
+                <span>Hide branches</span>
+              </button>
+            {/if}
+            <!-- Show all branches -->
+            <div class="branch-boxes-vertical">
+              {#each branchBoxes as box (box.branchIndex)}
+                <BranchLane
+                  userMessage={box.userMessage}
+                  assistantMessage={box.assistantMessage}
+                  branchIndex={box.branchIndex}
+                  isSelected={activeBranchIndex === box.branchIndex}
+                  onSelect={() => setActiveBranch(box.branchIndex)}
+                  hideHeader={false}
+                  streamingText={streamingTextByBranch.get(box.branchIndex) ?? null}
+                  onSendMessage={sendMessageInBranch}
+                  isStreaming={isStreaming && streamingBranchIndex === box.branchIndex}
+                  allMessages={box.allMessages}
+                />
+              {/each}
+              
             </div>
           {/if}
+        {/if}
+
+        <!-- Show messages after fork point -->
+        {#each messagesAfterFork as m (m.id)}
+          <div class="message-wrapper">
+            <MessageBubble
+              message={m}
+              onRetry={retryMessage}
+              onEdit={handleEdit}
+              onShowVersions={handleShowVersions}
+              onCreateVariation={handleCreateVariation}
+              threadId={currentThread?.id}
+              {isStreaming}
+              {showComments}
+            />
+          </div>
         {/each}
       {/if}
+    </div>
 
-      <!-- Show streaming response in real-time -->
-      {#if isStreaming && responseText}
-        <div class="message assistant streaming" bind:this={streamingMessageEl}>
-          <div class="message-content">
-            <MarkdownRenderer content={responseText} enableCopy={true} />
-          </div>
-          <div class="message-meta">Streaming... ●</div>
-        </div>
-      {/if}
-
-      <!-- Tool status balloon (shown during long tool operations) -->
+    <!-- Tool status balloon (shown during long tool operations) -->
       {#if toolStatusMessage}
         <div class="tool-status-balloon">
           <span class="tool-status-spinner">⟳</span>
           <span class="tool-status-text">{toolStatusMessage}</span>
         </div>
       {/if}
-    </div>
 
     {#if error}
       <div class="error-banner">{error}</div>
@@ -863,10 +1672,9 @@
       {#if composer}
         {@render composer({ sendMessage, isStreaming })}
       {/if}
-    </div>
   </div>
 
-  <!-- Version History Modal -->
+<!-- Version History Modal -->
   {#if showVersionsFor && thread}
     <MessageVersionHistory
       threadId={thread.id}
@@ -875,7 +1683,6 @@
       onClose={() => (showVersionsFor = undefined)}
     />
   {/if}
-{/if}
 
 <MoveThreadModal
   bind:show={showMoveModal}
@@ -888,6 +1695,20 @@
   }}
 />
 
+
+<!-- Variation Modal -->
+{#if showVariationModalFor}
+  <VariationModal
+    originalMessage={showVariationModalFor}
+    {messages}
+    onSubmit={handleSubmitVariation}
+    onCancel={() => (showVariationModalFor = null)}
+    isSubmitting={isCreatingVariation}
+    error={variationError}
+  />
+{/if}
+</div>
+{/if}
 <style>
   .chat-pane {
     display: flex;
@@ -1173,6 +1994,69 @@
     color: #646cff;
   }
 
+  .branch-boxes-vertical {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: stretch;
+    margin-top: 1rem;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-behavior: smooth;
+    padding-bottom: 8px;
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-border) transparent;
+  }
+
+  .branch-boxes-vertical::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .branch-boxes-vertical::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .branch-boxes-vertical::-webkit-scrollbar-thumb {
+    background: var(--surface-border);
+    border-radius: 4px;
+  }
+
+  .branch-boxes-vertical::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+  }
+
+  .branch-container-selected {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .branch-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    align-self: flex-start;
+  }
+
+  .branch-toggle-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
+  }
+
+  .branch-toggle-btn i {
+    font-size: 1rem;
+  }
+
   .header-action-btn i {
     font-size: 14px;
     color: var(--text-primary);
@@ -1243,15 +2127,9 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    overflow-x: hidden;
     margin-top: var(--content-padding);
     padding-right: var(--inline-spacing);
-  }
-
-  .file-write-events {
-    margin-top: var(--inline-spacing);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
   }
 
   .composer {
@@ -1317,4 +2195,7 @@
       transform: rotate(360deg);
     }
   }
+
+
 </style>
+
