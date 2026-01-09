@@ -6,8 +6,9 @@
   import { onMount } from 'svelte';
   import { projects } from '$lib/stores/project.store';
   import { modelService } from '$lib/services/model.service';
-  import type { ModelsByProvider, MockInvitation } from '$lib/types/dashboard.type';
+  import type { MockInvitation } from '$lib/types/dashboard.type';
   import type { Project } from '$lib/types/project.type';
+  import type { ApplicationSummary } from '../../src-electron/preload';
 
   // Dashboard Components
   import ModelListCard from '$lib/components/dashboard/ModelListCard.svelte';
@@ -20,7 +21,7 @@
   // State
   let isLoading = $state(true);
   let recentProjects = $state<Project[]>([]);
-  let availableModels = $state<ModelsByProvider>({});
+  let availableApplications = $state<ApplicationSummary[]>([]);
   let auditData = $state<any[]>([]);
   let mockInvitations = $state<MockInvitation[]>([]);
 
@@ -124,14 +125,14 @@
   }
 
   /**
-   * Load available models
+   * Load available applications
    */
-  async function loadModels(): Promise<void> {
+  async function loadApplications(): Promise<void> {
     try {
-      availableModels = await modelService.getAvailableModels();
+      availableApplications = await modelService.getAvailableApplications();
     } catch (error) {
-      console.error('[Dashboard] Error loading models:', error);
-      availableModels = {};
+      console.error('[Dashboard] Error loading applications:', error);
+      availableApplications = [];
     }
   }
 
@@ -143,7 +144,7 @@
 
     try {
       // Load all data in parallel
-      await Promise.all([loadModels(), loadAuditData()]);
+      await Promise.all([loadApplications(), loadAuditData()]);
 
       // Get recent projects from store (sorted by updatedAt desc)
       recentProjects = $projects
@@ -182,18 +183,18 @@
           <p>Loading dashboard...</p>
         </div>
       {:else}
+        <!-- Full-width Metrics Section -->
+        <div class="metrics-section">
+          <MetricsChartsSection {auditData} />
+        </div>
+
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
-          <ModelListCard {availableModels} />
+          <ModelListCard {availableApplications} />
           <RecentProjectsCard {recentProjects} />
           <InvitationsCard {mockInvitations} />
           <SupportCard />
           <ResourcesCard />
-        </div>
-
-        <!-- Full-width Metrics Section -->
-        <div class="metrics-section">
-          <MetricsChartsSection {auditData} />
         </div>
       {/if}
     </div>
@@ -267,7 +268,7 @@
   }
 
   .metrics-section {
-    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
   }
 
   /* Responsive breakpoints */
