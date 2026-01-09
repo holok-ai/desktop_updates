@@ -300,9 +300,18 @@ export interface AppSettings {
 }
 
 /**
+ * ApplicationSuammry - Chat application from Moku API
  * ModelDetails - Full model configuration from Moku API
  * Used by ModelRepository to store complete model information
  */
+export interface ApplicationSummary {
+  id: string;
+  title: string;
+  models? : ModelDetails[];
+  provider: string;
+  url: string; 
+}
+
 export interface ModelDetails {
   id: string;
   title: string;
@@ -317,6 +326,7 @@ export interface ModelDetails {
  */
 export interface ModelsAPI {
   listAll: () => Promise<ModelDetails[]>;
+  listAllApplications: () => Promise<ApplicationSummary[]>;
 }
 
 /**
@@ -725,6 +735,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   models: {
     listAll: () => ipcRenderer.invoke('models:listAll'),
+    listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
   } as ModelsAPI,
 
   /**

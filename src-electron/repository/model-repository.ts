@@ -1,9 +1,10 @@
 import { mokuService } from '../services/mokuapi/moku.service.js';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import log from 'electron-log';
-import type { ModelDetails } from '../preload.js';
+import type { ApplicationSummary, ModelDetails } from '../preload.js';
 
 export class ModelRepository {
+  private readonly apps: ApplicationSummary[] = [];
   private readonly models: ModelDetails[] = [];
   private holoApiUrl: string = '';
 
@@ -60,11 +61,15 @@ export class ModelRepository {
   public async refreshModels(): Promise<void> {
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
+        const settingsService = getSettingsService();
+        const holoApiUrl: string = settingsService.getHoloApiUrl();
+
       // Get all application summaries
       const applications = await mokuService.getAllApplications();
       log.info(`[ModelRepository] Found ${applications.length} applications`);
 
       // Clear existing models
+      this.apps.length = 0; 
       this.models.length = 0;
 
       // Fetch application details for each application and extract models
@@ -74,7 +79,23 @@ export class ModelRepository {
           const appDetail = await mokuService.getApplicationDetail(app.id);
           const agentDetail = await mokuService.getAgentDetail(app.id); 
 
-          // Extract models from application detail
+          const agentUrl: string  = holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug; 
+//              String agentUrl = holoUrlService.getBaseUrl() + "/api/custom/" +
+//                                app.getProvider().getType().toString().toLowerCase() + "/" +
+//                                app.getUrlSlug();
+          var appSummary: ApplicationSummary = {
+            id: appDetail.id,
+            title: appDetail.name, 
+            provider: appDetail.providerName,
+            url: agentUrl,
+            models: []
+          };
+          appSummary.models = []; 
+          log.info(
+                `[ModelRepository] Added app: ${appSummary.title} (${appSummary.provider}) at ${appSummary.url}`,
+              );
+
+              // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
             for (const model of appDetail.models) {
               const modelDetails: ModelDetails = {
@@ -86,11 +107,13 @@ export class ModelRepository {
                 url: (agentDetail ? agentDetail.url : '')
               };
               this.models.push(modelDetails);
+              appSummary.models?.push(modelDetails); 
               log.info(
                 `[ModelRepository] Added model: ${model.name} (${model.accessModel}) from ${agentDetail.provider}`,
               );
             }
           }
+          this.apps.push(appSummary); 
         } catch (error) {
           log.error(`[ModelRepository] Failed to fetch details for application ${app.name}:`, error);
           // Continue with other applications
@@ -137,6 +160,20 @@ export class ModelRepository {
     await this.refreshModels();
 
     return [...this.models]; // Return copy
+  }
+
+  public async listAllApplications(): Promise<ApplicationSummary[]> {
+    // Return cached applications if already loaded
+    if (this.apps.length > 0) {
+      log.info(`[ModelRepository] Returning ${this.apps.length} cached applications`);
+      return [...this.apps]; // Return copy
+    }
+
+    // Fetch applications from Moku if cache is empty
+    log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
+    await this.refreshModels();
+
+    return [...this.apps]; // Return copy
   }
 }
 

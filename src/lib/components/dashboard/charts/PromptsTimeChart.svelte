@@ -16,7 +16,7 @@
     auditData: ChatAuditData[];
   }>();
 
-  let canvasRef: HTMLCanvasElement;
+  let canvasRef = $state<HTMLCanvasElement | undefined>(undefined);
   let chartInstance: Chart | null = null;
 
   function transformData(data: ChatAuditData[]) {
