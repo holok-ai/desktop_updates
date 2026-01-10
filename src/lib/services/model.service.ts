@@ -5,6 +5,7 @@
  */
 
 import type { ModelsByProvider } from '$lib/types/dashboard.type';
+import type { ApplicationSummary } from '../../src-electron/preload';
 
 class ModelService {
   /**
@@ -51,6 +52,21 @@ class ModelService {
   async getProviders(): Promise<string[]> {
     const models = await this.getAvailableModels();
     return Object.keys(models);
+  }
+
+  /**
+   * Get all available applications with their models
+   */
+  async getAvailableApplications(): Promise<ApplicationSummary[]> {
+    try {
+      // Fetch applications from backend via IPC
+      const applications = await window.electronAPI.models.listAllApplications();
+      return applications;
+    } catch (error) {
+      console.error('[ModelService] Error fetching applications:', error);
+      // Return empty array on error
+      return [];
+    }
   }
 }
 

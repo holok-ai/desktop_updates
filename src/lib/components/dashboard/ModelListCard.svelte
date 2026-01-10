@@ -1,51 +1,51 @@
 <script lang="ts">
   /**
-   * ModelListCard - Displays available LLM models grouped by provider
+   * ModelListCard - Displays available LLM models grouped by application
    */
   import DashboardCard from './DashboardCard.svelte';
-  import type { ModelsByProvider } from '$lib/types/dashboard.type';
+  import type { ApplicationSummary } from '../../../src-electron/preload';
 
-  const { availableModels } = $props<{
-    availableModels: ModelsByProvider;
+  const { availableApplications } = $props<{
+    availableApplications: ApplicationSummary[];
   }>();
 
-  let expandedProviders = $state<Record<string, boolean>>({});
+  let expandedApplications = $state<Record<string, boolean>>({});
 
-  function toggleProvider(provider: string) {
-    expandedProviders[provider] = !expandedProviders[provider];
+  function toggleApplication(appId: string) {
+    expandedApplications[appId] = !expandedApplications[appId];
   }
 
-  const providers = $derived(Object.keys(availableModels || {}));
-  const hasModels = $derived(providers.length > 0);
+  const hasApplications = $derived((availableApplications || []).length > 0);
 </script>
 
 <DashboardCard title="Available LLM Models" icon="pi-microchip">
   {#snippet children()}
-    {#if hasModels}
-      <div class="providers-list">
-        {#each providers as provider}
-          <div class="provider-section">
+    {#if hasApplications}
+      <div class="applications-list">
+        {#each availableApplications as application}
+          <div class="application-section">
             <button
-              class="provider-header"
-              onclick={() => toggleProvider(provider)}
-              aria-expanded={expandedProviders[provider] ?? false}
+              class="application-header"
+              onclick={() => toggleApplication(application.id)}
+              aria-expanded={expandedApplications[application.id] ?? false}
             >
-              <span class="provider-name">{provider}</span>
-              <div class="provider-meta">
-                <span class="model-count">{availableModels[provider].length} models</span>
+              <span class="application-name">{application.title}</span>
+              <div class="application-meta">
+                <span class="provider-badge">{application.provider}</span>
+                <span class="model-count">{application.models?.length || 0} models</span>
                 <i
                   class="pi pi-chevron-down"
-                  class:expanded={expandedProviders[provider]}
+                  class:expanded={expandedApplications[application.id]}
                 ></i>
               </div>
             </button>
 
-            {#if expandedProviders[provider]}
+            {#if expandedApplications[application.id]}
               <div class="models-list">
-                {#each availableModels[provider] as model}
+                {#each application.models || [] as model}
                   <div class="model-item">
                     <i class="pi pi-circle-fill model-dot"></i>
-                    <span class="model-name">{model}</span>
+                    <span class="model-name">{model.accessName}</span>
                   </div>
                 {/each}
               </div>
@@ -56,27 +56,27 @@
     {:else}
       <div class="empty-state">
         <i class="pi pi-inbox empty-icon"></i>
-        <p class="empty-text">No models available</p>
-        <p class="empty-hint">Models will appear here once chat providers are configured</p>
+        <p class="empty-text">No applications available</p>
+        <p class="empty-hint">Applications will appear here once configured</p>
       </div>
     {/if}
   {/snippet}
 </DashboardCard>
 
 <style>
-  .providers-list {
+  .applications-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
   }
 
-  .provider-section {
+  .application-section {
     border: 1px solid var(--surface-border);
     border-radius: 6px;
     overflow: hidden;
   }
 
-  .provider-header {
+  .application-header {
     width: 100%;
     display: flex;
     align-items: center;
@@ -89,19 +89,29 @@
     font-size: 0.9375rem;
   }
 
-  .provider-header:hover {
+  .application-header:hover {
     background: var(--surface-hover, rgba(0, 0, 0, 0.05));
   }
 
-  .provider-name {
+  .application-name {
     font-weight: 600;
     color: var(--text-primary);
   }
 
-  .provider-meta {
+  .application-meta {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+
+  .provider-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
   }
 
   .model-count {
