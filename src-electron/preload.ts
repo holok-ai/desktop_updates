@@ -321,9 +321,9 @@ export interface AppSettings {
 export interface ApplicationSummary {
   id: string;
   title: string;
-  models? : ModelDetails[];
+  models?: ModelDetails[];
   provider: string;
-  url: string; 
+  url: string;
 }
 
 export interface ModelDetails {

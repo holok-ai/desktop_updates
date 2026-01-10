@@ -11,8 +11,9 @@
   import type { Thread } from '../../../../src-electron/preload';
   import type { Project } from '$lib/types/project.type';
   import { storageService } from '$lib/services/storage.service';
-  import BaseModal from '$lib/components/modals/BaseModal.svelte';
+  import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
+  import { toastStore } from '$lib/services/toast.service';
 
   const { activity } = $props<{ activity: SidebarActivity | null }>();
   const dispatch = createEventDispatcher();
@@ -29,10 +30,8 @@
 
   let isCollapsed = $state(false);
   let selectedThreadId: string | null = $state(null);
-  let renamingThreadId: string | null = $state(null);
-  let renamingThreadTitle: string = $state('');
   let showRenameModal = $state(false);
-  let renameError = $state('');
+  let threadToRename: { id: string; title: string } | null = $state(null);
 
   let selectedProjectId: string | null = $state(null);
 
@@ -234,57 +233,37 @@
    * Handle rename thread action
    */
   function handleRenameStart(item: { id: string; label: string }) {
-    renamingThreadId = item.id;
-    renamingThreadTitle = item.label;
-    renameError = '';
+    threadToRename = { id: item.id, title: item.label };
     showRenameModal = true;
   }
 
   /**
-   * Save renamed thread title
+   * Handle thread rename confirmed
    */
-  async function handleRenameSave() {
-    if (!renamingThreadId) return;
-
-    renameError = '';
-
+  async function handleThreadRenameConfirmed(event: CustomEvent<{ threadId: string; newTitle: string }>): Promise<void> {
+    const { threadId, newTitle } = event.detail;
+    
     try {
-      const result = await (window.electronAPI.thread as any).renameThread(
-        renamingThreadId,
-        renamingThreadTitle,
-      );
-
+      const result = await threadService.rename(threadId, newTitle);
+      
       if (result.success) {
-        // Thread store will be updated via thread:updated event listener
-        renamingThreadId = null;
-        renamingThreadTitle = '';
+        toastStore.show('Thread renamed', { variant: 'success' });
         showRenameModal = false;
+        threadToRename = null;
       } else {
-        // Map error codes to user-friendly messages
-        const errorMessages: Record<string, string> = {
-          TITLE_EMPTY: 'Title cannot be empty',
-          TITLE_TOO_SHORT: 'Title is too short',
-          TITLE_TOO_LONG: 'Title cannot exceed 200 characters',
-          TITLE_DUPLICATE: 'A thread with this title already exists',
-          TITLE_INVALID_CHARACTERS: 'Title contains invalid characters',
-        };
-        renameError = errorMessages[result.code || ''] || result.error || 'Failed to rename thread';
-        console.error('Failed to rename thread:', result.error);
+        // Handle validation errors from backend
+        let errorMsg = result.error || 'Failed to rename thread';
+        if (result.code === 'TITLE_EMPTY') {
+          errorMsg = 'Thread title cannot be empty';
+        } else if (result.code === 'TITLE_TOO_LONG') {
+          errorMsg = 'Thread title is too long (max 100 characters)';
+        }
+        toastStore.show(errorMsg, { variant: 'error' });
       }
     } catch (error) {
-      renameError = error instanceof Error ? error.message : 'Failed to rename thread';
-      console.error('Error renaming thread:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename thread';
+      toastStore.show(errorMessage, { variant: 'error' });
     }
-  }
-
-  /**
-   * Cancel rename operation
-   */
-  function handleRenameCancel() {
-    renamingThreadId = null;
-    renamingThreadTitle = '';
-    renameError = '';
-    showRenameModal = false;
   }
 
   /**
@@ -385,39 +364,18 @@
   {/if}
 </aside>
 
-<!-- Rename thread modal dialog -->
-<BaseModal
-  bind:show={showRenameModal}
-  title="Rename Thread"
-  error={renameError}
-  submitLabel="Save"
-  cancelLabel="Cancel"
-  submitDisabled={!renamingThreadTitle.trim() || renamingThreadTitle.length > 200}
-  oncancel={handleRenameCancel}
-  onsubmit={handleRenameSave}
->
-  {#snippet content()}
-    <div class="form-group">
-      <label for="rename-title">Title</label>
-      <input
-        id="rename-title"
-        type="text"
-        bind:value={renamingThreadTitle}
-        placeholder="Enter thread title"
-        maxlength="200"
-        aria-label="Thread title input"
-        data-testid="title-input"
-      />
-      <div
-        class="char-counter"
-        class:warning={renamingThreadTitle.length > 180}
-        data-testid="char-counter"
-      >
-        {200 - renamingThreadTitle.length} characters remaining
-      </div>
-    </div>
-  {/snippet}
-</BaseModal>
+<!-- Thread Rename Modal -->
+{#if showRenameModal && threadToRename}
+  <ThreadRenameModal
+    threadId={threadToRename.id}
+    currentTitle={threadToRename.title}
+    on:confirm={handleThreadRenameConfirmed}
+    on:cancel={() => {
+      showRenameModal = false;
+      threadToRename = null;
+    }}
+  />
+{/if}
 
 <style>
   .activity-list-sidebar {
@@ -627,48 +585,5 @@
   :global(html.dark) .activity-list-sidebar .empty-state,
   :global(:root.dark) .activity-list-sidebar .empty-state {
     color: rgba(255, 255, 255, 0.7);
-  }
-
-  /* Modal-specific form styles */
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-  }
-
-  .form-group input {
-    width: 100%;
-    padding: 0.75rem;
-    background: var(--input-background);
-    border: 1px solid var(--input-border);
-    border-radius: 0.5rem;
-    color: var(--text-primary);
-    font-size: 0.875rem;
-  }
-
-  .form-group input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  .form-group input::placeholder {
-    color: var(--text-secondary);
-  }
-
-  .char-counter {
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .char-counter.warning {
-    color: var(--error-color);
   }
 </style>

@@ -179,7 +179,60 @@
       }
       const threadId = params.get('threadId');
       if (threadId) {
-        const found = $threads.find((thread) => thread.id === threadId);
+        let found = $threads.find((thread) => thread.id === threadId);
+        
+        // If thread not in store, try to load it from backend
+        if (!found) {
+          console.log('[Thread not in store] Fetching thread:', threadId);
+          // Wrap async call in void IIFE
+          void (async () => {
+            try {
+              const fetchedThread = await threadService.getThread(threadId);
+              if (fetchedThread) {
+                // Manually trigger selectThread since we're in async context
+                const threadProjectId = (fetchedThread.metadata?.projectId as string | undefined) ?? null;
+                
+                // Check project context matching
+                if (currentProjectId) {
+                  if (threadProjectId === currentProjectId) {
+                    selectThread(fetchedThread);
+                    errorMessage = null;
+                  } else {
+                    errorMessage = 'This thread does not belong to the current project.';
+                    selectedThread = null;
+                    messages = [];
+                    setTimeout(() => { errorMessage = null; }, 5000);
+                  }
+                } else {
+                  if (threadProjectId === null) {
+                    selectThread(fetchedThread);
+                    errorMessage = null;
+                  } else {
+                    const project = $projects.find((p) => p.id === threadProjectId);
+                    const isProjectOnly = project?.privacyMode === 'project_only';
+                    if (!isProjectOnly) {
+                      selectThread(fetchedThread);
+                      errorMessage = null;
+                    } else {
+                      errorMessage = 'This thread belongs to a project. Please access it from the project view.';
+                      selectedThread = null;
+                      messages = [];
+                      setTimeout(() => { errorMessage = null; }, 5000);
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch thread:', error);
+              errorMessage = 'Failed to load thread. Please try again.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => { errorMessage = null; }, 5000);
+            }
+          })();
+          return; // Exit early, async handler will process the thread
+        }
+        
         if (found) {
           // Verify thread belongs to current project context
           // If we're in projects activity, only show threads from selected project
@@ -322,7 +375,7 @@
         title: autoTitle,
         model: selectedModel.id,
         // Pass projectId if creating from project context
-        // ...(currentProjectId ? { projectId: currentProjectId } : {}),
+        ...(currentProjectId ? { projectId: currentProjectId } : {}),
         // Spread metadata fields at top level, not nested
         ...(formData.metadata ? {
           modelId: formData.metadata.modelId,

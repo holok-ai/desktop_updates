@@ -8,6 +8,7 @@
 
   const dispatch = createEventDispatcher<{
     threadClick: { id: string; label: string; route?: string };
+    threadRename: { id: string; label: string };
     newThread: void;
     threadDelete: { id: string };
     threadCountChanged: { count: number };
@@ -99,6 +100,10 @@
     dispatch('threadClick', event.detail);
   }
 
+  function handleThreadRename(event: CustomEvent<{ id: string; label: string }>): void {
+    dispatch('threadRename', event.detail);
+  }
+
   function handleThreadDelete(event: CustomEvent<{ id: string }>): void {
     dispatch('threadDelete', event.detail);
   }
@@ -134,6 +139,7 @@
         isSelected={false}
         showActions={true}
         on:click={handleThreadClick}
+        on:rename={handleThreadRename}
         on:delete={handleThreadDelete}
       />
     {/each}

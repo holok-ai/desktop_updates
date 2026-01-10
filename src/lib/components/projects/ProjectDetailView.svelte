@@ -13,6 +13,8 @@
   import ProjectMembersTab from '$lib/components/projects/detail-tabs/ProjectMembersTab.svelte';
   import ProjectFilesTab from '$lib/components/projects/detail-tabs/ProjectFilesTab.svelte';
   import ProjectSettingsTab from '$lib/components/projects/detail-tabs/ProjectSettingsTab.svelte';
+  import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';
+  import ThreadDeleteModal from '$lib/components/common/ThreadDeleteModal.svelte';
 
   // Selected project from store
   const project = $derived($selectedProjectStore);
@@ -23,6 +25,12 @@
   // Threads tab badge count (emitted by ProjectThreadsTab)
   let threadCount = $state(0);
   let threadsReloadToken = $state(0);
+
+  // Thread rename/delete state
+  let showThreadRenameModal = $state(false);
+  let showThreadDeleteModal = $state(false);
+  let threadToRename = $state<{ id: string; title: string } | null>(null);
+  let threadToDelete = $state<{ id: string; title: string } | null>(null);
 
   // Member count for badge display
   const memberCount = $derived(project?.members?.length ?? 0);
@@ -91,17 +99,76 @@
   }
 
   /**
+   * Handle thread rename
+   */
+  function handleThreadRename(event: CustomEvent<{ id: string; label: string }>): void {
+    const { id, label } = event.detail;
+    threadToRename = { id, title: label };
+    showThreadRenameModal = true;
+  }
+
+  /**
+   * Handle thread rename confirmed
+   */
+  async function handleThreadRenameConfirmed(event: CustomEvent<{ threadId: string; newTitle: string }>): Promise<void> {
+    const { threadId, newTitle } = event.detail;
+    
+    try {
+      const result = await threadService.rename(threadId, newTitle);
+      
+      if (result.success) {
+        toastStore.show('Thread renamed', { variant: 'success' });
+        showThreadRenameModal = false;
+        threadToRename = null;
+        // Trigger reload
+        threadsReloadToken++;
+      } else {
+        // Handle validation errors from backend
+        let errorMsg = result.error || 'Failed to rename thread';
+        if (result.code === 'TITLE_EMPTY') {
+          errorMsg = 'Thread title cannot be empty';
+        } else if (result.code === 'TITLE_TOO_LONG') {
+          errorMsg = 'Thread title is too long (max 100 characters)';
+        }
+        toastStore.show(errorMsg, { variant: 'error' });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename thread';
+      toastStore.show(errorMessage, { variant: 'error' });
+    }
+  }
+
+  /**
    * Handle thread deletion
    */
   async function handleThreadDelete(event: CustomEvent<{ id: string }>): Promise<void> {
     const { id } = event.detail;
     
+    // Find thread to get its title
+    const thread = await threadService.getThread(id);
+    if (!thread) {
+      toastStore.show('Thread not found', { variant: 'error' });
+      return;
+    }
+    
+    threadToDelete = { id, title: thread.title };
+    showThreadDeleteModal = true;
+  }
+
+  /**
+   * Handle thread deletion confirmed
+   */
+  async function handleThreadDeleteConfirmed(): Promise<void> {
+    if (!threadToDelete) return;
+    
     try {
-      const ok = await threadService.delete(id);
+      const ok = await threadService.delete(threadToDelete.id);
       if (!ok) {
         throw new Error('Failed to delete thread');
       }
       toastStore.show('Thread deleted', { variant: 'success' });
+      showThreadDeleteModal = false;
+      threadToDelete = null;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete thread';
       toastStore.show(errorMessage, { variant: 'error' });
@@ -156,6 +223,7 @@
             projectId={project.id}
             reloadToken={threadsReloadToken}
             on:threadClick={handleThreadClick}
+            on:threadRename={handleThreadRename}
             on:newThread={handleNewThread}
             on:threadDelete={handleThreadDelete}
             on:threadCountChanged={(e) => (threadCount = e.detail.count)}
@@ -214,6 +282,32 @@
       {/if}
     </div>
   </div>
+
+  <!-- Thread Rename Modal -->
+  {#if showThreadRenameModal && threadToRename}
+    <ThreadRenameModal
+      threadId={threadToRename.id}
+      currentTitle={threadToRename.title}
+      on:confirm={handleThreadRenameConfirmed}
+      on:cancel={() => {
+        showThreadRenameModal = false;
+        threadToRename = null;
+      }}
+    />
+  {/if}
+
+  <!-- Thread Delete Modal -->
+  {#if showThreadDeleteModal && threadToDelete}
+    <ThreadDeleteModal
+      threadId={threadToDelete.id}
+      threadTitle={threadToDelete.title}
+      on:confirm={handleThreadDeleteConfirmed}
+      on:cancel={() => {
+        showThreadDeleteModal = false;
+        threadToDelete = null;
+      }}
+    />
+  {/if}
 {:else}
   <div class="empty-state">
     <i class="pi pi-folder-open"></i>

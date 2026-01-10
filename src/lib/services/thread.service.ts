@@ -79,6 +79,19 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
+  async rename(
+    threadId: string,
+    newTitle: string,
+  ): Promise<
+    | { success: true; thread: Thread }
+    | { success: false; status: number; error: string; code?: string }
+  > {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.renameThread(threadId, newTitle),
+      'Failed to rename thread',
+    );
+  }
+
   async delete(id: string): Promise<boolean> {
     return wrapElectronCall(() => window.electronAPI.thread.delete(id), 'Failed to delete thread');
   }
