@@ -71,14 +71,21 @@
 
     <form class="dialog-content" onsubmit={handleSubmit}>
       <div class="form-group">
-        <label for="thread-title">Thread Title</label>
+        <div class="label-with-counter">
+          <label for="thread-title">Thread Title</label>
+          <span class="char-counter" class:error={newTitle.length > 100}>
+            {newTitle.length}/100
+          </span>
+        </div>
         <input
           id="thread-title"
           type="text"
           bind:value={newTitle}
           placeholder="Enter thread title"
           disabled={isSubmitting}
+          maxlength="100"
           use:focus
+          aria-invalid={newTitle.length > 100 ? 'true' : 'false'}
         />
       </div>
 
@@ -156,28 +163,48 @@
   }
 
   .form-group label {
-    display: block;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .label-with-counter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 8px;
+  }
+
+  .char-counter {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .char-counter.error {
+    color: #ef4444;
+    font-weight: 600;
   }
 
   .form-group input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px 16px;
     font-size: 14px;
     color: var(--text-primary);
-    background: var(--surface-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    transition: all 0.15s ease;
+    background: var(--surface-overlay, #1e293b);
+    border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    transition: all 0.2s ease;
   }
 
   .form-group input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--primary-color, #3b82f6);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #3b82f6) 25%, transparent);
     background: var(--surface-main);
+  }
+
+  .form-group input[aria-invalid='true'] {
+    border-color: #ef4444;
   }
 
   .form-group input:disabled {
