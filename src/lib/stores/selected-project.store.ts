@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import { writable, derived, get } from 'svelte/store';
 import type { Project } from '$lib/types/project.type';
 import { projects } from '$lib/stores/project.store';
@@ -19,30 +20,29 @@ function createSelectedProjectStore() {
   const selectedId = writable<string | null>(null);
 
   // Derive the full project object from projects store
-  const selectedProject = derived(
-    [selectedId, projects],
-    ([$selectedId, $projects]) => {
-      if (!$selectedId) return null;
-      return $projects.find(p => p.id === $selectedId) ?? null;
+  const selectedProject = derived([selectedId, projects], ([$selectedId, $projects]) => {
+    if ($selectedId === null || $selectedId === '') {
+      return null;
     }
-  );
+    return $projects.find((p) => p.id === $selectedId) ?? null;
+  });
 
   return {
     // Subscribe to get reactive project updates
     subscribe: selectedProject.subscribe,
 
     // Set the selected project by ID
-    select: (projectId: string | null) => {
+    select: (projectId: string | null): void => {
       selectedId.set(projectId);
     },
 
     // Clear selection
-    clear: () => {
+    clear: (): void => {
       selectedId.set(null);
     },
 
     // Get current value synchronously (use sparingly)
-    get: () => get(selectedProject)
+    get: (): Project | null => get(selectedProject),
   };
 }
 
@@ -54,12 +54,11 @@ export const selectedProjectStore = createSelectedProjectStore();
  */
 export function useSelectedProject(): Project {
   const project = selectedProjectStore.get();
-  if (!project) {
+  if (project === null) {
     throw new Error(
       'useSelectedProject() called when no project selected. ' +
-      'Ensure component is only rendered inside {#if project} blocks.'
+        'Ensure component is only rendered inside {#if project} blocks.',
     );
   }
   return project;
 }
-

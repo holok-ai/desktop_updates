@@ -22,7 +22,6 @@ export interface UserProfile {
   picture?: string;
   organizationId?: string;
 }
-
 export interface AuthTokens {
   accessToken: string;
   apiKey?: string; // Optional, cached for token refresh
@@ -176,7 +175,10 @@ export class AuthService {
       this.currentAuthState.isAuthenticated = true;
       this.currentAuthState.isTestMode = true; // Flag for UI/test awareness
 
-      log.info('[AuthService] Test tokens loaded successfully (TEST MODE) for user:', testData.user?.email);
+      log.info(
+        '[AuthService] Test tokens loaded successfully (TEST MODE) for user:',
+        testData.user?.email,
+      );
     } catch (error) {
       log.error('[AuthService] Failed to parse PLAYWRIGHT_TEST_TOKENS:', error);
     }

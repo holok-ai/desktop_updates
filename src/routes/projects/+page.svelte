@@ -9,7 +9,6 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import ProjectFormModal from '$lib/components/modals/ProjectFormModal.svelte';
   import DeleteProjectModal from '$lib/components/modals/DeleteProjectModal.svelte';
-  import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type.js';
   import { storageService } from '$lib/services/storage.service';
@@ -27,8 +26,8 @@
   let showDeleteModal = $state(false);
   let projectToEdit: Project | null = $state(null);
   let projectToDelete: Project | null = $state(null);
-  let threadCount = $state(0);
-  let threadsLoading = $state(false);
+  let _threadCount = $state(0);
+  let _threadsLoading = $state(false);
   let errorMessage = $state<string | null>(null);
   let loadingProjectId: string | null = null; // Guard against multiple simultaneous loads
 
@@ -144,31 +143,31 @@
   // Keep threads fresh on first load
   onMount(async () => {
     try {
-      threadsLoading = true;
+      _threadsLoading = true;
       await threadService.getAll();
     } finally {
-      threadsLoading = false;
+      _threadsLoading = false;
     }
   });
 
   async function loadThreadCount(projectId: GUID) {
     try {
-      threadCount = await projectService.getThreadCount(projectId);
+      _threadCount = await projectService.getThreadCount(projectId);
     } catch (error) {
       console.error('Failed to load thread count:', error);
-      threadCount = 0;
+      _threadCount = 0;
       errorMessage = `Failed to load thread count: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
-  function handleEdit() {
+  function _handleEdit() {
     if (selectedProject) {
       projectToEdit = selectedProject;
       showFormModal = true;
     }
   }
 
-  function handleCreate() {
+  function _handleCreate() {
     projectToEdit = null;
     showFormModal = false;
     selectedProjectStore.clear();
@@ -176,7 +175,7 @@
     replace(ROUTE.PROJECTS);
   }
 
-  function handleDelete() {
+  function _handleDelete() {
     if (selectedProject) {
       projectToDelete = selectedProject;
       showDeleteModal = true;
@@ -189,7 +188,7 @@
     replace(ROUTE.PROJECTS);
   }
 
-  function openThreadById(threadId: string, projectId?: string | null) {
+  function _openThreadById(threadId: string, projectId?: string | null) {
     if (projectId) {
       storageService.setLastProjectId(projectId);
     }
@@ -203,11 +202,11 @@
   }
 
   // Project threads list (reactive without $derived)
-  let projectThreads: Thread[] = $state([]);
+  let _projectThreads: Thread[] = $state([]);
 
   $effect(() => {
     if (!selectedProject) {
-      projectThreads = [];
+      _projectThreads = [];
       return;
     }
     const pid = selectedProject.id;
@@ -218,7 +217,7 @@
         const bt = new Date((b as any).updatedAt ?? b.createdAt).getTime();
         return bt - at;
       });
-    projectThreads = filtered;
+    _projectThreads = filtered;
   });
 
   $effect(() => {

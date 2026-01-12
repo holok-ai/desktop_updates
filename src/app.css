@@ -75,6 +75,16 @@ html:not(.dark) {
   --text-active: var(--primary-color-text);
   --text-on-primary: #ffffff;
 
+  /* Action button colors */
+  --action-edit-color: var(--blue-600);
+  --action-delete-color: var(--red-700);
+
+  /* Badge colors */
+  --badge-active-bg: var(--primary-500);
+  --badge-active-text: #ffffff;
+  --badge-inactive-bg: var(--gray-400);
+  --badge-inactive-text: var(--gray-900);
+
   --primary-color: var(--primary-500);
   /* Used by shared button styles (btn-primary hover state) */
   --primary-color-hover: color-mix(in srgb, var(--primary-color) 88%, black);
@@ -110,6 +120,16 @@ html.dark,
   --text-primary: var(--surface-0);
   --text-secondary: var(--surface-200);
   --text-on-primary: #ffffff;
+
+  /* Action button colors */
+  --action-edit-color: var(--blue-500);
+  --action-delete-color: var(--red-400);
+
+  /* Badge colors */
+  --badge-active-bg: var(--primary-500);
+  --badge-active-text: #ffffff;
+  --badge-inactive-bg: var(--gray-600);
+  --badge-inactive-text: var(--gray-100);
 
   --primary-color: var(--primary-500);
   /* Used by shared button styles (btn-primary hover state) */

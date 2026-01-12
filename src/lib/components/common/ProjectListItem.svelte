@@ -11,8 +11,6 @@
     showActions?: boolean;
   }>();
 
-  let isHovered = $state(false);
-
   function onClick() {
     dispatch('click', { id: project.id, label: project.title, route: ROUTE.PROJECTS });
   }
@@ -28,8 +26,6 @@
   class="project-item"
   class:selected={isSelected}
   onclick={onClick}
-  onmouseenter={() => (isHovered = true)}
-  onmouseleave={() => (isHovered = false)}
   role="menuitem"
   tabindex="0"
   onkeydown={(e) => {
@@ -41,9 +37,9 @@
   <div class="project-content">
     <div class="project-title-container">
       <div class="project-title">{project.title}</div>
-      {#if showActions && isHovered}
-        <div class="action-buttons">
-          <button class="btn-icon-sm delete" title="Delete" onclick={onDelete}>
+      {#if showActions}
+        <div class="project-actions">
+          <button class="action-button delete" title="Delete" onclick={onDelete}>
             <i class="pi pi-trash"></i>
           </button>
         </div>
@@ -70,11 +66,11 @@
   }
 
   .project-item:hover {
-    background-color: var(--thread-list-hover-bg);
+    background-color: var(--surface-hover);
   }
 
   .project-item.selected {
-    border-color: var(--accent-color);
+    border-color: var(--primary-color);
     background-color: transparent;
   }
 
@@ -95,7 +91,7 @@
   .project-title {
     font-size: 11pt;
     font-weight: 600;
-    color: var(--thread-list-title-color);
+    color: var(--text-primary);
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -107,17 +103,46 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: var(--thread-list-meta-color);
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
-  .action-buttons {
+  .project-actions {
     display: flex;
-    gap: 0.25rem;
     align-items: center;
+    gap: 0.5rem;
+    opacity: 0.7;
+    flex-shrink: 0;
   }
 
-  .btn-icon-sm.delete {
-    color: var(--error-color);
+  .project-item:hover .project-actions,
+  .project-actions:hover {
+    opacity: 1;
+  }
+
+  .action-button {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .action-button:hover {
+    background-color: var(--surface-hover);
+  }
+
+  .action-button.delete {
+    color: var(--action-delete-color);
+  }
+
+  .action-button i {
+    font-size: 0.875rem;
   }
 </style>

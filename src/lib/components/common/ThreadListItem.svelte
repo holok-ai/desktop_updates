@@ -98,11 +98,11 @@
   }
 
   .thread-item:hover {
-    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
+    background-color: var(--surface-hover);
   }
 
   .thread-item.selected {
-    border-color: #3b82f6;
+    border-color: var(--primary-color);
     background-color: transparent;
   }
 
@@ -117,7 +117,7 @@
   .thread-title {
     font-size: 11pt;
     font-weight: 600;
-    color: var(--thread-list-title-color, #fff);
+    color: var(--text-primary);
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -129,7 +129,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: var(--thread-list-meta-color, rgba(255, 255, 255, 0.7));
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
@@ -149,7 +149,7 @@
   .action-button {
     background: transparent;
     border: none;
-    color: var(--thread-list-action-color, #fff);
+    color: var(--text-primary);
     cursor: pointer;
     padding: 0.25rem;
     display: flex;
@@ -161,15 +161,15 @@
   }
 
   .action-button:hover {
-    background-color: var(--thread-list-action-hover-bg, rgba(255, 255, 255, 0.1));
+    background-color: var(--surface-hover);
   }
 
   .action-button.edit {
-    color: #3b82f6;
+    color: var(--action-edit-color);
   }
 
   .action-button.delete {
-    color: #ef4444;
+    color: var(--action-delete-color);
   }
 
   .action-button i {

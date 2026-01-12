@@ -14,7 +14,6 @@
     PROJECT_TITLE_MAX_LENGTH,
     PROJECT_DESCRIPTION_MAX_LENGTH,
   } from '$lib/constants/project-validation';
-  import type { Project } from '$lib/types/project.type';
 
   // Props
   type FormMode = 'create' | 'edit';
@@ -99,7 +98,7 @@
       return `Title cannot exceed ${PROJECT_TITLE_MAX_LENGTH} characters`;
     }
     // Regex: alphanumeric + spaces + hyphens only
-    if (!/^[a-zA-Z0-9\s\-]+$/.test(trimmed)) {
+    if (!/^[a-zA-Z0-9\s-]+$/.test(trimmed)) {
       return 'Title can only contain letters, numbers, spaces, and hyphens';
     }
     return '';

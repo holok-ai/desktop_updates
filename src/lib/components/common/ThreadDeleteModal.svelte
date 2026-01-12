@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
 
-  let { threadId, threadTitle }: { threadId: string; threadTitle: string } = $props();
+  let { threadTitle }: { threadId: string; threadTitle: string } = $props();
 
   const dispatch = createEventDispatcher<{
     confirm: void;

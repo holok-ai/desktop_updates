@@ -9,7 +9,6 @@
   import { push, querystring } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
-  import type { Project } from '$lib/types/project.type';
   import { storageService } from '$lib/services/storage.service';
   import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
@@ -146,24 +145,6 @@
         default:
           break;
       }
-    };
-
-    // If no unsaved changes, requestNavigation returns true and we proceed immediately
-    if (requestNavigation(proceed)) {
-      proceed();
-    }
-  }
-
-  function selectProject(project: Project) {
-    const proceed = () => {
-      selectedProjectId = project.id;
-      storageService.setLastProjectId(project.id);
-      dispatch('select', {
-        id: project.id,
-        label: project.title,
-        route: ROUTE.PROJECTS,
-      });
-      push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
     };
 
     // If no unsaved changes, requestNavigation returns true and we proceed immediately

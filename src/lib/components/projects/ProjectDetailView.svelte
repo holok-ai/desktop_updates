@@ -2,13 +2,11 @@
   import { selectedProjectStore } from '$lib/stores/selected-project.store';
   import { querystring, replace, push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { projectService } from '$lib/services/project.service';
   import { threadService } from '$lib/services/thread.service';
   import { toastStore } from '$lib/services/toast.service';
   import ProjectFormPanel from '$lib/components/projects/ProjectFormPanel.svelte';
   import ProjectHeader from '$lib/components/projects/ProjectHeader.svelte';
   import ProjectTabNavigation, { type ProjectTab } from '$lib/components/projects/ProjectTabNavigation.svelte';
-  import type { Project } from '$lib/types/project.type';
   import ProjectThreadsTab from '$lib/components/projects/detail-tabs/ProjectThreadsTab.svelte';
   import ProjectMembersTab from '$lib/components/projects/detail-tabs/ProjectMembersTab.svelte';
   import ProjectFilesTab from '$lib/components/projects/detail-tabs/ProjectFilesTab.svelte';
@@ -191,7 +189,7 @@
   /**
    * Handle project updated from edit panel
    */
-  function handleProjectUpdated(event: CustomEvent<{ projectId: string }>): void {
+  function handleProjectUpdated(): void {
     toastStore.show('Project updated successfully', { variant: 'success' });
   }
 

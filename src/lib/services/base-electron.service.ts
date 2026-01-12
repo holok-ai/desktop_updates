@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 /**
  * Base class for Electron IPC services
  * Provides common functionality for event listener management and singleton pattern
@@ -18,9 +19,10 @@ export abstract class BaseElectronService {
    * Get or create singleton instance of the service
    * Uses class name as key to support multiple service types
    */
-  protected static getSingletonInstance<T extends BaseElectronService>(
-    this: { prototype: T; name: string },
-  ): T {
+  protected static getSingletonInstance<T extends BaseElectronService>(this: {
+    prototype: T;
+    name: string;
+  }): T {
     const className = this.name;
 
     if (!BaseElectronService.instances.has(className)) {

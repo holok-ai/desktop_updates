@@ -83,17 +83,16 @@
     height: 20px;
     padding: 0 6px;
     border-radius: 10px;
-    background: var(--primary-color);
-    color: var(--text-on-primary);
+    background: var(--badge-active-bg);
+    color: var(--badge-active-text);
     font-size: 12px;
     font-weight: 600;
     margin-left: 8px;
   }
 
   .tab-button:not(.active) .tab-badge {
-    background: var(--text-secondary);
-    color: var(--background);
-    opacity: 0.6;
+    background: var(--badge-inactive-bg);
+    color: var(--badge-inactive-text);
   }
 
   /* Dark mode adjustments */
