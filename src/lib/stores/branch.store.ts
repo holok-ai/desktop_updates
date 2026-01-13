@@ -180,6 +180,7 @@ function createBranchStore(): {
 export const branchStore = createBranchStore();
 
 /** Derived store for getting branch state for current thread */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function getBranchStateForThread(threadId: string) {
   return derived(branchStore, ($states) => {
     // eslint-disable-next-line security/detect-object-injection
