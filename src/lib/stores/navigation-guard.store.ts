@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import { get, writable } from 'svelte/store';
 
-export type UnsavedContext = 'add-thread' | 'add-project';
+export type UnsavedContext = 'add-thread' | 'add-project' | 'edit-project';
 
 interface GuardState {
   isDirty: boolean;

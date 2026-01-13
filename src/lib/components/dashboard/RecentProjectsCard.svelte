@@ -37,7 +37,7 @@
         {#each recentProjects as project}
           <button class="project-item" onclick={() => navigateToProject(project.id)}>
             <div class="project-info">
-              <span class="project-title">{project.name}</span>
+              <span class="project-title">{project.title}</span>
               {#if project.description}
                 <span class="project-description">{project.description}</span>
               {/if}

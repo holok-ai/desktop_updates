@@ -7,7 +7,6 @@ import type {
   ThreadDTO,
   MessageDTO,
   CreateThreadRequest,
-  CreateMessageRequest,
 } from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -231,6 +230,28 @@ export class ThreadRepository {
     } catch (error) {
       log.error('[ThreadRepository] Failed to list threads:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get total thread count for a project.
+   *
+   * Uses the threads list endpoint and reads `totalElements` to avoid paging through all results.
+   */
+  public async getProjectThreadCount(projectId: string): Promise<number> {
+    try {
+      const response = await threadApiService.getThreads({
+        type: 'project',
+        projectId,
+        page: 0,
+        size: 1,
+        sort: 'createdAt,desc',
+      });
+
+      return response.totalElements;
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to get project thread count:', error);
+      return 0;
     }
   }
 
@@ -522,6 +543,37 @@ export class ThreadRepository {
     this.threadsById.set(thread.id, thread);
     // Note: No longer saving to disk - API-first architecture
     return this.cloneThread(thread);
+  }
+
+  /**
+   * Assign/unassign a thread to/from a project (persists via API).
+   *
+   * @param threadId - Thread ID
+   * @param projectId - Target project ID or null to unassign
+   */
+  public async setThreadProjectId(threadId: string, projectId: string | null): Promise<Thread> {
+    const thread = this.threadsById.get(threadId) ?? (await this.loadThread(threadId));
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const nextMetadata: ThreadMetadata = { ...(thread.metadata ?? {}) };
+    nextMetadata.projectId = projectId;
+    // Keep type consistent for downstream filtering/UI
+    nextMetadata.type = projectId ? 'project' : 'personal';
+
+    try {
+      await threadApiService.updateThread(threadId, {
+        projectId,
+        metadata: nextMetadata as Record<string, unknown>,
+      });
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to update thread project assignment via API:', error);
+      // Still update local cache so UI isn't stuck; next fetch may reconcile
+    }
+
+    const updatedLocal = this.updateThreadMetadata(threadId, nextMetadata);
+    return this.cloneThread(updatedLocal);
   }
 
   /**

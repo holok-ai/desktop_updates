@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-object-injection */
 /**
  * Model Service
  * Provides information about available LLM models and their capabilities
@@ -5,6 +6,7 @@
  */
 
 import type { ModelsByProvider } from '$lib/types/dashboard.type';
+import type { ApplicationSummary } from '../../../src-electron/preload';
 
 class ModelService {
   /**
@@ -19,14 +21,17 @@ class ModelService {
       const modelsByProvider: ModelsByProvider = {};
 
       for (const model of models) {
-        const provider = model.provider || 'Unknown';
+        const provider =
+          model.provider !== null && model.provider !== '' ? model.provider : 'Unknown';
 
-        if (!modelsByProvider[provider]) {
+        if (!(provider in modelsByProvider)) {
           modelsByProvider[provider] = [];
         }
 
         // Use accessName (e.g., gpt-4, claude-3) as the model identifier
-        modelsByProvider[provider].push(model.accessName);
+        if (provider in modelsByProvider) {
+          modelsByProvider[provider].push(model.accessName);
+        }
       }
 
       return modelsByProvider;
@@ -42,7 +47,7 @@ class ModelService {
    */
   async getProviderModels(provider: string): Promise<string[]> {
     const models = await this.getAvailableModels();
-    return models[provider] || [];
+    return provider in models ? models[provider] : [];
   }
 
   /**
@@ -51,6 +56,21 @@ class ModelService {
   async getProviders(): Promise<string[]> {
     const models = await this.getAvailableModels();
     return Object.keys(models);
+  }
+
+  /**
+   * Get all available applications with their models
+   */
+  async getAvailableApplications(): Promise<ApplicationSummary[]> {
+    try {
+      // Fetch applications from backend via IPC
+      const applications = await window.electronAPI.models.listAllApplications();
+      return applications;
+    } catch (error) {
+      console.error('[ModelService] Error fetching applications:', error);
+      // Return empty array on error
+      return [];
+    }
   }
 }
 

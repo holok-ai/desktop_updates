@@ -201,7 +201,10 @@ class ThreadApiService {
     log.info('[ThreadApiService] createThread called with:', request);
 
     const accessToken = await this.getAccessToken();
-    log.info('[ThreadApiService] Access token retrieved:', accessToken ? `YES (${accessToken.substring(0, 20)}...)` : 'NO');
+    log.info(
+      '[ThreadApiService] Access token retrieved:',
+      accessToken ? `YES (${accessToken.substring(0, 20)}...)` : 'NO',
+    );
 
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
@@ -352,7 +355,10 @@ class ThreadApiService {
    * @returns Paginated response with messages
    * @throws Error if not authenticated or request fails
    */
-  async getMessages(threadId: string, filters?: MessageFilters): Promise<PagedResponse<MessageDTO>> {
+  async getMessages(
+    threadId: string,
+    filters?: MessageFilters,
+  ): Promise<PagedResponse<MessageDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
@@ -489,7 +495,7 @@ class ThreadApiService {
 
     const data = (await response.json()) as MessageDTO;
 
-    log.info('[ThreadApiService] Successfully created message:' , data.id);
+    log.info('[ThreadApiService] Successfully created message:', data.id);
     return data;
   }
 

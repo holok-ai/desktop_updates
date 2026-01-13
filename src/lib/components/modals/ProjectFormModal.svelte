@@ -1,6 +1,12 @@
 <script lang="ts">
   import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
+  import MokuColorGrid from '$lib/components/common/MokuColorGrid.svelte';
+  import MokuIconPicker from '$lib/components/common/MokuIconPicker.svelte';
+  import {
+    MOKU_COLOR_PALETTE,
+    VALID_PROJECT_ICONS,
+  } from '$lib/constants/project-validation';
   import type { Project } from '$lib/types/project.type';
 
   let {
@@ -10,6 +16,8 @@
 
   let projectName = $state('');
   let projectDescription = $state('');
+  let selectedColor = $state<(typeof MOKU_COLOR_PALETTE)[number]>(MOKU_COLOR_PALETTE[0]);
+  let selectedIcon = $state<(typeof VALID_PROJECT_ICONS)[number]>(VALID_PROJECT_ICONS[0]);
   let isSubmitting = $state(false);
   let error = $state('');
 
@@ -31,11 +39,48 @@
     // Only initialize when modal opens (transitions from false to true)
     if (show && !lastShownState) {
       if (project) {
-        projectName = project.name;
+        console.log('[ProjectFormModal] Initializing with project:', {
+          id: project.id,
+          title: project.title,
+          metadata: project.metadata,
+          metadataType: typeof project.metadata,
+          metadataKeys: project.metadata ? Object.keys(project.metadata) : [],
+        });
+        
+        projectName = project.title || "";
         projectDescription = project.description || '';
+        
+        // Initialize color and icon from metadata
+        // Metadata is Record<string, unknown> so we need to check carefully
+        if (project.metadata && typeof project.metadata === 'object') {
+          const metadataColor = project.metadata['color'];
+          const metadataIcon = project.metadata['icon'];
+          
+          if (typeof metadataColor === 'string' && metadataColor) {
+            console.log('[ProjectFormModal] Setting color from metadata:', metadataColor);
+            selectedColor = metadataColor as (typeof MOKU_COLOR_PALETTE)[number];
+          } else {
+            console.log('[ProjectFormModal] Using default color, metadata.color:', metadataColor);
+            selectedColor = MOKU_COLOR_PALETTE[0];
+          }
+          
+          if (typeof metadataIcon === 'string' && metadataIcon) {
+            console.log('[ProjectFormModal] Setting icon from metadata:', metadataIcon);
+            selectedIcon = metadataIcon as (typeof VALID_PROJECT_ICONS)[number];
+          } else {
+            console.log('[ProjectFormModal] Using default icon, metadata.icon:', metadataIcon);
+            selectedIcon = VALID_PROJECT_ICONS[0];
+          }
+        } else {
+          console.log('[ProjectFormModal] No metadata object, using defaults');
+          selectedColor = MOKU_COLOR_PALETTE[0];
+          selectedIcon = VALID_PROJECT_ICONS[0];
+        }
       } else {
         projectName = '';
         projectDescription = '';
+        selectedColor = MOKU_COLOR_PALETTE[0];
+        selectedIcon = VALID_PROJECT_ICONS[0];
       }
     }
     lastShownState = show;
@@ -55,9 +100,13 @@
         await projectService.updateProject(project.id, {
           name: projectName.trim(),
           description: projectDescription.trim() || undefined,
+          metadata: {
+            color: selectedColor,
+            icon: selectedIcon,
+          },
         });
       } else {
-        // This modal is only for editing, creation happens in ProjectCreatePanel
+        // This modal is only for editing; project creation happens via ProjectFormPanel (inline create flow).
         throw new Error('Cannot create projects from this modal');
       }
 
@@ -121,6 +170,25 @@
           rows="3"
           disabled={isSubmitting}
         ></textarea>
+      </div>
+
+      <!-- Appearance Section -->
+      <div class="form-group">
+        <!-- svelte-ignore a11y_label_has_associated_control -->
+        <label>Appearance</label>
+        <div class="appearance-section">
+          <!-- Color Selector -->
+          <div class="appearance-field">
+            <span class="field-subtitle">Color</span>
+            <MokuColorGrid bind:value={selectedColor} disabled={isSubmitting} />
+          </div>
+
+          <!-- Icon Selector -->
+          <div class="appearance-field">
+            <span class="field-subtitle">Icon</span>
+            <MokuIconPicker bind:value={selectedIcon} disabled={isSubmitting} />
+          </div>
+        </div>
       </div>
 
       {#if isEditMode && project}
@@ -222,5 +290,23 @@
     font-size: 12px;
     color: var(--text-secondary);
     font-style: italic;
+  }
+
+  .appearance-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .appearance-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field-subtitle {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
   }
 </style>

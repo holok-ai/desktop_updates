@@ -54,12 +54,13 @@ export enum ProjectPermission {
  */
 export interface Project {
   id: string;
-  name: string; // Canonical display name
+  title: string; // Canonical display name
   description: string | null;
   type: ProjectType;
   createdBy: string;
   organizationId: string;
   active: boolean;
+  status: ProjectStatus;
   metadata: ProjectMetadata | null;
   memberCount: number;
   createdAt: string; // ISO-8601
@@ -99,7 +100,7 @@ export interface ProjectMember {
  * Input for creating a new project
  */
 export interface CreateProjectInput {
-  name: string; // 1-100 characters
+  title: string; // 1-100 characters
   description?: string | null;
   type?: ProjectType;
   metadata?: ProjectMetadata;
@@ -109,7 +110,7 @@ export interface CreateProjectInput {
  * Input for updating a project
  */
 export interface UpdateProjectInput {
-  name?: string; // 1-100 characters
+  title?: string; // 1-100 characters
   description?: string | null;
   metadata?: ProjectMetadata;
 }
