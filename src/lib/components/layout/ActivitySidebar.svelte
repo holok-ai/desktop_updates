@@ -2,7 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { authStore, currentUser, isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
-  import { push, location } from 'svelte-spa-router';
+  import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import type { AppThemeMode } from '$lib/types/app.type';
@@ -57,11 +57,17 @@
     push(ROUTE.LOGIN);
   }
 
-  function syncSelectedWithLocation(path: string) {
+  function syncSelectedWithLocation(path: string, qs?: string) {
     const normalized = typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME;
     let next = 'home';
+
+    // Check if we're viewing a project thread (threads route with projectId param)
+    const params = new URLSearchParams(qs ?? '');
+    const hasProjectId = params.has('projectId');
+
     if (normalized.startsWith(ROUTE.THREADS)) {
-      next = 'threads';
+      // If viewing a thread from a project, keep Projects activity selected
+      next = hasProjectId ? 'projects' : 'threads';
     } else if (normalized.startsWith(ROUTE.PROJECTS)) {
       next = 'projects';
     }
@@ -110,13 +116,23 @@
     };
     window.addEventListener('storage', onStorage);
 
-    // Initial sync with current route
+    // Keep selection in sync with route changes
     let currentPath = '';
-    const unsub = location.subscribe((p: string) => (currentPath = p));
-    syncSelectedWithLocation(currentPath);
-    unsub();
+    let currentQs = '';
+
+    const unsubLoc = location.subscribe((path: string) => {
+      currentPath = path;
+      syncSelectedWithLocation(currentPath, currentQs);
+    });
+
+    const unsubQs = querystring.subscribe((qs: string | undefined) => {
+      currentQs = qs ?? '';
+      syncSelectedWithLocation(currentPath, currentQs);
+    });
 
     return () => {
+      unsubLoc();
+      unsubQs();
       observer.disconnect();
       window.removeEventListener('storage', onStorage);
     };
@@ -124,12 +140,6 @@
 
   $effect(() => {
     const unsubscribe = modeStore.subscribe((mode) => (currentMode = mode));
-    return unsubscribe;
-  });
-
-  // Keep selection in sync when route changes
-  $effect(() => {
-    const unsubscribe = location.subscribe((path: string) => syncSelectedWithLocation(path));
     return unsubscribe;
   });
 

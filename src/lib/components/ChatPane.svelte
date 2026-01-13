@@ -14,7 +14,10 @@
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
-  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
+  import {
+    FileWriteEventService,
+    type FileWriteEvent,
+  } from '$lib/services/file-write-event.service';
 
   interface Props {
     thread?: Thread | null;
@@ -29,7 +32,11 @@
     >;
   }
 
-  let { thread = null, messages = $bindable([]), composer }: Props = $props();
+  let {
+    thread = null,
+    messages = $bindable([]),
+    composer,
+  }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state<Thread | null>(null);
@@ -84,6 +91,65 @@
       fileWriteEventService.clear();
       fileWriteEventsByMessageId = {};
     }
+  });
+
+  // Track which threads have had their initial prompt auto-sent
+  let autoSentThreadIds = $state(new Set<string>());
+
+  // Auto-send initial prompt for threads created with initialPrompt metadata
+  // This is the ONLY place that checks for and uses the initialPrompt metadata flag
+  $effect(() => {
+    console.log('[ChatPane Auto-send] Effect triggered:', {
+      hasThread: !!currentThread,
+      threadId: currentThread?.id,
+      chatServiceCreated,
+      isStreaming,
+      messagesLength: messages.length,
+      hasInitialPrompt: !!currentThread?.metadata?.initialPrompt,
+      alreadySent: currentThread ? autoSentThreadIds.has(currentThread.id) : false,
+    });
+
+    // Guards: Skip if no thread, chat service not ready, or already streaming
+    if (!currentThread || !chatServiceCreated || isStreaming) {
+      console.log('[ChatPane Auto-send] Skipping: basic guards failed');
+      return;
+    }
+
+    // Guard: Skip if we've already auto-sent for this thread
+    if (autoSentThreadIds.has(currentThread.id)) {
+      console.log('[ChatPane Auto-send] Skipping: already sent for this thread');
+      return;
+    }
+
+    // Guard: Only auto-send if thread has initialPrompt flag in metadata
+    const hasInitialPrompt = currentThread.metadata?.initialPrompt;
+    if (!hasInitialPrompt) {
+      console.log('[ChatPane Auto-send] Skipping: no initialPrompt flag in metadata');
+      return;
+    }
+
+    // Guard: Only auto-send if there's exactly 1 message and it's a user message
+    if (messages.length !== 1) {
+      console.log('[ChatPane Auto-send] Skipping: messages.length =', messages.length, '(expected 1)');
+      return;
+    }
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'user') {
+      console.log('[ChatPane Auto-send] Skipping: last message role =', lastMessage.role, '(expected user)');
+      return;
+    }
+
+    console.log('[ChatPane Auto-send] All guards passed! Auto-sending for thread:', currentThread.id);
+
+    // Mark this thread as having been auto-sent
+    autoSentThreadIds.add(currentThread.id);
+
+    // Send the existing user message to the LLM (skip creating a new user message)
+    setTimeout(() => {
+      console.log('[ChatPane Auto-send] Calling sendMessage with:', lastMessage.content.substring(0, 50));
+      void sendMessage(lastMessage.content, [], true); // true = skipUserMessageCreation
+    }, 100);
   });
 
   // State management
@@ -292,7 +358,9 @@
 
   // Initialize chat service with provider configuration
   async function initializeChatService(config: ProviderConfig) {
-    console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
+    console.log(
+      `[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`,
+    );
 
     const result = await window.electronAPI.chat.createProvider(config.provider, {
       url: config.url,
@@ -316,7 +384,7 @@
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
-  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
+  function scrollToBottom(behavior: 'auto' | 'instant' | 'smooth' = 'auto') {
     if (!messagesContainer) return;
     messagesContainer.scrollTo({
       top: messagesContainer.scrollHeight,
@@ -354,7 +422,7 @@
   }
 
   // Send message and handle streaming response
-  async function sendMessage(userMessage: string, attachments: any[] = []) {
+  async function sendMessage(userMessage: string, attachments: any[] = [], skipUserMessageCreation = false) {
     if (!chatServiceCreated) {
       error = 'Chat service not initialized';
       return;
@@ -370,11 +438,14 @@
 
     error = '';
 
-    // Create and add optimistic message
-    const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
+    // Only create user message if it doesn't already exist (skip for initial prompt auto-send)
+    if (!skipUserMessageCreation) {
+      // Create and add optimistic message
+      const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
 
-    // Send the user message (handles outbox and persistence)
-    await transmitter.sendUserMessage(userMsg, thread, isOnline);
+      // Send the user message (handles outbox and persistence)
+      await transmitter.sendUserMessage(userMsg, thread, isOnline);
+    }
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
@@ -385,13 +456,24 @@
     try {
       isStreaming = true;
       setupTokenListener();
-      const request = {
-        messages: [...historyMessages, { role: 'user', content: userMessage }],
+
+      // Build messages array: if skipUserMessageCreation is true, user message is already in history
+      const requestMessages = skipUserMessageCreation
+        ? historyMessages
+        : [...historyMessages, { role: 'user', content: userMessage }];
+
+      const threadData: string | undefined = currentThread?.id
+            ?`${currentThread.id},branch_id=${requestMessages.length}`
+            : undefined;
+
+        const request = {
+        messages: requestMessages,
         streaming: true,
         model: modelName,
-        ...(currentThread?.id && { thread_id: currentThread.id }),
+        ...(currentThread?.id && { thread_id: threadData }),
       };
-      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
+
+      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id,);
 
       // Use chatWithFileTools for all requests - tools are invisible to user
       const result = await window.electronAPI.chat.chatWithFileTools(request);
@@ -622,7 +704,8 @@
     };
 
     // Check if we need to reinitialize (config changed or first time)
-    const needsReinit = !currentProviderConfig ||
+    const needsReinit =
+      !currentProviderConfig ||
       currentProviderConfig.provider !== newConfig.provider ||
       currentProviderConfig.url !== newConfig.url ||
       currentProviderConfig.model !== newConfig.model;
@@ -630,60 +713,6 @@
     if (needsReinit) {
       chatServiceCreated = false; // Mark as not created to trigger reinit
       void initializeChatService(newConfig);
-    }
-  });
-
-  // Track which threads we've already auto-sent for (to avoid duplicate sends)
-  let autoSentForThreadId: string | null = null;
-
-  // Auto-send initial message when thread is created with a prompt but no AI response yet
-  $effect(() => {
-    // Skip if no thread, chat service not ready, or already streaming
-    if (!currentThread || !chatServiceCreated || isStreaming) return;
-
-    // Skip if we've already auto-sent for this thread
-    if (autoSentForThreadId === currentThread.id) return;
-
-    // Check if there's exactly one user message with no assistant response
-    const userMessages = messages.filter((m) => m.role === 'user');
-    const assistantMessages = messages.filter((m) => m.role === 'assistant');
-
-    if (userMessages.length === 1 && assistantMessages.length === 0) {
-      const initialPrompt = userMessages[0].content;
-
-      // Mark this thread as having been auto-sent
-      autoSentForThreadId = currentThread.id;
-
-      // Trigger AI response for the initial message
-      (async () => {
-        try {
-          isStreaming = true;
-          setupTokenListener();
-
-          const request = {
-            messages: [{ role: 'user', content: initialPrompt }],
-            streaming: true,
-            model: modelName,
-            ...(currentThread?.id && { thread_id: currentThread.id }),
-          };
-
-          // Use chatWithFileTools for all requests - tools are invisible to user
-          const result = await window.electronAPI.chat.chatWithFileTools(request);
-
-          if (!result.success) {
-            error = result.error || 'Chat failed';
-            console.error('Chat failed:', result.error);
-          } else {
-            // Save the assistant response
-            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt);
-          }
-        } catch (err) {
-          error = err instanceof Error ? err.message : 'Unknown error';
-          console.error('Error sending initial message:', err);
-        } finally {
-          isStreaming = false;
-        }
-      })();
     }
   });
 </script>

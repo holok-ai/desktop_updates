@@ -6,7 +6,7 @@
   import { threadService } from '$lib/services/thread.service';
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { push, querystring } from 'svelte-spa-router';
+  import { push, querystring, location } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
   import { storageService } from '$lib/services/storage.service';
@@ -33,13 +33,43 @@
   let threadToRename: { id: string; title: string } | null = $state(null);
 
   let selectedProjectId: string | null = $state(null);
+  let currentRoute = $state('');
 
-  const isThreadActivity = $derived(
-    activity?.route === ROUTE.THREADS || activity?.id === 'threads',
-  );
-  const isProjectsActivity = $derived(
-    activity?.route === ROUTE.PROJECTS || activity?.id === 'projects',
-  );
+  // Track current route
+  $effect(() => {
+    const unsub = location.subscribe((path: string) => {
+      currentRoute = path;
+    });
+    return unsub;
+  });
+
+  // Determine activity type based on actual route AND querystring
+  // If on /threads route with projectId param, show projects, not threads
+  const isThreadActivity = $derived.by(() => {
+    const params = new URLSearchParams($querystring ?? '');
+    const hasProjectId = params.has('projectId');
+
+    // If viewing a thread with projectId, it's a project thread, not a general thread
+    if (currentRoute.startsWith(ROUTE.THREADS) && hasProjectId) {
+      return false;
+    }
+
+    return currentRoute.startsWith(ROUTE.THREADS) ||
+      (activity?.route === ROUTE.THREADS || activity?.id === 'threads');
+  });
+
+  const isProjectsActivity = $derived.by(() => {
+    const params = new URLSearchParams($querystring ?? '');
+    const hasProjectId = params.has('projectId');
+
+    // If on /threads route with projectId, treat it as projects activity
+    if (currentRoute.startsWith(ROUTE.THREADS) && hasProjectId) {
+      return true;
+    }
+
+    return currentRoute.startsWith(ROUTE.PROJECTS) &&
+      (activity?.route === ROUTE.PROJECTS || activity?.id === 'projects');
+  });
 
   const activityTitle = $derived(activity?.label ?? 'Activity');
 

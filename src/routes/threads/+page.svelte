@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { get } from 'svelte/store';
   import { threads } from '../../lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';
   import { threadService } from '../../lib/services/thread.service';
@@ -18,8 +19,10 @@
     registerDiscardCallback,
   } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
+  import ThreadBreadcrumb from '$lib/components/threads/ThreadBreadcrumb.svelte';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
+  import { selectedProjectStore } from '$lib/stores/selected-project.store';
 
   let isLoading = $state(true);
   let formData: Thread = $state({
@@ -103,15 +106,115 @@
 
   onMount(async () => {
     await loadThreads();
+
+    // Set up querystring subscription
+    const unsubscribe = querystring.subscribe((qs: string | undefined) => {
+      const params = new URLSearchParams(qs ?? '');
+
+      // Step 1: Handle project context (with guard to prevent unnecessary updates)
+      const projectIdParam = params.get('projectId');
+
+      // Only update if changed to prevent infinite loops
+      if (currentProjectId !== projectIdParam) {
+        currentProjectId = projectIdParam;
+        console.log('[querystring subscription] projectIdParam changed to:', projectIdParam);
+
+        if (projectIdParam) {
+          storageService.setLastProjectId(projectIdParam);
+          selectedProjectStore.select(projectIdParam);
+        } else {
+          selectedProjectStore.clear();
+        }
+      }
+
+      // Step 2: Handle createThread flag
+      if (params.has('createThread')) {
+        console.log('[createThread detected] Stripping flag, preserving projectId:', projectIdParam);
+        const newParams = new URLSearchParams();
+        if (projectIdParam) {
+          newParams.set('projectId', projectIdParam);
+        }
+        void replace(newParams.toString() ? `${ROUTE.THREADS}?${newParams.toString()}` : ROUTE.THREADS);
+        return;
+      }
+
+      // Step 3: Handle thread viewing
+      const threadId = params.get('threadId');
+
+      if (!threadId) {
+        // No thread - show create form (only if we're currently viewing a thread)
+        // Defer state changes to avoid triggering effects during this subscription callback
+        if (selectedThread !== null) {
+          queueMicrotask(() => {
+            selectedThread = null;
+            messages = [];
+            resetThreadForm();
+          });
+        }
+        return;
+      }
+
+      // Thread requested - try to find in cache (use get() to avoid reactive dependency)
+      const found = get(threads).find((thread) => thread.id === threadId);
+      console.log('[querystring] Looking for thread:', threadId, 'found in store:', !!found);
+
+      if (found) {
+        // Thread in cache - validate and load
+        console.log('[querystring] Found thread in store, loading...');
+        const validation = canViewThread(found, currentProjectId);
+        if (validation.canView) {
+          void loadThread(found);
+        } else {
+          showError(validation.error!);
+        }
+        return;
+      }
+
+      // Thread not in cache - fetch from backend
+      console.log('[Thread not in store] Fetching thread:', threadId);
+      void (async () => {
+        try {
+          const fetchedThread = await threadService.getThread(threadId);
+
+          if (!fetchedThread) {
+            showError('Thread not found. It may have been deleted.');
+            return;
+          }
+
+          const validation = canViewThread(fetchedThread, currentProjectId);
+          if (validation.canView) {
+            await selectThread(fetchedThread);
+            errorMessage = null;
+          } else {
+            showError(validation.error!);
+          }
+        } catch (error) {
+          console.error('Failed to fetch thread:', error);
+          showError('Failed to load thread. Please try again.');
+        }
+      })();
+    });
+
+    // Return cleanup function
+    return () => {
+      unsubscribe();
+    };
   });
 
   // Handlers for events emitted by ChatPane component
-  function handleThreadCreated(e: CustomEvent<{ thread: Thread; tempId?: string }>) {
+  async function handleThreadCreated(e: CustomEvent<{ thread: Thread; tempId?: string }>) {
     const detail = e.detail;
     if (detail.tempId) threads.deleteThread(detail.tempId);
     threads.addThread(detail.thread);
-    selectThread(detail.thread);
-    void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(detail.thread.id)}`);
+    await selectThread(detail.thread);
+
+    // Build URL with threadId and projectId (if in project context)
+    const params = new URLSearchParams();
+    params.set('threadId', detail.thread.id);
+    if (currentProjectId) {
+      params.set('projectId', currentProjectId);
+    }
+    void replace(`${ROUTE.THREADS}?${params.toString()}`);
   }
 
   function handleOpenNewThreadPrefill(e: CustomEvent<{ prompt: string }>) {
@@ -153,7 +256,55 @@
     };
   });
 
+  // Helper: Validate if a thread can be viewed in the current context
+  function canViewThread(thread: Thread, requestedProjectId: string | null): { canView: boolean; error: string | null } {
+    const threadProjectId = (thread.metadata?.projectId as string | undefined) ?? null;
 
+    // Case 1: Viewing in project context
+    if (requestedProjectId) {
+      if (threadProjectId === requestedProjectId) {
+        return { canView: true, error: null };
+      }
+      return { canView: false, error: 'This thread does not belong to the current project.' };
+    }
+
+    // Case 2: Viewing in general/global context
+    if (threadProjectId === null) {
+      return { canView: true, error: null };
+    }
+
+    // Thread belongs to a project - check if project is accessible (use get() to avoid reactive dependency)
+    const project = get(projects).find((p) => p.id === threadProjectId);
+    const isProjectOnly = project?.privacyMode === 'project_only';
+
+    if (!isProjectOnly) {
+      return { canView: true, error: null };
+    }
+
+    return {
+      canView: false,
+      error: 'This thread belongs to a project. Please access it from the project view.'
+    };
+  }
+
+  // Helper: Display error and clear thread state
+  function showError(message: string) {
+    errorMessage = message;
+    selectedThread = null;
+    messages = [];
+    setTimeout(() => { errorMessage = null; }, 5000);
+  }
+
+  // Helper: Load thread (avoid reloading if already viewing)
+  async function loadThread(thread: Thread) {
+    if (selectedThread?.id !== thread.id) {
+      await selectThread(thread);
+    }
+    errorMessage = null;
+  }
+
+
+  /* OLD CODE (replaced by refactored version above):
   $effect(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
@@ -163,6 +314,11 @@
       console.log('[querystring subscription] projectIdParam:', projectIdParam, 'currentProjectId:', currentProjectId);
       if (projectIdParam) {
         storageService.setLastProjectId(projectIdParam);
+        // Maintain project context in sidebar when viewing project threads
+        selectedProjectStore.select(projectIdParam);
+      } else {
+        // Clear project context when viewing general threads
+        selectedProjectStore.clear();
       }
 
       if (params.has('createThread')) {
@@ -180,7 +336,7 @@
       const threadId = params.get('threadId');
       if (threadId) {
         let found = $threads.find((thread) => thread.id === threadId);
-        
+
         // If thread not in store, try to load it from backend
         if (!found) {
           console.log('[Thread not in store] Fetching thread:', threadId);
@@ -191,7 +347,7 @@
               if (fetchedThread) {
                 // Manually trigger selectThread since we're in async context
                 const threadProjectId = (fetchedThread.metadata?.projectId as string | undefined) ?? null;
-                
+
                 // Check project context matching
                 if (currentProjectId) {
                   if (threadProjectId === currentProjectId) {
@@ -232,7 +388,7 @@
           })();
           return; // Exit early, async handler will process the thread
         }
-        
+
         if (found) {
           // Verify thread belongs to current project context
           // If we're in projects activity, only show threads from selected project
@@ -311,6 +467,7 @@
     });
     return unsubscribe;
   });
+  */
 
   async function loadThreads() {
     isLoading = true;
@@ -324,38 +481,18 @@
     }
   }
 
-  function selectThread(thread: Thread) {
+  async function selectThread(thread: Thread) {
     clearUnsavedChanges('add-thread');
     selectedThread = thread;
     messages = [];
     // Load persisted messages for this thread
-    void (async () => {
-      try {
-        messages = await threadService.getMessages(thread.id);
-      } catch (e) {
-        console.error('Failed to load messages:', e);
-      }
-    })();
+    try {
+      messages = await threadService.getMessages(thread.id);
+      console.log('[selectThread] Loaded', messages.length, 'messages for thread:', thread.id);
+    } catch (e) {
+      console.error('Failed to load messages:', e);
+    }
     storageService.setLastThreadId(thread.id);
-  }
-
-  /**
-   * Auto-generate a title from the prompt (max 80 chars)
-   */
-  function generateTitleFromPrompt(prompt: string): string {
-    const trimmed = prompt.trim();
-    if (trimmed.length <= 80) {
-      // Use first line or entire prompt if short
-      const firstLine = trimmed.split('\n')[0];
-      return firstLine.length <= 80 ? firstLine : firstLine.substring(0, 77) + '...';
-    }
-    // Truncate at word boundary if possible
-    const truncated = trimmed.substring(0, 77);
-    const lastSpace = truncated.lastIndexOf(' ');
-    if (lastSpace > 50) {
-      return truncated.substring(0, lastSpace) + '...';
-    }
-    return truncated + '...';
   }
 
   async function handleSave() {
@@ -367,31 +504,49 @@
     console.log('[handleSave] currentProjectId:', currentProjectId);
 
     try {
-      // Auto-generate title from prompt
-      const autoTitle = generateTitleFromPrompt(newThreadPrompt);
-
-      // Create thread with prompt atomically, passing metadata fields at top level
-      const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
-        title: autoTitle,
-        model: selectedModel.id,
-        // Pass projectId if creating from project context
-        ...(currentProjectId ? { projectId: currentProjectId } : {}),
-        // Spread metadata fields at top level, not nested
-        ...(formData.metadata ? {
-          modelId: formData.metadata.modelId,
-          modelTitle: formData.metadata.modelTitle,
-          modelAccessName: formData.metadata.modelAccessName,
-          provider: formData.metadata.provider,
-          url: formData.metadata.url,
-        } : {}),
+      // Create thread with initial prompt atomically
+      // Backend will: 1) auto-generate title, 2) create thread, 3) add initial user message
+      const created = await window.electronAPI.thread.createWithInitialPrompt({
+        prompt: newThreadPrompt,
+        metadata: {
+          modelId: selectedModel.id,
+          modelTitle: formData.metadata?.modelTitle || selectedModel.title,
+          modelAccessName: formData.metadata?.modelAccessName || selectedModel.accessName,
+          provider: formData.metadata?.provider || selectedModel.provider,
+          url: formData.metadata?.url || selectedModel.url,
+          description: formData.description || '',
+          status: formData.status || THREAD_STATUS.ACTIVE,
+          // Pass projectId if creating from project context
+          ...(currentProjectId ? { projectId: currentProjectId } : {}),
+        },
       });
-      const created = res.thread as Thread;
-      threads.addThread(created);
-      selectThread(created);
-      void replace(`${ROUTE.THREADS}?threadId=${encodeURIComponent(created.id)}`);
 
-      clearUnsavedChanges('add-thread');
-      resetThreadForm();
+      console.log('[handleSave] Thread created with initial message:', created.id);
+
+      // Use queueMicrotask to defer ALL state updates until after current execution completes
+      // This prevents Svelte reactive cycle corruption
+      queueMicrotask(async () => {
+        // Add to store
+        threads.addThread(created);
+        console.log('[handleSave] Added thread to store');
+
+        // Clear form state
+        clearUnsavedChanges('add-thread');
+        resetThreadForm();
+
+        // Build URL with threadId and projectId (if in project context)
+        const params = new URLSearchParams();
+        params.set('threadId', created.id);
+        if (currentProjectId) {
+          params.set('projectId', currentProjectId);
+        }
+
+        console.log('[handleSave] Navigating to thread:', created.id);
+
+        // Navigate - querystring subscription will load the thread
+        await replace(`${ROUTE.THREADS}?${params.toString()}`);
+        console.log('[handleSave] Navigation complete');
+      });
     } catch (error) {
       console.error('Failed to create thread:', error);
     }
@@ -426,9 +581,16 @@
       on:submit={() => handleSave()}
     />
   {:else}
+    {#if selectedThread}
+      <ThreadBreadcrumb thread={selectedThread} />
+    {/if}
     <div class="threads-grid">
       <div class="w-full">
-        <ChatPane bind:this={chatPaneRef} thread={selectedThread} bind:messages>
+        <ChatPane
+          bind:this={chatPaneRef}
+          thread={selectedThread}
+          bind:messages
+        >
           {#snippet composer({ sendMessage, isStreaming })}
             {#if selectedThread}
               <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />

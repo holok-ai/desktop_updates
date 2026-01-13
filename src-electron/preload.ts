@@ -45,6 +45,13 @@ export interface ThreadAPI {
   // Create a new thread (optionally within a project context)
   create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
 
+  // Create a new thread with initial prompt atomically
+  // This is the ONLY method that should create threads with initialPrompt set in metadata
+  createWithInitialPrompt: (payload: {
+    prompt: string;
+    metadata: Record<string, unknown>;
+  }) => Promise<Thread>;
+
   // Update an existing thread
   update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
 
@@ -761,6 +768,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) =>
       ipcRenderer.invoke('thread:create', thread),
+
+    createWithInitialPrompt: (payload: { prompt: string; metadata: Record<string, unknown> }) =>
+      ipcRenderer.invoke('thread:createWithInitialPrompt', payload),
 
     update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
