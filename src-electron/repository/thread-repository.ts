@@ -7,7 +7,6 @@ import type {
   ThreadDTO,
   MessageDTO,
   CreateThreadRequest,
-  CreateMessageRequest,
 } from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -308,10 +307,6 @@ export class ThreadRepository {
 
     // Create message via API to persist branch information
     try {
-      const requestId = payload.metadata?.requestId 
-        ? (typeof payload.metadata.requestId === 'string' ? payload.metadata.requestId : undefined)
-        : undefined;
-
       // Use provided branchId or fallback to thread's current branchId
       const branchId = payload.branchId ?? thread.currentBranchId;
 
@@ -319,19 +314,14 @@ export class ThreadRepository {
         ? payload.metadata.provider
         : undefined;
 
-      const createRequest: CreateMessageRequest = {
+      const createRequest: import('../services/mokuapi/thread.types.js').CreateMessageRequest = {
         role: payload.role,
         content: payload.content,
         branchId: branchId,
         model: payload.modelId ?? undefined,
         provider,
         metadata: payload.metadata,
-        requestId,
       };
-      
-      if (!requestId && payload.role === 'user') {
-        log.warn('[ThreadRepository] User message missing requestId. This may cause backend validation to fail. The requestId should be generated when the LLM call starts.');
-      }
 
       log.info('[ThreadRepository] Creating message via API with branchId:', threadId, JSON.stringify(createRequest, null, 2));
 

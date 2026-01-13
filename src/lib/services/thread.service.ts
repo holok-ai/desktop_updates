@@ -349,12 +349,14 @@ export class ThreadService extends BaseElectronService {
   private getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
     // Find all existing variations at this level
     const existingVariations = messages
-      .map(m => m.branchId)
-      .filter(bid => {
+      .map((m) => m.branchId)
+      .filter((bid) => {
         const parts = bid.split('.');
         const baseParts = baseBranchId.split('.');
         // Must be exactly one level deeper and share the same base
-        if (parts.length !== baseParts.length + 1) {return false;}
+        if (parts.length !== baseParts.length + 1) {
+          return false;
+        }
         return bid.startsWith(`${baseBranchId}.`);
       });
 

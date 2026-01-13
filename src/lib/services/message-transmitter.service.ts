@@ -144,14 +144,12 @@ export class MessageTransmitter {
 
   /**
    * Send user message and handle persistence
-   * @param requestId - Optional requestId from LLM audit (should be provided when LLM call is made)
    */
   async sendUserMessage(
     userMsg: Message,
     thread: Thread | null,
     isOnline: boolean,
     branchId?: string,
-    requestId?: string | null,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
@@ -174,12 +172,7 @@ export class MessageTransmitter {
 
     // Persist to memory storage if thread exists
     if (thread !== null && isPermanent) {
-      // Include requestId in metadata if provided (for linking to llm_requests)
-      const metadataWithRequestId = typeof requestId === 'string' && requestId.length > 0
-        ? { ...userMsg.metadata, requestId }
-        : userMsg.metadata;
-      
-      await this.persistMessage({ ...userMsg, metadata: metadataWithRequestId }, thread.id);
+      await this.persistMessage(userMsg, thread.id);
     }
   }
 
@@ -191,7 +184,6 @@ export class MessageTransmitter {
     thread: Thread | null,
     userMessage: string,
     userMessageObj?: Message,
-    requestId?: string | null,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
@@ -205,19 +197,10 @@ export class MessageTransmitter {
       // Extract branchId from user message or use thread's current branch
       const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
 
-      // Include requestId in metadata if provided (required for assistant messages)
-      const metadataWithRequestId = typeof requestId === 'string' && requestId.length > 0
-        ? { ...metadata, requestId }
-        : metadata;
-      
-      if (typeof requestId !== 'string' || requestId.length === 0) {
-        console.warn('[MessageTransmitter] Assistant message missing requestId. This may cause backend validation to fail.');
-      }
-
       const assistantPersist = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
-        metadata: metadataWithRequestId,
+        metadata,
         clientMessageId: crypto.randomUUID(),
         branchId,
       });

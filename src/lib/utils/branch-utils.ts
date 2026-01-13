@@ -66,7 +66,7 @@ export function getBranchMessages(messages: Message[], branchId: string): Messag
 
   // Filter messages that belong to this branch hierarchy
   return messages
-    .filter(m => relevantBranchIds.has(m.branchId))
+    .filter((m) => relevantBranchIds.has(m.branchId))
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -86,7 +86,7 @@ export function assembleContext(messages: Message[], messageId: string): Message
  */
 export function getMainBranchPath(messages: Message[]): Message[] {
   return messages
-    .filter(m => m.branchId === '1.0')
+    .filter((m) => m.branchId === '1.0')
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -161,9 +161,11 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
 /**
  * Check if message can have a variation created from it
  */
-export function canCreateVariation(message: Message | undefined, _messages: Message[]): boolean {
-  if (message?.role !== 'user') {return false;}
-  
+export function canCreateVariation(message: Message | undefined): boolean {
+  if (message?.role !== 'user') {
+    return false;
+  }
+
   // Allow creating variations from any user message
   return true;
 }
