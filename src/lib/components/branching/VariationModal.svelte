@@ -126,8 +126,8 @@
   }
 </script>
 
-<div class="modal-overlay" onclick={onCancel} role="button" tabindex="-1">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+<div class="modal-overlay" onclick={onCancel} onkeydown={(e) => e.key === 'Escape' && onCancel()} role="button" tabindex="-1">
+  <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && onCancel()} role="dialog" aria-modal="true" tabindex="0">
     <div class="modal-header">
       <h3>Create Variation</h3>
       <button class="close-btn" onclick={onCancel} aria-label="Close">✕</button>
@@ -382,7 +382,7 @@
     cursor: not-allowed;
   }
 
-  input, textarea {
+  textarea {
     padding: 10px 12px;
     background: var(--surface-ground);
     border: 1px solid var(--surface-border);
@@ -393,7 +393,7 @@
     resize: vertical;
   }
 
-  input:focus, textarea:focus {
+  textarea:focus {
     outline: none;
     border-color: #646cff;
     box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.2);

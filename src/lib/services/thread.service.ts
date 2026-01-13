@@ -354,8 +354,8 @@ export class ThreadService extends BaseElectronService {
         const parts = bid.split('.');
         const baseParts = baseBranchId.split('.');
         // Must be exactly one level deeper and share the same base
-        if (parts.length !== baseParts.length + 1) return false;
-        return bid.startsWith(baseBranchId + '.');
+        if (parts.length !== baseParts.length + 1) {return false;}
+        return bid.startsWith(`${baseBranchId}.`);
       });
 
     // Find the next available index

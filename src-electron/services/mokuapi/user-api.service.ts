@@ -4,7 +4,7 @@
  */
 
 import log from 'electron-log';
-import type { UserSummaryDTO, UserSearchParams } from './user.types.js';
+import type { UserSummaryDTO } from './user.types.js';
 import type { PagedResponse } from './paging.types.js';
 
 // Import dependencies directly (singleton pattern ensures single instance)

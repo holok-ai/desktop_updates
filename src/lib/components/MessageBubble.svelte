@@ -10,7 +10,6 @@
   import CommentDisplay from './CommentDisplay.svelte';
   import CommentEditor from './CommentEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
-  import { toastStore } from '$lib/services/toast.service';
   import VariationButton from './branching/VariationButton.svelte';
   import { canCreateVariation } from '$lib/utils/branch-utils';
   import {

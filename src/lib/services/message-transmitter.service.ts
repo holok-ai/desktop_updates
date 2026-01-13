@@ -1,7 +1,7 @@
 import { wrapElectronCall } from '$lib/utils/apiWrapper';
 import { MESSAGE_STATUS } from '$lib/constants/status.constant';
 import type { MessageStatus } from '$lib/types/status.type';
-import type { Message, BranchType } from '$lib/types/thread.type';
+import type { Message } from '$lib/types/thread.type';
 import { outboxService } from './outbox.service';
 import { threadService } from './thread.service';
 import type { Thread } from '../../../src-electron/preload';
@@ -158,7 +158,7 @@ export class MessageTransmitter {
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
     // Update message with branchId if provided
-    if (branchId) {
+    if (typeof branchId === 'string' && branchId.length > 0) {
       userMsg.branchId = branchId;
     }
 
@@ -175,7 +175,7 @@ export class MessageTransmitter {
     // Persist to memory storage if thread exists
     if (thread !== null && isPermanent) {
       // Include requestId in metadata if provided (for linking to llm_requests)
-      const metadataWithRequestId = requestId 
+      const metadataWithRequestId = typeof requestId === 'string' && requestId.length > 0
         ? { ...userMsg.metadata, requestId }
         : userMsg.metadata;
       
@@ -206,14 +206,12 @@ export class MessageTransmitter {
       const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
 
       // Include requestId in metadata if provided (required for assistant messages)
-      const metadataWithRequestId = requestId 
+      const metadataWithRequestId = typeof requestId === 'string' && requestId.length > 0
         ? { ...metadata, requestId }
         : metadata;
       
-      if (!requestId) {
+      if (typeof requestId !== 'string' || requestId.length === 0) {
         console.warn('[MessageTransmitter] Assistant message missing requestId. This may cause backend validation to fail.');
-      } else {
-        console.log('[MessageTransmitter] Assistant message requestId:', requestId, 'branchId:', branchId);
       }
 
       const assistantPersist = await threadService.appendMessage(thread.id, {

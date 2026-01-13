@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Message } from '$lib/types/thread.type';
   import BranchLane from './BranchLane.svelte';
-  import { getBranchesForMessage } from '$lib/utils/branch-utils';
 
   interface Props {
     messages: Message[];

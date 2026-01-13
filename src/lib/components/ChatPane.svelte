@@ -8,9 +8,7 @@
   import { threadService } from '$lib/services/thread.service';
   import type { Message, BranchType } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
-  import FileWriteNotification from './chat/FileWriteNotification.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
-  import MarkdownRenderer from './MarkdownRenderer.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
@@ -364,7 +362,6 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       const allBranchMessages = getAllMessagesInBranch(userMsg.id, userBranchIndex);
       
       // Separate user and assistant messages for display
-      const userMessages = allBranchMessages.filter(m => m.role === 'user');
       const assistantMessages = allBranchMessages.filter(m => m.role === 'assistant');
 
       return {
@@ -1140,7 +1137,8 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         
         // Force reactivity update to ensure branch boxes are recalculated
         // The messages array update should trigger derived values, but we ensure it here
-        messages = messages;
+        // Trigger reactivity by reassigning the array reference
+        messages = [...messages];
         
         showVariationModalFor = null;
 
@@ -1313,23 +1311,6 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
   }
 
 
-  function getAllDescendants(allMessages: Message[], startMessageId: string): Message[] {
-    const result: Message[] = [];
-    const queue = [startMessageId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      const message = allMessages.find(m => m.id === currentId);
-      if (message) {
-        result.push(message);
-        // Add all children to queue
-        const children = allMessages.filter(m => m.parentMessageId === currentId);
-        queue.push(...children.map(c => c.id));
-      }
-    }
-
-    return result;
-  }
 
   // Cleanup on unmount
   async function cleanup() {
@@ -2217,12 +2198,6 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     bottom: 0;
     background: var(--surface-main);
     padding-top: var(--content-padding);
-  }
-
-  .message-content {
-    background: var(--surface-card);
-    padding: var(--inline-spacing);
-    border-radius: var(--border-radius);
   }
 
   .no-messages {

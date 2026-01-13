@@ -27,7 +27,7 @@ export function parseBranchId(branchId: string): { parts: string[]; depth: numbe
  * E.g., "1.0.1" is a variation of "1.0"
  */
 export function isVariationOf(branchId: string, baseBranchId: string): boolean {
-  return branchId.startsWith(baseBranchId + '.');
+  return branchId.startsWith(`${baseBranchId  }.`);
 }
 
 /**
@@ -39,8 +39,8 @@ export function getVariationsForBranch(messages: Message[], baseBranchId: string
   return messages.filter((m) => {
     const parts = m.branchId.split('.');
     // Must be exactly one level deeper
-    if (parts.length !== baseDepth + 1) return false;
-    return m.branchId.startsWith(baseBranchId + '.');
+    if (parts.length !== baseDepth + 1) {return false;}
+    return m.branchId.startsWith(`${baseBranchId  }.`);
   });
 }
 
@@ -76,7 +76,7 @@ export function getBranchMessages(messages: Message[], branchId: string): Messag
  */
 export function assembleContext(messages: Message[], messageId: string): Message[] {
   const message = messages.find(m => m.id === messageId);
-  if (!message) return [];
+  if (message === null || message === undefined) {return [];}
   
   return getBranchMessages(messages, message.branchId);
 }
@@ -121,13 +121,13 @@ export function isForkPoint(messages: Message[], branchId: string): boolean {
  */
 export function getFirstForkPoint(messages: Message[]): string | null {
   const forkPoints = getForkPoints(messages);
-  if (forkPoints.length === 0) return null;
+  if (forkPoints.length === 0) {return null;}
   
   // Sort by depth (shallowest first) and return the first one
   forkPoints.sort((a, b) => {
     const depthA = a.split('.').length;
     const depthB = b.split('.').length;
-    if (depthA !== depthB) return depthA - depthB;
+    if (depthA !== depthB) {return depthA - depthB;}
     // Same depth, sort lexicographically
     return a.localeCompare(b);
   });
@@ -161,8 +161,8 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
 /**
  * Check if message can have a variation created from it
  */
-export function canCreateVariation(message: Message | undefined, messages: Message[]): boolean {
-  if (!message || message.role !== 'user') return false;
+export function canCreateVariation(message: Message | undefined, _messages: Message[]): boolean {
+  if (message?.role !== 'user') {return false;}
   
   // Allow creating variations from any user message
   return true;

@@ -7,6 +7,7 @@ import type {
   ThreadDTO,
   MessageDTO,
   CreateThreadRequest,
+  CreateMessageRequest,
 } from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -308,18 +309,22 @@ export class ThreadRepository {
     // Create message via API to persist branch information
     try {
       const requestId = payload.metadata?.requestId 
-        ? (payload.metadata.requestId as string)
+        ? (typeof payload.metadata.requestId === 'string' ? payload.metadata.requestId : undefined)
         : undefined;
 
       // Use provided branchId or fallback to thread's current branchId
       const branchId = payload.branchId ?? thread.currentBranchId;
+
+      const provider = payload.metadata?.provider && typeof payload.metadata.provider === 'string'
+        ? payload.metadata.provider
+        : undefined;
 
       const createRequest: CreateMessageRequest = {
         role: payload.role,
         content: payload.content,
         branchId: branchId,
         model: payload.modelId ?? undefined,
-        provider: payload.metadata?.provider as string | undefined,
+        provider,
         metadata: payload.metadata,
         requestId,
       };

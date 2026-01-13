@@ -87,7 +87,7 @@ export function stripMarkdown(text: string): string {
 /** Copy text to clipboard */
 export async function copyToClipboard(text: string, showToast = true): Promise<boolean> {
   try {
-    if (navigator.clipboard?.writeText) {
+    if (typeof navigator.clipboard?.writeText === 'function') {
       await navigator.clipboard.writeText(text);
     } else {
       // Fallback for older browsers
@@ -123,11 +123,12 @@ export async function copyResponse(content: string, format?: CopyFormat): Promis
 
 /** Copy code block (raw code without backticks) */
 export async function copyCode(code: string): Promise<boolean> {
-  const success = await copyToClipboard(code, false);
-  if (success) {
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  const didSucceed = await copyToClipboard(code, false);
+  if (didSucceed) {
     toastStore.show('Code copied', { variant: 'success' });
   }
-  return success;
+  return didSucceed;
 }
 
 /** Copy prompt to input (sets the store for Composer to read) */

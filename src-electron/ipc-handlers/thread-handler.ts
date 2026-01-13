@@ -10,7 +10,6 @@ import type {
   ThreadMetadata,
   Message,
   MessageVersion,
-  BranchType,
 } from '../repository/thread-repository.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';

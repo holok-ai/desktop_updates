@@ -1,15 +1,11 @@
 <script lang="ts">
-  import type { Message, BranchType } from '$lib/types/thread.type';
-  import { canCreateVariation } from '$lib/utils/branch-utils';
-
   interface Props {
-    message: Message;
     onclick: () => void;
     disabled?: boolean;
     canCreate?: boolean;
   }
 
-  let { message, onclick, disabled = false, canCreate = true }: Props = $props();
+  let { onclick, disabled = false, canCreate = true }: Props = $props();
 
   const tooltipText = $derived(() => {
     if (!canCreate) return 'Maximum variations reached';
