@@ -33,12 +33,20 @@ function createSelectedProjectStore() {
 
     // Set the selected project by ID
     select: (projectId: string | null): void => {
-      selectedId.set(projectId);
+      const currentId = get(selectedId);
+      // Only update if the project ID is different
+      if (currentId !== projectId) {
+        selectedId.set(projectId);
+      }
     },
 
     // Clear selection
     clear: (): void => {
-      selectedId.set(null);
+      const currentId = get(selectedId);
+      // Only clear if not already null
+      if (currentId !== null) {
+        selectedId.set(null);
+      }
     },
 
     // Get current value synchronously (use sparingly)

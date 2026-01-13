@@ -347,6 +347,85 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Create thread with initial prompt atomically
+  // This is the ONLY code path that should create threads with initialPrompt in metadata
+  ipcMain.handle(
+    'thread:createWithInitialPrompt',
+    async (
+      _event,
+      payload: {
+        prompt: string;
+        metadata: ThreadMetadata;
+      },
+    ): Promise<RendererThread> => {
+      const perfLog = logPerformance('thread:createWithInitialPrompt');
+      threadLog.info('CreateWithInitialPrompt called', {
+        promptLength: payload.prompt.length,
+        metadata: payload.metadata,
+      });
+
+      // Validate prompt
+      if (!payload.prompt || payload.prompt.trim().length === 0) {
+        throw new Error('Prompt cannot be empty');
+      }
+
+      // Auto-generate title from prompt if not provided
+      const title =
+        payload.metadata.title && payload.metadata.title.trim().length > 0
+          ? payload.metadata.title
+          : (() => {
+              const trimmed = payload.prompt.trim();
+              if (trimmed.length <= 80) {
+                const firstLine = trimmed.split('\n')[0];
+                return firstLine.length <= 80 ? firstLine : firstLine.substring(0, 77) + '...';
+              }
+              const truncated = trimmed.substring(0, 77);
+              const lastSpace = truncated.lastIndexOf(' ');
+              if (lastSpace > 50) {
+                return truncated.substring(0, lastSpace) + '...';
+              }
+              return truncated + '...';
+            })();
+
+      // Server-side validation: ensure provided model is available
+      if (typeof payload.metadata.modelId === 'string') {
+        const mdl = modelRepository.getModel(payload.metadata.modelId);
+        if (!mdl) {
+          throw new Error('Model unavailable—choose another');
+        }
+      }
+
+      // Create thread with title and metadata
+      const threadMetadata: ThreadMetadata = {
+        ...payload.metadata,
+        title,
+        // CRITICAL: Store initialPrompt in metadata - this is the ONLY place that sets this
+        initialPrompt: payload.prompt,
+      };
+
+      const th = await threadRepository.createThread(threadMetadata);
+
+      // Add the initial user message to the thread
+      const message = await threadRepository.appendMessage(th.id, {
+        role: 'user',
+        content: payload.prompt,
+        metadata: {},
+      });
+
+      threadLog.info('Initial message added', { messageId: message.id, threadId: th.id });
+
+      // Reload thread to get updated message list
+      const updatedThread = await threadRepository.loadThread(th.id);
+      const rt = toRendererThread(updatedThread);
+      if (!rt) throw new Error('Failed to convert created thread');
+
+      broadcast('thread:created', rt);
+      perfLog.end({ threadId: th.id });
+
+      return rt;
+    },
+  );
+
   ipcMain.handle(
     'thread:update',
     async (_event, id: string, updates: Partial<RendererThread>): Promise<RendererThread> => {
@@ -1021,6 +1100,7 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:getAll');
   ipcMain.removeHandler('thread:getById');
   ipcMain.removeHandler('thread:create');
+  ipcMain.removeHandler('thread:createWithInitialPrompt');
   ipcMain.removeHandler('thread:update');
   ipcMain.removeHandler('thread:renameThread');
   ipcMain.removeHandler('thread:undoRename');

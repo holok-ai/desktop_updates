@@ -63,6 +63,29 @@
     return '';
   }
 
+  // Handle paste event for bulk URL input
+  function handleMokuWebUrlPaste(event: ClipboardEvent) {
+    const pastedText = event.clipboardData?.getData('text');
+
+    if (!pastedText) return;
+
+    // Split by newlines (handle both \r\n and \n)
+    const lines = pastedText.split(/\r?\n/).filter(line => line.trim().length > 0);
+
+    // Check if we have 2 or more lines
+    if (lines.length >= 2) {
+      event.preventDefault(); // Prevent default paste behavior
+
+      // Populate the three URL fields with the first 3 lines
+      if (lines[0]) settings.mokuWebUrl = lines[0].trim();
+      if (lines[1]) settings.mokuApiUrl = lines[1].trim();
+      if (lines[2]) settings.holoApiUrl = lines[2].trim();
+
+      console.log('[Settings] Bulk paste detected - populated 3 URL fields');
+    }
+    // If less than 2 lines, let the default paste behavior happen
+  }
+
   async function saveSettings() {
     try {
       if (!isValidUrl(settings.mokuWebUrl)) throw new Error('Invalid Moku Web URL');
@@ -164,6 +187,7 @@
                 bind:value={settings.mokuWebUrl}
                 placeholder="https://moku.holokai.com"
                 class="w-full p-2 rounded border bg-transparent"
+                onpaste={handleMokuWebUrlPaste}
               />
               <small class="text-xs text-gray-500">URL of the Moku web application</small>
             </div>
