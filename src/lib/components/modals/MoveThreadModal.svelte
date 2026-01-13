@@ -137,7 +137,7 @@
           >
             <option value="">General History (Unscoped)</option>
             {#each $projects as project}
-              <option value={project.id}>{project.name}</option>
+              <option value={project.id}>{project.title}</option>
             {/each}
           </select>
         </div>

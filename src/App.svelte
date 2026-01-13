@@ -5,6 +5,8 @@
   import Toast from './lib/components/Toast.svelte';
   import { toastStore } from './lib/services/toast.service';
   import ConfirmNavigationModal from './lib/components/modals/ConfirmNavigationModal.svelte';
+  import DeleteProjectModal from './lib/components/modals/DeleteProjectModal.svelte';
+  import { deleteProjectModalStore } from './lib/stores/delete-project-modal.store';
   import '$lib/services/menu-navigation.service';
 
   let isLoading = $state(true);
@@ -47,6 +49,12 @@
       unsubscribeError();
     };
   });
+
+  // Handle project deletion success
+  function handleProjectDeleted() {
+    deleteProjectModalStore.close();
+    toastStore.show('Project deleted successfully', { variant: 'success' });
+  }
 </script>
 
 {#if isLoading}
@@ -59,6 +67,13 @@
 
 <!-- Global navigation confirmation modal -->
 <ConfirmNavigationModal />
+
+<!-- Global delete project modal -->
+<DeleteProjectModal 
+  bind:show={$deleteProjectModalStore.show} 
+  bind:project={$deleteProjectModalStore.project}
+  on:deleted={handleProjectDeleted}
+/>
 
 <style>
   .loading {

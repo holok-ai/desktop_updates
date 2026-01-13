@@ -159,12 +159,13 @@ export class ProjectCache {
       // Map DTO to Project entity
       const project: Project = {
         id: projectDTO.id,
-        name: projectDTO.name,
+        title: projectDTO.name,
         description: projectDTO.description,
         type: projectDTO.type as Project['type'],
         createdBy: projectDTO.createdBy,
         organizationId: projectDTO.organizationId,
         active: projectDTO.active,
+        status: projectDTO.status as Project['status'],
         metadata: projectDTO.metadata as Project['metadata'],
         memberCount: projectDTO.memberCount,
         createdAt: projectDTO.createdAt,
@@ -185,7 +186,7 @@ export class ProjectCache {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       await fs.writeFile(filePath, encrypted);
 
-      log.debug(`[ProjectCache] Set project: ${id} (${project.name})`);
+      log.debug(`[ProjectCache] Set project: ${id} (${project.title})`);
     } catch (error) {
       log.error(`[ProjectCache] Failed to set project ${id}:`, error);
       throw error;

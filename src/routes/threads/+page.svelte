@@ -67,11 +67,18 @@
     modelSelectionTouched = false;
   }
 
-  function startThreadCreationFlow(prefillPrompt = '') {
+  function startThreadCreationFlow(
+    prefillPrompt = '',
+    options?: { projectId?: string | null },
+  ) {
     resetThreadForm(prefillPrompt);
     selectedThread = null;
     storageService.removeLastThreadId();
-    replace(ROUTE.THREADS);
+    const params = new URLSearchParams();
+    if (options?.projectId) {
+      params.set('projectId', options.projectId);
+    }
+    void replace(params.toString() ? `${ROUTE.THREADS}?${params.toString()}` : ROUTE.THREADS);
   }
 
   $effect(() => {
@@ -153,17 +160,79 @@
 
       const projectIdParam = params.get('projectId');
       currentProjectId = projectIdParam;
+      console.log('[querystring subscription] projectIdParam:', projectIdParam, 'currentProjectId:', currentProjectId);
       if (projectIdParam) {
         storageService.setLastProjectId(projectIdParam);
       }
 
       if (params.has('createThread')) {
-        startThreadCreationFlow();
-        void replace(ROUTE.THREADS);
+        console.log('[createThread detected] Stripping flag, preserving projectId:', projectIdParam);
+        // Clear createThread flag but preserve projectId so the create form
+        // can associate the new thread with the project.
+        // Don't call startThreadCreationFlow here - just strip the flag from URL
+        const newParams = new URLSearchParams();
+        if (projectIdParam) {
+          newParams.set('projectId', projectIdParam);
+        }
+        void replace(newParams.toString() ? `${ROUTE.THREADS}?${newParams.toString()}` : ROUTE.THREADS);
+        return; // Exit early to prevent further processing
       }
       const threadId = params.get('threadId');
       if (threadId) {
-        const found = $threads.find((thread) => thread.id === threadId);
+        let found = $threads.find((thread) => thread.id === threadId);
+        
+        // If thread not in store, try to load it from backend
+        if (!found) {
+          console.log('[Thread not in store] Fetching thread:', threadId);
+          // Wrap async call in void IIFE
+          void (async () => {
+            try {
+              const fetchedThread = await threadService.getThread(threadId);
+              if (fetchedThread) {
+                // Manually trigger selectThread since we're in async context
+                const threadProjectId = (fetchedThread.metadata?.projectId as string | undefined) ?? null;
+                
+                // Check project context matching
+                if (currentProjectId) {
+                  if (threadProjectId === currentProjectId) {
+                    selectThread(fetchedThread);
+                    errorMessage = null;
+                  } else {
+                    errorMessage = 'This thread does not belong to the current project.';
+                    selectedThread = null;
+                    messages = [];
+                    setTimeout(() => { errorMessage = null; }, 5000);
+                  }
+                } else {
+                  if (threadProjectId === null) {
+                    selectThread(fetchedThread);
+                    errorMessage = null;
+                  } else {
+                    const project = $projects.find((p) => p.id === threadProjectId);
+                    const isProjectOnly = project?.privacyMode === 'project_only';
+                    if (!isProjectOnly) {
+                      selectThread(fetchedThread);
+                      errorMessage = null;
+                    } else {
+                      errorMessage = 'This thread belongs to a project. Please access it from the project view.';
+                      selectedThread = null;
+                      messages = [];
+                      setTimeout(() => { errorMessage = null; }, 5000);
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch thread:', error);
+              errorMessage = 'Failed to load thread. Please try again.';
+              selectedThread = null;
+              messages = [];
+              setTimeout(() => { errorMessage = null; }, 5000);
+            }
+          })();
+          return; // Exit early, async handler will process the thread
+        }
+        
         if (found) {
           // Verify thread belongs to current project context
           // If we're in projects activity, only show threads from selected project
@@ -295,6 +364,8 @@
       return;
     }
 
+    console.log('[handleSave] currentProjectId:', currentProjectId);
+
     try {
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
@@ -303,6 +374,8 @@
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        // Pass projectId if creating from project context
+        ...(currentProjectId ? { projectId: currentProjectId } : {}),
         // Spread metadata fields at top level, not nested
         ...(formData.metadata ? {
           modelId: formData.metadata.modelId,

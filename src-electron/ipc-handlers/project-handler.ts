@@ -1,7 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
-import { projectService } from '../services/ProjectService.js';
+import { projectRepository } from '../repository/project-repository.js';
 import { threadRepository } from '../repository/thread-repository.js';
+import type { GUID } from '../../src/lib/types/app.type.js';
 import type {
   Project,
   CreateProjectInput,
@@ -18,12 +19,11 @@ import type { Thread as InternalThread } from '../repository/thread-repository.j
 /**
  * Helper to convert internal thread representation to renderer-friendly shape
  */
-function toRendererThread(t: InternalThread | null): RendererThread | null {
-  if (!t) return null;
+function toRendererThread(t: InternalThread): RendererThread {
   return {
     id: t.id,
-    title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
-    description: t.metadata?.description ?? '',
+    title: t.title && t.title.length > 0 ? t.title : ((t.metadata?.title as string) ?? ''),
+    description: (t.metadata?.description as string) ?? '',
     status: (() => {
       const s = t.metadata?.status;
       if (typeof s === 'string') {
@@ -57,8 +57,13 @@ export function registerProjectHandlers(): void {
    * Create a new project
    */
   ipcMain.handle('project:create', async (_, input: CreateProjectInput): Promise<Project> => {
-    log.info('[IPC:project:create]', input.name);
-    const project = await projectService.create(input);
+    log.info('[IPC:project:create]', input.title);
+    const project = await projectRepository.createProject(
+      input.title,
+      input.description,
+      input.type,
+      input.metadata,
+    );
 
     // Broadcast creation event
     broadcast('project:created', project);
@@ -68,10 +73,36 @@ export function registerProjectHandlers(): void {
 
   /**
    * List all projects for current user
+   * Uses ProjectRepository cache.
    */
-  ipcMain.handle('project:list', async (): Promise<Project[]> => {
+  ipcMain.handle('project:list', async (): Promise<unknown[]> => {
     log.info('[IPC:project:list]');
-    return await projectService.list();
+    await projectRepository.loadProjects(false);
+    return projectRepository.listProjects();
+  });
+
+  /**
+   * Load projects (cached with TTL) - can be forced to refresh.
+   */
+  ipcMain.handle('project:loadProjects', async (_event, forceRefresh?: boolean): Promise<void> => {
+    log.info('[IPC:project:loadProjects]', { forceRefresh: forceRefresh === true });
+    await projectRepository.loadProjects(forceRefresh === true);
+  });
+
+  /**
+   * List personal projects from cache
+   */
+  ipcMain.handle('project:listPersonalProjects', (): unknown[] => {
+    log.info('[IPC:project:listPersonalProjects]');
+    return projectRepository.listPersonalProjects();
+  });
+
+  /**
+   * List shared projects from cache
+   */
+  ipcMain.handle('project:listSharedProjects', (): unknown[] => {
+    log.info('[IPC:project:listSharedProjects]');
+    return projectRepository.listSharedProjects();
   });
 
   /**
@@ -79,50 +110,27 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle('project:getAll', async (): Promise<Project[]> => {
     log.info('[IPC:project:getAll]');
-    return await projectService.list();
+    await projectRepository.loadProjects(false);
+    return projectRepository.listProjects();
   });
 
   /**
    * Get a single project by ID
    */
-  ipcMain.handle('project:get', async (_, projectId: string): Promise<Project> => {
+  ipcMain.handle('project:get', async (_, projectId: string): Promise<Project | null> => {
     log.info('[IPC:project:get]', projectId);
-    return await projectService.get(projectId);
+    return await projectRepository.getProject(projectId as GUID);
   });
 
   /**
-   * Alias for project:get (backward compatibility)
+   * Get thread count for a project
+   * Uses ThreadRepository (API access is encapsulated there).
    */
-  ipcMain.handle('project:getById', async (_, projectId: string): Promise<Project> => {
-    log.info('[IPC:project:getById]', projectId);
-    return await projectService.get(projectId);
-  });
-
-  /**
-   * Update a project
-   */
-  ipcMain.handle(
-    'project:update',
-    async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
-      log.info('[IPC:project:update]', projectId);
-      const project = await projectService.update(projectId, input);
-
-      // Broadcast update event
-      broadcast('project:updated', project);
-
-      return project;
-    },
-  );
-
-  /**
-   * Delete a project
-   */
-  ipcMain.handle('project:delete', async (_, projectId: string): Promise<void> => {
-    log.info('[IPC:project:delete]', projectId);
-    await projectService.delete(projectId);
-
-    // Broadcast deletion event
-    broadcast('project:deleted', projectId);
+  ipcMain.handle('project:getThreadsCount', async (_, projectId: string): Promise<number> => {
+    log.info('[IPC:project:getThreadsCount]', projectId);
+    const count = await threadRepository.getProjectThreadCount(projectId);
+    log.debug(`[IPC:project:getThreadsCount] Found ${count} threads for project ${projectId}`);
+    return count;
   });
 
   /**
@@ -134,6 +142,65 @@ export function registerProjectHandlers(): void {
     return threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
   });
 
+  /**
+   * Alias for project:get (backward compatibility)
+   */
+  ipcMain.handle('project:getById', async (_, projectId: string): Promise<Project | null> => {
+    log.info('[IPC:project:getById]', projectId);
+    return await projectRepository.getProject(projectId as GUID);
+  });
+
+  /**
+   * Update a project
+   */
+  ipcMain.handle(
+    'project:update',
+    async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
+      log.info('[IPC:project:update]', projectId);
+
+      const project = await projectRepository.updateProject(projectId as GUID, input);
+
+      // Broadcast update event
+      broadcast('project:updated', project);
+
+      return project;
+    },
+  );
+
+  /**
+   * Delete a project
+   */
+  ipcMain.handle(
+    'project:delete',
+    async (_, projectId: string, options?: { deleteThreads?: boolean }): Promise<boolean> => {
+      log.info('[IPC:project:delete]', projectId, options);
+
+      const pid = projectId as GUID;
+      const deleteThreads = options?.deleteThreads === true;
+
+      // Best-effort: handle threads in project before deleting project
+      try {
+        const projectThreads = await threadRepository.listThreads({ projectId });
+        if (deleteThreads) {
+          await Promise.all(projectThreads.map((t) => threadRepository.deleteThread(t.id)));
+        } else {
+          await Promise.all(
+            projectThreads.map((t) => threadRepository.setThreadProjectId(t.id, null)),
+          );
+        }
+      } catch (error) {
+        log.warn('[IPC:project:delete] Failed to handle project threads before deletion:', error);
+      }
+
+      const ok = await projectRepository.deleteProject(pid);
+      if (ok) {
+        // Broadcast deletion event
+        broadcast('project:deleted', projectId);
+      }
+      return ok;
+    },
+  );
+
   // ==================== Permission Checks ====================
 
   /**
@@ -143,7 +210,7 @@ export function registerProjectHandlers(): void {
     'project:hasPermission',
     async (_, projectId: string, permission: ProjectPermission): Promise<void> => {
       log.debug('[IPC:project:hasPermission]', projectId, permission);
-      await projectService.hasPermission(projectId, permission);
+      await projectRepository.hasPermission(projectId, permission);
     },
   );
 
@@ -154,7 +221,7 @@ export function registerProjectHandlers(): void {
     'project:checkPermission',
     async (_, projectId: string, permission: ProjectPermission): Promise<boolean> => {
       log.debug('[IPC:project:checkPermission]', projectId, permission);
-      return await projectService.checkPermission(projectId, permission);
+      return await projectRepository.checkPermission(projectId, permission);
     },
   );
 
@@ -163,7 +230,7 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle('project:getUserRole', async (_, projectId: string): Promise<ProjectRole> => {
     log.debug('[IPC:project:getUserRole]', projectId);
-    return await projectService.getUserRole(projectId);
+    return await projectRepository.getUserRole(projectId);
   });
 
   // ==================== Member Management ====================
@@ -173,7 +240,7 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle('project:getMembers', async (_, projectId: string): Promise<ProjectMember[]> => {
     log.info('[IPC:project:getMembers]', projectId);
-    return await projectService.getMembers(projectId);
+    return await projectRepository.getMembers(projectId);
   });
 
   /**
@@ -183,7 +250,7 @@ export function registerProjectHandlers(): void {
     'project:addMember',
     async (_, projectId: string, input: AddMemberInput): Promise<ProjectMember> => {
       log.info('[IPC:project:addMember]', projectId, input.email);
-      const member = await projectService.addMember(projectId, input);
+      const member = await projectRepository.addMember(projectId, input);
 
       // Broadcast member added event
       broadcast('project:memberAdded', projectId, member);
@@ -199,7 +266,7 @@ export function registerProjectHandlers(): void {
     'project:removeMember',
     async (_, projectId: string, memberId: string): Promise<void> => {
       log.info('[IPC:project:removeMember]', projectId, memberId);
-      await projectService.removeMember(projectId, memberId);
+      await projectRepository.removeMember(projectId, memberId);
 
       // Broadcast member removed event
       broadcast('project:memberRemoved', projectId, memberId);
@@ -218,7 +285,7 @@ export function registerProjectHandlers(): void {
       input: UpdateMemberRoleInput,
     ): Promise<ProjectMember> => {
       log.info('[IPC:project:updateMemberRole]', projectId, memberId, input.role);
-      const member = await projectService.updateMemberRole(projectId, memberId, input);
+      const member = await projectRepository.updateMemberRole(projectId, memberId, input);
 
       // Broadcast member role updated event
       broadcast('project:memberRoleUpdated', projectId, member);
@@ -236,12 +303,16 @@ export function registerProjectHandlers(): void {
 export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:create');
   ipcMain.removeHandler('project:list');
-  ipcMain.removeHandler('project:getAll'); // Alias
+  ipcMain.removeHandler('project:loadProjects');
+  ipcMain.removeHandler('project:listPersonalProjects');
+  ipcMain.removeHandler('project:listSharedProjects');
+  ipcMain.removeHandler('project:getAll');
   ipcMain.removeHandler('project:get');
-  ipcMain.removeHandler('project:getById'); // Alias
+  ipcMain.removeHandler('project:getThreadsCount');
+  ipcMain.removeHandler('project:getThreads');
+  ipcMain.removeHandler('project:getById');
   ipcMain.removeHandler('project:update');
   ipcMain.removeHandler('project:delete');
-  ipcMain.removeHandler('project:getThreads');
   ipcMain.removeHandler('project:hasPermission');
   ipcMain.removeHandler('project:checkPermission');
   ipcMain.removeHandler('project:getUserRole');

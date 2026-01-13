@@ -2,12 +2,16 @@
   import { createEventDispatcher } from 'svelte';
   import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
-  import type { Project } from '$lib/types/project.type';
+  import type { GUID } from "$lib/types/app.type";
 
+  // Accept minimal project data (can be from sidebar or full Project object)
   let {
     show = $bindable(false),
-    project = $bindable<Project | null>(null),
-  }: { show: boolean; project: Project | null } = $props();
+    project = $bindable<{ id: string; title?: string; name?: string } | null>(null),
+  }: { 
+    show: boolean; 
+    project: { id: string; title?: string; name?: string } | null;
+  } = $props();
 
   const dispatch = createEventDispatcher();
 
@@ -16,6 +20,8 @@
   let error = $state('');
   let threadCount = $state(0);
 
+  // Get display title from title field
+  const projectTitle = $derived(project ? (project.title || 'Untitled Project') : 'Untitled Project');
   const submitLabel = $derived(isDeleting ? 'Deleting...' : 'Delete Project');
 
   $effect(() => {
@@ -27,7 +33,7 @@
   async function loadThreadCount() {
     if (!project) return;
     try {
-      threadCount = await projectService.getThreadCount(project.id);
+      threadCount = await projectService.getThreadCount(project.id as GUID);
     } catch (err) {
       console.error('Failed to load thread count:', err);
       threadCount = 0;
@@ -41,7 +47,7 @@
     error = '';
 
     try {
-      await projectService.deleteProject(project.id, deleteThreads);
+      await projectService.deleteProject(project.id as GUID, deleteThreads);
       show = false;
       deleteThreads = false;
       dispatch('deleted');
@@ -74,7 +80,7 @@
       <div class="warning-icon">⚠️</div>
 
       <p class="warning-text">
-        Are you sure you want to delete <strong>{project.name}</strong>?
+        Are you sure you want to delete <strong>{projectTitle}</strong>?
       </p>
 
       {#if threadCount > 0}

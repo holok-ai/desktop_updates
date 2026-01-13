@@ -1,0 +1,134 @@
+/**
+ * Moku 12-Color Palette
+ * Project color indicators matching Moku Web design system
+ * E3-S4: AC-3 - Display color indicator using Moku palette
+ */
+
+:root {
+  /* Moku Color Palette - 12 colors for project identification */
+  --moku-color-1: #ef4444; /* Red */
+  --moku-color-2: #f97316; /* Orange */
+  --moku-color-3: #f59e0b; /* Amber */
+  --moku-color-4: #eab308; /* Yellow */
+  --moku-color-5: #84cc16; /* Lime */
+  --moku-color-6: #22c55e; /* Green */
+  --moku-color-7: #10b981; /* Emerald */
+  --moku-color-8: #14b8a6; /* Teal */
+  --moku-color-9: #06b6d4; /* Cyan */
+  --moku-color-10: #3b82f6; /* Blue */
+  --moku-color-11: #8b5cf6; /* Violet */
+  --moku-color-12: #ec4899; /* Pink */
+}
+
+/* Color indicator classes */
+.moku-color-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Individual color classes */
+.moku-color-1 {
+  background-color: var(--moku-color-1);
+}
+
+.moku-color-2 {
+  background-color: var(--moku-color-2);
+}
+
+.moku-color-3 {
+  background-color: var(--moku-color-3);
+}
+
+.moku-color-4 {
+  background-color: var(--moku-color-4);
+}
+
+.moku-color-5 {
+  background-color: var(--moku-color-5);
+}
+
+.moku-color-6 {
+  background-color: var(--moku-color-6);
+}
+
+.moku-color-7 {
+  background-color: var(--moku-color-7);
+}
+
+.moku-color-8 {
+  background-color: var(--moku-color-8);
+}
+
+.moku-color-9 {
+  background-color: var(--moku-color-9);
+}
+
+.moku-color-10 {
+  background-color: var(--moku-color-10);
+}
+
+.moku-color-11 {
+  background-color: var(--moku-color-11);
+}
+
+.moku-color-12 {
+  background-color: var(--moku-color-12);
+}
+
+/* Default color if no color is specified */
+.moku-color-default {
+  background-color: var(--moku-color-10); /* Default to Blue */
+}
+
+/* Color text variants (for badges, labels, etc.) */
+.moku-color-text-1 {
+  color: var(--moku-color-1);
+}
+
+.moku-color-text-2 {
+  color: var(--moku-color-2);
+}
+
+.moku-color-text-3 {
+  color: var(--moku-color-3);
+}
+
+.moku-color-text-4 {
+  color: var(--moku-color-4);
+}
+
+.moku-color-text-5 {
+  color: var(--moku-color-5);
+}
+
+.moku-color-text-6 {
+  color: var(--moku-color-6);
+}
+
+.moku-color-text-7 {
+  color: var(--moku-color-7);
+}
+
+.moku-color-text-8 {
+  color: var(--moku-color-8);
+}
+
+.moku-color-text-9 {
+  color: var(--moku-color-9);
+}
+
+.moku-color-text-10 {
+  color: var(--moku-color-10);
+}
+
+.moku-color-text-11 {
+  color: var(--moku-color-11);
+}
+
+.moku-color-text-12 {
+  color: var(--moku-color-12);
+}
+

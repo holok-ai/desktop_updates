@@ -5,14 +5,21 @@
 
   const dispatch = createEventDispatcher();
 
-  const { project, isSelected } = $props<{
+  const { project, isSelected, showActions = true } = $props<{
     project: Project;
     isSelected: boolean;
+    showActions?: boolean;
   }>();
 
   function onClick() {
-    dispatch('click', { id: project.id, label: project.name, route: ROUTE.PROJECTS });
+    dispatch('click', { id: project.id, label: project.title, route: ROUTE.PROJECTS });
   }
+
+  function onDelete(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch('delete', { id: project.id });
+  }
+
 </script>
 
 <div
@@ -27,28 +34,29 @@
     }
   }}
 >
-  <div class="thread-content">
-    <div class="thread-title-container">
-      <div class="thread-title">{project.name}</div>
+  <div class="project-content">
+    <div class="project-title-container">
+      <div class="project-title">{project.title}</div>
+      {#if showActions}
+        <div class="project-actions">
+          <button class="action-button delete" title="Delete" onclick={onDelete}>
+            <i class="pi pi-trash"></i>
+          </button>
+        </div>
+      {/if}
     </div>
-    {#if project.description}
-      <div class="thread-meta">
-        <span>{project.description}</span>
-      </div>
-    {/if}
+    <div class="project-meta">
+      <span>{project.description}</span>
+    </div>
   </div>
 </div>
 
 <style>
-  .thread-title-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
   .project-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 0.75rem;
     padding: 0.75rem 1rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -58,15 +66,15 @@
   }
 
   .project-item:hover {
-    background-color: var(--thread-list-hover-bg, rgba(255, 255, 255, 0.05));
+    background-color: var(--surface-hover);
   }
 
   .project-item.selected {
-    border-color: #3b82f6;
+    border-color: var(--primary-color);
     background-color: transparent;
   }
 
-  .thread-content {
+  .project-content {
     flex: 1;
     min-width: 0;
     display: flex;
@@ -74,22 +82,67 @@
     gap: 0.25rem;
   }
 
-  .thread-title {
+  .project-title-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .project-title {
     font-size: 11pt;
     font-weight: 600;
-    color: var(--thread-list-title-color, #fff);
+    color: var(--text-primary);
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .thread-meta {
+  .project-meta {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-size: 9pt;
-    color: var(--thread-list-meta-color, rgba(255, 255, 255, 0.7));
+    color: var(--text-secondary);
     line-height: 1.4;
+  }
+
+  .project-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .project-item:hover .project-actions,
+  .project-actions:hover {
+    opacity: 1;
+  }
+
+  .action-button {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .action-button:hover {
+    background-color: var(--surface-hover);
+  }
+
+  .action-button.delete {
+    color: var(--action-delete-color);
+  }
+
+  .action-button i {
+    font-size: 0.875rem;
   }
 </style>
