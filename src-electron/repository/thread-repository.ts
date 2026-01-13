@@ -428,20 +428,15 @@ export class ThreadRepository {
       tid = th.id;
     }
     
-    // Extract requestId from opts if provided (for linking to llm_requests)
-    const requestId = (opts as { requestId?: string }).requestId;
-    
     // Get thread to use its current branchId
     const thread = this.threadsById.get(tid);
     if (!thread) throw new Error(`Thread not found: ${tid}`);
     
-    // Use appendMessage directly to pass requestId in metadata
+    // Use appendMessage directly
     const message = await this.appendMessage(tid, {
       role: 'user',
       content: prompt,
       branchId: thread.currentBranchId,
-      // Include requestId in metadata if provided
-      metadata: requestId ? { requestId } : undefined,
     });
     
     const updatedThread = await this.loadThread(tid);

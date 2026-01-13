@@ -74,7 +74,7 @@ export class MessageTransmitter {
       // Fetch thread to get correct metadata
       const thread = await threadService.getThread(threadId);
       const threadMetadata = this.extractMessageMetadata(thread);
-      // Merge thread metadata with message metadata (message metadata takes precedence for requestId, etc.)
+      // Merge thread metadata with message metadata
       const metadata = { ...threadMetadata, ...message.metadata };
 
       const persistPromise = threadService.appendMessage(threadId, {

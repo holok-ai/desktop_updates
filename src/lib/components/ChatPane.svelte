@@ -876,13 +876,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
-      // Send user message without requestId (will be set when syncing later)
-      await transmitter.sendUserMessage(userMsg, thread, isOnline, {
-        parentMessageId,
-        branchIndex,
-        branchType,
-        modelId,
-      });
+      await transmitter.sendUserMessage(userMsg, thread, isOnline, thread.currentBranchId);
       isStreaming = false;
       return;
     }
@@ -898,31 +892,11 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       };
       console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
 
-      // Listen for requestId BEFORE making the LLM call
-      // The requestId is generated when the audit wrapper is created, sent via event immediately
-      let requestId: string | null = null;
-      const requestIdCleanup = window.electronAPI.chat.onRequestId((id: string) => {
-        requestId = id;
-        console.log('[ChatPane] Received requestId before LLM call:', requestId);
-        
-        // Send user message with requestId immediately (before LLM call completes)
-        // According to client: requestId is assigned to user prompts when LLM request is created
-        // The backend should create the llm_requests entry with this requestId when the message is created
-        transmitter.sendUserMessage(userMsg, thread, isOnline, {
-          parentMessageId,
-          branchIndex,
-          branchType,
-          modelId,
-        }, requestId).catch(err => {
-          console.error('[ChatPane] Failed to send user message with requestId:', err);
-        });
-      });
+      // Send user message immediately
+      await transmitter.sendUserMessage(userMsg, thread, isOnline, thread.currentBranchId);
 
       // Use chatWithFileTools for all requests - tools are invisible to user
-      const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string; requestId?: string | null };
-
-      // Clean up requestId listener
-      requestIdCleanup();
+      const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -930,10 +904,6 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         isStreaming = false;
         return;
       }
-
-      // Use requestId from event (should be set by now) or fallback to result
-      const finalRequestId = requestId || result.requestId;
-      console.log('[ChatPane] Final requestId:', finalRequestId || 'MISSING');
       
       // After streaming completes, handle assistant response
       // IMPORTANT: Use the backend-assigned user message ID (from the persisted message), not the optimistic one
@@ -949,9 +919,9 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         const assistantParentMessage = actualUserMessage || userMsg;
         console.log('[ChatPane] Using user message ID for assistant parent:', assistantParentMessage.id, '(optimistic:', userMsg.id, ')');
         
-        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, assistantParentMessage, finalRequestId);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, assistantParentMessage);
       } else {
-        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg, finalRequestId);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -1464,9 +1434,6 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     if (userMessages.length === 1 && assistantMessages.length === 0) {
       const userMessage = userMessages[0];
       const initialPrompt = userMessage.content;
-      // Get requestId from the user message's metadata (generated when thread was created)
-      // This ensures both user and assistant messages have the same requestId
-      const userRequestId = (userMessage.metadata as { requestId?: string } | undefined)?.requestId;
 
       // Mark this thread as having been auto-sent
       autoSentForThreadId = currentThread.id;
@@ -1485,20 +1452,13 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
           };
 
           // Use chatWithFileTools for all requests - tools are invisible to user
-          const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string; requestId?: string | null };
+          const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
 
           if (!result.success) {
             error = result.error || 'Chat failed';
             console.error('Chat failed:', result.error);
           } else {
-            // Use requestId from user message (if available) to ensure both messages link to same llm_requests entry
-            // Fall back to result.requestId (generated by audit service) if user message doesn't have one
-            const requestId = userRequestId || result.requestId;
-            console.log('[ChatPane] Auto-send using requestId:', requestId, '(from user message:', userRequestId, ', from result:', result.requestId, ')');
-            // For linear conversations (first response), don't set parentMessageId
-            // According to docs: "Linear conversations (no branches) do NOT create desktop_messages records"
-            // parentMessageId is only for branching scenarios
-            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt, undefined, requestId);
+            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt, undefined);
           }
         } catch (err) {
           error = err instanceof Error ? err.message : 'Unknown error';

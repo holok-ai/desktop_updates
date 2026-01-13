@@ -58,7 +58,6 @@ export class AuditService {
   ): {
     callback: (token: string) => void;
     complete: (error?: unknown) => ChatAuditData | null;
-    getRequestId: () => string | null;
   } {
     const accumulator = this.createAccumulator(
       provider,
@@ -74,8 +73,6 @@ export class AuditService {
         auditData = accumulator.complete(error);
         return auditData;
       },
-      // requestId is available immediately from the accumulator, even before complete() is called
-      getRequestId: () => accumulator.requestId,
     };
   }
 

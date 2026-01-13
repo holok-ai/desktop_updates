@@ -34,7 +34,6 @@ export interface MessageDTO {
   content: string;
   attachments?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
-  requestId?: string;
   createdUserId: string;
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
@@ -70,7 +69,6 @@ export interface CreateMessageRequest {
   provider?: string;
   attachments?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
-  requestId?: string;
 }
 
 /**

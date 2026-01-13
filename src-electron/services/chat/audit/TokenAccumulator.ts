@@ -13,8 +13,6 @@ export class TokenAccumulator {
   private totalTokens: number = 0;
   private tokensReceived: number = 0;
   private isFirstToken: boolean = true;
-  // Generate requestId early so it's available before complete() is called
-  public readonly requestId: string;
 
   constructor(
     private provider: string,
@@ -26,8 +24,6 @@ export class TokenAccumulator {
     this.requestStartTime = Date.now();
     this.originalCallback = onTokenReceived;
     this.tokenCounter = getTokenCounter(provider);
-    // Generate requestId early so it's available before complete() is called
-    this.requestId = crypto.randomUUID();
   }
 
   /**
@@ -60,7 +56,7 @@ export class TokenAccumulator {
       this.tokenCounter?.estimateResponseTokens(this.accumulatedResponse) ?? 0;
 
     const auditData: ChatAuditData = {
-      requestId: this.requestId, // Use the pre-generated requestId
+      requestId: crypto.randomUUID(),
       provider: this.provider,
       model: this.model,
       requestTimestamp: this.requestStartTime,
