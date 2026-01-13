@@ -73,17 +73,16 @@ export class MessageTransmitter {
     try {
       // Fetch thread to get correct metadata
       const thread = await threadService.getThread(threadId);
-      const metadata = this.extractMessageMetadata(thread);
+      const threadMetadata = this.extractMessageMetadata(thread);
+      // Merge thread metadata with message metadata (message metadata takes precedence for requestId, etc.)
+      const metadata = { ...threadMetadata, ...message.metadata };
 
       const persistPromise = threadService.appendMessage(threadId, {
         role: message.role,
         content: message.content,
         metadata,
         clientMessageId: message.clientMessageId,
-        parentMessageId: message.parentMessageId ?? null,
-        branchIndex: message.branchIndex ?? 0,
-        branchType: message.branchType ?? null,
-        modelId: message.modelId ?? null,
+        branchId: message.branchId,
       });
 
       const persisted = await Promise.race([persistPromise, timeoutPromise]);
@@ -121,7 +120,7 @@ export class MessageTransmitter {
   /**
    * Add optimistic user message
    */
-  addOptimisticMessage(content: string, isOnline: boolean): Message {
+  addOptimisticMessage(content: string, isOnline: boolean, currentBranchId: string = '1.0'): Message {
     const clientMessageId = crypto.randomUUID();
     const initialStatus: MessageStatus = isOnline
       ? MESSAGE_STATUS.SENDING
@@ -135,9 +134,7 @@ export class MessageTransmitter {
       status: initialStatus,
       clientMessageId,
       retryCount: 0,
-      parentMessageId: null,
-      branchIndex: 0,
-      branchType: null,
+      branchId: currentBranchId,
       modelId: null,
     };
 
@@ -147,28 +144,22 @@ export class MessageTransmitter {
 
   /**
    * Send user message and handle persistence
+   * @param requestId - Optional requestId from LLM audit (should be provided when LLM call is made)
    */
   async sendUserMessage(
     userMsg: Message,
     thread: Thread | null,
     isOnline: boolean,
-    branchInfo?: {
-      parentMessageId: string | null;
-      branchIndex: number;
-      branchType: BranchType | null;
-      modelId: string | null;
-    },
+    branchId?: string,
+    requestId?: string | null,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
-    // Update message with branch info if provided
-    if (branchInfo) {
-      userMsg.parentMessageId = branchInfo.parentMessageId;
-      userMsg.branchIndex = branchInfo.branchIndex;
-      userMsg.branchType = branchInfo.branchType;
-      userMsg.modelId = branchInfo.modelId;
+    // Update message with branchId if provided
+    if (branchId) {
+      userMsg.branchId = branchId;
     }
 
     // Add to outbox for resilience
@@ -183,7 +174,12 @@ export class MessageTransmitter {
 
     // Persist to memory storage if thread exists
     if (thread !== null && isPermanent) {
-      await this.persistMessage(userMsg, thread.id);
+      // Include requestId in metadata if provided (for linking to llm_requests)
+      const metadataWithRequestId = requestId 
+        ? { ...userMsg.metadata, requestId }
+        : userMsg.metadata;
+      
+      await this.persistMessage({ ...userMsg, metadata: metadataWithRequestId }, thread.id);
     }
   }
 
@@ -195,6 +191,7 @@ export class MessageTransmitter {
     thread: Thread | null,
     userMessage: string,
     userMessageObj?: Message,
+    requestId?: string | null,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
@@ -205,20 +202,26 @@ export class MessageTransmitter {
       const metadata = this.extractMessageMetadata(thread);
 
       // Use branch info from the user message if available
-      const parentMessageId = userMessageObj?.id ?? null;
-      const branchIndex = userMessageObj?.branchIndex ?? 0;
-      const branchType = userMessageObj?.branchType ?? null;
-      const modelId = userMessageObj?.modelId ?? null;
+      // Extract branchId from user message or use thread's current branch
+      const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
+
+      // Include requestId in metadata if provided (required for assistant messages)
+      const metadataWithRequestId = requestId 
+        ? { ...metadata, requestId }
+        : metadata;
+      
+      if (!requestId) {
+        console.warn('[MessageTransmitter] Assistant message missing requestId. This may cause backend validation to fail.');
+      } else {
+        console.log('[MessageTransmitter] Assistant message requestId:', requestId, 'branchId:', branchId);
+      }
 
       const assistantPersist = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
-        metadata,
+        metadata: metadataWithRequestId,
         clientMessageId: crypto.randomUUID(),
-        parentMessageId,
-        branchIndex,
-        branchType,
-        modelId,
+        branchId,
       });
 
       const assistantMsg: Message = {
@@ -227,10 +230,8 @@ export class MessageTransmitter {
         content: responseText,
         createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
         status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
-        parentMessageId,
-        branchIndex,
-        branchType,
-        modelId,
+        branchId,
+        modelId: userMessageObj?.modelId ?? null,
       };
 
       this.callbacks.onMessageAdd(assistantMsg);
@@ -254,9 +255,7 @@ export class MessageTransmitter {
           content: saved.promptMessage.content,
           createdAt: saved.promptMessage.createdAt,
           status: MESSAGE_STATUS.SENT,
-          parentMessageId: null,
-          branchIndex: 0,
-          branchType: null,
+          branchId: '1.0',
           modelId: null,
         },
         ...saved.responseMessages.map(
@@ -266,9 +265,7 @@ export class MessageTransmitter {
             content: m.content,
             createdAt: m.createdAt,
             status: MESSAGE_STATUS.SENT,
-            parentMessageId: null,
-            branchIndex: 0,
-            branchType: null,
+            branchId: '1.0',
             modelId: null,
           }),
         ),
@@ -347,9 +344,7 @@ export class MessageTransmitter {
                   ? assistantPersist.message.createdAt
                   : Date.now(),
                 status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
-                parentMessageId: null,
-                branchIndex: 0,
-                branchType: null,
+                branchId: '1.0',
                 modelId: null,
               };
 

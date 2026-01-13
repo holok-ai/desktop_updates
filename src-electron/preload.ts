@@ -95,6 +95,8 @@ export interface ThreadAPI {
       description?: string;
       model?: string;
       metadata?: Record<string, unknown>;
+      // requestId for linking to llm_requests entry (generated client-side before LLM call)
+      requestId?: string;
     },
   ) => Promise<{
     thread: Thread;
@@ -200,6 +202,7 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, unknown>;
+  currentBranchId: string;
 }
 
 /**
@@ -446,6 +449,9 @@ export interface ChatAPI {
   // Stop listening to token events
   offToken: () => void;
 
+  // Listen for requestId (sent before LLM call starts)
+  onRequestId: (callback: (requestId: string) => void) => (() => void);
+
   // Listen for tool use events (event-based)
   onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;
 
@@ -632,6 +638,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 4. Stop listening to token events
     offToken: () => {
       ipcRenderer.removeAllListeners('chat:token');
+    },
+
+    // 3.5. Listen for requestId (sent before LLM call starts)
+    onRequestId: (callback: (requestId: string) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, requestId: string): void => callback(requestId);
+      ipcRenderer.on('chat:requestId', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('chat:requestId', subscription);
+      };
     },
 
     // 5. Get audit/performance metrics

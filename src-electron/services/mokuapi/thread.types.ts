@@ -17,6 +17,7 @@ export interface ThreadDTO {
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
   metadata?: Record<string, unknown>; // Custom metadata including model configuration
+  currentBranchId: string; // Current active branch (e.g., "1.0", "1.1")
 }
 
 /**
@@ -25,9 +26,7 @@ export interface ThreadDTO {
 export interface MessageDTO {
   id: string;
   threadId: string;
-  parentMessageId: string | null;
-  branchIndex: number; // 0-9
-  branchType?: string;
+  branchId: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1")
   isClosed?: boolean;
   model?: string;
   provider?: string;
@@ -65,9 +64,7 @@ export interface UpdateThreadRequest {
 export interface CreateMessageRequest {
   role: 'user' | 'assistant' | 'system';
   content: string;
-  parentMessageId?: string | null;
-  branchIndex?: number;
-  branchType?: string;
+  branchId: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1")
   model?: string;
   provider?: string;
   attachments?: Record<string, unknown>;

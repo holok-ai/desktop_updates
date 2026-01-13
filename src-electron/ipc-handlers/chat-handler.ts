@@ -163,7 +163,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       event: IpcMainInvokeEvent,
       request: ChatRequest,
       workingDirectory?: string,
-    ): Promise<{ success: boolean; error?: string }> => {
+    ): Promise<{ success: boolean; error?: string; requestId?: string | null }> => {
       log.info('[IPC] chat:sendWithFileTools called');
 
       if (!chatService) {
@@ -177,7 +177,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           chatService.setFileToolsWorkingDirectory(workingDirectory);
         }
 
-        await chatService.chatWithFileTools(
+        const result = await chatService.chatWithFileTools(
           request,
           (token: string) => {
             // Send streaming tokens back to renderer
@@ -195,9 +195,15 @@ export function registerChatHandlers(auth?: AuthService): void {
             // Send tool status notifications back to renderer (for UI feedback)
             event.sender.send('chat:toolStatus', status);
           },
+          (requestId: string) => {
+            // Send requestId immediately when it's generated (before LLM call starts)
+            // This allows frontend to create user message with requestId before the call
+            event.sender.send('chat:requestId', requestId);
+            log.info('[IPC] Sent requestId to frontend:', requestId);
+          },
         );
         log.info('[IPC] Chat message with file tools sent successfully');
-        return { success: true };
+        return { success: true, requestId: result.requestId };
       } catch (error) {
         log.error('[IPC] Error sending chat message with file tools:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';

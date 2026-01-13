@@ -22,8 +22,7 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
-  parentMessageId: string | null;
-  branchIndex: number;
-  branchType: BranchType;
+  /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
+  branchId: string;
   modelId?: string | null;
 }

@@ -877,16 +877,15 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     userMsg.branchType = branchType;
     userMsg.modelId = modelId;
 
-    // Send the user message (handles outbox and persistence)
-    await transmitter.sendUserMessage(userMsg, thread, isOnline, {
-      parentMessageId,
-      branchIndex,
-      branchType,
-      modelId,
-    });
-
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
+      // Send user message without requestId (will be set when syncing later)
+      await transmitter.sendUserMessage(userMsg, thread, isOnline, {
+        parentMessageId,
+        branchIndex,
+        branchType,
+        modelId,
+      });
       isStreaming = false;
       return;
     }
@@ -902,16 +901,60 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       };
       console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
 
+      // Listen for requestId BEFORE making the LLM call
+      // The requestId is generated when the audit wrapper is created, sent via event immediately
+      let requestId: string | null = null;
+      const requestIdCleanup = window.electronAPI.chat.onRequestId((id: string) => {
+        requestId = id;
+        console.log('[ChatPane] Received requestId before LLM call:', requestId);
+        
+        // Send user message with requestId immediately (before LLM call completes)
+        // According to client: requestId is assigned to user prompts when LLM request is created
+        // The backend should create the llm_requests entry with this requestId when the message is created
+        transmitter.sendUserMessage(userMsg, thread, isOnline, {
+          parentMessageId,
+          branchIndex,
+          branchType,
+          modelId,
+        }, requestId).catch(err => {
+          console.error('[ChatPane] Failed to send user message with requestId:', err);
+        });
+      });
+
       // Use chatWithFileTools for all requests - tools are invisible to user
-      const result = await window.electronAPI.chat.chatWithFileTools(request);
+      const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string; requestId?: string | null };
+
+      // Clean up requestId listener
+      requestIdCleanup();
 
       if (!result.success) {
         error = result.error || 'Chat failed';
         console.error('Chat failed:', result.error);
+        isStreaming = false;
+        return;
+      }
+
+      // Use requestId from event (should be set by now) or fallback to result
+      const finalRequestId = requestId || result.requestId;
+      console.log('[ChatPane] Final requestId:', finalRequestId || 'MISSING');
+      
+      // After streaming completes, handle assistant response
+      // IMPORTANT: Use the backend-assigned user message ID (from the persisted message), not the optimistic one
+      // The userMsg.id is the optimistic ID - we need to get the actual backend ID
+      if (currentThread) {
+        const persistedUserMessages = await threadService.getMessages(currentThread.id);
+        const actualUserMessage = persistedUserMessages.find(m => 
+          m.clientMessageId === userMsg.clientMessageId || 
+          (m.content === userMessage && m.role === 'user' && Math.abs(m.createdAt - userMsg.createdAt) < 5000)
+        );
+        
+        // Use the backend-assigned user message for the assistant's parent
+        const assistantParentMessage = actualUserMessage || userMsg;
+        console.log('[ChatPane] Using user message ID for assistant parent:', assistantParentMessage.id, '(optimistic:', userMsg.id, ')');
+        
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, assistantParentMessage, finalRequestId);
       } else {
-        // After streaming completes, handle assistant response
-        // Pass the user message object so assistant can inherit branch info
-        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg, finalRequestId);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -1027,11 +1070,34 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     variationError = '';
 
     try {
+      console.log('[ChatPane] Creating variation from message:', showVariationModalFor.id, 'content:', content);
+      
+      // Refresh messages from backend to ensure we have the latest backend-assigned IDs
+      // This is critical because optimistic messages may have client-generated IDs that don't exist in backend
+      const refreshedMessages = await threadService.getMessages(currentThread.id);
+      messages = refreshedMessages;
+      
+      // Find the message again with refreshed data
+      // Try to match by ID first (backend-assigned), then by clientMessageId (if optimistic)
+      let messageForVariation = messages.find(m => m.id === showVariationModalFor!.id);
+      if (!messageForVariation && showVariationModalFor!.clientMessageId) {
+        // Fallback: try to find by clientMessageId
+        messageForVariation = messages.find(m => m.clientMessageId === showVariationModalFor!.clientMessageId);
+      }
+      
+      if (!messageForVariation) {
+        variationError = 'Original message not found in backend. The message may not have been saved yet. Please wait a moment and try again.';
+        console.error('[ChatPane] Message not found after refresh. Original ID:', showVariationModalFor!.id, 'clientMessageId:', showVariationModalFor!.clientMessageId);
+        return;
+      }
+      
+      console.log('[ChatPane] Using refreshed message for variation. Backend ID:', messageForVariation.id, 'clientMessageId:', messageForVariation.clientMessageId);
+      
       // For prompt variations, create a single variation
       if (branchType === 'prompt-variation') {
         const result = await threadService.createVariation(
           currentThread.id,
-          showVariationModalFor.id,
+          messageForVariation.id,
           content,
           branchType,
           null,
@@ -1040,6 +1106,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
         if (!result.success) {
           variationError = result.error;
+          console.error('[ChatPane] Failed to create variation:', result.error);
           return;
         }
 
@@ -1053,7 +1120,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         for (const modelId of modelIds) {
           const result = await threadService.createVariation(
             currentThread.id,
-            showVariationModalFor.id,
+            messageForVariation.id,
             content,
             branchType,
             modelId,
@@ -1062,6 +1129,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
           if (!result.success) {
             variationError = result.error;
+            console.error('[ChatPane] Failed to create model variation:', result.error);
             // Continue with other models even if one fails
             continue;
           }
@@ -1413,7 +1481,11 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     const assistantMessages = messages.filter((m) => m.role === 'assistant');
 
     if (userMessages.length === 1 && assistantMessages.length === 0) {
-      const initialPrompt = userMessages[0].content;
+      const userMessage = userMessages[0];
+      const initialPrompt = userMessage.content;
+      // Get requestId from the user message's metadata (generated when thread was created)
+      // This ensures both user and assistant messages have the same requestId
+      const userRequestId = (userMessage.metadata as { requestId?: string } | undefined)?.requestId;
 
       // Mark this thread as having been auto-sent
       autoSentForThreadId = currentThread.id;
@@ -1432,14 +1504,20 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
           };
 
           // Use chatWithFileTools for all requests - tools are invisible to user
-          const result = await window.electronAPI.chat.chatWithFileTools(request);
+          const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string; requestId?: string | null };
 
           if (!result.success) {
             error = result.error || 'Chat failed';
             console.error('Chat failed:', result.error);
           } else {
-            // Save the assistant response
-            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt);
+            // Use requestId from user message (if available) to ensure both messages link to same llm_requests entry
+            // Fall back to result.requestId (generated by audit service) if user message doesn't have one
+            const requestId = userRequestId || result.requestId;
+            console.log('[ChatPane] Auto-send using requestId:', requestId, '(from user message:', userRequestId, ', from result:', result.requestId, ')');
+            // For linear conversations (first response), don't set parentMessageId
+            // According to docs: "Linear conversations (no branches) do NOT create desktop_messages records"
+            // parentMessageId is only for branching scenarios
+            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt, undefined, requestId);
           }
         } catch (err) {
           error = err instanceof Error ? err.message : 'Unknown error';
@@ -2198,4 +2276,5 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
 
 </style>
+
 

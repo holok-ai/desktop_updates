@@ -32,9 +32,8 @@ export interface Message {
   editedAt?: number;
   versions?: MessageVersion[];
   isEdited?: boolean;
-  parentMessageId: string | null;
-  branchIndex: number;
-  branchType: BranchType;
+  /** Branch ID for the message (immutable, hierarchical like 1.0, 1.1, 1.1.1) */
+  branchId: string;
   modelId?: string | null;
 }
 
@@ -69,6 +68,8 @@ export interface Thread {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null;
+  /** Current active branch ID (e.g., "1.0", "1.1", "1.1.1") */
+  currentBranchId: string;
 }
 
 export class ThreadRepository {
@@ -113,6 +114,7 @@ export class ThreadRepository {
           metadata: { ...thread.metadata },
           messages: [...thread.messages],
           updatedAt: now,
+          currentBranchId: thread.currentBranchId,
         }
       : { ...thread, createdAt: thread.createdAt ?? now, updatedAt: now };
     this.threadsById.set(toSave.id, toSave);
@@ -233,12 +235,14 @@ export class ThreadRepository {
   }
 
   public async addMessage(threadId: string, role: MessageRole, content: string): Promise<Message> {
-    // Use appendMessage with default branching parameters
+    // Get thread to use its current branchId
+    const thread = this.threadsById.get(threadId);
+    if (!thread) throw new Error(`Thread not found: ${threadId}`);
+    
     return this.appendMessage(threadId, {
       role,
       content,
-      parentMessageId: null,
-      branchIndex: 0,
+      branchId: thread.currentBranchId,
     });
   }
 
@@ -249,9 +253,7 @@ export class ThreadRepository {
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
-      parentMessageId?: string | null;
-      branchIndex?: number;
-      branchType?: BranchType;
+      branchId?: string; // Use thread's currentBranchId if not provided
       modelId?: string | null;
     },
   ): Promise<Message> {
@@ -284,25 +286,28 @@ export class ThreadRepository {
 
     // Create message via API to persist branch information
     try {
+      const requestId = payload.metadata?.requestId 
+        ? (payload.metadata.requestId as string)
+        : undefined;
+
+      // Use provided branchId or fallback to thread's current branchId
+      const branchId = payload.branchId ?? thread.currentBranchId;
+
       const createRequest: CreateMessageRequest = {
         role: payload.role,
         content: payload.content,
-        parentMessageId: payload.parentMessageId ?? null,
-        // branchIndex defaults to 0 (main branch) if not provided
-        branchIndex: payload.branchIndex ?? 0,
-        branchType: payload.branchType ?? undefined,
+        branchId: branchId,
         model: payload.modelId ?? undefined,
         provider: payload.metadata?.provider as string | undefined,
         metadata: payload.metadata,
-        // requestId should only be set for assistant messages with a valid LLM request ID
-        // For user messages, omit it (no LLM call yet)
-        // For assistant messages, it should come from the LLM audit (llm_requests table)
-        requestId: payload.role === 'assistant' && payload.metadata?.requestId 
-          ? (payload.metadata.requestId as string)
-          : undefined,
+        requestId,
       };
+      
+      if (!requestId && payload.role === 'user') {
+        log.warn('[ThreadRepository] User message missing requestId. This may cause backend validation to fail. The requestId should be generated when the LLM call starts.');
+      }
 
-      log.info('[ThreadRepository] Creating message via API with branch info:', threadId, JSON.stringify(createRequest, null, 2));
+      log.info('[ThreadRepository] Creating message via API with branchId:', threadId, JSON.stringify(createRequest, null, 2));
 
       const messageDTO = await threadApiService.createMessage(threadId, createRequest);
       
@@ -318,9 +323,7 @@ export class ThreadRepository {
         metadata: messageDTO.metadata as MessageMetadata | undefined,
         clientMessageId: payload.clientMessageId,
         deletedAt: null,
-        parentMessageId: messageDTO.parentMessageId,
-        branchIndex: messageDTO.branchIndex,
-        branchType: (messageDTO.branchType as BranchType) ?? null,
+        branchId: messageDTO.branchId,
         modelId: messageDTO.model ?? null,
       };
 
@@ -347,6 +350,7 @@ export class ThreadRepository {
       
       // Fallback to local cache if API call fails
       const now = Date.now();
+      const branchId = payload.branchId ?? thread.currentBranchId;
       const message: Message = {
         id: crypto.randomUUID(), // Temporary local ID
         title: thread.title,
@@ -356,9 +360,7 @@ export class ThreadRepository {
         metadata: payload.metadata as MessageMetadata | undefined,
         clientMessageId: payload.clientMessageId,
         deletedAt: null,
-        parentMessageId: payload.parentMessageId ?? null,
-        branchIndex: payload.branchIndex ?? 0,
-        branchType: payload.branchType ?? null,
+        branchId: branchId,
         modelId: payload.modelId ?? null,
       };
 
@@ -409,10 +411,26 @@ export class ThreadRepository {
       const th = await this.createThread(opts);
       tid = th.id;
     }
-    const message = await this.addMessage(tid, 'user', prompt);
-    const thread = await this.loadThread(tid);
-    if (!thread) throw new Error(`Thread disappeared after creation: ${tid}`);
-    return { thread, message };
+    
+    // Extract requestId from opts if provided (for linking to llm_requests)
+    const requestId = (opts as { requestId?: string }).requestId;
+    
+    // Get thread to use its current branchId
+    const thread = this.threadsById.get(tid);
+    if (!thread) throw new Error(`Thread not found: ${tid}`);
+    
+    // Use appendMessage directly to pass requestId in metadata
+    const message = await this.appendMessage(tid, {
+      role: 'user',
+      content: prompt,
+      branchId: thread.currentBranchId,
+      // Include requestId in metadata if provided
+      metadata: requestId ? { requestId } : undefined,
+    });
+    
+    const updatedThread = await this.loadThread(tid);
+    if (!updatedThread) throw new Error(`Thread disappeared after creation: ${tid}`);
+    return { thread: updatedThread, message };
   }
 
   public async addAssistantResponse(threadId: string, response: string, model?: string): Promise<Message> {
@@ -859,20 +877,21 @@ export class ThreadRepository {
   }
 
   /**
-   * Get all child messages for a specific parent message.
-   * Returns messages where parentMessageId matches the given parent ID.
+   * Get all messages for a specific branchId.
+   * Returns messages that belong to this branch.
    */
-  public getMessagesByParentId(threadId: string, parentId: string | null): Message[] {
+  public getMessagesByBranchId(threadId: string, branchId: string): Message[] {
     const thread = this.threadsById.get(threadId);
     if (!thread) return [];
     return thread.messages
-      .filter((m) => m.parentMessageId === parentId)
-      .map((m) => ({ ...m }));
+      .filter((m) => m.branchId === branchId)
+      .map((m) => ({ ...m }))
+      .sort((a, b) => a.createdAt - b.createdAt);
   }
 
   /**
-   * Get all branch siblings for a message (messages with same parent but different branchIndex).
-   * Used to find all retry branches at a divergence point.
+   * Get all branch variations for a base branchId.
+   * E.g., for "1.0", returns all "1.0.1", "1.0.2", etc.
    */
   public getBranchesForMessage(threadId: string, messageId: string): Message[] {
     const thread = this.threadsById.get(threadId);
@@ -880,23 +899,29 @@ export class ThreadRepository {
     const message = thread.messages.find((m) => m.id === messageId);
     if (!message) return [];
 
-    // Find all messages with the same parent (including the original message)
+    const baseBranchId = message.branchId;
+    const baseDepth = baseBranchId.split('.').length;
+
+    // Find all messages that are direct variations of this branch
     return thread.messages
-      .filter((m) => m.parentMessageId === message.parentMessageId)
+      .filter((m) => {
+        const parts = m.branchId.split('.');
+        // Must be exactly one level deeper
+        if (parts.length !== baseDepth + 1) return false;
+        return m.branchId.startsWith(baseBranchId + '.');
+      })
       .map((m) => ({ ...m }))
-      .sort((a, b) => a.branchIndex - b.branchIndex);
+      .sort((a, b) => a.branchId.localeCompare(b.branchId));
   }
 
   /**
-   * Get all root messages in a thread (messages with parentMessageId = null).
-   * In a linear conversation, there's typically one root. In branched conversations,
-   * the first message is the root.
+   * Get all root messages in a thread (messages with branchId = "1.0").
    */
   public getRootMessages(threadId: string): Message[] {
     const thread = this.threadsById.get(threadId);
     if (!thread) return [];
     return thread.messages
-      .filter((m) => m.parentMessageId === null)
+      .filter((m) => m.branchId === '1.0')
       .map((m) => ({ ...m }))
       .sort((a, b) => a.createdAt - b.createdAt);
   }
@@ -922,6 +947,7 @@ export class ThreadRepository {
       createdAt: new Date(dto.createdAt).getTime(),
       updatedAt: new Date(dto.updatedAt).getTime(),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
+      currentBranchId: dto.currentBranchId || '1.0', // Default to 1.0 for legacy threads
     };
   }
 
@@ -939,9 +965,7 @@ export class ThreadRepository {
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
-      parentMessageId: dto.parentMessageId,
-      branchIndex: dto.branchIndex,
-      branchType: (dto.branchType as BranchType) ?? null,
+      branchId: dto.branchId,
       modelId: dto.model ?? null,
     };
   }
@@ -955,6 +979,7 @@ export class ThreadRepository {
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
       deletedAt: thread.deletedAt ?? null,
+      currentBranchId: thread.currentBranchId,
     };
   }
 

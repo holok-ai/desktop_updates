@@ -51,7 +51,7 @@ export class ProjectService {
     type?: string,
   ): Promise<Project> {
     return wrapElectronCall(
-      () => window.electronAPI.project.create({ title, description, privacyMode, type }),
+      () => window.electronAPI.project.create({ title, description, privacyMode }),
       'Failed to create project',
     );
   }

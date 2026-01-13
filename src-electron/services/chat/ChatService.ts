@@ -59,22 +59,29 @@ export class ChatService {
 
   /**
    * Send a chat request and handle streaming response
+   * Returns the requestId from the audit service for linking to message creation
+   * The requestId is generated when the audit wrapper is created, so it's available immediately
    */
   public async chat(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
-  ): Promise<void> {
+  ): Promise<{ requestId: string | null }> {
     // Create audit wrapper if audit is enabled
-    const { callback, complete } = this.auditService.createWrappedCallback(
+    // The requestId is generated immediately when the accumulator is created
+    const { callback, complete, getRequestId } = this.auditService.createWrappedCallback(
       request,
       this.providerType,
       onTokenReceived,
     );
 
+    // Get requestId immediately (it's generated when accumulator is created)
+    const requestId = getRequestId();
+
     try {
       // Use the wrapped callback for provider calls
       await this.provider.chat(request, callback);
       complete();
+      return { requestId };
     } catch (error) {
       complete(error);
       throw error;
@@ -128,13 +135,33 @@ export class ChatService {
    * @param onTokenReceived Callback function to handle streamed tokens
    * @param onToolUse Callback to notify when LLM uses a tool
    * @param onToolStatus Callback to notify about tool execution status (for UI feedback)
+   * @param onRequestId Callback to notify when requestId is generated (before LLM call starts)
    */
   public async chatWithFileTools(
     request: ChatRequest,
     onTokenReceived?: (token: string) => void,
     onToolUse?: (toolName: string, input: unknown, notification?: ToolUseNotification) => void,
     onToolStatus?: ToolStatusCallback,
-  ): Promise<void> {
+    onRequestId?: (requestId: string) => void,
+  ): Promise<{ requestId: string | null }> {
+    // Generate requestId FIRST, before any LLM call (including fallback)
+    // This ensures the frontend can create the user message with requestId immediately
+    const { callback, complete, getRequestId } = this.auditService.createWrappedCallback(
+      request,
+      this.providerType,
+      onTokenReceived,
+    );
+    const requestId = getRequestId();
+    log.info('[ChatService] chatWithFileTools - requestId generated:', requestId, 'onRequestId callback:', onRequestId ? 'YES' : 'NO');
+    
+    // Notify about requestId immediately (before LLM call starts)
+    if (requestId && onRequestId) {
+      log.info('[ChatService] Sending requestId to frontend:', requestId);
+      onRequestId(requestId);
+    } else {
+      log.warn('[ChatService] Cannot send requestId - requestId:', requestId, 'onRequestId:', onRequestId ? 'defined' : 'undefined');
+    }
+
     // Set up status callback for this request
     if (onToolStatus) {
       this.fileToolsService.setStatusCallback(onToolStatus);
@@ -154,9 +181,15 @@ export class ChatService {
         errorMessage,
       );
 
-      // Fall back to regular chat instead of blocking
-      await this.chat(request, onTokenReceived);
-      return;
+      // Fall back to regular chat - use the already created wrapper
+      try {
+        await this.provider.chat(request, callback);
+        complete();
+        return { requestId };
+      } catch (error) {
+        complete(error);
+        throw error;
+      }
     }
 
     const tools = this.fileToolsService.getToolDefinitions();
@@ -189,15 +222,11 @@ export class ChatService {
       return result;
     };
 
-    const { callback, complete } = this.auditService.createWrappedCallback(
-      request,
-      this.providerType,
-      onTokenReceived,
-    );
-
+    // Use the wrapper created at the start (with requestId already sent to frontend)
     try {
       await this.provider.chatWithTools(request, tools, callback, handleToolUse);
       complete();
+      return { requestId };
     } catch (error) {
       complete(error);
       throw error;

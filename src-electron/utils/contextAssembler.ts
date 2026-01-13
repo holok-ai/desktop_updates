@@ -1,9 +1,9 @@
-import type { BranchType, Message } from '../repository/thread-repository.js';
+import type { Message } from '../repository/thread-repository.js';
 import type { ThreadRepository } from '../repository/thread-repository.js';
 
 /**
- * Assembles context for LLM by walking up the message tree from a given message to the root.
- * Returns an ordered array of messages from root to the specified message.
+ * Assembles context for LLM by finding all messages in the same branch hierarchy.
+ * Returns an ordered array of messages from root to the specified message based on branchId.
  *
  * @param threadId - The thread containing the message
  * @param messageId - The message ID to start from
@@ -11,67 +11,91 @@ import type { ThreadRepository } from '../repository/thread-repository.js';
  * @returns Array of messages ordered from root to current message
  *
  * @example
- * // Given a tree: Root -> M1 -> M2 (branch 0) -> M3
- * //                          \-> M2a (branch 1)
- * const context = assembleContext(threadId, 'M3', repo);
- * // Returns: [Root, M1, M2, M3]
+ * // Given branchIds: "1.0" -> "1.0" -> "1.1" (branch) -> "1.1.1"
+ * const context = assembleContext(threadId, messageId_of_1.1.1, repo);
+ * // Returns all messages with branchIds: "1.0", "1.1", "1.1.1"
  */
 export function assembleContext(
   threadId: string,
   messageId: string,
   repository: ThreadRepository,
 ): Message[] {
-  const path: Message[] = [];
-  let currentId: string | null = messageId;
-
-  // Walk up the tree from current message to root
-  while (currentId !== null) {
-    const message = repository.getMessage(threadId, currentId);
-    if (!message) {
-      // Message not found - invalid tree state
-      break;
-    }
-
-    // Add to front of array (building root-to-current order)
-    path.unshift(message);
-
-    // Move to parent
-    currentId = message.parentMessageId;
+  const message = repository.getMessage(threadId, messageId);
+  if (!message) {
+    return [];
   }
 
-  return path;
+  const targetBranchId = message.branchId;
+  
+  // Load thread to get all messages
+  const loadedThread = repository['threadsById'].get(threadId);
+  if (!loadedThread) {
+    return [];
+  }
+
+  // Get all messages that belong to this branch hierarchy
+  // For branchId "1.1.1", include messages with "1.0", "1.1", "1.1.1"
+  const branchParts = targetBranchId.split('.');
+  const relevantBranchIds = new Set<string>();
+  
+  // Build all parent branch IDs
+  for (let i = 1; i <= branchParts.length; i++) {
+    relevantBranchIds.add(branchParts.slice(0, i).join('.'));
+  }
+
+  // Filter and sort messages by their branch hierarchy
+  const relevantMessages = loadedThread.messages.filter((m: Message) => 
+    relevantBranchIds.has(m.branchId)
+  );
+
+  // Sort by creation time to maintain conversation order
+  relevantMessages.sort((a: Message, b: Message) => a.createdAt - b.createdAt);
+
+  return relevantMessages;
 }
 
-export function getNextBranchIndex(
+/**
+ * Gets the next branchId for creating a variation.
+ * 
+ * @param currentBranchId - The branch ID to create a variation from
+ * @param threadId - The thread ID
+ * @param repository - ThreadRepository instance
+ * @returns Next available branch ID (e.g., "1.0" -> "1.1", "1.1" -> "1.2")
+ */
+export function getNextBranchId(
+  currentBranchId: string,
   threadId: string,
-  parentMessageId: string | null,
-  branchType: Exclude<BranchType, null>,
   repository: ThreadRepository,
-): number {
-  const siblings = repository.getMessagesByParentId(threadId, parentMessageId);
-
-  if (branchType === 'prompt-variation') {
-    const hasPromptVariation = siblings.some((m) => m.branchType === 'prompt-variation');
-    if (hasPromptVariation) {
-      throw new Error('Only one prompt variation allowed');
-    }
-    return 1;
+): string {
+  const loadedThread = repository['threadsById'].get(threadId);
+  if (!loadedThread) {
+    throw new Error(`Thread not found: ${threadId}`);
   }
 
-  const usedIndices = new Set<number>();
-  for (const m of siblings) {
-    if (typeof m.branchIndex === 'number') {
-      usedIndices.add(m.branchIndex);
+  // Parse current branch ID
+  const parts = currentBranchId.split('.');
+
+  // Find all existing variations at this level
+  const existingVariations = loadedThread.messages
+    .map((m: Message) => m.branchId)
+    .filter((bid: string) => {
+      const bidParts = bid.split('.');
+      // Must be exactly one level deeper and share the same base
+      if (bidParts.length !== parts.length + 1) return false;
+      const bidBase = bidParts.slice(0, -1).join('.');
+      return bidBase === currentBranchId;
+    });
+
+  // Find the next available index
+  let nextIndex = 1;
+  while (existingVariations.includes(`${currentBranchId}.${nextIndex}`)) {
+    nextIndex++;
+    if (nextIndex > 99) {
+      throw new Error('Maximum branch variations reached (max: 99)');
     }
   }
 
-  for (let i = 1; i <= 9; i += 1) {
-    if (!usedIndices.has(i)) {
-      return i;
-    }
-  }
-
-  throw new Error('Maximum variation branches reached (max: 9)');
+  return `${currentBranchId}.${nextIndex}`;
 }
 
 /**

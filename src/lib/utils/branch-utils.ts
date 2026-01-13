@@ -1,233 +1,204 @@
 /**
- * Branch utilities for thread message tree operations
+ * Branch utilities for thread message tree operations using hierarchical branchId
  */
 
-import type { Message, BranchType } from '$lib/types/thread.type';
-
-const MAX_PROMPT_VARIATIONS = 1;
-const MAX_MODEL_VARIATIONS = 9;
+import type { Message } from '$lib/types/thread.type';
 
 export interface BranchInfo {
-  parentMessageId: string;
-  branches: Message[];
-  selectedBranchIndex: number;
-}
-
-/** Get root messages (parentMessageId is null) */
-export function getRootMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.parentMessageId === null);
-}
-
-/** Get direct children of a parent message */
-export function getMessagesByParentId(messages: Message[], parentId: string | null): Message[] {
-  return messages.filter((m) => m.parentMessageId === parentId);
-}
-
-/** Get all branch variations for a specific parent (siblings with same parent, different branchIndex) */
-export function getBranchesForMessage(messages: Message[], parentId: string): Message[] {
-  return messages
-    .filter((m) => m.parentMessageId === parentId)
-    .sort((a, b) => a.branchIndex - b.branchIndex);
-}
-
-/** Check if a message has multiple branches (is a fork point) */
-export function isForkPoint(messages: Message[], messageId: string): boolean {
-  const children = messages.filter((m) => m.parentMessageId === messageId);
-  const uniqueBranches = new Set(children.map((c) => c.branchIndex));
-  return uniqueBranches.size > 1;
-}
-
-/** Get all fork points in a thread */
-export function getForkPoints(messages: Message[]): string[] {
-  const forkPoints: string[] = [];
-  const parentIds = new Set(messages.map((m) => m.parentMessageId).filter(Boolean) as string[]);
-
-  for (const parentId of parentIds) {
-    if (isForkPoint(messages, parentId)) {
-      forkPoints.push(parentId);
-    }
-  }
-  return forkPoints;
+  baseBranchId: string;
+  branches: Array<{
+    branchId: string;
+    messages: Message[];
+  }>;
+  selectedBranchId: string | null;
 }
 
 /**
- * Assemble context by walking from a message up to root.
- * Returns ordered array [root...current] following the branch path.
+ * Parse branchId to get depth and hierarchy
+ * E.g., "1.0" -> {parts: ["1", "0"], depth: 2}
+ */
+export function parseBranchId(branchId: string): { parts: string[]; depth: number } {
+  const parts = branchId.split('.');
+  return { parts, depth: parts.length };
+}
+
+/**
+ * Check if branchId is a variation of baseBranchId
+ * E.g., "1.0.1" is a variation of "1.0"
+ */
+export function isVariationOf(branchId: string, baseBranchId: string): boolean {
+  return branchId.startsWith(baseBranchId + '.');
+}
+
+/**
+ * Get all variation branches for a specific base branchId
+ * E.g., for "1.0", get all "1.0.1", "1.0.2", etc.
+ */
+export function getVariationsForBranch(messages: Message[], baseBranchId: string): Message[] {
+  const baseDepth = baseBranchId.split('.').length;
+  return messages.filter((m) => {
+    const parts = m.branchId.split('.');
+    // Must be exactly one level deeper
+    if (parts.length !== baseDepth + 1) return false;
+    return m.branchId.startsWith(baseBranchId + '.');
+  });
+}
+
+/**
+ * Check if a branch has any variations
+ */
+export function hasVariations(messages: Message[], branchId: string): boolean {
+  return getVariationsForBranch(messages, branchId).length > 0;
+}
+
+/**
+ * Get all messages belonging to a specific branch (including all ancestors)
+ * E.g., for "1.0.1", returns messages with branchIds: "1.0", "1.0.1"
+ */
+export function getBranchMessages(messages: Message[], branchId: string): Message[] {
+  const parts = branchId.split('.');
+  const relevantBranchIds = new Set<string>();
+  
+  // Build all parent branch IDs
+  for (let i = 1; i <= parts.length; i++) {
+    relevantBranchIds.add(parts.slice(0, i).join('.'));
+  }
+
+  // Filter messages that belong to this branch hierarchy
+  return messages
+    .filter(m => relevantBranchIds.has(m.branchId))
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * Assemble context by getting all messages in the same branch hierarchy
+ * Returns ordered array [root...current] following the branch path
  */
 export function assembleContext(messages: Message[], messageId: string): Message[] {
-  const path: Message[] = [];
-  const messageMap = new Map(messages.map((m) => [m.id, m]));
-
-  let current = messageMap.get(messageId);
-  while (current) {
-    path.unshift(current);
-    if (current.parentMessageId === null) break;
-    current = messageMap.get(current.parentMessageId);
-  }
-
-  return path;
+  const message = messages.find(m => m.id === messageId);
+  if (!message) return [];
+  
+  return getBranchMessages(messages, message.branchId);
 }
 
 /**
- * Get the main branch path (branchIndex=0) from root to latest message
+ * Get the main branch path (branchId starting with "1.0")
  */
 export function getMainBranchPath(messages: Message[]): Message[] {
-  const result: Message[] = [];
-  const childrenByParent = new Map<string | null, Message[]>();
-
-  for (const m of messages) {
-    const key = m.parentMessageId;
-    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
-    childrenByParent.get(key)!.push(m);
-  }
-
-  // Start from root (null parent), follow branchIndex=0
-  let current: Message | undefined = childrenByParent.get(null)?.find((m) => m.branchIndex === 0);
-  while (current) {
-    result.push(current);
-    current = childrenByParent.get(current.id)?.find((m) => m.branchIndex === 0);
-  }
-
-  return result;
+  return messages
+    .filter(m => m.branchId === '1.0')
+    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /**
- * Get next available branch index for a parent message.
- * Throws error if limit is reached.
+ * Get all fork points (branchIds that have variations)
  */
-export function getNextBranchIndex(
-  messages: Message[],
-  parentId: string,
-  branchType: BranchType,
-): number {
-  const siblings = messages.filter((m) => m.parentMessageId === parentId);
-
-  if (branchType === 'prompt-variation') {
-    const promptVariations = siblings.filter((m) => m.branchType === 'prompt-variation');
-    if (promptVariations.length >= MAX_PROMPT_VARIATIONS) {
-      throw new Error('Only one prompt variation allowed');
-    }
-    // Prompt variation always gets branchIndex 1
-    return 1;
-  }
-
-  if (branchType === 'model-variation') {
-    const modelVariations = siblings.filter((m) => m.branchType === 'model-variation');
-    if (modelVariations.length >= MAX_MODEL_VARIATIONS) {
-      throw new Error('Maximum variation branches reached (max: 9)');
-    }
-    // Find next available index starting from 1
-    const usedIndices = new Set(modelVariations.map((m) => m.branchIndex));
-    for (let i = 1; i <= MAX_MODEL_VARIATIONS; i++) {
-      if (!usedIndices.has(i)) return i;
-    }
-    throw new Error('Maximum variation branches reached (max: 9)');
-  }
-
-  // Default: return 0 for original messages
-  return 0;
-}
-
-/**
- * Check if more variations can be created for a parent message
- */
-export function canCreateVariation(
-  messages: Message[],
-  parentId: string,
-  branchType: BranchType,
-): boolean {
-  try {
-    getNextBranchIndex(messages, parentId, branchType);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Get branch info at a fork point - returns all branches and which is selected
- */
-export function getBranchInfo(
-  messages: Message[],
-  forkPointId: string,
-  selectedBranchIndex = 0,
-): BranchInfo {
-  const branches = getBranchesForMessage(messages, forkPointId);
-  return {
-    parentMessageId: forkPointId,
-    branches,
-    selectedBranchIndex,
-  };
-}
-
-/**
- * Build a tree structure from flat messages for rendering
- */
-export interface MessageTreeNode {
-  message: Message;
-  children: MessageTreeNode[];
-}
-
-export function buildMessageTree(messages: Message[]): MessageTreeNode[] {
-  const nodeMap = new Map<string, MessageTreeNode>();
-  const roots: MessageTreeNode[] = [];
-
-  // Create nodes
-  for (const m of messages) {
-    nodeMap.set(m.id, { message: m, children: [] });
-  }
-
-  // Link children to parents
-  for (const m of messages) {
-    const node = nodeMap.get(m.id)!;
-    if (m.parentMessageId === null) {
-      roots.push(node);
-    } else {
-      const parent = nodeMap.get(m.parentMessageId);
-      if (parent) parent.children.push(node);
+export function getForkPoints(messages: Message[]): string[] {
+  const forkPoints = new Set<string>();
+  
+  for (const message of messages) {
+    const parts = message.branchId.split('.');
+    if (parts.length > 2) { // Has at least one variation level
+      // The parent branchId is a fork point
+      const parentBranchId = parts.slice(0, -1).join('.');
+      forkPoints.add(parentBranchId);
     }
   }
-
-  // Sort children by branchIndex
-  for (const node of nodeMap.values()) {
-    node.children.sort((a, b) => a.message.branchIndex - b.message.branchIndex);
-  }
-
-  return roots.sort((a, b) => a.message.createdAt - b.message.createdAt);
+  
+  return Array.from(forkPoints);
 }
 
 /**
- * Get the linear message path following selected branches at each fork
+ * Check if a branchId is a fork point
  */
-export function getLinearPath(
-  messages: Message[],
-  branchSelections: Map<string, number> = new Map(),
-): Message[] {
-  const result: Message[] = [];
-  const childrenByParent = new Map<string | null, Message[]>();
-
-  for (const m of messages) {
-    const key = m.parentMessageId;
-    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
-    childrenByParent.get(key)!.push(m);
-  }
-
-  // Start from root, follow selected branch at each fork
-  let parentId: string | null = null;
-  while (true) {
-    const children = childrenByParent.get(parentId) || [];
-    if (children.length === 0) break;
-
-    const selectedIndex = parentId ? (branchSelections.get(parentId) ?? 0) : 0;
-    const selected = children.find((c) => c.branchIndex === selectedIndex) || children[0];
-
-    result.push(selected);
-    parentId = selected.id;
-  }
-
-  return result;
+export function isForkPoint(messages: Message[], branchId: string): boolean {
+  return hasVariations(messages, branchId);
 }
 
+/**
+ * Get the first variation point in a thread
+ * Returns the base branchId where the first variation occurred
+ */
+export function getFirstForkPoint(messages: Message[]): string | null {
+  const forkPoints = getForkPoints(messages);
+  if (forkPoints.length === 0) return null;
+  
+  // Sort by depth (shallowest first) and return the first one
+  forkPoints.sort((a, b) => {
+    const depthA = a.split('.').length;
+    const depthB = b.split('.').length;
+    if (depthA !== depthB) return depthA - depthB;
+    // Same depth, sort lexicographically
+    return a.localeCompare(b);
+  });
+  
+  return forkPoints[0];
+}
 
+/**
+ * Get next available branchId for creating a variation
+ * E.g., from "1.0" -> "1.0.1", from "1.0" -> "1.0.2" (if 1.0.1 exists)
+ */
+export function getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
+  const existingVariations = getVariationsForBranch(messages, baseBranchId);
+  const existingIndices = existingVariations.map(m => {
+    const parts = m.branchId.split('.');
+    return parseInt(parts[parts.length - 1]);
+  });
+  
+  // Find the next available index
+  let nextIndex = 1;
+  while (existingIndices.includes(nextIndex)) {
+    nextIndex++;
+    if (nextIndex > 99) {
+      throw new Error('Maximum branch variations reached (max: 99)');
+    }
+  }
+  
+  return `${baseBranchId}.${nextIndex}`;
+}
 
+/**
+ * Check if message can have a variation created from it
+ */
+export function canCreateVariation(message: Message | undefined, messages: Message[]): boolean {
+  if (!message || message.role !== 'user') return false;
+  
+  // Allow creating variations from any user message
+  return true;
+}
 
+/**
+ * Get all branch boxes for horizontal display
+ * Returns array of branches with their messages
+ */
+export function getBranchBoxes(messages: Message[], forkBranchId: string): Array<{
+  branchId: string;
+  messages: Message[];
+  isOriginal: boolean;
+}> {
+  const variations = getVariationsForBranch(messages, forkBranchId);
+  const boxes: Array<{
+    branchId: string;
+    messages: Message[];
+    isOriginal: boolean;
+  }> = [];
+  
+  // Add original branch
+  boxes.push({
+    branchId: forkBranchId,
+    messages: getBranchMessages(messages, forkBranchId),
+    isOriginal: true,
+  });
+  
+  // Add each variation
+  for (const variation of variations) {
+    boxes.push({
+      branchId: variation.branchId,
+      messages: getBranchMessages(messages, variation.branchId),
+      isOriginal: false,
+    });
+  }
+  
+  return boxes;
+}

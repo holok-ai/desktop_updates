@@ -2,7 +2,6 @@
 import type { Thread } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message, BranchType } from '$lib/types/thread.type.js';
-import { getNextBranchIndex } from '$lib/utils/branch-utils.js';
 
 class ThreadService {
   constructor() {
@@ -72,10 +71,7 @@ class ThreadService {
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
-      parentMessageId?: string | null;
-      branchIndex?: number;
-      branchType?: BranchType;
-      modelId?: string | null;
+      branchId?: string;
     },
   ): Promise<
     | {
@@ -98,17 +94,8 @@ class ThreadService {
     if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
       (wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
     }
-    if (payload.parentMessageId !== undefined) {
-      (wirePayload as Record<string, unknown>).parent_message_id = payload.parentMessageId;
-    }
-    if (payload.branchIndex !== undefined) {
-      (wirePayload as Record<string, unknown>).branch_index = payload.branchIndex;
-    }
-    if (payload.branchType !== undefined && payload.branchType !== null) {
-      (wirePayload as Record<string, unknown>).branch_type = payload.branchType;
-    }
-    if (payload.modelId !== undefined && payload.modelId !== null) {
-      (wirePayload as Record<string, unknown>).model_id = payload.modelId;
+    if (typeof payload.branchId === 'string' && payload.branchId.length > 0) {
+      (wirePayload as Record<string, unknown>).branch_id = payload.branchId;
     }
     const res: unknown = await window.electronAPI.thread.appendMessage(threadId, wirePayload);
     if (
@@ -227,11 +214,12 @@ class ThreadService {
   /**
    * Create a prompt or model variation branch
    * @param threadId - Thread ID
-   * @param originalMessageId - The user message being varied (we'll use its parent as the branch point)
+   * @param originalMessageId - The user message being varied
    * @param content - New prompt content
    * @param branchType - 'prompt-variation' or 'model-variation'
    * @param modelId - Model ID (required for model-variation)
-   * @param messages - Current messages array for calculating branch index
+   * @param messages - Current messages array
+   * @param currentBranchId - The branchId to create variation from
    */
   async createVariation(
     threadId: string,
@@ -240,38 +228,29 @@ class ThreadService {
     branchType: BranchType,
     modelId: string | null,
     messages: Message[],
+    currentBranchId: string,
   ): Promise<
-    | { success: true; message: Message; branchIndex: number }
+    | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
   > {
-    // Find the original message to get its parent
+    // Find the original message
     const originalMessage = messages.find((m) => m.id === originalMessageId);
     if (!originalMessage) {
       return { success: false, error: 'Original message not found' };
     }
 
-    // The parent of the variation is the original user message itself
-    const parentMessageId = originalMessageId;
-
-    // Calculate next branch index for this specific user message (will throw if limit reached)
-    let branchIndex: number;
-    try {
-      branchIndex = getNextBranchIndex(messages, parentMessageId, branchType);
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : 'Branch limit reached' };
-    }
+    // Generate next branchId hierarchically
+    // E.g., "1.0" -> "1.0.1", "1.0.1" -> "1.0.1.1"
+    const newBranchId = this.getNextVariationBranchId(currentBranchId, messages);
 
     const clientMessageId = crypto.randomUUID();
 
     const res = await this.appendMessage(threadId, {
       role: 'user',
       content,
-      metadata: {},
+      metadata: { modelId },
       clientMessageId,
-      parentMessageId,
-      branchIndex,
-      branchType,
-      modelId,
+      branchId: newBranchId,
     });
 
     if (!res.success) {
@@ -284,13 +263,39 @@ class ThreadService {
       content,
       createdAt: res.message.createdAt,
       clientMessageId,
-      parentMessageId,
-      branchIndex,
-      branchType,
+      branchId: newBranchId,
       modelId,
     };
 
-    return { success: true, message, branchIndex };
+    return { success: true, message, newBranchId };
+  }
+
+  /**
+   * Get next available variation branchId
+   * E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
+   */
+  private getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
+    // Find all existing variations at this level
+    const existingVariations = messages
+      .map(m => m.branchId)
+      .filter(bid => {
+        const parts = bid.split('.');
+        const baseParts = baseBranchId.split('.');
+        // Must be exactly one level deeper and share the same base
+        if (parts.length !== baseParts.length + 1) return false;
+        return bid.startsWith(baseBranchId + '.');
+      });
+
+    // Find the next available index
+    let nextIndex = 1;
+    while (existingVariations.includes(`${baseBranchId}.${nextIndex}`)) {
+      nextIndex++;
+      if (nextIndex > 99) {
+        throw new Error('Maximum branch variations reached (max: 99)');
+      }
+    }
+
+    return `${baseBranchId}.${nextIndex}`;
   }
 }
 

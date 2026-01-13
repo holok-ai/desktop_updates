@@ -299,10 +299,17 @@
       // Auto-generate title from prompt
       const autoTitle = generateTitleFromPrompt(newThreadPrompt);
 
+      // Generate requestId client-side BEFORE creating the user message
+      // This is required by the backend to link the message to llm_requests
+      // The same requestId will be used when the LLM call is made
+      const requestId = crypto.randomUUID();
+
       // Create thread with prompt atomically, passing metadata fields at top level
       const res = await window.electronAPI.thread.addUserPrompt(null, newThreadPrompt, {
         title: autoTitle,
         model: selectedModel.id,
+        // Include requestId so the user message is created with it
+        requestId,
         // Spread metadata fields at top level, not nested
         ...(formData.metadata ? {
           modelId: formData.metadata.modelId,

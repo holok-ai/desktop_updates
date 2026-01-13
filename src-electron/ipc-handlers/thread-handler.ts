@@ -38,6 +38,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
     createdAt: new Date(t.createdAt),
     updatedAt: new Date(t.updatedAt),
     metadata: { ...t.metadata },
+    currentBranchId: t.currentBranchId,
   };
 }
 
@@ -588,10 +589,7 @@ export function registerThreadHandlers(): void {
         content: string;
         metadata?: Record<string, unknown>;
         client_message_id?: string;
-        parent_message_id?: string | null;
-        branch_index?: number;
-        branch_type?: string;
-        model_id?: string | null;
+        branch_id?: string;
       },
     ): Promise<
       | {
@@ -637,19 +635,9 @@ export function registerThreadHandlers(): void {
       }
 
       try {
-        // Extract branch information from payload or metadata
-        const parentMessageId = payload.parent_message_id ?? 
-          (payload.metadata?.parentMessageId as string | undefined) ?? null;
-        const branchIndex = payload.branch_index ?? 
-          (typeof payload.metadata?.branchIndex === 'number' ? payload.metadata.branchIndex : undefined);
-        const branchType: BranchType = payload.branch_type === 'prompt-variation' || payload.branch_type === 'model-variation' 
-          ? payload.branch_type 
-          : (typeof payload.metadata?.branchType === 'string' && 
-             (payload.metadata.branchType === 'prompt-variation' || payload.metadata.branchType === 'model-variation')
-             ? payload.metadata.branchType as BranchType
-             : null);
-        const modelId = payload.model_id ?? 
-          (payload.metadata?.modelId as string | undefined) ?? null;
+        // Extract branchId from payload if provided
+        const branchId = payload.branch_id ?? 
+          (payload.metadata?.branchId as string | undefined);
 
         threadLog.info('[thread:appendMessage] Received payload:', JSON.stringify({
           threadId,
@@ -657,10 +645,7 @@ export function registerThreadHandlers(): void {
           content: payload.content,
           metadata: payload.metadata,
           client_message_id: payload.client_message_id,
-          parent_message_id: parentMessageId,
-          branch_index: branchIndex,
-          branch_type: branchType,
-          model_id: modelId,
+          branch_id: branchId,
         }, null, 2));
         threadLog.info('[thread:appendMessage] Calling threadRepository.appendMessage', { threadId });
         const msg: Message = await threadRepository.appendMessage(threadId, {
@@ -668,10 +653,7 @@ export function registerThreadHandlers(): void {
           content: payload.content,
           metadata: payload.metadata,
           clientMessageId: payload.client_message_id,
-          parentMessageId,
-          branchIndex,
-          branchType,
-          modelId,
+          branchId,
         });
 
         threadLog.info('[thread:appendMessage] Message created successfully', {
