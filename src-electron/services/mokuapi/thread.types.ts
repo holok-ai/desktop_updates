@@ -26,7 +26,8 @@ export interface ThreadDTO {
 export interface MessageDTO {
   id: string;
   threadId: string;
-  branchId: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1")
+  branchId?: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1") - may be in options.branch_id
+  branchIndex?: number; // Legacy field
   isClosed?: boolean;
   model?: string;
   provider?: string;
@@ -34,6 +35,13 @@ export interface MessageDTO {
   content: string;
   attachments?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  options?: {
+    branch_id?: string; // branch_id may be in options
+    stream?: boolean;
+    max_tokens?: number;
+    [key: string]: unknown;
+  };
+  requestId?: string; // Legacy field
   createdUserId: string;
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp

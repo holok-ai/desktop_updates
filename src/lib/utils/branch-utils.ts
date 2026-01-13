@@ -159,6 +159,35 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
 }
 
 /**
+ * Get the next sequential branchId for a linear conversation
+ * E.g., if messages have "1.0", "2.0", "3.0", returns "4.0"
+ * @param messages - All messages in the thread
+ * @returns The next sequential branchId (e.g., "2.0", "3.0")
+ */
+export function getNextSequentialBranchId(messages: Message[]): string {
+  // Find all top-level branchIds (those matching pattern "N.0" where N is a number)
+  const topLevelBranchIds = messages
+    .map(m => m.branchId)
+    .filter(bid => {
+      const parts = bid.split('.');
+      // Must be exactly 2 parts, second part must be "0"
+      return parts.length === 2 && parts[1] === '0';
+    })
+    .map(bid => {
+      const [firstPart] = bid.split('.');
+      const num = parseInt(firstPart !== undefined && firstPart.length > 0 ? firstPart : '0', 10);
+      return isNaN(num) ? 0 : num;
+    })
+    .filter(num => num > 0);
+
+  // Find the highest number and increment
+  const maxNum = topLevelBranchIds.length > 0 ? Math.max(...topLevelBranchIds) : 0;
+  const nextNum = maxNum + 1;
+  
+  return `${nextNum}.0`;
+}
+
+/**
  * Check if message can have a variation created from it
  */
 export function canCreateVariation(message: Message | undefined): boolean {

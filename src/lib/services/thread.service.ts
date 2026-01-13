@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import type { Thread } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
-import type { Message, BranchType } from '$lib/types/thread.type.js';
+import type { Message } from '$lib/types/thread.type.js';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { BaseElectronService } from './base-electron.service';
+import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 
 export class ThreadService extends BaseElectronService {
   private constructor() {
@@ -284,43 +285,29 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
-   * Create a prompt or model variation branch
-   * @param threadId - Thread ID
-   * @param originalMessageId - The user message being varied
-   * @param content - New prompt content
-   * @param branchType - 'prompt-variation' or 'model-variation'
-   * @param modelId - Model ID (required for model-variation)
-   * @param messages - Current messages array
-   * @param currentBranchId - The branchId to create variation from
+   * Create a variation of a message using new branchId hierarchy
+   * @param thread - The thread to create variation in
+   * @param originalMessage - The message to create a variation from
    */
   async createVariation(
-    threadId: string,
-    originalMessageId: string,
-    content: string,
-    branchType: BranchType,
-    modelId: string | null,
-    messages: Message[],
-    currentBranchId: string,
+    thread: Thread,
+    originalMessage: Message,
   ): Promise<
     | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
   > {
-    // Find the original message
-    const originalMessage = messages.find((m) => m.id === originalMessageId);
-    if (!originalMessage) {
-      return { success: false, error: 'Original message not found' };
-    }
-
-    // Generate next branchId hierarchically
-    // E.g., "1.0" -> "1.0.1", "1.0.1" -> "1.0.1.1"
-    const newBranchId = this.getNextVariationBranchId(currentBranchId, messages);
+    // Generate next branchId hierarchically from the original message's branchId
+    // E.g., "1.0" -> "1.1", "1.1" -> "1.2"
+    const messages = await this.getMessages(thread.id);
+    const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
-
-    const res = await this.appendMessage(threadId, {
+    
+    // Use the original message's content as the variation prompt
+    const res = await this.appendMessage(thread.id, {
       role: 'user',
-      content,
-      metadata: { modelId },
+      content: originalMessage.content,
+      metadata: { modelId: originalMessage.modelId },
       clientMessageId,
       branchId: newBranchId,
     });
@@ -332,44 +319,14 @@ export class ThreadService extends BaseElectronService {
     const message: Message = {
       id: res.message.id,
       role: 'user',
-      content,
+      content: originalMessage.content,
       createdAt: res.message.createdAt,
       clientMessageId,
       branchId: newBranchId,
-      modelId,
+      modelId: originalMessage.modelId,
     };
 
     return { success: true, message, newBranchId };
-  }
-
-  /**
-   * Get next available variation branchId
-   * E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
-   */
-  private getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
-    // Find all existing variations at this level
-    const existingVariations = messages
-      .map((m) => m.branchId)
-      .filter((bid) => {
-        const parts = bid.split('.');
-        const baseParts = baseBranchId.split('.');
-        // Must be exactly one level deeper and share the same base
-        if (parts.length !== baseParts.length + 1) {
-          return false;
-        }
-        return bid.startsWith(`${baseBranchId}.`);
-      });
-
-    // Find the next available index
-    let nextIndex = 1;
-    while (existingVariations.includes(`${baseBranchId}.${nextIndex}`)) {
-      nextIndex++;
-      if (nextIndex > 99) {
-        throw new Error('Maximum branch variations reached (max: 99)');
-      }
-    }
-
-    return `${baseBranchId}.${nextIndex}`;
   }
 }
 

@@ -267,6 +267,88 @@ export class ThreadRepository {
     });
   }
 
+  /**
+   * Create message locally without API call
+   * Messages are created when chat function is called, not via API
+   */
+  public async appendMessageLocal(
+    threadId: string,
+    payload: {
+      role: MessageRole;
+      content: string;
+      metadata?: Record<string, unknown>;
+      clientMessageId?: string;
+      branchId?: string;
+      modelId?: string | null;
+    },
+  ): Promise<Message> {
+    // Check local idempotency cache first
+    if (payload.clientMessageId) {
+      const byThread = this.idempotencyIndex.get(threadId);
+      const existingId = byThread?.get(payload.clientMessageId);
+      if (existingId) {
+        const thread = this.threadsById.get(threadId);
+        const found = thread?.messages.find((m) => m.id === existingId);
+        if (found) {
+          log.info('[ThreadRepository] Message found in local idempotency cache:', existingId);
+          return { ...found };
+        }
+      }
+    }
+
+    // Content size check
+    const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
+    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+
+    // Get thread from cache or fetch it
+    let thread = this.threadsById.get(threadId);
+    if (!thread) {
+      log.info('[ThreadRepository] Thread not in cache, fetching:', threadId);
+      const loadedThread = await this.loadThread(threadId);
+      if (!loadedThread) throw new Error(`Thread not found: ${threadId}`);
+      thread = loadedThread;
+    }
+
+    // Create message locally (no API call)
+    const now = Date.now();
+    const branchId = payload.branchId ?? thread.currentBranchId;
+    const message: Message = {
+      id: crypto.randomUUID(), // Generate local ID
+      title: thread.title,
+      role: payload.role,
+      content: payload.content,
+      createdAt: now,
+      metadata: payload.metadata as MessageMetadata | undefined,
+      clientMessageId: payload.clientMessageId,
+      deletedAt: null,
+      branchId: branchId,
+      modelId: payload.modelId ?? null,
+    };
+
+    log.info('[ThreadRepository] Created message locally:', message.id, 'branchId:', branchId);
+
+    // Update local cache
+    thread.messages.push(message);
+    thread.updatedAt = now;
+    this.threadsById.set(thread.id, thread);
+
+    // Update idempotency index
+    if (payload.clientMessageId) {
+      let byThread = this.idempotencyIndex.get(threadId);
+      if (!byThread) {
+        byThread = new Map();
+        this.idempotencyIndex.set(threadId, byThread);
+      }
+      byThread.set(payload.clientMessageId, message.id);
+    }
+
+    return { ...message };
+  }
+
+  /**
+   * @deprecated Use appendMessageLocal instead. Messages are now created locally when chat is called.
+   * This method now delegates to appendMessageLocal for local-only creation.
+   */
   public async appendMessage(
     threadId: string,
     payload: {
@@ -305,98 +387,8 @@ export class ThreadRepository {
       thread = loadedThread;
     }
 
-    // Create message via API to persist branch information
-    try {
-      // Use provided branchId or fallback to thread's current branchId
-      const branchId = payload.branchId ?? thread.currentBranchId;
-
-      const provider = payload.metadata?.provider && typeof payload.metadata.provider === 'string'
-        ? payload.metadata.provider
-        : undefined;
-
-      const createRequest: import('../services/mokuapi/thread.types.js').CreateMessageRequest = {
-        role: payload.role,
-        content: payload.content,
-        branchId: branchId,
-        model: payload.modelId ?? undefined,
-        provider,
-        metadata: payload.metadata,
-      };
-
-      log.info('[ThreadRepository] Creating message via API with branchId:', threadId, JSON.stringify(createRequest, null, 2));
-
-      const messageDTO = await threadApiService.createMessage(threadId, createRequest);
-      
-      log.info('[ThreadRepository] MessageDTO received from API:', JSON.stringify(messageDTO, null, 2));
-
-      // Map DTO to internal Message format
-      const message: Message = {
-        id: messageDTO.id,
-        title: thread.title,
-        role: messageDTO.role as MessageRole,
-        content: messageDTO.content,
-        createdAt: new Date(messageDTO.createdAt).getTime(),
-        metadata: messageDTO.metadata as MessageMetadata | undefined,
-        clientMessageId: payload.clientMessageId,
-        deletedAt: null,
-        branchId: messageDTO.branchId,
-        modelId: messageDTO.model ?? null,
-      };
-
-      log.info('[ThreadRepository] Message created via API:', message.id);
-
-      // Update local cache
-      thread.messages.push(message);
-      thread.updatedAt = Date.now();
-      this.threadsById.set(thread.id, thread);
-
-      // Update idempotency index
-      if (payload.clientMessageId) {
-        let byThread = this.idempotencyIndex.get(threadId);
-        if (!byThread) {
-          byThread = new Map();
-          this.idempotencyIndex.set(threadId, byThread);
-        }
-        byThread.set(payload.clientMessageId, message.id);
-      }
-
-      return { ...message };
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to create message via API, falling back to local cache:', error);
-      
-      // Fallback to local cache if API call fails
-      const now = Date.now();
-      const branchId = payload.branchId ?? thread.currentBranchId;
-      const message: Message = {
-        id: crypto.randomUUID(), // Temporary local ID
-        title: thread.title,
-        role: payload.role,
-        content: payload.content,
-        createdAt: now,
-        metadata: payload.metadata as MessageMetadata | undefined,
-        clientMessageId: payload.clientMessageId,
-        deletedAt: null,
-        branchId: branchId,
-        modelId: payload.modelId ?? null,
-      };
-
-      // Update local cache
-      thread.messages.push(message);
-      thread.updatedAt = now;
-      this.threadsById.set(thread.id, thread);
-
-      // Update idempotency index
-      if (payload.clientMessageId) {
-        let byThread = this.idempotencyIndex.get(threadId);
-        if (!byThread) {
-          byThread = new Map();
-          this.idempotencyIndex.set(threadId, byThread);
-        }
-        byThread.set(payload.clientMessageId, message.id);
-      }
-
-      return { ...message };
-    }
+    // Delegate to appendMessageLocal for local-only creation
+    return this.appendMessageLocal(threadId, payload);
   }
 
   /**
@@ -998,6 +990,19 @@ export class ThreadRepository {
    * Converts ISO-8601 timestamps to epoch milliseconds.
    */
   private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
+    // Extract branchId from dto.branchId or from options.branch_id
+    let branchId = dto.branchId;
+    if (!branchId && dto.options?.branch_id) {
+      branchId = dto.options.branch_id;
+    }
+    // Fallback to "1.0" for legacy messages without branchId
+    if (!branchId) {
+      branchId = '1.0';
+      log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0":', dto.id);
+    }
+
+    log.info(`[ThreadRepository] Mapping message ${dto.id}: branchId=${branchId}, role=${dto.role}, contentLength=${dto.content.length}`);
+
     return {
       id: dto.id,
       title: threadTitle,
@@ -1007,7 +1012,7 @@ export class ThreadRepository {
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
-      branchId: dto.branchId,
+      branchId: branchId,
       modelId: dto.model ?? null,
     };
   }

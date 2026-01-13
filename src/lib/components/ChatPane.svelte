@@ -15,7 +15,7 @@
 import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
   import VariationModal from './branching/VariationModal.svelte';
   import BranchLane from './branching/BranchLane.svelte';
-  import { assembleContext } from '$lib/utils/branch-utils';
+  import { assembleContext, getBranchMessages, getVariationsForBranch, getForkPoints, getNextSequentialBranchId } from '$lib/utils/branch-utils';
 
   interface Props {
     thread?: Thread | null;
@@ -111,10 +111,10 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
   let isCreatingVariation = $state(false);
   let activeBranchIndex = $state<number | null>(null);
   let showBranches = $state(true); // Show all branches by default, hide when one is selected
-  let streamingBranchIndex = $state<number | null>(null); // Track which branch is currently streaming
+  let streamingBranchIndex = $state<string | null>(null); // Track which branch is currently streaming (by branchId)
   let selectedBranchContextMessageId = $state<string | null>(null); // Track the last message in the selected branch for context
-  // Track streaming text per branch index for parallel variations
-  let streamingTextByBranch = $state<Map<number, string>>(new Map());
+  // Track streaming text per branchId for parallel variations
+  let streamingTextByBranch = $state<Map<string, string>>(new Map());
   // Track the branch we're currently sending from (doesn't affect visual selection)
   let sendingBranchIndex = $state<number | null>(null);
   let sendingBranchContextMessageId = $state<string | null>(null);
@@ -130,37 +130,9 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       return;
     }
     
-    // Find the last message in this branch by following the chain
-    let lastMessage: Message | null = null;
-    
-    if (branchIndex === 0) {
-      // Main branch: find the last message with branchIndex 0
-      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
-      const messagesWithChildren = new Set(mainBranchMessages
-        .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
-        .map(m => m.id));
-      
-      lastMessage = mainBranchMessages
-        .filter(m => !messagesWithChildren.has(m.id))
-        .sort((a, b) => b.createdAt - a.createdAt)[0] 
-        ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
-    } else {
-      // Variation branch: follow the chain from the variation user message
-      const branchMessages: Message[] = [branchBox.userMessage];
-      let current = branchBox.userMessage;
-      
-      while (true) {
-        const child = messages.find(m => 
-          m.parentMessageId === current.id && 
-          (m.branchIndex ?? 0) === branchIndex
-        );
-        if (!child) break;
-        branchMessages.push(child);
-        current = child;
-      }
-      
-      lastMessage = branchMessages[branchMessages.length - 1] ?? branchBox.userMessage;
-    }
+    // Get all messages in this branch using branchId
+    const branchMessages = getBranchMessages(messages, branchBox.userMessage.branchId);
+    const lastMessage = branchMessages[branchMessages.length - 1] ?? branchBox.userMessage;
     
     if (lastMessage) {
       selectedBranchContextMessageId = lastMessage.id;
@@ -183,53 +155,13 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       return;
     }
 
-    // Find the last message in this specific branch by following the parent-child chain
-    let lastMessageInBranch: Message | null = null;
-    const branchUserMsg = branchBox.userMessage;
-    
-    if (branchIndex === 0) {
-      // Main branch: find the last message with branchIndex 0
-      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
-      const messagesWithChildren = new Set(mainBranchMessages
-        .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
-        .map(m => m.id));
-      
-      lastMessageInBranch = mainBranchMessages
-        .filter(m => !messagesWithChildren.has(m.id))
-        .sort((a, b) => b.createdAt - a.createdAt)[0] 
-        ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
-    } else {
-      // Variation branch: follow the chain from the variation user message
-      const branchMessages: Message[] = [branchUserMsg];
-      let current = branchUserMsg;
-      
-      // Follow the chain: find children of current message with matching branchIndex
-      while (true) {
-        const child = messages.find(m => 
-          m.parentMessageId === current.id && 
-          (m.branchIndex ?? 0) === branchIndex
-        );
-        if (!child) break;
-        branchMessages.push(child);
-        current = child;
-      }
-      
-      // The last message in the chain is the parent for the new message
-      lastMessageInBranch = branchMessages[branchMessages.length - 1] ?? branchUserMsg;
-    }
-
-    // Store branch info for this send without changing activeBranchIndex (which controls selection)
-    const branchInfo = {
-      branchIndex,
-      branchType: branchBox.branchType,
-      modelId: branchBox.userMessage.modelId ?? null,
-      parentMessageId: lastMessageInBranch?.id ?? null,
-      contextMessageId: lastMessageInBranch?.id ?? null,
-    };
+    // Get all messages in this branch using branchId
+    const branchMessages = getBranchMessages(messages, branchBox.userMessage.branchId);
+    const lastMessageInBranch = branchMessages[branchMessages.length - 1] ?? branchBox.userMessage;
 
     // Set sending branch context (doesn't affect visual selection)
-    sendingBranchIndex = branchInfo.branchIndex;
-    sendingBranchContextMessageId = branchInfo.contextMessageId;
+    sendingBranchIndex = branchIndex;
+    sendingBranchContextMessageId = lastMessageInBranch?.id ?? null;
     
     try {
       // Call sendMessage which will use the sending branch context
@@ -249,9 +181,12 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
   $effect(() => {
     if (activeBranchIndex !== null) {
       // Find the latest assistant message for the selected branch
-      const latestAssistant = messages
-        .filter(m => m.role === 'assistant' && (m.branchIndex ?? 0) === activeBranchIndex)
-        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      const selectedBox = branchBoxes.find(b => b.branchIndex === activeBranchIndex);
+      const latestAssistant = selectedBox 
+        ? messages
+            .filter(m => m.role === 'assistant' && m.branchId === selectedBox.userMessage.branchId)
+            .sort((a, b) => b.createdAt - a.createdAt)[0]
+        : undefined;
       
       if (latestAssistant && latestAssistant.id !== selectedBranchContextMessageId) {
         selectedBranchContextMessageId = latestAssistant.id;
@@ -259,83 +194,27 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     }
   });
 
-  // First fork point: any USER message that has at least one child with branchIndex > 0
+  // First fork point: any USER message that has variations (based on branchId)
   const firstForkPointId = $derived.by(() => {
     // Find the earliest user message that has variation children
-    // This ensures we show the first fork point in the conversation
-    let earliestForkPoint: { id: string; index: number } | null = null;
+    const forkPointBranchIds = getForkPoints(messages);
     
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.role !== 'user') continue;
-      
-      // Check if this message has variation children (children with branchIndex > 0)
-      // Variations are user messages with parentMessageId pointing to this message
-      const hasVariationChild = messages.some(
-        (m) => m.parentMessageId === msg.id && m.role === 'user' && (m.branchIndex ?? 0) > 0,
-      );
-      
-      if (hasVariationChild) {
-        if (!earliestForkPoint || i < earliestForkPoint.index) {
-          earliestForkPoint = { id: msg.id, index: i };
-        }
-      }
-    }
+    if (forkPointBranchIds.length === 0) return null;
     
-    return earliestForkPoint?.id ?? null;
+    // Find the earliest fork point message by finding the first user message with each fork branchId
+    const forkPointMessages = forkPointBranchIds
+      .map(branchId => messages.find(m => m.branchId === branchId && m.role === 'user'))
+      .filter((m): m is Message => m !== undefined);
+    
+    if (forkPointMessages.length === 0) return null;
+    
+    // Return the earliest fork point (by createdAt)
+    return forkPointMessages.sort((a, b) => a.createdAt - b.createdAt)[0]?.id ?? null;
   });
 
-  // Helper function to get all messages in a branch by following the parent-child chain
-  function getAllMessagesInBranch(startMessageId: string, branchIndex: number): Message[] {
-    const branchMessages: Message[] = [];
-    const messageMap = new Map(messages.map(m => [m.id, m]));
-    
-    // Start from the branch's first user message
-    let current = messageMap.get(startMessageId);
-    if (!current) return [];
-    
-    branchMessages.push(current);
-    
-    // Follow the chain: find all children with matching branchIndex
-    // For branchIndex 0, also include messages with null/undefined branchIndex (legacy messages)
-    while (true) {
-      const child = messages.find(m => {
-        if (m.parentMessageId !== current!.id) return false;
-        
-        // For branchIndex 0, accept messages with branchIndex 0 or null/undefined (legacy)
-        if (branchIndex === 0) {
-          return (m.branchIndex ?? 0) === 0;
-        }
-        
-        // For other branch indices, require exact match
-        return (m.branchIndex ?? 0) === branchIndex;
-      });
-      
-      if (!child) {
-        // For branchIndex 0, also check for legacy messages that come right after in the array
-        // (handles case where old messages don't have parentMessageId set)
-        if (branchIndex === 0) {
-          const currentIndex = messages.findIndex(m => m.id === current!.id);
-          if (currentIndex >= 0 && currentIndex < messages.length - 1) {
-            const nextMsg = messages[currentIndex + 1];
-            // If next message is assistant with branchIndex 0/null and no parentMessageId, include it
-            if (nextMsg.role === 'assistant' && 
-                (nextMsg.branchIndex ?? 0) === 0 && 
-                !nextMsg.parentMessageId &&
-                !branchMessages.some(m => m.id === nextMsg.id)) {
-              branchMessages.push(nextMsg);
-              current = nextMsg;
-              continue;
-            }
-          }
-        }
-        break;
-      }
-      branchMessages.push(child);
-      current = child;
-    }
-    
-    return branchMessages.sort((a, b) => a.createdAt - b.createdAt);
+  // Helper function to get all messages in a branch using branchId
+  function getAllMessagesInBranch(branchId: string): Message[] {
+    return getBranchMessages(messages, branchId);
   }
 
   // Build branch boxes (original + variations) for rendering
@@ -344,64 +223,39 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     const parent = messages.find((m) => m.id === firstForkPointId && m.role === 'user');
     if (!parent) return [];
 
-    // Get all user messages that are children of the fork point (variations)
-    // Only include variations (branchIndex > 0), not the parent itself
-    const variationChildren = messages.filter(
-      (m) => m.parentMessageId === parent.id && m.role === 'user' && (m.branchIndex ?? 0) > 0
-    );
+    // Get all variations of this branch using branchId
+    const variationChildren = getVariationsForBranch(messages, parent.branchId);
     
     // Include the parent (original branch) and all variations
-    // The parent should have branchIndex 0 or null
     const userBranches = [parent, ...variationChildren];
-    userBranches.sort((a, b) => (a.branchIndex ?? 0) - (b.branchIndex ?? 0));
 
-    return userBranches.map((userMsg) => {
-      const userBranchIndex = userMsg.branchIndex ?? 0;
-      
-      // Get all messages in this branch (following the parent-child chain)
-      const allBranchMessages = getAllMessagesInBranch(userMsg.id, userBranchIndex);
+    return userBranches.map((userMsg, index) => {
+      // Get all messages in this branch using branchId
+      const allBranchMessages = getAllMessagesInBranch(userMsg.branchId);
       
       // Separate user and assistant messages for display
       const assistantMessages = allBranchMessages.filter(m => m.role === 'assistant');
 
       return {
-        branchIndex: userBranchIndex,
-        branchType: userMsg.branchType ?? null,
-        userMessage: userMsg, // First user message (for header/identification)
-        assistantMessage: assistantMessages[assistantMessages.length - 1] ?? null, // Last assistant message
-        allMessages: allBranchMessages, // All messages in the branch for display
+        branchIndex: index, // Index for UI purposes only
+        branchType: null, // No longer using branchType
+        userMessage: userMsg,
+        assistantMessage: assistantMessages[assistantMessages.length - 1] ?? null,
+        allMessages: allBranchMessages,
       };
     });
   });
 
-  // Get all message IDs that should be excluded from normal display (fork point + all its descendants)
+  // Get all message IDs that should be excluded from normal display (all messages in branches)
   const excludedMessageIds = $derived.by(() => {
     if (!firstForkPointId) return new Set<string>();
-    const excluded = new Set<string>([firstForkPointId]);
     
-    // Collect all descendants of the fork point (including all assistant responses and variations)
-    const queue = [firstForkPointId];
-    const visited = new Set<string>([firstForkPointId]);
+    const excluded = new Set<string>();
     
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      const children = messages.filter((m) => m.parentMessageId === currentId);
-      for (const child of children) {
-        if (!visited.has(child.id)) {
-          visited.add(child.id);
-          excluded.add(child.id);
-          queue.push(child.id);
-        }
-      }
-    }
-    
-    // Also exclude the original assistant response if it comes right after the fork point
-    // (handles case where old messages don't have parentMessageId set)
-    const forkPointIndex = messages.findIndex((m) => m.id === firstForkPointId);
-    if (forkPointIndex >= 0 && forkPointIndex < messages.length - 1) {
-      const nextMsg = messages[forkPointIndex + 1];
-      if (nextMsg.role === 'assistant' && (nextMsg.branchIndex ?? 0) === 0) {
-        excluded.add(nextMsg.id);
+    // Add all messages from all branch boxes
+    for (const box of branchBoxes) {
+      for (const msg of box.allMessages) {
+        excluded.add(msg.id);
       }
     }
     
@@ -601,6 +455,13 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     onMessageAdd: (message) => {
       messages = [...messages, message];
     },
+    onMessageUpdate: (update) => {
+      messages = messages.map((msg) =>
+        msg.id === update.messageId
+          ? { ...msg, status: update.status, error: update.error, retryCount: update.retryCount }
+          : msg,
+      );
+    },
     onThreadCreated: (newThread, tempId) => {
       dispatch('threadCreated', { thread: newThread, tempId });
     },
@@ -716,7 +577,9 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         // If selectedMsg is user, it is the variation user
         let variationUserMsg: Message | undefined;
         if (selectedMsg.role === 'assistant') {
-          variationUserMsg = messages.find(m => m.id === selectedMsg.parentMessageId);
+          // Find the user message that precedes this assistant message
+        const msgIndex = messages.findIndex(m => m.id === selectedMsg.id);
+        variationUserMsg = msgIndex > 0 ? messages.slice(0, msgIndex).reverse().find(m => m.role === 'user') : undefined;
         } else {
           variationUserMsg = selectedMsg;
         }
@@ -728,39 +591,12 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
             content: m.content,
           }));
         } else {
-          // Find the fork point user message (parent of variation user)
-          const forkPointUser = messages.find(m => m.id === variationUserMsg.parentMessageId);
-          
-          if (!forkPointUser) {
-            // No fork point found, use variation path as-is
-            const variationPath = assembleContext(messages, contextMessageId);
-            historyMessages = variationPath.map((m) => ({
-              role: m.role,
-              content: m.content,
-            }));
-          } else {
-            // Build path from root to the fork point's parent (messages before the fork)
-            const pathBeforeFork = forkPointUser.parentMessageId 
-              ? assembleContext(messages, forkPointUser.parentMessageId)
-              : [];
-            
-            // Get variation messages: variation user and variation assistant
-            const variationMessages: Message[] = [];
-            if (variationUserMsg) {
-              variationMessages.push(variationUserMsg);
-            }
-            if (selectedMsg.role === 'assistant') {
-              variationMessages.push(selectedMsg);
-            }
-            
-            // Combine: messages before fork -> variation messages
-            const fullPath = [...pathBeforeFork, ...variationMessages];
-            
-            historyMessages = fullPath.map((m) => ({
-              role: m.role,
-              content: m.content,
-            }));
-          }
+          // Build context based on branchId hierarchy
+          const variationPath = assembleContext(messages, contextMessageId);
+          historyMessages = variationPath.map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
         }
       }
     } else if (contextBranchIndex === 0) {
@@ -787,96 +623,27 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
     error = '';
 
-    // Determine branch info for the new message
-    let parentMessageId: string | null = null;
-    let branchIndex: number = 0;
-    let branchType: BranchType | null = null;
+    // Determine model for the new message
     let modelId: string | null = null;
 
     // Use sendingBranchIndex if we're sending from a branch box, otherwise use activeBranchIndex
     const branchIndexToUse = sendingBranchIndex !== null ? sendingBranchIndex : activeBranchIndex;
 
     if (branchIndexToUse !== null) {
-      branchIndex = branchIndexToUse;
-      
-      // Get branchType and modelId from the branch's user message
+      // Get modelId from the branch's user message
       const branchBox = branchBoxes.find(b => b.branchIndex === branchIndexToUse);
       if (branchBox) {
-        branchType = branchBox.branchType;
         modelId = branchBox.userMessage.modelId ?? null;
-      }
-
-      // Find the last message in the branch by following the parent-child chain
-      // Start from the branch's user message and follow the chain
-      let lastMessageInBranch: Message | null = null;
-      
-      // Use sendingBranchContextMessageId if available, otherwise find it
-      if (sendingBranchContextMessageId) {
-        lastMessageInBranch = messages.find(m => m.id === sendingBranchContextMessageId) ?? null;
-      }
-      
-      if (!lastMessageInBranch) {
-        if (branchIndexToUse === 0) {
-          // Main branch: find the last message with branchIndex 0 by following the chain
-          const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
-          // Find the message with no children (leaf node) or the latest one
-          const messagesWithChildren = new Set(mainBranchMessages
-            .filter(m => mainBranchMessages.some(child => child.parentMessageId === m.id))
-            .map(m => m.id));
-          
-          lastMessageInBranch = mainBranchMessages
-            .filter(m => !messagesWithChildren.has(m.id))
-            .sort((a, b) => b.createdAt - a.createdAt)[0] 
-            ?? mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
-        } else {
-          // Variation branch: follow the chain from the variation user message
-          const branchUserMsg = branchBox?.userMessage;
-          if (branchUserMsg) {
-            // Find all messages in this branch by following parent-child chain
-            const branchMessages: Message[] = [branchUserMsg];
-            let current = branchUserMsg;
-            
-            // Follow the chain: find children of current message with matching branchIndex
-            while (true) {
-              const child = messages.find(m => 
-                m.parentMessageId === current.id && 
-                (m.branchIndex ?? 0) === branchIndexToUse
-              );
-              if (!child) break;
-              branchMessages.push(child);
-              current = child;
-            }
-            
-            // The last message in the chain is the parent for the new message
-            lastMessageInBranch = branchMessages[branchMessages.length - 1] ?? branchUserMsg;
-          }
-        }
-      }
-
-      if (lastMessageInBranch) {
-        parentMessageId = lastMessageInBranch.id;
-      }
-    } else {
-      // No active branch: find the last message in main branch
-      const mainBranchMessages = messages.filter(m => (m.branchIndex ?? 0) === 0);
-      const lastMessage = mainBranchMessages.sort((a, b) => b.createdAt - a.createdAt)[0];
-      
-      if (lastMessage) {
-        parentMessageId = lastMessage.id;
-        branchIndex = 0;
       }
     }
 
-    // Create and add optimistic message with branch info
+    // Create and add optimistic message
     const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
-    userMsg.parentMessageId = parentMessageId;
-    userMsg.branchIndex = branchIndex;
-    userMsg.branchType = branchType;
     userMsg.modelId = modelId;
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
-      await transmitter.sendUserMessage(userMsg, thread, isOnline, thread.currentBranchId);
+      await transmitter.sendUserMessage(userMsg, thread, isOnline, thread?.currentBranchId ?? undefined);
       isStreaming = false;
       return;
     }
@@ -884,16 +651,35 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     try {
       isStreaming = true;
       setupTokenListener();
+      
+      // Determine branchId for this message
+      // For linear conversations, use next sequential branchId (1.0 -> 2.0 -> 3.0)
+      // For branch conversations, use the current branchId
+      let branchId: string;
+      if (activeBranchIndex !== null) {
+        // We're in a branch, use the branch's branchId
+        const branchBox = branchBoxes.find(b => b.branchIndex === activeBranchIndex);
+        branchId = branchBox?.userMessage.branchId ?? thread?.currentBranchId ?? '1.0';
+      } else {
+        // Linear conversation - get next sequential branchId
+        branchId = getNextSequentialBranchId(messages);
+      }
+
+      // Format thread_id with branch_id: "threadId,branch_id=branchId"
+      const threadData: string | undefined = currentThread?.id
+        ? `${currentThread.id},branch_id=${branchId}`
+        : undefined;
       const request = {
         messages: [...historyMessages, { role: 'user', content: userMessage }],
         streaming: true,
         model: modelName,
-        ...(currentThread?.id && { thread_id: currentThread.id }),
+        ...(currentThread?.id && { thread_id: threadData }),
+        branch_id: branchId,
       };
-      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'currentThread:', currentThread?.id);
+      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'branchId:', branchId);
 
-      // Send user message immediately
-      await transmitter.sendUserMessage(userMsg, thread, isOnline, thread.currentBranchId);
+      // Send user message (message will be created locally when chat is called)
+      await transmitter.sendUserMessage(userMsg, thread, isOnline, branchId);
 
       // Use chatWithFileTools for all requests - tools are invisible to user
       const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
@@ -915,14 +701,23 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
           (m.content === userMessage && m.role === 'user' && Math.abs(m.createdAt - userMsg.createdAt) < 5000)
         );
         
-        // Use the backend-assigned user message for the assistant's parent
-        const assistantParentMessage = actualUserMessage || userMsg;
-        console.log('[ChatPane] Using user message ID for assistant parent:', assistantParentMessage.id, '(optimistic:', userMsg.id, ')');
+        // Use the backend-assigned user message
+        console.log('[ChatPane] Using user message ID:', actualUserMessage?.id || userMsg.id, '(optimistic:', userMsg.id, ')');
         
-        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, assistantParentMessage);
+        await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, actualUserMessage || userMsg);
       } else {
         await transmitter.handleAssistantResponse(responseText, currentThread, userMessage, userMsg);
       }
+
+      // Clear streaming state after message is added
+      const usedBranchId = activeBranchIndex !== null 
+        ? branchBoxes.find(b => b.branchIndex === activeBranchIndex)?.userMessage.branchId ?? branchId
+        : branchId;
+      streamingTextByBranch.delete(usedBranchId);
+      if (streamingBranchIndex === usedBranchId) {
+        streamingBranchIndex = null;
+      }
+      responseText = '';
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error sending message:', err);
@@ -1000,6 +795,14 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         // Find the edited user message to pass branch info
         const editedUserMessage = messages.find(m => m.id === messageId);
         await transmitter.handleAssistantResponse(responseText, currentThread, newContent, editedUserMessage);
+        
+        // Clear streaming state after message is added
+        const usedBranchId = editedUserMessage.branchId || currentThread.currentBranchId || '1.0';
+        streamingTextByBranch.delete(usedBranchId);
+        if (streamingBranchIndex === usedBranchId) {
+          streamingBranchIndex = null;
+        }
+        responseText = '';
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -1030,7 +833,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     }
   }
 
-  async function handleSubmitVariation(content: string, branchType: BranchType, modelIds: string[]) {
+  async function handleSubmitVariation(content: string, _branchType: BranchType, modelIds: string[]) {
     if (!currentThread || !showVariationModalFor) return;
 
     isCreatingVariation = true;
@@ -1060,15 +863,11 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       
       console.log('[ChatPane] Using refreshed message for variation. Backend ID:', messageForVariation.id, 'clientMessageId:', messageForVariation.clientMessageId);
       
-      // For prompt variations, create a single variation
-      if (branchType === 'prompt-variation') {
+      // For single model, create a single variation
+      if (modelIds.length === 0 || modelIds.length === 1) {
         const result = await threadService.createVariation(
-          currentThread.id,
-          messageForVariation.id,
-          content,
-          branchType,
-          null,
-          messages,
+          currentThread,
+          messageForVariation,
         );
 
         if (!result.success) {
@@ -1081,17 +880,13 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         showVariationModalFor = null;
         await generateResponseForVariation(result.message);
       } else {
-        // For model variations, create one variation per selected model
+        // For multiple models, create one variation per selected model
         const createdMessages: Message[] = [];
         
-        for (const modelId of modelIds) {
+        for (const _modelId of modelIds) {
           const result = await threadService.createVariation(
-            currentThread.id,
-            messageForVariation.id,
-            content,
-            branchType,
-            modelId,
-            messages,
+            currentThread,
+            messageForVariation,
           );
 
           if (!result.success) {
@@ -1130,14 +925,14 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
 
     // Use a local variable to capture response text for this specific variation
     let variationResponseText = '';
-    const branchIndex = userMessage.branchIndex ?? null;
+    const branchKey = userMessage.branchId;
 
     try {
       // Track streaming state for this specific branch
       isStreaming = true;
-      streamingBranchIndex = branchIndex;
+      streamingBranchIndex = branchKey;
       // Initialize streaming text for this branch
-      streamingTextByBranch.set(branchIndex, '');
+      streamingTextByBranch.set(branchKey, '');
       
       // Set up token listener that captures to local variable and updates branch-specific streaming text
       // When running in parallel, each variation will update its own branch's streaming text
@@ -1145,7 +940,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       window.electronAPI.chat.onToken((token: string) => {
         variationResponseText = variationResponseText + token;
         // Update branch-specific streaming text
-        streamingTextByBranch.set(branchIndex, variationResponseText);
+        streamingTextByBranch.set(branchKey, variationResponseText);
         // Also update shared responseText for backward compatibility
         responseText = variationResponseText;
         scrollToBottom('auto');
@@ -1232,15 +1027,10 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Save assistant response as part of the variation branch
-      // The assistant response should be a child of the variation user message
-      const metadata = {
-        parentMessageId: userMessage.id,
-        branchIndex: userMessage.branchIndex,
-      };
       const assistantPersist = await threadService.appendMessage(currentThread.id, {
         role: 'assistant',
         content: variationResponseText,
-        metadata,
+        branchId: userMessage.branchId,
         clientMessageId: crypto.randomUUID(),
       });
 
@@ -1249,9 +1039,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         role: 'assistant',
         content: variationResponseText,
         createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
-        parentMessageId: userMessage.id,
-        branchIndex: userMessage.branchIndex,
-        branchType: userMessage.branchType,
+        branchId: userMessage.branchId,
         modelId: userMessage.modelId,
       };
 
@@ -1259,12 +1047,12 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       messages = [...messages, assistantMsg];
       
       // Clear streaming text for this branch
-      streamingTextByBranch.delete(branchIndex);
+      streamingTextByBranch.delete(branchKey);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('[ChatPane] Error generating variation response:', err);
       // Clear streaming text on error
-      streamingTextByBranch.delete(branchIndex);
+      streamingTextByBranch.delete(branchKey);
     } finally {
       // When running in parallel, multiple variations may be streaming
       // Check if any branches are still streaming
@@ -1273,7 +1061,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
         isStreaming = false;
         streamingBranchIndex = null;
         responseText = '';
-      } else if (streamingBranchIndex === branchIndex) {
+      } else if (streamingBranchIndex === branchKey) {
         // If this was the last tracked branch, clear it
         streamingBranchIndex = Array.from(streamingTextByBranch.keys())[0] ?? null;
       }
@@ -1444,12 +1232,23 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
           isStreaming = true;
           setupTokenListener();
 
+          // Get branchId for the initial message (should be "1.0" for new threads)
+          const branchId = userMessage.branchId || currentThread.currentBranchId || '1.0';
+
+          // Format thread_id with branch_id: "threadId,branch_id=branchId"
+          const threadData: string | undefined = currentThread?.id
+            ? `${currentThread.id},branch_id=${branchId}`
+            : undefined;
+
           const request = {
             messages: [{ role: 'user', content: initialPrompt }],
             streaming: true,
             model: modelName,
-            ...(currentThread?.id && { thread_id: currentThread.id }),
+            ...(currentThread?.id && { thread_id: threadData }),
+            branch_id: branchId,
           };
+
+          console.log('[ChatPane] Auto-sending initial message with thread_id:', request.thread_id, 'branchId:', branchId);
 
           // Use chatWithFileTools for all requests - tools are invisible to user
           const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
@@ -1458,7 +1257,15 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
             error = result.error || 'Chat failed';
             console.error('Chat failed:', result.error);
           } else {
-            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt, undefined);
+            await transmitter.handleAssistantResponse(responseText, currentThread, initialPrompt, userMessage);
+            
+            // Clear streaming state after message is added
+            const usedBranchId = userMessage.branchId || currentThread.currentBranchId || '1.0';
+            streamingTextByBranch.delete(usedBranchId);
+            if (streamingBranchIndex === usedBranchId) {
+              streamingBranchIndex = null;
+            }
+            responseText = '';
           }
         } catch (err) {
           error = err instanceof Error ? err.message : 'Unknown error';
@@ -1617,9 +1424,9 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
                   isSelected={true}
                   onSelect={() => {}}
                   hideHeader={false}
-                  streamingText={streamingTextByBranch.get(box.branchIndex) ?? null}
+                  streamingText={streamingTextByBranch.get(box.userMessage.branchId) ?? null}
                   onSendMessage={sendMessageInBranch}
-                  isStreaming={isStreaming && streamingBranchIndex === box.branchIndex}
+                  isStreaming={isStreaming && streamingBranchIndex === box.userMessage.branchId}
                   allMessages={box.allMessages}
                 />
               {/each}
@@ -1645,9 +1452,9 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
                   isSelected={activeBranchIndex === box.branchIndex}
                   onSelect={() => setActiveBranch(box.branchIndex)}
                   hideHeader={false}
-                  streamingText={streamingTextByBranch.get(box.branchIndex) ?? null}
+                  streamingText={streamingTextByBranch.get(box.userMessage.branchId) ?? null}
                   onSendMessage={sendMessageInBranch}
-                  isStreaming={isStreaming && streamingBranchIndex === box.branchIndex}
+                  isStreaming={isStreaming && streamingBranchIndex === box.userMessage.branchId}
                   allMessages={box.allMessages}
                 />
               {/each}

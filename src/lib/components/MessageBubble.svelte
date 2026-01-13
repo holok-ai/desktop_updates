@@ -50,10 +50,8 @@
   const canCreateVariationForMessage = $derived(() => {
     if (message.role !== 'user') return false;
     try {
-      // Check if this message can have variations created (using its id as parent)
-      const canPrompt = canCreateVariation(messages, message.id, 'prompt-variation');
-      const canModel = canCreateVariation(messages, message.id, 'model-variation');
-      return canPrompt || canModel;
+      // Check if this message can have variations created
+      return canCreateVariation(message);
     } catch {
       return false;
     }

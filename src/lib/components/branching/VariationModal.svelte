@@ -31,10 +31,10 @@
   let selectEl: HTMLSelectElement | null = $state(null);
 
   const canPromptVar = $derived(
-    canCreateVariation(messages, originalMessage.id, 'prompt-variation'),
+    canCreateVariation(originalMessage),
   );
   const canModelVar = $derived(
-    canCreateVariation(messages, originalMessage.id, 'model-variation'),
+    canCreateVariation(originalMessage),
   );
 
   onMount(async () => {

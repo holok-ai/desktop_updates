@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Message } from '$lib/types/thread.type';
   import BranchLane from './BranchLane.svelte';
+  import { getVariationsForBranch, getBranchMessages } from '$lib/utils/branch-utils';
 
   interface Props {
     messages: Message[];
@@ -11,61 +12,77 @@
 
   let { messages, forkPointId, selectedBranchIndex, onSelectBranch }: Props = $props();
 
-  // Get all branches: the fork point user message itself (branchIndex 0) + all its variation children
+  // Get the fork point message
+  const forkPointMsg = $derived(() => messages.find((m) => m.id === forkPointId));
+
+  // Get all branches based on branchId variations
   const userBranches = $derived(() => {
-    const forkPointUserMsg = messages.find((m) => m.id === forkPointId && m.role === 'user');
-    if (!forkPointUserMsg) return [];
+    const forkPoint = forkPointMsg();
+    if (!forkPoint) return [];
 
-    // Get all direct children of the fork point (should be user messages with different branchIndex)
-    const childMessages = messages.filter((m) => m.parentMessageId === forkPointId && m.role === 'user');
-
-    // All branches should be children with different branchIndex values
-    const allBranches = [forkPointUserMsg, ...childMessages];
-
-    // Sort by branchIndex to ensure original (0) comes first
-    return allBranches.sort((a, b) => a.branchIndex - b.branchIndex);
+    // Get the base branch (original)
+    const baseBranchId = forkPoint.branchId;
+    
+    // Get all variations of this branch
+    const variations = getVariationsForBranch(messages, baseBranchId);
+    
+    // Return original branch message and all variation messages
+    return [forkPoint, ...variations];
   });
 
   // Separate original and variations
-  const originalBranch = $derived(() => userBranches().find(b => b.branchIndex === 0));
-  const variationBranches = $derived(() => userBranches().filter(b => b.branchIndex > 0));
+  const originalBranch = $derived(() => userBranches()[0]);
+  const variationBranches = $derived(() => userBranches().slice(1));
 
-// Create a derived map of assistant responses for reactivity
-const assistantResponses = $derived(() => {
-  const map = new Map<string, Message | null>();
-  for (const userMsg of userBranches()) {
-    const assistant = messages.find((m) => m.parentMessageId === userMsg.id && m.role === 'assistant') ?? null;
-    map.set(userMsg.id, assistant);
-  }
-  return map;
-});
+  // Create a derived map of assistant responses for reactivity
+  const assistantResponses = $derived(() => {
+    const map = new Map<string, Message | null>();
+    for (const userMsg of userBranches()) {
+      // Find the next assistant message in the same branch
+      const branchMessages = getBranchMessages(messages, userMsg.branchId);
+      const userMsgIndex = branchMessages.findIndex(m => m.id === userMsg.id);
+      const assistant = branchMessages.slice(userMsgIndex + 1).find(m => m.role === 'assistant') ?? null;
+      map.set(userMsg.id, assistant);
+    }
+    return map;
+  });
+  
+  // Map branchId to index for compatibility with existing selectedBranchIndex
+  const branchIdToIndex = $derived(() => {
+    const map = new Map<string, number>();
+    userBranches().forEach((msg, index) => {
+      map.set(msg.branchId, index);
+    });
+    return map;
+  });
+  
 </script>
 
 <div class="branch-boxes-container">
-  {#if originalBranch && variationBranches().length > 0}
+  {#if originalBranch() && variationBranches().length > 0}
     <div class="split-view">
-      <div class="split-panel original" class:selected={originalBranch()?.branchIndex === selectedBranchIndex}>
+      <div class="split-panel original" class:selected={branchIdToIndex().get(originalBranch()?.branchId ?? '') === selectedBranchIndex}>
         <div class="panel-header">Original Conversation</div>
         <BranchLane
           userMessage={originalBranch() as Message}
           assistantMessage={assistantResponses().get(originalBranch()?.id ?? '') ?? null}
-          branchIndex={originalBranch()?.branchIndex ?? 0}
-          isSelected={originalBranch()?.branchIndex === selectedBranchIndex}
-          onSelect={() => onSelectBranch(originalBranch()?.branchIndex ?? 0)}
+          branchIndex={branchIdToIndex().get(originalBranch()?.branchId ?? '') ?? 0}
+          isSelected={branchIdToIndex().get(originalBranch()?.branchId ?? '') === selectedBranchIndex}
+          onSelect={() => onSelectBranch(branchIdToIndex().get(originalBranch()?.branchId ?? '') ?? 0)}
           hideHeader={true}
         />
       </div>
       <div class="divider"></div>
-      <div class="split-panel variation" class:selected={variationBranches().some(b => b.branchIndex === selectedBranchIndex)}>
+      <div class="split-panel variation" class:selected={variationBranches().some(b => branchIdToIndex().get(b.branchId) === selectedBranchIndex)}>
         <div class="panel-header">Variation Conversation</div>
         <div class="variation-lanes-scroll">
           {#each variationBranches() as userMsg (userMsg.id)}
             <BranchLane
               userMessage={userMsg}
               assistantMessage={assistantResponses().get(userMsg.id) ?? null}
-              branchIndex={userMsg.branchIndex}
-              isSelected={userMsg.branchIndex === selectedBranchIndex}
-              onSelect={() => onSelectBranch(userMsg.branchIndex)}
+              branchIndex={branchIdToIndex().get(userMsg.branchId) ?? 0}
+              isSelected={branchIdToIndex().get(userMsg.branchId) === selectedBranchIndex}
+              onSelect={() => onSelectBranch(branchIdToIndex().get(userMsg.branchId) ?? 0)}
               hideHeader={true}
             />
           {/each}
@@ -78,9 +95,9 @@ const assistantResponses = $derived(() => {
         <BranchLane
           userMessage={userMsg}
           assistantMessage={assistantResponses().get(userMsg.id) ?? null}
-          branchIndex={userMsg.branchIndex}
-          isSelected={userMsg.branchIndex === selectedBranchIndex}
-          onSelect={() => onSelectBranch(userMsg.branchIndex)}
+          branchIndex={branchIdToIndex().get(userMsg.branchId) ?? 0}
+          isSelected={branchIdToIndex().get(userMsg.branchId) === selectedBranchIndex}
+          onSelect={() => onSelectBranch(branchIdToIndex().get(userMsg.branchId) ?? 0)}
         />
       {/each}
     </div>

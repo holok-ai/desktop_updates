@@ -165,15 +165,9 @@ export class MessageTransmitter {
       await outboxService.addPendingMessage(userMsg, thread.id);
     }
 
-    // If offline, don't persist yet
-    if (!isOnline) {
-      return;
-    }
-
-    // Persist to memory storage if thread exists
-    if (thread !== null && isPermanent) {
-      await this.persistMessage(userMsg, thread.id);
-    }
+    // Messages are now created locally when chat function is called
+    // No need to persist separately - the chat handler creates the message
+    // If offline, message will be created when chat is called after coming online
   }
 
   /**
@@ -216,6 +210,11 @@ export class MessageTransmitter {
       };
 
       this.callbacks.onMessageAdd(assistantMsg);
+
+      // Update user message status to SENT after assistant response is received
+      if (userMessageObj?.id) {
+        this.updateMessageStatus(userMessageObj.id, MESSAGE_STATUS.SENT);
+      }
     } else {
       // No thread yet: persist both prompt + response atomically
       const metadata = this.extractMessageMetadata(thread);
