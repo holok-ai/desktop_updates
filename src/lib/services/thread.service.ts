@@ -4,6 +4,7 @@ import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { BaseElectronService } from './base-electron.service';
+import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 
 export class ThreadService extends BaseElectronService {
   private constructor() {
@@ -133,6 +134,7 @@ export class ThreadService extends BaseElectronService {
       content: string;
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
+      branchId?: string;
     },
   ): Promise<
     | {
@@ -154,6 +156,10 @@ export class ThreadService extends BaseElectronService {
     };
     if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
       (wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
+    }
+
+    if (typeof payload.branchId === 'string' && payload.branchId.length > 0) {
+      (wirePayload as Record<string, unknown>).branch_id = payload.branchId;
     }
 
     const res: unknown = await wrapElectronCall(
@@ -276,6 +282,51 @@ export class ThreadService extends BaseElectronService {
       'Failed to delete messages',
     );
     return res as { success: true; thread: Thread } | { success: false; error: string };
+  }
+
+  /**
+   * Create a variation of a message using new branchId hierarchy
+   * @param thread - The thread to create variation in
+   * @param originalMessage - The message to create a variation from
+   */
+  async createVariation(
+    thread: Thread,
+    originalMessage: Message,
+  ): Promise<
+    | { success: true; message: Message; newBranchId: string }
+    | { success: false; error: string }
+  > {
+    // Generate next branchId hierarchically from the original message's branchId
+    // E.g., "1.0" -> "1.1", "1.1" -> "1.2"
+    const messages = await this.getMessages(thread.id);
+    const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
+
+    const clientMessageId = crypto.randomUUID();
+    
+    // Use the original message's content as the variation prompt
+    const res = await this.appendMessage(thread.id, {
+      role: 'user',
+      content: originalMessage.content,
+      metadata: { modelId: originalMessage.modelId },
+      clientMessageId,
+      branchId: newBranchId,
+    });
+
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
+
+    const message: Message = {
+      id: res.message.id,
+      role: 'user',
+      content: originalMessage.content,
+      createdAt: res.message.createdAt,
+      clientMessageId,
+      branchId: newBranchId,
+      modelId: originalMessage.modelId,
+    };
+
+    return { success: true, message, newBranchId };
   }
 }
 

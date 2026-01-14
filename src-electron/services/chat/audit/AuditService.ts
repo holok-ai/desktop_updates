@@ -57,7 +57,7 @@ export class AuditService {
     onTokenReceived?: (token: string) => void,
   ): {
     callback: (token: string) => void;
-    complete: (error?: unknown) => void;
+    complete: (error?: unknown) => ChatAuditData | null;
   } {
     const accumulator = this.createAccumulator(
       provider,
@@ -65,10 +65,14 @@ export class AuditService {
       request.messages,
       onTokenReceived,
     );
+    let auditData: ChatAuditData | null = null;
 
     return {
       callback: (token: string) => accumulator.handleToken(token),
-      complete: (error?: unknown) => accumulator.complete(error),
+      complete: (error?: unknown) => {
+        auditData = accumulator.complete(error);
+        return auditData;
+      },
     };
   }
 

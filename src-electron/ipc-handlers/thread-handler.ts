@@ -37,6 +37,7 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
     createdAt: new Date(t.createdAt),
     updatedAt: new Date(t.updatedAt),
     metadata: { ...t.metadata },
+    currentBranchId: t.currentBranchId,
   };
 }
 
@@ -671,6 +672,7 @@ export function registerThreadHandlers(): void {
         content: string;
         metadata?: Record<string, unknown>;
         client_message_id?: string;
+        branch_id?: string;
       },
     ): Promise<
       | {
@@ -680,6 +682,7 @@ export function registerThreadHandlers(): void {
         }
       | { success: false; status: number; error: string; thread_id?: string }
     > => {
+      threadLog.info('[thread:appendMessage] IPC handler called with', payload);
       const auth = getAuthService();
 
       // Authorization check
@@ -715,11 +718,31 @@ export function registerThreadHandlers(): void {
       }
 
       try {
+        // Extract branchId from payload if provided
+        const branchId = payload.branch_id ?? 
+          (payload.metadata?.branchId as string | undefined);
+
+        threadLog.info('[thread:appendMessage] Received payload:', JSON.stringify({
+          threadId,
+          role: payload.role,
+          content: payload.content,
+          metadata: payload.metadata,
+          client_message_id: payload.client_message_id,
+          branch_id: branchId,
+        }, null, 2));
+        threadLog.info('[thread:appendMessage] Calling threadRepository.appendMessage', { threadId });
         const msg: Message = await threadRepository.appendMessage(threadId, {
           role: payload.role,
           content: payload.content,
           metadata: payload.metadata,
           clientMessageId: payload.client_message_id,
+          branchId,
+        });
+
+        threadLog.info('[thread:appendMessage] Message created successfully', {
+          messageId: msg.id,
+          threadId,
+          role: msg.role,
         });
 
         const rt = toRendererThread(await threadRepository.loadThread(threadId));
@@ -733,6 +756,7 @@ export function registerThreadHandlers(): void {
           timestamp: new Date(msg.createdAt).toISOString(),
         });
 
+        threadLog.info('[thread:appendMessage] Successfully completed', { messageId: msg.id, threadId });
         return {
           success: true,
           message: {

@@ -6,8 +6,6 @@ export interface MessageVersion {
   editedAt: number;
 }
 
-export type BranchType = 'prompt-variation' | 'model-variation' | null;
-
 export interface Message {
   id: string;
   clientMessageId?: string;
@@ -22,8 +20,7 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
-  parentMessageId: string | null;
-  branchIndex: number;
-  branchType: BranchType;
+  /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
+  branchId: string;
   modelId?: string | null;
 }

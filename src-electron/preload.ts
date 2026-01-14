@@ -212,6 +212,7 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, unknown>;
+  currentBranchId: string;
 }
 
 /**
@@ -482,6 +483,7 @@ export interface ChatAPI {
 
   // Stop listening to token events
   offToken: () => void;
+
 
   // Listen for tool use events (event-based)
   onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;
