@@ -5,6 +5,7 @@ import { titleGeneratorService } from '../services/title-generator.service.js';
 import { threadApiService } from '../services/mokuapi/thread-api.service.js';
 import type {
   ThreadDTO,
+  DesktopThreadDTO,
   MessageDTO,
   CreateThreadRequest,
 } from '../services/mokuapi/thread.types.js';
@@ -78,10 +79,16 @@ export class ThreadRepository {
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
+    // Ensure currentBranchId is set in metadata (defaults to "1.0" for new threads)
+    const metadataWithBranchId = {
+      ...metadata,
+      currentBranchId: (metadata.currentBranchId as string) || '1.0',
+    };
+    
     const request: CreateThreadRequest = {
       title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
       projectId: metadata.projectId as string | null | undefined,
-      metadata: metadata,
+      metadata: metadataWithBranchId,
     };
 
     log.info('[ThreadRepository] Creating thread via API:', request.title);
@@ -92,7 +99,8 @@ export class ThreadRepository {
     log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
     log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
 
-    const thread = this.mapDTOToThread(threadDTO);
+    const desktopDTO = this.toDesktopThreadDTO(threadDTO);
+    const thread = this.mapDTOToThread(desktopDTO);
 
     log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
@@ -171,7 +179,8 @@ export class ThreadRepository {
       log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
       log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
 
-      const thread = this.mapDTOToThread(threadDTO);
+      const desktopDTO = this.toDesktopThreadDTO(threadDTO);
+      const thread = this.mapDTOToThread(desktopDTO);
 
       log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
@@ -220,7 +229,8 @@ export class ThreadRepository {
       });
 
       const threads = response.content.map((dto) => {
-        return this.mapDTOToThread(dto);
+        const desktopDTO = this.toDesktopThreadDTO(dto);
+        return this.mapDTOToThread(desktopDTO);
       });
 
       // Update cache
@@ -961,11 +971,23 @@ export class ThreadRepository {
   }
 
   /**
-   * Map ThreadDTO from API to internal Thread model.
+   * Convert ThreadDTO from API to DesktopThreadDTO by extracting currentBranchId from metadata.
+   */
+  private toDesktopThreadDTO(dto: ThreadDTO): DesktopThreadDTO {
+    // Extract currentBranchId from metadata (stored by desktop when creating/updating threads)
+    const currentBranchId = (dto.metadata?.currentBranchId as string) || '1.0';
+    return {
+      ...dto,
+      currentBranchId,
+    };
+  }
+
+  /**
+   * Map DesktopThreadDTO to internal Thread model.
    * Converts ISO-8601 timestamps to epoch milliseconds.
    * Preserves custom metadata from API (including model configuration).
    */
-  private mapDTOToThread(dto: ThreadDTO): Thread {
+  private mapDTOToThread(dto: DesktopThreadDTO): Thread {
     return {
       id: dto.id,
       title: dto.title,
@@ -981,7 +1003,7 @@ export class ThreadRepository {
       createdAt: new Date(dto.createdAt).getTime(),
       updatedAt: new Date(dto.updatedAt).getTime(),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
-      currentBranchId: dto.currentBranchId || '1.0', // Default to 1.0 for legacy threads
+      currentBranchId: dto.currentBranchId,
     };
   }
 

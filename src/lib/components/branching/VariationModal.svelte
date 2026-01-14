@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Message, BranchType } from '$lib/types/thread.type';
+  import type { Message } from '$lib/types/thread.type';
   import { canCreateVariation } from '$lib/utils/branch-utils';
   import type { ModelDetails } from '../../../../src-electron/preload';
+
+  type VariationType = 'prompt-variation' | 'model-variation';
 
   interface Props {
     originalMessage: Message;
     messages: Message[];
-    onSubmit: (content: string, branchType: BranchType, modelIds: string[]) => void;
+    onSubmit: (content: string, modelIds: string[]) => void;
     onCancel: () => void;
     isSubmitting?: boolean;
     error?: string;
@@ -23,7 +25,7 @@
   }: Props = $props();
 
   let content = $state(originalMessage.content);
-  let branchType = $state<BranchType>('prompt-variation');
+  let variationType = $state<VariationType>('prompt-variation');
   let selectedModelIds = $state<Set<string>>(new Set());
   let models: ModelDetails[] = $state([]);
   let loadingModels = $state(true);
@@ -50,13 +52,13 @@
   // If can't create prompt variation, default to model variation
   $effect(() => {
     if (!canPromptVar && canModelVar) {
-      branchType = 'model-variation';
+      variationType = 'model-variation';
     }
   });
 
   // Clear model selection when switching to prompt variation
   $effect(() => {
-    if (branchType === 'prompt-variation') {
+    if (variationType === 'prompt-variation') {
       selectedModelIds = new Set();
     }
   });
@@ -97,7 +99,7 @@
 
   const canSubmit = $derived(() => {
     if (!content.trim() || isSubmitting) return false;
-    if (branchType === 'model-variation') {
+    if (variationType === 'model-variation') {
       return selectedModelIds.size > 0;
     }
     return true;
@@ -106,11 +108,11 @@
   function handleSubmit() {
     if (!canSubmit()) return;
     
-    if (branchType === 'model-variation') {
+    if (variationType === 'model-variation') {
       const modelAccessNames = getSelectedModels().map(m => m.accessName);
-      onSubmit(content.trim(), branchType, modelAccessNames);
+      onSubmit(content.trim(), modelAccessNames);
     } else {
-      onSubmit(content.trim(), branchType, []);
+      onSubmit(content.trim(), []);
     }
   }
 
@@ -139,18 +141,18 @@
         <div class="type-selector">
           <button
             class="type-btn"
-            class:active={branchType === 'prompt-variation'}
+            class:active={variationType === 'prompt-variation'}
             disabled={!canPromptVar}
-            onclick={() => (branchType = 'prompt-variation')}
+            onclick={() => (variationType = 'prompt-variation')}
             title={canPromptVar ? 'Create prompt variation' : 'Prompt variation already exists'}
           >
             Prompt Variation
           </button>
           <button
             class="type-btn"
-            class:active={branchType === 'model-variation'}
+            class:active={variationType === 'model-variation'}
             disabled={!canModelVar}
-            onclick={() => (branchType = 'model-variation')}
+            onclick={() => (variationType = 'model-variation')}
             title={canModelVar ? 'Create model variation' : 'Maximum model variations reached'}
           >
             Model Variation
@@ -158,7 +160,7 @@
         </div>
       </div>
 
-      {#if branchType === 'model-variation'}
+      {#if variationType === 'model-variation'}
         <div class="field">
           <label for="model-select">Model <span class="required">*</span></label>
           {#if loadingModels}
@@ -248,7 +250,7 @@
           onclick={handleSubmit}
           disabled={!canSubmit()}
         >
-          {isSubmitting ? 'Creating...' : branchType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Variations` : 'Create Variation'}
+          {isSubmitting ? 'Creating...' : variationType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Variations` : 'Create Variation'}
         </button>
       </div>
     </div>

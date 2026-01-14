@@ -33,9 +33,9 @@
 
   const branchLabel = $derived(() => {
     if (branchIndex === 0) return 'Original';
-    if (userMessage.branchType === 'prompt-variation') return 'Prompt Variation';
-    if (userMessage.branchType === 'model-variation') {
-      return userMessage.modelId ? `Model: ${userMessage.modelId}` : `Variation ${branchIndex}`;
+    // Variation branches - show model name if available, otherwise just "Variation"
+    if (userMessage.modelId) {
+      return `Model: ${userMessage.modelId}`;
     }
     return `Branch ${branchIndex}`;
   });
@@ -59,10 +59,10 @@
   {#if !hideHeader}
     <div class="lane-header">
       <span class="lane-label">{branchLabel()}</span>
-      {#if userMessage.branchType}
-        <span class="type-badge" class:prompt={userMessage.branchType === 'prompt-variation'}>
-          {userMessage.branchType === 'prompt-variation' ? 'Prompt' : 'Model'}
-        </span>
+      {#if userMessage.modelId}
+        <span class="type-badge">Model</span>
+      {:else if branchIndex > 0}
+        <span class="type-badge prompt">Prompt</span>
       {/if}
     </div>
   {/if}

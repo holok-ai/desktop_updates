@@ -6,7 +6,7 @@
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
   import { threadService } from '$lib/services/thread.service';
-  import type { Message, BranchType } from '$lib/types/thread.type';
+  import type { Message } from '$lib/types/thread.type';
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
@@ -301,7 +301,6 @@
 
       return {
         branchIndex: index, // Index for UI purposes only
-        branchType: null, // No longer using branchType
         userMessage: userMsg,
         assistantMessage: assistantMessages[assistantMessages.length - 1] ?? null,
         allMessages: allBranchMessages,
@@ -517,13 +516,6 @@
     },
     onMessageAdd: (message) => {
       messages = [...messages, message];
-    },
-    onMessageUpdate: (update) => {
-      messages = messages.map((msg) =>
-        msg.id === update.messageId
-          ? { ...msg, status: update.status, error: update.error, retryCount: update.retryCount }
-          : msg,
-      );
     },
     onThreadCreated: (newThread, tempId) => {
       dispatch('threadCreated', { thread: newThread, tempId });
@@ -870,7 +862,7 @@
         await transmitter.handleAssistantResponse(responseText, currentThread, newContent, editedUserMessage);
         
         // Clear streaming state after message is added
-        const usedBranchId = editedUserMessage.branchId || currentThread.currentBranchId || '1.0';
+        const usedBranchId = editedUserMessage?.branchId || currentThread.currentBranchId || '1.0';
         streamingTextByBranch.delete(usedBranchId);
         if (streamingBranchIndex === usedBranchId) {
           streamingBranchIndex = null;
@@ -906,7 +898,7 @@
     }
   }
 
-  async function handleSubmitVariation(content: string, _branchType: BranchType, modelIds: string[]) {
+  async function handleSubmitVariation(content: string, modelIds: string[]) {
     if (!currentThread || !showVariationModalFor) return;
 
     isCreatingVariation = true;
