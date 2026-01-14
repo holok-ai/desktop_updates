@@ -428,7 +428,7 @@ export class AuthService {
       log.info('[AuthService] Access token expired, refreshing...');
       await this.refreshAccessToken();
     }
-    log.info('[AuthService] Access token:', this.currentAuthState.tokens?.accessToken);
+
     return this.currentAuthState.tokens?.accessToken || '';
   }
 
