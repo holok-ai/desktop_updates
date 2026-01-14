@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick as _tick } from 'svelte';
   import { get } from 'svelte/store';
   import { threads } from '../../lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';

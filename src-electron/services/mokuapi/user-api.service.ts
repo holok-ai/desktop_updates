@@ -4,7 +4,7 @@
  */
 
 import log from 'electron-log';
-import type { UserSummaryDTO, UserSearchParams } from './user.types.js';
+import type { UserSummaryDTO, UserSearchParams as _UserSearchParams } from './user.types.js';
 import type { PagedResponse } from './paging.types.js';
 
 // Import dependencies directly (singleton pattern ensures single instance)
@@ -72,7 +72,7 @@ class UserApiService {
         }
 
         const apiUrl = settingsService.getMokuApiUrl();
-        const url = new URL('/api/v1/users/search', apiUrl);
+        const url = new URL('/api/admin/users', apiUrl);
 
         // Add query parameters
         const params = new URLSearchParams();
@@ -99,14 +99,33 @@ class UserApiService {
             },
         });
 
+        log.debug('[UserApiService] Response received', {
+            status: response.status,
+            statusText: response.statusText,
+            contentType: response.headers.get('content-type'),
+        });
+
         if (!response.ok) {
             const errorText = await response.text();
             log.error('[UserApiService] Failed to search users', {
                 status: response.status,
                 statusText: response.statusText,
-                error: errorText,
+                error: errorText.substring(0, 500),
             });
             throw new Error(`Failed to search users: ${response.status} ${response.statusText}`);
+        }
+
+        // Check if response is actually JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const errorText = await response.text();
+            log.error('[UserApiService] Response is not JSON', {
+                url: url.toString(),
+                status: response.status,
+                contentType: contentType,
+                responseStart: errorText.substring(0, 500),
+            });
+            throw new Error(`API endpoint not found or returned non-JSON response. The /api/v1/users/search endpoint may not exist on the backend.`);
         }
 
         const data = (await response.json()) as PagedResponse<UserSummaryDTO>;

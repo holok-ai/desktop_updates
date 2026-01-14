@@ -21,7 +21,7 @@
   type TabId = 'threads' | 'members' | 'files' | 'settings' | 'edit';
   let activeTab = $state<TabId>('threads');
   // Threads tab badge count (emitted by ProjectThreadsTab)
-  let threadCount = $state(0);
+  let _threadCount = $state(0);
   let threadsReloadToken = $state(0);
 
   // Thread rename/delete state
@@ -31,7 +31,7 @@
   let threadToDelete = $state<{ id: string; title: string } | null>(null);
 
   // Member count for badge display
-  const memberCount = $derived(project?.members?.length ?? 0);
+  const _memberCount = $derived(project?.members?.length ?? 0);
 
   // RBAC: Check if current user is owner (can edit project)
   const isOwner = $derived(project?.userRole === 'owner');
@@ -195,8 +195,8 @@
 
   // Tab configuration
   const tabs: ProjectTab[] = $derived([
-    { id: 'threads', label: 'Threads', icon: 'pi-comments', badge: threadCount },
-    { id: 'members', label: 'Members', icon: 'pi-users', badge: memberCount },
+    { id: 'threads', label: 'Threads', icon: 'pi-comments' },
+    { id: 'members', label: 'Members', icon: 'pi-users' },
     { id: 'files', label: 'Files', icon: 'pi-folder' },
     { id: 'settings', label: 'Settings', icon: 'pi-cog' },
   ]);
@@ -224,7 +224,7 @@
             on:threadRename={handleThreadRename}
             on:newThread={handleNewThread}
             on:threadDelete={handleThreadDelete}
-            on:threadCountChanged={(e) => (threadCount = e.detail.count)}
+            on:threadCountChanged={(e) => (_threadCount = e.detail.count)}
             on:error={(e) => {
               toastStore.show(e.detail.message, { variant: 'error' });
             }}

@@ -263,6 +263,12 @@ export interface ProjectAPI {
   // Search users in organization
   searchUsers: (searchTerm?: string | null) => Promise<UserSummaryDTO[]>;
 
+  // Add a member to a project
+  addMember: (projectId: GUID, input: { userId: string; role: string }) => Promise<unknown>;
+
+  // Remove a member from a project
+  removeMember: (projectId: GUID, memberId: string) => Promise<void>;
+
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
   onProjectUpdated: (callback: (project: Project) => void) => () => void;
@@ -1040,6 +1046,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     searchUsers: (searchTerm?: string | null) =>
       ipcRenderer.invoke('project:searchUsers', searchTerm),
+
+    addMember: (projectId: GUID, input: { userId: string; role: string }) =>
+      ipcRenderer.invoke('project:addMember', projectId, input),
+
+    removeMember: (projectId: GUID, memberId: string) =>
+      ipcRenderer.invoke('project:removeMember', projectId, memberId),
 
     // Event listeners with cleanup function
     onProjectCreated: (callback: (project: Project) => void): (() => void) => {
