@@ -853,9 +853,8 @@ export class ThreadCopyService implements IThreadCopyService {
         role: message.role,
         content: message.content,
         metadata: message.metadata,
-        parentMessageId: message.parentMessageId,
-        branchIndex: message.branchIndex,
-        branchType: message.branchType,
+        clientMessageId: message.clientMessageId,
+        branchId: message.branchId,
         modelId: message.modelId,
       });
     }
