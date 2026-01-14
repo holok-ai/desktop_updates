@@ -11,6 +11,7 @@
   import type { Thread } from '../../../../src-electron/preload';
   import { storageService } from '$lib/services/storage.service';
   import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';
+  import MoveThreadModal from '$lib/components/modals/MoveThreadModal.svelte';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
   import { toastStore } from '$lib/services/toast.service';
 
@@ -31,6 +32,8 @@
   let selectedThreadId: string | null = $state(null);
   let showRenameModal = $state(false);
   let threadToRename: { id: string; title: string } | null = $state(null);
+  let showCopyModal = $state(false);
+  let threadToCopy: Thread | null = $state(null);
 
   let selectedProjectId: string | null = $state(null);
   let currentRoute = $state('');
@@ -354,6 +357,16 @@
                     console.error('Failed to delete thread', err);
                   }
                 }}
+                on:copyToPersonal={(e) => {
+                  const { thread } = e.detail as { thread: Thread };
+                  threadToCopy = thread;
+                  showCopyModal = true;
+                }}
+                on:copyToProject={(e) => {
+                  const { thread } = e.detail as { thread: Thread };
+                  threadToCopy = thread;
+                  showCopyModal = true;
+                }}
               />
             {/each}
           {/if}
@@ -384,6 +397,36 @@
     on:cancel={() => {
       showRenameModal = false;
       threadToRename = null;
+    }}
+  />
+{/if}
+
+<!-- Move/Copy Thread Modal -->
+{#if showCopyModal && threadToCopy}
+  <MoveThreadModal
+    bind:show={showCopyModal}
+    bind:thread={threadToCopy}
+    on:copied={async (e) => {
+      const { threadId, projectId, destinationName } = e.detail as {
+        threadId: string;
+        projectId: string | null;
+        destinationName: string;
+      };
+      showCopyModal = false;
+      threadToCopy = null;
+      
+      // Refresh thread list
+      await getThreadItems();
+      
+      // Navigate to the new thread
+      const params = new URLSearchParams();
+      params.set('threadId', threadId);
+      if (projectId) {
+        params.set('projectId', projectId);
+      }
+      push(`${ROUTE.THREADS}?${params.toString()}`);
+      
+      toastStore.success(`Thread copied to ${destinationName}`);
     }}
   />
 {/if}

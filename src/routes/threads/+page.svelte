@@ -105,10 +105,13 @@
     };
   });
 
+  // Load threads on mount (async, no cleanup)
   onMount(async () => {
     await loadThreads();
+  });
 
-    // Set up querystring subscription
+  // Set up querystring subscription (sync, with cleanup)
+  onMount(() => {
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
 

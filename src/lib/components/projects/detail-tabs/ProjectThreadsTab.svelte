@@ -1,7 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { push } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
   import { threadService } from '$lib/services/thread.service';
   import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
+  import MoveThreadModal from '$lib/components/modals/MoveThreadModal.svelte';
   import type { Thread } from '../../../../../src-electron/preload';
 
   let { projectId, reloadToken }: { projectId: string; reloadToken: number } = $props();
@@ -18,6 +21,10 @@
   let threadsLoading = $state(false);
   let projectThreads = $state<Thread[]>([]);
   let loadingGuard = $state<string | null>(null); // Prevent concurrent loads
+
+  // Copy/Move modal state
+  let showCopyModal = $state(false);
+  let threadToCopy = $state<Thread | null>(null);
 
   async function loadProjectThreads(): Promise<void> {
     if (!projectId) return;
@@ -107,6 +114,16 @@
   function handleThreadDelete(event: CustomEvent<{ id: string }>): void {
     dispatch('threadDelete', event.detail);
   }
+
+  function handleCopyToPersonal(event: CustomEvent<{ thread: Thread }>): void {
+    threadToCopy = event.detail.thread;
+    showCopyModal = true;
+  }
+
+  function handleCopyToProject(event: CustomEvent<{ thread: Thread }>): void {
+    threadToCopy = event.detail.thread;
+    showCopyModal = true;
+  }
 </script>
 
 {#if threadsLoading}
@@ -141,9 +158,46 @@
         on:click={handleThreadClick}
         on:rename={handleThreadRename}
         on:delete={handleThreadDelete}
+        on:copyToPersonal={handleCopyToPersonal}
+        on:copyToProject={handleCopyToProject}
       />
     {/each}
   </div>
+{/if}
+
+<!-- Copy/Move Thread Modal -->
+{#if showCopyModal && threadToCopy}
+  <MoveThreadModal
+    bind:show={showCopyModal}
+    bind:thread={threadToCopy}
+    on:copied={async (e) => {
+      const { threadId, projectId: targetProjectId, destinationName } = e.detail as {
+        threadId: string;
+        projectId: string | null;
+        destinationName: string;
+      };
+      showCopyModal = false;
+      threadToCopy = null;
+      
+      // Refresh thread list
+      await loadProjectThreads();
+      
+      // Navigate to the new thread
+      // If copied to personal (targetProjectId is null), navigate without projectId
+      // If copied to project, navigate with projectId (same as handleThreadClick)
+      const params = new URLSearchParams();
+      params.set('threadId', threadId);
+      if (targetProjectId) {
+        params.set('projectId', targetProjectId);
+      }
+
+      // Use push to navigate
+      push(`${ROUTE.THREADS}?${params.toString()}`);
+      
+      // Show success notification
+      console.log(`Thread copied to ${destinationName}`);
+    }}
+  />
 {/if}
 
 <style>

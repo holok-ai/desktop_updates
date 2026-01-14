@@ -18,12 +18,16 @@ interface ToastStore {
   subscribe: (run: (value: ToastMessage | null) => void) => () => void;
   show: (message: string, options?: ToastOptions) => void;
   hide: () => void;
+  success: (message: string, duration?: number) => void;
+  error: (message: string, duration?: number) => void;
+  warning: (message: string, duration?: number) => void;
+  info: (message: string, duration?: number) => void;
 }
 
 function createToastStore(): ToastStore {
   const { subscribe, set } = writable<ToastMessage | null>(null);
 
-  return {
+  const store: ToastStore = {
     subscribe,
     show: (message: string, options?: ToastOptions): void => {
       let duration = 4000;
@@ -47,7 +51,21 @@ function createToastStore(): ToastStore {
     hide: (): void => {
       set(null);
     },
+    success: (message: string, duration?: number): void => {
+      store.show(message, { variant: 'success', duration });
+    },
+    error: (message: string, duration?: number): void => {
+      store.show(message, { variant: 'error', duration });
+    },
+    warning: (message: string, duration?: number): void => {
+      store.show(message, { variant: 'warning', duration });
+    },
+    info: (message: string, duration?: number): void => {
+      store.show(message, { variant: 'info', duration });
+    },
   };
+
+  return store;
 }
 
 export const toastStore = createToastStore();

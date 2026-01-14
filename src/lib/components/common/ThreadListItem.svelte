@@ -2,22 +2,50 @@
   import { createEventDispatcher } from 'svelte';
   import type { Thread } from '../../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
+  import { projects } from '$lib/stores/project.store';
 
   const dispatch = createEventDispatcher();
 
-  const { thread, isSelected, showActions } = $props<{
+  const { 
+    thread, 
+    isSelected, 
+    showActions
+  } = $props<{
     thread: Thread;
     isSelected: boolean;
     showActions?: boolean;
   }>();
 
-  function onClick() {
+  // Determine if thread is in a project or personal space
+  const isProjectThread = $derived(!!thread.metadata?.projectId);
+
+  // Check if user has write permissions to any projects
+  const hasWritePermissions = $derived(
+    Array.isArray($projects) && $projects.some((p) => p.userRole === 'owner' || p.userRole === 'editor')
+  );
+
+  function handleClick() {
     dispatch('click', { id: thread.id, label: thread.title, route: ROUTE.THREADS });
   }
 
-  function onDelete(e: MouseEvent) {
+  function handleDelete(e: MouseEvent) {
     e.stopPropagation();
     dispatch('delete', { id: thread.id });
+  }
+
+  function handleRename(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch('rename', { id: thread.id, label: thread.title });
+  }
+
+  function handleCopy(e: MouseEvent) {
+    e.stopPropagation();
+    // If thread is in a project, copy to personal; otherwise copy to project
+    if (isProjectThread) {
+      dispatch('copyToPersonal', { thread });
+    } else {
+      dispatch('copyToProject', { thread });
+    }
   }
 
   function formatDate(date: Date | number): string {
@@ -42,12 +70,12 @@
 <div
   class="thread-item"
   class:selected={isSelected}
-  onclick={onClick}
+  onclick={handleClick}
   role="menuitem"
   tabindex="0"
   onkeydown={(e) => {
     if (e.key === 'Enter' || e.key === ' ') {
-      onClick();
+      handleClick();
     }
   }}
 >
@@ -57,16 +85,21 @@
       {#if showActions}
         <div class="thread-actions">
           <button
+            class="action-button copy"
+            title={isProjectThread ? "Copy to Personal" : "Copy to Project"}
+            onclick={handleCopy}
+            disabled={!isProjectThread && !hasWritePermissions}
+          >
+            <i class="pi pi-copy"></i>
+          </button>
+          <button
             class="action-button edit"
             title="Edit"
-            onclick={(e) => {
-              e.stopPropagation();
-              dispatch('rename', { id: thread.id, label: thread.title });
-            }}
+            onclick={handleRename}
           >
             <i class="pi pi-pencil"></i>
           </button>
-          <button class="action-button delete" title="Delete" onclick={onDelete}>
+          <button class="action-button delete" title="Delete" onclick={handleDelete}>
             <i class="pi pi-trash"></i>
           </button>
         </div>
@@ -85,6 +118,7 @@
     align-items: center;
     justify-content: space-between;
   }
+  
   .thread-item {
     display: flex;
     align-items: center;
@@ -95,6 +129,7 @@
     border: 1px solid transparent;
     border-radius: 0.375rem;
     margin: 0.125rem 0.5rem;
+    position: relative;
   }
 
   .thread-item:hover {
@@ -160,8 +195,17 @@
     flex-shrink: 0;
   }
 
-  .action-button:hover {
+  .action-button:hover:not(:disabled) {
     background-color: var(--surface-hover);
+  }
+
+  .action-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .action-button.copy {
+    color: var(--text-primary);
   }
 
   .action-button.edit {
