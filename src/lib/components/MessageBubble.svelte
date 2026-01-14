@@ -35,7 +35,7 @@
 
   let {
     message,
-    messages = [],
+    messages: _messages = [],
     onRetry,
     onEdit,
     onShowVersions,
