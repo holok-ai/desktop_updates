@@ -1,5 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { push } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
   import { threadService } from '$lib/services/thread.service';
   import ThreadListItem from '$lib/components/common/ThreadListItem.svelte';
   import MoveThreadModal from '$lib/components/modals/MoveThreadModal.svelte';
@@ -188,10 +190,8 @@
       if (targetProjectId) {
         params.set('projectId', targetProjectId);
       }
-      
+
       // Use push to navigate
-      const { push } = await import('svelte-spa-router');
-      const { ROUTE } = await import('$lib/constants/route.constant');
       push(`${ROUTE.THREADS}?${params.toString()}`);
       
       // Show success notification

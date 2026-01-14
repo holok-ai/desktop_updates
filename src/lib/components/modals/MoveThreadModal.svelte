@@ -155,7 +155,7 @@
       const targetProject = targetProjectId
         ? writableProjects.find((p) => p.id === targetProjectId)
         : null;
-      const destinationName = targetProject ? targetProject.title : 'General History';
+      const destinationName = targetProject ? targetProject.title : 'My Thread List';
 
       console.log({
         newThread
@@ -235,7 +235,6 @@
         <p class="info-text">
           {actionVerb}
           <strong>{thread.title || 'Untitled Thread'}</strong>
-          to a different location.
         </p>
 
         <div class="form-group">
@@ -246,7 +245,7 @@
             disabled={isProcessing}
             class="project-select"
           >
-            <option value="">General History (Unscoped)</option>
+            <option value="">My Thread List</option>
             {#each writableProjects as project}
               <option value={project.id}>
                 {project.title}
@@ -258,15 +257,14 @@
         {#if !hasWritePermissions}
           <div class="info-box warning">
             <p>
-              You don't have write permissions to any projects. You can only copy to General
-              History.
+              You don't have write permissions to any projects. You can only copy to the My Thread List.
             </p>
           </div>
         {/if}
 
         <div class="info-box">
           <p>
-            Copying will create an independent duplicate of this thread. Changes to one will not
+            This will duplicate the thread. Changes to one will not
             affect the other.
           </p>
         </div>
