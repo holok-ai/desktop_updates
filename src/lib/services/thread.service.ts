@@ -126,6 +126,67 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
+  async copyThread(
+    threadId: string,
+    targetProjectId: string | null,
+    options?: { allowDuplicate?: boolean },
+  ): Promise<Thread> {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.copyThread(threadId, targetProjectId, options),
+      'Failed to copy thread',
+    );
+  }
+
+  async checkLargeFiles(threadId: string): Promise<{
+    needsConfirmation: boolean;
+    totalSize: number;
+    fileCount: number;
+    estimatedTransferTime?: number;
+    largeFiles?: Array<{ filename: string; size: number }>;
+  }> {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.checkLargeFiles(threadId),
+      'Failed to check large files',
+    );
+  }
+
+  async checkDuplicate(
+    threadId: string,
+    targetProjectId: string | null,
+  ): Promise<{
+    isDuplicate: boolean;
+    previousCopyDate?: number;
+    previousThreadId?: string;
+  }> {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.checkDuplicate(threadId, targetProjectId),
+      'Failed to check duplicate',
+    );
+  }
+
+  async cancelCopy(operationId: string): Promise<void> {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.cancelCopy(operationId),
+      'Failed to cancel copy operation',
+    );
+  }
+
+  async getCopyProgress(operationId: string): Promise<{
+    operationId: string;
+    phase: string;
+    filesTotal: number;
+    filesCompleted: number;
+    bytesTotal: number;
+    bytesTransferred: number;
+    currentFile?: string;
+    estimatedTimeRemaining?: number;
+  } | null> {
+    return wrapElectronCall(
+      () => window.electronAPI.thread.getCopyProgress(operationId),
+      'Failed to get copy progress',
+    );
+  }
+
   async appendMessage(
     threadId: string,
     payload: {

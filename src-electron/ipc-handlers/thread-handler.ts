@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
 import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
+import { threadCopyService } from '../services/thread-copy/thread-copy.service.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type ThreadRepository from '../repository/thread-repository.js';
@@ -11,6 +12,12 @@ import type {
   Message,
   MessageVersion,
 } from '../repository/thread-repository.js';
+import type {
+  CopyOptions,
+  CopyProgress,
+  DuplicateInfo,
+  LargeFileConfirmation,
+} from '../../src-shared/types/thread-copy.types.js';
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 
@@ -986,6 +993,141 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Copy thread to another context
+  ipcMain.handle(
+    'thread:copy',
+    async (
+      _event,
+      sourceThreadId: string,
+      targetContext: string | null,
+      options?: CopyOptions,
+    ): Promise<RendererThread> => {
+      const auth = getAuthService();
+
+      if (!auth.isAuthenticated()) {
+        throw new Error('Authentication required');
+      }
+
+      threadLog.info('[IPC:thread:copy]', {
+        sourceThreadId,
+        targetContext,
+        options,
+      });
+
+      try {
+        const newThread = await threadCopyService.copyThread(
+          sourceThreadId,
+          targetContext,
+          options,
+        );
+
+        const rt = toRendererThread(newThread);
+        if (!rt) throw new Error('Failed to convert copied thread');
+
+        // Broadcast thread created event
+        broadcast('thread:created', rt);
+
+        threadLog.info('[IPC:thread:copy] Copy completed', {
+          sourceThreadId,
+          newThreadId: rt.id,
+          targetContext,
+        });
+
+        return rt;
+      } catch (error) {
+        threadLog.error('[IPC:thread:copy] Copy failed', {
+          sourceThreadId,
+          targetContext,
+          error,
+        });
+        throw error;
+      }
+    },
+  );
+
+  // Cancel copy operation
+  ipcMain.handle('thread:cancelCopy', async (_event, operationId: string): Promise<void> => {
+    threadLog.info('[IPC:thread:cancelCopy]', { operationId });
+
+    try {
+      await threadCopyService.cancelCopy(operationId);
+
+      threadLog.info('[IPC:thread:cancelCopy] Cancellation completed', {
+        operationId,
+      });
+    } catch (error) {
+      threadLog.error('[IPC:thread:cancelCopy] Cancellation failed', {
+        operationId,
+        error,
+      });
+      throw error;
+    }
+  });
+
+  // Get copy operation progress
+  ipcMain.handle('thread:getCopyProgress', (_event, operationId: string): CopyProgress | null => {
+    return threadCopyService.getProgress(operationId);
+  });
+
+  // Check for large files before copy
+  ipcMain.handle(
+    'thread:checkLargeFiles',
+    async (_event, sourceThreadId: string): Promise<LargeFileConfirmation> => {
+      threadLog.info('[IPC:thread:checkLargeFiles]', { sourceThreadId });
+
+      try {
+        const result = await threadCopyService.checkLargeFiles(sourceThreadId);
+
+        threadLog.info('[IPC:thread:checkLargeFiles] Check completed', {
+          sourceThreadId,
+          needsConfirmation: result.needsConfirmation,
+        });
+
+        return result;
+      } catch (error) {
+        threadLog.error('[IPC:thread:checkLargeFiles] Check failed', {
+          sourceThreadId,
+          error,
+        });
+        throw error;
+      }
+    },
+  );
+
+  // Check for duplicate copy
+  ipcMain.handle(
+    'thread:checkDuplicate',
+    async (
+      _event,
+      sourceThreadId: string,
+      targetContext: string | null,
+    ): Promise<DuplicateInfo> => {
+      threadLog.info('[IPC:thread:checkDuplicate]', {
+        sourceThreadId,
+        targetContext,
+      });
+
+      try {
+        const result = await threadCopyService.checkDuplicate(sourceThreadId, targetContext);
+
+        threadLog.info('[IPC:thread:checkDuplicate] Check completed', {
+          sourceThreadId,
+          targetContext,
+          isDuplicate: result.isDuplicate,
+        });
+
+        return result;
+      } catch (error) {
+        threadLog.error('[IPC:thread:checkDuplicate] Check failed', {
+          sourceThreadId,
+          targetContext,
+          error,
+        });
+        throw error;
+      }
+    },
+  );
+
   // Update message (edit)
   ipcMain.handle(
     'thread:updateMessage',
@@ -1106,6 +1248,11 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:undoRename');
   ipcMain.removeHandler('thread:delete');
   ipcMain.removeHandler('thread:moveToProject');
+  ipcMain.removeHandler('thread:copy');
+  ipcMain.removeHandler('thread:cancelCopy');
+  ipcMain.removeHandler('thread:getCopyProgress');
+  ipcMain.removeHandler('thread:checkLargeFiles');
+  ipcMain.removeHandler('thread:checkDuplicate');
   ipcMain.removeHandler('thread:updateMessage');
   ipcMain.removeHandler('thread:getMessageVersions');
   ipcMain.removeHandler('thread:updateMessageMetadata');
