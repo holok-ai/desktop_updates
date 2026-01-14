@@ -162,60 +162,62 @@
       {/each}
     </div>
 
+    {#if project.type === 'shared'}
     <div class="add-member-section">
-      <div class="search-row">
+      <div class="label-and-buttons">
         <label for="user-search" class="find-user-label">Find user(s):</label>
-        <div class="search-container">
-          <input
-            id="user-search"
-            type="text"
-            class="search-input"
-            placeholder="Search users to add..."
-            value={searchTerm}
-            oninput={handleSearchInput}
-          />
-
-          {#if showDropdown && searchTerm.length > 0}
-            <div class="search-dropdown">
-              {#if isSearching}
-                <div class="dropdown-item-wrapper">
-                  <div class="dropdown-item loading">
-                    <i class="pi pi-spinner pi-spin"></i>
-                    <span>Searching...</span>
-                  </div>
-                </div>
-              {:else if searchResults.length === 0}
-                <div class="dropdown-item-wrapper">
-                  <div class="dropdown-item empty">
-                    <i class="pi pi-info-circle"></i>
-                    <span>No users found</span>
-                  </div>
-                </div>
-              {:else}
-                {#each searchResults as user (user.id)}
-                  <div class="dropdown-item-wrapper">
-                    <label class="dropdown-item">
-                      <input
-                        type="checkbox"
-                        checked={selectedUsers.has(user.id)}
-                        onchange={(e) => handleUserCheckboxChange(user, (e.target as HTMLInputElement).checked)}
-                      />
-                      <div class="user-info">
-                        <span class="user-display">{user.displayName} - {user.email}</span>
-                      </div>
-                    </label>
-                  </div>
-                {/each}
-              {/if}
-            </div>
-          {/if}
+        <div class="button-column">
+          <button class="add-button add-viewer" onclick={() => handleAddMembers('viewer')} disabled={selectedUsers.size === 0}>Add Viewer</button>
+          <button class="add-button add-editor" onclick={() => handleAddMembers('editor')} disabled={selectedUsers.size === 0}>Add Editor</button>
         </div>
       </div>
-      <div class="button-row" class:with-dropdown={showDropdown && searchTerm.length > 0}>
-        <button class="add-button add-viewer" onclick={() => handleAddMembers('viewer')} disabled={selectedUsers.size === 0}>Add Viewer</button>
-        <button class="add-button add-editor" onclick={() => handleAddMembers('editor')} disabled={selectedUsers.size === 0}>Add Editor</button>
+      <div class="search-container">
+        <input
+          id="user-search"
+          type="text"
+          class="search-input"
+          placeholder="Search users to add..."
+          value={searchTerm}
+          oninput={handleSearchInput}
+        />
+
+        {#if showDropdown && searchTerm.length > 0}
+          <div class="search-dropdown">
+            {#if isSearching}
+              <div class="dropdown-item-wrapper">
+                <div class="dropdown-item loading">
+                  <i class="pi pi-spinner pi-spin"></i>
+                  <span>Searching...</span>
+                </div>
+              </div>
+            {:else if searchResults.length === 0}
+              <div class="dropdown-item-wrapper">
+                <div class="dropdown-item empty">
+                  <i class="pi pi-info-circle"></i>
+                  <span>No users found</span>
+                </div>
+              </div>
+            {:else}
+              {#each searchResults as user (user.id)}
+                <div class="dropdown-item-wrapper">
+                  <label class="dropdown-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.has(user.id)}
+                      onchange={(e) => handleUserCheckboxChange(user, (e.target as HTMLInputElement).checked)}
+                    />
+                    <div class="user-info">
+                      <span class="user-display">{user.displayName} - {user.email}</span>
+                    </div>
+                  </label>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
+    {/if}
 
 {/if}
   </div>
@@ -247,23 +249,19 @@
     margin-top: 24px;
     padding-top: 24px;
     border-top: 1px solid var(--border-color);
-    align-items: baseline;
+    align-items: start;
   }
 
-  .search-row {
-    display: contents;
-  }
-
-  .button-row {
-    grid-column: 2;
+  .label-and-buttons {
     display: flex;
+    flex-direction: column;
     gap: 12px;
-    margin-top: 0;
-    transition: margin-top 0.2s;
   }
 
-  .button-row.with-dropdown {
-    margin-top: 200px;
+  .button-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .find-user-label {
