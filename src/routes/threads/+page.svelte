@@ -32,6 +32,7 @@
     title: '',
     description: '',
     status: THREAD_STATUS.ACTIVE,
+    currentBranchId: '1.0'
   });
 
   let selectedModel: ModelDetails | null = $state(null);
@@ -607,7 +608,6 @@
 
 <style>
   .threads-page {
-    max-width: 1200px;
     flex: 1;
     min-height: 0;
     display: flex;

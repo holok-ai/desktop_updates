@@ -135,6 +135,13 @@ export class ChatService {
     onToolUse?: (toolName: string, input: unknown, notification?: ToolUseNotification) => void,
     onToolStatus?: ToolStatusCallback,
   ): Promise<void> {
+    // Create audit wrapper if audit is enabled
+    const { callback, complete } = this.auditService.createWrappedCallback(
+      request,
+      this.providerType,
+      onTokenReceived,
+    );
+
     // Set up status callback for this request
     if (onToolStatus) {
       this.fileToolsService.setStatusCallback(onToolStatus);
@@ -154,8 +161,14 @@ export class ChatService {
         errorMessage,
       );
 
-      // Fall back to regular chat instead of blocking
-      await this.chat(request, onTokenReceived);
+      // Fall back to regular chat - use the already created wrapper
+      try {
+        await this.provider.chat(request, callback);
+        complete();
+      } catch (error) {
+        complete(error);
+        throw error;
+      }
       return;
     }
 
@@ -189,12 +202,7 @@ export class ChatService {
       return result;
     };
 
-    const { callback, complete } = this.auditService.createWrappedCallback(
-      request,
-      this.providerType,
-      onTokenReceived,
-    );
-
+    // Use the wrapper created at the start
     try {
       await this.provider.chatWithTools(request, tools, callback, handleToolUse);
       complete();

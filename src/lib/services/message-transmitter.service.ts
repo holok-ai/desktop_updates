@@ -73,13 +73,16 @@ export class MessageTransmitter {
     try {
       // Fetch thread to get correct metadata
       const thread = await threadService.getThread(threadId);
-      const metadata = this.extractMessageMetadata(thread);
+      const threadMetadata = this.extractMessageMetadata(thread);
+      // Merge thread metadata with message metadata
+      const metadata = { ...threadMetadata, ...message.metadata };
 
       const persistPromise = threadService.appendMessage(threadId, {
         role: message.role,
         content: message.content,
         metadata,
         clientMessageId: message.clientMessageId,
+        branchId: message.branchId,
       });
 
       const persisted = await Promise.race([persistPromise, timeoutPromise]);
@@ -117,7 +120,7 @@ export class MessageTransmitter {
   /**
    * Add optimistic user message
    */
-  addOptimisticMessage(content: string, isOnline: boolean): Message {
+  addOptimisticMessage(content: string, isOnline: boolean, currentBranchId: string = '1.0'): Message {
     const clientMessageId = crypto.randomUUID();
     const initialStatus: MessageStatus = isOnline
       ? MESSAGE_STATUS.SENDING
@@ -131,9 +134,7 @@ export class MessageTransmitter {
       status: initialStatus,
       clientMessageId,
       retryCount: 0,
-      parentMessageId: null,
-      branchIndex: 0,
-      branchType: null,
+      branchId: currentBranchId,
       modelId: null,
     };
 
@@ -144,25 +145,29 @@ export class MessageTransmitter {
   /**
    * Send user message and handle persistence
    */
-  async sendUserMessage(userMsg: Message, thread: Thread | null, isOnline: boolean): Promise<void> {
+  async sendUserMessage(
+    userMsg: Message,
+    thread: Thread | null,
+    isOnline: boolean,
+    branchId?: string,
+  ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
+
+    // Update message with branchId if provided
+    if (typeof branchId === 'string' && branchId.length > 0) {
+      userMsg.branchId = branchId;
+    }
 
     // Add to outbox for resilience
     if (thread !== null && isPermanent) {
       await outboxService.addPendingMessage(userMsg, thread.id);
     }
 
-    // If offline, don't persist yet
-    if (!isOnline) {
-      return;
-    }
-
-    // Persist to memory storage if thread exists
-    if (thread !== null && isPermanent) {
-      await this.persistMessage(userMsg, thread.id);
-    }
+    // Messages are now created locally when chat function is called
+    // No need to persist separately - the chat handler creates the message
+    // If offline, message will be created when chat is called after coming online
   }
 
   /**
@@ -172,6 +177,7 @@ export class MessageTransmitter {
     responseText: string,
     thread: Thread | null,
     userMessage: string,
+    userMessageObj?: Message,
   ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const isPermanent =
@@ -181,11 +187,16 @@ export class MessageTransmitter {
       // Append assistant response to existing thread
       const metadata = this.extractMessageMetadata(thread);
 
+      // Use branch info from the user message if available
+      // Extract branchId from user message or use thread's current branch
+      const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
+
       const assistantPersist = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
         metadata,
         clientMessageId: crypto.randomUUID(),
+        branchId,
       });
 
       const assistantMsg: Message = {
@@ -194,13 +205,16 @@ export class MessageTransmitter {
         content: responseText,
         createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
         status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
-        parentMessageId: null,
-        branchIndex: 0,
-        branchType: null,
-        modelId: null,
+        branchId,
+        modelId: userMessageObj?.modelId ?? null,
       };
 
       this.callbacks.onMessageAdd(assistantMsg);
+
+      // Update user message status to SENT after assistant response is received
+      if (userMessageObj?.id !== null && userMessageObj?.id !== undefined && userMessageObj.id !== '') {
+        this.updateMessageStatus(userMessageObj.id, MESSAGE_STATUS.SENT);
+      }
     } else {
       // No thread yet: persist both prompt + response atomically
       const metadata = this.extractMessageMetadata(thread);
@@ -221,9 +235,7 @@ export class MessageTransmitter {
           content: saved.promptMessage.content,
           createdAt: saved.promptMessage.createdAt,
           status: MESSAGE_STATUS.SENT,
-          parentMessageId: null,
-          branchIndex: 0,
-          branchType: null,
+          branchId: '1.0',
           modelId: null,
         },
         ...saved.responseMessages.map(
@@ -233,9 +245,7 @@ export class MessageTransmitter {
             content: m.content,
             createdAt: m.createdAt,
             status: MESSAGE_STATUS.SENT,
-            parentMessageId: null,
-            branchIndex: 0,
-            branchType: null,
+            branchId: '1.0',
             modelId: null,
           }),
         ),
@@ -314,9 +324,7 @@ export class MessageTransmitter {
                   ? assistantPersist.message.createdAt
                   : Date.now(),
                 status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
-                parentMessageId: null,
-                branchIndex: 0,
-                branchType: null,
+                branchId: '1.0',
                 modelId: null,
               };
 

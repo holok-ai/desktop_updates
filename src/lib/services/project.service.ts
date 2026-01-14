@@ -24,19 +24,34 @@ export interface CreateProjectInput {
  * Ensures createdAt/updatedAt are Date objects.
  */
 function mapBackendToFrontendProject(backendProject: Project): Project {
-  const backendTitle = typeof backendProject.title === 'string' ? backendProject.title : '';
+  const { title: backendTitle, createdAt: backendCreatedAt, updatedAt: backendUpdatedAt } =
+    backendProject;
+
+  const title: string = typeof backendTitle === 'string' ? backendTitle : '';
+
+  let createdAt: Date;
+  if (typeof backendCreatedAt === 'string') {
+    createdAt = new Date(backendCreatedAt);
+  } else if (backendCreatedAt instanceof Date) {
+    createdAt = backendCreatedAt;
+  } else {
+    createdAt = new Date();
+  }
+
+  let updatedAt: Date;
+  if (typeof backendUpdatedAt === 'string') {
+    updatedAt = new Date(backendUpdatedAt);
+  } else if (backendUpdatedAt instanceof Date) {
+    updatedAt = backendUpdatedAt;
+  } else {
+    updatedAt = new Date();
+  }
+
   return {
     ...backendProject,
-    title: backendTitle,
-    // Ensure createdAt/updatedAt are Date objects
-    createdAt:
-      typeof backendProject.createdAt === 'string'
-        ? new Date(backendProject.createdAt)
-        : backendProject.createdAt,
-    updatedAt:
-      typeof backendProject.updatedAt === 'string'
-        ? new Date(backendProject.updatedAt)
-        : backendProject.updatedAt,
+    title,
+    createdAt,
+    updatedAt,
   };
 }
 

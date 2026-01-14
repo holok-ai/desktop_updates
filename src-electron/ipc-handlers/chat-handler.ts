@@ -7,6 +7,7 @@ import type {
 import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
 import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
+import { threadRepository } from '../repository/thread-repository.js';
 import log from 'electron-log';
 
 /**
@@ -177,6 +178,40 @@ export function registerChatHandlers(auth?: AuthService): void {
           chatService.setFileToolsWorkingDirectory(workingDirectory);
         }
 
+        // Parse thread_id to extract threadId and branchId
+        let threadId: string | undefined;
+        let branchId: string | undefined;
+        
+        if (request.thread_id) {
+          // Parse format: "threadId" or "threadId,branch_id=branchId"
+          const commaIndex = request.thread_id.indexOf(',branch_id=');
+          if (commaIndex > 0) {
+            threadId = request.thread_id.substring(0, commaIndex);
+            branchId = request.thread_id.substring(commaIndex + ',branch_id='.length) || request.branch_id;
+          } else {
+            threadId = request.thread_id;
+            branchId = request.branch_id;
+          }
+        }
+
+        // Create user message locally if thread_id is provided
+        if (threadId && request.messages.length > 0) {
+          const lastMessage = request.messages[request.messages.length - 1];
+          if (lastMessage.role === 'user') {
+            try {
+              await threadRepository.appendMessageLocal(threadId, {
+                role: 'user',
+                content: lastMessage.content,
+                branchId: branchId,
+                clientMessageId: crypto.randomUUID(),
+              });
+              log.info('[IPC] Created user message locally for thread:', threadId, 'branchId:', branchId);
+            } catch (err) {
+              log.warn('[IPC] Failed to create user message locally, continuing:', err);
+            }
+          }
+        }
+
         await chatService.chatWithFileTools(
           request,
           (token: string) => {
@@ -196,6 +231,10 @@ export function registerChatHandlers(auth?: AuthService): void {
             event.sender.send('chat:toolStatus', status);
           },
         );
+        
+        // Assistant message will be created locally by handleAssistantResponse in the frontend
+        // after streaming completes and response text is accumulated
+        
         log.info('[IPC] Chat message with file tools sent successfully');
         return { success: true };
       } catch (error) {

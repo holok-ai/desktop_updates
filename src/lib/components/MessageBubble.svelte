@@ -10,13 +10,24 @@
   import CommentDisplay from './CommentDisplay.svelte';
   import CommentEditor from './CommentEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
-  import { toastStore } from '$lib/services/toast.service';
+  import VariationButton from './branching/VariationButton.svelte';
+  import { canCreateVariation } from '$lib/utils/branch-utils';
+  import {
+    copyToClipboard,
+    copyResponse,
+    copyToInput,
+    getCopyFormat,
+    setCopyFormat,
+    type CopyFormat,
+  } from '$lib/services/clipboard.service';
 
   interface Props {
     message: Message;
+    messages?: Message[];
     onRetry?: (messageId: string) => void;
     onEdit?: (messageId: string, currentContent: string) => void;
     onShowVersions?: (messageId: string) => void;
+    onCreateVariation?: (messageId: string) => void;
     threadId?: string;
     isStreaming?: boolean;
     showComments?: boolean;
@@ -24,15 +35,27 @@
 
   let {
     message,
+    messages: _messages = [],
     onRetry,
     onEdit,
     onShowVersions,
+    onCreateVariation,
     isStreaming = false,
     threadId,
     showComments = false,
   }: Props = $props();
 
   let isEditingInline = $state(false);
+
+  const canCreateVariationForMessage = $derived(() => {
+    if (message.role !== 'user') return false;
+    try {
+      // Check if this message can have variations created
+      return canCreateVariation(message);
+    } catch {
+      return false;
+    }
+  });
   let editedContent = $state('');
   // Cache for inline preview blob URLs: key is `${threadId}:${attachment.id}`, value is the blob URL
   // URLs are populated in getInlinePreviewUrl() when attachments are rendered (line 342)
@@ -66,25 +89,27 @@
     }
   }
 
-  async function handleCopy() {
-    try {
-      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(message.content);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = message.content;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      toastStore.show(`Prompt copied to clipboard`, { variant: 'success' });
-    } catch (error) {
-      console.error('Copy failed', error);
-      toastStore.show(`Failed to copy prompt`, { variant: 'error' });
+  // Copy state
+  let showCopyMenu = $state(false);
+  let copyFormat = $state<CopyFormat>(getCopyFormat());
+
+  async function handleCopyToClipboard() {
+    if (message.role === 'assistant') {
+      await copyResponse(message.content, copyFormat);
+    } else {
+      await copyToClipboard(message.content);
     }
+  }
+
+  async function handleCopyAs(format: CopyFormat) {
+    setCopyFormat(format);
+    copyFormat = format;
+    await copyResponse(message.content, format);
+    showCopyMenu = false;
+  }
+
+  function handleCopyToInput() {
+    copyToInput(message.content);
   }
 
   /**
@@ -287,9 +312,50 @@
     </span>
     <div class="message-actions">
       {#if message.status !== MESSAGE_STATUS.SENDING}
-        <button class="copy-button" type="button" onclick={handleCopy} aria-label="Copy message">
-          📋
-        </button>
+        {#if message.role === 'user'}
+          <!-- Copy to input for user messages -->
+          <button
+            class="action-button"
+            type="button"
+            onclick={handleCopyToInput}
+            aria-label="Copy to input"
+            title="Copy to input"
+          >
+            ↵
+          </button>
+        {:else}
+          <!-- Copy dropdown for assistant messages -->
+          <div class="copy-dropdown">
+            <button
+              class="copy-button"
+              type="button"
+              onclick={handleCopyToClipboard}
+              aria-label="Copy response"
+              title="Copy as {copyFormat}"
+            >
+              📋
+            </button>
+            <button
+              class="copy-menu-btn"
+              type="button"
+              onclick={() => (showCopyMenu = !showCopyMenu)}
+              aria-label="Copy format options"
+              title="Copy options"
+            >
+              ▾
+            </button>
+            {#if showCopyMenu}
+              <div class="copy-menu">
+                <button onclick={() => handleCopyAs('text')}>
+                  {copyFormat === 'text' ? '✓ ' : ''}Copy as Text
+                </button>
+                <button onclick={() => handleCopyAs('markdown')}>
+                  {copyFormat === 'markdown' ? '✓ ' : ''}Copy as Markdown
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/if}
       {/if}
       {#if message.role === 'user' && onEdit && message.status !== MESSAGE_STATUS.SENDING}
         <button
@@ -300,6 +366,14 @@
         >
           ✎
         </button>
+      {/if}
+      {#if message.role === 'user' && onCreateVariation && message.status !== MESSAGE_STATUS.SENDING}
+        <VariationButton
+          {message}
+          onclick={() => onCreateVariation?.(message.id)}
+          disabled={isStreaming}
+          canCreate={canCreateVariationForMessage()}
+        />
       {/if}
       {#if message.isEdited}
         <button
@@ -688,5 +762,54 @@
     flex-direction: column;
     gap: 0.75rem;
     max-width: 600px;
+  }
+
+  .copy-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .copy-menu-btn {
+    background: transparent;
+    border: none;
+    padding: 0 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 10px;
+  }
+
+  .copy-menu-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .copy-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--surface-main);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    min-width: 140px;
+    overflow: hidden;
+  }
+
+  .copy-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .copy-menu button:hover {
+    background: var(--surface-hover);
   }
 </style>

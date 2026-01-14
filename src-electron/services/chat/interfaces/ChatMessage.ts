@@ -16,6 +16,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   streaming?: boolean;
   model: string;
+  thread_id?: string; // Format: "threadId" or "threadId,branch_id=branchId"
+  branch_id?: string; // Optional explicit branch_id
 }
 
 /**
