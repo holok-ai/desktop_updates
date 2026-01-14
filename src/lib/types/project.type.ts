@@ -19,7 +19,7 @@ export interface Project {
     metadata: Record<string, unknown> | null;
     createdAt: Date;
     updatedAt: Date;
-    members: MemberDTO[];
+    members?: MemberDTO[]; // Optional - only loaded in detail view
     // Legacy fields for backward compatibility
     deletedAt?: Date | null;
     privacyMode?: ProjectPrivacyMode;

@@ -156,6 +156,53 @@ export class ProjectService extends BaseElectronService {
     }
     return null;
   }
+
+  /**
+   * Add multiple members to a project with the specified role
+   * @param projectId The project ID
+   * @param userIds Array of user IDs (UUIDs) to add
+   * @param role The role to assign ('viewer' or 'editor')
+   * @returns Array of results with success/error for each user
+   */
+  public async addMembers(
+    projectId: GUID,
+    userIds: string[],
+    role: 'viewer' | 'editor'
+  ): Promise<Array<{ userId: string; success: boolean; error?: string }>> {
+    const results = await Promise.allSettled(
+      userIds.map((userId) =>
+        wrapElectronCall(
+          () => window.electronAPI.project.addMember(projectId, { userId, role }),
+          `Failed to add user ${userId}`
+        )
+      )
+    );
+
+    return results.map((result, index) => {
+      const userId = userIds.at(index) ?? '';
+      if (result.status === 'fulfilled') {
+        return { userId, success: true };
+      } else {
+        return {
+          userId,
+          success: false,
+          error: result.reason instanceof Error ? result.reason.message : 'Unknown error'
+        };
+      }
+    });
+  }
+
+  /**
+   * Remove a member from a project
+   * @param projectId The project ID
+   * @param memberId The member ID to remove
+   */
+  public async removeMember(projectId: GUID, memberId: string): Promise<void> {
+    await wrapElectronCall(
+      () => window.electronAPI.project.removeMember(projectId, memberId),
+      'Failed to remove member'
+    );
+  }
 }
 
 export const projectService = ProjectService.getInstance();

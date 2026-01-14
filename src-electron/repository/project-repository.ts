@@ -379,6 +379,15 @@ export class ProjectRepository {
    */
   private mapDetailDTOToProject(dto: ProjectDetailDTO, members: MemberDTO[] = []): Project {
     const memberCount = members.length;
+    // Map API members to frontend format (userName, email, memberRole)
+    const mappedMembers = members.map(m => ({
+      id: m.id,
+      userId: m.userId,
+      userName: m.userName,
+      email: m.userEmail, // API uses userEmail, frontend uses email
+      memberRole: m.role, // API uses role, frontend uses memberRole
+    }));
+
     return {
       id: dto.id,
       title: dto.name, // API uses 'name', desktop uses 'title'
@@ -393,6 +402,7 @@ export class ProjectRepository {
       createdAt: dto.createdAt, // Already ISO-8601 string
       updatedAt: dto.updatedAt,
       userRole: dto.userRole as ProjectRole, // API is string; cast to domain union
+      members: mappedMembers,
     };
   }
 
@@ -414,6 +424,7 @@ export class ProjectRepository {
       createdAt: project.createdAt, // Already ISO-8601 string
       updatedAt: project.updatedAt,
       userRole: project.userRole,
+      members: project.members ? [...project.members] : undefined,
     };
   }
 
@@ -527,19 +538,40 @@ export class ProjectRepository {
    * Requires invite_members permission (owner only)
    */
   public async addMember(projectId: string, input: AddMemberInput): Promise<ProjectMember> {
-    log.info('[ProjectRepository] Adding member to project:', projectId, input.email);
+    log.info('[ProjectRepository] Adding member to project:', projectId, input.userId);
 
     // Check permission
     await this.hasPermission(projectId, 'invite_members' as ProjectPermission);
 
-    // Validate email
-    if (!input.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
-      throw new ValidationError('Invalid email address', 'email');
+    // Validate userId
+    if (!input.userId) {
+      throw new ValidationError('User ID is required', 'userId');
     }
 
-    // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
-    throw new NotFoundError('API endpoint', '/projects/{id}/members');
+    try {
+      const memberDTO = await ApiRetry.execute(
+        () => projectMemberApiService.addProjectMember(projectId, input.userId, input.role),
+        DEFAULT_RETRY_CONFIG,
+        'ProjectRepository.addMember',
+      );
+
+      // Map DTO to ProjectMember
+      const member: ProjectMember = {
+        id: memberDTO.id,
+        projectId: projectId,
+        userId: memberDTO.userId,
+        email: memberDTO.userEmail,
+        displayName: memberDTO.userName,
+        role: memberDTO.role as ProjectRole,
+        joinedAt: memberDTO.createdAt,
+      };
+
+      log.info('[ProjectRepository] Successfully added member:', member.email);
+      return member;
+    } catch (error) {
+      log.error('[ProjectRepository] Failed to add member:', error);
+      throw error;
+    }
   }
 
   /**
@@ -552,9 +584,18 @@ export class ProjectRepository {
     // Check permission (only owner can remove members)
     await this.hasPermission(projectId, 'remove_members' as ProjectPermission);
 
-    // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
-    throw new NotFoundError('API endpoint', `/projects/{id}/members/{memberId}`);
+    try {
+      await ApiRetry.execute(
+        () => projectMemberApiService.removeProjectMember(projectId, memberId),
+        DEFAULT_RETRY_CONFIG,
+        'ProjectRepository.removeMember',
+      );
+
+      log.info('[ProjectRepository] Successfully removed member:', memberId);
+    } catch (error) {
+      log.error('[ProjectRepository] Failed to remove member:', error);
+      throw error;
+    }
   }
 
   /**

@@ -123,6 +123,130 @@ class ProjectMemberApiService {
 
         return data;
     }
+
+    /**
+     * Add a member to a project
+     * @param projectId The project ID
+     * @param userId The user's UUID
+     * @param role The role to assign ('viewer' or 'editor')
+     * @returns The created member DTO
+     */
+    public async addProjectMember(projectId: string, userId: string, role: string): Promise<MemberDTO> {
+        log.info('[ProjectMemberApiService] Adding member to project', { projectId, userId, role });
+
+        const authService = getAuthServiceInternal();
+        const settingsService = getSettingsServiceInternal();
+
+        if (!authService.isAuthenticated()) {
+            throw new Error('User not authenticated');
+        }
+
+        // Await token (will refresh if expired)
+        const accessToken = await authService.getAccessToken();
+        if (!accessToken) {
+            throw new Error('No access token available');
+        }
+
+        const apiUrl = settingsService.getMokuApiUrl();
+        const url = new URL(`/api/v1/projects/${projectId}/members`, apiUrl);
+
+        log.debug('[ProjectMemberApiService] Adding member to', url.toString());
+
+        const response = await fetch(url.toString(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ userId, role }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            log.error('[ProjectMemberApiService] Failed to add project member', {
+                url: url.toString(),
+                status: response.status,
+                statusText: response.statusText,
+                contentType: response.headers.get('content-type'),
+                error: errorText.substring(0, 500),
+            });
+            throw new Error(`Failed to add project member: ${response.status} ${response.statusText}`);
+        }
+
+        // Check if response is actually JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const errorText = await response.text();
+            log.error('[ProjectMemberApiService] Response is not JSON', {
+                url: url.toString(),
+                status: response.status,
+                contentType: contentType,
+                responseStart: errorText.substring(0, 500),
+            });
+            throw new Error(`API returned non-JSON response (${contentType}). Check if endpoint exists.`);
+        }
+
+        const data = (await response.json()) as MemberDTO;
+        log.info('[ProjectMemberApiService] Successfully added member', {
+            projectId,
+            userId,
+            memberId: data.id,
+        });
+
+        return data;
+    }
+
+    /**
+     * Remove a member from a project
+     * @param projectId The project ID
+     * @param memberId The member ID to remove
+     */
+    public async removeProjectMember(projectId: string, memberId: string): Promise<void> {
+        log.info('[ProjectMemberApiService] Removing member from project', { projectId, memberId });
+
+        const authService = getAuthServiceInternal();
+        const settingsService = getSettingsServiceInternal();
+
+        if (!authService.isAuthenticated()) {
+            throw new Error('User not authenticated');
+        }
+
+        // Await token (will refresh if expired)
+        const accessToken = await authService.getAccessToken();
+        if (!accessToken) {
+            throw new Error('No access token available');
+        }
+
+        const apiUrl = settingsService.getMokuApiUrl();
+        const url = new URL(`/api/v1/projects/${projectId}/members/${memberId}`, apiUrl);
+
+        log.debug('[ProjectMemberApiService] Removing member from', url.toString());
+
+        const response = await fetch(url.toString(), {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            log.error('[ProjectMemberApiService] Failed to remove project member', {
+                url: url.toString(),
+                status: response.status,
+                statusText: response.statusText,
+                contentType: response.headers.get('content-type'),
+                error: errorText.substring(0, 500),
+            });
+            throw new Error(`Failed to remove project member: ${response.status} ${response.statusText}`);
+        }
+
+        log.info('[ProjectMemberApiService] Successfully removed member', {
+            projectId,
+            memberId,
+        });
+    }
 }
 
 // Export singleton instance
