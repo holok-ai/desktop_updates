@@ -237,6 +237,14 @@ export function registerProjectHandlers(): void {
   // ==================== Member Management ====================
 
   /**
+   * Search users in the organization
+   */
+  ipcMain.handle('project:searchUsers', async (_, searchTerm?: string | null): Promise<unknown[]> => {
+    log.info('[IPC:project:searchUsers]', { searchTerm });
+    return await projectRepository.searchUsers(searchTerm);
+  });
+
+  /**
    * Get project members
    */
   ipcMain.handle('project:getMembers', async (_, projectId: string): Promise<ProjectMember[]> => {
@@ -250,7 +258,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(
     'project:addMember',
     async (_, projectId: string, input: AddMemberInput): Promise<ProjectMember> => {
-      log.info('[IPC:project:addMember]', projectId, input.email);
+      log.info('[IPC:project:addMember]', projectId, input.userId);
       const member = await projectRepository.addMember(projectId, input);
 
       // Broadcast member added event
@@ -317,6 +325,7 @@ export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:hasPermission');
   ipcMain.removeHandler('project:checkPermission');
   ipcMain.removeHandler('project:getUserRole');
+  ipcMain.removeHandler('project:searchUsers');
   ipcMain.removeHandler('project:getMembers');
   ipcMain.removeHandler('project:addMember');
   ipcMain.removeHandler('project:removeMember');

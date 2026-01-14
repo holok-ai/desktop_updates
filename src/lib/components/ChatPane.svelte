@@ -12,7 +12,7 @@
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
-import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
+  import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
   import VariationModal from './branching/VariationModal.svelte';
   import BranchLane from './branching/BranchLane.svelte';
   import { assembleContext, getBranchMessages, getVariationsForBranch, getForkPoints, getNextSequentialBranchId } from '$lib/utils/branch-utils';
@@ -30,7 +30,11 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     >;
   }
 
-  let { thread = null, messages = $bindable([]), composer }: Props = $props();
+  let {
+    thread = null,
+    messages = $bindable([]),
+    composer,
+  }: Props = $props();
 
   // Reactive thread state that updates when backend sends updates
   let currentThread = $state<Thread | null>(null);
@@ -89,6 +93,65 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
       selectedBranchContextMessageId = null;
       showBranches = true;
     }
+  });
+
+  // Track which threads have had their initial prompt auto-sent
+  let autoSentThreadIds = $state(new Set<string>());
+
+  // Auto-send initial prompt for threads created with initialPrompt metadata
+  // This is the ONLY place that checks for and uses the initialPrompt metadata flag
+  $effect(() => {
+    console.log('[ChatPane Auto-send] Effect triggered:', {
+      hasThread: !!currentThread,
+      threadId: currentThread?.id,
+      chatServiceCreated,
+      isStreaming,
+      messagesLength: messages.length,
+      hasInitialPrompt: !!currentThread?.metadata?.initialPrompt,
+      alreadySent: currentThread ? autoSentThreadIds.has(currentThread.id) : false,
+    });
+
+    // Guards: Skip if no thread, chat service not ready, or already streaming
+    if (!currentThread || !chatServiceCreated || isStreaming) {
+      console.log('[ChatPane Auto-send] Skipping: basic guards failed');
+      return;
+    }
+
+    // Guard: Skip if we've already auto-sent for this thread
+    if (autoSentThreadIds.has(currentThread.id)) {
+      console.log('[ChatPane Auto-send] Skipping: already sent for this thread');
+      return;
+    }
+
+    // Guard: Only auto-send if thread has initialPrompt flag in metadata
+    const hasInitialPrompt = currentThread.metadata?.initialPrompt;
+    if (!hasInitialPrompt) {
+      console.log('[ChatPane Auto-send] Skipping: no initialPrompt flag in metadata');
+      return;
+    }
+
+    // Guard: Only auto-send if there's exactly 1 message and it's a user message
+    if (messages.length !== 1) {
+      console.log('[ChatPane Auto-send] Skipping: messages.length =', messages.length, '(expected 1)');
+      return;
+    }
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'user') {
+      console.log('[ChatPane Auto-send] Skipping: last message role =', lastMessage.role, '(expected user)');
+      return;
+    }
+
+    console.log('[ChatPane Auto-send] All guards passed! Auto-sending for thread:', currentThread.id);
+
+    // Mark this thread as having been auto-sent
+    autoSentThreadIds.add(currentThread.id);
+
+    // Send the existing user message to the LLM (skip creating a new user message)
+    setTimeout(() => {
+      console.log('[ChatPane Auto-send] Calling sendMessage with:', lastMessage.content.substring(0, 50));
+      void sendMessage(lastMessage.content, [], true); // true = skipUserMessageCreation
+    }, 100);
   });
 
   // State management
@@ -479,8 +542,10 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
   });
 
   // Initialize chat service with provider configuration
-  async function initializeChatService(config: ProviderConfig): Promise<boolean> {
-    console.log(`[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`);
+  async function initializeChatService(config: ProviderConfig) {
+    console.log(
+      `[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`,
+    );
 
     const result = await window.electronAPI.chat.createProvider(config.provider, {
       url: config.url,
@@ -505,7 +570,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     toastTimeout = window.setTimeout(() => (toast = ''), ms);
   }
 
-  function scrollToBottom(behavior: "auto" | "instant" | "smooth" = "auto") {
+  function scrollToBottom(behavior: 'auto' | 'instant' | 'smooth' = 'auto') {
     if (!messagesContainer) return;
     messagesContainer.scrollTo({
       top: messagesContainer.scrollHeight,
@@ -543,7 +608,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
   }
 
   // Send message and handle streaming response
-  async function sendMessage(userMessage: string, attachments: any[] = []) {
+  async function sendMessage(userMessage: string, attachments: any[] = [], skipUserMessageCreation = false) {
     if (!chatServiceCreated) {
       error = 'Chat service not initialized';
       return;
@@ -640,6 +705,14 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     // Create and add optimistic message
     const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
     userMsg.modelId = modelId;
+    // Only create user message if it doesn't already exist (skip for initial prompt auto-send)
+    if (!skipUserMessageCreation) {
+      // Create and add optimistic message
+      const userMsg = transmitter.addOptimisticMessage(userMessage, isOnline);
+
+      // Send the user message (handles outbox and persistence)
+      await transmitter.sendUserMessage(userMsg, thread, isOnline);
+    }
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
@@ -651,7 +724,7 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     try {
       isStreaming = true;
       setupTokenListener();
-      
+
       // Determine branchId for this message
       // For linear conversations, use next sequential branchId (1.0 -> 2.0 -> 3.0)
       // For branch conversations, use the current branchId
@@ -1193,7 +1266,8 @@ import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-w
     };
 
     // Check if we need to reinitialize (config changed or first time)
-    const needsReinit = !currentProviderConfig ||
+    const needsReinit =
+      !currentProviderConfig ||
       currentProviderConfig.provider !== newConfig.provider ||
       currentProviderConfig.url !== newConfig.url ||
       currentProviderConfig.model !== newConfig.model;

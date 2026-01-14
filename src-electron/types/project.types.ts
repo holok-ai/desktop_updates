@@ -49,6 +49,17 @@ export enum ProjectPermission {
 }
 
 /**
+ * Simple member info for frontend display
+ */
+export interface ProjectMemberInfo {
+  id: string;
+  userId: string;
+  userName: string;
+  email: string;
+  memberRole: string;
+}
+
+/**
  * Project entity (desktop model)
  * Uses 'name' as canonical display name (matching API)
  */
@@ -66,6 +77,7 @@ export interface Project {
   createdAt: string; // ISO-8601
   updatedAt: string; // ISO-8601
   userRole: ProjectRole; // Current user's role
+  members?: ProjectMemberInfo[]; // Optional member list (loaded on demand)
 }
 
 /**
@@ -119,7 +131,7 @@ export interface UpdateProjectInput {
  * Input for adding a member to a project
  */
 export interface AddMemberInput {
-  email: string;
+  userId: string; // User UUID
   role: ProjectRole; // 'editor' or 'viewer' (owner set automatically on create)
 }
 
