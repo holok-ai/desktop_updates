@@ -326,6 +326,7 @@ export class ThreadService extends BaseElectronService {
     thread: Thread,
     originalMessage: Message,
     variationContent?: string,
+    modelId?: string,
   ): Promise<
     | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
@@ -337,12 +338,14 @@ export class ThreadService extends BaseElectronService {
 
     const clientMessageId = crypto.randomUUID();
     const content = variationContent ?? originalMessage.content;
+    // Use provided modelId or fall back to original message's modelId
+    const finalModelId = modelId ?? originalMessage.modelId;
     
     // Create variation message with new branchId
     const res = await this.appendMessage(thread.id, {
       role: 'user',
       content: content,
-      metadata: { modelId: originalMessage.modelId },
+      metadata: { modelId: finalModelId },
       clientMessageId,
       branchId: newBranchId,
     });
@@ -358,7 +361,7 @@ export class ThreadService extends BaseElectronService {
       createdAt: res.message.createdAt,
       clientMessageId,
       branchId: newBranchId,
-      modelId: originalMessage.modelId,
+      modelId: finalModelId,
     };
 
     return { success: true, message, newBranchId };

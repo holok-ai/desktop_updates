@@ -11,6 +11,7 @@
   import MessageBubble from './MessageBubble.svelte';
   import MessageVersionHistory from './MessageVersionHistory.svelte';
   import MoveThreadModal from './modals/MoveThreadModal.svelte';
+  import MarkdownRenderer from './MarkdownRenderer.svelte';
   import { isThreadGeneratingTitle } from '$lib/stores/titleGeneration.store';
   import { storageService } from '$lib/services/storage.service';
   import { FileWriteEventService, type FileWriteEvent } from '$lib/services/file-write-event.service';
@@ -468,14 +469,37 @@
     return excluded;
   });
 
+  // Track if we've created variations in this session to prevent auto-selection
+  let hasCreatedVariations = $state(false);
+  // Track if we should allow auto-selection (only on initial load, not after variations)
+  let allowAutoSelection = $state(true);
+  
   // Initialize activeBranchIndex from thread's currentBranchId when thread/branches load
+  // But skip if variations exist or were just created (user should see all branches)
   $effect(() => {
     console.log('[ChatPane] currentThread:', currentThread);
+    // Don't auto-select if we've created variations or if auto-selection is disabled
+    if (hasCreatedVariations || !allowAutoSelection) return;
+    
+    // Don't auto-select if there are multiple branch boxes (variations exist)
+    if (branchBoxes.length > 1) {
+      return;
+    }
+    
     // Check both top-level currentBranchId and metadata.currentBranchId
     // The metadata one is the authoritative source after branch switching
     const threadBranchIdRaw = currentThread?.metadata?.currentBranchId ?? currentThread?.currentBranchId;
     const threadBranchId = typeof threadBranchIdRaw === 'string' ? threadBranchIdRaw : undefined;
     if (threadBranchId && branchBoxes.length > 0 && activeBranchIndex === null) {
+      // Don't auto-select if the thread's currentBranchId is a variation branch (has 3 parts like "1.1.0")
+      // Variation branches should remain visible, not auto-selected
+      const branchParts = threadBranchId.split('.');
+      const isVariationBranch = branchParts.length === 3 && branchParts[2] === '0';
+      if (isVariationBranch) {
+        // Keep all branches visible for variation branches
+        return;
+      }
+      
       // Find the branch box that matches the thread's currentBranchId
       const matchingBox = branchBoxes.find(box => {
         const boxBranchId = box.userMessage.branchId;
@@ -770,7 +794,17 @@
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
 
-      // Keep streaming text in view inside messages container
+      // If streaming to a branch, also update branch-specific streaming text
+      if (streamingBranchIndex !== null) {
+        // Update the Map - create a new Map instance to trigger Svelte reactivity
+        const updatedMap = new Map(streamingTextByBranch);
+        updatedMap.set(streamingBranchIndex, responseText);
+        streamingTextByBranch = updatedMap;
+        // Don't scroll main area when streaming in branch box
+        return;
+      }
+
+      // Keep streaming text in view inside messages container (only for main area streaming)
       scrollToBottom('auto');
 
       // Ensure streaming block stays visible in the viewport (outer scroll container / window)
@@ -958,6 +992,17 @@
 
     try {
       isStreaming = true;
+      
+      // If sending from a branch, set up branch-specific streaming
+      if (sendingBranchIndex !== null) {
+        const branchBox = branchBoxes.find(b => b.branchIndex === sendingBranchIndex);
+        if (branchBox) {
+          const branchKey = branchBox.userMessage.branchId;
+          streamingBranchIndex = branchKey;
+          streamingTextByBranch.set(branchKey, '');
+        }
+      }
+      
       setupTokenListener();
 
       // Format thread_id with branch_id: "threadId,branch_id=branchId"
@@ -1020,12 +1065,16 @@
       }
 
       // Clear streaming state after message is added
-      const usedBranchId = activeBranchIndex !== null 
-        ? branchBoxes.find(b => b.branchIndex === activeBranchIndex)?.userMessage.branchId ?? branchId
-        : branchId;
-      streamingTextByBranch.delete(usedBranchId);
-      if (streamingBranchIndex === usedBranchId) {
+      // Use the branchId from the message that was just sent
+      if (streamingBranchIndex !== null) {
+        streamingTextByBranch.delete(streamingBranchIndex);
         streamingBranchIndex = null;
+      } else {
+        // Fallback: try to find branchId from activeBranchIndex or branchId
+        const usedBranchId = activeBranchIndex !== null 
+          ? branchBoxes.find(b => b.branchIndex === activeBranchIndex)?.userMessage.branchId ?? branchId
+          : branchId;
+        streamingTextByBranch.delete(usedBranchId);
       }
       responseText = '';
     } catch (err) {
@@ -1147,6 +1196,8 @@
     if (!currentThread || !showVariationModalFor) return;
 
     isCreatingVariation = true;
+    hasCreatedVariations = true; // Mark that variations have been created
+    allowAutoSelection = false; // Disable auto-selection permanently after creating variations
     variationError = '';
 
     try {
@@ -1189,17 +1240,23 @@
         messages = [...messages, result.message];
         showVariationModalFor = null;
         
+        // Reset activeBranchIndex to null so all branches are shown after creating variation
+        // Don't auto-select any branch - let user see all branches
+        activeBranchIndex = null;
+        showBranches = true;
+        
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
       } else {
         // For multiple models, create one variation per selected model
         const createdMessages: Message[] = [];
         
-        for (const _modelId of modelIds) {
+        for (const modelId of modelIds) {
           const result = await threadService.createVariation(
             currentThread,
             messageForVariation,
             content, // Pass the variation content from the modal
+            modelId, // Pass the specific modelId for this variation
           );
 
           if (!result.success) {
@@ -1220,6 +1277,11 @@
         
         showVariationModalFor = null;
 
+        // Reset activeBranchIndex to null so all branches are shown after creating variation
+        // Don't auto-select any branch - let user see all branches
+        activeBranchIndex = null;
+        showBranches = true;
+
         // Generate responses for all created variations sequentially
         // This ensures each variation gets its own token stream without conflicts
         for (const message of createdMessages) {
@@ -1231,6 +1293,8 @@
       variationError = e instanceof Error ? e.message : 'Failed to create variation';
     } finally {
       isCreatingVariation = false;
+      // Keep hasCreatedVariations and allowAutoSelection flags set permanently
+      // This prevents auto-selection after variations are created
     }
   }
 
@@ -1382,6 +1446,11 @@
       
       // Clear streaming text for this branch
       streamingTextByBranch.delete(branchKey);
+      
+      // Ensure branches remain visible after variation response
+      // Don't let auto-selection happen - keep all branches shown
+      activeBranchIndex = null;
+      showBranches = true;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('[ChatPane] Error generating variation response:', err);
@@ -1771,23 +1840,24 @@
               </button>
             {/if}
             <!-- Show all branches -->
-            <div class="branch-boxes-vertical">
-              {#each branchBoxes as box (box.branchIndex)}
-                <BranchLane
-                  userMessage={box.userMessage}
-                  assistantMessage={box.assistantMessage}
-                  branchIndex={box.branchIndex}
-                  isSelected={activeBranchIndex === box.branchIndex}
-                  isActiveBranch={activeBranchIndex === box.branchIndex && !showBranches}
-                  onSelect={() => setActiveBranch(box.branchIndex)}
-                  hideHeader={false}
-                  streamingText={streamingTextByBranch.get(box.userMessage.branchId) ?? null}
-                  onSendMessage={sendMessageInBranch}
-                  isStreaming={isStreaming && streamingBranchIndex === box.userMessage.branchId}
-                  allMessages={box.allMessages}
-                />
-              {/each}
-              
+            <div class="branch-boxes-wrapper">
+              <div class="branch-boxes-vertical">
+                {#each branchBoxes as box (box.branchIndex)}
+                  <BranchLane
+                    userMessage={box.userMessage}
+                    assistantMessage={box.assistantMessage}
+                    branchIndex={box.branchIndex}
+                    isSelected={activeBranchIndex === box.branchIndex}
+                    isActiveBranch={activeBranchIndex === box.branchIndex && !showBranches}
+                    onSelect={() => setActiveBranch(box.branchIndex)}
+                    hideHeader={false}
+                    streamingText={streamingTextByBranch.get(box.userMessage.branchId) ?? null}
+                    onSendMessage={sendMessageInBranch}
+                    isStreaming={isStreaming && streamingBranchIndex === box.userMessage.branchId}
+                    allMessages={box.allMessages}
+                  />
+                {/each}
+              </div>
             </div>
           {/if}
         {/if}
@@ -1807,6 +1877,18 @@
             />
           </div>
         {/each}
+
+        <!-- Show streaming response if active (not in a branch) -->
+        {#if isStreaming && responseText && streamingBranchIndex === null}
+          <div class="message-wrapper" bind:this={streamingMessageEl}>
+            <div class="message assistant streaming">
+              <div class="message-content">
+                <MarkdownRenderer content={responseText} enableCopy={false} />
+              </div>
+              <div class="message-meta">Streaming... ●</div>
+            </div>
+          </div>
+        {/if}
       {/if}
     </div>
 
@@ -2149,18 +2231,44 @@
     color: #646cff;
   }
 
+  .branch-boxes-wrapper {
+    width: 100%;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    /* No overflow constraints - let parent handle vertical */
+  }
+
   .branch-boxes-vertical {
     display: flex;
     flex-direction: row;
     gap: 24px;
-    align-items: flex-start;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+    align-items: stretch;
+    padding-bottom: 8px;
+    min-width: fit-content;
+    /* No height constraint - let content determine height */
+    /* Vertical overflow visible so content can overflow to main screen */
+    /* align-items: stretch makes all boxes the same height */
+  }
+  
+  /* When inside wrapper, handle horizontal scrolling */
+  .branch-boxes-wrapper > .branch-boxes-vertical {
+    overflow-x: auto;
     overflow-y: visible;
     scroll-behavior: smooth;
-    padding-bottom: 8px;
+    /* Constrain width to parent, but allow content to overflow and scroll */
     width: 100%;
-    /* No vertical scrolling - let parent .messages handle it */
+    /* Content inside can be wider than 100% and will scroll */
+    /* Horizontal scrolling handled here */
+    /* Vertical overflow passes through to parent .messages */
+    /* Add padding-right to ensure last box is fully visible when scrolling */
+    padding-right: 48px;
+    /* Use scroll-padding to ensure last item is fully visible when scrolling */
+    scroll-padding-right: 24px;
+  }
+  
+  /* Add margin-right to last box to ensure it's fully visible when scrolling */
+  .branch-boxes-wrapper > .branch-boxes-vertical > :global(*:last-child) {
+    margin-right: 24px;
   }
 
   /* Make branch boxes fill available width when there's space */
@@ -2170,22 +2278,36 @@
 
   .branch-boxes-vertical > :global(*) {
     flex: 1 1 auto;
+    min-width: 450px;
+    max-width: 600px;
+    /* Boxes can grow between 450px and 600px when there's space, but won't shrink below 450px */
   }
+  
+  /* When inside wrapper, boxes can grow but won't shrink below min-width */
+  .branch-boxes-wrapper > .branch-boxes-vertical > :global(*) {
+    flex: 1 0 auto;
+    min-width: 450px;
+    max-width: 600px;
+    /* flex-grow: 1 allows boxes to grow and fill space when there are few boxes */
+    /* flex-shrink: 0 prevents boxes from shrinking, enabling horizontal scroll when many boxes */
+    /* Maintain min-width to ensure horizontal scrolling works */
+  }
+  
 
-  .branch-boxes-vertical::-webkit-scrollbar {
+  .branch-boxes-wrapper > .branch-boxes-vertical::-webkit-scrollbar {
     height: 8px;
   }
 
-  .branch-boxes-vertical::-webkit-scrollbar-track {
+  .branch-boxes-wrapper > .branch-boxes-vertical::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .branch-boxes-vertical::-webkit-scrollbar-thumb {
+  .branch-boxes-wrapper > .branch-boxes-vertical::-webkit-scrollbar-thumb {
     background: var(--surface-border);
     border-radius: 4px;
   }
 
-  .branch-boxes-vertical::-webkit-scrollbar-thumb:hover {
+  .branch-boxes-wrapper > .branch-boxes-vertical::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
   }
 
@@ -2295,16 +2417,18 @@
     padding-right: var(--inline-spacing);
   }
   
-  /* Allow branch boxes to overflow horizontally, but no vertical scroll */
-  .messages > .branch-boxes-vertical {
-    overflow-y: visible;
+  /* Allow branch boxes wrapper to overflow horizontally, but no vertical scroll */
+  .messages > .branch-boxes-wrapper {
     margin-left: calc(-1 * var(--inline-spacing));
     margin-right: calc(-1 * var(--inline-spacing));
     padding-left: var(--inline-spacing);
     padding-right: var(--inline-spacing);
     /* Ensure no height constraint - let content determine height */
-    height: auto;
-    max-height: none;
+    /* Vertical overflow passes through to parent .messages container */
+    /* Horizontal scrolling handled by inner container */
+    /* Override parent's overflow-x: hidden to allow horizontal scrolling */
+    overflow-x: visible;
+    overflow-y: visible;
   }
 
   .composer {

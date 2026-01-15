@@ -100,7 +100,7 @@
     {/if}
 
     <!-- Show streaming response if active -->
-    {#if streamingText && isStreaming}
+    {#if isStreaming && streamingText !== null && streamingText !== undefined}
       <div class="message assistant streaming">
         <div class="message-content">
           <MarkdownRenderer content={streamingText} enableCopy={false} />
@@ -148,14 +148,14 @@
   .branch-lane {
     display: flex;
     flex-direction: column;
-    flex: 1 1 300px;
-    min-width: 300px;
-    max-width: none;
+    flex: 1 1 auto;
+    min-width: 450px;
+    max-width: 600px;
     min-height: 100%;
     border: 2px solid var(--surface-border);
     border-radius: 8px;
     background: var(--surface-ground);
-    overflow: hidden;
+    overflow: visible;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
@@ -173,7 +173,7 @@
 
   .branch-lane.active {
     min-height: unset;
-    overflow-y: scroll;
+    overflow: visible;
   }
 
   .lane-header {
