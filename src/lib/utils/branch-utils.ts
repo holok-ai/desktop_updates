@@ -35,13 +35,43 @@ export function isVariationOf(branchId: string, baseBranchId: string): boolean {
  * E.g., for "1.0", get all "1.0.1", "1.0.2", etc.
  */
 export function getVariationsForBranch(messages: Message[], baseBranchId: string): Message[] {
-  const baseDepth = baseBranchId.split('.').length;
-  return messages.filter((m) => {
+  // Parse baseBranchId (e.g., "2.0" -> baseNum = 2)
+  const baseParts = baseBranchId.split('.');
+  const [baseNum] = baseParts;
+  
+  // Find all variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0" for base "2.0")
+  const candidates = messages.filter((m) => {
     const parts = m.branchId.split('.');
-    // Must be exactly one level deeper
-    if (parts.length !== baseDepth + 1) {return false;}
-    return m.branchId.startsWith(`${baseBranchId  }.`);
+    // Must be exactly 3 parts: baseNum.X.0
+    if (parts.length !== 3) {
+      return false;
+    }
+    // First part must match base number, last part must be "0"
+    if (parts[0] !== baseNum || parts[2] !== '0') {
+      return false;
+    }
+    // Middle part must be a valid number > 0
+    const middleNum = Number.parseInt(parts[1], 10);
+    if (Number.isNaN(middleNum) || middleNum <= 0) {
+      return false;
+    }
+    // Only treat user messages as variation roots
+    if (m.role !== 'user') {
+      return false;
+    }
+    return true;
   });
+
+  const byBranch = new Map<string, Message>();
+
+  for (const m of candidates) {
+    const existing = byBranch.get(m.branchId);
+    if (existing === undefined || m.createdAt < existing.createdAt) {
+      byBranch.set(m.branchId, m);
+    }
+  }
+
+  return Array.from(byBranch.values()).sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /**
@@ -98,9 +128,11 @@ export function getForkPoints(messages: Message[]): string[] {
   
   for (const message of messages) {
     const parts = message.branchId.split('.');
-    if (parts.length > 2) { // Has at least one variation level
-      // The parent branchId is a fork point
-      const parentBranchId = parts.slice(0, -1).join('.');
+    // Variation branches use format: "<base>.<variation>.0", e.g. "2.1.0"
+    // Treat the base "<base>.0" (e.g. "2.0") as the fork point.
+    if (parts.length === 3 && parts[2] === '0') {
+      const [baseNum] = parts;
+      const parentBranchId = `${baseNum}.0`;
       forkPoints.add(parentBranchId);
     }
   }
@@ -140,13 +172,24 @@ export function getFirstForkPoint(messages: Message[]): string | null {
  * E.g., from "1.0" -> "1.0.1", from "1.0" -> "1.0.2" (if 1.0.1 exists)
  */
 export function getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
-  const existingVariations = getVariationsForBranch(messages, baseBranchId);
-  const existingIndices = existingVariations.map(m => {
-    const parts = m.branchId.split('.');
-    return parseInt(parts[parts.length - 1]);
-  });
+  // Parse baseBranchId (e.g., "2.0" -> baseNum = 2)
+  const baseParts = baseBranchId.split('.');
+  const baseNum = parseInt(baseParts[0], 10);
   
-  // Find the next available index
+  // Find all existing variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0")
+  const existingIndices: number[] = [];
+  for (const m of messages) {
+    const parts = m.branchId.split('.');
+    // Must be exactly 3 parts: baseNum.X.0
+    if (parts.length === 3 && parts[0] === baseParts[0] && parts[2] === '0') {
+      const middleNum = parseInt(parts[1], 10);
+      if (!isNaN(middleNum) && middleNum > 0) {
+        existingIndices.push(middleNum);
+      }
+    }
+  }
+  
+  // Find the next available middle index
   let nextIndex = 1;
   while (existingIndices.includes(nextIndex)) {
     nextIndex++;
@@ -155,7 +198,86 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
     }
   }
   
-  return `${baseBranchId}.${nextIndex}`;
+  // Return format: "baseNum.nextIndex.0" (e.g., "2.1.0", "2.2.0")
+  return `${baseNum}.${nextIndex}.0`;
+}
+
+/**
+ * Get the next branchId for continuing a conversation in an existing branch
+ * E.g., "2.1.0" -> "2.1.1", "2.1.1" -> "2.1.2", "2.0" -> "2.1"
+ * @param currentBranchId - The current branchId to continue from
+ * @param messages - All messages in the thread
+ * @returns The next branchId in the same branch hierarchy
+ */
+export function getNextBranchIdInBranch(currentBranchId: string, messages: Message[]): string {
+  const parts = currentBranchId.split('.');
+  const [baseNum, variationNum, lastPart] = parts;
+  
+  // If it's a main branch (X.0), continue with X.0.1, X.0.2, etc. (NOT X.1, X.2 which are variations)
+  if (parts.length === 2 && parts[1] === '0') {
+    // Find all existing continuations in this branch (X.0.1, X.0.2, etc.)
+    // These are continuations, not variations (variations would be X.1.0, X.2.0)
+    const existingIndices: number[] = [];
+    for (const m of messages) {
+      const mParts = m.branchId.split('.');
+      // Look for continuations: X.0.Y where Y > 0
+      if (mParts.length === 3 && mParts[0] === baseNum && mParts[1] === '0' && mParts[2] !== '0') {
+        const idx = Number.parseInt(mParts[2], 10);
+        if (!Number.isNaN(idx) && idx > 0) {
+          existingIndices.push(idx);
+        }
+      }
+    }
+    
+    // Find next available index
+    let nextIndex = 1;
+    while (existingIndices.includes(nextIndex)) {
+      nextIndex++;
+      if (nextIndex > 99) {
+        throw new Error('Maximum branch continuations reached (max: 99)');
+      }
+    }
+    
+    return `${baseNum}.0.${nextIndex}`;
+  }
+  
+  // If it's a variation branch (X.Y.0), continue with X.Y.1, X.Y.2, etc.
+  if (parts.length === 3 && parts[2] === '0') {
+    // Find all existing continuations in this variation branch (X.Y.1, X.Y.2, etc.)
+    const existingIndices: number[] = [];
+    for (const m of messages) {
+      const mParts = m.branchId.split('.');
+      if (mParts.length === 3 && mParts[0] === baseNum && mParts[1] === variationNum && mParts[2] !== '0') {
+        const idx = Number.parseInt(mParts[2], 10);
+        if (!Number.isNaN(idx) && idx > 0) {
+          existingIndices.push(idx);
+        }
+      }
+    }
+    
+    // Find next available index
+    let nextIndex = 1;
+    while (existingIndices.includes(nextIndex)) {
+      nextIndex++;
+      if (nextIndex > 99) {
+        throw new Error('Maximum branch continuations reached (max: 99)');
+      }
+    }
+    
+    return `${baseNum}.${variationNum}.${nextIndex}`;
+  }
+  
+  // If it's already a continuation (X.Y.Z where Z > 0), increment the last number
+  if (parts.length >= 2 && lastPart !== undefined && lastPart !== '') {
+    const lastNum = Number.parseInt(lastPart, 10);
+    if (!Number.isNaN(lastNum) && lastNum > 0) {
+      const nextNum = lastNum + 1;
+      return [...parts.slice(0, -1), nextNum.toString()].join('.');
+    }
+  }
+  
+  // Fallback: treat as main branch continuation
+  return getNextSequentialBranchId(messages);
 }
 
 /**

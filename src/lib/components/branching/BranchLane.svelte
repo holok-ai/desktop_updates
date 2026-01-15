@@ -7,6 +7,7 @@
     assistantMessage: Message | null;
     branchIndex: number;
     isSelected: boolean;
+    isActiveBranch: boolean;
     onSelect: () => void;
     hideHeader?: boolean;
     streamingText?: string | null;
@@ -23,6 +24,7 @@
     onSelect, 
     hideHeader = false, 
     streamingText = null,
+    isActiveBranch = false,
     onSendMessage,
     isStreaming = false,
     allMessages = [],
@@ -55,7 +57,7 @@
   }
 </script>
 
-<div class="branch-lane" class:selected={isSelected} class:no-border={hideHeader}>
+<div class="branch-lane" class:selected={isSelected} class:active={isActiveBranch} class:no-border={hideHeader}>
   {#if !hideHeader}
     <div class="lane-header">
       <span class="lane-label">{branchLabel()}</span>
@@ -148,7 +150,7 @@
     flex-direction: column;
     flex: 1 1 300px;
     min-width: 300px;
-    max-width: 400px;
+    max-width: none;
     min-height: 100%;
     border: 2px solid var(--surface-border);
     border-radius: 8px;
@@ -167,6 +169,11 @@
     border-color: #646cff;
     box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.2);
     background: rgba(100, 108, 255, 0.05);
+  }
+
+  .branch-lane.active {
+    min-height: unset;
+    overflow-y: scroll;
   }
 
   .lane-header {
@@ -205,7 +212,7 @@
     flex-direction: column;
     gap: 12px;
     min-height: fit-content;
-    overflow-y: auto;
+    overflow-y: visible;
   }
 
   .message {
@@ -295,7 +302,6 @@
     padding-top: 12px;
     border-top: 1px solid var(--surface-border);
     display: flex;
-    flex-direction: column;
     gap: 8px;
     background: var(--surface-ground);
     flex-shrink: 0;

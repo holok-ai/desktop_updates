@@ -194,8 +194,15 @@ export function registerChatHandlers(auth?: AuthService): void {
           }
         }
 
-        // Create user message locally if thread_id is provided
-        if (threadId && request.messages.length > 0) {
+        // Determine if this request is for a variation branch.
+        // Main path branches look like "1.0", "2.0", etc.
+        // Any other pattern (e.g. "2.1.0", "2.2.0") is treated as a variation.
+        const isVariation =
+          !!branchId && !/^\d+\.0$/.test(branchId);
+
+        // Create user message locally if thread_id is provided.
+        // Skip for variations – those user messages are created explicitly via createVariation.
+        if (threadId && request.messages.length > 0 && !isVariation) {
           const lastMessage = request.messages[request.messages.length - 1];
           if (lastMessage.role === 'user') {
             try {

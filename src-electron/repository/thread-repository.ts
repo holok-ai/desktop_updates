@@ -5,7 +5,6 @@ import { titleGeneratorService } from '../services/title-generator.service.js';
 import { threadApiService } from '../services/mokuapi/thread-api.service.js';
 import type {
   ThreadDTO,
-  DesktopThreadDTO,
   MessageDTO,
   CreateThreadRequest,
 } from '../services/mokuapi/thread.types.js';
@@ -79,16 +78,10 @@ export class ThreadRepository {
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
-    // Ensure currentBranchId is set in metadata (defaults to "1.0" for new threads)
-    const metadataWithBranchId = {
-      ...metadata,
-      currentBranchId: (metadata.currentBranchId as string) || '1.0',
-    };
-    
     const request: CreateThreadRequest = {
       title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
       projectId: metadata.projectId as string | null | undefined,
-      metadata: metadataWithBranchId,
+      metadata: metadata,
     };
 
     log.info('[ThreadRepository] Creating thread via API:', request.title);
@@ -99,8 +92,7 @@ export class ThreadRepository {
     log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
     log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
 
-    const desktopDTO = this.toDesktopThreadDTO(threadDTO);
-    const thread = this.mapDTOToThread(desktopDTO);
+    const thread = this.mapDTOToThread(threadDTO);
 
     log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
@@ -179,8 +171,7 @@ export class ThreadRepository {
       log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
       log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
 
-      const desktopDTO = this.toDesktopThreadDTO(threadDTO);
-      const thread = this.mapDTOToThread(desktopDTO);
+      const thread = this.mapDTOToThread(threadDTO);
 
       log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
 
@@ -229,8 +220,7 @@ export class ThreadRepository {
       });
 
       const threads = response.content.map((dto) => {
-        const desktopDTO = this.toDesktopThreadDTO(dto);
-        return this.mapDTOToThread(desktopDTO);
+        return this.mapDTOToThread(dto);
       });
 
       // Update cache
@@ -971,23 +961,90 @@ export class ThreadRepository {
   }
 
   /**
-   * Convert ThreadDTO from API to DesktopThreadDTO by extracting currentBranchId from metadata.
+   * Switch active branch for a thread
    */
-  private toDesktopThreadDTO(dto: ThreadDTO): DesktopThreadDTO {
-    // Extract currentBranchId from metadata (stored by desktop when creating/updating threads)
-    const currentBranchId = (dto.metadata?.currentBranchId as string) || '1.0';
-    return {
-      ...dto,
-      currentBranchId,
-    };
+  public async switchBranch(threadId: string, branchId: string): Promise<Thread | null> {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) {
+      log.warn('[ThreadRepository] Thread not found for switchBranch:', threadId);
+      return null;
+    }
+
+    // Update current branch in metadata
+    thread.currentBranchId = branchId;
+    thread.metadata = { ...thread.metadata, currentBranchId: branchId };
+    thread.updatedAt = Date.now();
+
+    // Update in API
+    try {
+      const updateRequest: import('../services/mokuapi/thread.types.js').UpdateThreadRequest = {
+        metadata: thread.metadata,
+      };
+      await threadApiService.updateThread(threadId, updateRequest);
+      log.info('[ThreadRepository] Switched to branch:', branchId, 'for thread:', threadId);
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to update branch in API:', error);
+      // Continue anyway - local state is updated
+    }
+
+    // Update cache
+    this.threadsById.set(threadId, thread);
+
+    return this.cloneThread(thread);
   }
 
   /**
-   * Map DesktopThreadDTO to internal Thread model.
+   * Delete a branch and all its messages
+   */
+  public async deleteBranch(threadId: string, branchId: string): Promise<void> {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    // Cannot delete main branch
+    if (branchId === '1.0') {
+      throw new Error('Cannot delete main branch');
+    }
+
+    // Cannot delete currently active branch
+    if (thread.currentBranchId === branchId) {
+      throw new Error('Cannot delete active branch. Switch to another branch first.');
+    }
+
+    // Find all messages belonging to this branch and its sub-branches
+    const branchPrefix = `${branchId}.`;
+    const messagesToDelete = thread.messages.filter(
+      (m) => m.branchId === branchId || m.branchId.startsWith(branchPrefix),
+    );
+
+    log.info('[ThreadRepository] Deleting branch:', branchId, 'with', messagesToDelete.length, 'messages');
+
+    // Delete messages from API
+    for (const message of messagesToDelete) {
+      try {
+        await threadApiService.deleteMessage(message.id);
+      } catch (error) {
+        log.warn('[ThreadRepository] Failed to delete message from API:', message.id, error);
+        // Continue deleting other messages
+      }
+    }
+
+    // Remove messages from local cache
+    thread.messages = thread.messages.filter(
+      (m) => m.branchId !== branchId && !m.branchId.startsWith(branchPrefix),
+    );
+    thread.updatedAt = Date.now();
+
+    this.threadsById.set(threadId, thread);
+  }
+
+  /**
+   * Map ThreadDTO from API to internal Thread model.
    * Converts ISO-8601 timestamps to epoch milliseconds.
    * Preserves custom metadata from API (including model configuration).
    */
-  private mapDTOToThread(dto: DesktopThreadDTO): Thread {
+  private mapDTOToThread(dto: ThreadDTO): Thread {
     return {
       id: dto.id,
       title: dto.title,
@@ -1003,7 +1060,7 @@ export class ThreadRepository {
       createdAt: new Date(dto.createdAt).getTime(),
       updatedAt: new Date(dto.updatedAt).getTime(),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
-      currentBranchId: dto.currentBranchId,
+      currentBranchId: dto.currentBranchId || '1.0', // Default to 1.0 for legacy threads
     };
   }
 

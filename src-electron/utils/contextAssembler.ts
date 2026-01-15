@@ -26,7 +26,7 @@ export function assembleContext(
   }
 
   const targetBranchId = message.branchId;
-  
+
   // Load thread to get all messages
   const loadedThread = repository['threadsById'].get(threadId);
   if (!loadedThread) {
@@ -56,7 +56,7 @@ export function assembleContext(
 
 /**
  * Gets the next branchId for creating a variation.
- * 
+ *
  * @param currentBranchId - The branch ID to create a variation from
  * @param threadId - The thread ID
  * @param repository - ThreadRepository instance
@@ -92,7 +92,7 @@ export function getNextBranchId(
     nextIndex++;
     if (nextIndex > 99) {
       throw new Error('Maximum branch variations reached (max: 99)');
-    }
+  }
   }
 
   return `${currentBranchId}.${nextIndex}`;

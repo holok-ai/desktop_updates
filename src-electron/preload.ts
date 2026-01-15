@@ -85,47 +85,6 @@ export interface ThreadAPI {
     options?: { privacyMode?: string; contextHandling?: string },
   ) => Promise<Thread>;
 
-  // Copy thread to another context
-  copyThread: (
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { allowDuplicate?: boolean },
-  ) => Promise<Thread>;
-
-  // Check if thread has large files that need confirmation
-  checkLargeFiles: (threadId: string) => Promise<{
-    needsConfirmation: boolean;
-    totalSize: number;
-    fileCount: number;
-    estimatedTransferTime?: number;
-    largeFiles?: Array<{ filename: string; size: number }>;
-  }>;
-
-  // Check if thread was previously copied to destination
-  checkDuplicate: (
-    threadId: string,
-    targetProjectId: string | null,
-  ) => Promise<{
-    isDuplicate: boolean;
-    previousCopyDate?: number;
-    previousThreadId?: string;
-  }>;
-
-  // Cancel an in-progress copy operation
-  cancelCopy: (operationId: string) => Promise<void>;
-
-  // Get progress for a copy operation
-  getCopyProgress: (operationId: string) => Promise<{
-    operationId: string;
-    phase: string;
-    filesTotal: number;
-    filesCompleted: number;
-    bytesTotal: number;
-    bytesTransferred: number;
-    currentFile?: string;
-    estimatedTimeRemaining?: number;
-  } | null>;
-
   // Get messages for a thread (persisted)
   getMessages: (id: string) => Promise<Message[]>;
 
@@ -223,6 +182,18 @@ export interface ThreadAPI {
     threadId: string,
     messageId: string,
   ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+
+  // Switch active branch
+  switchBranch: (
+    threadId: string,
+    branchId: string,
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+
+  // Delete a branch
+  deleteBranch: (
+    threadId: string,
+    branchId: string,
+  ) => Promise<{ success: true } | { success: false; error: string }>;
 
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
@@ -837,22 +808,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       options?: { privacyMode?: string; contextHandling?: string },
     ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
 
-    copyThread: (
-      threadId: string,
-      targetProjectId: string | null,
-      options?: { allowDuplicate?: boolean },
-    ) => ipcRenderer.invoke('thread:copy', threadId, targetProjectId, options),
-
-    checkLargeFiles: (threadId: string) => ipcRenderer.invoke('thread:checkLargeFiles', threadId),
-
-    checkDuplicate: (threadId: string, targetProjectId: string | null) =>
-      ipcRenderer.invoke('thread:checkDuplicate', threadId, targetProjectId),
-
-    cancelCopy: (operationId: string) => ipcRenderer.invoke('thread:cancelCopy', operationId),
-
-    getCopyProgress: (operationId: string) =>
-      ipcRenderer.invoke('thread:getCopyProgress', operationId),
-
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
     getMessages: (id: string) => ipcRenderer.invoke('thread:getMessages', id),
@@ -957,6 +912,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     deleteMessagesAfter: (threadId: string, messageId: string) =>
       ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
+
+    switchBranch: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:switchBranch', threadId, branchId),
+
+    deleteBranch: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
 
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,

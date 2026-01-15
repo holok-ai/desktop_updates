@@ -127,67 +127,6 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
-  async copyThread(
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { allowDuplicate?: boolean },
-  ): Promise<Thread> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.copyThread(threadId, targetProjectId, options),
-      'Failed to copy thread',
-    );
-  }
-
-  async checkLargeFiles(threadId: string): Promise<{
-    needsConfirmation: boolean;
-    totalSize: number;
-    fileCount: number;
-    estimatedTransferTime?: number;
-    largeFiles?: Array<{ filename: string; size: number }>;
-  }> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.checkLargeFiles(threadId),
-      'Failed to check large files',
-    );
-  }
-
-  async checkDuplicate(
-    threadId: string,
-    targetProjectId: string | null,
-  ): Promise<{
-    isDuplicate: boolean;
-    previousCopyDate?: number;
-    previousThreadId?: string;
-  }> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.checkDuplicate(threadId, targetProjectId),
-      'Failed to check duplicate',
-    );
-  }
-
-  async cancelCopy(operationId: string): Promise<void> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.cancelCopy(operationId),
-      'Failed to cancel copy operation',
-    );
-  }
-
-  async getCopyProgress(operationId: string): Promise<{
-    operationId: string;
-    phase: string;
-    filesTotal: number;
-    filesCompleted: number;
-    bytesTotal: number;
-    bytesTransferred: number;
-    currentFile?: string;
-    estimatedTimeRemaining?: number;
-  } | null> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.getCopyProgress(operationId),
-      'Failed to get copy progress',
-    );
-  }
-
   async appendMessage(
     threadId: string,
     payload: {
@@ -346,28 +285,63 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
+   * Switch the active branch for a thread
+   */
+  async switchBranch(
+    threadId: string,
+    branchId: string,
+  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
+    return wrapElectronCall(async () => {
+      const result = await window.electronAPI.thread.switchBranch(threadId, branchId);
+      if (result.success && result.thread) {
+        return { success: true, thread: result.thread };
+      }
+      return { success: false, error: result.error || 'Failed to switch branch' };
+    }, 'Failed to switch branch');
+  }
+
+  /**
+   * Delete a branch from a thread
+   */
+  async deleteBranch(
+    threadId: string,
+    branchId: string,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    return wrapElectronCall(async () => {
+      const result = await window.electronAPI.thread.deleteBranch(threadId, branchId);
+      if (result.success) {
+        return { success: true };
+      }
+      return { success: false, error: result.error || 'Failed to delete branch' };
+    }, 'Failed to delete branch');
+  }
+
+  /**
    * Create a variation of a message using new branchId hierarchy
    * @param thread - The thread to create variation in
    * @param originalMessage - The message to create a variation from
+   * @param variationContent - The content for the variation (if different from original)
    */
   async createVariation(
     thread: Thread,
     originalMessage: Message,
+    variationContent?: string,
   ): Promise<
     | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
   > {
     // Generate next branchId hierarchically from the original message's branchId
-    // E.g., "1.0" -> "1.1", "1.1" -> "1.2"
+    // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
     const messages = await this.getMessages(thread.id);
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
+    const content = variationContent ?? originalMessage.content;
     
-    // Use the original message's content as the variation prompt
+    // Create variation message with new branchId
     const res = await this.appendMessage(thread.id, {
       role: 'user',
-      content: originalMessage.content,
+      content: content,
       metadata: { modelId: originalMessage.modelId },
       clientMessageId,
       branchId: newBranchId,
@@ -380,7 +354,7 @@ export class ThreadService extends BaseElectronService {
     const message: Message = {
       id: res.message.id,
       role: 'user',
-      content: originalMessage.content,
+      content: content,
       createdAt: res.message.createdAt,
       clientMessageId,
       branchId: newBranchId,
