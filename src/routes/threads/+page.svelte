@@ -105,8 +105,8 @@
     };
   });
 
-  onMount(async () => {
-    await loadThreads();
+  onMount(() => {
+    void loadThreads();
 
     // Set up querystring subscription
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
@@ -165,11 +165,16 @@
         console.log('[querystring] Found thread in store, loading...');
         const validation = canViewThread(found, currentProjectId);
         if (validation.canView) {
-          void loadThread(found);
-          // If branchId is in URL, switch to that branch
-          if (branchIdParam && found.currentBranchId !== branchIdParam) {
-            void threadService.switchBranch(found.id, branchIdParam);
-          }
+          void (async () => {
+            await loadThread(found);
+            // If branchId is in URL, switch to that branch
+            if (branchIdParam && found.currentBranchId !== branchIdParam) {
+              const result = await threadService.switchBranch(found.id, branchIdParam);
+              if (result.success) {
+                found.currentBranchId = branchIdParam;
+              }
+            }
+          })();
         } else {
           showError(validation.error!);
         }
@@ -187,18 +192,16 @@
             return;
           }
 
-          // If branchId is in URL, switch to that branch
-          if (branchIdParam && fetchedThread.currentBranchId !== branchIdParam) {
-            const result = await threadService.switchBranch(fetchedThread.id, branchIdParam);
-            if (result.success) {
-              // Update the fetched thread with the new branch
-              fetchedThread.currentBranchId = branchIdParam;
-            }
-          }
-
           const validation = canViewThread(fetchedThread, currentProjectId);
           if (validation.canView) {
             await selectThread(fetchedThread);
+            // If branchId is in URL, switch to that branch
+            if (branchIdParam && fetchedThread.currentBranchId !== branchIdParam) {
+              const result = await threadService.switchBranch(fetchedThread.id, branchIdParam);
+              if (result.success) {
+                fetchedThread.currentBranchId = branchIdParam;
+              }
+            }
             errorMessage = null;
           } else {
             showError(validation.error!);

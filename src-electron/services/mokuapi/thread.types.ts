@@ -17,6 +17,13 @@ export interface ThreadDTO {
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
   metadata?: Record<string, unknown>; // Custom metadata including model configuration
+}
+
+/**
+ * Desktop extension of ThreadDTO that adds desktop-specific fields
+ * This is used internally in the desktop app after receiving ThreadDTO from Moku API
+ */
+export interface DesktopThreadDTO extends ThreadDTO {
   currentBranchId: string; // Current active branch (e.g., "1.0", "1.1")
 }
 
