@@ -180,6 +180,7 @@
   let isCreatingVariation = $state(false);
   let activeBranchIndex = $state<number | null>(null);
   let showBranches = $state(true); // Show all branches by default, hide when one is selected
+  let showBranchControls = $state(false); // Toggle visibility of branch indicator and switcher
   let streamingBranchIndex = $state<string | null>(null); // Track which branch is currently streaming (by branchId)
   let selectedBranchContextMessageId = $state<string | null>(null); // Track the last message in the selected branch for context
   // Track streaming text per branchId for parallel variations
@@ -1656,31 +1657,40 @@
         <div class="header-content">
           <div class="title-section">
             {#if currentThread?.currentBranchId}
-              <BranchIndicator 
-                currentBranchId={currentThread.currentBranchId} 
-                isMainBranch={currentThread.currentBranchId === '1.0'} 
-              />
-              <BranchSwitcher 
-                messages={messages} 
-                currentBranchId={currentThread.currentBranchId}
-                onSwitch={async (branchId) => {
-                  if (!currentThread) return;
-                  const result = await threadService.switchBranch(currentThread.id, branchId);
-                  if (result.success) {
-                    currentThread = result.thread;
-                    showToast(`Switched to branch: ${branchId}`);
-                    // Update URL with branchId
-                    if (typeof window !== 'undefined' && window.location) {
-                      const params = new URLSearchParams(window.location.search);
-                      params.set('branchId', branchId);
-                      const newUrl = `${window.location.pathname}?${params.toString()}`;
-                      window.history.pushState(null, '', newUrl);
+              <button
+                class="branch-toggle"
+                onclick={() => showBranchControls = !showBranchControls}
+                title={showBranchControls ? 'Hide branch controls' : 'Show branch controls'}
+              >
+                <i class="pi pi-chevron-right" class:expanded={showBranchControls}></i>
+              </button>
+              {#if showBranchControls}
+                <BranchIndicator
+                  currentBranchId={currentThread.currentBranchId}
+                  isMainBranch={currentThread.currentBranchId === '1.0'}
+                />
+                <BranchSwitcher
+                  messages={messages}
+                  currentBranchId={currentThread.currentBranchId}
+                  onSwitch={async (branchId) => {
+                    if (!currentThread) return;
+                    const result = await threadService.switchBranch(currentThread.id, branchId);
+                    if (result.success) {
+                      currentThread = result.thread;
+                      showToast(`Switched to branch: ${branchId}`);
+                      // Update URL with branchId
+                      if (typeof window !== 'undefined' && window.location) {
+                        const params = new URLSearchParams(window.location.search);
+                        params.set('branchId', branchId);
+                        const newUrl = `${window.location.pathname}?${params.toString()}`;
+                        window.history.pushState(null, '', newUrl);
+                      }
+                    } else {
+                      showToast(`Failed to switch branch: ${result.error}`);
                     }
-                  } else {
-                    showToast(`Failed to switch branch: ${result.error}`);
-                  }
-                }}
-              />
+                  }}
+                />
+              {/if}
             {/if}
             {#if isEditingTitle}
               <!-- Edit Mode -->
@@ -1986,6 +1996,36 @@
 
   .title-section {
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .branch-toggle {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    border-radius: 4px;
+  }
+
+  .branch-toggle:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .branch-toggle .pi-chevron-right {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+  }
+
+  .branch-toggle .pi-chevron-right.expanded {
+    transform: rotate(90deg);
   }
 
   .title-display {

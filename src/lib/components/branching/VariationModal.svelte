@@ -129,13 +129,13 @@
 <div class="modal-overlay" onclick={onCancel} onkeydown={(e) => e.key === 'Escape' && onCancel()} role="button" tabindex="-1">
   <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && onCancel()} role="dialog" aria-modal="true" tabindex="0">
     <div class="modal-header">
-      <h3>Create Variation</h3>
+      <h3>Create Branch</h3>
       <button class="close-btn" onclick={onCancel} aria-label="Close">✕</button>
     </div>
 
     <div class="modal-body">
       <div class="field">
-        <label for="variation-type">Variation Type</label>
+        <label for="variation-type">Type of Branch</label>
         <div class="type-selector">
           <button
             class="type-btn"
@@ -144,7 +144,7 @@
             onclick={() => (branchType = 'prompt-variation')}
             title={canPromptVar ? 'Create prompt variation' : 'Prompt variation already exists'}
           >
-            Prompt Variation
+            Prompt
           </button>
           <button
             class="type-btn"
@@ -153,7 +153,7 @@
             onclick={() => (branchType = 'model-variation')}
             title={canModelVar ? 'Create model variation' : 'Maximum model variations reached'}
           >
-            Model Variation
+            Models
           </button>
         </div>
       </div>
@@ -248,7 +248,7 @@
           onclick={handleSubmit}
           disabled={!canSubmit()}
         >
-          {isSubmitting ? 'Creating...' : branchType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Variations` : 'Create Variation'}
+          {isSubmitting ? 'Creating...' : branchType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Branches` : 'Create'}
         </button>
       </div>
     </div>

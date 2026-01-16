@@ -166,14 +166,22 @@ export class ModelRepository {
     // Return cached applications if already loaded
     if (this.apps.length > 0) {
       log.info(`[ModelRepository] Returning ${this.apps.length} cached applications`);
-      return [...this.apps]; // Return copy
+      // Return deep copy to prevent modifications to cached data
+      return this.apps.map(app => ({
+        ...app,
+        models: app.models ? [...app.models] : []
+      }));
     }
 
     // Fetch applications from Moku if cache is empty
     log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
     await this.refreshModels();
 
-    return [...this.apps]; // Return copy
+    // Return deep copy to prevent modifications to cached data
+    return this.apps.map(app => ({
+      ...app,
+      models: app.models ? [...app.models] : []
+    }));
   }
 }
 

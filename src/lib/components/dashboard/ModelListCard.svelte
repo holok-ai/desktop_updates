@@ -3,6 +3,8 @@
    * ModelListCard - Displays available LLM models grouped by application
    */
   import DashboardCard from './DashboardCard.svelte';
+  import { push } from 'svelte-spa-router';
+  import { ROUTE } from '$lib/constants/route.constant';
   import type { ApplicationSummary } from '../../../src-electron/preload';
 
   const { availableApplications } = $props<{
@@ -15,30 +17,56 @@
     expandedApplications[appId] = !expandedApplications[appId];
   }
 
+  function handleChatClick(event: MouseEvent, agentId: string) {
+    event.stopPropagation();
+    const params = new URLSearchParams();
+    params.set('createThread', 'true');
+    params.set('agentId', agentId);
+    push(`${ROUTE.THREADS}?${params.toString()}`);
+  }
+
   const hasApplications = $derived((availableApplications || []).length > 0);
 </script>
 
-<DashboardCard title="Available LLM Models" icon="pi-microchip">
+<DashboardCard title="Models by Agent" icon="pi-microchip">
   {#snippet children()}
     {#if hasApplications}
       <div class="applications-list">
         {#each availableApplications as application}
           <div class="application-section">
-            <button
+            <div
               class="application-header"
-              onclick={() => toggleApplication(application.id)}
               aria-expanded={expandedApplications[application.id] ?? false}
             >
-              <span class="application-name">{application.title}</span>
+              <button
+                class="application-toggle"
+                onclick={() => toggleApplication(application.id)}
+              >
+                <div class="application-info">
+                  <span class="application-name">{application.title}</span>
+                  <span class="provider-name">{application.provider}</span>
+                </div>
+              </button>
               <div class="application-meta">
-                <span class="provider-badge">{application.provider}</span>
+                <button
+                  class="chat-button"
+                  onclick={(e) => handleChatClick(e, application.id)}
+                  title="Start a chat with {application.title}"
+                >
+                  chat
+                </button>
                 <span class="model-count">{application.models?.length || 0} models</span>
-                <i
-                  class="pi pi-chevron-down"
-                  class:expanded={expandedApplications[application.id]}
-                ></i>
+                <button
+                  class="chevron-button"
+                  onclick={() => toggleApplication(application.id)}
+                >
+                  <i
+                    class="pi pi-chevron-down"
+                    class:expanded={expandedApplications[application.id]}
+                  ></i>
+                </button>
               </div>
-            </button>
+            </div>
 
             {#if expandedApplications[application.id]}
               <div class="models-list">
@@ -83,8 +111,6 @@
     justify-content: space-between;
     padding: 0.75rem 1rem;
     background: var(--surface-overlay);
-    border: none;
-    cursor: pointer;
     transition: background 0.2s ease;
     font-size: 0.9375rem;
   }
@@ -93,9 +119,41 @@
     background: var(--surface-hover, rgba(0, 0, 0, 0.05));
   }
 
+  .application-toggle {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    flex: 1;
+  }
+
+  .application-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
   .application-name {
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .provider-name {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  .chevron-button {
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .application-meta {
@@ -104,14 +162,26 @@
     gap: 0.75rem;
   }
 
-  .provider-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
+  .chat-button {
+    padding: 0.375rem 0.75rem;
     background: var(--primary-color);
     color: white;
+    border: none;
     border-radius: 4px;
+    font-size: 0.8125rem;
     font-weight: 500;
-    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: lowercase;
+  }
+
+  .chat-button:hover {
+    background: var(--primary-color-hover, #2563eb);
+    transform: translateY(-1px);
+  }
+
+  .chat-button:active {
+    transform: translateY(0);
   }
 
   .model-count {
