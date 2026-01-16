@@ -20,10 +20,11 @@ export interface ThreadDTO {
 }
 
 /**
- * Desktop-specific Thread DTO that extends ThreadDTO with desktop-only fields
+ * Desktop extension of ThreadDTO that adds desktop-specific fields
+ * This is used internally in the desktop app after receiving ThreadDTO from Moku API
  */
 export interface DesktopThreadDTO extends ThreadDTO {
-  currentBranchId: string; // Current active branch (e.g., "1.0", "1.1") - extracted from metadata
+  currentBranchId: string; // Current active branch (e.g., "1.0", "1.1")
 }
 
 /**
@@ -33,6 +34,7 @@ export interface MessageDTO {
   id: string;
   threadId: string;
   branchId?: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1") - may be in options.branch_id
+  branchIndex?: number; // Legacy field
   isClosed?: boolean;
   model?: string;
   provider?: string;
@@ -42,7 +44,9 @@ export interface MessageDTO {
   metadata?: Record<string, unknown>;
   options?: {
     branch_id?: string; // branch_id may be in options
-    [key: string]: unknown; // Provider-dependent fields (stream, max_tokens, etc.) accessible via index signature
+    stream?: boolean;
+    max_tokens?: number;
+    [key: string]: unknown;
   };
   requestId?: string; // Legacy field
   createdUserId: string;

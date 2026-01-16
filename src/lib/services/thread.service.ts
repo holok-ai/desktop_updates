@@ -346,29 +346,67 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
+   * Switch the active branch for a thread
+   */
+  async switchBranch(
+    threadId: string,
+    branchId: string,
+  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
+    return wrapElectronCall(async () => {
+      const result = await window.electronAPI.thread.switchBranch(threadId, branchId);
+      if (result.success && result.thread) {
+        return { success: true, thread: result.thread };
+      }
+      return { success: false, error: result.error || 'Failed to switch branch' };
+    }, 'Failed to switch branch');
+  }
+
+  /**
+   * Delete a branch from a thread
+   */
+  async deleteBranch(
+    threadId: string,
+    branchId: string,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    return wrapElectronCall(async () => {
+      const result = await window.electronAPI.thread.deleteBranch(threadId, branchId);
+      if (result.success) {
+        return { success: true };
+      }
+      return { success: false, error: result.error || 'Failed to delete branch' };
+    }, 'Failed to delete branch');
+  }
+
+  /**
    * Create a variation of a message using new branchId hierarchy
    * @param thread - The thread to create variation in
    * @param originalMessage - The message to create a variation from
+   * @param variationContent - The content for the variation (if different from original)
    */
   async createVariation(
     thread: Thread,
     originalMessage: Message,
+    variationContent?: string,
+    modelId?: string,
   ): Promise<
     | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
   > {
     // Generate next branchId hierarchically from the original message's branchId
-    // E.g., "1.0" -> "1.1", "1.1" -> "1.2"
+    // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
     const messages = await this.getMessages(thread.id);
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
+    const content = variationContent ?? originalMessage.content;
+    // Use provided modelId or fall back to original message's modelId
+    const finalModelId = modelId ?? originalMessage.modelId;
     
-    // Use the original message's content as the variation prompt
+    // Create variation message with new branchId
     const res = await this.appendMessage(thread.id, {
       role: 'user',
-      content: originalMessage.content,
-      metadata: { modelId: originalMessage.modelId },
+      content: content,
+      metadata: { modelId: finalModelId },
       clientMessageId,
       branchId: newBranchId,
     });
@@ -380,11 +418,11 @@ export class ThreadService extends BaseElectronService {
     const message: Message = {
       id: res.message.id,
       role: 'user',
-      content: originalMessage.content,
+      content: content,
       createdAt: res.message.createdAt,
       clientMessageId,
       branchId: newBranchId,
-      modelId: originalMessage.modelId,
+      modelId: finalModelId,
     };
 
     return { success: true, message, newBranchId };

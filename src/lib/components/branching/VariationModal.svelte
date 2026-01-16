@@ -1,15 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Message } from '$lib/types/thread.type';
+  import type { Message, BranchType } from '$lib/types/thread.type';
   import { canCreateVariation } from '$lib/utils/branch-utils';
   import type { ModelDetails } from '../../../../src-electron/preload';
-
-  type VariationType = 'prompt-variation' | 'model-variation';
 
   interface Props {
     originalMessage: Message;
     messages: Message[];
-    onSubmit: (content: string, modelIds: string[]) => void;
+    onSubmit: (content: string, branchType: BranchType, modelIds: string[]) => void;
     onCancel: () => void;
     isSubmitting?: boolean;
     error?: string;
@@ -17,7 +15,7 @@
 
   let {
     originalMessage,
-    messages: _messages,
+    messages,
     onSubmit,
     onCancel,
     isSubmitting = false,
@@ -25,7 +23,7 @@
   }: Props = $props();
 
   let content = $state(originalMessage.content);
-  let variationType = $state<VariationType>('prompt-variation');
+  let branchType = $state<BranchType>('prompt-variation');
   let selectedModelIds = $state<Set<string>>(new Set());
   let models: ModelDetails[] = $state([]);
   let loadingModels = $state(true);
@@ -52,13 +50,13 @@
   // If can't create prompt variation, default to model variation
   $effect(() => {
     if (!canPromptVar && canModelVar) {
-      variationType = 'model-variation';
+      branchType = 'model-variation';
     }
   });
 
   // Clear model selection when switching to prompt variation
   $effect(() => {
-    if (variationType === 'prompt-variation') {
+    if (branchType === 'prompt-variation') {
       selectedModelIds = new Set();
     }
   });
@@ -99,7 +97,7 @@
 
   const canSubmit = $derived(() => {
     if (!content.trim() || isSubmitting) return false;
-    if (variationType === 'model-variation') {
+    if (branchType === 'model-variation') {
       return selectedModelIds.size > 0;
     }
     return true;
@@ -108,11 +106,11 @@
   function handleSubmit() {
     if (!canSubmit()) return;
     
-    if (variationType === 'model-variation') {
+    if (branchType === 'model-variation') {
       const modelAccessNames = getSelectedModels().map(m => m.accessName);
-      onSubmit(content.trim(), modelAccessNames);
+      onSubmit(content.trim(), branchType, modelAccessNames);
     } else {
-      onSubmit(content.trim(), []);
+      onSubmit(content.trim(), branchType, []);
     }
   }
 
@@ -141,18 +139,18 @@
         <div class="type-selector">
           <button
             class="type-btn"
-            class:active={variationType === 'prompt-variation'}
+            class:active={branchType === 'prompt-variation'}
             disabled={!canPromptVar}
-            onclick={() => (variationType = 'prompt-variation')}
+            onclick={() => (branchType = 'prompt-variation')}
             title={canPromptVar ? 'Create prompt variation' : 'Prompt variation already exists'}
           >
             Prompt Variation
           </button>
           <button
             class="type-btn"
-            class:active={variationType === 'model-variation'}
+            class:active={branchType === 'model-variation'}
             disabled={!canModelVar}
-            onclick={() => (variationType = 'model-variation')}
+            onclick={() => (branchType = 'model-variation')}
             title={canModelVar ? 'Create model variation' : 'Maximum model variations reached'}
           >
             Model Variation
@@ -160,7 +158,7 @@
         </div>
       </div>
 
-      {#if variationType === 'model-variation'}
+      {#if branchType === 'model-variation'}
         <div class="field">
           <label for="model-select">Model <span class="required">*</span></label>
           {#if loadingModels}
@@ -250,7 +248,7 @@
           onclick={handleSubmit}
           disabled={!canSubmit()}
         >
-          {isSubmitting ? 'Creating...' : variationType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Variations` : 'Create Variation'}
+          {isSubmitting ? 'Creating...' : branchType === 'model-variation' && selectedModelIds.size > 1 ? `Create ${selectedModelIds.size} Variations` : 'Create Variation'}
         </button>
       </div>
     </div>

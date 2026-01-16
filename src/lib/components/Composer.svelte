@@ -9,9 +9,10 @@
     sendMessage?: (text: string, attachments?: Attachment[]) => Promise<void>;
     isStreaming?: boolean;
     threadId?: string | null;
+    disabled?: boolean;
   }
 
-  let { sendMessage, isStreaming = false, threadId: _threadId = null }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false }: Props = $props();
 
   let text = $state('');
   let selectedFiles = $state<File[]>([]);
@@ -269,9 +270,9 @@
       <textarea
         bind:this={textareaRef}
         bind:value={text}
-        placeholder="Enter a prompt ..."
+        placeholder={disabled ? "Select a branch to continue..." : "Enter a prompt ..."}
         rows={3}
-        disabled={isStreaming}
+        disabled={isStreaming || disabled}
         aria-label="Message input. Press Enter to send, Shift+Enter for new line"
         data-testid="message-input"
         aria-describedby="composer-help-text"
@@ -295,7 +296,7 @@
         type="button"
         class="attach-button"
         onclick={handleFileSelect}
-        disabled={isStreaming}
+        disabled={isStreaming || disabled}
         aria-label="Attach file (Ctrl+U or Cmd+U)"
         title="Attach file (Ctrl+U or Cmd+U)"
       >
@@ -320,9 +321,9 @@
         class="composer-send"
         type="button"
         onclick={send}
-        disabled={isStreaming}
+        disabled={isStreaming || disabled}
         aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-        aria-disabled={isStreaming}
+        aria-disabled={isStreaming || disabled}
         class:sending={isStreaming}
       >
         <svg

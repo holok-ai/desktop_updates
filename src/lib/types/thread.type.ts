@@ -6,6 +6,8 @@ export interface MessageVersion {
   editedAt: number;
 }
 
+export type BranchType = 'prompt-variation' | 'model-variation' | null;
+
 export interface Message {
   id: string;
   clientMessageId?: string;

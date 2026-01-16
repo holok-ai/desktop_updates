@@ -6,7 +6,7 @@
   import { threadService } from '../../lib/services/thread.service';
   import type { Thread } from '../../../src-electron/preload';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import { querystring, replace, push } from 'svelte-spa-router';
+  import { querystring, replace, push, location } from 'svelte-spa-router';
   import ChatPane from '../../lib/components/ChatPane.svelte';
   import Composer from '../../lib/components/Composer.svelte';
   import type { ModelDetails } from '../../../src-electron/preload';
@@ -105,18 +105,16 @@
     };
   });
 
-  // Load threads on mount (async, no cleanup)
-  onMount(async () => {
-    await loadThreads();
-  });
-
-  // Set up querystring subscription (sync, with cleanup)
   onMount(() => {
+    void loadThreads();
+
+    // Set up querystring subscription
     const unsubscribe = querystring.subscribe((qs: string | undefined) => {
       const params = new URLSearchParams(qs ?? '');
 
       // Step 1: Handle project context (with guard to prevent unnecessary updates)
       const projectIdParam = params.get('projectId');
+      const branchIdParam = params.get('branchId');
 
       // Only update if changed to prevent infinite loops
       if (currentProjectId !== projectIdParam) {
@@ -167,7 +165,16 @@
         console.log('[querystring] Found thread in store, loading...');
         const validation = canViewThread(found, currentProjectId);
         if (validation.canView) {
-          void loadThread(found);
+          void (async () => {
+            await loadThread(found);
+            // If branchId is in URL, switch to that branch
+            if (branchIdParam && found.currentBranchId !== branchIdParam) {
+              const result = await threadService.switchBranch(found.id, branchIdParam);
+              if (result.success) {
+                found.currentBranchId = branchIdParam;
+              }
+            }
+          })();
         } else {
           showError(validation.error!);
         }
@@ -188,6 +195,13 @@
           const validation = canViewThread(fetchedThread, currentProjectId);
           if (validation.canView) {
             await selectThread(fetchedThread);
+            // If branchId is in URL, switch to that branch
+            if (branchIdParam && fetchedThread.currentBranchId !== branchIdParam) {
+              const result = await threadService.switchBranch(fetchedThread.id, branchIdParam);
+              if (result.success) {
+                fetchedThread.currentBranchId = branchIdParam;
+              }
+            }
             errorMessage = null;
           } else {
             showError(validation.error!);

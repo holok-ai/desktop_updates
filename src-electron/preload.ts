@@ -224,6 +224,18 @@ export interface ThreadAPI {
     messageId: string,
   ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
 
+  // Switch active branch
+  switchBranch: (
+    threadId: string,
+    branchId: string,
+  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+
+  // Delete a branch
+  deleteBranch: (
+    threadId: string,
+    branchId: string,
+  ) => Promise<{ success: true } | { success: false; error: string }>;
+
   // Telemetry: listen for message.persisted audit events
   onMessagePersisted: (
     callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
@@ -957,6 +969,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     deleteMessagesAfter: (threadId: string, messageId: string) =>
       ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
+
+    switchBranch: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:switchBranch', threadId, branchId),
+
+    deleteBranch: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
 
     onMessagePersisted: (
       callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,

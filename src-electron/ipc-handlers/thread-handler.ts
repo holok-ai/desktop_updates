@@ -668,6 +668,50 @@ export function registerThreadHandlers(): void {
     return ok;
   });
 
+  // Switch active branch
+  ipcMain.handle(
+    'thread:switchBranch',
+    async (_event, threadId: string, branchId: string): Promise<{ success: true; thread: RendererThread } | { success: false; error: string }> => {
+      try {
+        const thread = await threadRepository.switchBranch(threadId, branchId);
+        if (!thread) {
+          return { success: false, error: 'Thread not found' };
+        }
+        const rendererThread = toRendererThread(thread);
+        if (!rendererThread) {
+          return { success: false, error: 'Failed to convert thread' };
+        }
+        broadcast('thread:updated', rendererThread);
+        return { success: true, thread: rendererThread };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
+  // Delete a branch
+  ipcMain.handle(
+    'thread:deleteBranch',
+    async (_event, threadId: string, branchId: string): Promise<{ success: true } | { success: false; error: string }> => {
+      try {
+        threadRepository.deleteBranch(threadId, branchId);
+        // Broadcast thread update after branch deletion
+        const thread = await threadRepository.loadThread(threadId);
+        if (thread) {
+          const rendererThread = toRendererThread(thread);
+          if (rendererThread) {
+            broadcast('thread:updated', rendererThread);
+          }
+        }
+        return { success: true };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    },
+  );
+
   // Append message with idempotency and auth checks (memory approach)
   ipcMain.handle(
     'thread:appendMessage',

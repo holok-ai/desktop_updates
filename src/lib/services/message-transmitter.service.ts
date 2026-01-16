@@ -184,27 +184,19 @@ export class MessageTransmitter {
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
     if (thread !== null && isPermanent) {
-      // Append assistant response to existing thread
-      const metadata = this.extractMessageMetadata(thread);
+      // For existing threads, messages are created locally in chat-handler.
+      // Here we reflect the assistant response in the UI and update user message status.
 
-      // Use branch info from the user message if available
-      // Extract branchId from user message or use thread's current branch
+      // Determine branchId for assistant message
       const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
 
-      const assistantPersist = await threadService.appendMessage(thread.id, {
-        role: 'assistant',
-        content: responseText,
-        metadata,
-        clientMessageId: crypto.randomUUID(),
-        branchId,
-      });
-
+      // Create assistant message locally for the UI
       const assistantMsg: Message = {
-        id: assistantPersist.success ? assistantPersist.message.id : crypto.randomUUID(),
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: responseText,
-        createdAt: assistantPersist.success ? assistantPersist.message.createdAt : Date.now(),
-        status: assistantPersist.success ? MESSAGE_STATUS.SENT : MESSAGE_STATUS.FAILED,
+        createdAt: Date.now(),
+        status: MESSAGE_STATUS.SENT,
         branchId,
         modelId: userMessageObj?.modelId ?? null,
       };
@@ -212,7 +204,7 @@ export class MessageTransmitter {
       this.callbacks.onMessageAdd(assistantMsg);
 
       // Update user message status to SENT after assistant response is received
-      if (userMessageObj?.id !== null && userMessageObj?.id !== undefined && userMessageObj.id !== '') {
+      if (userMessageObj?.id) {
         this.updateMessageStatus(userMessageObj.id, MESSAGE_STATUS.SENT);
       }
     } else {

@@ -8,6 +8,7 @@ import type {
   DesktopThreadDTO,
   MessageDTO,
   CreateThreadRequest,
+  UpdateThreadRequest,
 } from '../services/mokuapi/thread.types.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -79,16 +80,10 @@ export class ThreadRepository {
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
-    // Ensure currentBranchId is set in metadata (defaults to "1.0" for new threads)
-    const metadataWithBranchId = {
-      ...metadata,
-      currentBranchId: (metadata.currentBranchId as string) || '1.0',
-    };
-    
     const request: CreateThreadRequest = {
       title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
       projectId: metadata.projectId as string | null | undefined,
-      metadata: metadataWithBranchId,
+      metadata: metadata,
     };
 
     log.info('[ThreadRepository] Creating thread via API:', request.title);
@@ -971,10 +966,73 @@ export class ThreadRepository {
   }
 
   /**
-   * Convert ThreadDTO from API to DesktopThreadDTO by extracting currentBranchId from metadata.
+   * Switch active branch for a thread
+   */
+  public async switchBranch(threadId: string, branchId: string): Promise<Thread | null> {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) {
+      log.warn('[ThreadRepository] Thread not found for switchBranch:', threadId);
+      return null;
+    }
+
+    // Update current branch in metadata
+    thread.currentBranchId = branchId;
+    thread.metadata = { ...thread.metadata, currentBranchId: branchId };
+    thread.updatedAt = Date.now();
+
+    // Update in API
+    try {
+      const updateRequest: UpdateThreadRequest = {
+        metadata: thread.metadata,
+      };
+      await threadApiService.updateThread(threadId, updateRequest);
+      log.info('[ThreadRepository] Switched to branch:', branchId, 'for thread:', threadId);
+    } catch (error) {
+      log.error('[ThreadRepository] Failed to update branch in API:', error);
+      // Continue anyway - local state is updated
+    }
+
+    // Update cache
+    this.threadsById.set(threadId, thread);
+
+    return this.cloneThread(thread);
+  }
+
+  /**
+   * Delete a branch (removes from local cache only, messages remain in API)
+   */
+  public deleteBranch(threadId: string, branchId: string): void {
+    const thread = this.threadsById.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    // Cannot delete main branch
+    if (branchId === '1.0') {
+      throw new Error('Cannot delete main branch');
+    }
+
+    // Cannot delete currently active branch
+    if (thread.currentBranchId === branchId) {
+      throw new Error('Cannot delete active branch. Switch to another branch first.');
+    }
+
+    // Remove messages from local cache only
+    // Messages remain in API but won't be displayed when thread loads
+    const branchPrefix = `${branchId}.`;
+    thread.messages = thread.messages.filter(
+      (m) => m.branchId !== branchId && !m.branchId.startsWith(branchPrefix),
+    );
+    thread.updatedAt = Date.now();
+
+    this.threadsById.set(threadId, thread);
+    log.info('[ThreadRepository] Deleted branch from cache:', branchId);
+  }
+
+  /**
+   * Convert ThreadDTO from Moku API to DesktopThreadDTO by extracting currentBranchId
    */
   private toDesktopThreadDTO(dto: ThreadDTO): DesktopThreadDTO {
-    // Extract currentBranchId from metadata (stored by desktop when creating/updating threads)
     const currentBranchId = (dto.metadata?.currentBranchId as string) || '1.0';
     return {
       ...dto,
