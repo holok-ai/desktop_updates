@@ -36,7 +36,7 @@
   });
 
   let selectedModel: ModelDetails | null = $state(null);
-  let chooserInitial: { provider: string; id: string } | null = $state(null);
+  let chooserInitial: string | null = $state(null);
   let newThreadPrompt = $state('');
 
   let selectedThread: Thread | null = $state(null);
@@ -129,9 +129,16 @@
         }
       }
 
-      // Step 2: Handle createThread flag
+      // Step 2: Handle createThread flag and agentId
+      const agentIdParam = params.get('agentId');
       if (params.has('createThread')) {
-        console.log('[createThread detected] Stripping flag, preserving projectId:', projectIdParam);
+        console.log('[createThread detected] Stripping flag, preserving projectId and agentId:', projectIdParam, agentIdParam);
+
+        // Set chooserInitial if agentId is provided
+        if (agentIdParam) {
+          chooserInitial = agentIdParam;
+        }
+
         const newParams = new URLSearchParams();
         if (projectIdParam) {
           newParams.set('projectId', projectIdParam);

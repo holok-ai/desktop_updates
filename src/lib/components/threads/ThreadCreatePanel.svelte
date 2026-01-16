@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import ModelChooser from '$lib/components/ModelChooser.svelte';
+  import AgentChooser from '$lib/components/AgentChooser.svelte';
   import type { Thread, ModelDetails } from '../../../../src-electron/preload';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
@@ -12,7 +12,7 @@
   interface Props {
     formData: Thread;
     selectedModel: ModelDetails | null;
-    chooserInitial?: { provider: string; id: string } | null;
+    chooserInitial?: string | null; // agentId instead of provider/id
     newThreadPrompt: string;
   }
 
@@ -76,8 +76,8 @@
   {#snippet form()}
     <form class="add-thread-form" onsubmit={handleSubmit} aria-label="Create New Thread">
       <div class="form-group model-group">
-        <label for="model-select" class="field-label">Model</label>
-        <ModelChooser initialSelection={chooserInitial} on:modelSelected={handleModelSelected} />
+        <label for="agent-select" class="field-label">Agent</label>
+        <AgentChooser initialSelection={chooserInitial} on:modelSelected={handleModelSelected} />
       </div>
 
       <div class="form-group prompt-group">

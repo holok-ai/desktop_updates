@@ -129,6 +129,8 @@
    */
   async function loadApplications(): Promise<void> {
     try {
+      // Reset to empty array before loading to prevent duplicates
+      availableApplications = [];
       availableApplications = await modelService.getAvailableApplications();
     } catch (error) {
       console.error('[Dashboard] Error loading applications:', error);
@@ -140,6 +142,11 @@
    * Initialize dashboard data
    */
   onMount(async () => {
+    // Reset state on mount to prevent stale data
+    availableApplications = [];
+    recentProjects = [];
+    auditData = [];
+    mockInvitations = [];
     isLoading = true;
 
     try {
@@ -183,11 +190,6 @@
           <p>Loading dashboard...</p>
         </div>
       {:else}
-        <!-- Full-width Metrics Section -->
-        <div class="metrics-section">
-          <MetricsChartsSection {auditData} />
-        </div>
-
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
           <ModelListCard {availableApplications} />
@@ -195,6 +197,11 @@
           <InvitationsCard {mockInvitations} />
           <SupportCard />
           <ResourcesCard />
+        </div>
+
+        <!-- Full-width Metrics Section -->
+        <div class="metrics-section">
+          <MetricsChartsSection {auditData} />
         </div>
       {/if}
     </div>
