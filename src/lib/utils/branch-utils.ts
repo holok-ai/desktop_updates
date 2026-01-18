@@ -42,7 +42,8 @@ export function normalizeBranchId(branchId: string): string {
  */
 export function getRowNumber(branchId: string): number {
   const parts = branchId.split('.');
-  const rowNum = parseInt(parts[0] || '0', 10);
+  const firstPart = parts[0] ?? '';
+  const rowNum = parseInt(firstPart !== '' ? firstPart : '0', 10);
   return isNaN(rowNum) ? 0 : rowNum;
 }
 
@@ -411,7 +412,7 @@ export function buildContextFromSelectedBranches(
   }
 
   // Find the first fork point
-  const firstForkPoint = forkPoints[0];
+  const [firstForkPoint] = forkPoints;
   const firstForkPointIndex = messages.findIndex(m => 
     m.branchId === firstForkPoint && m.role === 'user'
   );
@@ -438,7 +439,7 @@ export function buildContextFromSelectedBranches(
       selectedBranchByRow.set(rowNum, branchId);
     } else {
       // Continuation like "4.1.1" -> use base "4.1.0"
-      const baseVariationId = parts.slice(0, 2).join('.') + '.0';
+      const baseVariationId = `${parts.slice(0, 2).join('.')  }.0`;
       selectedBranchByRow.set(rowNum, baseVariationId);
     }
   }
@@ -475,7 +476,7 @@ export function buildContextFromSelectedBranches(
       } else if (msgBasePrefix === basePrefix && msgParts.length >= 3) {
         // Same base prefix means it's a continuation (e.g., "2.1.1" is continuation of "2.1.0")
         selectedBranchMessages.add(msg.id);
-      } else if (normalizedMsgId.startsWith(normalizedId + '.')) {
+      } else if (normalizedMsgId.startsWith(`${normalizedId  }.`)) {
         // Deeper continuations (if any)
         selectedBranchMessages.add(msg.id);
       }
@@ -491,35 +492,29 @@ export function buildContextFromSelectedBranches(
     const msgRowNum = getRowNumber(normalizedMsgId);
     const selectedBranchInRow = selectedBranchByRow.get(msgRowNum);
 
-    if (selectedBranchInRow) {
+    if (selectedBranchInRow !== null && selectedBranchInRow !== undefined && selectedBranchInRow !== '') {
       // This message is in a row with a selected branch
       // Include it only if it belongs to the selected branch (including continuations)
       if (selectedBranchMessages.has(msg.id)) {
         includedMessages.push(msg);
-      } else {
+      } else if (normalizedMsgId === selectedBranchInRow || normalizedMsgId.startsWith(`${selectedBranchInRow  }.`)) {
         // Double-check: if the message's branchId matches the selected branch or is a continuation
         // This handles edge cases where the message might not have been added to selectedBranchMessages
-        if (normalizedMsgId === selectedBranchInRow || normalizedMsgId.startsWith(selectedBranchInRow + '.')) {
-          includedMessages.push(msg);
-        }
+        includedMessages.push(msg);
       }
       // Exclude messages from non-selected branches in the same row
     } else {
       // This message is in a row without any selected branch
       // Check if it's a continuation of a selected branch
-      let isContinuationOfSelected = false;
-      for (const selectedBranchId of selectedBranchIds) {
+      const matchingSelectedBranch = selectedBranchIds.find(selectedBranchId => {
         const normalizedSelectedId = normalizeBranchId(selectedBranchId);
         // Check if normalizedMsgId is a continuation of normalizedSelectedId
         // e.g., selectedBranchId = "2.1.0", msg.branchId = "2.1.1" -> continuation
         // e.g., selectedBranchId = "2.1.0", msg.branchId = "3.0.0" -> not continuation
-        if (normalizedMsgId.startsWith(normalizedSelectedId + '.')) {
-          isContinuationOfSelected = true;
-          break;
-        }
-      }
+        return normalizedMsgId.startsWith(`${normalizedSelectedId  }.`);
+      });
       
-      if (isContinuationOfSelected) {
+      if (matchingSelectedBranch !== undefined) {
         // This is a continuation of a selected branch, include it
         includedMessages.push(msg);
       } else {
@@ -527,14 +522,14 @@ export function buildContextFromSelectedBranches(
         // These should be included (e.g., "3.0.0" when there's no fork at row 3)
         const msgParts = normalizedMsgId.split('.');
         if (msgParts.length === 3 && msgParts[1] === '0' && msgParts[2] === '0') {
-          // Check if this row has a fork point
-          const hasForkInRow = forkPoints.some(fp => {
+          // Check if this row has a fork point - include if no fork exists in this row
+          const forkPointInRow = forkPoints.find(fp => {
             const normalizedFp = normalizeBranchId(fp);
             const fpRowNum = getRowNumber(normalizedFp);
             return fpRowNum === msgRowNum;
           });
           
-          if (!hasForkInRow) {
+          if (forkPointInRow === undefined) {
             // This is a normal sequential message in a row without forks, include it
             includedMessages.push(msg);
           }

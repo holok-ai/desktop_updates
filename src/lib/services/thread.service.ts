@@ -357,7 +357,11 @@ export class ThreadService extends BaseElectronService {
       if (result.success && result.thread) {
         return { success: true, thread: result.thread };
       }
-      return { success: false, error: result.error || 'Failed to switch branch' };
+      if (!result.success) {
+        const errorMessage: string = typeof result.error === 'string' ? result.error : 'Failed to switch branch';
+        return { success: false, error: errorMessage };
+      }
+      return { success: false, error: 'Failed to switch branch' };
     }, 'Failed to switch branch');
   }
 

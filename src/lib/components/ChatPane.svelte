@@ -100,7 +100,7 @@
       // Reset branch selection when switching threads
       activeBranchIndex = null;
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
       hiddenForkPoints = new Set();
       return;
     }
@@ -147,7 +147,7 @@
       // Reset branch selection when switching threads
       activeBranchIndex = null;
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
       hiddenForkPoints = new Set();
     }
   });
@@ -242,7 +242,7 @@
   let sendingBranchIndex = $state<number | null>(null);
   let sendingBranchContextMessageId = $state<string | null>(null);
   // Track when a branch was selected to exclude messages sent from main input after selection
-  let branchSelectionTime = $state<number | null>(null);
+  let _branchSelectionTime = $state<number | null>(null);
 
   async function setActiveBranch(branchIndex: number) {
     if (!currentThread) return;
@@ -253,7 +253,7 @@
     const branchBox = branchBoxes.find(b => b.branchIndex === branchIndex);
     if (!branchBox) {
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
       return;
     }
     
@@ -285,16 +285,16 @@
       selectedBranchContextMessageId = lastMessage.id;
       // Store the timestamp of the last message in the branch when selected
       // Messages sent after this (from main input) should appear in main area, not branch box
-      branchSelectionTime = lastMessage.createdAt;
+      _branchSelectionTime = lastMessage.createdAt;
     } else if (branchBox.assistantMessage) {
       selectedBranchContextMessageId = branchBox.assistantMessage.id;
-      branchSelectionTime = branchBox.assistantMessage.createdAt;
+      _branchSelectionTime = branchBox.assistantMessage.createdAt;
     } else if (branchBox.userMessage) {
       selectedBranchContextMessageId = branchBox.userMessage.id;
-      branchSelectionTime = branchBox.userMessage.createdAt;
+      _branchSelectionTime = branchBox.userMessage.createdAt;
     } else {
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
     }
   }
 
@@ -415,7 +415,7 @@
   });
 
   // Helper function to get all messages in a branch using branchId
-  function getAllMessagesInBranch(branchId: string): Message[] {
+  function _getAllMessagesInBranch(branchId: string): Message[] {
     return getBranchMessages(messages, branchId);
   }
 
@@ -862,7 +862,7 @@
   });
 
   // Split messages into before and after fork point
-  const messagesBeforeFork = $derived.by(() => {
+  const _messagesBeforeFork = $derived.by(() => {
     if (!firstForkPointId) {
       // No fork point, show all non-excluded messages
       return messages.filter((m) => !excludedMessageIds.has(m.id));
@@ -872,7 +872,7 @@
     return messages.slice(0, forkPointIndex).filter((m) => !excludedMessageIds.has(m.id));
   });
 
-  const messagesAfterFork = $derived.by(() => {
+  const _messagesAfterFork = $derived.by(() => {
     if (!firstForkPointId) return [];
     const forkPointIndex = messages.findIndex((m) => m.id === firstForkPointId);
     if (forkPointIndex < 0) return [];
@@ -1633,7 +1633,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        branchSelectionTime = null;
+        _branchSelectionTime = null;
         
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
@@ -1671,7 +1671,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        branchSelectionTime = null;
+        _branchSelectionTime = null;
 
         // Generate responses for all created variations sequentially
         // This ensures each variation gets its own token stream without conflicts

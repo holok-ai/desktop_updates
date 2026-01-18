@@ -15,7 +15,7 @@
 
   let {
     originalMessage,
-    messages,
+    messages: _messages,
     onSubmit,
     onCancel,
     isSubmitting = false,

@@ -59,6 +59,7 @@
                 <button
                   class="chevron-button"
                   onclick={() => toggleApplication(application.id)}
+                  aria-label={application.expanded ? 'Collapse' : 'Expand'}
                 >
                   <i
                     class="pi pi-chevron-down"
