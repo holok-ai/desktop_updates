@@ -5,6 +5,7 @@
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/install-chat-service.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -101,6 +102,7 @@
     "prettier": "3.6.2",
     "prettier-plugin-svelte": "3.4.0",
     "retire": "^5.1.0",
+    "rollup-plugin-visualizer": "^6.0.5",
     "secretlint": "^11.2.5",
     "snyk": "^1.1300.2",
     "svelte": "^5.43.0",

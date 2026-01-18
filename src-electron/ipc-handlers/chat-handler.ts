@@ -1,13 +1,9 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import { ChatService, type ToolUseNotification } from '../services/chat/ChatService.js';
-import type {
-  ChatRequest,
-  ChatRequestWithOptions,
-} from '../services/chat/interfaces/ChatMessage.js';
-import type { ProviderConfig } from '../services/chat/factories/ChatProviderFactory.js';
+import type { ProviderConfig } from '@holokai/chat-component';
+import { DesktopChatService, ToolOrchestrator } from '../services/chat/index.js';
+import type { DesktopChatRequest, ToolStatus } from '../services/chat/index.js';
 import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
-import { threadRepository } from '../repository/thread-repository.js';
 import log from 'electron-log';
 
 /**
@@ -16,7 +12,7 @@ import log from 'electron-log';
  * Manages ChatService lifecycle and streaming token responses.
  */
 
-let chatService: ChatService | null = null;
+let chatService: DesktopChatService | null = null;
 let authService: AuthService | null = null;
 
 /**
@@ -56,8 +52,18 @@ export function registerChatHandlers(auth?: AuthService): void {
         const settingsService = getSettingsService();
         const allowedPaths = settingsService.getDirectoryWhitelist();
 
-        chatService = new ChatService(providerType, config, true, allowedPaths);
-        log.info('[IPC] Chat service created successfully with whitelist', {
+        // Create ToolOrchestrator for file tools
+        const toolOrchestrator = new ToolOrchestrator(undefined, allowedPaths);
+
+        // Create DesktopChatService with tool support
+        const newConfig: ProviderConfig = {
+          url: (config as any).url || '', // Will use default if empty
+          apiKey: config.apiKey || '',
+          model: config.model
+        };
+        chatService = new DesktopChatService(providerType, newConfig, toolOrchestrator);
+
+        log.info('[IPC] DesktopChatService created successfully with tool support', {
           whitelistCount: allowedPaths.length,
         });
         return { success: true };
@@ -76,7 +82,7 @@ export function registerChatHandlers(auth?: AuthService): void {
     'chat:send',
     async (
       event: IpcMainInvokeEvent,
-      request: ChatRequest,
+      request: DesktopChatRequest,
     ): Promise<{ success: boolean; error?: string }> => {
       log.info('[IPC] chat:send called');
 
@@ -87,46 +93,29 @@ export function registerChatHandlers(auth?: AuthService): void {
       }
 
       try {
-        await chatService.chat(request, (token: string) => {
-          // Send streaming tokens back to renderer
-          event.sender.send('chat:token', token);
-        });
+        await chatService.chat(
+          request,
+          (token: string) => {
+            // Send streaming tokens back to renderer
+            event.sender.send('chat:token', token);
+          },
+          (toolName, input, notification) => {
+            // Send tool use events back to renderer
+            event.sender.send('chat:toolUse', {
+              toolName,
+              input,
+              ...notification,
+            });
+          },
+          (status: ToolStatus) => {
+            // Send tool status events back to renderer
+            event.sender.send('chat:toolStatus', status);
+          }
+        );
         log.info('[IPC] Chat message sent successfully');
         return { success: true };
       } catch (error) {
         log.error('[IPC] Error sending chat message:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-      }
-    },
-  );
-
-  /**
-   * Send Chat Message with Options - Send message with additional options and streaming
-   */
-  ipcMain.handle(
-    'chat:sendWithOptions',
-    async (
-      event: IpcMainInvokeEvent,
-      request: ChatRequestWithOptions,
-    ): Promise<{ success: boolean; error?: string }> => {
-      log.info('[IPC] chat:sendWithOptions called');
-
-      if (!chatService) {
-        const errorMessage = 'Chat service not initialized. Call createProvider first.';
-        log.error('[IPC]', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      try {
-        await chatService.chatWithOptions(request, (token: string) => {
-          // Send streaming tokens back to renderer
-          event.sender.send('chat:token', token);
-        });
-        log.info('[IPC] Chat message with options sent successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('[IPC] Error sending chat message with options:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
       }
@@ -154,129 +143,6 @@ export function registerChatHandlers(auth?: AuthService): void {
       throw error;
     }
   });
-
-  /**
-   * Send Chat Message with File Tools - Send message with file tools enabled and streaming
-   */
-  ipcMain.handle(
-    'chat:sendWithFileTools',
-    async (
-      event: IpcMainInvokeEvent,
-      request: ChatRequest,
-      workingDirectory?: string,
-    ): Promise<{ success: boolean; error?: string }> => {
-      log.info('[IPC] chat:sendWithFileTools called');
-
-      if (!chatService) {
-        const errorMessage = 'Chat service not initialized. Call createProvider first.';
-        log.error('[IPC]', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      try {
-        if (workingDirectory) {
-          chatService.setFileToolsWorkingDirectory(workingDirectory);
-        }
-
-        // Parse thread_id to extract threadId and branchId
-        let threadId: string | undefined;
-        let branchId: string | undefined;
-        
-        if (request.thread_id) {
-          // Parse format: "threadId" or "threadId,branch_id=branchId"
-          const commaIndex = request.thread_id.indexOf(',branch_id=');
-          if (commaIndex > 0) {
-            threadId = request.thread_id.substring(0, commaIndex);
-            branchId = request.thread_id.substring(commaIndex + ',branch_id='.length) || request.branch_id;
-          } else {
-            threadId = request.thread_id;
-            branchId = request.branch_id;
-          }
-        }
-
-        // Determine if this request is for a variation branch.
-        // Main path branches look like "1.0", "2.0", etc.
-        // Any other pattern (e.g. "2.1.0", "2.2.0") is treated as a variation.
-        const isVariation =
-          !!branchId && !/^\d+\.0$/.test(branchId);
-
-        // Create user message locally if thread_id is provided.
-        // Skip for variations – those user messages are created explicitly via createVariation.
-        if (threadId && request.messages.length > 0 && !isVariation) {
-          const lastMessage = request.messages[request.messages.length - 1];
-          if (lastMessage.role === 'user') {
-            try {
-              await threadRepository.appendMessageLocal(threadId, {
-                role: 'user',
-                content: lastMessage.content,
-                branchId: branchId,
-                clientMessageId: crypto.randomUUID(),
-              });
-              log.info('[IPC] Created user message locally for thread:', threadId, 'branchId:', branchId);
-            } catch (err) {
-              log.warn('[IPC] Failed to create user message locally, continuing:', err);
-            }
-          }
-        }
-
-        await chatService.chatWithFileTools(
-          request,
-          (token: string) => {
-            // Send streaming tokens back to renderer
-            event.sender.send('chat:token', token);
-          },
-          (toolName: string, input: unknown, notification?: ToolUseNotification) => {
-            // Send tool use notifications back to renderer, including stage/result payload
-            event.sender.send('chat:toolUse', {
-              toolName,
-              input,
-              ...notification,
-            });
-          },
-          (status) => {
-            // Send tool status notifications back to renderer (for UI feedback)
-            event.sender.send('chat:toolStatus', status);
-          },
-        );
-        
-        // Assistant message will be created locally by handleAssistantResponse in the frontend
-        // after streaming completes and response text is accumulated
-        
-        log.info('[IPC] Chat message with file tools sent successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('[IPC] Error sending chat message with file tools:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-      }
-    },
-  );
-
-  /**
-   * Set File Tools Working Directory - Configure working directory for file tools
-   */
-  ipcMain.handle(
-    'chat:setFileToolsWorkingDirectory',
-    (_event, dir: string): { success: boolean; error?: string } => {
-      log.info('[IPC] chat:setFileToolsWorkingDirectory called', { dir });
-
-      if (!chatService) {
-        const errorMessage = 'Chat service not initialized. Call createProvider first.';
-        log.error('[IPC]', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      try {
-        chatService.setFileToolsWorkingDirectory(dir);
-        log.info('[IPC] File tools working directory set successfully');
-        return { success: true };
-      } catch (error) {
-        log.error('[IPC] Error setting file tools working directory:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-      }
-    },
-  );
 
   /**
    * Destroy Chat Service - Clean up current chat service instance
@@ -319,9 +185,6 @@ export function registerChatHandlers(auth?: AuthService): void {
 export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:createProvider');
   ipcMain.removeHandler('chat:send');
-  ipcMain.removeHandler('chat:sendWithOptions');
-  ipcMain.removeHandler('chat:sendWithFileTools');
-  ipcMain.removeHandler('chat:setFileToolsWorkingDirectory');
   ipcMain.removeHandler('chat:getAuditLogs');
   ipcMain.removeHandler('chat:destroy');
   ipcMain.removeHandler('chat:close');

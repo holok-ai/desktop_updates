@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ToolDefinition, ToolResult } from '../../../src-electron/services/file-tools.service';
+import type { ToolDefinition, ToolResult } from '../../../src-electron/services/tool-calling/file-tools.service';
 
 async function* streamChatChunks() {
   yield { choices: [{ delta: { content: 'p1' } }] };

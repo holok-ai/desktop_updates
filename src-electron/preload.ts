@@ -1,9 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type {
-  ChatRequest,
-  ChatRequestWithOptions,
-} from './services/chat/interfaces/ChatMessage.js';
-import type { ProviderConfig } from './services/chat/factories/ChatProviderFactory.js';
+import type { DesktopChatRequest, DesktopChatMessage } from './services/chat/index.js';
+import type { ProviderConfig } from '@holokai/chat-component';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
@@ -515,21 +512,7 @@ export interface ChatAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Send a chat message (with streaming support)
-  chat: (request: ChatRequest) => Promise<{ success: boolean; error?: string }>;
-
-  // Send a chat message with advanced options
-  chatWithOptions: (
-    request: ChatRequestWithOptions,
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  // Send a chat message with file tools enabled
-  chatWithFileTools: (
-    request: ChatRequest,
-    workingDirectory?: string,
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  // Set working directory for file tools
-  setFileToolsWorkingDirectory: (dir: string) => Promise<{ success: boolean; error?: string }>;
+  chat: (request: DesktopChatRequest) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
   onToken: (callback: (token: string) => void) => void;
@@ -714,7 +697,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:createProvider', providerType, config),
 
     // 2. Send a chat message (with streaming support)
-    chat: (request: ChatRequest) => ipcRenderer.invoke('chat:send', request),
+    chat: (request: DesktopChatRequest) => ipcRenderer.invoke('chat:send', request),
 
     // 3. Listen for streaming tokens (event-based)
     onToken: (callback: (token: string) => void) => {
@@ -735,19 +718,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 6. Cleanup/close the provider
     close: () => ipcRenderer.invoke('chat:close'),
 
-    // 7. Optional: Chat with advanced options
-    chatWithOptions: (request: ChatRequestWithOptions) =>
-      ipcRenderer.invoke('chat:sendWithOptions', request),
-
-    // 8. Chat with file tools enabled
-    chatWithFileTools: (request: ChatRequest, workingDirectory?: string) =>
-      ipcRenderer.invoke('chat:sendWithFileTools', request, workingDirectory),
-
-    // 9. Set working directory for file tools
-    setFileToolsWorkingDirectory: (dir: string) =>
-      ipcRenderer.invoke('chat:setFileToolsWorkingDirectory', dir),
-
-    // 10. Listen for tool use events
+    // 7. Listen for tool use events
     onToolUse: (callback: (data: ToolUseEventPayload) => void): (() => void) => {
       const subscription = (_event: IpcRendererEvent, data: ToolUseEventPayload): void =>
         callback(data);
@@ -1185,3 +1156,9 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
+
+/**
+ * Re-export chat types for frontend use
+ * This allows frontend components to import these types directly from preload
+ */
+export type { DesktopChatRequest, DesktopChatMessage } from './services/chat/index.js';
