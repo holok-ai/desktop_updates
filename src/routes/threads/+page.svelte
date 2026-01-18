@@ -105,6 +105,22 @@
     };
   });
 
+  // Listen for thread updates and sync selectedThread if it's the current thread
+  // Use onMount to register listener once, not in $effect which would recreate it on every selectedThread change
+  onMount(() => {
+    const unsubUpdated = window.electronAPI.thread.onThreadUpdated((updatedThread: Thread) => {
+      // Only update if this is the currently selected thread
+      if (selectedThread && updatedThread.id === selectedThread.id) {
+        console.log('[+page] Thread updated, syncing selectedThread:', updatedThread.id);
+        selectedThread = updatedThread;
+      }
+    });
+    
+    return () => {
+      if (unsubUpdated) unsubUpdated();
+    };
+  });
+
   onMount(() => {
     void loadThreads();
 
@@ -607,7 +623,7 @@
     />
   {:else}
     {#if selectedThread}
-      <ThreadBreadcrumb thread={selectedThread} />
+      <ThreadBreadcrumb thread={selectedThread} {messages} />
     {/if}
     <div class="threads-grid">
       <div class="w-full">
@@ -616,9 +632,9 @@
           thread={selectedThread}
           bind:messages
         >
-          {#snippet composer({ sendMessage, isStreaming })}
+          {#snippet composer({ sendMessage, isStreaming, disabled })}
             {#if selectedThread}
-              <Composer {sendMessage} {isStreaming} threadId={selectedThread.id} />
+              <Composer {sendMessage} {isStreaming} {disabled} threadId={selectedThread.id} />
             {/if}
           {/snippet}
         </ChatPane>

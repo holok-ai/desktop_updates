@@ -23,6 +23,30 @@ export function parseBranchId(branchId: string): { parts: string[]; depth: numbe
 }
 
 /**
+ * Normalize branchId to always use x.x.x format
+ * E.g., "2.0" -> "2.0.0", "2.1.0" -> "2.1.0", "2.1.1" -> "2.1.1"
+ */
+export function normalizeBranchId(branchId: string): string {
+  const parts = branchId.split('.');
+  if (parts.length === 2) {
+    // Convert "x.x" to "x.x.0"
+    return `${parts[0]}.${parts[1]}.0`;
+  }
+  // Already in x.x.x format or longer
+  return branchId;
+}
+
+/**
+ * Get the row number from a branchId (first number)
+ * E.g., "2.0" -> 2, "2.1.0" -> 2, "3.0" -> 3
+ */
+export function getRowNumber(branchId: string): number {
+  const parts = branchId.split('.');
+  const rowNum = parseInt(parts[0] || '0', 10);
+  return isNaN(rowNum) ? 0 : rowNum;
+}
+
+/**
  * Check if branchId is a variation of baseBranchId
  * E.g., "1.0.1" is a variation of "1.0"
  */
@@ -35,19 +59,21 @@ export function isVariationOf(branchId: string, baseBranchId: string): boolean {
  * E.g., for "1.0", get all "1.0.1", "1.0.2", etc.
  */
 export function getVariationsForBranch(messages: Message[], baseBranchId: string): Message[] {
-  // Parse baseBranchId (e.g., "2.0" -> baseNum = 2)
-  const baseParts = baseBranchId.split('.');
+  // Normalize baseBranchId to x.x.x format
+  const normalizedBase = normalizeBranchId(baseBranchId);
+  const baseParts = normalizedBase.split('.');
   const [baseNum] = baseParts;
   
-  // Find all variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0" for base "2.0")
+  // Find all variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0" for base "2.0.0")
   const candidates = messages.filter((m) => {
-    const parts = m.branchId.split('.');
+    const normalizedId = normalizeBranchId(m.branchId);
+    const parts = normalizedId.split('.');
     // Must be exactly 3 parts: baseNum.X.0
     if (parts.length !== 3) {
       return false;
     }
-    // First part must match base number, last part must be "0"
-    if (parts[0] !== baseNum || parts[2] !== '0') {
+    // First part must match base number, last part must be "0", middle part must be > 0
+    if (parts[0] !== baseNum || parts[2] !== '0' || parts[1] === '0') {
       return false;
     }
     // Middle part must be a valid number > 0
@@ -116,7 +142,10 @@ export function assembleContext(messages: Message[], messageId: string): Message
  */
 export function getMainBranchPath(messages: Message[]): Message[] {
   return messages
-    .filter((m) => m.branchId === '1.0')
+    .filter((m) => {
+      const normalizedId = normalizeBranchId(m.branchId);
+      return normalizedId === '1.0.0' || normalizedId.startsWith('1.0.0.');
+    })
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -127,12 +156,13 @@ export function getForkPoints(messages: Message[]): string[] {
   const forkPoints = new Set<string>();
   
   for (const message of messages) {
-    const parts = message.branchId.split('.');
+    const normalizedId = normalizeBranchId(message.branchId);
+    const parts = normalizedId.split('.');
     // Variation branches use format: "<base>.<variation>.0", e.g. "2.1.0"
-    // Treat the base "<base>.0" (e.g. "2.0") as the fork point.
-    if (parts.length === 3 && parts[2] === '0') {
+    // Treat the base "<base>.0.0" (e.g. "2.0.0") as the fork point.
+    if (parts.length === 3 && parts[2] === '0' && parts[1] !== '0') {
       const [baseNum] = parts;
-      const parentBranchId = `${baseNum}.0`;
+      const parentBranchId = `${baseNum}.0.0`;
       forkPoints.add(parentBranchId);
     }
   }
@@ -210,11 +240,13 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
  * @returns The next branchId in the same branch hierarchy
  */
 export function getNextBranchIdInBranch(currentBranchId: string, messages: Message[]): string {
-  const parts = currentBranchId.split('.');
+  // Normalize to x.x.x format first
+  const normalizedId = normalizeBranchId(currentBranchId);
+  const parts = normalizedId.split('.');
   const [baseNum, variationNum, lastPart] = parts;
   
-  // If it's a main branch (X.0), continue with X.0.1, X.0.2, etc. (NOT X.1, X.2 which are variations)
-  if (parts.length === 2 && parts[1] === '0') {
+  // If it's a main branch (X.0.0), continue with X.0.1, X.0.2, etc. (NOT X.1.0, X.2.0 which are variations)
+  if (parts.length === 3 && parts[1] === '0' && parts[2] === '0') {
     // Find all existing continuations in this branch (X.0.1, X.0.2, etc.)
     // These are continuations, not variations (variations would be X.1.0, X.2.0)
     const existingIndices: number[] = [];
@@ -242,7 +274,7 @@ export function getNextBranchIdInBranch(currentBranchId: string, messages: Messa
   }
   
   // If it's a variation branch (X.Y.0), continue with X.Y.1, X.Y.2, etc.
-  if (parts.length === 3 && parts[2] === '0') {
+  if (parts.length === 3 && parts[2] === '0' && parts[1] !== '0') {
     // Find all existing continuations in this variation branch (X.Y.1, X.Y.2, etc.)
     const existingIndices: number[] = [];
     for (const m of messages) {
@@ -287,13 +319,14 @@ export function getNextBranchIdInBranch(currentBranchId: string, messages: Messa
  * @returns The next sequential branchId (e.g., "2.0", "3.0")
  */
 export function getNextSequentialBranchId(messages: Message[]): string {
-  // Find all top-level branchIds (those matching pattern "N.0" where N is a number)
+  // Find all top-level branchIds (those matching pattern "N.0.0" where N is a number)
+  // Also normalize any "N.0" format to "N.0.0" for compatibility
   const topLevelBranchIds = messages
-    .map(m => m.branchId)
+    .map(m => normalizeBranchId(m.branchId))
     .filter(bid => {
       const parts = bid.split('.');
-      // Must be exactly 2 parts, second part must be "0"
-      return parts.length === 2 && parts[1] === '0';
+      // Must be exactly 3 parts: N.0.0
+      return parts.length === 3 && parts[1] === '0' && parts[2] === '0';
     })
     .map(bid => {
       const [firstPart] = bid.split('.');
@@ -306,7 +339,7 @@ export function getNextSequentialBranchId(messages: Message[]): string {
   const maxNum = topLevelBranchIds.length > 0 ? Math.max(...topLevelBranchIds) : 0;
   const nextNum = maxNum + 1;
   
-  return `${nextNum}.0`;
+  return `${nextNum}.0.0`;
 }
 
 /**
@@ -354,4 +387,163 @@ export function getBranchBoxes(messages: Message[], forkBranchId: string): Array
   }
   
   return boxes;
+}
+
+/**
+ * Build context from multiple selected branches
+ * Includes all messages from selected branches and excludes non-selected branches from same rows
+ */
+export function buildContextFromSelectedBranches(
+  messages: Message[],
+  selectedBranchIds: string[],
+): Message[] {
+  if (selectedBranchIds.length === 0) {
+    // No selected branches, return all messages (main branch)
+    return messages;
+  }
+
+  // Get all fork points
+  const forkPoints = getForkPoints(messages);
+  
+  if (forkPoints.length === 0) {
+    // No forks, return all messages
+    return messages;
+  }
+
+  // Find the first fork point
+  const firstForkPoint = forkPoints[0];
+  const firstForkPointIndex = messages.findIndex(m => 
+    m.branchId === firstForkPoint && m.role === 'user'
+  );
+
+  // Get all messages before the first fork point
+  const messagesBeforeFirstFork = firstForkPointIndex >= 0 
+    ? messages.slice(0, firstForkPointIndex)
+    : [];
+
+  // Build a map of row number -> selected branch ID
+  // If multiple branches in same row, keep the last one (shouldn't happen per requirements, but handle it)
+  const selectedBranchByRow = new Map<number, string>();
+  for (const branchId of selectedBranchIds) {
+    const rowNum = getRowNumber(branchId);
+    // For main branches (X.0), store as-is
+    // For variations (X.Y.0), store the variation ID
+    // For continuations (X.Y.Z), store the base variation (X.Y.0)
+    const parts = branchId.split('.');
+    if (parts.length === 2 && parts[1] === '0') {
+      // Main branch like "4.0"
+      selectedBranchByRow.set(rowNum, branchId);
+    } else if (parts.length === 3 && parts[2] === '0') {
+      // Variation like "4.1.0"
+      selectedBranchByRow.set(rowNum, branchId);
+    } else {
+      // Continuation like "4.1.1" -> use base "4.1.0"
+      const baseVariationId = parts.slice(0, 2).join('.') + '.0';
+      selectedBranchByRow.set(rowNum, baseVariationId);
+    }
+  }
+
+  // Collect all messages from selected branches (including continuations)
+  const selectedBranchMessages = new Set<string>();
+  for (const branchId of selectedBranchIds) {
+    // Normalize branchId to x.x.x format
+    const normalizedId = normalizeBranchId(branchId);
+    
+    // Get all messages in this branch (ancestors)
+    const branchMessages = getBranchMessages(messages, normalizedId);
+    for (const msg of branchMessages) {
+      selectedBranchMessages.add(msg.id);
+    }
+    
+    // Also include continuations of this branch (e.g., "2.1.0" -> include "2.1.1", "2.1.2", etc.)
+    // For continuations, we need to check if the message's branchId starts with the base prefix
+    // For "2.1.0", continuations are "2.1.1", "2.1.2", etc. which all start with "2.1."
+    const normalizedParts = normalizedId.split('.');
+    const basePrefix = normalizedParts.slice(0, 2).join('.'); // e.g., "2.1" for "2.1.0"
+    
+    for (const msg of messages) {
+      const normalizedMsgId = normalizeBranchId(msg.branchId);
+      const msgParts = normalizedMsgId.split('.');
+      const msgBasePrefix = msgParts.slice(0, 2).join('.'); // e.g., "2.1" for "2.1.1"
+      
+      // Include if:
+      // 1. Exact match (normalized or original)
+      // 2. Continuation: same base prefix (e.g., "2.1.0" and "2.1.1" both have base "2.1")
+      // 3. Starts with normalizedId + "." (for deeper continuations like "2.1.0.1" if that format exists)
+      if (msg.branchId === branchId || normalizedMsgId === normalizedId) {
+        selectedBranchMessages.add(msg.id);
+      } else if (msgBasePrefix === basePrefix && msgParts.length >= 3) {
+        // Same base prefix means it's a continuation (e.g., "2.1.1" is continuation of "2.1.0")
+        selectedBranchMessages.add(msg.id);
+      } else if (normalizedMsgId.startsWith(normalizedId + '.')) {
+        // Deeper continuations (if any)
+        selectedBranchMessages.add(msg.id);
+      }
+    }
+  }
+
+  // Collect all messages to include
+  const includedMessages: Message[] = [...messagesBeforeFirstFork];
+
+  // Process messages after the first fork point
+  for (const msg of messages.slice(firstForkPointIndex >= 0 ? firstForkPointIndex : 0)) {
+    const normalizedMsgId = normalizeBranchId(msg.branchId);
+    const msgRowNum = getRowNumber(normalizedMsgId);
+    const selectedBranchInRow = selectedBranchByRow.get(msgRowNum);
+
+    if (selectedBranchInRow) {
+      // This message is in a row with a selected branch
+      // Include it only if it belongs to the selected branch (including continuations)
+      if (selectedBranchMessages.has(msg.id)) {
+        includedMessages.push(msg);
+      } else {
+        // Double-check: if the message's branchId matches the selected branch or is a continuation
+        // This handles edge cases where the message might not have been added to selectedBranchMessages
+        if (normalizedMsgId === selectedBranchInRow || normalizedMsgId.startsWith(selectedBranchInRow + '.')) {
+          includedMessages.push(msg);
+        }
+      }
+      // Exclude messages from non-selected branches in the same row
+    } else {
+      // This message is in a row without any selected branch
+      // Check if it's a continuation of a selected branch
+      let isContinuationOfSelected = false;
+      for (const selectedBranchId of selectedBranchIds) {
+        const normalizedSelectedId = normalizeBranchId(selectedBranchId);
+        // Check if normalizedMsgId is a continuation of normalizedSelectedId
+        // e.g., selectedBranchId = "2.1.0", msg.branchId = "2.1.1" -> continuation
+        // e.g., selectedBranchId = "2.1.0", msg.branchId = "3.0.0" -> not continuation
+        if (normalizedMsgId.startsWith(normalizedSelectedId + '.')) {
+          isContinuationOfSelected = true;
+          break;
+        }
+      }
+      
+      if (isContinuationOfSelected) {
+        // This is a continuation of a selected branch, include it
+        includedMessages.push(msg);
+      } else {
+        // Check if this is a normal sequential message (X.0.0 format) that's not part of any fork
+        // These should be included (e.g., "3.0.0" when there's no fork at row 3)
+        const msgParts = normalizedMsgId.split('.');
+        if (msgParts.length === 3 && msgParts[1] === '0' && msgParts[2] === '0') {
+          // Check if this row has a fork point
+          const hasForkInRow = forkPoints.some(fp => {
+            const normalizedFp = normalizeBranchId(fp);
+            const fpRowNum = getRowNumber(normalizedFp);
+            return fpRowNum === msgRowNum;
+          });
+          
+          if (!hasForkInRow) {
+            // This is a normal sequential message in a row without forks, include it
+            includedMessages.push(msg);
+          }
+          // If there's a fork in this row but no selected branch, exclude it
+        }
+      }
+    }
+  }
+
+  // Sort by creation time to maintain order
+  return includedMessages.sort((a, b) => a.createdAt - b.createdAt);
 }
