@@ -8,9 +8,14 @@
     cancel: void;
   }>();
 
-  let newTitle = $state(currentTitle);
+  let newTitle = $state('');
   let isSubmitting = $state(false);
-  
+
+  // Sync newTitle when currentTitle prop changes
+  $effect(() => {
+    newTitle = currentTitle;
+  });
+
   const isValid = $derived(newTitle.trim().length > 0 && newTitle.trim() !== currentTitle);
 
   async function handleSubmit(e: Event): Promise<void> {

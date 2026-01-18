@@ -4,7 +4,9 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [
+    svelte(),
+  ],
   base: './',
   server: {
     port: 5177,
@@ -16,6 +18,12 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
+      },
+      output: {
+        manualChunks: {
+          'chart': ['chart.js'],
+          'highlight': ['highlight.js'],
+        },
       },
     },
   },

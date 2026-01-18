@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   FileToolsService,
   type ToolResult,
-} from '../../../src-electron/services/file-tools.service';
+} from '../../../src-electron/services/tool-calling/file-tools.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';

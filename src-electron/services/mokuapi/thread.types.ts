@@ -34,7 +34,7 @@ export interface MessageDTO {
   id: string;
   threadId: string;
   branchId?: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1") - may be in options.branch_id
-  branchIndex?: number; // Legacy field
+ //  branchIndex?: number; // Legacy field
   isClosed?: boolean;
   model?: string;
   provider?: string;

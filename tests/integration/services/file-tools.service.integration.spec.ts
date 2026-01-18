@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { FileToolsService } from '../../../src-electron/services/file-tools.service';
+import { FileToolsService } from '../../../src-electron/services/tool-calling/file-tools.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';

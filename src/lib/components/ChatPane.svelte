@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
-  import type { Thread } from '../../../src-electron/preload';
+  import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
   import { outboxService } from '$lib/services/outbox.service';
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
@@ -1006,18 +1006,19 @@
       
       setupTokenListener();
 
-      // Format thread_id with branch_id: "threadId,branch_id=branchId"
-      const threadData: string | undefined = currentThread?.id
-        ? `${currentThread.id},branch_id=${branchId}`
-        : undefined;
-      const request = {
-        messages: [...historyMessages, { role: 'user', content: userMessage }],
+      // Build messages array - only add new user message if not skipping creation
+      const requestMessages = skipUserMessageCreation
+        ? historyMessages  // Use existing messages (for auto-send of initial prompt)
+        : [...historyMessages, { role: 'user', content: userMessage }];  // Add new user message
+
+      const request: DesktopChatRequest = {
+        messages: requestMessages,
         streaming: true,
         model: modelName,
-        ...(currentThread?.id && { thread_id: threadData }),
-        branch_id: branchId,
+        ...(currentThread?.id && { thread_guid: currentThread.id }),  // Pass raw thread ID
+        branch_id: branchId,  // DesktopChatService will format with formatThreadId()
       };
-      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_id, 'branchId:', branchId);
+      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_guid, 'branchId:', branchId);
 
       // Send user message (message will be created locally when chat is called)
       // Only send if we actually created an optimistic user message
@@ -1025,8 +1026,8 @@
         await transmitter.sendUserMessage(userMsg, thread, isOnline, branchId);
       }
 
-      // Use chatWithFileTools for all requests - tools are invisible to user
-      const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
+      // Use chat for all requests - tools are invisible to user
+      const result = await window.electronAPI.chat.chat(request) as { success: boolean; error?: string };
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -1137,15 +1138,15 @@
 
       isStreaming = true;
       setupTokenListener();
-      const request = {
+      const request: DesktopChatRequest = {
         messages: historyMessages,
         streaming: true,
         model: modelName,
-        ...(currentThread?.id && { thread_id: currentThread.id }),
+        ...(currentThread?.id && { thread_guid: currentThread.id }),
       };
 
-      // Use chatWithFileTools for all requests - tools are invisible to user
-      const chatResult = await window.electronAPI.chat.chatWithFileTools(request);
+      // Use chat for all requests - tools are invisible to user
+      const chatResult = await window.electronAPI.chat.chat(request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -1415,24 +1416,24 @@
       const threadData: string | undefined = currentThread?.id
         ? `${currentThread.id},branch_id=${branchKey}`
         : undefined;
-      
-      const request = {
+
+      const request: DesktopChatRequest = {
         messages: historyMessages,
         streaming: true,
         model: modelToUse,
-        ...(currentThread?.id && { thread_id: threadData }),
+        ...(currentThread?.id && { thread_guid: threadData }),
         branch_id: branchKey,
       };
 
       console.log('[generateResponseForVariation] Final request for variation:', {
-        thread_id: request.thread_id,
+        thread_id: request.thread_guid,
         branch_id: request.branch_id,
         messages: request.messages,
       });
 
-      // Use chatWithFileTools for variations (same as normal messages)
+      // Use chat for variations (same as normal messages)
       // The backend will persist both user and assistant messages when branch_id is included
-      const result = await window.electronAPI.chat.chatWithFileTools(request) as { success: boolean; error?: string };
+      const result = await window.electronAPI.chat.chat(request) as { success: boolean; error?: string };
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -1486,8 +1487,8 @@
     await transmitter.processPendingMessages(thread, map, {
       setupTokenListener,
       getResponseText: () => responseText,
-      // Use chatWithFileTools for all requests - tools are invisible to user
-      chat: (request) => window.electronAPI.chat.chatWithFileTools(request),
+      // Use chat for all requests - tools are invisible to user
+      chat: (request) => window.electronAPI.chat.chat(request),
       setStreaming: (streaming) => {
         isStreaming = streaming;
       },

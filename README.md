@@ -303,6 +303,53 @@ npm run build:prod
 npm run package
 ```
 
+## Bundle Size Analysis
+
+To analyze and optimize bundle size:
+
+1. **Install the visualizer plugin:**
+
+   ```bash
+   npm install --save-dev rollup-plugin-visualizer
+   ```
+
+2. **Add to vite.config.ts:**
+
+   ```typescript
+   import { visualizer } from 'rollup-plugin-visualizer';
+
+   export default defineConfig({
+     plugins: [
+       svelte(),
+       visualizer({
+         open: true,
+         gzipSize: true,
+         brotliSize: true,
+         filename: 'dist/stats.html',
+       }),
+     ],
+     // ... rest of config
+   });
+   ```
+
+3. **Build the project:**
+
+   ```bash
+   npm run build
+   ```
+
+4. **View the analysis:**
+
+   The visualizer will automatically open `dist/stats.html` in your browser, showing:
+   - Interactive treemap of bundle contents
+   - Size of each module and dependency
+   - Gzip and Brotli compressed sizes
+   - Identify opportunities for code splitting or optimization
+
+5. **Remove when done:**
+
+   Remove the visualizer import and plugin from vite.config.ts to keep production builds clean.
+
 ## Available Scripts
 
 - `npm run dev` - Start Vite dev server (browser mode)

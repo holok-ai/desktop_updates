@@ -3,86 +3,23 @@ import log from 'electron-log';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type {
+  ToolDefinition,
+  ToolStatus,
+  ToolStatusCallback,
+  ToolResult,
+  FolderEntry,
+  ReadFolderResult,
+  ReadFileResult,
+  WriteFileParams,
+  WriteFileResult,
+} from './tool-types.js';
 
 /**
  * File Tools Service
  * Provides local file system access tools for LLMs with security restrictions.
  * Enables LLMs to read folder contents and file contents during conversations.
  */
-
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  input_schema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required: string[];
-  };
-}
-
-export interface ToolResult {
-  success: boolean;
-  data?: ReadFolderResult | ReadFileResult | WriteFileResult;
-  error?: string;
-}
-
-export interface FolderEntry {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  size: number;
-  modified: number;
-  extension?: string;
-}
-
-export interface ReadFolderResult {
-  path: string;
-  entries: FolderEntry[];
-  total_files: number;
-  total_directories: number;
-}
-
-export interface ReadFileResult {
-  path: string;
-  content: string;
-  metadata: {
-    size: number;
-    lines: number;
-    modified: number;
-    encoding: string;
-  };
-  truncated: boolean;
-}
-
-export interface WriteFileParams {
-  path: string;
-  content: string;
-  overwrite?: boolean;
-  encoding?: 'utf-8' | 'ascii' | 'latin1';
-}
-
-export interface WriteFileResult {
-  path: string;
-  created: boolean;
-  bytesWritten: number;
-  metadata: {
-    size: number;
-    modified: number;
-    encoding: string;
-    previousSize?: number;
-  };
-}
-
-/**
- * Tool status for UI feedback during long operations
- */
-export interface ToolStatus {
-  toolName: string;
-  state: 'in_progress' | 'complete';
-  message?: string;
-}
-
-export type ToolStatusCallback = (status: ToolStatus) => void;
 
 export class FileToolsService {
   private workingDirectory: string;
@@ -108,102 +45,6 @@ export class FileToolsService {
     });
   }
 
-  /**
-   * Get tool definitions in LLM-compatible format (Anthropic/OpenAI)
-   */
-  public getToolDefinitions(): ToolDefinition[] {
-    return [
-      {
-        name: 'read_folder',
-        description:
-          'List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Path to the folder (can be relative to working directory or absolute)',
-            },
-            recursive: {
-              type: 'boolean',
-              description: 'If true, list subdirectories recursively. Default: false',
-            },
-            max_depth: {
-              type: 'integer',
-              description: 'Maximum recursion depth when recursive is true. Default: 3',
-            },
-            include_hidden: {
-              type: 'boolean',
-              description: 'Include hidden files (starting with .). Default: false',
-            },
-            filter_extensions: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Only include files with these extensions (e.g., [".js", ".ts"])',
-            },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: 'read_file',
-        description:
-          'Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            file_path: {
-              type: 'string',
-              description: 'Path to the file (can be relative to working directory or absolute)',
-            },
-            encoding: {
-              type: 'string',
-              enum: ['utf-8', 'ascii', 'latin1'],
-              description: 'Text encoding. Default: utf-8',
-            },
-            start_line: {
-              type: 'integer',
-              description: 'Read from this line number (1-indexed). Useful for large files.',
-            },
-            end_line: {
-              type: 'integer',
-              description: 'Read to this line number (1-indexed). Useful for large files.',
-            },
-          },
-          required: ['file_path'],
-        },
-      },
-      {
-        name: 'write_file',
-        description:
-          'Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            path: {
-              type: 'string',
-              description: 'Path to the file (can be relative to working directory or absolute)',
-            },
-            content: {
-              type: 'string',
-              description: 'The content to write to the file.',
-            },
-            overwrite: {
-              type: 'boolean',
-              description:
-                'This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE.',
-            },
-            encoding: {
-              type: 'string',
-              enum: ['utf-8', 'ascii', 'latin1'],
-              description: 'Text encoding. Default: utf-8',
-            },
-          },
-          required: ['path', 'content'],
-        },
-      },
-    ];
-  }
 
   /**
    * Set the callback for tool status updates
@@ -216,10 +57,29 @@ export class FileToolsService {
   /**
    * Emit a tool status event if callback is set
    */
-  private emitStatus(toolName: string, state: 'in_progress' | 'complete', message?: string): void {
+  public emitStatus(toolName: string, state: 'in_progress' | 'complete', message?: string): void {
     if (this.statusCallback) {
       this.statusCallback({ toolName, state, message });
     }
+  }
+
+  /**
+   * Getters for properties needed by tools
+   */
+  public getMaxFileSize(): number {
+    return this.maxFileSize;
+  }
+
+  public getMaxFolderFiles(): number {
+    return this.maxFolderFiles;
+  }
+
+  public getStatusDelayMs(): number {
+    return FileToolsService.STATUS_DELAY_MS;
+  }
+
+  public getLargeFileSize(): number {
+    return FileToolsService.LARGE_FILE_SIZE;
   }
 
   /**
@@ -617,7 +477,7 @@ export class FileToolsService {
   /**
    * Recursively read directory entries
    */
-  private async readDirectoryRecursive(
+  public async readDirectoryRecursive(
     dirPath: string,
     recursive: boolean,
     maxDepth: number,
@@ -687,7 +547,7 @@ export class FileToolsService {
    * Resolve user-provided path to absolute path
    * Supports relative paths, absolute paths, and tilde expansion
    */
-  private resolvePath(userPath: string): string {
+  public resolvePath(userPath: string): string {
     if (userPath.startsWith('~')) {
       userPath = path.join(app.getPath('home'), userPath.slice(1));
     }
@@ -719,7 +579,7 @@ export class FileToolsService {
    * Check if a path is allowed with detailed reason
    * @returns Object with allowed status and reason for denial
    */
-  private checkPathAccess(absolutePath: string): {
+  public checkPathAccess(absolutePath: string): {
     allowed: boolean;
     reason?: 'blacklist' | 'whitelist';
   } {
@@ -752,14 +612,14 @@ export class FileToolsService {
    * - If allowedPaths is configured, the path must be within one of the allowed paths
    * - The path must NOT be in the blacklist
    */
-  private isPathAllowed(absolutePath: string): boolean {
+  public isPathAllowed(absolutePath: string): boolean {
     return this.checkPathAccess(absolutePath).allowed;
   }
 
   /**
    * Check if a file is a text file based on extension
    */
-  private isTextFile(filePath: string): boolean {
+  public isTextFile(filePath: string): boolean {
     const textExts = new Set([
       '.txt',
       '.md',
