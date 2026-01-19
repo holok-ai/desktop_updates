@@ -7,6 +7,7 @@ export class ModelRepository {
   private readonly apps: ApplicationSummary[] = [];
   private readonly models: ModelDetails[] = [];
   private holoApiUrl: string = '';
+  private isRefreshing: boolean = false;
 
   public getModel(modelId: string): ModelDetails | undefined {
     return this.models.find((m) => m.id === modelId);
@@ -59,6 +60,13 @@ export class ModelRepository {
    * Called automatically after successful login
    */
   public async refreshModels(): Promise<void> {
+    // Prevent concurrent refresh calls
+    if (this.isRefreshing) {
+      log.info('[ModelRepository] Refresh already in progress, skipping');
+      return;
+    }
+
+    this.isRefreshing = true;
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
         const settingsService = getSettingsService();
@@ -75,7 +83,6 @@ export class ModelRepository {
       // Fetch application details for each application and extract models
       for (const app of applications) {
         try {
-          log.info(`[ModelRepository] Fetching details for application: ${app.name}`);
           const appDetail = await mokuService.getApplicationDetail(app.id);
           const agentDetail = await mokuService.getAgentDetail(app.id); 
 
@@ -90,12 +97,9 @@ export class ModelRepository {
             url: agentUrl,
             models: []
           };
-          appSummary.models = []; 
-          log.info(
-                `[ModelRepository] Added app: ${appSummary.title} (${appSummary.provider}) at ${appSummary.url}`,
-              );
+          appSummary.models = [];
 
-              // Extract models from application detail
+          // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
             for (const model of appDetail.models) {
               const modelDetails: ModelDetails = {
@@ -107,10 +111,7 @@ export class ModelRepository {
                 url: (agentDetail ? agentDetail.url : '')
               };
               this.models.push(modelDetails);
-              appSummary.models?.push(modelDetails); 
-              log.info(
-                `[ModelRepository] Added model: ${model.name} (${model.accessModel}) from ${agentDetail.provider}`,
-              );
+              appSummary.models?.push(modelDetails);
             }
           }
           this.apps.push(appSummary); 
@@ -145,6 +146,8 @@ export class ModelRepository {
     } catch (error) {
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
       // Don't throw - allow application to continue even if model refresh fails
+    } finally {
+      this.isRefreshing = false;
     }
   }
 

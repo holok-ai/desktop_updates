@@ -1,8 +1,57 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { marked } from 'marked';
-  import hljs from 'highlight.js';
+  import hljs from 'highlight.js/lib/core';
+  // Import only the languages we actually use
+  import python from 'highlight.js/lib/languages/python';
+  import javascript from 'highlight.js/lib/languages/javascript';
+  import typescript from 'highlight.js/lib/languages/typescript';
+  import java from 'highlight.js/lib/languages/java';
+  import csharp from 'highlight.js/lib/languages/csharp';
+  import cpp from 'highlight.js/lib/languages/cpp';
+  import c from 'highlight.js/lib/languages/c';
+  import php from 'highlight.js/lib/languages/php';
+  import ruby from 'highlight.js/lib/languages/ruby';
+  import go from 'highlight.js/lib/languages/go';
+  import rust from 'highlight.js/lib/languages/rust';
+  import swift from 'highlight.js/lib/languages/swift';
+  import kotlin from 'highlight.js/lib/languages/kotlin';
+  import scala from 'highlight.js/lib/languages/scala';
+  import xml from 'highlight.js/lib/languages/xml'; // for html and xml
+  import css from 'highlight.js/lib/languages/css';
+  import sql from 'highlight.js/lib/languages/sql';
+  import bash from 'highlight.js/lib/languages/bash';
+  import powershell from 'highlight.js/lib/languages/powershell';
+  import json from 'highlight.js/lib/languages/json';
+  import yaml from 'highlight.js/lib/languages/yaml';
+  import markdown from 'highlight.js/lib/languages/markdown';
   import DOMPurify from 'dompurify';
+
+  // Register only the languages we need
+  hljs.registerLanguage('python', python);
+  hljs.registerLanguage('javascript', javascript);
+  hljs.registerLanguage('typescript', typescript);
+  hljs.registerLanguage('java', java);
+  hljs.registerLanguage('csharp', csharp);
+  hljs.registerLanguage('cpp', cpp);
+  hljs.registerLanguage('c', c);
+  hljs.registerLanguage('php', php);
+  hljs.registerLanguage('ruby', ruby);
+  hljs.registerLanguage('go', go);
+  hljs.registerLanguage('rust', rust);
+  hljs.registerLanguage('swift', swift);
+  hljs.registerLanguage('kotlin', kotlin);
+  hljs.registerLanguage('scala', scala);
+  hljs.registerLanguage('html', xml);
+  hljs.registerLanguage('xml', xml);
+  hljs.registerLanguage('css', css);
+  hljs.registerLanguage('sql', sql);
+  hljs.registerLanguage('bash', bash);
+  hljs.registerLanguage('shell', bash);
+  hljs.registerLanguage('powershell', powershell);
+  hljs.registerLanguage('json', json);
+  hljs.registerLanguage('yaml', yaml);
+  hljs.registerLanguage('markdown', markdown);
 
   interface Props {
     content: string;
@@ -16,6 +65,14 @@
   // Configure marked with custom renderer for code blocks
   function configureMarked() {
     const renderer = new marked.Renderer();
+
+    // Common languages to consider for auto-detection (in priority order)
+    const commonLanguages = [
+      'python', 'javascript', 'typescript', 'java', 'csharp', 'cpp', 'c',
+      'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'scala',
+      'html', 'css', 'sql', 'bash', 'shell', 'powershell',
+      'json', 'yaml', 'xml', 'markdown'
+    ];
 
     // Custom code block renderer with syntax highlighting and copy button
     renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
@@ -32,7 +89,7 @@
           console.error('Highlight.js error:', e);
           // Fallback to auto-detect if specified language fails
           try {
-            const result = hljs.highlightAuto(code);
+            const result = hljs.highlightAuto(code, commonLanguages);
             highlighted = result.value;
             detectedLang = result.language || 'plaintext';
             isInferred = true;
@@ -43,9 +100,9 @@
           }
         }
       } else {
-        // Auto-detect language
+        // Auto-detect language using common languages subset
         try {
-          const result = hljs.highlightAuto(code);
+          const result = hljs.highlightAuto(code, commonLanguages);
           highlighted = result.value;
           detectedLang = result.language || 'plaintext';
           isInferred = true;

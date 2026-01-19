@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ToolDefinition } from '../../../src-electron/services/file-tools.service';
+import type { ToolDefinition } from '../../../src-electron/services/tool-calling/file-tools.service';
 
 describe('OllamaChatProvider', () => {
   beforeEach(() => {

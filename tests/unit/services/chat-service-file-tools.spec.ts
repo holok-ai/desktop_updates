@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { ChatRequest } from '../../../src-electron/services/chat/interfaces/ChatMessage';
 import type { ToolUse } from '../../../src-electron/services/chat/interfaces/IChatProvider';
-import type { ToolDefinition, ToolResult } from '../../../src-electron/services/file-tools.service';
+import type { ToolDefinition, ToolResult } from '../../../src-electron/services/tool-calling/file-tools.service';
 
 // Mock FileToolsService
 vi.mock('../../../src-electron/services/file-tools.service', () => {

@@ -126,6 +126,62 @@ export class ThreadRepository {
     return this.cloneThread(toSave);
   }
 
+  /**
+   * Filter out duplicate audit records from tool-loop continuations.
+   * When a chat request uses tools, the audit service records:
+   * 1. Initial request with user message
+   * 2. Continuation request(s) with tool results
+   *
+   * This function keeps only the initial request and filters out continuations,
+   * which are identified by having the same content and branch_id as a previous message.
+   */
+  private deduplicateToolLoopMessages(messageDTOs: MessageDTO[]): MessageDTO[] {
+    const seen = new Map<string, MessageDTO>();
+    const filtered: MessageDTO[] = [];
+
+    for (const dto of messageDTOs) {
+      // Only deduplicate user messages (tool continuations appear as user messages with tool results)
+      if (dto.role !== 'user') {
+        filtered.push(dto);
+        continue;
+      }
+
+      const branchId = dto.options?.branch_id || dto.branchId || '1.0';
+      const key = `${dto.content}:${branchId}`;
+
+      // Check if we've seen this exact user message on this branch before
+      if (seen.has(key)) {
+        const existing = seen.get(key)!;
+
+        // Keep the earlier timestamp (initial request, not continuation)
+        const existingTime = new Date(existing.createdAt).getTime();
+        const currentTime = new Date(dto.createdAt).getTime();
+
+        if (currentTime < existingTime) {
+          // Current is earlier, replace the existing one
+          const index = filtered.indexOf(existing);
+          if (index !== -1) {
+            filtered[index] = dto;
+          }
+          seen.set(key, dto);
+        }
+        // else: Existing is earlier, skip current (it's a tool continuation)
+      } else {
+        // First time seeing this message
+        seen.set(key, dto);
+        filtered.push(dto);
+      }
+    }
+
+    log.info('[ThreadRepository] Deduplication:', {
+      original: messageDTOs.length,
+      filtered: filtered.length,
+      removed: messageDTOs.length - filtered.length
+    });
+
+    return filtered;
+  }
+
   public async loadThread(threadId: string): Promise<Thread | null> {
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
@@ -138,25 +194,14 @@ export class ThreadRepository {
         log.info('[ThreadRepository] Thread has no messages, fetching from API');
         try {
           const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-          log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
           log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
 
-          messagesResponse.content.forEach((dto, index) => {
-            const contentPreview = typeof dto.content === 'string'
-              ? dto.content.substring(0, 100)
-              : JSON.stringify(dto.content).substring(0, 100);
-            log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
-          });
+          // Deduplicate tool-loop continuation messages
+          const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
-          cachedThread.messages = messagesResponse.content.map((dto) =>
+          cachedThread.messages = dedupedMessages.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
-
-          log.info('[ThreadRepository] Mapped messages:', cachedThread.messages.length);
-          cachedThread.messages.forEach((msg, index) => {
-            const contentPreview = msg.content.substring(0, 100);
-            log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
-          });
 
           this.threadsById.set(threadId, cachedThread);
           log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
@@ -184,25 +229,14 @@ export class ThreadRepository {
       // Fetch messages for the thread
       log.info('[ThreadRepository] Fetching messages for thread:', threadId);
       const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-      log.info('[ThreadRepository] API response:', JSON.stringify(messagesResponse, null, 2));
       log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
 
-      messagesResponse.content.forEach((dto, index) => {
-        const contentPreview = typeof dto.content === 'string'
-          ? dto.content.substring(0, 100)
-          : JSON.stringify(dto.content).substring(0, 100);
-        log.info(`[ThreadRepository] DTO ${index}: id=${dto.id}, role=${dto.role}, contentType=${typeof dto.content}, contentPreview="${contentPreview}"`);
-      });
+      // Deduplicate tool-loop continuation messages
+      const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
-      thread.messages = messagesResponse.content.map((dto) =>
+      thread.messages = dedupedMessages.map((dto) =>
         this.mapDTOToMessage(dto, thread.title),
       );
-
-      log.info('[ThreadRepository] Mapped messages:', thread.messages.length);
-      thread.messages.forEach((msg, index) => {
-        const contentPreview = msg.content.substring(0, 100);
-        log.info(`[ThreadRepository] Mapped ${index}: id=${msg.id}, role=${msg.role}, contentLength=${msg.content.length}, contentPreview="${contentPreview}"`);
-      });
 
       // Update cache
       this.threadsById.set(thread.id, thread);
@@ -1136,8 +1170,6 @@ export class ThreadRepository {
       // Normalize to x.x.x format
       branchId = this.normalizeBranchId(branchId);
     }
-
-    log.info(`[ThreadRepository] Mapping message ${dto.id}: branchId=${branchId}, role=${dto.role}, contentLength=${dto.content.length}`);
 
     return {
       id: dto.id,

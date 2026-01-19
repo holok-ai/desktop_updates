@@ -4,7 +4,7 @@ import type { MessageStatus } from '$lib/types/status.type';
 import type { Message } from '$lib/types/thread.type';
 import { outboxService } from './outbox.service';
 import { threadService } from './thread.service';
-import type { Thread } from '../../../src-electron/preload';
+import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
 
 export interface MessageUpdate {
   messageId: string;
@@ -260,11 +260,7 @@ export class MessageTransmitter {
     chatHandler: {
       setupTokenListener: () => void;
       getResponseText: () => string;
-      chat: (request: {
-        messages: Array<{ role: string; content: string }>;
-        streaming: boolean;
-        model: string;
-      }) => Promise<{ success: boolean; error?: string }>;
+      chat: (request: DesktopChatRequest) => Promise<{ success: boolean; error?: string }>;
       setStreaming: (streaming: boolean) => void;
       offToken: () => void;
     },
