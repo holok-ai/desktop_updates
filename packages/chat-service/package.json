@@ -1,0 +1,22 @@
+{
+  "name": "@holokai/chat-component",
+  "private": false,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./holokai-chat-service.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./holokai-chat-service.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.50.4",
+    "marked": "^15.0.11",
+    "ollama": "^0.5.15",
+    "openai": "^4.98.0",
+    "prismjs": "^1.30.0"
+  }
+}
