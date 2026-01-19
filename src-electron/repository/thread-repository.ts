@@ -186,27 +186,53 @@ export class ThreadRepository {
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
-      log.info('[ThreadRepository] Thread found in cache:', threadId, 'with', cachedThread.messages.length, 'messages');
+      log.info(
+        '[ThreadRepository] Thread found in cache (refreshing messages from API):',
+        threadId,
+        'with',
+        cachedThread.messages.length,
+        'cached messages',
+      );
 
-      // If thread is in cache but has no messages, we need to load them from API
-      // This happens when listThreads() cached the thread without messages
-      if (cachedThread.messages.length === 0) {
-        log.info('[ThreadRepository] Thread has no messages, fetching from API');
-        try {
-          const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-          log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+      // Always refresh messages from API to avoid stale state after external updates (e.g. Moku chat)
+      // This ensures that getMessages() sees newly created messages even if the thread is cached.
+      // However, if API returns empty but cache has messages, use cached messages (local-only messages not yet synced)
+      const cachedMessagesCount = cachedThread.messages.length;
+      try {
+        const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+        log.info(
+          '[ThreadRepository] Received',
+          messagesResponse.content.length,
+          'message DTOs from API for cached thread',
+        );
 
-          // Deduplicate tool-loop continuation messages
-          const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
+        // Deduplicate tool-loop continuation messages
+        const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
+        // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
+        if (dedupedMessages.length > 0) {
           cachedThread.messages = dedupedMessages.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
-
           this.threadsById.set(threadId, cachedThread);
-          log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
-        } catch (error) {
-          log.error('[ThreadRepository] Failed to load messages for cached thread:', error);
+          log.info(
+            '[ThreadRepository] Refreshed',
+            cachedThread.messages.length,
+            'messages for cached thread',
+          );
+        } else if (cachedMessagesCount > 0) {
+          // API returned empty but cache has messages - keep cached messages (likely local-only)
+          log.info(
+            '[ThreadRepository] API returned empty, keeping',
+            cachedMessagesCount,
+            'cached messages (likely local-only not yet synced)',
+          );
+        }
+      } catch (error) {
+        log.error('[ThreadRepository] Failed to refresh messages for cached thread:', error);
+        // On error, keep cached messages if they exist
+        if (cachedMessagesCount > 0) {
+          log.info('[ThreadRepository] Keeping cached messages due to API error');
         }
       }
 

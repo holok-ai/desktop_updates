@@ -400,6 +400,8 @@
     if (forkPointBranchIds.length === 0) return null;
     
     // Find the earliest fork point message by finding the first user message with each fork branchId
+    // Note: forkPointBranchIds are in format "1.0" (2 parts), but messages may have "1.0.0" (3 parts)
+    // So we need to match messages that start with the fork branchId
     const forkPointMessages = forkPointBranchIds
       .map(branchId => messages.find(m => {
         const normalizedMsgId = normalizeBranchId(m.branchId);
@@ -447,8 +449,15 @@
       });
       if (!parent) continue;
 
-    // Get all variations of this branch using branchId
-    const variationChildren = getVariationsForBranch(messages, parent.branchId);
+    // Get the base branchId for variations (e.g., "1.0.0" -> "1.0")
+    // getVariationsForBranch expects 2-part format like "1.0"
+    const parentBranchIdParts = parent.branchId.split('.');
+    const baseBranchId = parentBranchIdParts.length >= 2 
+      ? `${parentBranchIdParts[0]}.${parentBranchIdParts[1]}` 
+      : parent.branchId;
+
+    // Get all variations of this branch using base branchId
+    const variationChildren = getVariationsForBranch(messages, baseBranchId);
     
     // Include the parent (original branch) and all variations
     const userBranches = [parent, ...variationChildren];
@@ -1324,7 +1333,7 @@
 
     if (branchIndexToUse !== null) {
       // Get modelId from the branch's user message
-      const branchBox = branchBoxes.find(b => b.branchIndex === branchIndexToUse);
+      const branchBox = branchBoxes.find((b) => b.branchIndex === branchIndexToUse);
       if (branchBox) {
         modelId = branchBox.userMessage.modelId ?? null;
       }
@@ -1360,14 +1369,62 @@
       
       // If sending from a branch, set up branch-specific streaming
       if (sendingBranchIndex !== null) {
-        const branchBox = branchBoxes.find(b => b.branchIndex === sendingBranchIndex);
+        const branchBox = branchBoxes.find((b) => b.branchIndex === sendingBranchIndex);
         if (branchBox) {
           const branchKey = branchBox.userMessage.branchId;
           streamingBranchIndex = branchKey;
           streamingTextByBranch.set(branchKey, '');
         }
       }
-      
+
+      // Resolve model/provider/url to use for this send
+      let modelToUse = modelName;
+      let providerToUse = modelProvider;
+      let urlToUse = modelUrl;
+
+      // If this branch has a specific modelId (model variation), prefer it
+      if (modelId) {
+        try {
+          const allModels = await window.electronAPI.models.listAll();
+          const modelDetails = allModels.find((m) => m.accessName === modelId);
+          if (modelDetails) {
+            modelToUse = modelDetails.accessName;
+            providerToUse = modelDetails.provider;
+            urlToUse = modelDetails.url;
+          }
+        } catch (err) {
+          console.error('[ChatPane] Failed to get model details for sendMessage:', err);
+          // Fall back to thread-level model if lookup fails
+        }
+      }
+
+      // Ensure chat service is initialized for the resolved model
+      const modelIsDifferent =
+        modelToUse !== modelName ||
+        providerToUse !== modelProvider ||
+        urlToUse !== modelUrl;
+
+      const configMatches =
+        currentProviderConfig &&
+        currentProviderConfig.provider === providerToUse &&
+        currentProviderConfig.url === urlToUse &&
+        currentProviderConfig.model === modelToUse;
+
+      if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+        const initSuccess = await initializeChatService({
+          provider: providerToUse,
+          url: urlToUse,
+          model: modelToUse,
+        });
+
+        if (!initSuccess) {
+          error = error || 'Chat service not initialized';
+          console.error('[ChatPane] Chat service not initialized for sendMessage');
+          isStreaming = false;
+          return;
+        }
+      }
+
       setupTokenListener();
 
       // Build messages array - only add new user message if not skipping creation
@@ -1378,7 +1435,7 @@
       const request: DesktopChatRequest = {
         messages: requestMessages,
         streaming: true,
-        model: modelName,
+        model: modelToUse,
         ...(currentThread?.id && { thread_guid: currentThread.id }),  // Pass raw thread ID
         branch_id: branchId,  // DesktopChatService will format with formatThreadId()
       };
@@ -1641,13 +1698,18 @@
       } else {
         // For multiple models, create one variation per selected model
         const createdMessages: Message[] = [];
+        // Fetch current messages once to use for all variations (avoids race conditions)
+        const currentMessages = await threadService.getMessages(currentThread.id);
         
         for (const modelId of modelIds) {
+          // Pass currentMessages including previously created variations in this batch
+          const messagesForBranchId = [...currentMessages, ...createdMessages];
           const result = await threadService.createVariation(
             currentThread,
             messageForVariation,
             content, // Pass the variation content from the modal
             modelId, // Pass the specific modelId for this variation
+            messagesForBranchId, // Pass current messages to avoid duplicate branch IDs
           );
 
           if (!result.success) {

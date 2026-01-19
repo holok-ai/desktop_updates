@@ -386,19 +386,24 @@ export class ThreadService extends BaseElectronService {
    * @param thread - The thread to create variation in
    * @param originalMessage - The message to create a variation from
    * @param variationContent - The content for the variation (if different from original)
+   * @param modelId - Optional model ID for the variation
+   * @param currentMessages - Optional current messages array to use instead of fetching from backend
+   *                         (useful when creating multiple variations to avoid race conditions)
    */
   async createVariation(
     thread: Thread,
     originalMessage: Message,
     variationContent?: string,
     modelId?: string,
+    currentMessages?: Message[],
   ): Promise<
     | { success: true; message: Message; newBranchId: string }
     | { success: false; error: string }
   > {
     // Generate next branchId hierarchically from the original message's branchId
     // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
-    const messages = await this.getMessages(thread.id);
+    // Use provided messages if available (for multiple variations), otherwise fetch from backend
+    const messages = currentMessages ?? await this.getMessages(thread.id);
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();

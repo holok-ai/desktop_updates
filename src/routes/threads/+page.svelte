@@ -585,6 +585,7 @@
         console.log('[handleSave] Navigating to thread:', created.id);
 
         // Navigate - querystring subscription will load the thread
+        // loadThread() will fetch fresh from backend to ensure messages are loaded
         await replace(`${ROUTE.THREADS}?${params.toString()}`);
         console.log('[handleSave] Navigation complete');
       });
