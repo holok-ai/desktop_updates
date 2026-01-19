@@ -58,6 +58,8 @@ export interface ThreadMetadata {
   model?: string;
   /** History of title changes for audit and undo functionality */
   titleHistory?: TitleHistoryEntry[];
+  /** Array of selected branch IDs (one per row) */
+  selectedBranchIds?: string[];
   [key: string]: unknown;
 }
 
@@ -302,7 +304,7 @@ export class ThreadRepository {
     return this.appendMessage(threadId, {
       role,
       content,
-      branchId: thread.currentBranchId,
+      branchId: this.normalizeBranchId(thread.currentBranchId),
     });
   }
 
@@ -350,7 +352,8 @@ export class ThreadRepository {
 
     // Create message locally (no API call)
     const now = Date.now();
-    const branchId = payload.branchId ?? thread.currentBranchId;
+    const rawBranchId = payload.branchId ?? thread.currentBranchId;
+    const branchId = this.normalizeBranchId(rawBranchId);
     const message: Message = {
       id: crypto.randomUUID(), // Generate local ID
       title: thread.title,
@@ -467,7 +470,7 @@ export class ThreadRepository {
     const message = await this.appendMessage(tid, {
       role: 'user',
       content: prompt,
-      branchId: thread.currentBranchId,
+      branchId: this.normalizeBranchId(thread.currentBranchId),
     });
     
     const updatedThread = await this.loadThread(tid);
@@ -994,9 +997,32 @@ export class ThreadRepository {
     const thread = this.threadsById.get(threadId);
     if (!thread) return [];
     return thread.messages
-      .filter((m) => m.branchId === '1.0')
+      .filter((m) => {
+        const normalizedId = this.normalizeBranchId(m.branchId);
+        return normalizedId === '1.0.0' || normalizedId.startsWith('1.0.0.');
+      })
       .map((m) => ({ ...m }))
       .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  /**
+   * Get the row number from a branchId (first number)
+   * E.g., "2.0" -> 2, "2.1.0" -> 2, "3.0" -> 3
+   */
+  private normalizeBranchId(branchId: string): string {
+    const parts = branchId.split('.');
+    if (parts.length === 2) {
+      // Convert "x.x" to "x.x.0"
+      return `${parts[0]}.${parts[1]}.0`;
+    }
+    // Already in x.x.x format or longer
+    return branchId;
+  }
+
+  private getRowNumber(branchId: string): number {
+    const parts = branchId.split('.');
+    const rowNum = parseInt(parts[0] || '0', 10);
+    return isNaN(rowNum) ? 0 : rowNum;
   }
 
   /**
@@ -1009,9 +1035,32 @@ export class ThreadRepository {
       return null;
     }
 
+    // Normalize branchId to x.x.x format
+    const normalizedBranchId = this.normalizeBranchId(branchId);
+
     // Update current branch in metadata
-    thread.currentBranchId = branchId;
-    thread.metadata = { ...thread.metadata, currentBranchId: branchId };
+    thread.currentBranchId = normalizedBranchId;
+    thread.metadata = { ...thread.metadata, currentBranchId: normalizedBranchId };
+
+    // Manage selectedBranchIds array (normalize all to x.x.x format)
+    const selectedBranchIds = Array.isArray(thread.metadata.selectedBranchIds) 
+      ? thread.metadata.selectedBranchIds.map(id => this.normalizeBranchId(id))
+      : [];
+    
+    const newRowNumber = this.getRowNumber(normalizedBranchId);
+    
+    // Remove any existing selected branch from the same row
+    const filteredBranchIds = selectedBranchIds.filter(existingBranchId => {
+      const existingRowNumber = this.getRowNumber(existingBranchId);
+      return existingRowNumber !== newRowNumber;
+    });
+    
+    // Add the new branch if it's not already in the array
+    if (!filteredBranchIds.includes(normalizedBranchId)) {
+      filteredBranchIds.push(normalizedBranchId);
+    }
+    
+    thread.metadata.selectedBranchIds = filteredBranchIds;
     thread.updatedAt = Date.now();
 
     // Update in API
@@ -1042,7 +1091,8 @@ export class ThreadRepository {
     }
 
     // Cannot delete main branch
-    if (branchId === '1.0') {
+    const normalizedBranchId = this.normalizeBranchId(branchId);
+    if (normalizedBranchId === '1.0.0' || normalizedBranchId.startsWith('1.0.0.')) {
       throw new Error('Cannot delete main branch');
     }
 
@@ -1067,7 +1117,8 @@ export class ThreadRepository {
    * Convert ThreadDTO from Moku API to DesktopThreadDTO by extracting currentBranchId
    */
   private toDesktopThreadDTO(dto: ThreadDTO): DesktopThreadDTO {
-    const currentBranchId = (dto.metadata?.currentBranchId as string) || '1.0';
+    const rawBranchId = (dto.metadata?.currentBranchId as string) || '1.0.0';
+    const currentBranchId = this.normalizeBranchId(rawBranchId);
     return {
       ...dto,
       currentBranchId,
@@ -1080,6 +1131,8 @@ export class ThreadRepository {
    * Preserves custom metadata from API (including model configuration).
    */
   private mapDTOToThread(dto: DesktopThreadDTO): Thread {
+    // Normalize currentBranchId to x.x.x format
+    const normalizedBranchId = this.normalizeBranchId(dto.currentBranchId || '1.0.0');
     return {
       id: dto.id,
       title: dto.title,
@@ -1095,7 +1148,7 @@ export class ThreadRepository {
       createdAt: new Date(dto.createdAt).getTime(),
       updatedAt: new Date(dto.updatedAt).getTime(),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
-      currentBranchId: dto.currentBranchId,
+      currentBranchId: normalizedBranchId,
     };
   }
 
@@ -1109,10 +1162,13 @@ export class ThreadRepository {
     if (!branchId && dto.options?.branch_id) {
       branchId = dto.options.branch_id;
     }
-    // Fallback to "1.0" for legacy messages without branchId
+    // Fallback to "1.0.0" for legacy messages without branchId
     if (!branchId) {
-      branchId = '1.0';
-      log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0":', dto.id);
+      branchId = '1.0.0';
+      log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0.0":', dto.id);
+    } else {
+      // Normalize to x.x.x format
+      branchId = this.normalizeBranchId(branchId);
     }
 
     return {
@@ -1124,7 +1180,7 @@ export class ThreadRepository {
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
-      branchId: branchId,
+      branchId: this.normalizeBranchId(branchId),
       modelId: dto.model ?? null,
     };
   }

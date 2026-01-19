@@ -204,7 +204,7 @@ export class MessageTransmitter {
       this.callbacks.onMessageAdd(assistantMsg);
 
       // Update user message status to SENT after assistant response is received
-      if (userMessageObj?.id) {
+      if (userMessageObj?.id !== null && userMessageObj?.id !== undefined && userMessageObj.id !== '') {
         this.updateMessageStatus(userMessageObj.id, MESSAGE_STATUS.SENT);
       }
     } else {

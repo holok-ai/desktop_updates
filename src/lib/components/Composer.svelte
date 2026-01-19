@@ -146,6 +146,11 @@
   }
 
   async function send() {
+    if (disabled) {
+      console.log('[Composer] Blocked send() - composer is disabled', { disabled, isStreaming });
+      return;
+    }
+
     let payload = text.trim();
     if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming) {
       return;
@@ -279,7 +284,8 @@
         class="composer-textarea"
         onkeydown={(e) => {
           // Send on Enter (without Shift). Allow Shift+Enter for newline.
-          if (e.key === 'Enter' && !e.shiftKey) {
+          // Don't send if disabled or streaming
+          if (e.key === 'Enter' && !e.shiftKey && !disabled && !isStreaming) {
             e.preventDefault();
             send();
           }

@@ -10,12 +10,15 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../src-electron/preload';
+  import type { Message } from '$lib/types/thread.type';
+  import { getBranchMessages } from '$lib/utils/branch-utils';
 
   interface Props {
     thread: Thread;
+    messages?: Message[];
   }
 
-  const { thread }: Props = $props();
+  const { thread, messages: messagesProp = [] }: Props = $props();
 
   // Determine if thread belongs to a project
   const projectId = $derived((thread.metadata?.projectId as string | undefined) ?? null);
@@ -25,8 +28,26 @@
     projectId ? $projects.find(p => p.id === projectId) : null
   );
 
-  // Get model name from thread metadata
-  const modelName = $derived((thread.metadata?.modelAccessName as string) ?? 'Unknown Model');
+  // Get model name from current branch's messages, fallback to thread metadata
+  let modelName = $state((thread.metadata?.modelAccessName as string) ?? 'Unknown Model');
+
+  $effect(() => {
+    const currentMessages = messagesProp ?? [];
+    const currentBranchId = thread.currentBranchId;
+    
+    if (currentMessages.length > 0 && currentBranchId) {
+      const branchMessages = getBranchMessages(currentMessages, currentBranchId);
+      // Find the most recent message with a modelId
+      const messageWithModel = [...branchMessages]
+        .reverse()
+        .find(m => m.modelId);
+      if (messageWithModel?.modelId) {
+        modelName = messageWithModel.modelId;
+        return;
+      }
+    }
+    modelName = (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+  });
 
   // Navigate to project's thread tab
   function navigateToProject() {
