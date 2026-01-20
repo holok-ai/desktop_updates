@@ -530,6 +530,11 @@
     try {
       messages = await threadService.getMessages(thread.id);
       console.log('[selectThread] Loaded', messages.length, 'messages for thread:', thread.id);
+      // Log timestamps to debug ordering
+      messages.forEach((m, idx) => {
+        const date = new Date(m.createdAt);
+        console.log(`  [${idx}] ${m.role} - ${date.toISOString()} (${m.createdAt}) - ${m.content.substring(0, 50)}`);
+      });
     } catch (e) {
       console.error('Failed to load messages:', e);
     }

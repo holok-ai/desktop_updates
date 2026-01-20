@@ -428,8 +428,10 @@ export class AuthService {
       log.info('[AuthService] Access token expired, refreshing...');
       await this.refreshAccessToken();
     }
-    log.info('[AuthService] Access token:', this.currentAuthState.tokens?.accessToken);
-    return this.currentAuthState.tokens?.accessToken || '';
+    const token = this.currentAuthState.tokens?.accessToken || '';
+    const maskedToken = token ? `${token.slice(0, 5)}... (${token.length} characters)` : '(no token)';
+    log.info('[AuthService] Access token:', maskedToken);
+    return token;
   }
 
   /**

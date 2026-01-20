@@ -1,20 +1,22 @@
 import log from 'electron-log';
 import { app } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 
 /**
  * Centralized Logger Configuration
  *
  * This module provides a configured electron-log instance with:
- * - File rotation and retention
+ * - File rotation and retention with timestamp-based naming
  * - Appropriate log levels
  * - Structured logging format
  * - Context metadata
  */
 
 // Configure log paths
-log.transports.file.resolvePath = (variables) => {
-  return path.join(app.getPath('userData'), 'logs', variables.fileName || 'app.log');
+log.transports.file.fileName = 'desktop.log';
+log.transports.file.resolvePathFn = () => {
+  return path.join(app.getPath('userData'), 'logs', 'desktop.log');
 };
 
 // Set log levels based on environment
@@ -23,8 +25,26 @@ log.transports.file.level = 'info';
 log.transports.console.level = isDevelopment ? 'debug' : 'info';
 
 // Configure file rotation and size limits
-log.transports.file.maxSize = 50 * 1024 * 1024; // 50MB
-// Note: maxAge is not available in electron-log, rotation is handled by maxSize
+log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
+
+// Custom archive function to rename logs with timestamps
+log.transports.file.archiveLog = (oldLogFile) => {
+  const oldLogPath = oldLogFile.toString();
+  const timestamp = new Date().toISOString()
+    .replace(/[-:]/g, '')
+    .replace('T', '_')
+    .slice(0, 15); // Format: YYYYMMDD_HHMM
+  const dir = path.dirname(oldLogPath);
+  const ext = path.extname(oldLogPath);
+  const basename = path.basename(oldLogPath, ext);
+  const archivedPath = path.join(dir, `${basename}_${timestamp}${ext}`);
+
+  try {
+    fs.renameSync(oldLogPath, archivedPath);
+  } catch (error) {
+    console.error('Failed to archive log file:', error);
+  }
+};
 
 // Configure log format with timestamp, level, and context
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
