@@ -81,6 +81,24 @@ export class ThreadRepository {
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
+  private parseApiTimeMs(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value !== 'string') return Number.NaN;
+
+    const s = value.trim();
+    if (s.length === 0) return Number.NaN;
+
+    // Normalize common server formats that omit timezone.
+    // - "2026-01-20 17:02:02.123" -> "2026-01-20T17:02:02.123"
+    // - If no timezone is present, treat as UTC by appending "Z"
+    const isoLike = s.includes(' ') && !s.includes('T') ? s.replace(' ', 'T') : s;
+    const hasTz = /[zZ]$|[+-]\d{2}:\d{2}$/.test(isoLike);
+    const normalized = hasTz ? isoLike : `${isoLike}Z`;
+
+    return new Date(normalized).getTime();
+  }
+
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
     const request: CreateThreadRequest = {
       title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
@@ -151,11 +169,12 @@ export class ThreadRepository {
 
       // Check if we've seen this exact user message on this branch before
       if (seen.has(key)) {
-        const existing = seen.get(key)!;
+        const existing = seen.get(key);
+        if (!existing) continue;
 
         // Keep the earlier timestamp (initial request, not continuation)
-        const existingTime = new Date(existing.createdAt).getTime();
-        const currentTime = new Date(dto.createdAt).getTime();
+        const existingTime = this.parseApiTimeMs(existing.createdAt);
+        const currentTime = this.parseApiTimeMs(dto.createdAt);
 
         if (currentTime < existingTime) {
           // Current is earlier, replace the existing one
@@ -1180,8 +1199,8 @@ export class ThreadRepository {
         ...(dto.metadata || {}),
       },
       messages: [], // Messages loaded separately
-      createdAt: new Date(dto.createdAt).getTime(),
-      updatedAt: new Date(dto.updatedAt).getTime(),
+      createdAt: this.parseApiTimeMs(dto.createdAt),
+      updatedAt: this.parseApiTimeMs(dto.updatedAt),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
       currentBranchId: normalizedBranchId,
     };
@@ -1211,10 +1230,10 @@ export class ThreadRepository {
       title: threadTitle,
       role: dto.role as MessageRole,
       content: dto.content,
-      createdAt: new Date(dto.createdAt).getTime(),
+      createdAt: this.parseApiTimeMs(dto.createdAt),
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
-      editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
+      editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId: this.normalizeBranchId(branchId),
       modelId: dto.model ?? null,
     };
