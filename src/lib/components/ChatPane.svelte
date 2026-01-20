@@ -1158,11 +1158,6 @@
 
   // Send message and handle streaming response
   async function sendMessage(userMessage: string, attachments: any[] = [], skipUserMessageCreation = false) {
-    if (!chatServiceCreated) {
-      error = 'Chat service not initialized';
-      return;
-    }
-
     if (!userMessage.trim() && attachments.length === 0) return;
 
     // Build conversation history based on selected branch context
@@ -1365,8 +1360,55 @@
       return;
     }
 
+    // Resolve model/provider/url to use for this send
+    let modelToUse = modelId || modelName;
+    let providerToUse = modelProvider;
+    let urlToUse = modelUrl;
+
+    if (modelId) {
+      try {
+        const allModels = await window.electronAPI.models.listAll();
+        const modelDetails = allModels.find((m) => m.accessName === modelId);
+        if (modelDetails) {
+          modelToUse = modelDetails.accessName;
+          providerToUse = modelDetails.provider;
+          urlToUse = modelDetails.url;
+        }
+      } catch (err) {
+        console.error('[ChatPane] Failed to get model details for sendMessage:', err);
+      }
+    }
+
+    // Ensure chat service is initialized for the resolved model
+    const modelIsDifferent =
+      modelToUse !== modelName ||
+      providerToUse !== modelProvider ||
+      urlToUse !== modelUrl;
+
+    const configMatches =
+      currentProviderConfig &&
+      currentProviderConfig.provider === providerToUse &&
+      currentProviderConfig.url === urlToUse &&
+      currentProviderConfig.model === modelToUse;
+
+    if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+      const initSuccess = await initializeChatService({
+        provider: providerToUse,
+        url: urlToUse,
+        model: modelToUse,
+      });
+
+      if (!initSuccess) {
+        error = error || 'Chat service not initialized';
+        return;
+      }
+
+      // Small delay to ensure service is ready
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
     try {
-      console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length);
+      console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length, 'model:', modelToUse);
       isStreaming = true;
 
       // If sending from a branch, set up branch-specific streaming
@@ -1683,8 +1725,8 @@
         return;
       }
       
-      // For single model, create a single variation
-      if (modelIds.length === 0 || modelIds.length === 1) {
+      // No model explicitly selected - fall back to original message/thread model
+      if (modelIds.length === 0) {
         const result = await threadService.createVariation(
           currentThread,
           messageForVariation,
@@ -1708,8 +1750,32 @@
         
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
+      } else if (modelIds.length === 1) {
+        // Single explicitly selected model - create variation with that model
+        const [modelId] = modelIds;
+        const result = await threadService.createVariation(
+          currentThread,
+          messageForVariation,
+          content,
+          modelId,
+        );
+
+        if (!result.success) {
+          variationError = result.error;
+          console.error('[ChatPane] Failed to create variation with selected model:', result.error);
+          return;
+        }
+
+        messages = [...messages, result.message];
+        showVariationModalFor = null;
+
+        activeBranchIndex = null;
+        hiddenForkPoints = new Set();
+        branchSelectionTime = null;
+
+        await generateResponseForVariation(result.message);
       } else {
-        // For multiple models, create one variation per selected model
+        // Multiple models selected - create one variation per selected model
         const createdMessages: Message[] = [];
         // Fetch current messages once to use for all variations (avoids race conditions)
         const currentMessages = await threadService.getMessages(currentThread.id);
@@ -1814,7 +1880,12 @@
       if (Array.isArray(selectedBranchIds) && selectedBranchIds.length > 0) {
         // Use buildContextFromSelectedBranches to include selected branches and exclude non-selected ones
         const selectedContext = buildContextFromSelectedBranches(messages, selectedBranchIds);
-        
+
+        // Always include the full base branch history (e.g. 1.0.0, 2.0.0) before this variation.
+        // This restores the previous behavior where variations inherited all prior messages,
+        // while still excluding other non‑selected branches.
+        const baseBranchMessages = getBranchMessages(messages, baseBranchId);
+
         // Also include normal messages (sequential branches like 3.0, 4.0) that came after the fork point
         // These are messages with branchId format X.0 where X > baseIndex
         const normalMessagesAfterFork = messages.filter((m) => {
@@ -1827,10 +1898,15 @@
           }
           return false;
         });
-        
-        // Combine selected branch context with normal messages after fork
-        contextMessages = [...selectedContext, ...normalMessagesAfterFork]
-          .sort((a, b) => a.createdAt - b.createdAt);
+
+        // Merge base branch, selected context, and post‑fork sequential messages, de‑duplicated and ordered
+        const merged = [...baseBranchMessages, ...selectedContext, ...normalMessagesAfterFork];
+        const seenIds = new Set<string>();
+        contextMessages = merged.filter((m) => {
+          if (seenIds.has(m.id)) return false;
+          seenIds.add(m.id);
+          return true;
+        }).sort((a, b) => a.createdAt - b.createdAt);
       } else {
         // Fallback: Build context from in‑memory messages
         // Include all messages before the fork point (baseIndex)
