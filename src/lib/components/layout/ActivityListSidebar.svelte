@@ -28,7 +28,7 @@
   let startX = $state(0);
   let startWidth = $state(0);
 
-  let isCollapsed = $state(false);
+  let isCollapsed = $state(true); // Start collapsed by default
   let selectedThreadId: string | null = $state(null);
   let showRenameModal = $state(false);
   let threadToRename: { id: string; title: string } | null = $state(null);
@@ -77,11 +77,24 @@
   const activityTitle = $derived(activity?.label ?? 'Activity');
 
   onMount(async () => {
-    // Restore custom width and collapsed state from storage
+    // Restore custom width from storage
     customWidth = storageService.getActivityListWidth();
-    isCollapsed = storageService.getActivityListCollapsed();
+    // Always start collapsed on app launch (home page)
+    isCollapsed = true;
 
     await getThreadItems();
+  });
+
+  // Auto-expand sidebar when navigating to Threads or Projects
+  // Keep collapsed on home page
+  $effect(() => {
+    if (currentRoute.startsWith(ROUTE.THREADS) || currentRoute.startsWith(ROUTE.PROJECTS)) {
+      // Expand sidebar when user navigates to these routes
+      isCollapsed = false;
+    } else if (currentRoute === ROUTE.HOME || currentRoute === '/') {
+      // Keep collapsed on home page
+      isCollapsed = true;
+    }
   });
 
   $effect(() => {
@@ -113,17 +126,6 @@
 
   let filteredThreads = $state<Thread[]>([]);
 
-  const hasListItems = $derived(
-    isThreadActivity
-      ? filteredThreads.length > 0
-      : isProjectsActivity
-        ? $projects.length > 0
-        : false,
-  );
-
-  let lastActivityId: string | null = $state(null);
-  let lastHasItemsState: boolean | null = $state(null);
-
   $effect(() => {
     const isThreadsView = activity?.route === ROUTE.THREADS || activity?.id === 'threads';
     const isHomeView = activity?.route === ROUTE.HOME || activity?.id === 'home';
@@ -137,15 +139,6 @@
     }
 
     filteredThreads = visibleThreads;
-  });
-
-  $effect(() => {
-    const currentActivityId = activity?.id ?? null;
-    if (currentActivityId !== lastActivityId || lastHasItemsState !== hasListItems) {
-      isCollapsed = !hasListItems;
-      lastActivityId = currentActivityId;
-      lastHasItemsState = hasListItems;
-    }
   });
 
   function select(item: { id: string; label: string; route?: string }) {

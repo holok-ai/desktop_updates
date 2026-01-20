@@ -1,4 +1,9 @@
 import { ChatAuditData as ChatAuditData_2 } from '.';
+import { ChatCompletion } from 'openai/resources/chat/completions';
+import { ChatResponse } from 'ollama/browser';
+import { default as default_2 } from '@anthropic-ai/sdk';
+import { default as default_3 } from 'openai';
+import { Ollama } from 'ollama/browser';
 
 /**
  * Configuration for the audit service
@@ -114,6 +119,42 @@ export declare class ChatProviderFactory {
 }
 
 /**
+ * Utility functions shared across all chat providers
+ */
+export declare class ChatProviderUtils {
+    /**
+     * Maximum number of tool calling iterations to prevent infinite loops
+     */
+    static readonly MAX_TOOL_ITERATIONS = 10;
+    /**
+     * Adds a tool sequence branch ID to the thread_id for tool calling iterations
+     * Format: {original_thread_id},branch_id=1.0 for iteration 0
+     *         {original_thread_id},branch_id=1.0.{iteration} for iteration > 0
+     *
+     * @param request - Chat request that may contain thread_id
+     * @param iteration - Current tool loop iteration number
+     * @returns Object with thread_id or empty object if no thread_id exists
+     */
+    static addToolSeqToBranch(request: {
+        thread_id?: string;
+    }, iteration: number): Record<string, unknown>;
+    /**
+     * Generic tool loop handler that works with any provider via the ProviderToolHandler interface
+     * Manages the iteration loop, thread context, and tool execution flow
+     *
+     * @param handler - Provider-specific tool handler implementation
+     * @param model - Model identifier
+     * @param initialMessages - Initial conversation messages
+     * @param tools - Tool definitions in provider-specific format
+     * @param originalRequest - Original chat request with potential thread_id
+     * @param onToolUse - Callback to execute tools
+     * @param onTokenReceived - Optional callback for streaming tokens
+     * @param shouldStream - Whether to use streaming mode
+     */
+    static handleToolLoop<TResponse>(handler: ProviderToolHandler<TResponse>, model: string, initialMessages: unknown[], tools: unknown[], originalRequest: ChatRequest, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>, onTokenReceived?: (token: string) => void, shouldStream?: boolean): Promise<void>;
+}
+
+/**
  * Common chat request interface for all providers
  */
 export declare interface ChatRequest {
@@ -160,11 +201,11 @@ export declare class ChatService {
 }
 
 export declare class ClaudeChatProvider implements IChatProvider {
-    private static readonly MAX_TOOL_ITERATIONS;
     private client;
     private defaultModel;
     private tools;
     private onToolUse?;
+    private toolHandler?;
     constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
     /**
      * Send a chat request to Claude
@@ -180,31 +221,50 @@ export declare class ClaudeChatProvider implements IChatProvider {
      * Convert ToolDefinition to Claude's tool format
      */
     private convertToolsToClaudeFormat;
+}
+
+declare interface ClaudeResponse {
+    content: ContentBlock[];
+    stop_reason?: string;
+    model?: string;
+    id?: string;
+}
+
+/**
+ * Claude-specific implementation of the tool handler strategy
+ */
+export declare class ClaudeToolHandler implements ProviderToolHandler<ClaudeResponse> {
+    private client;
+    private onTokenReceived?;
+    constructor(client: default_2);
+    /**
+     * Set the token callback for streaming responses
+     * This is called before each tool loop iteration to update the callback
+     */
+    setTokenCallback(callback?: (token: string) => void): void;
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<ClaudeResponse>;
+    extractToolUses(response: ClaudeResponse): ToolUse[];
+    extractTextContent(response: ClaudeResponse): string | null;
+    formatToolResults(toolUses: ToolUse[], results: ToolResult[]): unknown[];
+    appendMessages(messages: unknown[], response: ClaudeResponse, toolResults: unknown[]): unknown[];
+    /**
+     * Make a streaming request to Claude API
+     * Streams text tokens in real-time while collecting the final message for tool extraction
+     */
+    private makeStreamingRequest;
+    /**
+     * Make a non-streaming request to Claude API
+     */
+    private makeNonStreamingRequest;
     /**
      * Extract tool_use blocks from response content
      */
-    private extractToolUses;
-    /**
-     * Extract text blocks from response content
-     */
-    private extractTextContent;
-    /**
-     * Format tool results for Claude API
-     */
-    private formatToolResults;
-    /**
-     * Handle the tool use loop for both streaming and non-streaming modes
-     */
-    private handleToolLoop;
-    /**
-     * Send streaming request with tools
-     */
-    private sendStreamingRequestWithTools;
-    /**
-     * Send non-streaming request with tools
-     */
-    private sendNonStreamingRequestWithTools;
+    private extractToolUseBlocks;
 }
+
+declare type ContentBlock = ToolUseBlock | TextBlock | {
+    type: string;
+};
 
 /**
  * Core interface for all chat providers
@@ -219,11 +279,11 @@ export declare interface IChatProvider {
 }
 
 export declare class OllamaChatProvider implements IChatProvider {
-    private static readonly MAX_TOOL_ITERATIONS;
     private ollama;
     private defaultModel;
     private tools;
     private onToolUse?;
+    private toolHandler?;
     constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
     /**
      * Send a chat request to Ollama
@@ -254,12 +314,38 @@ export declare class OllamaChatProvider implements IChatProvider {
     private handleToolLoop;
 }
 
+/**
+ * Ollama-specific implementation of the tool handler strategy
+ */
+export declare class OllamaToolHandler implements ProviderToolHandler<ChatResponse> {
+    private ollama;
+    private onTokenReceived?;
+    constructor(ollama: Ollama);
+    /**
+     * Set the token callback for streaming responses
+     */
+    setTokenCallback(callback?: (token: string) => void): void;
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<ChatResponse>;
+    extractToolUses(response: ChatResponse): ToolUse[];
+    extractTextContent(response: ChatResponse): string | null;
+    formatToolResults(toolUses: ToolUse[], results: ToolResult[]): unknown[];
+    appendMessages(messages: unknown[], response: ChatResponse, toolResults: unknown[]): unknown[];
+    /**
+     * Extract tool calls from Ollama message
+     */
+    private extractToolCalls;
+    /**
+     * Parse tool arguments from various formats
+     */
+    private parseToolArguments;
+}
+
 export declare class OpenAIChatProvider implements IChatProvider {
-    private static readonly MAX_TOOL_ITERATIONS;
     private client;
     private defaultModel;
     private tools;
     private onToolUse?;
+    private toolHandler?;
     constructor(baseURL: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
     /**
      * Send a chat request to OpenAI
@@ -275,26 +361,37 @@ export declare class OpenAIChatProvider implements IChatProvider {
      * Convert ToolDefinition to OpenAI's tools format (new API)
      */
     private convertToolsToOpenAIFormat;
+}
+
+/**
+ * OpenAI-specific implementation of the tool handler strategy
+ * Note: OpenAI tool handling currently uses non-streaming mode
+ */
+export declare class OpenAIToolHandler implements ProviderToolHandler<ChatCompletion> {
+    private client;
+    private onTokenReceived?;
+    constructor(client: default_3);
     /**
-     * Extract tool call from response (new tools API format)
+     * Set the token callback for streaming responses
      */
-    private extractFunctionCall;
+    setTokenCallback(callback?: (token: string) => void): void;
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<ChatCompletion>;
+    extractToolUses(response: ChatCompletion): ToolUse[];
+    extractTextContent(response: ChatCompletion): string | null;
+    formatToolResults(toolUses: ToolUse[], results: ToolResult[]): unknown[];
+    appendMessages(messages: unknown[], response: ChatCompletion, toolResults: unknown[]): unknown[];
+    /**
+     * Make a streaming request to OpenAI API
+     */
+    private makeStreamingRequest;
+    /**
+     * Make a non-streaming request to OpenAI API
+     */
+    private makeNonStreamingRequest;
     /**
      * Parse tool arguments from string
      */
     private parseToolArguments;
-    /**
-     * Handle the tool use loop for both streaming and non-streaming modes
-     */
-    private handleToolLoop;
-    /**
-     * Send streaming request with tools
-     */
-    private sendStreamingRequestWithTools;
-    /**
-     * Send non-streaming request with tools
-     */
-    private sendNonStreamingRequestWithTools;
 }
 
 /**
@@ -307,6 +404,50 @@ export declare interface ProviderConfig {
 }
 
 /**
+ * Strategy interface for handling tool calling loops across different providers
+ * Each provider implements this interface to define provider-specific behavior
+ */
+export declare interface ProviderToolHandler<TResponse = unknown> {
+    /**
+     * Make an API request with tools to the provider
+     * @param model - Model identifier
+     * @param messages - Conversation messages
+     * @param tools - Tool definitions in provider-specific format
+     * @param threadContext - Thread context with thread_id if present
+     * @param shouldStream - Whether to use streaming mode
+     * @returns Provider-specific response
+     */
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<TResponse>;
+    /**
+     * Extract tool uses/calls from the provider's response
+     * @param response - Provider-specific response
+     * @returns Array of tool uses to execute
+     */
+    extractToolUses(response: TResponse): ToolUse[];
+    /**
+     * Extract text content from the provider's response
+     * @param response - Provider-specific response
+     * @returns Text content or null if none
+     */
+    extractTextContent(response: TResponse): string | null;
+    /**
+     * Format tool results for appending to the conversation
+     * @param toolUses - Original tool uses
+     * @param results - Tool execution results
+     * @returns Formatted results in provider-specific format
+     */
+    formatToolResults(toolUses: ToolUse[], results: ToolResult[]): unknown[];
+    /**
+     * Append the assistant's response and tool results to the conversation
+     * @param messages - Current conversation messages
+     * @param response - Provider's response
+     * @param toolResults - Formatted tool results
+     * @returns Updated messages array
+     */
+    appendMessages(messages: unknown[], response: TResponse, toolResults: unknown[]): unknown[];
+}
+
+/**
  * Provider types supported by the factory
  */
 export declare enum ProviderType {
@@ -315,6 +456,11 @@ export declare enum ProviderType {
     CLAUDE = "claude",
     PERPLEXITY = "perplexity"
 }
+
+declare type TextBlock = {
+    type: 'text';
+    text: string;
+};
 
 /**
  * Accumulates tokens from streaming responses and tracks performance metrics
@@ -385,5 +531,12 @@ export declare interface ToolUse {
     name: string;
     input: Record<string, any>;
 }
+
+declare type ToolUseBlock = {
+    type: 'tool_use';
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+};
 
 export { }

@@ -25,6 +25,7 @@
   import json from 'highlight.js/lib/languages/json';
   import yaml from 'highlight.js/lib/languages/yaml';
   import markdown from 'highlight.js/lib/languages/markdown';
+  import plaintext from 'highlight.js/lib/languages/plaintext';
   import DOMPurify from 'dompurify';
 
   // Register only the languages we need
@@ -52,6 +53,8 @@
   hljs.registerLanguage('json', json);
   hljs.registerLanguage('yaml', yaml);
   hljs.registerLanguage('markdown', markdown);
+  hljs.registerLanguage('plaintext', plaintext);
+  hljs.registerLanguage('csv', plaintext); // CSV uses plaintext highlighting
 
   interface Props {
     content: string;
@@ -74,17 +77,47 @@
       'json', 'yaml', 'xml', 'markdown'
     ];
 
+    // Helper function to detect CSV content
+    function looksLikeCSV(text: string): boolean {
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) return false;
+
+      // Check if most lines have consistent comma count
+      const commaCounts = lines.map(line => (line.match(/,/g) || []).length);
+      if (commaCounts.length === 0) return false;
+
+      const avgCommas = commaCounts.reduce((a, b) => a + b, 0) / commaCounts.length;
+      const consistentCommas = commaCounts.filter(count => Math.abs(count - avgCommas) <= 1).length;
+
+      // Additional checks for CSV patterns
+      const hasQuotes = text.includes('"') || text.includes("'");
+      const hasConsistentStructure = consistentCommas / lines.length > 0.6;
+      const hasEnoughCommas = avgCommas >= 1;
+
+      // If >60% of lines have similar comma counts and avg >= 1 comma, likely CSV
+      // Lower threshold to catch more CSV cases
+      return hasConsistentStructure && hasEnoughCommas;
+    }
+
     // Custom code block renderer with syntax highlighting and copy button
     renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
       const code = text;
-      const language = lang;
+      let language = lang;
       let highlighted = '';
       let detectedLang = language || '';
       let isInferred = false;
 
+      // If no language specified and content looks like CSV, treat as CSV
+      const autoDetectedAsCSV = !language && looksLikeCSV(code);
+      if (autoDetectedAsCSV) {
+        language = 'csv';
+        isInferred = true;
+      }
+
       if (language) {
         try {
           highlighted = hljs.highlight(code, { language }).value;
+          detectedLang = language;
         } catch (e) {
           console.error('Highlight.js error:', e);
           // Fallback to auto-detect if specified language fails
@@ -154,8 +187,13 @@
   // Render markdown to HTML
   function renderMarkdown(text: string): string {
     try {
+      // Filter out security check messages before rendering
+      let filteredText = text
+        .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
+        .replace(/\[Security checks passed, processing your request\.\.\.\]\n?/g, '');
+
       configureMarked();
-      const rawHtml = marked.parse(text) as string;
+      const rawHtml = marked.parse(filteredText) as string;
       // Sanitize to prevent XSS while allowing necessary HTML
       return DOMPurify.sanitize(rawHtml, {
         ALLOWED_TAGS: [

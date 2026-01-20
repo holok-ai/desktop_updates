@@ -45,7 +45,6 @@ export class TitleGeneratorService {
 
   constructor(config: Partial<TitleGeneratorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    log.info('[TitleGeneratorService] Initialized with config:', this.config);
   }
 
   /**

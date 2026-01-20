@@ -351,7 +351,16 @@ export class ThreadRepository {
     }
 
     // Create message locally (no API call)
-    const now = Date.now();
+    // Calculate timestamp to ensure new messages always appear after existing ones
+    const localNow = Date.now();
+    const lastMessageTime = thread.messages.length > 0
+      ? Math.max(...thread.messages.map(m => m.createdAt))
+      : localNow;
+    const now = Math.max(localNow, lastMessageTime + 1000); // Add 1 second to ensure it's after
+
+    log.info('[ThreadRepository] Creating message with timestamp:', new Date(now).toISOString(),
+      '(local:', new Date(localNow).toISOString(), ', last:', new Date(lastMessageTime).toISOString(), ')');
+
     const rawBranchId = payload.branchId ?? thread.currentBranchId;
     const branchId = this.normalizeBranchId(rawBranchId);
     const message: Message = {
