@@ -1408,7 +1408,7 @@
     }
 
     try {
-      console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length, 'model:', modelToUse);
+      console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length);
       isStreaming = true;
 
       // If sending from a branch, set up branch-specific streaming
