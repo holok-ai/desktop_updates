@@ -100,30 +100,33 @@
       // Reset branch selection when switching threads
       activeBranchIndex = null;
       selectedBranchContextMessageId = null;
-      _branchSelectionTime = null;
+      branchSelectionTime = null;
       hiddenForkPoints = new Set();
+      // Reset streaming state to prevent disabled send button
+      isStreaming = false;
+      responseText = '';
       return;
     }
-    
+
     // Same thread - only update if metadata actually changed (to avoid loops)
     if (thread && currentThread && thread.id === currentThread.id) {
       const currentSelectedIds = currentThread.metadata?.selectedBranchIds;
       const propSelectedIds = thread.metadata?.selectedBranchIds;
-      
+
       // Check if selectedBranchIds actually changed
       const currentIdsStr = JSON.stringify(Array.isArray(currentSelectedIds) ? currentSelectedIds.sort() : []);
       const propIdsStr = JSON.stringify(Array.isArray(propSelectedIds) ? propSelectedIds.sort() : []);
-      
+
       // Only update if selectedBranchIds changed or if we need to preserve currentThread's selection
       if (currentIdsStr !== propIdsStr) {
         if (Array.isArray(currentSelectedIds) && currentSelectedIds.length > 0 && (!Array.isArray(propSelectedIds) || propSelectedIds.length === 0)) {
           // Preserve currentThread's selectedBranchIds if prop doesn't have it
-          currentThread = { 
-            ...thread, 
-            metadata: { 
-              ...thread.metadata, 
-              selectedBranchIds: currentSelectedIds 
-            } 
+          currentThread = {
+            ...thread,
+            metadata: {
+              ...thread.metadata,
+              selectedBranchIds: currentSelectedIds
+            }
           };
         } else if (Array.isArray(propSelectedIds) && propSelectedIds.length > 0) {
           // Use prop's selectedBranchIds (from backend update)
@@ -136,19 +139,6 @@
       // If selectedBranchIds are the same, don't update currentThread to avoid triggering other effects
     } else {
       currentThread = thread;
-    }
-
-    // Clear error state when switching threads to prevent stale errors
-    if (previousThreadId !== thread?.id) {
-      error = '';
-      // Clear file write events when switching threads
-      fileWriteEventService.clear();
-      fileWriteEventsByMessageId = {};
-      // Reset branch selection when switching threads
-      activeBranchIndex = null;
-      selectedBranchContextMessageId = null;
-      _branchSelectionTime = null;
-      hiddenForkPoints = new Set();
     }
   });
 
@@ -200,6 +190,14 @@
       return;
     }
 
+    // Guard: Check if thread has any assistant responses (means it's already been processed)
+    // This handles the case where deduplication removes tool-loop messages but assistant replied
+    const hasAssistantResponse = currentThread.messages?.some(m => m.role === 'assistant');
+    if (hasAssistantResponse) {
+      console.log('[ChatPane Auto-send] Skipping: thread already has assistant response');
+      return;
+    }
+
     console.log('[ChatPane Auto-send] All guards passed! Auto-sending for thread:', currentThread.id);
 
     // Mark this thread as having been auto-sent
@@ -242,7 +240,7 @@
   let sendingBranchIndex = $state<number | null>(null);
   let sendingBranchContextMessageId = $state<string | null>(null);
   // Track when a branch was selected to exclude messages sent from main input after selection
-  let _branchSelectionTime = $state<number | null>(null);
+  let branchSelectionTime = $state<number | null>(null);
 
   async function setActiveBranch(branchIndex: number) {
     if (!currentThread) return;
@@ -253,7 +251,7 @@
     const branchBox = branchBoxes.find(b => b.branchIndex === branchIndex);
     if (!branchBox) {
       selectedBranchContextMessageId = null;
-      _branchSelectionTime = null;
+      branchSelectionTime = null;
       return;
     }
     
@@ -285,16 +283,16 @@
       selectedBranchContextMessageId = lastMessage.id;
       // Store the timestamp of the last message in the branch when selected
       // Messages sent after this (from main input) should appear in main area, not branch box
-      _branchSelectionTime = lastMessage.createdAt;
+      branchSelectionTime = lastMessage.createdAt;
     } else if (branchBox.assistantMessage) {
       selectedBranchContextMessageId = branchBox.assistantMessage.id;
-      _branchSelectionTime = branchBox.assistantMessage.createdAt;
+      branchSelectionTime = branchBox.assistantMessage.createdAt;
     } else if (branchBox.userMessage) {
       selectedBranchContextMessageId = branchBox.userMessage.id;
-      _branchSelectionTime = branchBox.userMessage.createdAt;
+      branchSelectionTime = branchBox.userMessage.createdAt;
     } else {
       selectedBranchContextMessageId = null;
-      _branchSelectionTime = null;
+      branchSelectionTime = null;
     }
   }
 
@@ -1119,13 +1117,16 @@
   // Setup token listener for streaming responses
   function setupTokenListener() {
     responseText = ''; // Clear previous response
+    console.log('[ChatPane setupTokenListener] Cleared responseText and setting up listener');
 
     // Remove any existing token listeners to prevent duplicates
     window.electronAPI.chat.offToken();
 
     window.electronAPI.chat.onToken((token: string) => {
+      console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
+      console.log('[ChatPane onToken] responseText now length:', responseText.length);
 
       // If streaming to a branch, also update branch-specific streaming text
       if (streamingBranchIndex !== null) {
@@ -1345,7 +1346,7 @@
       // Create and add optimistic message with the correct branchId
       userMsg = transmitter.addOptimisticMessage(userMessage, isOnline, branchId);
       userMsg.modelId = modelId;
-      
+
       // Send the user message (handles outbox and persistence)
       await transmitter.sendUserMessage(userMsg, thread, isOnline);
     }
@@ -1365,8 +1366,9 @@
     }
 
     try {
+      console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length);
       isStreaming = true;
-      
+
       // If sending from a branch, set up branch-specific streaming
       if (sendingBranchIndex !== null) {
         const branchBox = branchBoxes.find((b) => b.branchIndex === sendingBranchIndex);
@@ -1456,7 +1458,10 @@
         isStreaming = false;
         return;
       }
-      
+
+      console.log('[ChatPane] Chat completed. responseText length:', responseText.length);
+      console.log('[ChatPane] responseText content:', responseText.substring(0, 200));
+
       // After streaming completes, handle assistant response
       // IMPORTANT: For normal sends (with optimistic userMsg), try to map to the backend message
       // For auto-init / cases without optimistic user message, just pass undefined userMessageObj
@@ -1469,14 +1474,17 @@
         
         // Use the backend-assigned user message
         console.log('[ChatPane] Using user message ID:', actualUserMessage?.id || userMsg.id, '(optimistic:', userMsg.id, ')');
-        
+
         // Replace the optimistic message with the actual one from backend
         if (actualUserMessage && actualUserMessage.id !== userMsg.id) {
-          messages = messages.map(m => 
+          messages = messages.map(m =>
             m.id === userMsg.id ? { ...actualUserMessage, status: MESSAGE_STATUS.SENT } : m
           );
         }
-        
+
+        console.log('[ChatPane] Calling handleAssistantResponse with responseText length:', responseText.length);
+        console.log('[ChatPane] responseText preview:', responseText.substring(0, 100));
+
         await transmitter.handleAssistantResponse(
           responseText,
           currentThread,
@@ -1484,8 +1492,12 @@
           actualUserMessage || userMsg,
         );
       } else {
+        console.log('[ChatPane] Calling handleAssistantResponse (no userMsg) with responseText length:', responseText.length);
         await transmitter.handleAssistantResponse(responseText, currentThread, userMessage);
       }
+
+      console.log('[ChatPane] After handleAssistantResponse, messages.length:', messages.length);
+      console.log('[ChatPane] Last message:', messages[messages.length - 1]);
 
       // Clear streaming state after message is added
       // Use the branchId from the message that was just sent
@@ -1494,12 +1506,13 @@
         streamingBranchIndex = null;
       } else {
         // Fallback: try to find branchId from activeBranchIndex or branchId
-        const usedBranchId = activeBranchIndex !== null 
+        const usedBranchId = activeBranchIndex !== null
           ? branchBoxes.find(b => b.branchIndex === activeBranchIndex)?.userMessage.branchId ?? branchId
           : branchId;
         streamingTextByBranch.delete(usedBranchId);
       }
       responseText = '';
+      console.log('[ChatPane] Cleared responseText, streaming complete');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error sending message:', err);
@@ -1691,7 +1704,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        _branchSelectionTime = null;
+        branchSelectionTime = null;
         
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
@@ -1734,7 +1747,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        _branchSelectionTime = null;
+        branchSelectionTime = null;
 
         // Generate responses for all created variations sequentially
         // This ensures each variation gets its own token stream without conflicts

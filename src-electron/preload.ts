@@ -361,6 +361,9 @@ export interface SettingsAPI {
   addWhitelistPath: (path: string) => Promise<void>;
   removeWhitelistPath: (path: string) => Promise<void>;
   selectFolder: () => Promise<string | null>;
+
+  // Diagnostics
+  openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
 }
 
 /**
@@ -779,6 +782,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
+
+    openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
   } as SettingsAPI,
 
   /**

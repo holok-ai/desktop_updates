@@ -1,7 +1,9 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, app } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
+import path from 'node:path';
+import { exec } from 'node:child_process';
 
 /**
  * Settings IPC Handlers
@@ -176,6 +178,23 @@ export function registerSettingsHandlers(): void {
     return result.filePaths[0];
   });
 
+  /**
+   * Open log file in VS Code
+   */
+  ipcMain.handle('settings:openLogInVSCode', (): Promise<{ success: boolean; error?: string }> => {
+    settingsLog.info('OpenLogInVSCode called');
+    try {
+      const logPath = path.join(app.getPath('userData'), 'logs', 'desktop.log');
+      // Spawn VS Code without waiting for it to complete
+      exec(`code "${logPath}"`);
+      return Promise.resolve({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open log file';
+      settingsLog.error('OpenLogInVSCode failed', { error: message });
+      return Promise.resolve({ success: false, error: message });
+    }
+  });
+
   settingsLog.info('Handlers registered');
 }
 
@@ -206,6 +225,7 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:addWhitelistPath');
   ipcMain.removeHandler('settings:removeWhitelistPath');
   ipcMain.removeHandler('settings:selectFolder');
+  ipcMain.removeHandler('settings:openLogInVSCode');
 
   settingsLog.info('Handlers unregistered');
 }

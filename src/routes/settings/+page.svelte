@@ -258,6 +258,23 @@
         </section>
 
         <section class="mb-6">
+          <h2 class="mb-2">Diagnostics</h2>
+          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm">Application log file</span>
+              <button
+                class="px-3 py-1.5 text-sm bg-[var(--primary-color)] text-white rounded hover:opacity-90 transition-opacity"
+                onclick={() => {
+                  window.electronAPI.settings.openLogInVSCode();
+                }}
+              >
+                View Log
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-6">
           <h2 class="mb-2">Updates</h2>
           <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
             <div class="text-sm">

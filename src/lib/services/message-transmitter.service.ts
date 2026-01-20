@@ -120,7 +120,7 @@ export class MessageTransmitter {
   /**
    * Add optimistic user message
    */
-  addOptimisticMessage(content: string, isOnline: boolean, currentBranchId: string = '1.0'): Message {
+  addOptimisticMessage(content: string, isOnline: boolean, currentBranchId: string = '1.0', existingMessages?: Message[]): Message {
     const clientMessageId = crypto.randomUUID();
     const initialStatus: MessageStatus = isOnline
       ? MESSAGE_STATUS.SENDING
@@ -165,9 +165,27 @@ export class MessageTransmitter {
       await outboxService.addPendingMessage(userMsg, thread.id);
     }
 
-    // Messages are now created locally when chat function is called
-    // No need to persist separately - the chat handler creates the message
-    // If offline, message will be created when chat is called after coming online
+    // Persist user message immediately to get correct timestamp ordering
+    if (thread !== null && isPermanent && userMsg.clientMessageId) {
+      const metadata = this.extractMessageMetadata(thread);
+      console.log('[MessageTransmitter] Persisting user message, optimistic timestamp:', new Date(userMsg.createdAt).toISOString());
+      const result = await threadService.appendMessage(thread.id, {
+        role: 'user',
+        content: userMsg.content,
+        metadata,
+        clientMessageId: userMsg.clientMessageId,
+        branchId: userMsg.branchId,
+      });
+
+      if (result.success) {
+        console.log('[MessageTransmitter] User message persisted with timestamp:', new Date(result.message.createdAt).toISOString(), '(', result.message.createdAt, ')');
+        // Update UI with persisted timestamp
+        this.callbacks.onMessageUpdate({
+          messageId: userMsg.id,
+          status: MESSAGE_STATUS.SENT,
+        });
+      }
+    }
   }
 
   /**
@@ -184,28 +202,42 @@ export class MessageTransmitter {
       thread !== null && (typeof thread.id !== 'string' || !thread.id.startsWith('temp_'));
 
     if (thread !== null && isPermanent) {
-      // For existing threads, messages are created locally in chat-handler.
-      // Here we reflect the assistant response in the UI and update user message status.
+      // For existing threads, persist assistant message
+      // User message was already persisted in sendUserMessage before chat started
 
       // Determine branchId for assistant message
       const branchId = userMessageObj?.branchId ?? thread.currentBranchId;
 
-      // Create assistant message locally for the UI
-      const assistantMsg: Message = {
-        id: crypto.randomUUID(),
+      // Extract thread metadata for assistant message
+      const metadata = this.extractMessageMetadata(thread);
+
+      // Persist assistant message
+      const assistantClientId = crypto.randomUUID();
+      console.log('[MessageTransmitter] Persisting assistant message');
+      const assistantResult = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
-        createdAt: Date.now(),
-        status: MESSAGE_STATUS.SENT,
+        metadata,
+        clientMessageId: assistantClientId,
         branchId,
-        modelId: userMessageObj?.modelId ?? null,
-      };
+      });
 
-      this.callbacks.onMessageAdd(assistantMsg);
+      if (assistantResult.success) {
+        console.log('[MessageTransmitter] Assistant message persisted with timestamp:', new Date(assistantResult.message.createdAt).toISOString(), '(', assistantResult.message.createdAt, ')');
+        // Add assistant message to UI with repository-assigned timestamp
+        const assistantMsg: Message = {
+          id: assistantResult.message.id,
+          role: 'assistant',
+          content: assistantResult.message.content,
+          createdAt: assistantResult.message.createdAt,
+          status: MESSAGE_STATUS.SENT,
+          branchId,
+          modelId: userMessageObj?.modelId ?? null,
+        };
 
-      // Update user message status to SENT after assistant response is received
-      if (userMessageObj?.id !== null && userMessageObj?.id !== undefined && userMessageObj.id !== '') {
-        this.updateMessageStatus(userMessageObj.id, MESSAGE_STATUS.SENT);
+        this.callbacks.onMessageAdd(assistantMsg);
+      } else {
+        console.error('[MessageTransmitter] Failed to persist assistant message:', assistantResult);
       }
     } else {
       // No thread yet: persist both prompt + response atomically

@@ -11,6 +11,9 @@ import log from 'electron-log';
 // Whitelist of allowed commands
 const ALLOWED_COMMANDS = [
   'dir',
+  'del',
+  'move',
+  'rename',
   'type',
   'echo',
   'cd',
