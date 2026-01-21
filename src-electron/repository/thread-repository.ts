@@ -1065,12 +1065,9 @@ export class ThreadRepository {
    */
   private normalizeBranchId(branchId: string): string {
     const parts = branchId.split('.');
-    if (parts.length === 2) {
-      // Convert "x.x" to "x.x.0"
-      return `${parts[0]}.${parts[1]}.0`;
-    }
-    // Already in x.x.x format or longer
-    return branchId;
+    if (parts.length === 2) return `${parts[0]}.${parts[1]}.0`;
+    if (parts.length > 3) return parts.slice(0, 3).join('.');
+    return branchId; // already 3-part
   }
 
   private getRowNumber(branchId: string): number {
@@ -1221,7 +1218,7 @@ export class ThreadRepository {
       branchId = '1.0.0';
       log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0.0":', dto.id);
     } else {
-      // Normalize to x.x.x format
+      // Normalize/cap to 3-part format
       branchId = this.normalizeBranchId(branchId);
     }
 
@@ -1237,7 +1234,7 @@ export class ThreadRepository {
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
-      branchId: this.normalizeBranchId(branchId),
+      branchId,
       modelId: dto.model ?? null,
     };
   }

@@ -23,16 +23,16 @@ export function parseBranchId(branchId: string): { parts: string[]; depth: numbe
 }
 
 /**
- * Normalize branchId to always use x.x.x format
- * E.g., "2.0" -> "2.0.0", "2.1.0" -> "2.1.0", "2.1.1" -> "2.1.1"
+ * Normalize branchId to always use 3-part "x.y.z" format.
+ * Back-compat:
+ * - "2.0" -> "2.0.0"
+ * - "2.1.0" -> "2.1.0"
+ * - Longer ids are capped to 3 parts
  */
 export function normalizeBranchId(branchId: string): string {
   const parts = branchId.split('.');
-  if (parts.length === 2) {
-    // Convert "x.x" to "x.x.0"
-    return `${parts[0]}.${parts[1]}.0`;
-  }
-  // Already in x.x.x format or longer
+  if (parts.length === 2) return `${parts[0]}.${parts[1]}.0`;
+  if (parts.length > 3) return parts.slice(0, 3).join('.');
   return branchId;
 }
 
@@ -43,8 +43,8 @@ export function normalizeBranchId(branchId: string): string {
 export function getRowNumber(branchId: string): number {
   const parts = branchId.split('.');
   const firstPart = parts[0] ?? '';
-  const rowNum = parseInt(firstPart !== '' ? firstPart : '0', 10);
-  return isNaN(rowNum) ? 0 : rowNum;
+  const rowNum = Number.parseInt(firstPart !== '' ? firstPart : '0', 10);
+  return Number.isNaN(rowNum) ? 0 : rowNum;
 }
 
 /**
@@ -60,21 +60,19 @@ export function isVariationOf(branchId: string, baseBranchId: string): boolean {
  * E.g., for "1.0", get all "1.0.1", "1.0.2", etc.
  */
 export function getVariationsForBranch(messages: Message[], baseBranchId: string): Message[] {
-  // Normalize baseBranchId to x.x.x format
+  // Normalize baseBranchId to 3-part format
   const normalizedBase = normalizeBranchId(baseBranchId);
   const baseParts = normalizedBase.split('.');
   const [baseNum] = baseParts;
   
-  // Find all variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0" for base "2.0.0")
+  // 3-part scheme:
+  // - main lane: baseNum.0.0
+  // - variation roots: baseNum.<lane>.0, where <lane> > 0
   const candidates = messages.filter((m) => {
     const normalizedId = normalizeBranchId(m.branchId);
     const parts = normalizedId.split('.');
-    // Must be exactly 3 parts: baseNum.X.0
-    if (parts.length !== 3) {
-      return false;
-    }
-    // First part must match base number, last part must be "0", middle part must be > 0
-    if (parts[0] !== baseNum || parts[2] !== '0' || parts[1] === '0') {
+    if (parts.length !== 3) return false;
+    if (parts[0] !== baseNum || parts[1] === '0' || parts[2] !== '0') {
       return false;
     }
     // Middle part must be a valid number > 0
@@ -113,7 +111,8 @@ export function hasVariations(messages: Message[], branchId: string): boolean {
  * E.g., for "1.0.1", returns messages with branchIds: "1.0", "1.0.1"
  */
 export function getBranchMessages(messages: Message[], branchId: string): Message[] {
-  const parts = branchId.split('.');
+  const normalized = normalizeBranchId(branchId);
+  const parts = normalized.split('.');
   const relevantBranchIds = new Set<string>();
   
   // Build all parent branch IDs
@@ -123,7 +122,7 @@ export function getBranchMessages(messages: Message[], branchId: string): Messag
 
   // Filter messages that belong to this branch hierarchy
   return messages
-    .filter((m) => relevantBranchIds.has(m.branchId))
+    .filter((m) => relevantBranchIds.has(normalizeBranchId(m.branchId)))
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -159,10 +158,10 @@ export function getForkPoints(messages: Message[]): string[] {
   for (const message of messages) {
     const normalizedId = normalizeBranchId(message.branchId);
     const parts = normalizedId.split('.');
-    // Variation branches use format: "<base>.<variation>.0", e.g. "2.1.0"
-    // Treat the base "<base>.0.0" (e.g. "2.0.0") as the fork point.
-    if (parts.length === 3 && parts[2] === '0' && parts[1] !== '0') {
-      const [baseNum] = parts;
+    // Variation root: "<base>.<lane>.0" where lane > 0
+    // Fork point is "<base>.0.0"
+    if (parts.length === 3 && parts[1] !== '0' && parts[2] === '0') {
+      const baseNum = parts[0] ?? '0';
       const parentBranchId = `${baseNum}.0.0`;
       forkPoints.add(parentBranchId);
     }
@@ -203,18 +202,17 @@ export function getFirstForkPoint(messages: Message[]): string | null {
  * E.g., from "1.0" -> "1.0.1", from "1.0" -> "1.0.2" (if 1.0.1 exists)
  */
 export function getNextVariationBranchId(baseBranchId: string, messages: Message[]): string {
-  // Parse baseBranchId (e.g., "2.0" -> baseNum = 2)
-  const baseParts = baseBranchId.split('.');
-  const baseNum = parseInt(baseParts[0], 10);
+  const normalizedBase = normalizeBranchId(baseBranchId);
+  const baseParts = normalizedBase.split('.');
+  const baseNum = Number.parseInt(baseParts[0] ?? '0', 10);
   
-  // Find all existing variations matching pattern "baseNum.X.0" (e.g., "2.1.0", "2.2.0")
+  // Find existing variations: baseNum.X.0
   const existingIndices: number[] = [];
   for (const m of messages) {
-    const parts = m.branchId.split('.');
-    // Must be exactly 3 parts: baseNum.X.0
-    if (parts.length === 3 && parts[0] === baseParts[0] && parts[2] === '0') {
-      const middleNum = parseInt(parts[1], 10);
-      if (!isNaN(middleNum) && middleNum > 0) {
+    const parts = normalizeBranchId(m.branchId).split('.');
+    if (parts.length === 3 && parts[0] === (baseParts[0] ?? '') && parts[2] === '0') {
+      const middleNum = Number.parseInt(parts[1] ?? '0', 10);
+      if (!Number.isNaN(middleNum) && middleNum > 0) {
         existingIndices.push(middleNum);
       }
     }
@@ -241,76 +239,39 @@ export function getNextVariationBranchId(baseBranchId: string, messages: Message
  * @returns The next branchId in the same branch hierarchy
  */
 export function getNextBranchIdInBranch(currentBranchId: string, messages: Message[]): string {
-  // Normalize to x.x.x format first
+  // Normalize to 3-part format first
   const normalizedId = normalizeBranchId(currentBranchId);
   const parts = normalizedId.split('.');
-  const [baseNum, variationNum, lastPart] = parts;
-  
-  // If it's a main branch (X.0.0), continue with X.0.1, X.0.2, etc. (NOT X.1.0, X.2.0 which are variations)
-  if (parts.length === 3 && parts[1] === '0' && parts[2] === '0') {
-    // Find all existing continuations in this branch (X.0.1, X.0.2, etc.)
-    // These are continuations, not variations (variations would be X.1.0, X.2.0)
-    const existingIndices: number[] = [];
+  const baseNum = parts[0] ?? '0';
+  const variationNum = parts[1] ?? '0';
+  const third = parts[2] ?? '0';
+
+  // Root: X.Y.0
+  if (parts.length === 3 && third === '0') {
+    const existing: number[] = [];
     for (const m of messages) {
-      const mParts = m.branchId.split('.');
-      // Look for continuations: X.0.Y where Y > 0
-      if (mParts.length === 3 && mParts[0] === baseNum && mParts[1] === '0' && mParts[2] !== '0') {
-        const idx = Number.parseInt(mParts[2], 10);
-        if (!Number.isNaN(idx) && idx > 0) {
-          existingIndices.push(idx);
-        }
-      }
-    }
-    
-    // Find next available index
-    let nextIndex = 1;
-    while (existingIndices.includes(nextIndex)) {
-      nextIndex++;
-      if (nextIndex > 99) {
-        throw new Error('Maximum branch continuations reached (max: 99)');
-      }
-    }
-    
-    return `${baseNum}.0.${nextIndex}`;
-  }
-  
-  // If it's a variation branch (X.Y.0), continue with X.Y.1, X.Y.2, etc.
-  if (parts.length === 3 && parts[2] === '0' && parts[1] !== '0') {
-    // Find all existing continuations in this variation branch (X.Y.1, X.Y.2, etc.)
-    const existingIndices: number[] = [];
-    for (const m of messages) {
-      const mParts = m.branchId.split('.');
+      const mParts = normalizeBranchId(m.branchId).split('.');
       if (mParts.length === 3 && mParts[0] === baseNum && mParts[1] === variationNum && mParts[2] !== '0') {
-        const idx = Number.parseInt(mParts[2], 10);
-        if (!Number.isNaN(idx) && idx > 0) {
-          existingIndices.push(idx);
-        }
+        const idx = Number.parseInt(mParts[2] ?? '0', 10);
+        if (!Number.isNaN(idx) && idx > 0) existing.push(idx);
       }
     }
-    
-    // Find next available index
-    let nextIndex = 1;
-    while (existingIndices.includes(nextIndex)) {
-      nextIndex++;
-      if (nextIndex > 99) {
-        throw new Error('Maximum branch continuations reached (max: 99)');
-      }
+    let next = 1;
+    while (existing.includes(next)) {
+      next += 1;
+      if (next > 99) break;
     }
-    
-    return `${baseNum}.${variationNum}.${nextIndex}`;
+    return `${baseNum}.${variationNum}.${next}`;
   }
-  
-  // If it's already a continuation (X.Y.Z where Z > 0), increment the last number
-  if (parts.length >= 2 && lastPart !== undefined && lastPart !== '') {
-    const lastNum = Number.parseInt(lastPart, 10);
-    if (!Number.isNaN(lastNum) && lastNum > 0) {
-      const nextNum = lastNum + 1;
-      return [...parts.slice(0, -1), nextNum.toString()].join('.');
-    }
+
+  // Continuation: X.Y.Z -> increment Z
+  if (parts.length === 3 && third !== '0') {
+    const currentIdx = Number.parseInt(third, 10);
+    const next = Number.isNaN(currentIdx) ? 1 : currentIdx + 1;
+    return `${baseNum}.${variationNum}.${next}`;
   }
-  
-  // Fallback: treat as main branch continuation
-  return getNextSequentialBranchId(messages);
+
+  return normalizedId;
 }
 
 /**
@@ -320,19 +281,17 @@ export function getNextBranchIdInBranch(currentBranchId: string, messages: Messa
  * @returns The next sequential branchId (e.g., "2.0", "3.0")
  */
 export function getNextSequentialBranchId(messages: Message[]): string {
-  // Find all top-level branchIds (those matching pattern "N.0.0" where N is a number)
-  // Also normalize any "N.0" format to "N.0.0" for compatibility
+  // Find all top-level: "N.0.0"
   const topLevelBranchIds = messages
     .map(m => normalizeBranchId(m.branchId))
     .filter(bid => {
       const parts = bid.split('.');
-      // Must be exactly 3 parts: N.0.0
       return parts.length === 3 && parts[1] === '0' && parts[2] === '0';
     })
     .map(bid => {
       const [firstPart] = bid.split('.');
-      const num = parseInt(firstPart !== undefined && firstPart.length > 0 ? firstPart : '0', 10);
-      return isNaN(num) ? 0 : num;
+      const num = Number.parseInt(firstPart !== undefined && firstPart.length > 0 ? firstPart : '0', 10);
+      return Number.isNaN(num) ? 0 : num;
     })
     .filter(num => num > 0);
 
@@ -430,17 +389,11 @@ export function buildContextFromSelectedBranches(
     // For main branches (X.0), store as-is
     // For variations (X.Y.0), store the variation ID
     // For continuations (X.Y.Z), store the base variation (X.Y.0)
-    const parts = branchId.split('.');
-    if (parts.length === 2 && parts[1] === '0') {
-      // Main branch like "4.0"
-      selectedBranchByRow.set(rowNum, branchId);
-    } else if (parts.length === 3 && parts[2] === '0') {
-      // Variation like "4.1.0"
-      selectedBranchByRow.set(rowNum, branchId);
+    const parts = normalizeBranchId(branchId).split('.');
+    if (parts[1] === '0') {
+      selectedBranchByRow.set(rowNum, `${parts[0]}.0.0`);
     } else {
-      // Continuation like "4.1.1" -> use base "4.1.0"
-      const baseVariationId = `${parts.slice(0, 2).join('.')  }.0`;
-      selectedBranchByRow.set(rowNum, baseVariationId);
+      selectedBranchByRow.set(rowNum, `${parts[0]}.${parts[1]}.0`);
     }
   }
 

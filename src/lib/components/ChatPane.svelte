@@ -58,6 +58,19 @@
   let currentProviderConfig: ProviderConfig | null = $state(null);
   let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
 
+  // Timeout for cases where streaming starts but no tokens are ever received
+  let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
+  let streamingHardTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Strip internal status messages from content before sending as history to the model
+  const STATUS_VALIDATING_REGEX = /\[Validating request and running security checks\.\.\.\]\n?/g;
+  const STATUS_PASSED_REGEX =
+    /\[Security checks passed, processing your request\.\.\.\]\n?/g;
+
+  function stripStatusMessages(text: string): string {
+    return text.replace(STATUS_VALIDATING_REGEX, '').replace(STATUS_PASSED_REGEX, '');
+  }
+
   // Watch for prop changes and update model configuration from thread metadata
   // Sync currentThread from thread prop, but avoid unnecessary updates that could cause loops
   $effect(() => {
@@ -192,7 +205,7 @@
 
     // Guard: Check if thread has any assistant responses (means it's already been processed)
     // This handles the case where deduplication removes tool-loop messages but assistant replied
-    const hasAssistantResponse = currentThread.messages?.some(m => m.role === 'assistant');
+    const hasAssistantResponse = messages.some((m: Message) => m.role === 'assistant');
     if (hasAssistantResponse) {
       console.log('[ChatPane Auto-send] Skipping: thread already has assistant response');
       return;
@@ -1124,6 +1137,12 @@
 
     window.electronAPI.chat.onToken((token: string) => {
       console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
+
+      // First token received – clear the no-response timeout
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+        streamingNoResponseTimeout = null;
+      }
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
       console.log('[ChatPane onToken] responseText now length:', responseText.length);
@@ -1313,13 +1332,17 @@
       // Message sent from branch lane input - continue that branch hierarchy
       const branchBox = branchBoxes.find(b => b.branchIndex === sendingBranchIndex);
       const currentBranchId = branchBox?.userMessage.branchId ?? normalizeBranchId(thread?.currentBranchId ?? '1.0.0');
-      // Get the next branchId in this branch hierarchy (e.g., "2.1.0" -> "2.1.1")
+      // Get the lane id to continue in this branch hierarchy
       branchId = getNextBranchIdInBranch(currentBranchId, messages);
     } else {
       // Message sent from main input (composer) - always create a new sequential branch
       // This applies even if a branch is selected, because the user is typing in the main composer
       branchId = getNextSequentialBranchId(messages);
     }
+    // Hard-cap branchId to 4 segments to avoid backend 5-part IDs
+    const rawBranchId = branchId;
+    branchId = normalizeBranchId(branchId);
+    console.log('[ChatPane] branchId computed', { rawBranchId, normalizedBranchId: branchId });
 
     // Determine model for the new message
     let modelId: string | null = null;
@@ -1471,6 +1494,38 @@
 
       setupTokenListener();
 
+      // Start a 10s watchdog: if streaming is still true and we've received no tokens,
+      // stop streaming and surface an error to the user.
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+      }
+      streamingNoResponseTimeout = setTimeout(() => {
+        if (isStreaming && responseText.length === 0) {
+          console.error('[ChatPane] Streaming timeout: no response from model after 10s');
+          window.electronAPI.chat.offToken();
+          isStreaming = false;
+          showToast('No response from model. Please try again.', 4000);
+        }
+      }, 10_000);
+
+      // Hard timeout: if streaming doesn't complete within 10s (even if tokens arrive),
+      // stop streaming UI so it can't get stuck forever.
+      if (streamingHardTimeout) clearTimeout(streamingHardTimeout);
+      streamingHardTimeout = setTimeout(() => {
+        if (isStreaming) {
+          console.error('[ChatPane] Streaming hard timeout after 10s');
+          window.electronAPI.chat.offToken();
+          isStreaming = false;
+          showToast('Request timed out. Please try again.', 4000);
+        }
+      }, 10_000);
+
+      // Strip internal status banners from history so they are not re-sent to the model
+      historyMessages = historyMessages.map((h) => ({
+        role: h.role,
+        content: stripStatusMessages(h.content),
+      }));
+
       // Build messages array - only add new user message if not skipping creation
       const requestMessages = skipUserMessageCreation
         ? historyMessages  // Use existing messages (for auto-send of initial prompt)
@@ -1559,6 +1614,14 @@
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error sending message:', err);
     } finally {
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+        streamingNoResponseTimeout = null;
+      }
+      if (streamingHardTimeout) {
+        clearTimeout(streamingHardTimeout);
+        streamingHardTimeout = null;
+      }
       isStreaming = false;
     }
   }
