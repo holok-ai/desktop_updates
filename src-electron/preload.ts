@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { DesktopChatRequest, DesktopChatMessage } from './services/chat/index.js';
+import type { DesktopChatRequest } from './services/chat/index.js';
 import type { ProviderConfig } from '@holokai/chat-component';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
@@ -255,6 +256,7 @@ export interface ThreadAPI {
  * Defines the structure of a thread object.
  */
 export interface Thread {
+  messages: any;
   id: string;
   title: string;
   description: string;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, createEventDispatcher, tick } from 'svelte';
   import { get } from 'svelte/store';
   import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
   import { outboxService } from '$lib/services/outbox.service';
@@ -116,6 +116,7 @@
       branchSelectionTime = null;
       hiddenForkPoints = new Set();
       // Reset streaming state to prevent disabled send button
+      showStreamingIndicator = false;
       isStreaming = false;
       responseText = '';
       return;
@@ -227,6 +228,22 @@
   let chatServiceCreated = $state(false);
   let responseText = $state('');
   let isStreaming = $state(false);
+  let showStreamingIndicator = $state(false); // Separate state for "Streaming... ●" text display
+
+  // Log streaming state changes for debugging
+  $effect(() => {
+    // Explicitly read all three state variables to ensure tracking
+    const indicator = showStreamingIndicator;
+    const textLength = responseText.length;
+    const branchIdx = streamingBranchIndex;
+    
+    console.log('[ChatPane Streaming States]', {
+      showStreamingIndicator: indicator,
+      responseTextLength: textLength,
+      responseTextPreview: responseText ? `${responseText.substring(0, 50)}...` : '(empty)',
+      streamingBranchIndex: branchIdx,
+    });
+  });
   let error = $state('');
   let isOnline = $state(true);
   let toast = $state('');
@@ -1130,6 +1147,7 @@
   // Setup token listener for streaming responses
   function setupTokenListener() {
     responseText = ''; // Clear previous response
+    showStreamingIndicator = true; // Show streaming indicator
     console.log('[ChatPane setupTokenListener] Cleared responseText and setting up listener');
 
     // Remove any existing token listeners to prevent duplicates
@@ -1379,6 +1397,7 @@
           branchId,
         );
       }
+      showStreamingIndicator = false;
       isStreaming = false;
       return;
     }
@@ -1552,6 +1571,7 @@
       if (!result.success) {
         error = result.error || 'Chat failed';
         console.error('Chat failed:', result.error);
+        showStreamingIndicator = false;
         isStreaming = false;
         return;
       }
@@ -1597,6 +1617,10 @@
       console.log('[ChatPane] Last message:', messages[messages.length - 1]);
 
       // Clear streaming state after message is added
+      // IMPORTANT: Hide streaming indicator FIRST, then clear other state
+      showStreamingIndicator = false;
+      isStreaming = false;
+      
       // Use the branchId from the message that was just sent
       if (streamingBranchIndex !== null) {
         streamingTextByBranch.delete(streamingBranchIndex);
@@ -1609,7 +1633,9 @@
         streamingTextByBranch.delete(usedBranchId);
       }
       responseText = '';
-      console.log('[ChatPane] Cleared responseText, streaming complete');
+      
+      // Wait for Svelte to update the DOM
+      await tick();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error sending message:', err);
@@ -1622,6 +1648,7 @@
         clearTimeout(streamingHardTimeout);
         streamingHardTimeout = null;
       }
+      showStreamingIndicator = false;
       isStreaming = false;
     }
   }
@@ -1697,6 +1724,10 @@
         await transmitter.handleAssistantResponse(responseText, currentThread, newContent, editedUserMessage);
         
         // Clear streaming state after message is added
+        // IMPORTANT: Hide streaming indicator FIRST, then clear other state
+        showStreamingIndicator = false;
+        isStreaming = false;
+        
         const usedBranchId = editedUserMessage?.branchId || normalizeBranchId(currentThread.currentBranchId || '1.0.0');
         streamingTextByBranch.delete(usedBranchId);
         if (streamingBranchIndex === usedBranchId) {
@@ -1708,7 +1739,7 @@
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('[ChatPane] Error editing message:', err);
       showToast(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
+      showStreamingIndicator = false;
       isStreaming = false;
     }
   }
@@ -2102,6 +2133,19 @@
       // Clear streaming text for this branch
       streamingTextByBranch.delete(branchKey);
       
+      // Check if any branches are still streaming
+      const hasStreamingBranches = streamingTextByBranch.size > 0;
+      if (!hasStreamingBranches) {
+        // IMPORTANT: Hide streaming indicator FIRST, then clear other state
+        showStreamingIndicator = false;
+        isStreaming = false;
+        streamingBranchIndex = null;
+        responseText = '';
+      } else if (streamingBranchIndex === branchKey) {
+        // If this was the last tracked branch, clear it
+        streamingBranchIndex = Array.from(streamingTextByBranch.keys())[0] ?? null;
+      }
+      
       // Ensure branches remain visible after variation response
       // Don't let auto-selection happen - keep all branches shown
       activeBranchIndex = null;
@@ -2111,17 +2155,14 @@
       console.error('[ChatPane] Error generating variation response:', err);
       // Clear streaming text on error
       streamingTextByBranch.delete(branchKey);
-    } finally {
-      // When running in parallel, multiple variations may be streaming
+      
       // Check if any branches are still streaming
       const hasStreamingBranches = streamingTextByBranch.size > 0;
       if (!hasStreamingBranches) {
+        showStreamingIndicator = false;
         isStreaming = false;
         streamingBranchIndex = null;
         responseText = '';
-      } else if (streamingBranchIndex === branchKey) {
-        // If this was the last tracked branch, clear it
-        streamingBranchIndex = Array.from(streamingTextByBranch.keys())[0] ?? null;
       }
     }
   }
@@ -2527,7 +2568,7 @@
                     assistantMessage={box.assistantMessage}
                     branchIndex={box.branchIndex}
                     isSelected={isBranchSelected(box.branchIndex)}
-                        isActiveBranch={activeBranchIndex === box.branchIndex && isBranchInHiddenForkPoint(box.branchIndex)}
+                    isActiveBranch={activeBranchIndex === box.branchIndex && isBranchInHiddenForkPoint(box.branchIndex)}
                     onSelect={() => setActiveBranch(box.branchIndex)}
                     hideHeader={false}
                     streamingText={streamingTextByBranch.get(box.userMessage.branchId) ?? null}
@@ -2544,7 +2585,7 @@
         {/each}
 
         <!-- Show streaming response if active (not in a branch) -->
-        {#if isStreaming && responseText && streamingBranchIndex === null}
+        {#if showStreamingIndicator && responseText && streamingBranchIndex === null}
           <div class="message-wrapper" bind:this={streamingMessageEl}>
             <div class="message assistant streaming">
               <div class="message-content">
