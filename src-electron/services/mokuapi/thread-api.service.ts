@@ -397,7 +397,7 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<MessageDTO>;
-    log.info('[ThreadApiService] Successfully fetched messages:', data.content);
+    //log.info('[ThreadApiService] Successfully fetched messages:', data.content);
     return data;
   }
 

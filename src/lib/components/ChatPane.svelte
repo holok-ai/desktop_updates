@@ -21,6 +21,9 @@
   import BranchSwitcher from './branching/BranchSwitcher.svelte';
   import { assembleContext, getBranchMessages, getVariationsForBranch, getForkPoints, getNextSequentialBranchId, getNextBranchIdInBranch, buildContextFromSelectedBranches, getRowNumber, normalizeBranchId } from '$lib/utils/branch-utils';
 
+  // Streaming idle timeout in milliseconds (60 seconds)
+  const STREAMING_IDLE_TIMEOUT_MS = 60000;
+
   interface Props {
     thread?: Thread | null;
     messages?: Message[];
@@ -57,6 +60,7 @@
   }
   let currentProviderConfig: ProviderConfig | null = $state(null);
   let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
+  let isHandlingVariation = $state(false); // Prevent auto-reinitialization during variation handling
 
   // Timeout for cases where streaming starts but no tokens are ever received
   let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -634,9 +638,47 @@
     }
     
     // Get all non-excluded messages sorted by creation time
-    const allNonExcludedMessages = messages
+    // Filter out duplicate user prompts within 30 seconds
+    const sortedMessages = messages
       .filter(m => !excludedMessageIds.has(m.id))
       .sort((a, b) => a.createdAt - b.createdAt);
+
+    const allNonExcludedMessages = sortedMessages.filter((msg, index) => {
+      // Keep all assistant messages
+      if (msg.role !== 'user') return true;
+
+      // Keep first message
+      if (index === 0) return true;
+
+      // Find the previous user message
+      let prevUserMessage: Message | undefined;
+      for (let i = index - 1; i >= 0; i--) {
+        if (sortedMessages[i].role === 'user') {
+          prevUserMessage = sortedMessages[i];
+          break;
+        }
+      }
+
+      // Keep if no previous user message found
+      if (!prevUserMessage) return true;
+
+      // Check if duplicate: same content and within 30 seconds
+      const isSameContent = msg.content.trim() === prevUserMessage.content.trim();
+      const timeDiff = msg.createdAt - prevUserMessage.createdAt;
+      const isWithin30Seconds = timeDiff <= 30000;
+
+      // Filter out (return false) if it's a duplicate
+      if (isSameContent && isWithin30Seconds) {
+        console.log('[ChatPane] Filtering duplicate user message:', {
+          messageId: msg.id,
+          content: msg.content.substring(0, 50),
+          timeDiff,
+        });
+        return false;
+      }
+
+      return true;
+    });
     
     let messageIndex = 0;
     let forkIndex = 0;
@@ -1167,14 +1209,14 @@
       streamingLastTokenAt = Date.now();
       if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
       streamingIdleTimeout = setTimeout(() => {
-        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
-          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
+        if (isStreaming && Date.now() - streamingLastTokenAt >= STREAMING_IDLE_TIMEOUT_MS) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 60s');
           window.electronAPI.chat.offToken();
           showStreamingIndicator = false;
           isStreaming = false;
           showToast('No response from model. Please try again.', 4000);
         }
-      }, 30000);
+      }, STREAMING_IDLE_TIMEOUT_MS);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
       console.log('[ChatPane onToken] responseText now length:', responseText.length);
@@ -1209,7 +1251,17 @@
 
   // Send message and handle streaming response
   async function sendMessage(userMessage: string, attachments: any[] = [], skipUserMessageCreation = false) {
-    if (!userMessage.trim() && attachments.length === 0) return;
+    console.log('[ChatPane sendMessage] CALLED', {
+      userMessage: userMessage.substring(0, 50),
+      attachmentsLength: attachments.length,
+      skipUserMessageCreation,
+      currentThread: currentThread?.id,
+    });
+
+    if (!userMessage.trim() && attachments.length === 0) {
+      console.log('[ChatPane sendMessage] RETURNING EARLY - empty message');
+      return;
+    }
 
     // Build conversation history based on selected branch context
     let historyMessages: Array<{ role: string; content: string }>;
@@ -1403,6 +1455,7 @@
 
     // If offline, queue for later and don't enter streaming state
     if (!isOnline) {
+      console.log('[ChatPane sendMessage] RETURNING EARLY - offline');
       if (userMsg) {
         await transmitter.sendUserMessage(
           userMsg,
@@ -1415,6 +1468,8 @@
       isStreaming = false;
       return;
     }
+
+    console.log('[ChatPane sendMessage] Online, checking chat service initialization');
 
     // Resolve model/provider/url to use for this send
     let modelToUse = modelId || modelName;
@@ -1448,6 +1503,14 @@
       currentProviderConfig.model === modelToUse;
 
     if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+      console.log('[ChatPane sendMessage] Initializing chat service', {
+        chatServiceCreated,
+        modelIsDifferent,
+        configMatches,
+        provider: providerToUse,
+        model: modelToUse,
+      });
+
       const initSuccess = await initializeChatService({
         provider: providerToUse,
         url: urlToUse,
@@ -1455,12 +1518,16 @@
       });
 
       if (!initSuccess) {
+        console.error('[ChatPane sendMessage] RETURNING EARLY - init failed');
         error = error || 'Chat service not initialized';
         return;
       }
 
+      console.log('[ChatPane sendMessage] Chat service initialized, waiting 200ms');
       // Small delay to ensure service is ready
       await new Promise((resolve) => setTimeout(resolve, 200));
+    } else {
+      console.log('[ChatPane sendMessage] Chat service already initialized');
     }
 
     try {
@@ -1546,14 +1613,14 @@
       streamingLastTokenAt = Date.now();
       if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
       streamingIdleTimeout = setTimeout(() => {
-        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
-          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
+        if (isStreaming && Date.now() - streamingLastTokenAt >= STREAMING_IDLE_TIMEOUT_MS) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 60s');
           window.electronAPI.chat.offToken();
           showStreamingIndicator = false;
           isStreaming = false;
           showToast('No response from model. Please try again.', 4000);
         }
-      }, 30000);
+      }, STREAMING_IDLE_TIMEOUT_MS);
 
       // Strip internal status banners from history so they are not re-sent to the model
       historyMessages = historyMessages.map((h) => ({
@@ -1573,16 +1640,25 @@
         ...(currentThread?.id && { thread_guid: currentThread.id }),  // Pass raw thread ID
         branch_id: branchId,  // DesktopChatService will format with formatThreadId()
       };
-      console.log('[ChatPane] Sending chat request with thread_id:', request.thread_guid, 'branchId:', branchId);
+      console.log('[ChatPane sendMessage] Built request:', {
+        thread_guid: request.thread_guid,
+        branch_id: branchId,
+        model: modelToUse,
+        provider: providerToUse,
+        messagesCount: requestMessages.length,
+      });
 
       // Send user message (message will be created locally when chat is called)
       // Only send if we actually created an optimistic user message
       if (userMsg) {
+        console.log('[ChatPane sendMessage] Sending user message to transmitter');
         await transmitter.sendUserMessage(userMsg, thread, isOnline, branchId);
       }
 
+      console.log('[ChatPane sendMessage] *** CALLING window.electronAPI.chat.chat() ***');
       // Use chat for all requests - tools are invisible to user
       const result = await window.electronAPI.chat.chat(request) as { success: boolean; error?: string };
+      console.log('[ChatPane sendMessage] *** Chat call returned ***', result);
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -1948,6 +2024,9 @@
     let variationResponseText = '';
     const branchKey = userMessage.branchId;
 
+    // Set flag to prevent auto-reinitialization effect from overriding our variation model
+    isHandlingVariation = true;
+
     try {
       // Track streaming state for this specific branch
       isStreaming = true;
@@ -2066,6 +2145,13 @@
       let providerToUse = modelProvider;
       let urlToUse = modelUrl;
 
+      console.log('[ChatPane] generateResponseForVariation - Initial values:', {
+        userMessageModelId: userMessage.modelId,
+        threadModelName: modelName,
+        threadModelProvider: modelProvider,
+        threadModelUrl: modelUrl,
+      });
+
       // If we have a modelId (accessName), try to find the model details to get provider/url
       if (userMessage.modelId) {
         try {
@@ -2075,6 +2161,13 @@
             modelToUse = modelDetails.accessName;
             providerToUse = modelDetails.provider;
             urlToUse = modelDetails.url;
+            console.log('[ChatPane] generateResponseForVariation - Found model details:', {
+              modelToUse,
+              providerToUse,
+              urlToUse,
+            });
+          } else {
+            console.warn('[ChatPane] generateResponseForVariation - Model not found:', userMessage.modelId);
           }
         } catch (err) {
           console.error('[ChatPane] Failed to get model details:', err);
@@ -2096,20 +2189,29 @@
       
       // Initialize if: service not created, or model is different and config doesn't match
       if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+        console.log('[ChatPane] generateResponseForVariation - Calling initializeChatService:', {
+          provider: providerToUse,
+          url: urlToUse,
+          model: modelToUse,
+          isHandlingVariation,
+        });
+
         const initSuccess = await initializeChatService({
           provider: providerToUse,
           url: urlToUse,
           model: modelToUse,
         });
-        
+
         if (!initSuccess) {
           error = error || 'Chat service not initialized';
           console.error('[ChatPane] Chat service not initialized for variation');
           return;
         }
-        
+
+        console.log('[ChatPane] generateResponseForVariation - Init completed, waiting 200ms');
         // Wait a bit for service to be ready
         await new Promise(resolve => setTimeout(resolve, 200));
+        console.log('[ChatPane] generateResponseForVariation - Ready to send request');
       }
 
       // Format thread_id with branch_id: "threadId,branch_id=branchId"
@@ -2171,7 +2273,7 @@
       console.error('[ChatPane] Error generating variation response:', err);
       // Clear streaming text on error
       streamingTextByBranch.delete(branchKey);
-      
+
       // Check if any branches are still streaming
       const hasStreamingBranches = streamingTextByBranch.size > 0;
       if (!hasStreamingBranches) {
@@ -2180,6 +2282,9 @@
         streamingBranchIndex = null;
         responseText = '';
       }
+    } finally {
+      // Clear flag to allow normal auto-reinitialization to resume
+      isHandlingVariation = false;
     }
   }
 
@@ -2348,6 +2453,12 @@
       return;
     }
 
+    // Don't auto-reinitialize during variation handling to avoid overriding the variation's model
+    if (isHandlingVariation) {
+      console.log('[ChatPane] Auto-reinit effect skipped - handling variation');
+      return;
+    }
+
     // Build provider config from current thread metadata
     const newConfig: ProviderConfig = {
       provider: modelProvider,
@@ -2363,6 +2474,11 @@
       currentProviderConfig.model !== newConfig.model;
 
     if (needsReinit) {
+      console.log('[ChatPane] Auto-reinit effect triggered:', {
+        currentConfig: currentProviderConfig,
+        newConfig,
+        isHandlingVariation,
+      });
       chatServiceCreated = false; // Mark as not created to trigger reinit
       void initializeChatService(newConfig);
     }

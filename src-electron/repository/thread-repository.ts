@@ -294,6 +294,26 @@ export class ThreadRepository {
     }
   }
 
+  /**
+   * Get messages for a thread from cache without fetching from API.
+   * If thread is not cached, loads it first (which will fetch from API).
+   * This method is optimized to avoid redundant API calls when messages are already loaded.
+   */
+  public async getMessages(threadId: string): Promise<Message[]> {
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      // Return cached messages without API call
+      log.info('[ThreadRepository] getMessages - returning', cachedThread.messages.length, 'cached messages');
+      return cachedThread.messages.map(m => ({ ...m }));
+    }
+
+    // Not cached - load the thread (which will fetch messages)
+    log.info('[ThreadRepository] getMessages - thread not cached, loading from API');
+    const thread = await this.loadThread(threadId);
+    if (!thread) return [];
+    return thread.messages.map(m => ({ ...m }));
+  }
+
   public async listThreads(options?: { projectId?: string; page?: number; size?: number }): Promise<Thread[]> {
     try {
       const response = await threadApiService.getThreads({

@@ -223,12 +223,15 @@ export function registerThreadHandlers(): void {
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
   ipcMain.handle('thread:getMessages', async (_event, id: string): Promise<Message[]> => {
+    threadLog.info('[thread:getMessages] Called for thread:', id);
     const t = await threadRepository.loadThread(id);
+    threadLog.info('[thread:getMessages] loadThread returned, has thread:', !!t, 'messages:', t?.messages.length || 0);
     if (!t) return [];
     const items: Message[] = t.messages
       .filter((m) => !m.deletedAt)
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((m) => ({ ...m }));
+    threadLog.info('[thread:getMessages] Returning', items.length, 'messages after filtering');
     return items;
   });
 
