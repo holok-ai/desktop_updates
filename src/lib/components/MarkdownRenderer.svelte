@@ -184,13 +184,35 @@
     });
   }
 
+  // Process security status messages
+  function processStatusMessages(text: string): string {
+    const hasValidation = /\[Validating request and running security checks\.\.\.\]/.test(text);
+    const hasPassed = /\[Security checks passed, processing your request\.\.\.\]/.test(text);
+
+    if (hasValidation && hasPassed) {
+      // Both present: hide validation, show only green checkmark
+      return text
+        .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
+        .replace(
+          /\[Security checks passed, processing your request\.\.\.\]\n?/g,
+          '<span class="status-success"><span class="checkmark">✓</span></span>'
+        );
+    } else if (hasValidation) {
+      // Only validation: show spinner
+      return text.replace(
+        /\[Validating request and running security checks\.\.\.\]\n?/g,
+        '<span class="status-spinner"><span class="spinner"></span> Validating request...</span>'
+      );
+    }
+
+    return text;
+  }
+
   // Render markdown to HTML
   function renderMarkdown(text: string): string {
     try {
-      // Filter out security check messages before rendering
-      let filteredText = text
-        .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
-        .replace(/\[Security checks passed, processing your request\.\.\.\]\n?/g, '');
+      // Process security status messages before rendering
+      let filteredText = processStatusMessages(text);
 
       configureMarked();
       const rawHtml = marked.parse(filteredText) as string;
@@ -661,5 +683,52 @@
     z-index: 10000;
     pointer-events: none;
     white-space: nowrap;
+  }
+
+  /* Security status messages */
+  .markdown-content :global(.status-spinner) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.875rem;
+    margin: 0.25rem 0;
+  }
+
+  .markdown-content :global(.status-spinner .spinner) {
+    display: inline-block;
+    width: 0.875em;
+    height: 0.875em;
+    border: 2px solid rgba(107, 114, 128, 0.3);
+    border-top-color: #6b7280;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .markdown-content :global(.status-success) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #10b981;
+    font-size: 0.875rem;
+    margin: 0.25rem 0;
+  }
+
+  .markdown-content :global(.status-success .checkmark) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    font-weight: bold;
+    background: #10b981;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75em;
+    line-height: 1;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>
