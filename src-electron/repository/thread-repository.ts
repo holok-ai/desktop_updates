@@ -1180,6 +1180,9 @@ export class ThreadRepository {
       branchId = this.normalizeBranchId(branchId);
     }
 
+    log.info('[ThreadRepository] Message branchId: ', branchId,',role: ', dto.role, ' content: ', dto.content, ' metadata: ', dto.metadata);
+
+
     return {
       id: dto.id,
       title: threadTitle,

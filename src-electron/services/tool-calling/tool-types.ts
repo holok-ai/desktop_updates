@@ -106,10 +106,66 @@ export interface ShellResult {
 }
 
 /**
+ * Result from read_word tool
+ */
+export interface ReadWordResult {
+  path: string;
+  content: string;
+  metadata: {
+    size: number;
+    modified: number;
+    wordCount: number;
+    format: 'docx';
+  };
+  warnings: string[];
+}
+
+/**
+ * Excel sheet information
+ */
+export interface ExcelSheetInfo {
+  name: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+/**
+ * Result from read_excel tool
+ */
+export interface ReadExcelResult {
+  path: string;
+  content: string;
+  metadata: {
+    size: number;
+    modified: number;
+    sheetCount: number;
+    totalRows: number;
+    totalCells: number;
+    format: 'xlsx';
+  };
+  sheets: ExcelSheetInfo[];
+}
+
+/**
+ * Result from read_pdf tool
+ */
+export interface ReadPdfResult {
+  path: string;
+  content: string;
+  metadata: {
+    size: number;
+    modified: number;
+    wordCount: number;
+    pageCount: number;
+    format: 'pdf';
+  };
+}
+
+/**
  * Generic result interface for all tool executions
  */
 export interface ToolResult {
   success: boolean;
-  data?: ReadFolderResult | ReadFileResult | WriteFileResult | ShellResult;
+  data?: ReadFolderResult | ReadFileResult | WriteFileResult | ShellResult | ReadWordResult | ReadExcelResult | ReadPdfResult;
   error?: string;
 }
