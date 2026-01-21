@@ -3,8 +3,8 @@ var H = (d, e, o) => e in d ? M(d, e, { enumerable: !0, configurable: !0, writab
 var i = (d, e, o) => H(d, typeof e != "symbol" ? e + "" : e, o);
 import { Ollama as I } from "ollama/browser";
 import U from "openai";
-import b from "@anthropic-ai/sdk";
-class A {
+import E from "@anthropic-ai/sdk";
+class P {
   /**
    * Convert internal ChatRequest to Ollama-specific format
    */
@@ -31,7 +31,7 @@ const _ = class _ {
     if (!e.thread_id)
       return {};
     let t = e.thread_id;
-    return t.includes(",branch_id=") || (t = `${t},branch_id=1.0`), o > 0 && (t = `${t}.${Math.floor(o)}`), {
+    return t.includes(",branch_id=") || (t = `${t},branch_id=1.0.1`), t = `${t}.${Math.floor(o)}`, {
       thread_id: t
     };
   }
@@ -50,23 +50,10 @@ const _ = class _ {
    */
   static async handleToolLoop(e, o, t, s, n, a, l, c = !1) {
     let r = t;
-    const p = n;
+    const u = n;
     for (let m = 0; m < _.MAX_TOOL_ITERATIONS; m++) {
-      const h = _.addToolSeqToBranch(p, m);
-      if ("setTokenCallback" in e && typeof e.setTokenCallback == "function") {
-        console.log("[ChatProviderUtils] Setting token callback", {
-          iteration: m,
-          hasCallback: !!l
-        });
-        const u = l ? (y) => {
-          console.log("[ChatProviderUtils] Token received from handler", {
-            iteration: m,
-            tokenLength: y.length,
-            tokenPreview: y.substring(0, 50)
-          }), l(y);
-        } : void 0;
-        e.setTokenCallback(u);
-      }
+      const h = _.addToolSeqToBranch(u, m);
+      "setTokenCallback" in e && typeof e.setTokenCallback == "function" && e.setTokenCallback(l);
       const C = await e.makeRequest(
         o,
         r,
@@ -75,18 +62,18 @@ const _ = class _ {
         c
       ), f = "setTokenCallback" in e && typeof e.setTokenCallback == "function";
       if (!c || !f) {
-        const u = e.extractTextContent(C);
-        u && l && l(u);
+        const p = e.extractTextContent(C);
+        p && l && l(p);
       }
-      const k = e.extractToolUses(C);
-      if (k.length === 0)
+      const y = e.extractToolUses(C);
+      if (y.length === 0)
         return;
       const T = [];
-      for (const u of k) {
-        const y = await a(u);
-        T.push(y);
+      for (const p of y) {
+        const v = await a(p);
+        T.push(v);
       }
-      const g = e.formatToolResults(k, T);
+      const g = e.formatToolResults(y, T);
       r = e.appendMessages(r, C, g);
     }
     throw new Error("Tool loop exceeded maximum iterations");
@@ -96,8 +83,8 @@ const _ = class _ {
  * Maximum number of tool calling iterations to prevent infinite loops
  */
 i(_, "MAX_TOOL_ITERATIONS", 10);
-let O = _;
-class E {
+let w = _;
+class b {
   constructor(e) {
     i(this, "onTokenReceived");
     this.ollama = e;
@@ -126,10 +113,10 @@ class E {
         stream: !0
       });
       let c = null, r = 0;
-      for await (const p of l) {
+      for await (const u of l) {
         r++;
-        const m = (a = p.message) == null ? void 0 : a.content;
-        m && this.onTokenReceived && this.onTokenReceived(m), c = p;
+        const m = (a = u.message) == null ? void 0 : a.content;
+        m && this.onTokenReceived && this.onTokenReceived(m), c = u;
       }
       return console.log("[OllamaToolHandler] Stream complete", {
         chunkCount: r,
@@ -245,7 +232,7 @@ class E {
     return typeof e == "object" ? e : { value: e };
   }
 }
-class L {
+class N {
   constructor(e, o, t, s = [], n) {
     i(this, "ollama");
     i(this, "defaultModel");
@@ -254,7 +241,7 @@ class L {
     i(this, "toolHandler");
     this.ollama = new I({ host: e, headers: {
       "X-api-key": o
-    } }), this.defaultModel = t, this.tools = s, this.onToolUse = n, s.length > 0 && (this.toolHandler = new E(this.ollama)), console.log(`OllamaChatProvider initialized with endpoint ${e} and model ${t}${s.length > 0 ? ` and ${s.length} tools` : ""}`);
+    } }), this.defaultModel = t, this.tools = s, this.onToolUse = n, s.length > 0 && (this.toolHandler = new b(this.ollama)), console.log(`OllamaChatProvider initialized with endpoint ${e} and model ${t}${s.length > 0 ? ` and ${s.length} tools` : ""}`);
   }
   /**
    * Send a chat request to Ollama
@@ -270,7 +257,7 @@ class L {
       await this.chatWithTools(e, o);
       return;
     }
-    const s = e.model || this.defaultModel, n = { ...e, model: s }, a = A.toOllamaRequest(n), l = t.thread_id ? { thread_id: t.thread_id } : {};
+    const s = e.model || this.defaultModel, n = { ...e, model: s }, a = P.toOllamaRequest(n), l = t.thread_id ? { thread_id: t.thread_id } : {};
     try {
       if (a.stream) {
         const c = await this.ollama.chat({
@@ -279,8 +266,8 @@ class L {
           stream: !0
         });
         for await (const r of c) {
-          const p = r.message.content;
-          o && o(p);
+          const u = r.message.content;
+          o && o(u);
         }
       } else {
         const c = await this.ollama.chat({
@@ -301,9 +288,9 @@ class L {
   async chatWithTools(e, o) {
     if (!this.toolHandler || !this.onToolUse)
       throw new Error("Tool handler not configured");
-    const t = e.model || this.defaultModel, s = { ...e, model: t }, n = A.toOllamaRequest(s), a = this.convertToolsToOllamaFormat(this.tools);
+    const t = e.model || this.defaultModel, s = { ...e, model: t }, n = P.toOllamaRequest(s), a = this.convertToolsToOllamaFormat(this.tools);
     try {
-      await O.handleToolLoop(
+      await w.handleToolLoop(
         this.toolHandler,
         n.model,
         n.messages || [],
@@ -362,7 +349,7 @@ class L {
    * Handle the tool use loop
    */
   async handleToolLoop(e, o, t, s) {
-    var c, r, p, m;
+    var c, r, u, m;
     let n = [...e.messages];
     const a = e.stream !== !1, l = s;
     console.log("[OllamaChatProvider] handleToolLoop starting", {
@@ -371,9 +358,9 @@ class L {
       messagesCount: n.length,
       hasThreadId: !!l.thread_id
     });
-    for (let h = 0; h < O.MAX_TOOL_ITERATIONS; h++) {
+    for (let h = 0; h < w.MAX_TOOL_ITERATIONS; h++) {
       console.log("[OllamaChatProvider] Tool loop iteration", { iteration: h });
-      const C = O.addToolSeqToBranch(l, h), f = await this.ollama.chat({
+      const C = w.addToolSeqToBranch(l, h), f = await this.ollama.chat({
         ...C,
         model: e.model,
         messages: n,
@@ -386,26 +373,26 @@ class L {
         hasToolCalls: !!((c = f.message) != null && c.tool_calls),
         messageKeys: f.message ? Object.keys(f.message) : [],
         messageContent: (r = f.message) == null ? void 0 : r.content,
-        toolCalls: (p = f.message) == null ? void 0 : p.tool_calls,
+        toolCalls: (u = f.message) == null ? void 0 : u.tool_calls,
         fullResponse: JSON.stringify(f, null, 2)
       }), (m = f.message) != null && m.content && t && t(f.message.content);
-      const v = this.extractToolCalls(f.message);
-      if (v.length === 0) {
+      const k = this.extractToolCalls(f.message);
+      if (k.length === 0) {
         console.log("[OllamaChatProvider] No tool calls found, ending loop");
         return;
       }
-      console.log("[OllamaChatProvider] Found tool calls", { count: v.length });
-      const k = [];
-      for (const T of v) {
+      console.log("[OllamaChatProvider] Found tool calls", { count: k.length });
+      const y = [];
+      for (const T of k) {
         console.log("[OllamaChatProvider] Executing tool", { name: T.name });
         const g = {
           id: T.id,
           name: T.name,
           input: this.parseToolArguments(T.arguments)
-        }, u = await this.onToolUse(g);
-        console.log("[OllamaChatProvider] Tool result", { success: u.success }), k.push({
+        }, p = await this.onToolUse(g);
+        console.log("[OllamaChatProvider] Tool result", { success: p.success }), y.push({
           id: T.id,
-          result: JSON.stringify(u)
+          result: JSON.stringify(p)
         });
       }
       n.push({
@@ -413,7 +400,7 @@ class L {
         content: f.message.content || "",
         tool_calls: f.message.tool_calls
       });
-      for (const T of k)
+      for (const T of y)
         n.push({
           role: "tool",
           content: T.result
@@ -454,7 +441,7 @@ class S {
     return e.temperature !== void 0 && (t.temperature = e.temperature), e.maxTokens !== void 0 && (t.max_tokens = e.maxTokens), e.topP !== void 0 && (t.top_p = e.topP), e.frequencyPenalty !== void 0 && (t.frequency_penalty = e.frequencyPenalty), e.presencePenalty !== void 0 && (t.presence_penalty = e.presencePenalty), e.stop !== void 0 && (t.stop = e.stop), e.responseFormat !== void 0 && (t.response_format = e.responseFormat), t;
   }
 }
-class N {
+class L {
   constructor(e) {
     i(this, "onTokenReceived");
     this.client = e;
@@ -484,9 +471,9 @@ class N {
       toolCallsCount: ((n = (s = o == null ? void 0 : o.message) == null ? void 0 : s.tool_calls) == null ? void 0 : n.length) || 0,
       hasFunctionCall: !!((a = o == null ? void 0 : o.message) != null && a.function_call)
     }), (o == null ? void 0 : o.finish_reason) === "tool_calls" || (l = o == null ? void 0 : o.message) != null && l.tool_calls) {
-      const p = (c = o == null ? void 0 : o.message) == null ? void 0 : c.tool_calls;
-      if (p && p.length > 0) {
-        const m = p.map((h) => ({
+      const u = (c = o == null ? void 0 : o.message) == null ? void 0 : c.tool_calls;
+      if (u && u.length > 0) {
+        const m = u.map((h) => ({
           id: h.id,
           name: h.function.name,
           input: this.parseToolArguments(h.function.arguments)
@@ -498,12 +485,12 @@ class N {
       }
     }
     if ((o == null ? void 0 : o.finish_reason) === "function_call") {
-      const p = (r = o == null ? void 0 : o.message) == null ? void 0 : r.function_call;
-      if (p) {
+      const u = (r = o == null ? void 0 : o.message) == null ? void 0 : r.function_call;
+      if (u) {
         const m = {
           id: `call_${Date.now()}`,
-          name: p.name,
-          input: this.parseToolArguments(p.arguments || "{}")
+          name: u.name,
+          input: this.parseToolArguments(u.arguments || "{}")
         };
         return console.log("[OpenAIToolHandler] Extracted tool use (function_call format)", {
           id: m.id,
@@ -563,7 +550,7 @@ class N {
       threadContext: s
     });
     try {
-      const r = Date.now(), p = await this.client.chat.completions.create({
+      const r = Date.now(), u = await this.client.chat.completions.create({
         ...s,
         model: e,
         messages: o,
@@ -572,26 +559,26 @@ class N {
       });
       console.log("[OpenAIToolHandler] Stream received, processing chunks");
       let m = "", h = [], C = null, f = 0;
-      for await (const k of p) {
+      for await (const y of u) {
         f++;
-        const T = k.choices[0], g = T == null ? void 0 : T.delta;
+        const T = y.choices[0], g = T == null ? void 0 : T.delta;
         if (g != null && g.content && (m += g.content, this.onTokenReceived && this.onTokenReceived(g.content)), g != null && g.tool_calls)
-          for (const u of g.tool_calls) {
-            const y = u.index;
-            h[y] ? (u.id && (h[y].id += u.id), (l = u.function) != null && l.name && (h[y].function.name += u.function.name), (c = u.function) != null && c.arguments && (h[y].function.arguments += u.function.arguments)) : h[y] = {
-              id: u.id || "",
+          for (const p of g.tool_calls) {
+            const v = p.index;
+            h[v] ? (p.id && (h[v].id += p.id), (l = p.function) != null && l.name && (h[v].function.name += p.function.name), (c = p.function) != null && c.arguments && (h[v].function.arguments += p.function.arguments)) : h[v] = {
+              id: p.id || "",
               type: "function",
               function: {
-                name: ((n = u.function) == null ? void 0 : n.name) || "",
-                arguments: ((a = u.function) == null ? void 0 : a.arguments) || ""
+                name: ((n = p.function) == null ? void 0 : n.name) || "",
+                arguments: ((a = p.function) == null ? void 0 : a.arguments) || ""
               }
             };
           }
         T != null && T.finish_reason && (C = T.finish_reason);
       }
-      const v = Date.now() - r;
+      const k = Date.now() - r;
       return console.log("[OpenAIToolHandler] makeStreamingRequest complete", {
-        duration: `${v}ms`,
+        duration: `${k}ms`,
         chunkCount: f,
         accumulatedContentLength: m.length,
         toolCallsCount: h.length,
@@ -626,7 +613,7 @@ class N {
    * Make a non-streaming request to OpenAI API
    */
   async makeNonStreamingRequest(e, o, t, s) {
-    var n, a, l, c, r, p, m, h, C, f, v, k, T;
+    var n, a, l, c, r, u, m, h, C, f, k, y, T;
     console.log("[OpenAIToolHandler] makeNonStreamingRequest calling API", {
       model: e,
       messagesCount: o.length,
@@ -634,23 +621,23 @@ class N {
       threadContext: s
     });
     try {
-      const g = Date.now(), u = await this.client.chat.completions.create({
+      const g = Date.now(), p = await this.client.chat.completions.create({
         ...s,
         model: e,
         messages: o,
         tools: t,
         stream: !1
-      }), y = Date.now() - g;
+      }), v = Date.now() - g;
       return console.log("[OpenAIToolHandler] makeNonStreamingRequest response received", {
-        duration: `${y}ms`,
-        hasResponse: !!u,
-        hasChoices: !!u.choices,
-        choicesCount: ((n = u.choices) == null ? void 0 : n.length) || 0,
-        finishReason: (l = (a = u.choices) == null ? void 0 : a[0]) == null ? void 0 : l.finish_reason,
-        hasContent: !!((p = (r = (c = u.choices) == null ? void 0 : c[0]) == null ? void 0 : r.message) != null && p.content),
-        hasToolCalls: !!((C = (h = (m = u.choices) == null ? void 0 : m[0]) == null ? void 0 : h.message) != null && C.tool_calls),
-        toolCallsCount: ((T = (k = (v = (f = u.choices) == null ? void 0 : f[0]) == null ? void 0 : v.message) == null ? void 0 : k.tool_calls) == null ? void 0 : T.length) || 0
-      }), u;
+        duration: `${v}ms`,
+        hasResponse: !!p,
+        hasChoices: !!p.choices,
+        choicesCount: ((n = p.choices) == null ? void 0 : n.length) || 0,
+        finishReason: (l = (a = p.choices) == null ? void 0 : a[0]) == null ? void 0 : l.finish_reason,
+        hasContent: !!((u = (r = (c = p.choices) == null ? void 0 : c[0]) == null ? void 0 : r.message) != null && u.content),
+        hasToolCalls: !!((C = (h = (m = p.choices) == null ? void 0 : m[0]) == null ? void 0 : h.message) != null && C.tool_calls),
+        toolCallsCount: ((T = (y = (k = (f = p.choices) == null ? void 0 : f[0]) == null ? void 0 : k.message) == null ? void 0 : y.tool_calls) == null ? void 0 : T.length) || 0
+      }), p;
     } catch (g) {
       throw console.error("[OpenAIToolHandler] makeNonStreamingRequest failed", {
         error: g,
@@ -680,14 +667,14 @@ class D {
     i(this, "tools");
     i(this, "onToolUse");
     i(this, "toolHandler");
-    this.client = new U({ apiKey: o, baseURL: e, dangerouslyAllowBrowser: !0 }), this.defaultModel = t || "gpt-3.5-turbo", this.tools = s, this.onToolUse = n, s.length > 0 && (this.toolHandler = new N(this.client)), console.log(`OpenAIChatProvider initialized with model ${this.defaultModel}${s.length > 0 ? ` and ${s.length} tools` : ""}`);
+    this.client = new U({ apiKey: o, baseURL: e, dangerouslyAllowBrowser: !0 }), this.defaultModel = t || "gpt-3.5-turbo", this.tools = s, this.onToolUse = n, s.length > 0 && (this.toolHandler = new L(this.client)), console.log(`OpenAIChatProvider initialized with model ${this.defaultModel}${s.length > 0 ? ` and ${s.length} tools` : ""}`);
   }
   /**
    * Send a chat request to OpenAI
    * Automatically handles tools if configured in constructor
    */
   async chat(e, o) {
-    var l, c, r, p;
+    var l, c, r, u;
     const t = e;
     if (console.log("[OpenAIChatProvider] chat called", {
       hasThreadId: !!t.thread_id,
@@ -718,7 +705,7 @@ class D {
           C && o && o(C);
         }
       } else {
-        const h = ((p = (r = (await this.client.chat.completions.create({
+        const h = ((u = (r = (await this.client.chat.completions.create({
           model: n.model,
           messages: n.messages,
           temperature: e.temperature,
@@ -736,7 +723,7 @@ class D {
             }
           },
           ...a
-        })).choices[0]) == null ? void 0 : r.message) == null ? void 0 : p.content) || "";
+        })).choices[0]) == null ? void 0 : r.message) == null ? void 0 : u.content) || "";
         h && o && o(h);
       }
     } catch (m) {
@@ -762,7 +749,7 @@ class D {
       shouldStream: e.streaming !== !1
     });
     try {
-      console.log("[OpenAIChatProvider] Calling ChatProviderUtils.handleToolLoop"), await O.handleToolLoop(
+      console.log("[OpenAIChatProvider] Calling ChatProviderUtils.handleToolLoop"), await w.handleToolLoop(
         this.toolHandler,
         s.model,
         s.messages,
@@ -940,16 +927,12 @@ class $ {
         stream: !0,
         ...s
       }).on("text", (m) => {
-        l++, console.log("[ClaudeToolHandler] Streaming text token", {
-          tokenCount: l,
-          textLength: m.length,
-          hasCallback: !!this.onTokenReceived
-        }), this.onTokenReceived && this.onTokenReceived(m);
+        l++, this.onTokenReceived && this.onTokenReceived(m);
       });
       console.log("[ClaudeToolHandler] Stream started, waiting for final message");
-      const r = await c.finalMessage(), p = Date.now() - a;
+      const r = await c.finalMessage(), u = Date.now() - a;
       return console.log("[ClaudeToolHandler] makeStreamingRequest complete", {
-        duration: `${p}ms`,
+        duration: `${u}ms`,
         hasMessage: !!r,
         contentBlocksCount: ((n = r.content) == null ? void 0 : n.length) || 0,
         totalTokensStreamed: l
@@ -1010,7 +993,7 @@ class F {
     i(this, "tools");
     i(this, "onToolUse");
     i(this, "toolHandler");
-    this.client = new b({
+    this.client = new E({
       apiKey: o,
       dangerouslyAllowBrowser: !0
     }), e && (this.client.baseURL = e), this.defaultModel = t || "claude-3-opus-20240229", this.tools = s, this.onToolUse = n, s.length > 0 && (this.toolHandler = new $(this.client)), console.log(`ClaudeChatProvider initialized with model ${this.defaultModel}${s.length > 0 ? ` and ${s.length} tools` : ""}`);
@@ -1087,7 +1070,7 @@ class F {
       shouldStream: e.streaming !== !1
     });
     try {
-      console.log("[ClaudeChatProvider] Calling ChatProviderUtils.handleToolLoop"), await O.handleToolLoop(
+      console.log("[ClaudeChatProvider] Calling ChatProviderUtils.handleToolLoop"), await w.handleToolLoop(
         this.toolHandler,
         s.model,
         s.messages,
@@ -1122,7 +1105,7 @@ class J {
       case "ollama":
         if (!o.apiKey)
           throw new Error("API key is required for Ollama provider");
-        return new L(o.url, o.apiKey, o.model, t || [], s);
+        return new N(o.url, o.apiKey, o.model, t || [], s);
       case "openai":
         if (!o.apiKey)
           throw new Error("API key is required for OpenAI provider");
@@ -1248,7 +1231,7 @@ class X {
     return o > 0 ? this.tokensReceived / o : void 0;
   }
 }
-const w = class w {
+const O = class O {
   constructor(e) {
     i(this, "config");
     i(this, "auditLogs", []);
@@ -1264,7 +1247,7 @@ const w = class w {
    * Get the singleton instance
    */
   static getInstance(e) {
-    return w.instance || (w.instance = new w(e || { enabled: !0 })), w.instance;
+    return O.instance || (O.instance = new O(e || { enabled: !0 })), O.instance;
   }
   /**
    * Create an accumulator for tracking a chat request
@@ -1333,8 +1316,8 @@ const w = class w {
     }
   }
 };
-i(w, "instance");
-let P = w;
+i(O, "instance");
+let A = O;
 class q {
   /**
    * Create a ChatService with the specified provider and configuration
@@ -1346,7 +1329,7 @@ class q {
     i(this, "auditService");
     i(this, "tools");
     i(this, "onToolUse");
-    this.providerType = e, this.config = o, this.tools = s, this.onToolUse = n, this.provider = this.initializeProvider(), this.auditService = P.getInstance({
+    this.providerType = e, this.config = o, this.tools = s, this.onToolUse = n, this.provider = this.initializeProvider(), this.auditService = A.getInstance({
       enabled: t,
       logToConsole: !0,
       logToServer: !1
@@ -1405,17 +1388,17 @@ class ee {
   }
 }
 export {
-  P as AuditService,
+  A as AuditService,
   ee as ChatApiService,
   J as ChatProviderFactory,
-  O as ChatProviderUtils,
+  w as ChatProviderUtils,
   q as ChatService,
   F as ClaudeChatProvider,
   $ as ClaudeToolHandler,
-  L as OllamaChatProvider,
-  E as OllamaToolHandler,
+  N as OllamaChatProvider,
+  b as OllamaToolHandler,
   D as OpenAIChatProvider,
-  N as OpenAIToolHandler,
+  L as OpenAIToolHandler,
   R as ProviderType,
   X as TokenAccumulator
 };

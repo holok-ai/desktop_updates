@@ -54,15 +54,18 @@
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
     "highlight.js": "^11.11.1",
+    "mammoth": "^1.11.0",
     "marked": "^17.0.0",
     "ollama": "^0.6.2",
     "openai": "^6.7.0",
+    "pdf2json": "^4.0.2",
     "playwright": "^1.56.1",
     "primeicons": "^7.0.0",
     "primeng": "^17.18.11",
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
-    "vitest": "^4.0.4"
+    "vitest": "^4.0.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^4.1.0",
