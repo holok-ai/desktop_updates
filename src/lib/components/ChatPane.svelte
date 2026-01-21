@@ -60,7 +60,9 @@
 
   // Timeout for cases where streaming starts but no tokens are ever received
   let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
-  let streamingHardTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Idle timeout if tokens stop flowing for too long
+  let streamingIdleTimeout: ReturnType<typeof setTimeout> | null = null;
+  let streamingLastTokenAt = 0;
 
   // Strip internal status messages from content before sending as history to the model
   const STATUS_VALIDATING_REGEX = /\[Validating request and running security checks\.\.\.\]\n?/g;
@@ -1161,6 +1163,18 @@
         clearTimeout(streamingNoResponseTimeout);
         streamingNoResponseTimeout = null;
       }
+      // Track last token time and (re)start idle timeout
+      streamingLastTokenAt = Date.now();
+      if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
+      streamingIdleTimeout = setTimeout(() => {
+        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
+          window.electronAPI.chat.offToken();
+          showStreamingIndicator = false;
+          isStreaming = false;
+          showToast('No response from model. Please try again.', 4000);
+        }
+      }, 30000);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
       console.log('[ChatPane onToken] responseText now length:', responseText.length);
@@ -1523,21 +1537,23 @@
           console.error('[ChatPane] Streaming timeout: no response from model after 10s');
           window.electronAPI.chat.offToken();
           isStreaming = false;
+          showStreamingIndicator = false;
           showToast('No response from model. Please try again.', 4000);
         }
       }, 10_000);
 
-      // Hard timeout: if streaming doesn't complete within 10s (even if tokens arrive),
-      // stop streaming UI so it can't get stuck forever.
-      if (streamingHardTimeout) clearTimeout(streamingHardTimeout);
-      streamingHardTimeout = setTimeout(() => {
-        if (isStreaming) {
-          console.error('[ChatPane] Streaming hard timeout after 10s');
+      // Initialize idle timer bookkeeping
+      streamingLastTokenAt = Date.now();
+      if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
+      streamingIdleTimeout = setTimeout(() => {
+        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
           window.electronAPI.chat.offToken();
+          showStreamingIndicator = false;
           isStreaming = false;
-          showToast('Request timed out. Please try again.', 4000);
+          showToast('No response from model. Please try again.', 4000);
         }
-      }, 10_000);
+      }, 30000);
 
       // Strip internal status banners from history so they are not re-sent to the model
       historyMessages = historyMessages.map((h) => ({
@@ -1644,9 +1660,9 @@
         clearTimeout(streamingNoResponseTimeout);
         streamingNoResponseTimeout = null;
       }
-      if (streamingHardTimeout) {
-        clearTimeout(streamingHardTimeout);
-        streamingHardTimeout = null;
+      if (streamingIdleTimeout) {
+        clearTimeout(streamingIdleTimeout);
+        streamingIdleTimeout = null;
       }
       showStreamingIndicator = false;
       isStreaming = false;
