@@ -195,7 +195,7 @@
         .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
         .replace(
           /\[Security checks passed, processing your request\.\.\.\]\n?/g,
-          ''
+          '<span class="status-success"><span class="checkmark">✓</span></span>'
         );
     } else if (hasValidation) {
       // Only validation: show spinner
@@ -692,7 +692,7 @@
     gap: 0.4rem;
     color: var(--text-secondary, #6b7280);
     font-size: 0.875rem;
-    margin: 0.25rem 8px 0.25rem 0;
+    margin: 0.25rem 0;
   }
 
   .markdown-content :global(.status-spinner .spinner) {
@@ -711,7 +711,7 @@
     gap: 0.4rem;
     color: #10b981;
     font-size: 0.875rem;
-    margin: 0.25rem 8px 0.25rem 0;
+    margin: 0.25rem 0;
   }
 
   .markdown-content :global(.status-success .checkmark) {
