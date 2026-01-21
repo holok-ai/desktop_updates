@@ -30,6 +30,7 @@ const threadLog = createScopedLogger('thread');
 function toRendererThread(t: InternalThread | null): RendererThread | null {
   if (!t) return null;
   return {
+    messages: t.messages?.map((m) => ({ ...m })) ?? [],
     id: t.id,
     title: t.title && t.title.length > 0 ? t.title : (t.metadata?.title ?? ''),
     description: t.metadata?.description ?? '',
