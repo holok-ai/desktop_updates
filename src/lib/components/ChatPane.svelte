@@ -58,6 +58,21 @@
   let currentProviderConfig: ProviderConfig | null = $state(null);
   let threadLoadedIds = $state(new Set<string>()); // Track which threads we've logged
 
+  // Timeout for cases where streaming starts but no tokens are ever received
+  let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Idle timeout if tokens stop flowing for too long
+  let streamingIdleTimeout: ReturnType<typeof setTimeout> | null = null;
+  let streamingLastTokenAt = 0;
+
+  // Strip internal status messages from content before sending as history to the model
+  const STATUS_VALIDATING_REGEX = /\[Validating request and running security checks\.\.\.\]\n?/g;
+  const STATUS_PASSED_REGEX =
+    /\[Security checks passed, processing your request\.\.\.\]\n?/g;
+
+  function stripStatusMessages(text: string): string {
+    return text.replace(STATUS_VALIDATING_REGEX, '').replace(STATUS_PASSED_REGEX, '');
+  }
+
   // Watch for prop changes and update model configuration from thread metadata
   // Sync currentThread from thread prop, but avoid unnecessary updates that could cause loops
   $effect(() => {
@@ -193,7 +208,7 @@
 
     // Guard: Check if thread has any assistant responses (means it's already been processed)
     // This handles the case where deduplication removes tool-loop messages but assistant replied
-    const hasAssistantResponse = currentThread.messages?.some((m: any) => m.role === 'assistant');
+    const hasAssistantResponse = messages.some((m: Message) => m.role === 'assistant');
     if (hasAssistantResponse) {
       console.log('[ChatPane Auto-send] Skipping: thread already has assistant response');
       return;
@@ -415,6 +430,8 @@
     if (forkPointBranchIds.length === 0) return null;
     
     // Find the earliest fork point message by finding the first user message with each fork branchId
+    // Note: forkPointBranchIds are in format "1.0" (2 parts), but messages may have "1.0.0" (3 parts)
+    // So we need to match messages that start with the fork branchId
     const forkPointMessages = forkPointBranchIds
       .map(branchId => messages.find(m => {
         const normalizedMsgId = normalizeBranchId(m.branchId);
@@ -462,8 +479,15 @@
       });
       if (!parent) continue;
 
-    // Get all variations of this branch using branchId
-    const variationChildren = getVariationsForBranch(messages, parent.branchId);
+    // Get the base branchId for variations (e.g., "1.0.0" -> "1.0")
+    // getVariationsForBranch expects 2-part format like "1.0"
+    const parentBranchIdParts = parent.branchId.split('.');
+    const baseBranchId = parentBranchIdParts.length >= 2 
+      ? `${parentBranchIdParts[0]}.${parentBranchIdParts[1]}` 
+      : parent.branchId;
+
+    // Get all variations of this branch using base branchId
+    const variationChildren = getVariationsForBranch(messages, baseBranchId);
     
     // Include the parent (original branch) and all variations
     const userBranches = [parent, ...variationChildren];
@@ -1133,6 +1157,24 @@
 
     window.electronAPI.chat.onToken((token: string) => {
       console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
+
+      // First token received – clear the no-response timeout
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+        streamingNoResponseTimeout = null;
+      }
+      // Track last token time and (re)start idle timeout
+      streamingLastTokenAt = Date.now();
+      if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
+      streamingIdleTimeout = setTimeout(() => {
+        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
+          window.electronAPI.chat.offToken();
+          showStreamingIndicator = false;
+          isStreaming = false;
+          showToast('No response from model. Please try again.', 4000);
+        }
+      }, 30000);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
       console.log('[ChatPane onToken] responseText now length:', responseText.length);
@@ -1167,11 +1209,6 @@
 
   // Send message and handle streaming response
   async function sendMessage(userMessage: string, attachments: any[] = [], skipUserMessageCreation = false) {
-    if (!chatServiceCreated) {
-      error = 'Chat service not initialized';
-      return;
-    }
-
     if (!userMessage.trim() && attachments.length === 0) return;
 
     // Build conversation history based on selected branch context
@@ -1327,13 +1364,17 @@
       // Message sent from branch lane input - continue that branch hierarchy
       const branchBox = branchBoxes.find(b => b.branchIndex === sendingBranchIndex);
       const currentBranchId = branchBox?.userMessage.branchId ?? normalizeBranchId(thread?.currentBranchId ?? '1.0.0');
-      // Get the next branchId in this branch hierarchy (e.g., "2.1.0" -> "2.1.1")
+      // Get the lane id to continue in this branch hierarchy
       branchId = getNextBranchIdInBranch(currentBranchId, messages);
     } else {
       // Message sent from main input (composer) - always create a new sequential branch
       // This applies even if a branch is selected, because the user is typing in the main composer
       branchId = getNextSequentialBranchId(messages);
     }
+    // Hard-cap branchId to 4 segments to avoid backend 5-part IDs
+    const rawBranchId = branchId;
+    branchId = normalizeBranchId(branchId);
+    console.log('[ChatPane] branchId computed', { rawBranchId, normalizedBranchId: branchId });
 
     // Determine model for the new message
     let modelId: string | null = null;
@@ -1343,7 +1384,7 @@
 
     if (branchIndexToUse !== null) {
       // Get modelId from the branch's user message
-      const branchBox = branchBoxes.find(b => b.branchIndex === branchIndexToUse);
+      const branchBox = branchBoxes.find((b) => b.branchIndex === branchIndexToUse);
       if (branchBox) {
         modelId = branchBox.userMessage.modelId ?? null;
       }
@@ -1375,21 +1416,150 @@
       return;
     }
 
+    // Resolve model/provider/url to use for this send
+    let modelToUse = modelId || modelName;
+    let providerToUse = modelProvider;
+    let urlToUse = modelUrl;
+
+    if (modelId) {
+      try {
+        const allModels = await window.electronAPI.models.listAll();
+        const modelDetails = allModels.find((m) => m.accessName === modelId);
+        if (modelDetails) {
+          modelToUse = modelDetails.accessName;
+          providerToUse = modelDetails.provider;
+          urlToUse = modelDetails.url;
+        }
+      } catch (err) {
+        console.error('[ChatPane] Failed to get model details for sendMessage:', err);
+      }
+    }
+
+    // Ensure chat service is initialized for the resolved model
+    const modelIsDifferent =
+      modelToUse !== modelName ||
+      providerToUse !== modelProvider ||
+      urlToUse !== modelUrl;
+
+    const configMatches =
+      currentProviderConfig &&
+      currentProviderConfig.provider === providerToUse &&
+      currentProviderConfig.url === urlToUse &&
+      currentProviderConfig.model === modelToUse;
+
+    if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+      const initSuccess = await initializeChatService({
+        provider: providerToUse,
+        url: urlToUse,
+        model: modelToUse,
+      });
+
+      if (!initSuccess) {
+        error = error || 'Chat service not initialized';
+        return;
+      }
+
+      // Small delay to ensure service is ready
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
     try {
       console.log('[ChatPane sendMessage] Starting. Current messages.length:', messages.length);
       isStreaming = true;
 
       // If sending from a branch, set up branch-specific streaming
       if (sendingBranchIndex !== null) {
-        const branchBox = branchBoxes.find(b => b.branchIndex === sendingBranchIndex);
+        const branchBox = branchBoxes.find((b) => b.branchIndex === sendingBranchIndex);
         if (branchBox) {
           const branchKey = branchBox.userMessage.branchId;
           streamingBranchIndex = branchKey;
           streamingTextByBranch.set(branchKey, '');
         }
       }
-      
+
+      // Resolve model/provider/url to use for this send
+      let modelToUse = modelName;
+      let providerToUse = modelProvider;
+      let urlToUse = modelUrl;
+
+      // If this branch has a specific modelId (model variation), prefer it
+      if (modelId) {
+        try {
+          const allModels = await window.electronAPI.models.listAll();
+          const modelDetails = allModels.find((m) => m.accessName === modelId);
+          if (modelDetails) {
+            modelToUse = modelDetails.accessName;
+            providerToUse = modelDetails.provider;
+            urlToUse = modelDetails.url;
+          }
+        } catch (err) {
+          console.error('[ChatPane] Failed to get model details for sendMessage:', err);
+          // Fall back to thread-level model if lookup fails
+        }
+      }
+
+      // Ensure chat service is initialized for the resolved model
+      const modelIsDifferent =
+        modelToUse !== modelName ||
+        providerToUse !== modelProvider ||
+        urlToUse !== modelUrl;
+
+      const configMatches =
+        currentProviderConfig &&
+        currentProviderConfig.provider === providerToUse &&
+        currentProviderConfig.url === urlToUse &&
+        currentProviderConfig.model === modelToUse;
+
+      if (!chatServiceCreated || (modelIsDifferent && !configMatches)) {
+        const initSuccess = await initializeChatService({
+          provider: providerToUse,
+          url: urlToUse,
+          model: modelToUse,
+        });
+
+        if (!initSuccess) {
+          error = error || 'Chat service not initialized';
+          console.error('[ChatPane] Chat service not initialized for sendMessage');
+          isStreaming = false;
+          return;
+        }
+      }
+
       setupTokenListener();
+
+      // Start a 10s watchdog: if streaming is still true and we've received no tokens,
+      // stop streaming and surface an error to the user.
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+      }
+      streamingNoResponseTimeout = setTimeout(() => {
+        if (isStreaming && responseText.length === 0) {
+          console.error('[ChatPane] Streaming timeout: no response from model after 10s');
+          window.electronAPI.chat.offToken();
+          isStreaming = false;
+          showStreamingIndicator = false;
+          showToast('No response from model. Please try again.', 4000);
+        }
+      }, 10_000);
+
+      // Initialize idle timer bookkeeping
+      streamingLastTokenAt = Date.now();
+      if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
+      streamingIdleTimeout = setTimeout(() => {
+        if (isStreaming && Date.now() - streamingLastTokenAt >= 30000) {
+          console.error('[ChatPane] Streaming idle timeout: no tokens for 30s');
+          window.electronAPI.chat.offToken();
+          showStreamingIndicator = false;
+          isStreaming = false;
+          showToast('No response from model. Please try again.', 4000);
+        }
+      }, 30000);
+
+      // Strip internal status banners from history so they are not re-sent to the model
+      historyMessages = historyMessages.map((h) => ({
+        role: h.role,
+        content: stripStatusMessages(h.content),
+      }));
 
       // Build messages array - only add new user message if not skipping creation
       const requestMessages = skipUserMessageCreation
@@ -1399,7 +1569,7 @@
       const request: DesktopChatRequest = {
         messages: requestMessages,
         streaming: true,
-        model: modelName,
+        model: modelToUse,
         ...(currentThread?.id && { thread_guid: currentThread.id }),  // Pass raw thread ID
         branch_id: branchId,  // DesktopChatService will format with formatThreadId()
       };
@@ -1485,6 +1655,15 @@
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error sending message:', err);
+    } finally {
+      if (streamingNoResponseTimeout) {
+        clearTimeout(streamingNoResponseTimeout);
+        streamingNoResponseTimeout = null;
+      }
+      if (streamingIdleTimeout) {
+        clearTimeout(streamingIdleTimeout);
+        streamingIdleTimeout = null;
+      }
       showStreamingIndicator = false;
       isStreaming = false;
     }
@@ -1656,8 +1835,8 @@
         return;
       }
       
-      // For single model, create a single variation
-      if (modelIds.length === 0 || modelIds.length === 1) {
+      // No model explicitly selected - fall back to original message/thread model
+      if (modelIds.length === 0) {
         const result = await threadService.createVariation(
           currentThread,
           messageForVariation,
@@ -1681,16 +1860,45 @@
         
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
+      } else if (modelIds.length === 1) {
+        // Single explicitly selected model - create variation with that model
+        const [modelId] = modelIds;
+        const result = await threadService.createVariation(
+          currentThread,
+          messageForVariation,
+          content,
+          modelId,
+        );
+
+        if (!result.success) {
+          variationError = result.error;
+          console.error('[ChatPane] Failed to create variation with selected model:', result.error);
+          return;
+        }
+
+        messages = [...messages, result.message];
+        showVariationModalFor = null;
+
+        activeBranchIndex = null;
+        hiddenForkPoints = new Set();
+        branchSelectionTime = null;
+
+        await generateResponseForVariation(result.message);
       } else {
-        // For multiple models, create one variation per selected model
+        // Multiple models selected - create one variation per selected model
         const createdMessages: Message[] = [];
+        // Fetch current messages once to use for all variations (avoids race conditions)
+        const currentMessages = await threadService.getMessages(currentThread.id);
         
         for (const modelId of modelIds) {
+          // Pass currentMessages including previously created variations in this batch
+          const messagesForBranchId = [...currentMessages, ...createdMessages];
           const result = await threadService.createVariation(
             currentThread,
             messageForVariation,
             content, // Pass the variation content from the modal
             modelId, // Pass the specific modelId for this variation
+            messagesForBranchId, // Pass current messages to avoid duplicate branch IDs
           );
 
           if (!result.success) {
@@ -1782,7 +1990,12 @@
       if (Array.isArray(selectedBranchIds) && selectedBranchIds.length > 0) {
         // Use buildContextFromSelectedBranches to include selected branches and exclude non-selected ones
         const selectedContext = buildContextFromSelectedBranches(messages, selectedBranchIds);
-        
+
+        // Always include the full base branch history (e.g. 1.0.0, 2.0.0) before this variation.
+        // This restores the previous behavior where variations inherited all prior messages,
+        // while still excluding other non‑selected branches.
+        const baseBranchMessages = getBranchMessages(messages, baseBranchId);
+
         // Also include normal messages (sequential branches like 3.0, 4.0) that came after the fork point
         // These are messages with branchId format X.0 where X > baseIndex
         const normalMessagesAfterFork = messages.filter((m) => {
@@ -1795,10 +2008,15 @@
           }
           return false;
         });
-        
-        // Combine selected branch context with normal messages after fork
-        contextMessages = [...selectedContext, ...normalMessagesAfterFork]
-          .sort((a, b) => a.createdAt - b.createdAt);
+
+        // Merge base branch, selected context, and post‑fork sequential messages, de‑duplicated and ordered
+        const merged = [...baseBranchMessages, ...selectedContext, ...normalMessagesAfterFork];
+        const seenIds = new Set<string>();
+        contextMessages = merged.filter((m) => {
+          if (seenIds.has(m.id)) return false;
+          seenIds.add(m.id);
+          return true;
+        }).sort((a, b) => a.createdAt - b.createdAt);
       } else {
         // Fallback: Build context from in‑memory messages
         // Include all messages before the fork point (baseIndex)

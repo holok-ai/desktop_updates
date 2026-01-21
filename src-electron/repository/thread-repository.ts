@@ -81,6 +81,24 @@ export class ThreadRepository {
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
+  private parseApiTimeMs(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value !== 'string') return Number.NaN;
+
+    const s = value.trim();
+    if (s.length === 0) return Number.NaN;
+
+    // Normalize common server formats that omit timezone.
+    // - "2026-01-20 17:02:02.123" -> "2026-01-20T17:02:02.123"
+    // - If no timezone is present, treat as UTC by appending "Z"
+    const isoLike = s.includes(' ') && !s.includes('T') ? s.replace(' ', 'T') : s;
+    const hasTz = /[zZ]$|[+-]\d{2}:\d{2}$/.test(isoLike);
+    const normalized = hasTz ? isoLike : `${isoLike}Z`;
+
+    return new Date(normalized).getTime();
+  }
+
   public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
     const request: CreateThreadRequest = {
       title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
@@ -151,11 +169,12 @@ export class ThreadRepository {
 
       // Check if we've seen this exact user message on this branch before
       if (seen.has(key)) {
-        const existing = seen.get(key)!;
+        const existing = seen.get(key);
+        if (!existing) continue;
 
         // Keep the earlier timestamp (initial request, not continuation)
-        const existingTime = new Date(existing.createdAt).getTime();
-        const currentTime = new Date(dto.createdAt).getTime();
+        const existingTime = this.parseApiTimeMs(existing.createdAt);
+        const currentTime = this.parseApiTimeMs(dto.createdAt);
 
         if (currentTime < existingTime) {
           // Current is earlier, replace the existing one
@@ -186,27 +205,53 @@ export class ThreadRepository {
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
-      log.info('[ThreadRepository] Thread found in cache:', threadId, 'with', cachedThread.messages.length, 'messages');
+      log.info(
+        '[ThreadRepository] Thread found in cache (refreshing messages from API):',
+        threadId,
+        'with',
+        cachedThread.messages.length,
+        'cached messages',
+      );
 
-      // If thread is in cache but has no messages, we need to load them from API
-      // This happens when listThreads() cached the thread without messages
-      if (cachedThread.messages.length === 0) {
-        log.info('[ThreadRepository] Thread has no messages, fetching from API');
-        try {
-          const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-          log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+      // Always refresh messages from API to avoid stale state after external updates (e.g. Moku chat)
+      // This ensures that getMessages() sees newly created messages even if the thread is cached.
+      // However, if API returns empty but cache has messages, use cached messages (local-only messages not yet synced)
+      const cachedMessagesCount = cachedThread.messages.length;
+      try {
+        const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+        log.info(
+          '[ThreadRepository] Received',
+          messagesResponse.content.length,
+          'message DTOs from API for cached thread',
+        );
 
-          // Deduplicate tool-loop continuation messages
-          const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
+        // Deduplicate tool-loop continuation messages
+        const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
+        // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
+        if (dedupedMessages.length > 0) {
           cachedThread.messages = dedupedMessages.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
-
           this.threadsById.set(threadId, cachedThread);
-          log.info('[ThreadRepository] Loaded', cachedThread.messages.length, 'messages for cached thread');
-        } catch (error) {
-          log.error('[ThreadRepository] Failed to load messages for cached thread:', error);
+          log.info(
+            '[ThreadRepository] Refreshed',
+            cachedThread.messages.length,
+            'messages for cached thread',
+          );
+        } else if (cachedMessagesCount > 0) {
+          // API returned empty but cache has messages - keep cached messages (likely local-only)
+          log.info(
+            '[ThreadRepository] API returned empty, keeping',
+            cachedMessagesCount,
+            'cached messages (likely local-only not yet synced)',
+          );
+        }
+      } catch (error) {
+        log.error('[ThreadRepository] Failed to refresh messages for cached thread:', error);
+        // On error, keep cached messages if they exist
+        if (cachedMessagesCount > 0) {
+          log.info('[ThreadRepository] Keeping cached messages due to API error');
         }
       }
 
@@ -1020,12 +1065,9 @@ export class ThreadRepository {
    */
   private normalizeBranchId(branchId: string): string {
     const parts = branchId.split('.');
-    if (parts.length === 2) {
-      // Convert "x.x" to "x.x.0"
-      return `${parts[0]}.${parts[1]}.0`;
-    }
-    // Already in x.x.x format or longer
-    return branchId;
+    if (parts.length === 2) return `${parts[0]}.${parts[1]}.0`;
+    if (parts.length > 3) return parts.slice(0, 3).join('.');
+    return branchId; // already 3-part
   }
 
   private getRowNumber(branchId: string): number {
@@ -1154,8 +1196,8 @@ export class ThreadRepository {
         ...(dto.metadata || {}),
       },
       messages: [], // Messages loaded separately
-      createdAt: new Date(dto.createdAt).getTime(),
-      updatedAt: new Date(dto.updatedAt).getTime(),
+      createdAt: this.parseApiTimeMs(dto.createdAt),
+      updatedAt: this.parseApiTimeMs(dto.updatedAt),
       deletedAt: dto.status === 'deleted' ? Date.now() : null,
       currentBranchId: normalizedBranchId,
     };
@@ -1176,7 +1218,7 @@ export class ThreadRepository {
       branchId = '1.0.0';
       log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0.0":', dto.id);
     } else {
-      // Normalize to x.x.x format
+      // Normalize/cap to 3-part format
       branchId = this.normalizeBranchId(branchId);
     }
 
@@ -1188,11 +1230,11 @@ export class ThreadRepository {
       title: threadTitle,
       role: dto.role as MessageRole,
       content: dto.content,
-      createdAt: new Date(dto.createdAt).getTime(),
+      createdAt: this.parseApiTimeMs(dto.createdAt),
       metadata: dto.metadata as MessageMetadata | undefined,
       deletedAt: null,
-      editedAt: dto.updatedAt !== dto.createdAt ? new Date(dto.updatedAt).getTime() : undefined,
-      branchId: this.normalizeBranchId(branchId),
+      editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
+      branchId,
       modelId: dto.model ?? null,
     };
   }

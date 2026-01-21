@@ -61,12 +61,15 @@
     }
   });
 
-  // Update select element when selectedModelIds changes
+  // Keep DOM option selection in sync with selectedModelIds
   $effect(() => {
     if (selectEl) {
+      const savedScrollTop = selectEl.scrollTop;
       for (const option of Array.from(selectEl.options)) {
         option.selected = selectedModelIds.has(option.value);
       }
+      // Restore scroll position after updating selection
+      selectEl.scrollTop = savedScrollTop;
     }
   });
 
@@ -172,19 +175,11 @@
                 bind:this={selectEl}
                 multiple
                 class="model-select"
-                onchange={(e) => {
-                  const select = e.target as HTMLSelectElement;
-                  const selected = new Set<string>();
-                  for (const option of Array.from(select.selectedOptions)) {
-                    selected.add(option.value);
-                  }
-                  selectedModelIds = selected;
-                }}
-                onmousedown={(e) => {
-                  // Handle click on option to toggle selection
+                onclick={(e) => {
+                  // Prevent default behavior and handle selection manually to avoid scroll jumping
+                  e.preventDefault();
                   const target = e.target as HTMLElement;
                   if (target.tagName === 'OPTION') {
-                    e.preventDefault();
                     const option = target as HTMLOptionElement;
                     const modelKey = option.value;
                     toggleModel(modelKey);
