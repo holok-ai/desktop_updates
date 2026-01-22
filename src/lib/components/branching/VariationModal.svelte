@@ -22,7 +22,7 @@
     error = '',
   }: Props = $props();
 
-  let content = $state(originalMessage.content);
+  let content = $state('');
   let branchType = $state<BranchType>('prompt-variation');
   let selectedModelIds = $state<Set<string>>(new Set());
   let models: ModelDetails[] = $state([]);
@@ -36,6 +36,11 @@
   const canModelVar = $derived(
     canCreateVariation(originalMessage),
   );
+
+  // Sync content when originalMessage changes
+  $effect(() => {
+    content = originalMessage.content;
+  });
 
   onMount(async () => {
     try {

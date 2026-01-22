@@ -29,12 +29,12 @@
   );
 
   // Get model name from current branch's messages, fallback to thread metadata
-  let modelName = $state((thread.metadata?.modelAccessName as string) ?? 'Unknown Model');
+  let modelName = $state('Unknown Model');
 
   $effect(() => {
     const currentMessages = messagesProp ?? [];
     const currentBranchId = thread.currentBranchId;
-    
+
     if (currentMessages.length > 0 && currentBranchId) {
       const branchMessages = getBranchMessages(currentMessages, currentBranchId);
       // Find the most recent message with a modelId

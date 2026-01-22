@@ -4,15 +4,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type {
-  ToolDefinition,
-  ToolStatus,
   ToolStatusCallback,
   ToolResult,
   FolderEntry,
-  ReadFolderResult,
-  ReadFileResult,
   WriteFileParams,
-  WriteFileResult,
 } from './tool-types.js';
 
 /**
