@@ -32,12 +32,12 @@ export class FileToolsService {
     this.workingDirectory = workingDir || process.cwd();
     this.blacklistedPaths = this.initializeBlacklist();
     this.allowedPaths = new Set((allowedPaths || []).map((p) => path.normalize(path.resolve(p))));
-    log.info('[FileToolsService] Initialized', {
+    log.info('[FileToolsService] Initialized', JSON.stringify({
       workingDirectory: this.workingDirectory,
       blacklistedPathsCount: this.blacklistedPaths.size,
       allowedPathsCount: this.allowedPaths.size,
       allowedPaths: Array.from(this.allowedPaths),
-    });
+    }));
   }
 
 
