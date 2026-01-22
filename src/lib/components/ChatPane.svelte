@@ -19,7 +19,7 @@
   import BranchLane from './branching/BranchLane.svelte';
   import BranchIndicator from './branching/BranchIndicator.svelte';
   import BranchSwitcher from './branching/BranchSwitcher.svelte';
-  import { assembleContext, getBranchMessages, getVariationsForBranch, getForkPoints, getNextSequentialBranchId, getNextBranchIdInBranch, buildContextFromSelectedBranches, getRowNumber, normalizeBranchId } from '$lib/utils/branch-utils';
+  import { assembleContext, getBranchMessages, getVariationsForBranch, getForkPoints, getNextSequentialBranchId, getNextBranchIdInBranch, buildContextFromSelectedBranches, getRowNumber, normalizeBranchId, getMessagesToHideAfterForkPoint } from '$lib/utils/branch-utils';
 
   // Streaming idle timeout in milliseconds (60 seconds)
   const STREAMING_IDLE_TIMEOUT_MS = 60000;
@@ -74,7 +74,7 @@
     /\[Security checks passed, processing your request\.\.\.\]\n?/g;
 
   function stripStatusMessages(text: string): string {
-    return text.replace(STATUS_VALIDATING_REGEX, '').replace(STATUS_PASSED_REGEX, '');
+    return text.replaceAll(STATUS_VALIDATING_REGEX, '').replaceAll(STATUS_PASSED_REGEX, '');
   }
 
   // Watch for prop changes and update model configuration from thread metadata
@@ -330,6 +330,10 @@
       selectedBranchContextMessageId = null;
       _branchSelectionTime = null;
     }
+    
+    // Store the current time when branch is selected
+    // Messages created after this time should not be hidden (allows new messages to be visible)
+    _branchSelectionTime = Date.now();
   }
 
   // Handler for sending messages within a specific branch
@@ -710,9 +714,22 @@
 
   // Get all message IDs that should be excluded from normal display (all messages in branches)
   const excludedMessageIds = $derived.by(() => {
-    if (branchBoxes.length === 0) return new Set<string>();
-    
     const excluded = new Set<string>();
+    
+    // Check if a branch is selected (persisted in metadata, survives refresh)
+    const selectedBranchIds = currentThread?.metadata?.selectedBranchIds;
+    const hasSelectedBranch = Array.isArray(selectedBranchIds) && selectedBranchIds.length > 0;
+    
+    // Exclude messages that come after fork points in the original branch
+    // When a variation is created from a middle message, messages after should be hidden
+    // If a branch is selected, only hide messages that existed before the variation was created
+    // This allows new messages created after branch selection to be visible (even after refresh)
+    const messagesToHideAfterFork = getMessagesToHideAfterForkPoint(messages, hasSelectedBranch);
+    for (const msgId of messagesToHideAfterFork) {
+      excluded.add(msgId);
+    }
+    
+    if (branchBoxes.length === 0) return excluded;
     
     // Always exclude all messages from all branch boxes to prevent them from appearing in main area
     // Branch messages should only appear inside BranchLane components
@@ -823,6 +840,9 @@
         const baseForkBranchId = normalizedBoxId.split('.')[0] + '.0.0';
         hiddenForkPoints = new Set(hiddenForkPoints);
         hiddenForkPoints.add(baseForkBranchId);
+        // Set branchSelectionTime so that messages after fork point are handled correctly
+        // Use current time so new messages won't be hidden
+        _branchSelectionTime = Date.now();
         restoredBranchSelectionForThread = threadId;
         return;
       }
@@ -1305,7 +1325,8 @@
         }
         
         // Use buildContextFromSelectedBranches to include selected branches + sending branch
-        const contextMessages = buildContextFromSelectedBranches(messages, selectedBranchIds);
+        // Pass the sending branch ID so sequential messages after selected branches are included
+        const contextMessages = buildContextFromSelectedBranches(messages, selectedBranchIds, normalizedSendingId);
         historyMessages = contextMessages.map((m) => ({ role: m.role, content: m.content }));
       } else {
         // Fallback: use assembleContext
@@ -1627,6 +1648,8 @@
         role: h.role,
         content: stripStatusMessages(h.content),
       }));
+
+      console.log('historyMessages', historyMessages);
 
       // Build messages array - only add new user message if not skipping creation
       const requestMessages = skipUserMessageCreation
@@ -2068,71 +2091,71 @@
 
       if (Array.isArray(selectedBranchIds) && selectedBranchIds.length > 0) {
         // Use buildContextFromSelectedBranches to include selected branches and exclude non-selected ones
-        const selectedContext = buildContextFromSelectedBranches(messages, selectedBranchIds);
+        // Pass the current variation branch ID so messages after this fork point are excluded
+        // This function already handles permanently excluded messages correctly
+        const selectedContext = buildContextFromSelectedBranches(messages, selectedBranchIds, userMessage.branchId);
 
-        // Always include the full base branch history (e.g. 1.0.0, 2.0.0) before this variation.
-        // This restores the previous behavior where variations inherited all prior messages,
-        // while still excluding other non‑selected branches.
+        // Include the base branch history up to the fork point (getBranchMessages handles fork point exclusion)
         const baseBranchMessages = getBranchMessages(messages, baseBranchId);
 
-        // Also include normal messages (sequential branches like 3.0, 4.0) that came after the fork point
-        // These are messages with branchId format X.0 where X > baseIndex
-        const normalMessagesAfterFork = messages.filter((m) => {
-          if (!m.branchId) return false;
-          const p = m.branchId.split('.');
-          // Only include sequential branches (X.0 format) after the fork point
-          if (p.length === 2 && p[1] === '0') {
-            const idx = parseInt(p[0], 10);
-            if (idx > baseIndex) return true;
-          }
-          return false;
-        });
-
-        // Merge base branch, selected context, and post‑fork sequential messages, de‑duplicated and ordered
-        const merged = [...baseBranchMessages, ...selectedContext, ...normalMessagesAfterFork];
+        // Merge base branch and selected context, de‑duplicated and ordered
+        // Filter out permanently excluded messages that might have been added by getBranchMessages
+        // Permanently excluded messages are those in original branch path (X.0.0) after a fork point
+        // that don't come after any selected branch
+        const merged = [...baseBranchMessages, ...selectedContext];
         const seenIds = new Set<string>();
+        const forkPoints = getForkPoints(messages);
+        
         contextMessages = merged.filter((m) => {
           if (seenIds.has(m.id)) return false;
           seenIds.add(m.id);
+          
+          // Check if this message is permanently excluded
+          const msgNormalized = normalizeBranchId(m.branchId);
+          const msgParts = msgNormalized.split('.');
+          const msgRowNum = getRowNumber(msgNormalized);
+          const isOriginalBranchPath = msgParts.length === 3 && msgParts[1] === '0' && msgParts[2] === '0';
+          
+          if (isOriginalBranchPath) {
+            // Check if this message comes after any fork point
+            for (const forkBranchId of forkPoints) {
+              const forkParts = normalizeBranchId(forkBranchId).split('.');
+              const forkRowNum = getRowNumber(normalizeBranchId(forkBranchId));
+              
+              if (msgRowNum > forkRowNum) {
+                // This message comes after a fork point
+                // Check if there's a selected branch for this fork point
+                const hasSelectedBranchForThisFork = selectedBranchIds.some(branchId => {
+                  const branchRowNum = getRowNumber(normalizeBranchId(branchId));
+                  return branchRowNum === forkRowNum;
+                });
+                
+                if (hasSelectedBranchForThisFork) {
+                  // Check if this message comes after the selected branch
+                  const comesAfterSelectedBranch = selectedBranchIds.some(branchId => {
+                    const branchRowNum = getRowNumber(normalizeBranchId(branchId));
+                    return msgRowNum > branchRowNum;
+                  });
+                  
+                  if (!comesAfterSelectedBranch) {
+                    // This message is permanently excluded (e.g., 3.0.0, 4.0.0 after fork point 2.0.0 with selected branch 2.1.0)
+                    return false;
+                  }
+                } else {
+                  // No selected branch for this fork point, exclude all messages after it
+                  return false;
+                }
+              }
+            }
+          }
+          
           return true;
         }).sort((a, b) => a.createdAt - b.createdAt);
       } else {
         // Fallback: Build context from in‑memory messages
-        // Include all messages before the fork point (baseIndex)
-        // Include normal messages (X.0 format) that came after the fork but before this variation
-        contextMessages = messages
-        .filter((m) => {
-          if (!m.branchId) return false;
-          const p = m.branchId.split('.');
-
-            // Include main path messages (X.0) before the fork point
-            if (p.length === 2 && p[1] === '0') {
-          const idx = parseInt(p[0], 10);
-              if (idx < baseIndex) return true;
-            }
-            
-            // Include normal messages (X.0 format) that came after the fork point
-            // These are sequential branches that don't belong to the forked branch
-            if (p.length === 2 && p[1] === '0') {
-              const idx = parseInt(p[0], 10);
-              if (idx > baseIndex) return true;
-            }
-            
-            // Exclude the original forked branch (baseBranchId)
-            if (m.branchId === baseBranchId) return false;
-            
-            // Exclude variation branches (X.Y.0 format) except the current variation
-            if (p.length === 3 && p[2] === '0') {
-              const variationBaseIdx = parseInt(p[0], 10);
-              if (variationBaseIdx === baseIndex) {
-                // This is a variation of the same base, exclude it (we're creating a new variation)
-                return false;
-              }
-            }
-            
-            return false;
-        })
-        .sort((a, b) => a.createdAt - b.createdAt);
+        // Use getBranchMessages which handles fork point exclusion automatically
+        // For variation branch, getBranchMessages excludes fork point and messages after
+        contextMessages = getBranchMessages(messages, userMessage.branchId);
       }
 
       const historyMessages = [
