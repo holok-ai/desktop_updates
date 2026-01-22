@@ -124,7 +124,7 @@ class ThreadApiService {
 
     const url = `${mokuApiUrl}/api/threads${params.toString() ? '?' + params.toString() : ''}`;
 
-    log.info('[ThreadApiService] Fetching threads with filters:', filters);
+    log.info('[ThreadApiService] Fetching threads with filters:', JSON.stringify(filters));
 
     const response = await fetch(url, {
       headers: {

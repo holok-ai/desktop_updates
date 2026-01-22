@@ -119,7 +119,7 @@
       // Reset branch selection when switching threads
       activeBranchIndex = null;
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
       hiddenForkPoints = new Set();
       // Reset streaming state to prevent disabled send button
       showStreamingIndicator = false;
@@ -276,7 +276,7 @@
   let sendingBranchIndex = $state<number | null>(null);
   let sendingBranchContextMessageId = $state<string | null>(null);
   // Track when a branch was selected to exclude messages sent from main input after selection
-  let branchSelectionTime = $state<number | null>(null);
+  let _branchSelectionTime = $state<number | null>(null);
 
   async function setActiveBranch(branchIndex: number) {
     if (!currentThread) return;
@@ -287,7 +287,7 @@
     const branchBox = branchBoxes.find(b => b.branchIndex === branchIndex);
     if (!branchBox) {
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
       return;
     }
     
@@ -319,16 +319,16 @@
       selectedBranchContextMessageId = lastMessage.id;
       // Store the timestamp of the last message in the branch when selected
       // Messages sent after this (from main input) should appear in main area, not branch box
-      branchSelectionTime = lastMessage.createdAt;
+      _branchSelectionTime = lastMessage.createdAt;
     } else if (branchBox.assistantMessage) {
       selectedBranchContextMessageId = branchBox.assistantMessage.id;
-      branchSelectionTime = branchBox.assistantMessage.createdAt;
+      _branchSelectionTime = branchBox.assistantMessage.createdAt;
     } else if (branchBox.userMessage) {
       selectedBranchContextMessageId = branchBox.userMessage.id;
-      branchSelectionTime = branchBox.userMessage.createdAt;
+      _branchSelectionTime = branchBox.userMessage.createdAt;
     } else {
       selectedBranchContextMessageId = null;
-      branchSelectionTime = null;
+      _branchSelectionTime = null;
     }
   }
 
@@ -1932,7 +1932,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        branchSelectionTime = null;
+        _branchSelectionTime = null;
         
         // Generate response - handleAssistantResponse will add the assistant message via onMessageAdd
         await generateResponseForVariation(result.message);
@@ -1957,7 +1957,7 @@
 
         activeBranchIndex = null;
         hiddenForkPoints = new Set();
-        branchSelectionTime = null;
+        _branchSelectionTime = null;
 
         await generateResponseForVariation(result.message);
       } else {
@@ -1999,7 +1999,7 @@
         // Don't auto-select any branch - let user see all branches
         activeBranchIndex = null;
         hiddenForkPoints = new Set(); // Show all branches for all fork points
-        branchSelectionTime = null;
+        _branchSelectionTime = null;
 
         // Generate responses for all created variations sequentially
         // This ensures each variation gets its own token stream without conflicts

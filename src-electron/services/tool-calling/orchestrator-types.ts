@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolStatus, ToolStatusCallback, ToolResult } from './tool-types.js';
+import type { ToolDefinition, ToolStatusCallback, ToolResult } from './tool-types.js';
 
 /**
  * Tool use information from LLM response
