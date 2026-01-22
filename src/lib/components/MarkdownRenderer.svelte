@@ -90,7 +90,7 @@
       const consistentCommas = commaCounts.filter(count => Math.abs(count - avgCommas) <= 1).length;
 
       // Additional checks for CSV patterns
-      const hasQuotes = text.includes('"') || text.includes("'");
+      const _hasQuotes = text.includes('"') || text.includes("'");
       const hasConsistentStructure = consistentCommas / lines.length > 0.6;
       const hasEnoughCommas = avgCommas >= 1;
 

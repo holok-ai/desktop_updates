@@ -28,6 +28,7 @@ export default [
       'analyze-eslint.cjs',
       'playwright-report/**',
       'test-results/**',
+      'packages/**',
     ],
   },
 

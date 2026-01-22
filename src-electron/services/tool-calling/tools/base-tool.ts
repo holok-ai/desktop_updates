@@ -2,7 +2,7 @@
  * Base Tool Interface and Types
  */
 
-import type { ToolDefinition, ToolStatus, ToolStatusCallback, ToolResult } from '../tool-types.js';
+import type { ToolDefinition, ToolResult } from '../tool-types.js';
 import type { FileToolsService } from '../file-tools.service.js';
 
 /**

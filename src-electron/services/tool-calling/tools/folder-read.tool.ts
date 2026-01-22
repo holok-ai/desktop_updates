@@ -6,7 +6,6 @@
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadFolderResult } from '../tool-types.js';
 import * as fs from 'fs';
-import log from 'electron-log';
 
 export class FolderReadTool implements ITool {
   constructor(private context: ToolContext) {}

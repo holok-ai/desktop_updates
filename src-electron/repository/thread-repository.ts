@@ -1242,7 +1242,7 @@ export class ThreadRepository {
       branchId = this.normalizeBranchId(branchId);
     }
 
-    log.info('[ThreadRepository] Message branchId: ', branchId,',role: ', dto.role, ' content: ', dto.content, ' metadata: ', dto.metadata);
+    log.info('[ThreadRepository] Message branchId: ', branchId,',role: ', dto.role, ' metadata: ', dto.metadata);
 
 
     return {

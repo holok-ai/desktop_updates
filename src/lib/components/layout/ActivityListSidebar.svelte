@@ -7,7 +7,6 @@
   import { threads } from '$lib/stores/thread.store';
   import { ROUTE } from '$lib/constants/route.constant';
   import { push, querystring, location } from 'svelte-spa-router';
-  import { projects } from '$lib/stores/project.store';
   import type { Thread } from '../../../../src-electron/preload';
   import { storageService } from '$lib/services/storage.service';
   import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';

@@ -31,8 +31,12 @@ export function parseBranchId(branchId: string): { parts: string[]; depth: numbe
  */
 export function normalizeBranchId(branchId: string): string {
   const parts = branchId.split('.');
-  if (parts.length === 2) return `${parts[0]}.${parts[1]}.0`;
-  if (parts.length > 3) return parts.slice(0, 3).join('.');
+  if (parts.length === 2) {
+    return `${parts[0]}.${parts[1]}.0`;
+  }
+  if (parts.length > 3) {
+    return parts.slice(0, 3).join('.');
+  }
   return branchId;
 }
 
@@ -71,7 +75,9 @@ export function getVariationsForBranch(messages: Message[], baseBranchId: string
   const candidates = messages.filter((m) => {
     const normalizedId = normalizeBranchId(m.branchId);
     const parts = normalizedId.split('.');
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) {
+      return false;
+    }
     if (parts[0] !== baseNum || parts[1] === '0' || parts[2] !== '0') {
       return false;
     }
@@ -455,13 +461,17 @@ export function getNextBranchIdInBranch(currentBranchId: string, messages: Messa
       const mParts = normalizeBranchId(m.branchId).split('.');
       if (mParts.length === 3 && mParts[0] === baseNum && mParts[1] === variationNum && mParts[2] !== '0') {
         const idx = Number.parseInt(mParts[2] ?? '0', 10);
-        if (!Number.isNaN(idx) && idx > 0) existing.push(idx);
+        if (!Number.isNaN(idx) && idx > 0) {
+          existing.push(idx);
+        }
       }
     }
     let next = 1;
     while (existing.includes(next)) {
       next += 1;
-      if (next > 99) break;
+      if (next > 99) {
+        break;
+      }
     }
     return `${baseNum}.${variationNum}.${next}`;
   }

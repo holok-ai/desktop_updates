@@ -28,10 +28,7 @@ export class ToolOrchestrator implements ToolOrchestra {
       this.tools.set(tool.getName(), tool);
     }
 
-    log.info('[ToolOrchestrator] Initialized tools', {
-      toolCount: this.tools.size,
-      toolNames: Array.from(this.tools.keys())
-    });
+    log.info(`[ToolOrchestrator] Initialized tools (${this.tools.size}):`, Array.from(this.tools.keys()).join(', '));
   }
 
   /**
