@@ -126,12 +126,30 @@ try {
   execSync('git push --tags', { cwd: rootDir, stdio: 'inherit' });
   console.log('✅ Pushed to GitHub\n');
 
-  // Step 5: Build and publish
+  // Step 5: Build and publish for all platforms
   console.log('🔨 Step 5: Building and publishing to GitHub releases...');
+  console.log('Building for macOS and Windows...');
   console.log('This may take several minutes...\n');
   
+  // Check platform
+  const platform = process.platform;
+  console.log(`Current platform: ${platform}`);
+  
+  if (platform === 'darwin') {
+    console.log('✅ Building Windows installers on macOS is supported');
+    console.log('   (May require Wine for some operations)\n');
+  } else if (platform === 'win32') {
+    console.log('✅ Building macOS DMG on Windows requires macOS or CI/CD\n');
+  }
+  
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
-  execSync('npx electron-builder --publish=always', { 
+  
+  // Build for both Mac and Windows
+  console.log('\n📦 Building for macOS and Windows...');
+  console.log('   - macOS: DMG file');
+  console.log('   - Windows: NSIS installer\n');
+  
+  execSync('npx electron-builder --mac --win --publish=always', { 
     cwd: rootDir, 
     stdio: 'inherit',
     env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
