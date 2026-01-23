@@ -1,6 +1,7 @@
 import pkg from 'electron-updater';
 import { app, dialog } from 'electron';
 import log, { createScopedLogger } from '../utils/logger.js';
+import { SettingsService } from './settings.service.js';
 
 const { autoUpdater } = pkg;
 const updaterLog = createScopedLogger('auto-updater');
@@ -8,10 +9,22 @@ const updaterLog = createScopedLogger('auto-updater');
 class AutoUpdaterService {
   private initialized = false;
   private downloadPromptShownForVersion: string | null = null;
+  private settingsService: SettingsService;
+
+  constructor() {
+    this.settingsService = new SettingsService();
+  }
 
   initialize(): void {
     if (!app.isPackaged) {
       updaterLog.info('Skipping auto-updater initialization (development mode)');
+      return;
+    }
+
+    // Check if auto-updates are enabled in settings
+    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
+    if (!autoUpdateEnabled) {
+      updaterLog.info('Auto-updater disabled in settings');
       return;
     }
 
@@ -37,6 +50,13 @@ class AutoUpdaterService {
 
   checkForUpdates(): void {
     if (!app.isPackaged || !this.initialized) {
+      return;
+    }
+
+    // Check if auto-updates are enabled in settings
+    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
+    if (!autoUpdateEnabled) {
+      updaterLog.info('Skipping update check - auto-updates disabled in settings');
       return;
     }
 

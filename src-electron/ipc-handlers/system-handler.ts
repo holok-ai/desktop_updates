@@ -22,11 +22,11 @@ export function registerSystemHandlers(): void {
   });
 
   /**
-   * Get Electron version
+   * Get application version
    */
   ipcMain.handle('system:version', (): Promise<string> => {
     systemLog.info('Version called');
-    return Promise.resolve(process.versions.electron);
+    return Promise.resolve(app.getVersion());
   });
 
   /**
