@@ -16,6 +16,7 @@
     "build:prod": "npm run build && npm run build:electron",
     "package": "npm run build:prod && electron-builder",
     "package:publish": "npm run build:prod && electron-builder --publish=always",
+    "release": "node scripts/release.js",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint . --ext .ts,.js,.svelte",
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
