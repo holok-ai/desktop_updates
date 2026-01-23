@@ -16,6 +16,7 @@ import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 import { modelRepository } from './repository/model-repository.js';
+import { autoUpdaterService } from './services/auto-updater.service.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -482,6 +483,9 @@ void app.whenReady().then(() => {
 
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
+
+  autoUpdaterService.initialize();
+  autoUpdaterService.checkForUpdates();
 
   // Create the application menu
   createMenu();

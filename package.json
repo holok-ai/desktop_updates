@@ -12,9 +12,10 @@
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:watch\" -n \"VITE,ELECTRON\" -c \"blue,green\"",
     "electron:watch": "concurrently \"npm run build:electron\" \"nodemon --watch dist-electron --delay 1000ms --exec electron .\" -n \"TSC,APP\" -c \"yellow,magenta\"",
-    "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'module'}))\"",
+    "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js && node scripts/copy-chat-component.js && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'module'}))\"",
     "build:prod": "npm run build && npm run build:electron",
     "package": "npm run build:prod && electron-builder",
+    "package:publish": "npm run build:prod && electron-builder --publish=always",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint . --ext .ts,.js,.svelte",
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
@@ -53,6 +54,7 @@
     "dompurify": "^3.3.0",
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.7.3",
     "highlight.js": "^11.11.1",
     "mammoth": "^1.11.0",
     "marked": "^17.0.0",
@@ -131,6 +133,14 @@
         "holokai"
       ]
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "holok-ai",
+        "repo": "desktop",
+        "private": true
+      }
+    ],
     "win": {
       "target": "nsis"
     },
