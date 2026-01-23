@@ -1,12 +1,13 @@
 import pkg from 'electron-updater';
 import { app, dialog } from 'electron';
-import { createScopedLogger } from '../utils/logger.js';
+import log, { createScopedLogger } from '../utils/logger.js';
 
 const { autoUpdater } = pkg;
 const updaterLog = createScopedLogger('auto-updater');
 
 class AutoUpdaterService {
   private initialized = false;
+  private downloadPromptShownForVersion: string | null = null;
 
   initialize(): void {
     if (!app.isPackaged) {
@@ -20,6 +21,10 @@ class AutoUpdaterService {
     }
 
     updaterLog.info('Initializing auto-updater');
+
+    // Ensure electron-updater writes logs to our electron-log file transport
+    // (electron-updater is CJS + uses a loosely typed logger surface)
+    (autoUpdater as unknown as { logger: unknown }).logger = log;
 
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = false;
@@ -36,7 +41,9 @@ class AutoUpdaterService {
     }
 
     updaterLog.info('Checking for updates...');
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
+      updaterLog.error('checkForUpdatesAndNotify failed', error);
+    });
   }
 
   private setupEventHandlers(): void {
@@ -48,6 +55,24 @@ class AutoUpdaterService {
       const currentVersion = app.getVersion();
       const newVersion = info.version;
       updaterLog.info(`Update available: ${currentVersion} -> ${newVersion}`);
+
+      if (this.downloadPromptShownForVersion !== newVersion) {
+        this.downloadPromptShownForVersion = newVersion;
+        dialog
+          .showMessageBox({
+            type: 'info',
+            title: 'Updating...',
+            message: `Downloading update to version ${newVersion}...`,
+            detail: `Current version: ${currentVersion}\nNew version: ${newVersion}`,
+            buttons: ['OK'],
+            defaultId: 0,
+          })
+          .catch((error) => updaterLog.error('Error showing updating dialog:', error));
+      }
+
+      autoUpdater.downloadUpdate().catch((error: unknown) => {
+        updaterLog.error('downloadUpdate failed', error);
+      });
     });
 
     autoUpdater.on('update-not-available', (info) => {
