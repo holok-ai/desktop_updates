@@ -1,5 +1,5 @@
 import pkg from 'electron-updater';
-import { app, dialog } from 'electron';
+import { app, dialog, BrowserWindow } from 'electron';
 import log, { createScopedLogger } from '../utils/logger.js';
 import { SettingsService } from './settings.service.js';
 
@@ -126,7 +126,23 @@ class AutoUpdaterService {
         .then((result) => {
           if (result.response === 0) {
             updaterLog.info('User chose to restart and install update');
-            autoUpdater.quitAndInstall();
+            
+            try {
+              // On Windows, quitAndInstall will handle closing windows and quitting the app
+              // Parameters: isSilent=false (show installer UI), isForceRunAfter=true (restart after install)
+              // Don't manually close windows - let electron-updater handle the quit process
+              autoUpdater.quitAndInstall(false, true);
+              updaterLog.info('quitAndInstall called successfully');
+            } catch (error) {
+              updaterLog.error('Error calling quitAndInstall:', error);
+              // Fallback: close windows and quit manually
+              BrowserWindow.getAllWindows().forEach((window) => {
+                window.close();
+              });
+              setTimeout(() => {
+                app.quit();
+              }, 100);
+            }
           } else {
             updaterLog.info('User chose to install update later');
           }

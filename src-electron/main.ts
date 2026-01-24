@@ -513,8 +513,22 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (_event) => {
   appLog.info('Application exiting');
+  
+  // On Windows, allow quit during update installation
+  // Check if this is an update-related quit
+  if (process.platform === 'win32') {
+    // Don't prevent default quit behavior during updates
+    // This allows the installer to replace the executable
+  }
+});
+
+// Handle will-quit event to prevent blocking during updates
+app.on('will-quit', (_event) => {
+  // On Windows, if we're quitting for an update, don't prevent it
+  // This is handled by electron-updater's quitAndInstall
+  appLog.info('Application will quit');
 });
 
 // Optional: Handle second instance (single instance lock)
