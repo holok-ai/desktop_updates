@@ -2,11 +2,53 @@
 
 ## Quick Release (Both Mac & Windows)
 
+### Setting GH_TOKEN
+
+**macOS/Linux:**
 ```bash
-# Set your GitHub token
+# Temporary (current session only)
 export GH_TOKEN=your_token_here
 
-# Run release script (automates everything)
+# Permanent (add to ~/.zshrc or ~/.bashrc)
+echo 'export GH_TOKEN=your_token_here' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Windows:**
+
+**Command Prompt (temporary):**
+```cmd
+set GH_TOKEN=your_token_here
+```
+
+**PowerShell (temporary):**
+```powershell
+$env:GH_TOKEN="your_token_here"
+```
+
+**Windows (permanent - recommended):**
+1. Press `Win + R`, type `sysdm.cpl`, press Enter
+2. Go to "Advanced" tab → Click "Environment Variables"
+3. Under "User variables", click "New"
+4. Variable name: `GH_TOKEN`
+5. Variable value: `your_token_here`
+6. Click OK on all dialogs
+7. Restart terminal/IDE
+
+**Or via PowerShell (permanent):**
+```powershell
+[System.Environment]::SetEnvironmentVariable('GH_TOKEN', 'your_token_here', 'User')
+```
+
+**Or via Command Prompt (permanent):**
+```cmd
+setx GH_TOKEN "your_token_here"
+```
+
+### Running the Release
+
+```bash
+# After setting GH_TOKEN, run:
 npm run release 1.0.1
 ```
 
@@ -89,7 +131,13 @@ git push
 git push --tags
 
 # 4. Build and publish
+# macOS/Linux:
 export GH_TOKEN=your_token_here
+# Windows (CMD):
+set GH_TOKEN=your_token_here
+# Windows (PowerShell):
+$env:GH_TOKEN="your_token_here"
+
 npm run package:publish:all
 ```
 
@@ -152,6 +200,9 @@ All files are automatically uploaded to the GitHub release.
 - Or build only for Windows: `npm run package:win`
 
 **"GH_TOKEN not set" error:**
-- Set it: `export GH_TOKEN=your_token_here`
-- Or use: `GH_TOKEN=your_token npm run release 1.0.1`
+- **macOS/Linux:** `export GH_TOKEN=your_token_here`
+- **Windows (CMD):** `set GH_TOKEN=your_token_here`
+- **Windows (PowerShell):** `$env:GH_TOKEN="your_token_here"`
+- Or set it permanently using System Properties (see "Setting GH_TOKEN" section above)
+- For packaged app updates, set GH_TOKEN as a system/user environment variable so it's available to all applications
 
