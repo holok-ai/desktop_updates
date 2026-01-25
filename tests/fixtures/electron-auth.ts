@@ -56,16 +56,19 @@ export const TEST_TOKENS = {
 export async function launchAuthenticatedApp(): Promise<ElectronApplication> {
   const testTokensJson = JSON.stringify(TEST_TOKENS);
 
+  // Configure environment for E2E tests
+  const testEnv = {
+    ...process.env,
+    PLAYWRIGHT_TEST_TOKENS: testTokensJson,
+  };
+
   try {
     // Try launching from source (development)
     const electronExec = (await import('electron')).default as unknown as string;
     return await electron.launch({
       executablePath: electronExec,
       args: ['.'],
-      env: {
-        ...process.env,
-        PLAYWRIGHT_TEST_TOKENS: testTokensJson,
-      },
+      env: testEnv,
     });
   } catch {
     // Fallback to built version (production)
@@ -73,10 +76,7 @@ export async function launchAuthenticatedApp(): Promise<ElectronApplication> {
     return await electron.launch({
       executablePath: electronExec,
       args: ['dist-electron/main.js'],
-      env: {
-        ...process.env,
-        PLAYWRIGHT_TEST_TOKENS: testTokensJson,
-      },
+      env: testEnv,
     });
   }
 }
