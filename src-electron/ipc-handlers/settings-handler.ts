@@ -3,7 +3,6 @@ import { SettingsService, type AppSettings } from '../services/settings.service.
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 import path from 'node:path';
-import { exec } from 'node:child_process';
 
 /**
  * Settings IPC Handlers
@@ -169,6 +168,24 @@ export function registerSettingsHandlers(): void {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
       title: 'Select Folder for File Tools Whitelist',
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+
+    return result.filePaths[0];
+  });
+
+  /**
+   * Select update cache directory using native dialog
+   */
+  ipcMain.handle('settings:selectUpdateCachePath', async (_event, defaultPath?: string): Promise<string | null> => {
+    settingsLog.info('SelectUpdateCachePath called', { defaultPath });
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Update Cache Directory',
+      defaultPath: defaultPath,
     });
 
     if (result.canceled || result.filePaths.length === 0) {

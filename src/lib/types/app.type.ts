@@ -13,6 +13,7 @@ export interface AppSettings {
 
   updateAvailable?: boolean;
   latestVersion?: string;
+  updateCachePath?: string;
 }
 
 // Runtime helper (used by tests and runtime defaults)

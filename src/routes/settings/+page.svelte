@@ -19,6 +19,7 @@
     autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
+    updateCachePath: '',
   };
 
   let savedSettings: AppSettings = { ...settings };
@@ -38,6 +39,7 @@
       autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
+      updateCachePath: String(all.updateCachePath ?? ''),
     };
     savedSettings = {
       ...settings,
@@ -106,6 +108,7 @@
         autoUpdate: settings.autoUpdate,
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
+        updateCachePath: settings.updateCachePath,
       });
 
       savedSettings = {
@@ -156,6 +159,7 @@
       holoApiUrl: settings.holoApiUrl,
       directoryWhitelist: settings.directoryWhitelist,
       autoUpdate: settings.autoUpdate,
+      updateCachePath: settings.updateCachePath,
     }) !==
     JSON.stringify({
       mokuWebUrl: savedSettings.mokuWebUrl,
@@ -163,6 +167,7 @@
       holoApiUrl: savedSettings.holoApiUrl,
       directoryWhitelist: savedSettings.directoryWhitelist,
       autoUpdate: savedSettings.autoUpdate,
+      updateCachePath: savedSettings.updateCachePath,
     });
 </script>
 
@@ -293,6 +298,31 @@
               <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
               <span>Enable automatic updates</span>
             </label>
+            <div class="form-group">
+              <label for="update-cache-path" class="block text-sm font-medium mb-1">Download update files to</label>
+              <div class="flex items-center gap-2">
+                <input
+                  id="update-cache-path"
+                  type="text"
+                  bind:value={settings.updateCachePath}
+                  placeholder="Default cache path"
+                  class="flex-1 p-2 rounded border bg-transparent"
+                />
+                <button
+                  type="button"
+                  class="px-3 py-2 text-sm bg-[var(--primary-color)] text-white rounded hover:opacity-90 transition-opacity"
+                  onclick={async () => {
+                    const selectedPath = await window.electronAPI.settings.selectUpdateCachePath(settings.updateCachePath || undefined);
+                    if (selectedPath) {
+                      settings.updateCachePath = selectedPath;
+                    }
+                  }}
+                >
+                  Browse
+                </button>
+              </div>
+              <small class="text-xs text-gray-500">Directory where update files are stored</small>
+            </div>
           </div>
         </section>
       {/if}
