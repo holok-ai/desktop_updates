@@ -429,7 +429,9 @@ export class AuthService {
       await this.refreshAccessToken();
     }
     const token = this.currentAuthState.tokens?.accessToken || '';
-    const maskedToken = token ? `${token.slice(0, 5)}... (${token.length} characters)` : '(no token)';
+    const maskedToken = token
+      ? `${token.slice(0, 5)}... (${token.length} characters)`
+      : '(no token)';
     log.info('[AuthService] Access token:', maskedToken);
     return token;
   }

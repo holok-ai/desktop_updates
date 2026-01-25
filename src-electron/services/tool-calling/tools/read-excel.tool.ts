@@ -27,11 +27,13 @@ export class ReadExcelTool implements ITool {
         properties: {
           file_path: {
             type: 'string',
-            description: 'Path to the .xlsx file (can be relative to working directory or absolute)',
+            description:
+              'Path to the .xlsx file (can be relative to working directory or absolute)',
           },
           sheet_name: {
             type: 'string',
-            description: 'Optional: Specific sheet name to read. If not provided, all sheets will be read.',
+            description:
+              'Optional: Specific sheet name to read. If not provided, all sheets will be read.',
           },
         },
         required: ['file_path'],
@@ -100,10 +102,14 @@ export class ReadExcelTool implements ITool {
 
     try {
       // Read the Excel file
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
       const workbook = XLSX.readFile(resolvedPath);
 
-      const sheets: Array<{ name: string; content: string; rowCount: number; columnCount: number }> = [];
+      const sheets: Array<{
+        name: string;
+        content: string;
+        rowCount: number;
+        columnCount: number;
+      }> = [];
       let totalRows = 0;
       let totalCells = 0;
 
@@ -119,6 +125,7 @@ export class ReadExcelTool implements ITool {
       const sheetsToProcess = sheetName ? [sheetName] : workbook.SheetNames;
 
       for (const name of sheetsToProcess) {
+        // eslint-disable-next-line security/detect-object-injection
         const sheet = workbook.Sheets[name];
         if (!sheet) continue;
 
@@ -164,7 +171,7 @@ export class ReadExcelTool implements ITool {
           totalCells,
           format: 'xlsx',
         },
-        sheets: sheets.map(s => ({
+        sheets: sheets.map((s) => ({
           name: s.name,
           rowCount: s.rowCount,
           columnCount: s.columnCount,

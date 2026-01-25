@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-child-process */
 import { ipcMain, dialog, app } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import { createScopedLogger } from '../utils/logger.js';

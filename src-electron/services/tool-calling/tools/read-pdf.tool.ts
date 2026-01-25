@@ -140,13 +140,12 @@ export class ReadPdfTool implements ITool {
           const text = pdfParser.getRawTextContent();
           resolve(text);
         } catch (error) {
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
       });
 
       // Load PDF file
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      pdfParser.loadPDF(filePath);
+      void pdfParser.loadPDF(filePath);
     });
   }
 

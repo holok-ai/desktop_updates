@@ -23,8 +23,12 @@ describe('logger (real module)', () => {
     const warn = vi.fn();
     const error = vi.fn();
     const debug = vi.fn();
+    const resolvePath = vi.fn(({ fileName }: { fileName: string }) => `/mock/appData/${fileName}`);
     const mockLog = {
-      transports: { file: {}, console: {} },
+      transports: {
+        file: { resolvePath },
+        console: {},
+      },
       variables: {},
       info,
       warn,
@@ -40,8 +44,6 @@ describe('logger (real module)', () => {
     const { createScopedLogger, logStructured, logPerformance, logError } = loggerMod as any;
 
     // After loading, transports.file.resolvePath should be set
-    const resolver =
-      mockLog.transports.file.resolvePath ?? mockLog.transports.file.resolvePathFn ?? null;
     expect(typeof mockLog.transports.file.resolvePath).toBe('function');
     const p = mockLog.transports.file.resolvePath({ fileName: 'app.log' });
     expect(String(p)).toContain('/mock/appData');

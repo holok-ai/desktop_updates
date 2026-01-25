@@ -1,5 +1,7 @@
 # Holokai Desktop Application
 
+[![CI/CD Pipeline](https://github.com/YOUR_ORG/holokai-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/holokai-desktop/actions/workflows/ci.yml)
+
 This is the **Holokai Desktop application** built with Electron and Svelte, demonstrating best practices for building secure, performant desktop applications with modern web technologies.
 
 ## Project Overview
@@ -361,6 +363,34 @@ To analyze and optimize bundle size:
 - `npm run electron:dev` - Development mode with hot reload
 - `npm run package` - Create distributable packages
 - `npm run check` - Run Svelte type checking
+- `npm run lint` - Run ESLint
+- `npm run lint:fix` - Fix ESLint issues automatically
+- `npm run type-check` - Run TypeScript type checking
+- `npm run test:unit` - Run unit tests
+- `npm run test:integration` - Run integration tests
+- `npm run test:e2e` - Run E2E tests
+- `npm run test:coverage` - Run tests with coverage report
+- `npm run security:deps` - Check for dependency vulnerabilities
+- `npm run security:secrets` - Scan for hardcoded secrets
+- `npm run security:lockfile` - Validate lockfile integrity
+
+## CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment. The pipeline automatically runs on every push and pull request.
+
+**Pipeline includes**:
+- Linting and type checking
+- Security scanning
+- Unit, integration, and E2E tests (across Linux, macOS, Windows)
+- Multi-platform builds
+- Automated packaging for releases
+
+**For detailed CI/CD documentation**, see [`docs/ci-cd-setup.md`](docs/ci-cd-setup.md) which includes:
+- Complete pipeline architecture
+- Job descriptions and timeouts
+- Running checks locally
+- Troubleshooting guide
+- Performance optimization tips
 
 ## Technology Stack
 
@@ -441,6 +471,15 @@ npm run test:integration
 
 # Run E2E tests
 npm run test:e2e
+
+# Run specific E2E test file
+npm run test:e2e -- tests/e2e/thread-management.spec.ts
+
+# Run E2E tests with UI mode (debugging)
+npm run test:e2e -- --ui
+
+# Run E2E tests in debug mode
+npm run test:e2e -- --debug
 ```
 
 Tests use:
@@ -457,6 +496,65 @@ Mock IPC calls in tests using Vitest spies on `window.electron.*` methods.
 - Global setup `tests/setup/test-setup.ts` stubs `window.electronAPI` and jsdom gaps.
 - Coverage: run `npm run test:coverage` for text, HTML, and lcov; thresholds enforced.
 - Reports: Vitest JUnit at `test-results/vitest-junit.xml`, Playwright JUnit at `test-results/playwright-junit.xml`, HTML at `playwright-report/`.
+
+### E2E Testing
+
+End-to-end tests use Playwright with Electron to test the full application flow. Tests run in **serial mode** with a shared Electron instance for performance.
+
+**Key Features:**
+
+- **Fast Authentication**: Centralized fixture using real tokens (96% faster than manual login)
+- **Real Electron Environment**: Tests run against actual Electron app, not browser
+- **Comprehensive Coverage**: Authentication, threads, chat, projects, settings, markdown rendering
+
+**Quick Start:**
+
+```bash
+# Run all E2E tests
+npm run test:e2e
+
+# Run specific test suite
+npm run test:e2e -- tests/e2e/thread-management.spec.ts --reporter=line
+
+# Debug mode (step through tests)
+npm run test:e2e -- tests/e2e/chat.spec.ts --debug
+```
+
+**Authentication Fixture:**
+
+Tests use `launchAuthenticatedApp()` from `tests/fixtures/electron-auth.ts` which injects real authentication tokens, eliminating the need for manual login:
+
+```typescript
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+
+test.describe.serial('My Test Suite', () => {
+  let app: ElectronApplication;
+
+  test.beforeAll(async () => {
+    app = await launchAuthenticatedApp();
+  });
+
+  test('my test', async () => {
+    const page = await getFirstWindow(app);
+    // Test is already authenticated!
+  });
+});
+```
+
+**Important Patterns:**
+
+- Always navigate to homepage first (30s wait for models to load)
+- Use unique timestamps in test data to avoid conflicts
+- Tests run in serial mode - state carries over between tests
+- After reload, app returns to homepage - navigate back to thread if needed
+
+**For detailed documentation**, see [`docs/e2e-testing-guide.md`](docs/e2e-testing-guide.md) which includes:
+
+- Complete test coverage matrix
+- Authentication fixture documentation
+- Known issues and workarounds
+- Debugging techniques
+- Best practices and troubleshooting
 
 ## Extending the Application
 
@@ -475,6 +573,10 @@ To add new functionality:
 - [`ai/coding-instructions.md`](ai/coding-instructions.md) - Development guidelines
 - [`ai/DEVELOPER-README.md`](ai/DEVELOPER-README.md) - Developer onboarding
 - [`QUICK_START.md`](QUICK_START.md) - Quick setup guide
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) - How to contribute
+- [`docs/e2e-testing-guide.md`](docs/e2e-testing-guide.md) - E2E testing documentation
+- [`docs/ci-cd-setup.md`](docs/ci-cd-setup.md) - CI/CD pipeline documentation
+- [`docs/testing-checklist.md`](docs/testing-checklist.md) - Pre-commit testing checklist
 
 ## Svelte Advantages
 

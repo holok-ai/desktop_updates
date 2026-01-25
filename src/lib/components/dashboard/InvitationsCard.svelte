@@ -29,12 +29,12 @@
     });
 
     // Remove from mock list for demo purposes
-    mockInvitations = mockInvitations.filter((inv) => inv.id !== invitationId);
+    mockInvitations = mockInvitations.filter((inv: { id: string }) => inv.id !== invitationId);
   }
 
   function handleDecline(invitationId: string) {
     toastStore.show('Invitation declined', { variant: 'success' });
-    mockInvitations = mockInvitations.filter((inv) => inv.id !== invitationId);
+    mockInvitations = mockInvitations.filter((inv: { id: string }) => inv.id !== invitationId);
   }
 
   const hasInvitations = $derived((mockInvitations?.length || 0) > 0);

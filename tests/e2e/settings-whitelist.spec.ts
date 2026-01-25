@@ -9,14 +9,14 @@ async function getFirstWindow(app: ElectronApplication): Promise<Page> {
 }
 
 function getFileToolsSection(page: Page) {
-  // Scope queries to the File Tools section to avoid strict-mode conflicts
-  return page.locator('section').filter({ hasText: 'File Tools' }).first();
+  // Scope queries to the Allowed Directories section to avoid strict-mode conflicts
+  return page.locator('section').filter({ hasText: 'Allowed Directories' }).first();
 }
 
 async function navigateToSettings(page: Page): Promise<void> {
-  await page.reload();
+  // Wait for page to be in stable state before any navigation
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(300);
 
   // Login if needed
   const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
@@ -24,6 +24,7 @@ async function navigateToSettings(page: Page): Promise<void> {
     await expect(loginBtn).toBeVisible({ timeout: 5000 });
     await loginBtn.click();
     await page.waitForTimeout(500);
+    await page.waitForLoadState('networkidle');
   }
 
   // Open Settings via sidebar profile submenu
@@ -35,9 +36,16 @@ async function navigateToSettings(page: Page): Promise<void> {
   await expect(profileButton).toBeVisible();
   await profileButton.click();
 
-  const settingsItem = page.getByRole('menuitem', { name: 'Settings' });
-  await expect(settingsItem).toBeVisible();
-  await settingsItem.click();
+  // Open Settings via sidebar - try multiple selectors
+  let settingsItem = page.getByRole('menuitem', { name: /Settings/i });
+  if ((await settingsItem.count()) === 0) {
+    settingsItem = page.getByRole('button', { name: /Settings/i });
+  }
+  if ((await settingsItem.count()) === 0) {
+    settingsItem = page.getByRole('link', { name: /Settings/i });
+  }
+  await expect(settingsItem.first()).toBeVisible({ timeout: 5000 });
+  await settingsItem.first().click();
 
   // Wait for Settings page to load
   const heading = page.getByRole('heading', { name: 'Settings' });
@@ -76,9 +84,12 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     const page = await getFirstWindow(app);
     await navigateToSettings(page);
 
-    // Look for File Tools section (exact match on heading level to avoid strict-mode conflicts)
-    const fileToolsHeading = page.getByRole('heading', { level: 2, name: /^File Tools$/ });
-    await expect(fileToolsHeading).toBeVisible();
+    // Look for Allowed Directories section (exact match on heading level to avoid strict-mode conflicts)
+    const allowedDirsHeading = page.getByRole('heading', {
+      level: 2,
+      name: /^Allowed Directories$/,
+    });
+    await expect(allowedDirsHeading).toBeVisible();
 
     // Look for whitelist subsection heading
     const whitelistHeading = page.getByRole('heading', {
@@ -121,7 +132,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
 
     const section = getFileToolsSection(page);
 
-    // Find input and add button within File Tools section
+    // Find input and add button within Allowed Directories section
     const pathInput = section.getByPlaceholder(/Enter folder path/i);
     await expect(pathInput).toBeVisible();
 
@@ -242,7 +253,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     // Navigate back to settings
     await navigateToSettings(page);
 
-    // Verify path is still there (within File Tools section)
+    // Verify path is still there (within Allowed Directories section)
     const sectionAfter = getFileToolsSection(page);
     const pathItem = sectionAfter.getByText(testPath).first();
     await expect(pathItem).toBeVisible();

@@ -28,18 +28,16 @@ log.transports.console.level = isDevelopment ? 'debug' : 'info';
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB
 
 // Custom archive function to rename logs with timestamps
-log.transports.file.archiveLog = (oldLogFile) => {
+log.transports.file.archiveLog = (oldLogFile: { toString: () => string }) => {
   const oldLogPath = oldLogFile.toString();
-  const timestamp = new Date().toISOString()
-    .replace(/[-:]/g, '')
-    .replace('T', '_')
-    .slice(0, 15); // Format: YYYYMMDD_HHMM
+  const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15); // Format: YYYYMMDD_HHMM
   const dir = path.dirname(oldLogPath);
   const ext = path.extname(oldLogPath);
   const basename = path.basename(oldLogPath, ext);
   const archivedPath = path.join(dir, `${basename}_${timestamp}${ext}`);
 
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     fs.renameSync(oldLogPath, archivedPath);
   } catch (error) {
     console.error('Failed to archive log file:', error);

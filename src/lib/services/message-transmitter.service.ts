@@ -5,6 +5,7 @@ import type { Message } from '$lib/types/thread.type';
 import { outboxService } from './outbox.service';
 import { threadService } from './thread.service';
 import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
+import log from 'electron-log/renderer';
 
 export interface MessageUpdate {
   messageId: string;
@@ -40,7 +41,10 @@ export class MessageTransmitter {
     const model = thread.metadata.modelAccessName as string | undefined;
 
     if (provider === undefined || provider === '' || model === undefined || model === '') {
-      console.warn('[MessageTransmitter] Missing provider or model in thread metadata:', thread.metadata);
+      console.warn(
+        '[MessageTransmitter] Missing provider or model in thread metadata:',
+        thread.metadata,
+      );
       return { provider: provider ?? 'unknown', model: model ?? 'unknown' };
     }
 
@@ -120,7 +124,12 @@ export class MessageTransmitter {
   /**
    * Add optimistic user message
    */
-  addOptimisticMessage(content: string, isOnline: boolean, currentBranchId: string = '1.0', existingMessages?: Message[]): Message {
+  addOptimisticMessage(
+    content: string,
+    isOnline: boolean,
+    currentBranchId: string = '1.0',
+    _existingMessages?: Message[],
+  ): Message {
     const clientMessageId = crypto.randomUUID();
     const initialStatus: MessageStatus = isOnline
       ? MESSAGE_STATUS.SENDING
@@ -166,9 +175,12 @@ export class MessageTransmitter {
     }
 
     // Persist user message immediately to get correct timestamp ordering
-    if (thread !== null && isPermanent && userMsg.clientMessageId) {
+    if (thread !== null && isPermanent && typeof userMsg.clientMessageId === 'string') {
       const metadata = this.extractMessageMetadata(thread);
-      console.log('[MessageTransmitter] Persisting user message, optimistic timestamp:', new Date(userMsg.createdAt).toISOString());
+      log.info(
+        '[MessageTransmitter] Persisting user message, optimistic timestamp:',
+        new Date(userMsg.createdAt).toISOString(),
+      );
       const result = await threadService.appendMessage(thread.id, {
         role: 'user',
         content: userMsg.content,
@@ -178,7 +190,13 @@ export class MessageTransmitter {
       });
 
       if (result.success) {
-        console.log('[MessageTransmitter] User message persisted with timestamp:', new Date(result.message.createdAt).toISOString(), '(', result.message.createdAt, ')');
+        log.info(
+          '[MessageTransmitter] User message persisted with timestamp:',
+          new Date(result.message.createdAt).toISOString(),
+          '(',
+          result.message.createdAt,
+          ')',
+        );
         // Update UI with persisted timestamp
         this.callbacks.onMessageUpdate({
           messageId: userMsg.id,
@@ -213,7 +231,7 @@ export class MessageTransmitter {
 
       // Persist assistant message
       const assistantClientId = crypto.randomUUID();
-      console.log('[MessageTransmitter] Persisting assistant message');
+      log.info('[MessageTransmitter] Persisting assistant message');
       const assistantResult = await threadService.appendMessage(thread.id, {
         role: 'assistant',
         content: responseText,
@@ -223,7 +241,13 @@ export class MessageTransmitter {
       });
 
       if (assistantResult.success) {
-        console.log('[MessageTransmitter] Assistant message persisted with timestamp:', new Date(assistantResult.message.createdAt).toISOString(), '(', assistantResult.message.createdAt, ')');
+        log.info(
+          '[MessageTransmitter] Assistant message persisted with timestamp:',
+          new Date(assistantResult.message.createdAt).toISOString(),
+          '(',
+          assistantResult.message.createdAt,
+          ')',
+        );
         // Add assistant message to UI with repository-assigned timestamp
         const assistantMsg: Message = {
           id: assistantResult.message.id,
@@ -237,12 +261,13 @@ export class MessageTransmitter {
 
         this.callbacks.onMessageAdd(assistantMsg);
       } else {
-        console.error('[MessageTransmitter] Failed to persist assistant message:', assistantResult);
+        log.error('[MessageTransmitter] Failed to persist assistant message:', assistantResult);
       }
     } else {
       // No thread yet: persist both prompt + response atomically
       const metadata = this.extractMessageMetadata(thread);
-      const modelName = typeof metadata.model === 'string' && metadata.model !== '' ? metadata.model : 'unknown';
+      const modelName =
+        typeof metadata.model === 'string' && metadata.model !== '' ? metadata.model : 'unknown';
 
       const saved = await window.electronAPI.thread.savePromptAndResponses(
         null,
@@ -314,7 +339,10 @@ export class MessageTransmitter {
             chatHandler.setupTokenListener();
 
             const metadata = this.extractMessageMetadata(thread);
-            const modelName = typeof metadata.model === 'string' && metadata.model !== '' ? metadata.model : 'unknown';
+            const modelName =
+              typeof metadata.model === 'string' && metadata.model !== ''
+                ? metadata.model
+                : 'unknown';
 
             const request = {
               messages: [{ role: 'user', content: pendingMsg.message.content }],

@@ -18,17 +18,34 @@ async function mockLogin(page: Page): Promise<void> {
 
 async function navigateToThreads(page: Page): Promise<void> {
   await page.getByRole('menuitem', { name: 'Threads' }).click();
-  await expect(page.getByRole('heading', { name: 'Threads', level: 1 })).toBeVisible();
+  await page.waitForURL('**/threads', { timeout: 10000 });
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('select#agent-select')).toBeVisible({ timeout: 10000 });
 }
 
 async function createNewThread(page: Page, initialPrompt: string): Promise<void> {
   await navigateToThreads(page);
   await page.waitForTimeout(500);
 
-  // The simplified thread creation form should be visible (model chooser + prompt input)
-  // Model is pre-selected by default
-  const modelSelect = page.locator('select#model-select');
-  await expect(modelSelect).toBeVisible({ timeout: 3000 });
+  // The simplified thread creation form should be visible (agent chooser + prompt input)
+  // Agent is pre-selected by default
+  const agentSelect = page.locator('select#agent-select');
+  await expect(agentSelect).toBeVisible({ timeout: 3000 });
+
+  // Select first agent if needed
+  const options = await agentSelect.locator('option').count();
+  if (options > 0) {
+    await agentSelect.selectOption({ index: 0 });
+  }
+  await page.waitForTimeout(500);
+
+  // Select Claude Opus 4 model if model selector exists
+  const modelSelect = page.locator('select.model-selector-compact');
+  if ((await modelSelect.count()) > 0) {
+    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+    await modelSelect.selectOption('claude-opus-4-20250514');
+    await page.waitForTimeout(500);
+  }
 
   // Fill the prompt and send (this creates the thread)
   const promptTextarea = page.locator('textarea#thread-prompt');
@@ -41,7 +58,21 @@ async function createNewThread(page: Page, initialPrompt: string): Promise<void>
   await sendButton.click();
 
   // Wait for thread to be created and chat view to appear
-  await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
+  await page.waitForTimeout(2000);
+
+  // Check if chat view loaded automatically
+  const chatPane = page.locator('.chat-pane');
+  const isChatVisible = await chatPane.isVisible({ timeout: 3000 }).catch(() => false);
+
+  if (!isChatVisible) {
+    // Thread created but didn't navigate - click the thread in sidebar
+    const threadItem = page.locator('div.thread-item').first();
+    await expect(threadItem).toBeVisible({ timeout: 5000 });
+    await threadItem.click();
+    await page.waitForTimeout(1000);
+  }
+
+  await expect(chatPane).toBeVisible({ timeout: 5000 });
   await page.waitForTimeout(500);
 }
 

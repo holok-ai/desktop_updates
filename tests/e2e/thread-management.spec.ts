@@ -1,10 +1,6 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
+import { test, expect, type ElectronApplication } from '@playwright/test';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { navigateToHome } from '../helpers/ui-helpers';
 
 test.describe('E2E: Thread management', () => {
   let app: ElectronApplication | undefined;
@@ -12,18 +8,10 @@ test.describe('E2E: Thread management', () => {
 
   test.beforeAll(async () => {
     try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
+      app = await launchAuthenticatedApp();
+    } catch (error) {
+      console.error('Failed to launch authenticated app:', error);
+      test.skip(true, 'Electron failed to launch in this environment');
     }
   });
 
@@ -38,70 +26,87 @@ test.describe('E2E: Thread management', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    // Wait for full network idle to avoid racing on lazy-mounted login component
-    await page.waitForLoadState('networkidle');
-
-    // Login first if not already authenticated
-    const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
-    if (await loginBtn.count()) {
-      // Ensure the login component is visible before interacting
-      await expect(loginBtn).toBeVisible({ timeout: 5000 });
-      await loginBtn.click();
-
-      await page.waitForTimeout(1200);
-    }
+    // Already authenticated - no login needed!
+    // First navigate to home to load models (wait 30s)
+    await navigateToHome(page);
 
     // Navigate to Threads via main sidebar (menuitem)
     await page.getByRole('menuitem', { name: 'Threads' }).click();
 
-    // Wait for the thread creation form to be visible
+    // Wait for the threads page to load
     await page.waitForTimeout(1000);
 
-    // Wait for model selector to be visible
-    const modelSelect = page.locator('select#model-select');
-    await expect(modelSelect).toBeVisible({ timeout: 5000 });
+    // Dismiss any "Unsaved Changes" dialog that might appear
+    const dismissUnsavedDialog = async () => {
+      const cancelButton = page.getByRole('button', { name: 'Cancel' });
+      if ((await cancelButton.count()) > 0 && (await cancelButton.isVisible())) {
+        await cancelButton.click();
+        await page.waitForTimeout(300);
+      }
+    };
 
-    // Wait for models to load
-    await page.waitForTimeout(1000);
+    await dismissUnsavedDialog();
 
-    // Select the first model in the dropdown (skip index 0 as it's usually empty/placeholder)
-    const options = await modelSelect.locator('option').count();
-    if (options > 1) {
-      await modelSelect.selectOption({ index: 1 });
-    } else {
-      throw new Error('No models available in dropdown');
+    // Check if we're on the thread list or creation form
+    const createButton = page.getByRole('button', { name: /new thread/i }).first();
+    if ((await createButton.count()) > 0 && (await createButton.isVisible())) {
+      // We're on the thread list, click "New Thread" button
+      await createButton.click();
+      await page.waitForTimeout(500);
     }
 
-    // Wait a bit for model selection to register
-    await page.waitForTimeout(500);
+    // Wait for agent selector to be visible
+    const agentSelect = page.locator('select#agent-select');
+    await expect(agentSelect).toBeVisible({ timeout: 5000 });
 
-    // Fill in the prompt
+    // Wait for agents to load
+    await page.waitForTimeout(1000);
+
+    // Select the first agent if available
+    const options = await agentSelect.locator('option').count();
+    if (options > 0) {
+      await agentSelect.selectOption({ index: 0 });
+      await page.waitForTimeout(500);
+    }
+
+    // Select Claude Opus 4 model if model selector exists
+    const modelSelect = page.locator('select.model-selector-compact');
+    if ((await modelSelect.count()) > 0) {
+      await expect(modelSelect).toBeVisible({ timeout: 5000 });
+      await modelSelect.selectOption('claude-opus-4-20250514');
+      await page.waitForTimeout(500);
+    }
+
+    // Fill in the prompt with unique identifier
+    const uniquePrompt = `Playwright Thread ${Date.now()}`;
     const promptTextarea = page.locator('textarea#thread-prompt');
     await expect(promptTextarea).toBeVisible({ timeout: 3000 });
-
-    // Focus the textarea
-    await promptTextarea.click();
-    await page.waitForTimeout(200);
-
-    // Clear any existing content
-    await promptTextarea.clear();
-
-    // Type the text (more reliable than fill for Svelte components)
-    await promptTextarea.pressSequentially('Playwright Thread', { delay: 50 });
-
-    // Wait a moment for the input to register
+    await promptTextarea.fill(uniquePrompt);
     await page.waitForTimeout(300);
 
-    // Verify text was entered
-    const textareaValue = await promptTextarea.inputValue();
-    if (!textareaValue || textareaValue.trim() === '') {
-      throw new Error('Failed to enter text in prompt textarea');
-    }
-
-    // Submit the form by pressing Enter
+    // Submit by pressing Enter (as indicated by the UI hint)
     await promptTextarea.press('Enter');
+    await page.waitForTimeout(500);
+
+    // Dismiss any unsaved changes dialog
+    await dismissUnsavedDialog();
 
     // Wait for thread to be created
     await page.waitForTimeout(2000);
+
+    // Check if chat view loaded automatically
+    const chatPane = page.locator('.chat-pane');
+    const isChatVisible = await chatPane.isVisible({ timeout: 3000 }).catch(() => false);
+
+    if (!isChatVisible) {
+      // Thread created but didn't navigate - click the thread in sidebar
+      const threadItem = page.locator('div.thread-item').first();
+      await expect(threadItem).toBeVisible({ timeout: 5000 });
+      await threadItem.click();
+      await page.waitForTimeout(1000);
+    }
+
+    // Verify thread was created successfully
+    await expect(chatPane).toBeVisible({ timeout: 5000 });
   });
 });

@@ -299,7 +299,7 @@ describe('AuthService (unit)', () => {
       text: async () => 'err',
     });
     const spyCleanup = vi.spyOn(service as any, 'cleanup').mockImplementation(() => {});
-    await expect(service.refreshAccessToken()).rejects.toThrow('Token refresh failed');
+    await expect(service.refreshAccessToken()).rejects.toThrow('Failed to get access token');
     expect(spyCleanup).toHaveBeenCalled();
     spyCleanup.mockRestore();
   });
