@@ -5,7 +5,6 @@ import log from 'electron-log';
 import { app } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 
 /**
@@ -34,7 +33,6 @@ export interface AppSettings {
 
   updateAvailable?: boolean;
   latestVersion?: string;
-  updateCachePath?: string;
 }
 
 /**
@@ -63,29 +61,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoUpdate: true,
   updateAvailable: false,
   latestVersion: '',
-  updateCachePath: getDefaultUpdateCachePath(),
 };
-
-/**
- * Get default update cache path based on platform
- */
-function getDefaultUpdateCachePath(): string {
-  const platform = process.platform;
-  const appName = 'holokai-desktop-updater';
-
-  if (platform === 'win32') {
-    // Windows: %LOCALAPPDATA%\holokai-desktop-updater
-    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(localAppData, appName);
-  } else if (platform === 'darwin') {
-    // macOS: ~/Library/Caches/holokai-desktop-updater
-    return path.join(os.homedir(), 'Library', 'Caches', appName);
-  } else {
-    // Linux: ~/.cache/holokai-desktop-updater
-    const cacheHome = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
-    return path.join(cacheHome, appName);
-  }
-}
 
 /**
  * Settings Service
@@ -135,10 +111,6 @@ export class SettingsService {
         latestVersion: {
           type: 'string',
           default: DEFAULT_SETTINGS.latestVersion,
-        },
-        updateCachePath: {
-          type: 'string',
-          default: DEFAULT_SETTINGS.updateCachePath,
         },
         directoryWhitelist: {
           type: 'array',

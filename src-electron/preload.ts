@@ -363,7 +363,6 @@ export interface SettingsAPI {
   addWhitelistPath: (path: string) => Promise<void>;
   removeWhitelistPath: (path: string) => Promise<void>;
   selectFolder: () => Promise<string | null>;
-  selectUpdateCachePath: (defaultPath?: string) => Promise<string | null>;
 
   // Diagnostics
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
@@ -381,7 +380,6 @@ export interface AppSettings {
   autoUpdate?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
-  updateCachePath?: string;
 }
 
 /**
@@ -786,8 +784,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
-    selectUpdateCachePath: (defaultPath?: string) =>
-      ipcRenderer.invoke('settings:selectUpdateCachePath', defaultPath),
 
     openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
   } as SettingsAPI,

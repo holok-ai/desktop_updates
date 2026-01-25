@@ -39,13 +39,6 @@ class AutoUpdaterService {
     // (electron-updater is CJS + uses a loosely typed logger surface)
     (autoUpdater as unknown as { logger: unknown }).logger = log;
 
-    // Configure update cache directory from settings
-    const updateCachePath = this.settingsService.getSetting('updateCachePath');
-    if (updateCachePath) {
-      (autoUpdater as unknown as { cacheDir: string }).cacheDir = updateCachePath;
-      updaterLog.info('Update cache directory:', updateCachePath);
-    }
-
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = false;
 
