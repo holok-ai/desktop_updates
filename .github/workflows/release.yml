@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci || npm install
           else
             npm install
           fi
@@ -53,6 +53,10 @@ jobs:
         run: |
           if (Test-Path package-lock.json) {
             npm ci
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "npm ci failed, falling back to npm install"
+              npm install
+            }
           } else {
             npm install
           }
