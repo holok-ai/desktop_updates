@@ -144,8 +144,9 @@ try {
     // Make sure we have the tag locally (for electron-builder to detect version)
     if (!tagExistsLocally) {
       console.log('📥 Fetching tag from remote...');
-      execSync(`git fetch origin tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
-      console.log('✅ Tag fetched\n');
+      // Fetch all tags (simpler and more reliable)
+      execSync(`git fetch origin --tags`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Tags fetched\n');
     }
   } else {
     // Tag doesn't exist, create it
