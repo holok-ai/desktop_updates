@@ -141,34 +141,60 @@ $env:GH_TOKEN="your_token_here"
 npm run package:publish:all
 ```
 
-## GitHub Actions (Recommended for Windows → Mac)
+## GitHub Actions (Recommended for Cross-Platform Builds)
 
-For automated cross-platform builds, set up GitHub Actions:
+For automated cross-platform builds with proper code signing, use GitHub Actions.
 
-```yaml
-# .github/workflows/release.yml
-name: Release
+### Setup
 
-on:
-  push:
-    tags:
-      - 'v*'
+1. **Create GitHub Secret:**
+   - Go to your repository → Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `GH_TOKEN`
+   - Value: Your GitHub Personal Access Token (with `repo` scope)
+   - Click "Add secret"
 
-jobs:
-  build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install
-      - run: npm run build:prod
-      - run: npx electron-builder --${{ matrix.os == 'macos-latest' && 'mac' || 'win' }} --publish=always
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+2. **Workflow File:**
+   The workflow file is already created at `.github/workflows/release.yml`
+
+### How It Works
+
+When you push a tag (e.g., `v1.0.1`), GitHub Actions will:
+- ✅ Build macOS installers on macOS runners (with proper code signing)
+- ✅ Build Windows installers on Windows runners (with proper code signing)
+- ✅ Publish both to GitHub releases automatically
+
+### Usage
+
+```bash
+# 1. Update version in package.json
+# 2. Commit and tag
+git add package.json
+git commit -m "v1.0.1"
+git tag v1.0.1
+
+# 3. Push (this triggers GitHub Actions)
+git push
+git push --tags
+
+# GitHub Actions will automatically build and publish both platforms
 ```
+
+### Workflow Details
+
+The workflow (`.github/workflows/release.yml`) includes:
+- **macOS job**: Builds DMG and ZIP files on macOS
+- **Windows job**: Builds NSIS installer on Windows
+- Both jobs run in parallel for faster builds
+- Both publish to the same GitHub release
+
+### Benefits
+
+- ✅ Native builds = proper code signing
+- ✅ No integrity check errors
+- ✅ Faster builds (parallel execution)
+- ✅ Automatic publishing
+- ✅ No need for Wine or cross-compilation
 
 ## Release Artifacts
 
@@ -205,4 +231,13 @@ All files are automatically uploaded to the GitHub release.
 - **Windows (PowerShell):** `$env:GH_TOKEN="your_token_here"`
 - Or set it permanently using System Properties (see "Setting GH_TOKEN" section above)
 - For packaged app updates, set GH_TOKEN as a system/user environment variable so it's available to all applications
+
+**"Installer integrity check has failed" error (Windows EXE built on macOS):**
+- This is a common issue when building Windows installers on macOS
+- **Solution (Recommended):** Use GitHub Actions to build Windows installers natively on Windows
+  - The workflow file `.github/workflows/release.yml` is already configured
+  - Just push a tag and GitHub Actions will build on Windows automatically
+  - This ensures proper code signing and no integrity errors
+- **Alternative:** Build Windows installers on a Windows machine or VM
+- **Note:** Code signing certificates are Windows-specific and cannot be used on macOS
 
