@@ -101,59 +101,89 @@ try {
   execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
   console.log('✅ Committed\n');
 
-  // Step 3: Create and push tag
-  console.log('🏷️  Step 3: Creating git tag...');
+  // Step 3: Create and push tag (skip if already exists remotely)
+  console.log('🏷️  Step 3: Checking git tag...');
   const tagName = `v${newVersion}`;
   
-  // Check if tag already exists
+  // Check if tag exists locally
+  let tagExistsLocally = false;
   try {
     execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
-    console.error(`❌ Error: Tag ${tagName} already exists`);
-    console.error('If you want to recreate it, delete it first:');
-    console.error(`  git tag -d ${tagName}`);
-    console.error(`  git push origin :refs/tags/${tagName}`);
-    process.exit(1);
+    tagExistsLocally = true;
   } catch {
-    // Tag doesn't exist, continue
+    // Tag doesn't exist locally
+  }
+  
+  // Check if tag exists remotely
+  let tagExistsRemotely = false;
+  try {
+    execSync(`git ls-remote --tags origin ${tagName}`, { cwd: rootDir, stdio: 'pipe' });
+    tagExistsRemotely = true;
+  } catch {
+    // Tag doesn't exist remotely
+  }
+  
+  if (tagExistsRemotely) {
+    console.log(`ℹ️  Tag ${tagName} already exists on remote. Skipping tag creation.`);
+    console.log('   This is normal when building for multiple platforms.\n');
+    
+    // Make sure we have the tag locally (for electron-builder to detect version)
+    if (!tagExistsLocally) {
+      console.log('📥 Fetching tag from remote...');
+      execSync(`git fetch origin tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Tag fetched\n');
+    }
+  } else {
+    // Tag doesn't exist, create it
+    if (!tagExistsLocally) {
+      execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Tag created\n');
+    }
+    
+    // Step 4: Push commits and tags
+    console.log('📤 Step 4: Pushing to GitHub...');
+    execSync('git push', { cwd: rootDir, stdio: 'inherit' });
+    execSync('git push --tags', { cwd: rootDir, stdio: 'inherit' });
+    console.log('✅ Pushed to GitHub\n');
   }
 
-  execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
-  console.log('✅ Tag created\n');
-
-  // Step 4: Push commits and tags
-  console.log('📤 Step 4: Pushing to GitHub...');
-  execSync('git push', { cwd: rootDir, stdio: 'inherit' });
-  execSync('git push --tags', { cwd: rootDir, stdio: 'inherit' });
-  console.log('✅ Pushed to GitHub\n');
-
-  // Step 5: Build and publish for all platforms
+  // Step 5: Build and publish for current platform
   console.log('🔨 Step 5: Building and publishing to GitHub releases...');
-  console.log('Building for macOS and Windows...');
-  console.log('This may take several minutes...\n');
   
   // Check platform
   const platform = process.platform;
-  console.log(`Current platform: ${platform}`);
-  
-  if (platform === 'darwin') {
-    console.log('✅ Building Windows installers on macOS is supported');
-    console.log('   (May require Wine for some operations)\n');
-  } else if (platform === 'win32') {
-    console.log('✅ Building macOS DMG on Windows requires macOS or CI/CD\n');
-  }
+  console.log(`Current platform: ${platform}\n`);
   
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
   
-  // Build for both Mac and Windows
-  console.log('\n📦 Building for macOS and Windows...');
-  console.log('   - macOS: DMG file');
-  console.log('   - Windows: NSIS installer\n');
-  
-  execSync('npx electron-builder --mac --win --publish=always', { 
-    cwd: rootDir, 
-    stdio: 'inherit',
-    env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
-  });
+  if (platform === 'darwin') {
+    console.log('\n📦 Building for macOS...');
+    console.log('   - macOS: DMG and ZIP files\n');
+    execSync('npx electron-builder --mac --publish=always', { 
+      cwd: rootDir, 
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+    });
+    console.log('\n⚠️  Note: Windows builds should be done on a Windows machine');
+    console.log('   Build Windows installer separately and upload to the same release');
+  } else if (platform === 'win32') {
+    console.log('\n📦 Building for Windows...');
+    console.log('   - Windows: NSIS installer\n');
+    execSync('npx electron-builder --win --publish=always', { 
+      cwd: rootDir, 
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+    });
+    console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
+    console.log('   Build macOS installer separately and upload to the same release');
+  } else {
+    console.log('\n📦 Building for current platform...\n');
+    execSync('npx electron-builder --publish=always', { 
+      cwd: rootDir, 
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+    });
+  }
   
   console.log('\n✅ Release published successfully!');
   console.log(`\n🎉 Version ${newVersion} is now available at:`);

@@ -2,6 +2,13 @@
 
 ## Quick Release (Both Mac & Windows)
 
+### Overview
+
+The release process supports building on separate platforms:
+- **macOS**: Builds and publishes DMG/ZIP files
+- **Windows**: Builds and publishes EXE installer
+- **Both upload to the same GitHub release automatically**
+
 ### Setting GH_TOKEN
 
 **macOS/Linux:**
@@ -47,17 +54,52 @@ setx GH_TOKEN "your_token_here"
 
 ### Running the Release
 
+**Step 1: On macOS (creates release and uploads macOS files)**
 ```bash
-# After setting GH_TOKEN, run:
+# Make sure you have the latest code
+git pull
+
+# Set GH_TOKEN if not already set
+export GH_TOKEN=your_token_here
+
+# Run release script
 npm run release 1.0.1
 ```
 
 This will:
 1. ✅ Update version in package.json
-2. ✅ Commit and tag the release
+2. ✅ Commit and tag the release (`v1.0.1`)
 3. ✅ Push to GitHub
-4. ✅ Build for **both macOS and Windows**
-5. ✅ Publish to GitHub releases
+4. ✅ Build macOS DMG and ZIP files
+5. ✅ Create GitHub release and upload macOS files
+
+**Step 2: On Windows (uploads Windows files to same release)**
+```cmd
+# Make sure you have the latest code
+git pull
+
+# Set GH_TOKEN if not already set
+set GH_TOKEN=your_token_here
+
+# Run release script (same version)
+npm run release 1.0.1
+```
+
+This will:
+1. ✅ Detect existing tag `v1.0.1` on remote
+2. ✅ Fetch the tag locally
+3. ✅ Build Windows EXE installer
+4. ✅ Find existing GitHub release and upload Windows file
+
+**Result:** One GitHub release with both macOS (DMG/ZIP) and Windows (EXE) files.
+
+### Important Notes
+
+- ✅ **Both platforms can run independently** - The script automatically handles existing tags
+- ✅ **Same version number** - Use the exact same version (e.g., `1.0.1`) on both platforms
+- ✅ **Order doesn't matter** - You can run Windows first, then macOS, or vice versa
+- ✅ **Automatic release creation** - First platform creates the release, second adds to it
+- ✅ **No manual upload needed** - Everything is automated
 
 ## Platform-Specific Builds
 
@@ -93,24 +135,44 @@ npm run package:publish:all
 
 ## Cross-Platform Building
 
-### Building Windows on macOS
+### Recommended Approach: Build on Native Platforms
 
-✅ **Supported** - electron-builder can build Windows installers on macOS
+We build on separate platforms to ensure proper code signing and avoid integrity errors:
 
-**Requirements:**
-- No additional setup needed for basic builds
-- For advanced features, you may need Wine (optional):
-  ```bash
-  brew install wine-stable
-  ```
+**macOS builds:**
+- Run `npm run release 1.0.1` on your Mac
+- Creates release and uploads DMG/ZIP files
+
+**Windows builds:**
+- Run `npm run release 1.0.1` on a Windows machine/VM
+- Uploads EXE file to the same release automatically
+
+**Benefits:**
+- ✅ Proper code signing on each platform
+- ✅ No integrity check errors
+- ✅ No CI/CD costs or limitations
+- ✅ Full control over build process
+
+### Building Windows on macOS (Not Recommended)
+
+⚠️ **Possible but not recommended** - electron-builder can build Windows installers on macOS, but:
+- May have integrity check errors
+- Code signing may not work properly
+- Users might see warnings
+
+**If you must build Windows on macOS:**
+```bash
+brew install wine-stable  # Optional, for some features
+npm run package:win
+```
 
 ### Building macOS on Windows
 
-❌ **Not directly supported** - You cannot build macOS DMG files on Windows
+❌ **Not supported** - You cannot build macOS DMG files on Windows
 
 **Solutions:**
-1. Use GitHub Actions CI/CD (recommended)
-2. Use a macOS machine or VM
+1. Use a macOS machine or VM (recommended)
+2. Use free CI/CD services (Azure Pipelines, GitLab CI, AppVeyor)
 3. Use a cloud macOS service
 
 ## Manual Release Process
@@ -141,47 +203,38 @@ $env:GH_TOKEN="your_token_here"
 npm run package:publish:all
 ```
 
-## GitHub Actions (Recommended for Windows → Mac)
+## Alternative: Free CI/CD Services
 
-For automated cross-platform builds, set up GitHub Actions:
+If you prefer automated builds instead of building on separate platforms:
 
-```yaml
-# .github/workflows/release.yml
-name: Release
+**Azure Pipelines** (1,800 free minutes/month):
+- Supports Windows, macOS, Linux
+- Good alternative to GitHub Actions
 
-on:
-  push:
-    tags:
-      - 'v*'
+**GitLab CI/CD** (400 free minutes/month):
+- Supports Windows runners
+- Similar workflow to GitHub Actions
 
-jobs:
-  build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install
-      - run: npm run build:prod
-      - run: npx electron-builder --${{ matrix.os == 'macos-latest' && 'mac' || 'win' }} --publish=always
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-```
+**AppVeyor** (Free for open source):
+- Unlimited builds for open source
+- Native Windows support
+
+See `docs/BUILDING_WINDOWS.md` for detailed CI/CD setup instructions.
 
 ## Release Artifacts
 
-After publishing, you'll have:
+After publishing from both platforms, the GitHub release will contain:
 
-**macOS:**
+**macOS files (from Mac build):**
 - `Holokai Desktop-1.0.1-arm64.dmg` (Apple Silicon)
+- `Holokai Desktop-1.0.1-arm64.zip` (Apple Silicon - for auto-updates)
 - `Holokai Desktop-1.0.1-x64.dmg` (Intel Mac, if built)
+- `Holokai Desktop-1.0.1-x64.zip` (Intel Mac - for auto-updates)
 
-**Windows:**
+**Windows files (from Windows build):**
 - `Holokai Desktop Setup 1.0.1.exe` (NSIS installer)
 
-All files are automatically uploaded to the GitHub release.
+All files are automatically uploaded to the same GitHub release.
 
 ## Version Format
 
@@ -191,13 +244,18 @@ All files are automatically uploaded to the GitHub release.
 
 ## Troubleshooting
 
+**"Tag already exists" error when running on second platform:**
+- This is now handled automatically by the release script
+- The script detects existing tags and skips creation
+- Just run `npm run release 1.0.1` on both platforms - it will work
+
 **"Cannot build Windows on macOS" error:**
-- Install Wine: `brew install wine-stable`
-- Or use GitHub Actions for Windows builds
+- Build Windows installers on a Windows machine/VM
+- This ensures proper code signing and no integrity errors
 
 **"Cannot build macOS on Windows" error:**
-- Use GitHub Actions or a macOS machine
-- Or build only for Windows: `npm run package:win`
+- Build macOS installers on a macOS machine
+- This ensures proper code signing
 
 **"GH_TOKEN not set" error:**
 - **macOS/Linux:** `export GH_TOKEN=your_token_here`
