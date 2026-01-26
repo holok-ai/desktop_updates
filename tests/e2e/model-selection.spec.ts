@@ -1,16 +1,12 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
+import { test, expect, ElectronApplication, Page } from '@playwright/test';
 import {
   navigateToThreads,
   selectAgentAndModel,
   authenticateWithTestKey,
   waitForStreamingComplete,
+  ensureAgentsLoaded,
 } from '../helpers/ui-helpers';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 
 test.describe('E2E: Model selection on thread start', () => {
   let app: ElectronApplication | undefined;
@@ -18,18 +14,10 @@ test.describe('E2E: Model selection on thread start', () => {
 
   test.beforeAll(async () => {
     try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
+      app = await launchAuthenticatedApp();
+    } catch (error) {
+      console.error('Failed to launch authenticated app:', error);
+      test.skip(true, 'Electron failed to launch in this environment');
     }
   });
 
@@ -49,19 +37,16 @@ test.describe('E2E: Model selection on thread start', () => {
     // Navigate to Threads page
     await navigateToThreads(page);
 
-    // The agent selector should be visible (new UI uses agent-based selection)
+    // Ensure agents are loaded (with retry logic)
+    const agentsAvailable = await ensureAgentsLoaded(page);
+    expect(agentsAvailable).toBe(true);
+
     const agentSelect = page.locator('select#agent-select');
-    await expect(agentSelect).toBeVisible({ timeout: 5000 });
-
-    // Get available agents and select first one
-    const agentOptions = agentSelect.locator('option');
-    const agentCount = await agentOptions.count();
-    expect(agentCount).toBeGreaterThan(0);
-
     let selectedAgentId: string | null = null;
     let selectedModelId: string | null = null;
 
     // Get first agent ID
+    const agentOptions = agentSelect.locator('option');
     const firstAgentValue = await agentOptions.nth(0).getAttribute('value');
     if (firstAgentValue) {
       selectedAgentId = firstAgentValue;

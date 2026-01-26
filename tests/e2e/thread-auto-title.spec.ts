@@ -1,4 +1,5 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
+import { ensureAgentsLoaded } from '../helpers/ui-helpers';
 
 async function getFirstWindow(app: ElectronApplication): Promise<Page> {
   const page = await app.firstWindow();
@@ -20,7 +21,10 @@ async function navigateToThreads(page: Page): Promise<void> {
   await page.getByRole('menuitem', { name: 'Threads' }).click();
   await page.waitForURL('**/threads', { timeout: 10000 });
   await page.waitForLoadState('networkidle');
-  await expect(page.locator('select#agent-select')).toBeVisible({ timeout: 10000 });
+
+  // Ensure agents are loaded (with retry logic)
+  const agentsAvailable = await ensureAgentsLoaded(page);
+  expect(agentsAvailable).toBe(true);
 }
 
 async function createNewThread(page: Page, initialPrompt: string): Promise<void> {

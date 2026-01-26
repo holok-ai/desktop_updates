@@ -8,10 +8,11 @@
  */
 
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { ensureValidToken, refreshTokenViaElectron } from '../helpers/token-helpers.js';
 
 /**
- * Test credentials valid until 2036
- * These tokens are hardcoded for convenience in test environments only.
+ * Test credentials with long-lived apiKey (expires 2036)
+ * The accessToken is intentionally expired to test token refresh flow.
  *
  * Security Note:
  * - Only work in test environment
@@ -30,14 +31,15 @@ export const TEST_TOKENS = {
     name: 'Kong Pham',
     organizationId: '00000000-0000-0000-0000-000000000001',
   },
-  expiresAt: 2084776367000, // Expires in 2036
+  expiresAt: 1769434737000, // Expired - will trigger refresh on first use
 };
 
 /**
  * Launch Electron app with pre-authenticated test user
  *
  * Authentication happens automatically at app startup via AuthService.loadTestTokens()
- * No UI interaction required - the app launches already authenticated.
+ * The expired access token will be automatically refreshed by AuthService.getAccessToken()
+ * when the first API call is made. No manual token refresh needed.
  *
  * @returns ElectronApplication instance with authenticated user
  *
@@ -50,6 +52,7 @@ export const TEST_TOKENS = {
  * test('my test', async () => {
  *   const page = await getFirstWindow(app);
  *   // Already authenticated - no login needed!
+ *   // Token will be auto-refreshed on first API call
  * });
  * ```
  */
@@ -143,4 +146,42 @@ export async function getAuthenticatedUser(page: Page): Promise<{
     console.error('Failed to get authenticated user:', error);
     return null;
   }
+}
+
+/**
+ * Refresh the access token
+ *
+ * Uses the same token refresh logic as the production AuthService.
+ * Useful when testing with expired tokens or long-running tests.
+ *
+ * @param page - Page object
+ * @returns Promise with refreshed auth state
+ *
+ * @example
+ * ```typescript
+ * // Refresh token before making API calls
+ * await refreshAccessToken(page);
+ * ```
+ */
+export async function refreshAccessToken(page: Page): Promise<void> {
+  await refreshTokenViaElectron(page);
+}
+
+/**
+ * Ensure the access token is valid, refreshing if needed
+ *
+ * This is a convenience function that checks token validity and
+ * refreshes automatically if expired.
+ *
+ * @param page - Page object
+ * @returns Promise with valid access token
+ *
+ * @example
+ * ```typescript
+ * // Before making API calls in tests
+ * const token = await ensureValidAccessToken(page);
+ * ```
+ */
+export async function ensureValidAccessToken(page: Page): Promise<string> {
+  return ensureValidToken(page);
 }

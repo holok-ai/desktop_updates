@@ -2,6 +2,7 @@ import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import { mokuService } from './mokuapi/moku.service.js';
+import { refreshAccessToken, isTokenValid } from '../utils/token-refresh.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -383,7 +384,11 @@ export class AuthService {
     try {
       const apiKey = this.currentAuthState.tokens.apiKey;
 
-      const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
+      // Use shared token refresh utility
+      const { accessToken, expiresAt } = await refreshAccessToken({
+        apiKey,
+        currentExpiresAt: this.currentAuthState.tokens.expiresAt,
+      });
 
       // Extract user info from the new access token to ensure it's up to date
       const updatedUser = this.extractUserFromToken(accessToken);
@@ -392,7 +397,7 @@ export class AuthService {
       const newTokens: AuthTokens = {
         accessToken,
         apiKey, // Keep the same apiKey
-        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
+        expiresAt,
       };
 
       // Store updated tokens with updated user profile
@@ -411,7 +416,7 @@ export class AuthService {
    */
   private isTokenValid(): boolean {
     return (
-      this.currentAuthState.tokens !== null && this.currentAuthState.tokens.expiresAt > Date.now()
+      this.currentAuthState.tokens !== null && isTokenValid(this.currentAuthState.tokens.expiresAt)
     );
   }
 

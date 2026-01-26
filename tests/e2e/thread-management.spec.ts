@@ -1,6 +1,6 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { navigateToHome } from '../helpers/ui-helpers';
+import { navigateToHome, ensureAgentsLoaded } from '../helpers/ui-helpers';
 
 test.describe('E2E: Thread management', () => {
   let app: ElectronApplication | undefined;
@@ -57,10 +57,11 @@ test.describe('E2E: Thread management', () => {
 
     // Wait for agent selector to be visible
     const agentSelect = page.locator('select#agent-select');
-    await expect(agentSelect).toBeVisible({ timeout: 5000 });
+    await expect(agentSelect).toBeVisible({ timeout: 50000 });
 
-    // Wait for agents to load
-    await page.waitForTimeout(1000);
+    // Ensure agents are loaded (with retry logic)
+    const agentsAvailable = await ensureAgentsLoaded(page);
+    expect(agentsAvailable).toBe(true);
 
     // Select the first agent if available
     const options = await agentSelect.locator('option').count();

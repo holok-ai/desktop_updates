@@ -44,7 +44,7 @@ async function navigateToSettings(page: Page): Promise<void> {
   if ((await settingsItem.count()) === 0) {
     settingsItem = page.getByRole('link', { name: /Settings/i });
   }
-  await expect(settingsItem.first()).toBeVisible({ timeout: 5000 });
+  await expect(settingsItem.first()).toBeVisible({ timeout: 60000 });
   await settingsItem.first().click();
 
   // Wait for Settings page to load

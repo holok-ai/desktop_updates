@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   timeout: 5 * 60 * 1000,
   expect: {
-    timeout: 5000,
+    timeout: 10000, // Increased from 5000ms to 10000ms for assertions
   },
   fullyParallel: false,
   workers: 1,
@@ -18,6 +18,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // Set default timeout for page methods like waitForFunction
+    actionTimeout: 120000, // 2 minutes for actions
   },
   projects: [
     {

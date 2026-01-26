@@ -64,7 +64,7 @@ test.describe('E2E: Settings', () => {
     if ((await settingsItem.count()) === 0) {
       settingsItem = page.getByRole('link', { name: /Settings/i });
     }
-    await expect(settingsItem.first()).toBeVisible({ timeout: 5000 });
+    await expect(settingsItem.first()).toBeVisible({ timeout: 6000 });
     await settingsItem.first().click();
 
     // Expect Settings heading

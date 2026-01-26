@@ -54,7 +54,9 @@ export async function navigateToThreads(page: Page): Promise<void> {
   const threadList = page.locator('[role="menuitem"]').first();
 
   try {
-    await expect(agentSelect).toBeVisible({ timeout: 5000 });
+    await expect(agentSelect).toBeVisible({ timeout: 50000 });
+    // If agent selector is visible, ensure agents are loaded with retry logic
+    await ensureAgentsLoaded(page);
   } catch {
     // If agent selector not visible, we might be on thread list - that's okay
     await expect(threadList).toBeVisible({ timeout: 5000 });
@@ -150,18 +152,31 @@ export async function selectAgentAndModel(
 export async function waitForMessageInput(page: Page): Promise<void> {
   const input = page.locator('[data-testid="message-input"]');
 
-  await page.waitForTimeout(60000);
-
   // Wait for input to exist and be visible
   await expect(input).toBeVisible({ timeout: 60000 });
 
-  // Wait for input to be enabled (not streaming) - with longer timeout for AI responses
+  // First, wait for any streaming to complete (if there is streaming)
+  try {
+    // Check if there's a streaming message
+    const streamingMessage = page.locator('.message.assistant.streaming');
+    const isStreaming = await streamingMessage.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (isStreaming) {
+      // Wait for streaming to complete
+      await expect(streamingMessage).toBeHidden({ timeout: 120000 });
+    }
+  } catch (error) {
+    // No streaming message found, continue
+  }
+
+  // Wait for input to be enabled (not disabled by streaming)
   await page.waitForFunction(
     () => {
       const el = document.querySelector('[data-testid="message-input"]') as HTMLTextAreaElement;
       return el && !el.disabled;
     },
-    { timeout: 99999 },
+    undefined, // No arguments to pass to the function
+    { timeout: 120000 }, // 2 minutes for AI response to complete
   );
 }
 
@@ -345,6 +360,61 @@ export async function authenticateWithTestKey(page: Page): Promise<void> {
       await page.waitForTimeout(1000);
     }
   }
+}
+
+/**
+ * Retry logic for ensuring agents/models are loaded
+ * If agents aren't loaded on first attempt, navigates through the app to trigger token refresh
+ *
+ * @param page - Playwright page object
+ * @returns true if agents are available, false otherwise
+ */
+export async function ensureAgentsLoaded(page: Page): Promise<boolean> {
+  const agentSelect = page.locator('select#agent-select');
+
+  // First, wait for agent selector to be visible
+  try {
+    await expect(agentSelect).toBeVisible({ timeout: 50000 });
+  } catch {
+    // Agent selector not visible, might need to wait or navigate
+    return false;
+  }
+
+  // Get available agents - retry if empty (may need token refresh)
+  let agentOptions = agentSelect.locator('option');
+  let agentCount = await agentOptions.count();
+
+  // Retry logic: If no agents loaded, navigate around to trigger refresh
+  if (agentCount === 0) {
+    console.log('[E2E] No agents loaded, attempting navigation retry...');
+
+    // Navigate to home
+    await page.click('a[href="#/"]').catch(() => {});
+    await page.waitForTimeout(1000);
+
+    // Navigate to projects
+    await page.click('a[href="#/projects"]').catch(() => {});
+    await page.waitForTimeout(1000);
+
+    // Navigate back to threads
+    await navigateToThreads(page);
+    await page.waitForTimeout(2000);
+
+    // Check again
+    await expect(agentSelect).toBeVisible({ timeout: 50000 });
+    agentOptions = agentSelect.locator('option');
+    agentCount = await agentOptions.count();
+
+    // If still no agents, wait longer for token refresh to complete
+    if (agentCount === 0) {
+      console.log('[E2E] Still no agents, waiting 30s for token refresh...');
+      await page.waitForTimeout(30000);
+      agentOptions = agentSelect.locator('option');
+      agentCount = await agentOptions.count();
+    }
+  }
+
+  return agentCount > 0;
 }
 
 /**

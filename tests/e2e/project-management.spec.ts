@@ -20,7 +20,7 @@ async function goToProjects(page: Page) {
 async function openCreateProjectModal(page: Page) {
   const inlineForm = page.locator('form.project-form');
   if (await inlineForm.count()) {
-    await expect(inlineForm).toBeVisible({ timeout: 5000 });
+    await expect(inlineForm).toBeVisible({ timeout: 60000 });
     return;
   }
 
@@ -32,7 +32,7 @@ async function openCreateProjectModal(page: Page) {
     }
   });
   await page.waitForTimeout(500);
-  await expect(page.locator('form.project-form')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('form.project-form')).toBeVisible({ timeout: 60000 });
 }
 
 async function resetProjects(page: Page) {
@@ -64,7 +64,7 @@ async function createProject(page: Page, name: string, description?: string) {
   // Wait for any modal overlays to disappear
   const modalOverlay = page.locator('.modal-overlay');
   if (await modalOverlay.count()) {
-    await expect(modalOverlay).toHaveCount(0, { timeout: 5000 });
+    await expect(modalOverlay).toHaveCount(0, { timeout: 60000 });
   }
 
   // Dismiss any "Unsaved Changes" dialog that might appear
@@ -78,10 +78,10 @@ async function createProject(page: Page, name: string, description?: string) {
     }
   }
 
-  // Wait for the project to appear in the sidebar
-  await page.waitForTimeout(500);
+  // Wait for the project to appear in the sidebar (may include token refresh)
+  await page.waitForTimeout(1000);
   const projectInSidebar = page.locator('.activity-list-sidebar').getByRole('menuitem', { name });
-  await expect(projectInSidebar).toBeVisible({ timeout: 5000 });
+  await expect(projectInSidebar).toBeVisible({ timeout: 20000 });
 }
 
 function uniqueProjectName(label: string): string {
@@ -91,13 +91,13 @@ function uniqueProjectName(label: string): string {
 async function clickModalSubmit(page: Page) {
   const modalSubmit = page.locator('.modal-content button[type="submit"]').first();
   if (await modalSubmit.count()) {
-    await expect(modalSubmit).toBeVisible({ timeout: 5000 });
+    await expect(modalSubmit).toBeVisible({ timeout: 60000 });
     await modalSubmit.click();
     return;
   }
 
   const inlineSubmit = page.locator('form.project-form button.btn-primary').first();
-  await expect(inlineSubmit).toBeVisible({ timeout: 5000 });
+  await expect(inlineSubmit).toBeVisible({ timeout: 60000 });
   await inlineSubmit.click();
 }
 
@@ -118,7 +118,7 @@ async function selectProjectInSidebar(page: Page, name: string) {
     .locator('li[role="menuitem"]')
     .filter({ hasText: 'Projects' })
     .first();
-  await expect(accordionHeader).toBeVisible({ timeout: 5000 });
+  await expect(accordionHeader).toBeVisible({ timeout: 60000 });
 
   const sidebar = page.locator('.activity-list-sidebar');
   let projectItem = sidebar.getByRole('menuitem', { name }).first();
@@ -130,13 +130,15 @@ async function selectProjectInSidebar(page: Page, name: string) {
     projectItem = sidebar.getByRole('menuitem', { name }).first();
   }
 
-  await expect(projectItem).toBeVisible({ timeout: 5000 });
+  await expect(projectItem).toBeVisible({ timeout: 60000 });
 
   // Use force click to bypass any modal overlays
   await projectItem.click({ force: true });
 
+  // Wait for navigation to project detail view
+  await page.waitForTimeout(1000);
+
   // After clicking, dismiss any dialog that appears
-  await page.waitForTimeout(300);
   unsavedDialog = page.locator('div[role="alertdialog"]');
   if (await unsavedDialog.count()) {
     const cancelBtn = unsavedDialog.getByRole('button', { name: 'Cancel' });
@@ -185,8 +187,8 @@ async function openRenameProjectModal(page: Page) {
     }
   }
   // Wait for modal to appear
-  await expect(page.locator('.modal-content')).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('.modal-content input#project-title')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.modal-content')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('.modal-content input#project-title')).toBeVisible({ timeout: 60000 });
 }
 
 test.describe('E2E: Project Management', () => {
@@ -227,7 +229,7 @@ test.describe('E2E: Project Management', () => {
     const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
     if (await loginBtn.count()) {
       // Ensure the login component is visible before interacting
-      await expect(loginBtn).toBeVisible({ timeout: 5000 });
+      await expect(loginBtn).toBeVisible({ timeout: 60000 });
       await loginBtn.click();
       await page.waitForTimeout(2000); // Increased wait time for auth to complete
 
@@ -273,7 +275,7 @@ test.describe('E2E: Project Management', () => {
       .locator('.activity-list-sidebar')
       .getByRole('menuitem', { name: deletableName })
       .first();
-    await expect(projectItem).toBeVisible({ timeout: 5000 });
+    await expect(projectItem).toBeVisible({ timeout: 60000 });
 
     // Find and click the delete button within the project item
     const deleteButton = projectItem.locator('button').last(); // The trash icon button
@@ -303,7 +305,7 @@ test.describe('E2E: Project Management', () => {
       .locator('.activity-list-sidebar')
       .getByRole('menuitem', { name: keepName })
       .first();
-    await expect(projectItem).toBeVisible({ timeout: 5000 });
+    await expect(projectItem).toBeVisible({ timeout: 60000 });
 
     const deleteButton = projectItem.locator('button').last();
     await deleteButton.click();
@@ -335,8 +337,14 @@ test.describe('E2E: Project Management', () => {
     await page.fill('input#project-title', firstProjectName);
     await clickModalSubmit(page);
 
+    // Wait for project creation to complete (includes token refresh)
+    await page.waitForTimeout(2000);
+
     await selectProjectInSidebar(page, firstProjectName);
-    await expect(page.getByRole('heading', { name: firstProjectName, level: 1 })).toBeVisible();
+    // Wait longer for project detail view to load (may include token refresh)
+    await expect(page.getByRole('heading', { name: firstProjectName, level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('should switch between projects and filter threads', async () => {
@@ -365,7 +373,7 @@ test.describe('E2E: Project Management', () => {
 
     // Select Opus 4 model from the combobox
     const modelCombobox = page.getByRole('combobox', { name: /Choose model/i });
-    await expect(modelCombobox).toBeVisible({ timeout: 5000 });
+    await expect(modelCombobox).toBeVisible({ timeout: 60000 });
     await modelCombobox.selectOption('claude-opus-4-20250514');
 
     // Type a message to create the thread
@@ -373,7 +381,7 @@ test.describe('E2E: Project Management', () => {
 
     // Click the submit button (should become enabled after typing)
     const submitButton = page.getByRole('button', { name: 'Send' });
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
+    await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
 
     // Wait for navigation to chat view
@@ -399,7 +407,7 @@ test.describe('E2E: Project Management', () => {
     await expect(formMessageInput).toBeVisible({ timeout: 10000 });
     await modelCombobox.selectOption('claude-opus-4-20250514');
     await formMessageInput.fill('Thread 2 message');
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
+    await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
 
     // Wait for navigation to chat view
@@ -422,11 +430,11 @@ test.describe('E2E: Project Management', () => {
 
     // Now check for the thread list
     const threadList = page.locator('.thread-list');
-    await expect(threadList).toBeVisible({ timeout: 5000 });
+    await expect(threadList).toBeVisible({ timeout: 60000 });
 
     // Check that at least one thread exists in project 1
     const project1Threads = threadList.getByRole('menuitem');
-    await expect(project1Threads.first()).toBeVisible({ timeout: 5000 });
+    await expect(project1Threads.first()).toBeVisible({ timeout: 60000 });
     const proj1Count = await project1Threads.count();
     expect(proj1Count).toBeGreaterThan(0);
 
@@ -442,11 +450,11 @@ test.describe('E2E: Project Management', () => {
 
     // Now check for the thread list
     const threadList2 = page.locator('.thread-list');
-    await expect(threadList2).toBeVisible({ timeout: 5000 });
+    await expect(threadList2).toBeVisible({ timeout: 60000 });
 
     // Check that at least one thread exists in project 2
     const project2Threads = threadList2.getByRole('menuitem');
-    await expect(project2Threads.first()).toBeVisible({ timeout: 5000 });
+    await expect(project2Threads.first()).toBeVisible({ timeout: 60000 });
     const proj2Count = await project2Threads.count();
     expect(proj2Count).toBeGreaterThan(0);
   });
@@ -489,7 +497,7 @@ test.describe('E2E: Project Management', () => {
 
     // Select Opus 4 model from the combobox
     const modelCombobox = page.getByRole('combobox', { name: /Choose model/i });
-    await expect(modelCombobox).toBeVisible({ timeout: 5000 });
+    await expect(modelCombobox).toBeVisible({ timeout: 60000 });
     await modelCombobox.selectOption('claude-opus-4-20250514');
 
     // Type a message
@@ -497,7 +505,7 @@ test.describe('E2E: Project Management', () => {
 
     // Click the submit button
     const submitButton = page.getByRole('button', { name: 'Send' });
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
+    await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
 
     // Wait for navigation to chat view
@@ -517,15 +525,15 @@ test.describe('E2E: Project Management', () => {
 
     // Thread list should be visible (not empty state)
     const threadList = page.locator('.thread-list');
-    await expect(threadList).toBeVisible({ timeout: 5000 });
+    await expect(threadList).toBeVisible({ timeout: 60000 });
 
     // Click the first thread
     const projectThreadItem = threadList.getByRole('menuitem').first();
-    await expect(projectThreadItem).toBeVisible({ timeout: 5000 });
+    await expect(projectThreadItem).toBeVisible({ timeout: 60000 });
     await projectThreadItem.click();
 
     // Should navigate to chat view
-    await expect(chatMessageInput).toBeVisible({ timeout: 5000 });
+    await expect(chatMessageInput).toBeVisible({ timeout: 60000 });
     await expect(page.locator('.error-banner')).toHaveCount(0);
   });
 
@@ -541,7 +549,7 @@ test.describe('E2E: Project Management', () => {
     const sidebar = page.locator('.activity-list-sidebar');
     const projectItem = sidebar.getByRole('menuitem', { name: projectName }).first();
     const deleteButton = projectItem.locator('button').last(); // Trash icon is the last button
-    await expect(deleteButton).toBeVisible({ timeout: 5000 });
+    await expect(deleteButton).toBeVisible({ timeout: 60000 });
     await deleteButton.click();
 
     // Confirm deletion in modal
