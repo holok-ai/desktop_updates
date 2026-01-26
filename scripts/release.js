@@ -55,10 +55,29 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if version changed
-if (newVersion === currentVersion) {
-  console.error(`❌ Error: Version ${newVersion} is already the current version`);
-  process.exit(1);
+// Check if tag exists remotely (for multi-platform builds)
+const tagName = `v${newVersion}`;
+let tagExistsRemotely = false;
+try {
+  execSync(`git ls-remote --tags origin ${tagName}`, { cwd: rootDir, stdio: 'pipe' });
+  tagExistsRemotely = true;
+} catch {
+  // Tag doesn't exist remotely
+}
+
+// If tag exists remotely, skip version check (this is a second platform build)
+if (tagExistsRemotely) {
+  // Tag exists remotely, this is a second platform build
+  console.log(`ℹ️  Tag ${tagName} already exists on remote.`);
+  console.log('   This appears to be a multi-platform build.');
+  console.log('   Skipping version update and tag creation.\n');
+} else {
+  // Check if version changed (only if tag doesn't exist)
+  if (newVersion === currentVersion) {
+    console.error(`❌ Error: Version ${newVersion} is already the current version`);
+    console.error('If you want to publish for another platform, make sure the tag exists on remote first.');
+    process.exit(1);
+  }
 }
 
 // Check if GH_TOKEN is set
@@ -89,21 +108,25 @@ console.log(`Current version: ${currentVersion}`);
 console.log(`New version: ${newVersion}\n`);
 
 try {
-  // Step 1: Update version in package.json
-  console.log('📝 Step 1: Updating version in package.json...');
-  packageJson.version = newVersion;
-  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-  console.log('✅ Version updated\n');
+  // Step 1: Update version in package.json (only if tag doesn't exist remotely)
+  if (!tagExistsRemotely) {
+    console.log('📝 Step 1: Updating version in package.json...');
+    packageJson.version = newVersion;
+    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    console.log('✅ Version updated\n');
 
-  // Step 2: Commit the change
-  console.log('📦 Step 2: Committing version change...');
-  execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
-  execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
-  console.log('✅ Committed\n');
+    // Step 2: Commit the change
+    console.log('📦 Step 2: Committing version change...');
+    execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
+    execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
+    console.log('✅ Committed\n');
+  } else {
+    console.log('📝 Step 1: Skipping version update (tag already exists)\n');
+  }
 
-  // Step 3: Create and push tag (skip if already exists remotely)
-  console.log('🏷️  Step 3: Checking git tag...');
-  const tagName = `v${newVersion}`;
+  // Step 2/3: Create and push tag (skip if already exists remotely)
+  const stepLabel = tagExistsRemotely ? 'Step 2' : 'Step 3';
+  console.log(`🏷️  ${stepLabel}: Checking git tag...`);
   
   // Check if tag exists locally
   let tagExistsLocally = false;
@@ -112,15 +135,6 @@ try {
     tagExistsLocally = true;
   } catch {
     // Tag doesn't exist locally
-  }
-  
-  // Check if tag exists remotely
-  let tagExistsRemotely = false;
-  try {
-    execSync(`git ls-remote --tags origin ${tagName}`, { cwd: rootDir, stdio: 'pipe' });
-    tagExistsRemotely = true;
-  } catch {
-    // Tag doesn't exist remotely
   }
   
   if (tagExistsRemotely) {
@@ -147,8 +161,9 @@ try {
     console.log('✅ Pushed to GitHub\n');
   }
 
-  // Step 5: Build and publish for current platform
-  console.log('🔨 Step 5: Building and publishing to GitHub releases...');
+  // Step 3/4/5: Build and publish for current platform
+  const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 5';
+  console.log(`🔨 ${buildStepNumber}: Building and publishing to GitHub releases...`);
   
   // Check platform
   const platform = process.platform;
