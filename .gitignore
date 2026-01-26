@@ -52,7 +52,7 @@ Thumbs.db
 web-bundles/
 
 # Package manager files
-package-lock.json
+# Note: package-lock.json should be committed for reproducible CI/CD builds
 yarn.lock
 pnpm-lock.yaml
 .cursor/
