@@ -166,6 +166,28 @@ try {
   const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 5';
   console.log(`🔨 ${buildStepNumber}: Building and publishing to GitHub releases...`);
   
+  // Re-read package.json to ensure we have the latest version
+  const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+  
+  // If tag doesn't exist remotely, we should have updated package.json
+  // If tag exists remotely, package.json should already have the correct version
+  if (!tagExistsRemotely && currentPackageJson.version !== newVersion) {
+    console.error(`❌ Error: package.json version mismatch!`);
+    console.error(`   Expected: ${newVersion}, Found: ${currentPackageJson.version}`);
+    console.error('   This should not happen. Please check package.json manually.');
+    process.exit(1);
+  }
+  
+  // Ensure package.json has the correct version (in case tag exists but package.json doesn't)
+  if (currentPackageJson.version !== newVersion) {
+    console.log(`⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`);
+    currentPackageJson.version = newVersion;
+    writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+    console.log('✅ Version updated\n');
+  } else {
+    console.log(`✅ Verified package.json version: ${newVersion}\n`);
+  }
+  
   // Check platform
   const platform = process.platform;
   console.log(`Current platform: ${platform}\n`);
@@ -174,8 +196,9 @@ try {
   
   if (platform === 'darwin') {
     console.log('\n📦 Building for macOS...');
+    console.log(`   - Version: ${newVersion}`);
     console.log('   - macOS: DMG and ZIP files\n');
-    execSync('npx electron-builder --mac --publish=always', { 
+    execSync(`npx electron-builder --mac --publish=always`, { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
@@ -184,8 +207,9 @@ try {
     console.log('   Build Windows installer separately and upload to the same release');
   } else if (platform === 'win32') {
     console.log('\n📦 Building for Windows...');
+    console.log(`   - Version: ${newVersion}`);
     console.log('   - Windows: NSIS installer\n');
-    execSync('npx electron-builder --win --publish=always', { 
+    execSync(`npx electron-builder --win --publish=always`, { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
@@ -193,8 +217,9 @@ try {
     console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
     console.log('   Build macOS installer separately and upload to the same release');
   } else {
-    console.log('\n📦 Building for current platform...\n');
-    execSync('npx electron-builder --publish=always', { 
+    console.log('\n📦 Building for current platform...');
+    console.log(`   - Version: ${newVersion}\n`);
+    execSync(`npx electron-builder --publish=always`, { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
