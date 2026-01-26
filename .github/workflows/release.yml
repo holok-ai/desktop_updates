@@ -6,9 +6,35 @@ on:
       - 'v*'
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched: false
+
   build-macos:
     name: Build macOS
     runs-on: macos-latest
+    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,6 +64,7 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-latest
+    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
