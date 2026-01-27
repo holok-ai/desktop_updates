@@ -1,5 +1,5 @@
 import pkg from 'electron-updater';
-import { app, dialog, BrowserWindow } from 'electron';
+import { app, dialog } from 'electron';
 import log, { createScopedLogger } from '../utils/logger.js';
 import { SettingsService } from './settings.service.js';
 
@@ -40,7 +40,7 @@ class AutoUpdaterService {
     (autoUpdater as unknown as { logger: unknown }).logger = log;
 
     autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.autoInstallOnAppQuit = true;
 
     this.setupEventHandlers();
 
@@ -116,35 +116,23 @@ class AutoUpdaterService {
       dialog
         .showMessageBox({
           type: 'info',
-          title: 'Update Downloaded',
-          message: `Update to version ${newVersion} has been downloaded.`,
-          detail: `Current version: ${currentVersion}\nNew version: ${newVersion}\n\nRestart the application to install the update?`,
-          buttons: ['Restart', 'Later'],
+          title: 'Update Ready to Install',
+          message: `Update to version ${newVersion} has been downloaded and is ready to install.`,
+          detail: `Current version: ${currentVersion}\nNew version: ${newVersion}\n\nThe update will be installed automatically when you close the application.\n\nWould you like to restart now?`,
+          buttons: ['Restart Now', 'Restart Later'],
           defaultId: 0,
           cancelId: 1,
         })
         .then((result) => {
           if (result.response === 0) {
-            updaterLog.info('User chose to restart and install update');
-            
-            try {
-              // On Windows, quitAndInstall will handle closing windows and quitting the app
-              // Parameters: isSilent=false (show installer UI), isForceRunAfter=true (restart after install)
-              // Don't manually close windows - let electron-updater handle the quit process
-              autoUpdater.quitAndInstall(false, true);
-              updaterLog.info('quitAndInstall called successfully');
-            } catch (error) {
-              updaterLog.error('Error calling quitAndInstall:', error);
-              // Fallback: close windows and quit manually
-              BrowserWindow.getAllWindows().forEach((window) => {
-                window.close();
-              });
-              setTimeout(() => {
-                app.quit();
-              }, 100);
-            }
+            updaterLog.info('User chose to restart now - quitting app to trigger installation');
+            // With autoInstallOnAppQuit = true, just quit the app
+            // The installer will run automatically
+            setImmediate(() => {
+              app.quit();
+            });
           } else {
-            updaterLog.info('User chose to install update later');
+            updaterLog.info('User chose to restart later - update will install on next quit');
           }
         })
         .catch((error) => {
