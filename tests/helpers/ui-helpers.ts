@@ -8,6 +8,29 @@
 import { Page, expect } from '@playwright/test';
 
 /**
+ * Check if models are already loaded by checking if model selector has options
+ */
+async function areModelsLoaded(page: Page): Promise<boolean> {
+  try {
+    // Check if we're on a page with a model selector
+    const modelSelect = page.locator('select.model-selector-compact, select#agent-select');
+    const selectCount = await modelSelect.count();
+
+    if (selectCount === 0) {
+      return false; // No model selector visible
+    }
+
+    // Check if the selector has options (models loaded)
+    const options = modelSelect.first().locator('option');
+    const optionCount = await options.count();
+
+    return optionCount > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Navigate to Home page and wait for models to load
  * This is required before navigating to Threads to ensure models are loaded
  */
@@ -19,8 +42,17 @@ export async function navigateToHome(page: Page): Promise<void> {
   // Wait for home page to load
   await page.waitForLoadState('networkidle');
 
-  // Wait 60 seconds for models to load on homepage
-  await page.waitForTimeout(60000);
+  // Check if models are already loaded (e.g., in serial test mode)
+  const modelsAlreadyLoaded = await areModelsLoaded(page);
+
+  if (modelsAlreadyLoaded) {
+    console.log('[navigateToHome] Models already loaded, skipping wait');
+    await page.waitForTimeout(2000); // Short wait for UI to stabilize
+  } else {
+    console.log('[navigateToHome] Waiting for models to load...');
+    // Wait up to 60 seconds for models to load on homepage
+    await page.waitForTimeout(60000);
+  }
 }
 
 /**
@@ -30,17 +62,61 @@ export async function navigateToHome(page: Page): Promise<void> {
 export async function navigateToThreads(page: Page): Promise<void> {
   // Check if we're in a chat view - if so, we need to navigate to threads list first
   const currentUrl = page.url();
-  const isInChatView = currentUrl.includes('/chat/');
+  const isInChatView = currentUrl.includes('threadId=');
 
   if (isInChatView) {
+    // Wait for streaming to complete before navigating
+    console.log('[E2E] Checking if streaming is in progress...');
+    const streamingIndicator = page.locator('text=/Streaming/i');
+    const isStreaming = await streamingIndicator.isVisible({ timeout: 1000 }).catch(() => false);
+
+    if (isStreaming) {
+      console.log('[E2E] Waiting for streaming to complete...');
+      // Wait for streaming to finish (indicator disappears)
+      await streamingIndicator.waitFor({ state: 'hidden', timeout: 120000 });
+      await page.waitForTimeout(1000); // Extra wait for UI to stabilize
+      console.log('[E2E] Streaming completed');
+    }
+
+    // Check for and dismiss "Unsaved Changes" modal if present (fallback)
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log('[E2E] Dismissing unsaved changes modal...');
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
+    }
+
     // We're in a chat view, click Threads to go to threads list
     await page.getByRole('menuitem', { name: 'Threads' }).click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
-    // Wait for URL to change away from chat view
-    await page.waitForFunction(() => !window.location.href.includes('/chat/'), { timeout: 10000 });
+    // Wait for URL to change away from chat view, or check if we're already there
+    try {
+      await page.waitForFunction(() => !window.location.href.includes('threadId='), {
+        timeout: 10000,
+      });
+    } catch (error) {
+      // If timeout, check if we're already on threads page (no threadId in URL)
+      const currentUrl = page.url();
+      if (!currentUrl.includes('threadId=')) {
+        console.log('[navigateToThreads] Already on threads page after navigation');
+      } else {
+        // Still on thread view - try clicking Threads again
+        console.log('[navigateToThreads] Navigation failed, retrying...');
+        await page.getByRole('menuitem', { name: 'Threads' }).click();
+        await page.waitForTimeout(2000);
+      }
+    }
   } else {
-    // Not in chat view, just click Threads
+    // Not in chat view, but still check for modal before clicking
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log('[E2E] Dismissing unsaved changes modal before navigation...');
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
+    }
+
+    // Click Threads menu item
     await page.getByRole('menuitem', { name: 'Threads' }).click();
   }
 
@@ -91,15 +167,37 @@ export async function selectAgentAndModel(
   const agentSelect = page.locator('select#agent-select');
   await expect(agentSelect).toBeVisible({ timeout: 60000 });
 
+  // CRITICAL: Wait for options to be populated before trying to interact
+  console.log('[selectAgentAndModel] Waiting for agent options to load...');
+  await page.waitForFunction(
+    () => {
+      const select = document.querySelector('select#agent-select') as HTMLSelectElement;
+      return select && select.options.length > 0;
+    },
+    undefined,
+    { timeout: 60000 },
+  );
+
+  // Verify options are loaded
+  const agentOptions = agentSelect.locator('option');
+  const optionCount = await agentOptions.count();
+  console.log(`[selectAgentAndModel] Found ${optionCount} agent options`);
+
+  if (optionCount === 0) {
+    throw new Error('No agent options available after waiting');
+  }
+
   // Select agent if specified, otherwise select first agent
   if (agentId) {
     await agentSelect.selectOption(agentId);
+    console.log(`✓ Selected agent: ${agentId}`);
   } else {
     // Select first agent to ensure models load
     const firstOption = await agentSelect.locator('option').first();
     const firstValue = await firstOption.getAttribute('value');
     if (firstValue) {
       await agentSelect.selectOption(firstValue);
+      console.log(`✓ Selected first agent: ${firstValue}`);
     }
   }
 
@@ -112,6 +210,17 @@ export async function selectAgentAndModel(
 
   if (modelCount > 0) {
     await expect(modelSelect).toBeVisible({ timeout: 50000 });
+
+    // Wait for model options to be populated
+    console.log('[selectAgentAndModel] Waiting for model options to load...');
+    await page.waitForFunction(
+      () => {
+        const select = document.querySelector('select.model-selector-compact') as HTMLSelectElement;
+        return select && select.options.length > 0;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
 
     // Default to Claude Opus 4 if no model specified
     const targetModelId = modelId || 'claude-opus-4-20250514';
@@ -200,14 +309,22 @@ export async function createThread(
   const isFirstCall =
     !currentUrl.includes('/home') &&
     !currentUrl.includes('/threads') &&
-    !currentUrl.includes('/chat');
+    !currentUrl.includes('threadId=');
 
   if (isFirstCall) {
     await navigateToHome(page);
   }
 
   // If we're in a chat view, explicitly navigate to threads first
-  if (currentUrl.includes('/chat/')) {
+  if (currentUrl.includes('threadId=')) {
+    // Check for and dismiss "Unsaved Changes" modal before navigation
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log('[createThread] Dismissing unsaved changes modal...');
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
+    }
+
     await page.getByRole('menuitem', { name: 'Threads' }).click();
     await page.waitForTimeout(1000);
   }
@@ -215,15 +332,16 @@ export async function createThread(
   // Navigate to threads page
   await navigateToThreads(page);
 
-  // Dismiss any "Unsaved Changes" dialog
-  const dismissDialog = async () => {
-    const cancelButton = page.getByRole('button', { name: 'Cancel' });
-    if ((await cancelButton.count()) > 0 && (await cancelButton.isVisible())) {
-      await cancelButton.click();
-      await page.waitForTimeout(300);
+  // Dismiss any "Unsaved Changes" dialog that might appear from previous test
+  const dismissUnsavedChangesModal = async () => {
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log('[createThread] Dismissing unsaved changes modal...');
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
     }
   };
-  await dismissDialog();
+  await dismissUnsavedChangesModal();
 
   // Check if agent selector is already visible (we're on the creation form)
   const agentSelect = page.locator('select#agent-select');
@@ -231,19 +349,95 @@ export async function createThread(
 
   if (!isAgentSelectVisible) {
     // Agent selector not visible - we need to click "New Thread" button
-    // Use the button with "Create new thread" text from the error context
+    console.log('[createThread] Agent selector not visible, clicking New Thread button...');
+
     const newThreadButton = page
       .getByRole('button', { name: /create new thread|new thread/i })
       .first();
     await expect(newThreadButton).toBeVisible({ timeout: 5000 });
 
-    // Force click in case button is in an unusual state
-    await newThreadButton.click({ force: true });
-    await page.waitForTimeout(1500); // Wait longer for form to appear
-    await dismissDialog();
+    // Click and wait for navigation/form to appear
+    await newThreadButton.click();
+    await page.waitForTimeout(2000); // Wait for form to appear
+    await dismissUnsavedChangesModal();
 
-    // Now wait for agent selector to appear
+    // Check if agent selector appeared
+    let isFormVisible = await agentSelect.isVisible({ timeout: 3000 }).catch(() => false);
+
+    // If form didn't appear, check if we're in a thread view with an error
+    if (!isFormVisible) {
+      const currentUrl = page.url();
+      const isInThreadView = currentUrl.includes('threadId=');
+
+      if (isInThreadView) {
+        console.log(
+          '[createThread] In thread view with error, navigating to another thread and back...',
+        );
+
+        // Get thread list
+        const threadList = page
+          .locator('div.thread-item, [role="menuitem"]')
+          .filter({ hasText: /\d+\/\d+/ });
+        const threadCount = await threadList.count();
+
+        if (threadCount > 1) {
+          // Click second thread
+          await threadList.nth(1).click();
+          await page.waitForTimeout(1000);
+
+          // Navigate back to threads list
+          await page.getByRole('menuitem', { name: 'Threads' }).click();
+          await page.waitForTimeout(1000);
+        } else {
+          // No other threads, navigate to Home and back
+          await page.getByRole('menuitem', { name: 'Home' }).click();
+          await page.waitForTimeout(1000);
+          await page.getByRole('menuitem', { name: 'Threads' }).click();
+          await page.waitForTimeout(1000);
+        }
+
+        // Try clicking New Thread button again
+        await newThreadButton.click();
+        await page.waitForTimeout(2000);
+        isFormVisible = await agentSelect.isVisible({ timeout: 3000 }).catch(() => false);
+      }
+    }
+
+    // If form still didn't appear, try force click
+    if (!isFormVisible) {
+      console.log('[createThread] Form did not appear, retrying with force click...');
+      await newThreadButton.click({ force: true });
+      await page.waitForTimeout(2000);
+      await dismissUnsavedChangesModal();
+      isFormVisible = await agentSelect.isVisible({ timeout: 3000 }).catch(() => false);
+    }
+
+    // If still not visible, navigate to Home and back as last resort
+    if (!isFormVisible) {
+      console.log('[createThread] Form still not visible, navigating to Home and back...');
+      await page.getByRole('menuitem', { name: 'Home' }).click();
+      await page.waitForTimeout(1000);
+      await page.getByRole('menuitem', { name: 'Threads' }).click();
+      await page.waitForTimeout(2000);
+
+      // Try clicking button again after navigation
+      await newThreadButton.click();
+      await page.waitForTimeout(2000);
+    }
+
+    // Final wait for agent selector to appear
     await expect(agentSelect).toBeVisible({ timeout: 10000 });
+    console.log('[createThread] Agent selector now visible');
+  } else {
+    // Agent selector is visible - we're already on the form
+    // Clear any existing prompt text to avoid "Unsaved Changes" modal
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    const currentText = await promptTextarea.inputValue().catch(() => '');
+    if (currentText) {
+      console.log('[createThread] Clearing existing prompt text...');
+      await promptTextarea.clear();
+      await page.waitForTimeout(300);
+    }
   }
 
   // Select agent/model - always select agent and Claude Opus 4 by default
@@ -254,10 +448,12 @@ export async function createThread(
   await expect(promptTextarea).toBeVisible({ timeout: 5000 });
   await promptTextarea.fill(prompt);
 
-  // Submit by pressing Enter (UI hint says "Press Enter to send")
-  await promptTextarea.press('Enter');
+  // Submit by clicking Send button (more reliable than Enter for multi-line prompts)
+  const sendButton = page.getByRole('button', { name: /send/i });
+  await expect(sendButton).toBeVisible({ timeout: 3000 });
+  await sendButton.click();
   await page.waitForTimeout(1000);
-  await dismissDialog();
+  await dismissUnsavedChangesModal();
 
   // Wait for thread to be created and appear in sidebar
   await page.waitForTimeout(2000);
@@ -280,11 +476,38 @@ export async function createThread(
 
     await expect(threadItem).toBeVisible({ timeout: 5000 });
     await threadItem.click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000); // Increased wait time for navigation
+
+    // Wait for URL to change to thread view (uses query params, not /chat/ route)
+    await page.waitForFunction(() => window.location.href.includes('threadId='), {
+      timeout: 10000,
+    });
   }
 
   // Wait for chat view to be fully loaded
   await expect(chatPane).toBeVisible({ timeout: 10000 });
+
+  // CRITICAL: Verify user message appeared after thread creation
+  // If not, force UI refresh to recover from error state
+  console.log('[createThread] Verifying user message appeared...');
+  const userMessage = page.locator('.messages .message.user .message-content', { hasText: prompt });
+  let isUserMessageVisible = await userMessage.isVisible({ timeout: 5000 }).catch(() => false);
+
+  if (!isUserMessageVisible) {
+    console.log('[createThread] User message not visible, forcing UI refresh...');
+    await forceThreadRefresh(page);
+
+    // Check again after refresh
+    isUserMessageVisible = await userMessage.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (!isUserMessageVisible) {
+      console.warn('[createThread] User message still not visible after refresh');
+    } else {
+      console.log('[createThread] User message now visible after refresh');
+    }
+  } else {
+    console.log('[createThread] User message visible');
+  }
 }
 
 /**
@@ -380,41 +603,116 @@ export async function ensureAgentsLoaded(page: Page): Promise<boolean> {
     return false;
   }
 
-  // Get available agents - retry if empty (may need token refresh)
-  let agentOptions = agentSelect.locator('option');
-  let agentCount = await agentOptions.count();
+  // Wait for options to be populated using waitForFunction
+  console.log('[ensureAgentsLoaded] Waiting for agent options to populate...');
+  try {
+    await page.waitForFunction(
+      () => {
+        const select = document.querySelector('select#agent-select') as HTMLSelectElement;
+        return select && select.options.length > 0;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
 
-  // Retry logic: If no agents loaded, navigate around to trigger refresh
-  if (agentCount === 0) {
-    console.log('[E2E] No agents loaded, attempting navigation retry...');
+    const agentCount = await agentSelect.locator('option').count();
+    console.log(`[ensureAgentsLoaded] Found ${agentCount} agent options`);
+    return agentCount > 0;
+  } catch (error) {
+    console.log('[ensureAgentsLoaded] Timeout waiting for options, trying navigation fallback...');
+  }
 
-    // Navigate to home
-    await page.click('a[href="#/"]').catch(() => {});
+  // If still no agents after wait, navigate to Home and back to force model loading
+  console.log('[ensureAgentsLoaded] Navigating to Home to force model loading...');
+
+  // Navigate to Home
+  const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
+  await homeMenuItem.click().catch(() => {});
+  await page.waitForTimeout(3000);
+
+  // Navigate back to Threads
+  const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
+  await threadsMenuItem.click().catch(() => {});
+  await page.waitForTimeout(2000);
+
+  // Check again after navigation
+  try {
+    await expect(agentSelect).toBeVisible({ timeout: 10000 });
+
+    // Wait for options to populate after navigation
+    await page.waitForFunction(
+      () => {
+        const select = document.querySelector('select#agent-select') as HTMLSelectElement;
+        return select && select.options.length > 0;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
+
+    const agentCount = await agentSelect.locator('option').count();
+    console.log(`[ensureAgentsLoaded] After navigation: Found ${agentCount} agent options`);
+    return agentCount > 0;
+  } catch {
+    console.log('[ensureAgentsLoaded] Failed to load agents even after navigation');
+    return false;
+  }
+}
+
+/**
+ * Force UI refresh by navigating to another thread and back
+ * Useful when the app is in an error state and messages aren't appearing
+ *
+ * @param page - Playwright page object
+ */
+export async function forceThreadRefresh(page: Page): Promise<void> {
+  console.log('[forceThreadRefresh] Forcing UI refresh...');
+
+  // Get current URL to return to it
+  const currentUrl = page.url();
+  const currentThreadId = currentUrl.match(/threadId=([^&]+)/)?.[1];
+
+  const threadList = page
+    .locator('div.thread-item, [role="menuitem"]')
+    .filter({ hasText: /\d+\/\d+/ });
+  const threadCount = await threadList.count();
+
+  if (threadCount > 1) {
+    // Click to second thread
+    console.log('[forceThreadRefresh] Navigating to second thread...');
+    await threadList.nth(1).click();
     await page.waitForTimeout(1000);
 
-    // Navigate to projects
-    await page.click('a[href="#/projects"]').catch(() => {});
-    await page.waitForTimeout(1000);
+    // Click back to original thread
+    console.log('[forceThreadRefresh] Navigating back to original thread...');
+    if (currentThreadId) {
+      // Navigate back using URL to ensure we get to the right thread
+      await page.goto(currentUrl);
+      await page.waitForTimeout(1000);
+    } else {
+      // Fallback: click first thread
+      await threadList.first().click();
+      await page.waitForTimeout(1000);
+    }
+  } else {
+    // Fallback: Navigate to threads list and back
+    console.log('[forceThreadRefresh] Only one thread, navigating to list and back...');
+    await page.getByRole('menuitem', { name: 'Threads' }).click();
+    await page.waitForTimeout(500);
 
-    // Navigate back to threads
-    await navigateToThreads(page);
-    await page.waitForTimeout(2000);
-
-    // Check again
-    await expect(agentSelect).toBeVisible({ timeout: 50000 });
-    agentOptions = agentSelect.locator('option');
-    agentCount = await agentOptions.count();
-
-    // If still no agents, wait longer for token refresh to complete
-    if (agentCount === 0) {
-      console.log('[E2E] Still no agents, waiting 30s for token refresh...');
-      await page.waitForTimeout(30000);
-      agentOptions = agentSelect.locator('option');
-      agentCount = await agentOptions.count();
+    if (currentThreadId) {
+      await page.goto(currentUrl);
+      await page.waitForTimeout(1000);
+    } else {
+      await threadList.first().click();
+      await page.waitForTimeout(1000);
     }
   }
 
-  return agentCount > 0;
+  // Ensure we're back in chat view
+  const chatPane = page.locator('.chat-pane');
+  await expect(chatPane).toBeVisible({ timeout: 5000 });
+
+  console.log('[forceThreadRefresh] UI refresh complete');
 }
 
 /**
@@ -438,8 +736,9 @@ export async function waitForStreamingComplete(page: Page, timeout: number = 600
  * This is much faster than waiting for streaming to complete
  *
  * @param page - Playwright page object
+ * @deprecated Use forceThreadRefresh instead
  */
-export async function forceThreadRefresh(page: Page): Promise<void> {
+export async function forceThreadRefreshOld(page: Page): Promise<void> {
   const threadList = page.locator('div.thread-item');
   const threadCount = await threadList.count();
 

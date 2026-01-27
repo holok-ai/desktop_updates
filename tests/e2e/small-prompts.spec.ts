@@ -31,25 +31,29 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     const prompt = 'What is the capital of France?';
     const start = Date.now();
 
-    await createThread(page, prompt);
+    // Use Haiku 3.5 for more verbose responses in E2E tests
+    await createThread(page, prompt, undefined, 'claude-3-5-haiku-20241022');
 
+    // Wait for user message to appear with increased timeout
     await expect(
       page.locator('.messages .message.user .message-content', { hasText: prompt }).last(),
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 30000 });
 
-    // Wait for streaming to complete
+    // Wait for assistant message to appear and streaming to complete
+    const assistantMessage = page.locator('.messages .message.assistant').last();
+    await expect(assistantMessage).toBeVisible({ timeout: 60000 });
+
+    // Wait for streaming to complete (message no longer has .streaming class)
     await waitForStreamingComplete(page);
 
-    // Additional wait to ensure content is fully rendered
-    await page.waitForTimeout(2000);
+    // Additional wait to ensure markdown rendering is complete
+    await page.waitForTimeout(3000);
 
-    const assistantMessage = page.locator('.messages .message.assistant .message-content').last();
-    await expect(assistantMessage).toBeVisible({ timeout: 30000 });
+    // Now check the content
+    const assistantContent = page.locator('.messages .message.assistant .message-content').last();
+    await expect(assistantContent).toBeVisible({ timeout: 10000 });
 
-    // Wait a bit more for content to be populated
-    await page.waitForTimeout(1000);
-
-    const responseText = (await assistantMessage.textContent()) ?? '';
+    const responseText = (await assistantContent.textContent()) ?? '';
     console.log('Assistant response:', responseText);
     expect(responseText.toLowerCase()).toContain('paris');
 
@@ -95,14 +99,15 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
       page.locator('.messages .message.user .message-content', { hasText: prompt }).last(),
     ).toBeVisible({ timeout: 10000 });
 
+    // Wait for assistant message to appear
+    const assistant = page.locator('.messages .message.assistant').last();
+    await expect(assistant).toBeVisible({ timeout: 60000 });
+
     // Wait for streaming to complete
     await waitForStreamingComplete(page);
 
     // Additional wait to ensure content is fully rendered
-    await page.waitForTimeout(2000);
-
-    const assistant = page.locator('.messages .message.assistant').last();
-    await expect(assistant).toBeVisible({ timeout: 60000 });
+    await page.waitForTimeout(3000);
 
     // Debug: log the response
     const responseText = await assistant.textContent();
@@ -112,7 +117,7 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     const hasCodeBlock = await codeWrapper.count();
 
     if (hasCodeBlock > 0) {
-      await expect(codeWrapper).toBeVisible({ timeout: 60000 });
+      await expect(codeWrapper).toBeVisible({ timeout: 10000 });
 
       await expect(assistant.locator('.code-lang').first()).toContainText(/python/i, {
         timeout: 5000,
@@ -152,19 +157,20 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
       page.locator('.messages .message.user .message-content', { hasText: prompt }).last(),
     ).toBeVisible({ timeout: 10000 });
 
+    // Wait for assistant message to appear
+    const assistant = page.locator('.messages .message.assistant').last();
+    await expect(assistant).toBeVisible({ timeout: 60000 });
+
     // Wait for streaming to complete
     await waitForStreamingComplete(page);
 
     // Additional wait to ensure content is fully rendered
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 
-    const assistant = page.locator('.messages .message.assistant .message-content').last();
-    await expect(assistant).toBeVisible({ timeout: 30000 });
+    const assistantContent = page.locator('.messages .message.assistant .message-content').last();
+    await expect(assistantContent).toBeVisible({ timeout: 10000 });
 
-    // Wait for content to be populated
-    await page.waitForTimeout(1000);
-
-    const response = (await assistant.textContent()) ?? '';
+    const response = (await assistantContent.textContent()) ?? '';
     console.log('Recursion response:', response);
 
     expect(response.length).toBeLessThan(500);
@@ -188,19 +194,20 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
       page.locator('.messages .message.user .message-content', { hasText: prompt }).last(),
     ).toBeVisible({ timeout: 10000 });
 
+    // Wait for assistant message to appear
+    const assistantMessage = page.locator('.messages .message.assistant').last();
+    await expect(assistantMessage).toBeVisible({ timeout: 60000 });
+
     // Wait for streaming to complete
     await waitForStreamingComplete(page);
 
     // Additional wait to ensure content is fully rendered
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 
-    const assistantMessage = page.locator('.messages .message.assistant .message-content').last();
-    await expect(assistantMessage).toBeVisible({ timeout: 30000 });
+    const assistantContent = page.locator('.messages .message.assistant .message-content').last();
+    await expect(assistantContent).toBeVisible({ timeout: 10000 });
 
-    // Wait for content to be populated
-    await page.waitForTimeout(1000);
-
-    const responseText = (await assistantMessage.textContent()) ?? '';
+    const responseText = (await assistantContent.textContent()) ?? '';
     console.log('Math response:', responseText);
 
     expect(responseText.trim().length).toBeGreaterThan(0);

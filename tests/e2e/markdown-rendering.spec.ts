@@ -1,12 +1,6 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import {
-  createThread,
-  waitForMessageInput,
-  navigateToHome,
-  navigateToThreads,
-  navigateToProjects,
-} from '../helpers/ui-helpers';
+import { createThread, waitForMessageInput, navigateToHome } from '../helpers/ui-helpers';
 
 test.describe('E2E: Markdown Rendering', () => {
   let app: ElectronApplication | undefined;
@@ -35,8 +29,15 @@ test.describe('E2E: Markdown Rendering', () => {
     // Navigate to home first to load models
     await navigateToHome(page);
 
-    // Create thread using helper function
-    await createThread(page, 'Test markdown rendering');
+    // Dismiss any unsaved changes modal that might appear
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
+    }
+
+    // Create thread using helper function with Haiku 3.5 for faster, cost-effective testing
+    await createThread(page, 'Test markdown rendering', undefined, 'claude-3-5-haiku-20241022');
 
     // Wait for streaming to complete
     await waitForMessageInput(page);
@@ -62,16 +63,23 @@ test.describe('E2E: Markdown Rendering', () => {
   });
 
   test('renders inline code and code blocks with syntax highlighting', async () => {
+    test.setTimeout(240000); // 4 minutes timeout
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    await navigateToProjects(page);
-
+    // Navigate to home to ensure clean state
     await navigateToHome(page);
 
+    // Dismiss any unsaved changes modal that might appear
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await page.waitForTimeout(500);
+    }
+
     // Already authenticated - no login needed!
-    // Create thread using helper function
-    await createThread(page, 'Test code blocks');
+    // Create thread using helper function with Haiku 3.5 for faster, cost-effective testing
+    await createThread(page, 'Test code blocks', undefined, 'claude-3-5-haiku-20241022');
 
     // Wait for streaming to complete
     await waitForMessageInput(page);

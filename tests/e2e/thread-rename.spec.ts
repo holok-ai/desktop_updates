@@ -111,12 +111,15 @@ test.describe('E2E: Thread Rename (simple)', () => {
     await expect(saveButton).toBeEnabled({ timeout: 3000 });
     await saveButton.click();
 
-    // Wait for modal to close
-    await renameDialog.waitFor({ state: 'detached', timeout: 5000 });
+    // Wait for modal to close (increased timeout)
+    await renameDialog.waitFor({ state: 'detached', timeout: 10000 });
+
+    // Wait a bit for sidebar to update
+    await page.waitForTimeout(1000);
 
     // Verify title updated in sidebar
     await expect(page.locator('div.thread-item').filter({ hasText: newTitle })).toBeVisible({
-      timeout: 4000,
+      timeout: 5000,
     });
   });
 });

@@ -1,12 +1,7 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import * as os from 'os';
 import * as path from 'path';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
 
 function getFileToolsSection(page: Page) {
   // Scope queries to the Allowed Directories section to avoid strict-mode conflicts
@@ -17,15 +12,6 @@ async function navigateToSettings(page: Page): Promise<void> {
   // Wait for page to be in stable state before any navigation
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(300);
-
-  // Login if needed
-  const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
-  if ((await loginBtn.count()) > 0) {
-    await expect(loginBtn).toBeVisible({ timeout: 5000 });
-    await loginBtn.click();
-    await page.waitForTimeout(500);
-    await page.waitForLoadState('networkidle');
-  }
 
   // Open Settings via sidebar profile submenu
   const profileButton = page
@@ -57,20 +43,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
-    }
+    app = await launchAuthenticatedApp();
   });
 
   test.afterAll(async () => {

@@ -1,11 +1,6 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
-import { ensureAgentsLoaded } from '../helpers/ui-helpers';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
+import { test, expect, ElectronApplication } from '@playwright/test';
+import { ensureAgentsLoaded, navigateToHome, navigateToThreads } from '../helpers/ui-helpers';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 
 test.describe('E2E: Dual Sidebar', () => {
   let app: ElectronApplication | undefined;
@@ -13,18 +8,16 @@ test.describe('E2E: Dual Sidebar', () => {
 
   test.beforeAll(async () => {
     try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
+      app = await launchAuthenticatedApp();
+    } catch (error) {
+      console.error('Failed to launch authenticated app:', error);
+      test.skip(true, 'Electron failed to launch in this environment');
+    }
+  });
+
+  test.afterAll(async () => {
+    if (app) {
+      await app.close();
     }
   });
 
@@ -77,15 +70,11 @@ test.describe('E2E: Dual Sidebar', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    await page.waitForLoadState('networkidle');
+    // Navigate to home first to ensure models are loaded
+    await navigateToHome(page);
 
-    // Click Threads in main sidebar
-    const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
-    await expect(threadsMenuItem).toBeVisible();
-    await threadsMenuItem.click();
-
-    // Wait for threads page to load
-    await page.waitForTimeout(1000);
+    // Navigate to threads page
+    await navigateToThreads(page);
 
     // Activity list should show grouped sections (at least one accordion by title or items list)
     const activityList = page.getByRole('complementary', { name: 'Activity list sidebar' });
@@ -97,6 +86,7 @@ test.describe('E2E: Dual Sidebar', () => {
 
     // Verify thread creation UI is visible (agent selector)
     const agentSelect = page.locator('select#agent-select');
+    await expect(agentSelect).toBeVisible({ timeout: 5000 });
 
     // Verify prompt textarea is visible
     const promptTextarea = page.locator('textarea#thread-prompt');

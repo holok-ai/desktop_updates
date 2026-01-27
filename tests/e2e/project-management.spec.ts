@@ -1,10 +1,5 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 
 // Helpers
 async function goToProjects(page: Page) {
@@ -197,18 +192,10 @@ test.describe('E2E: Project Management', () => {
 
   test.beforeAll(async () => {
     try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
+      app = await launchAuthenticatedApp();
+    } catch (error) {
+      console.error('Failed to launch authenticated app:', error);
+      test.skip(true, 'Electron failed to launch in this environment');
     }
   });
 
@@ -222,20 +209,8 @@ test.describe('E2E: Project Management', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    // Wait for full network idle to avoid racing on lazy-mounted login component
+    // Already authenticated via PLAYWRIGHT_TEST_TOKENS - no login needed!
     await page.waitForLoadState('networkidle');
-
-    // Ensure we're authenticated (click mock sign-in if present)
-    const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
-    if (await loginBtn.count()) {
-      // Ensure the login component is visible before interacting
-      await expect(loginBtn).toBeVisible({ timeout: 60000 });
-      await loginBtn.click();
-      await page.waitForTimeout(2000); // Increased wait time for auth to complete
-
-      // Verify authentication succeeded by checking if login button is gone
-      await expect(loginBtn).toHaveCount(0, { timeout: 3000 });
-    }
 
     await resetProjects(page);
     await goToProjects(page);
@@ -341,9 +316,19 @@ test.describe('E2E: Project Management', () => {
     await page.waitForTimeout(2000);
 
     await selectProjectInSidebar(page, firstProjectName);
-    // Wait longer for project detail view to load (may include token refresh)
-    await expect(page.getByRole('heading', { name: firstProjectName, level: 1 })).toBeVisible({
+
+    // Wait for URL to change to project detail view
+    await page.waitForFunction(() => window.location.href.includes('/projects'), {
       timeout: 10000,
+    });
+
+    // Wait longer for project detail view to load (may include token refresh)
+    await page.waitForTimeout(2000);
+
+    // Check for the heading with more flexible selector
+    const projectHeading = page.getByRole('heading', { name: firstProjectName, level: 1 });
+    await expect(projectHeading).toBeVisible({
+      timeout: 15000,
     });
   });
 

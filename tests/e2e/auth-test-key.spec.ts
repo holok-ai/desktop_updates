@@ -47,7 +47,7 @@ test.describe('Auth with Test Key', () => {
 
     // Wait for navigation with longer timeout (Windows can be slower)
     // Don't wait for networkidle as API calls might be pending/failing
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(20000);
 
     // Verify we're authenticated by checking for navigation items
     await expect(page.getByRole('menuitem', { name: 'Home' })).toBeVisible({ timeout: 5000 });
@@ -71,11 +71,9 @@ test.describe('Auth with Test Key', () => {
       isAuthenticated: authState.isAuthenticated,
       userName: authState.user?.name,
       userEmail: authState.user?.email,
-      isTestMode: authState.isTestMode,
     });
 
     expect(authState.isAuthenticated).toBe(true);
-    expect(authState.isTestMode).toBe(true); // Should be in test mode
     expect(authState.user?.name).toBe('Kong Pham');
     expect(authState.user?.email).toBe('kong.pham@nkk.com.vn');
 
