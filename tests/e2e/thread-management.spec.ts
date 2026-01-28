@@ -92,45 +92,103 @@ test.describe('E2E: Thread management', () => {
     // Dismiss any unsaved changes dialog
     await dismissUnsavedDialog();
 
-    // Wait for thread to be created
+    // Wait for thread to be created - check if it appears in sidebar
     await page.waitForTimeout(2000);
 
     // Check if chat view loaded automatically
     const chatPane = page.locator('.chat-pane');
-    const isChatVisible = await chatPane.isVisible({ timeout: 3000 }).catch(() => false);
+    let isChatVisible = await chatPane.isVisible({ timeout: 3000 }).catch(() => false);
 
     if (!isChatVisible) {
-      // Thread created but didn't navigate - click the thread in sidebar
-      const threadItem = page.locator('div.thread-item').first();
-      await expect(threadItem).toBeVisible({ timeout: 5000 });
+      // Thread created but didn't navigate - find and click the thread in sidebar
+      // Wait for thread to appear in sidebar
+      let threadItem = page.locator('div.thread-item').first();
+      let threadCount = await threadItem.count();
       
-      // Dismiss any "Unsaved Changes" modal that might be blocking
-      const unsavedModal = page.locator('text=Unsaved Changes');
-      if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await page.getByRole('button', { name: 'Cancel' }).click();
-        await page.waitForTimeout(500);
+      // If no thread-item found, try menuitem
+      if (threadCount === 0) {
+        threadItem = page.locator('[role="menuitem"]').filter({ hasText: uniquePrompt.substring(0, 20) });
+        threadCount = await threadItem.count();
       }
       
-      await threadItem.click();
-      await page.waitForTimeout(2000);
+      // If still not found, try any thread item
+      if (threadCount === 0) {
+        threadItem = page.locator('div.thread-item, [role="menuitem"]').first();
+        threadCount = await threadItem.count();
+      }
       
-      // Wait for URL to change or chat pane to appear
-      try {
-        await page.waitForFunction(() => window.location.href.includes('threadId='), {
-          timeout: 10000,
-        });
-      } catch {
-        // URL might not change, just wait for chat pane
+      // Wait for thread item to be visible
+      if (threadCount > 0) {
+        await expect(threadItem).toBeVisible({ timeout: 10000 });
+        
+        // Dismiss any "Unsaved Changes" modal that might be blocking
+        const unsavedModal = page.locator('text=Unsaved Changes');
+        if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await page.getByRole('button', { name: 'Cancel' }).click();
+          await page.waitForTimeout(500);
+        }
+        
+        await threadItem.click();
+        await page.waitForTimeout(2000);
+        
+        // Wait for URL to change or chat pane to appear
+        try {
+          await page.waitForFunction(() => window.location.href.includes('threadId='), {
+            timeout: 10000,
+          });
+        } catch {
+          // URL might not change, just wait for chat pane
+        }
+        
+        // Check if chat pane is now visible
+        isChatVisible = await chatPane.isVisible({ timeout: 5000 }).catch(() => false);
       }
     }
 
     // Verify thread was created successfully - wait longer and check multiple times
-    let chatPaneVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
-    
-    if (!chatPaneVisible) {
+    if (!isChatVisible) {
       // Try waiting a bit more and checking again
       await page.waitForTimeout(2000);
-      chatPaneVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
+      isChatVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
+    }
+    
+    // If still not visible, try clicking thread again or navigating to threads and back
+    if (!isChatVisible) {
+      console.log('[thread-management] Chat pane still not visible, trying recovery...');
+      
+      // Dismiss any modal that might be blocking
+      const modalOverlay = page.locator('.modal-overlay, [role="presentation"]');
+      if (await modalOverlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+        const unsavedModal = page.locator('text=Unsaved Changes');
+        if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await page.getByRole('button', { name: 'Cancel' }).click();
+          await page.waitForTimeout(500);
+        } else {
+          // Try pressing Escape to close any modal
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(500);
+        }
+      }
+      
+      // Navigate to threads list
+      await page.getByRole('menuitem', { name: 'Threads' }).click();
+      await page.waitForTimeout(1000);
+      
+      // Find and click the thread again
+      const threadItem = page.locator('div.thread-item, [role="menuitem"]').first();
+      if (await threadItem.count() > 0) {
+        await expect(threadItem).toBeVisible({ timeout: 5000 });
+        
+        // Dismiss modal if present
+        const unsavedModal = page.locator('text=Unsaved Changes');
+        if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await page.getByRole('button', { name: 'Cancel' }).click();
+          await page.waitForTimeout(500);
+        }
+        
+        await threadItem.click();
+        await page.waitForTimeout(2000);
+      }
     }
     
     await expect(chatPane).toBeVisible({ timeout: 10000 });

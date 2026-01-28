@@ -283,15 +283,26 @@ test.describe('E2E: Project Management', () => {
       .first();
     await expect(projectItem).toBeVisible({ timeout: 60000 });
 
+    // Hover over project item to make delete button visible
+    await projectItem.hover();
+    await page.waitForTimeout(300);
+
     const deleteButton = projectItem.locator('button').last();
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
     await deleteButton.click();
-    await page.waitForTimeout(500); // Wait for modal to appear
+    await page.waitForTimeout(1000); // Wait for modal to appear
 
     // Cancel deletion in modal - wait for modal to appear
-    const deleteModal = page.locator('[role="dialog"]').filter({ hasText: /Delete Project/i });
-    await expect(deleteModal).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible({ timeout: 5000 });
+    // First wait for modal overlay
+    const modalOverlay = page.locator('.modal-overlay, [role="presentation"]');
+    await expect(modalOverlay).toBeVisible({ timeout: 10000 });
+    
+    // Then wait for the delete project heading (most reliable)
+    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible({ timeout: 10000 });
+    
+    // Also verify dialog exists
+    const deleteModal = page.locator('[role="dialog"]');
+    await expect(deleteModal).toBeVisible({ timeout: 5000 });
     // Use getByLabel to scope to the delete modal specifically
     await page.getByLabel('Delete Project').getByRole('button', { name: 'Cancel' }).click();
 
