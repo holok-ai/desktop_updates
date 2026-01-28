@@ -36,20 +36,16 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
     try {
       const page = await app.firstWindow();
 
-      // Navigate to home to reset state
-      const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
-      if (await homeMenuItem.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await homeMenuItem.click();
-        await page.waitForTimeout(1000);
-        console.log('✓ State reset to home');
-      }
-
-      // Clear any modals
+      // Clear any modals that might be blocking
       const modal = page.locator('[role="dialog"]');
       if (await modal.isVisible({ timeout: 1000 }).catch(() => false)) {
         await page.keyboard.press('Escape');
         console.log('✓ Modal dismissed');
       }
+
+      // Wait a bit for any pending operations to complete
+      await page.waitForTimeout(500);
+      console.log('✓ State reset complete');
     } catch (error) {
       console.error('⚠️ State reset failed:', error);
     }
@@ -131,11 +127,19 @@ test.describe('E2E: Chat - Different Scenarios', () => {
 
   test.afterEach(async () => {
     if (!app) return;
-    const page = await app.firstWindow();
-    const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
-    if (await homeMenuItem.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await homeMenuItem.click();
-      await page.waitForTimeout(1000);
+
+    try {
+      const page = await app.firstWindow();
+
+      // Clear any modals
+      const modal = page.locator('[role="dialog"]');
+      if (await modal.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await page.keyboard.press('Escape');
+      }
+
+      await page.waitForTimeout(500);
+    } catch (error) {
+      console.error('⚠️ State reset failed:', error);
     }
   });
 
