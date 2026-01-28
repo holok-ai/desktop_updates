@@ -16,10 +16,10 @@
     "build:prod": "npm run build && npm run build:electron",
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
-    "package:win": "npm run build:prod && electron-builder --win --config --ia32",
-    "package:all": "npm run build:prod && electron-builder --mac --win --config --ia32",
+    "package:win": "npm run build:prod && electron-builder --win --x64",
+    "package:all": "npm run build:prod && electron-builder --mac --win --x64",
     "package:publish": "npm run build:prod && electron-builder --publish=always",
-    "package:publish:all": "npm run build:prod && electron-builder --mac --win --config --ia32 --publish=always",
+    "package:publish:all": "npm run build:prod && electron-builder --mac --win --x64 --publish=always",
     "release": "node scripts/release.js",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint . --ext .ts,.js,.svelte",
@@ -147,11 +147,7 @@
       }
     ],
     "win": {
-      "target": "nsis",
-      "arch": [
-        "arm64",
-        "x64"
-      ]
+      "target": "nsis"
     },
     "mac": {
       "target": [

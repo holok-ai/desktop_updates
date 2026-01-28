@@ -208,8 +208,8 @@ try {
   } else if (platform === 'win32') {
     console.log('\n📦 Building for Windows...');
     console.log(`   - Version: ${newVersion}`);
-    console.log('   - Windows: NSIS installer\n');
-    execSync(`npx electron-builder --win --config --ia32 --publish=always`, { 
+    console.log('   - Windows: NSIS installer (x64)\n');
+    execSync('npx electron-builder --win --x64 --publish=always', { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
@@ -219,7 +219,7 @@ try {
   } else {
     console.log('\n📦 Building for current platform...');
     console.log(`   - Version: ${newVersion}\n`);
-    execSync(`npx electron-builder --publish=always`, { 
+    execSync('npx electron-builder --publish=always', { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
