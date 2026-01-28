@@ -33,9 +33,7 @@
     "test:unit": "vitest run",
     "test:integration": "vitest run tests/integration",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npm run build:prod && playwright test",
-    "test:e2e:spec": "npm run build:prod && playwright test tests/e2e/thread.service.spec.ts",
-    "test:unit:spec": "npm run build:prod && pnpm vitest tests/unit/services/chat-service-context.spec.ts"
+    "test:e2e": "npm run build:prod && playwright test"
   },
   "keywords": [
     "electron",
