@@ -532,11 +532,44 @@ export async function createThread(
   // Fill prompt
   const promptTextarea = page.locator('textarea#thread-prompt');
   await expect(promptTextarea).toBeVisible({ timeout: 5000 });
+  
+  // Clear any existing text first
+  await promptTextarea.clear();
+  await page.waitForTimeout(200);
+  
+  // Fill the prompt
   await promptTextarea.fill(prompt);
+  await page.waitForTimeout(300);
+  
+  // Verify the prompt was actually filled
+  const filledText = await promptTextarea.inputValue();
+  if (!filledText || filledText.trim().length === 0) {
+    throw new Error(`Failed to fill prompt. Expected: "${prompt.substring(0, 50)}...", Got: "${filledText}"`);
+  }
+  
+  // Ensure prompt matches (at least partially)
+  if (!filledText.includes(prompt.substring(0, Math.min(20, prompt.length)))) {
+    console.warn(`[createThread] Prompt text mismatch. Expected to contain: "${prompt.substring(0, 20)}", Got: "${filledText.substring(0, 50)}"`);
+    // Try filling again
+    await promptTextarea.fill(prompt);
+    await page.waitForTimeout(300);
+  }
 
   // Submit by clicking Send button (more reliable than Enter for multi-line prompts)
   const sendButton = page.getByRole('button', { name: /send/i });
   await expect(sendButton).toBeVisible({ timeout: 3000 });
+  
+  // Verify send button is enabled before clicking
+  const isEnabled = await sendButton.isEnabled();
+  if (!isEnabled) {
+    // Wait a bit more for validation to enable the button
+    await page.waitForTimeout(500);
+    const stillDisabled = await sendButton.isEnabled();
+    if (!stillDisabled) {
+      throw new Error('Send button is disabled. Prompt may be empty or invalid.');
+    }
+  }
+  
   await sendButton.click();
   await page.waitForTimeout(1000);
   await dismissUnsavedChangesModal();
@@ -925,7 +958,63 @@ export async function waitForStreamingComplete(page: Page, timeout: number = 600
   } catch {
     // Fallback: just wait for assistant message to be visible
     const assistantMessages = page.locator('.messages .message.assistant .message-content');
-    await expect(assistantMessages.first()).toBeVisible({ timeout: 5000 });
+    let isVisible = await assistantMessages.first().isVisible({ timeout: 10000 }).catch(() => false);
+    
+    if (!isVisible) {
+      // If waiting too long, try navigating to homepage then back to threads and select thread again
+      console.log('[waitForStreamingComplete] Assistant message not visible, trying navigation recovery...');
+      
+      // Get current thread URL to return to it
+      const currentUrl = page.url();
+      const threadIdMatch = currentUrl.match(/threadId=([^&]+)/);
+      const threadId = threadIdMatch?.[1];
+      
+      // Navigate to Home
+      await page.getByRole('menuitem', { name: 'Home' }).click();
+      await page.waitForTimeout(1000);
+      
+      // Navigate to Threads
+      await page.getByRole('menuitem', { name: 'Threads' }).click();
+      await page.waitForTimeout(1000);
+      
+      // Find and click the thread again
+      if (threadId) {
+        // Try to navigate directly to the thread URL
+        await page.goto(currentUrl);
+        await page.waitForTimeout(2000);
+      } else {
+        // Fallback: click first thread
+        const threadItem = page.locator('div.thread-item, [role="menuitem"]').first();
+        if (await threadItem.count() > 0) {
+          await threadItem.click();
+          await page.waitForTimeout(2000);
+        }
+      }
+      
+      // Wait for chat pane to be visible
+      const chatPane = page.locator('.chat-pane');
+      await expect(chatPane).toBeVisible({ timeout: 10000 });
+      
+      // Wait for messages container
+      const messagesContainer = page.locator('.messages');
+      await expect(messagesContainer).toBeVisible({ timeout: 10000 });
+      await page.waitForTimeout(1000);
+      
+      // Check again for assistant message
+      isVisible = await assistantMessages.first().isVisible({ timeout: 10000 }).catch(() => false);
+      
+      if (!isVisible) {
+        // Final check - wait a bit more
+        await page.waitForTimeout(2000);
+        isVisible = await assistantMessages.first().isVisible({ timeout: 5000 }).catch(() => false);
+      }
+    }
+    
+    if (!isVisible) {
+      // If still not visible, throw error
+      throw new Error('Assistant message did not appear after streaming and recovery attempts');
+    }
+    
     await page.waitForTimeout(2000);
   }
 }

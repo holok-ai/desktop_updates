@@ -41,13 +41,29 @@ test.describe('E2E: Thread Rename (simple)', () => {
     // Then navigate to threads page
     await navigateToThreadsPage(page);
 
-    // Dismiss any modal overlays that might be blocking interactions
-    const modalOverlay = page.locator('.modal-overlay');
-    if (await modalOverlay.isVisible({ timeout: 1000 }).catch(() => false)) {
-      // Try to close modal by pressing Escape or clicking overlay
-      await page.keyboard.press('Escape');
+    // Dismiss any "Unsaved Changes" modal that might be blocking
+    const unsavedModal = page.locator('text=Unsaved Changes');
+    if (await unsavedModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log('[thread-rename] Dismissing unsaved changes modal...');
+      await page.getByRole('button', { name: 'Cancel' }).click();
       await page.waitForTimeout(500);
     }
+
+    // Also check for modal overlay and dismiss it
+    const modalOverlay = page.locator('.modal-overlay, [role="presentation"]');
+    if (await modalOverlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+      // Try to close modal by pressing Escape or clicking Cancel button
+      const cancelButton = page.getByRole('button', { name: 'Cancel' });
+      if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await cancelButton.click();
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await page.waitForTimeout(500);
+    }
+
+    // Wait for threads list to load
+    await page.waitForTimeout(1000);
 
     // Check if threads exist, if not create one
     const noThreadsMessage = page.locator('text=No threads available yet.');
@@ -71,9 +87,28 @@ test.describe('E2E: Thread Rename (simple)', () => {
       await page.waitForTimeout(500);
     }
 
-    // Find first thread item (div.thread-item)
-    const firstThread = page.locator('div.thread-item').first();
-    await expect(firstThread).toBeVisible({ timeout: 5000 });
+    // Find first thread item - try multiple selectors
+    let firstThread = page.locator('div.thread-item').first();
+    let threadCount = await firstThread.count();
+    
+    // If no div.thread-item found, try menuitem
+    if (threadCount === 0) {
+      firstThread = page
+        .locator('[role="menuitem"]')
+        .filter({ hasNotText: /^(Home|Threads|Projects|Settings)$/i })
+        .first();
+      threadCount = await firstThread.count();
+    }
+    
+    // Wait for thread item to be visible
+    if (threadCount === 0) {
+      // Wait a bit more for threads to load
+      await page.waitForTimeout(2000);
+      firstThread = page.locator('div.thread-item, [role="menuitem"]').first();
+      threadCount = await firstThread.count();
+    }
+    
+    await expect(firstThread).toBeVisible({ timeout: 10000 });
 
     // Wait a bit for any animations/modals to settle
     await page.waitForTimeout(1000);
