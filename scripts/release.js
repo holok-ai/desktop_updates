@@ -209,7 +209,7 @@ try {
     console.log('\n📦 Building for Windows...');
     console.log(`   - Version: ${newVersion}`);
     console.log('   - Windows: NSIS installer\n');
-    execSync(`npx electron-builder --win --publish=always`, { 
+    execSync(`npx electron-builder --win --config --ia32 --publish=always`, { 
       cwd: rootDir, 
       stdio: 'inherit',
       env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
