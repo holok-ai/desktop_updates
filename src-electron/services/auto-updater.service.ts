@@ -10,6 +10,7 @@ class AutoUpdaterService {
   private initialized = false;
   private downloadPromptShownForVersion: string | null = null;
   private settingsService: SettingsService;
+  private ghTokenWarningShown = false;
 
   constructor() {
     this.settingsService = new SettingsService();
@@ -101,6 +102,51 @@ class AutoUpdaterService {
 
     autoUpdater.on('error', (error) => {
       updaterLog.error('Auto-updater error:', error);
+
+      const message =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : typeof error === 'string'
+            ? error
+            : JSON.stringify(error);
+
+      const isAuthError =
+        message.includes('Bad credentials') ||
+        message.includes('status:\\"401\\"') ||
+        message.includes('HttpError: 401') ||
+        message.includes('status":401');
+
+      const ghTokenMissing = !process.env.GH_TOKEN;
+
+      if (isAuthError || ghTokenMissing) {
+        if (this.ghTokenWarningShown) {
+          return;
+        }
+        this.ghTokenWarningShown = true;
+
+        const detailLines: string[] = [];
+        if (ghTokenMissing) {
+          detailLines.push('Environment variable GH_TOKEN is not set.');
+        } else {
+          detailLines.push('GitHub reported "Bad credentials" (HTTP 401).');
+        }
+        detailLines.push(
+          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop repository.'
+        );
+
+        dialog
+          .showMessageBox({
+            type: 'warning',
+            title: 'Auto-Update Configuration Problem',
+            message: 'The application could not check for updates.',
+            detail: detailLines.join('\n'),
+            buttons: ['OK'],
+            defaultId: 0,
+          })
+          .catch((dialogError) => {
+            updaterLog.error('Error showing GH_TOKEN warning dialog:', dialogError);
+          });
+      }
     });
 
     autoUpdater.on('download-progress', (progress) => {
