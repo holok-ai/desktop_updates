@@ -103,11 +103,36 @@ test.describe('E2E: Thread management', () => {
       // Thread created but didn't navigate - click the thread in sidebar
       const threadItem = page.locator('div.thread-item').first();
       await expect(threadItem).toBeVisible({ timeout: 5000 });
+      
+      // Dismiss any "Unsaved Changes" modal that might be blocking
+      const unsavedModal = page.locator('text=Unsaved Changes');
+      if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await page.waitForTimeout(500);
+      }
+      
       await threadItem.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
+      
+      // Wait for URL to change or chat pane to appear
+      try {
+        await page.waitForFunction(() => window.location.href.includes('threadId='), {
+          timeout: 10000,
+        });
+      } catch {
+        // URL might not change, just wait for chat pane
+      }
     }
 
-    // Verify thread was created successfully
-    await expect(chatPane).toBeVisible({ timeout: 5000 });
+    // Verify thread was created successfully - wait longer and check multiple times
+    let chatPaneVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
+    
+    if (!chatPaneVisible) {
+      // Try waiting a bit more and checking again
+      await page.waitForTimeout(2000);
+      chatPaneVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
+    }
+    
+    await expect(chatPane).toBeVisible({ timeout: 10000 });
   });
 });

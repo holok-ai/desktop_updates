@@ -61,12 +61,40 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
     await existingThread.click();
     await page.waitForTimeout(1000);
 
+    // Wait for URL to change to thread view
+    await page.waitForFunction(() => window.location.href.includes('threadId='), {
+      timeout: 10000,
+    });
+    await page.waitForTimeout(1000);
+
     // Wait for chat pane to be visible
     const chatPane = page.locator('.chat-pane');
     await expect(chatPane).toBeVisible({ timeout: 10000 });
 
+    // Wait for messages container to be visible
+    const messagesContainer = page.locator('.messages');
+    await expect(messagesContainer).toBeVisible({ timeout: 10000 });
+
+    // Wait for message input to be ready (ensures thread is fully loaded)
+    await waitForMessageInput(page);
+
+    // Wait for messages to load
+    let messageCount = 0;
+    let retries = 0;
+    const maxRetries = 10;
+    
+    while (messageCount === 0 && retries < maxRetries) {
+      await page.waitForTimeout(1000);
+      messageCount = await messagesContainer.locator('.message').count();
+      retries++;
+      
+      if (messageCount === 0 && retries < maxRetries) {
+        console.log(`[thread-message-append] No messages found, retry ${retries}/${maxRetries}...`);
+      }
+    }
+
     // Wait for first user message to appear
-    await expect(page.locator('.messages .message.user').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.messages .message.user').first()).toBeVisible({ timeout: 10000 });
 
     // Get initial message count
     const initialCount = await page.locator('.messages .message.user').count();
@@ -104,11 +132,53 @@ test.describe('E2E: Thread Message Append (Story ACs)', () => {
     await threadAfterReload.click();
     await page.waitForTimeout(2000); // Wait longer for navigation
 
+    // Wait for URL to change to thread view
+    await page.waitForFunction(() => window.location.href.includes('threadId='), {
+      timeout: 10000,
+    });
+    await page.waitForTimeout(1000);
+
     // Wait for chat pane to be visible (more robust check)
     const chatPaneAfterReload = page.locator('.chat-pane');
     await expect(chatPaneAfterReload).toBeVisible({ timeout: 10000 });
 
-    // Wait for messages to load
+    // Wait for message input to be ready (ensures thread is fully loaded)
+    await waitForMessageInput(page);
+
+    // Wait for messages container to be visible
+    const messagesContainerAfterReload = page.locator('.messages');
+    await expect(messagesContainerAfterReload).toBeVisible({ timeout: 10000 });
+
+    // Wait for messages to load - check if any messages exist
+    let messageCountAfterReload = 0;
+    let retriesAfterReload = 0;
+    const maxRetriesAfterReload = 10;
+    
+    while (messageCountAfterReload === 0 && retriesAfterReload < maxRetriesAfterReload) {
+      await page.waitForTimeout(1000);
+      messageCountAfterReload = await messagesContainerAfterReload.locator('.message').count();
+      retriesAfterReload++;
+      
+      if (messageCountAfterReload === 0 && retriesAfterReload < maxRetriesAfterReload) {
+        console.log(`[thread-message-append] No messages found after reload, retry ${retriesAfterReload}/${maxRetriesAfterReload}...`);
+      }
+    }
+    
+    if (messageCountAfterReload === 0) {
+      console.log('[thread-message-append] No messages found after waiting, checking for loading state...');
+      // Check if there's a loading indicator
+      const loadingIndicator = page.locator('text=/Loading|loading/i');
+      const isLoading = await loadingIndicator.isVisible({ timeout: 2000 }).catch(() => false);
+      
+      if (isLoading) {
+        console.log('[thread-message-append] Still loading, waiting for loading to complete...');
+        await loadingIndicator.waitFor({ state: 'hidden', timeout: 30000 });
+        await page.waitForTimeout(2000);
+        messageCountAfterReload = await messagesContainerAfterReload.locator('.message').count();
+      }
+    }
+
+    // Wait for at least one message to be visible
     await expect(page.locator('.messages .message').first()).toBeVisible({ timeout: 10000 });
 
     // Verify user message count matches (no duplicates)

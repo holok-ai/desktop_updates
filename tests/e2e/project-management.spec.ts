@@ -1,5 +1,6 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { waitForMessageInput } from '../helpers/ui-helpers';
 
 // Helpers
 async function goToProjects(page: Page) {
@@ -283,10 +284,14 @@ test.describe('E2E: Project Management', () => {
     await expect(projectItem).toBeVisible({ timeout: 60000 });
 
     const deleteButton = projectItem.locator('button').last();
+    await expect(deleteButton).toBeVisible({ timeout: 5000 });
     await deleteButton.click();
+    await page.waitForTimeout(500); // Wait for modal to appear
 
-    // Cancel deletion in modal
-    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible();
+    // Cancel deletion in modal - wait for modal to appear
+    const deleteModal = page.locator('[role="dialog"]').filter({ hasText: /Delete Project/i });
+    await expect(deleteModal).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible({ timeout: 5000 });
     // Use getByLabel to scope to the delete modal specifically
     await page.getByLabel('Delete Project').getByRole('button', { name: 'Cancel' }).click();
 
@@ -369,13 +374,9 @@ test.describe('E2E: Project Management', () => {
     await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
 
-    // Wait for navigation to chat view
-    await page.waitForTimeout(2000);
-    const chatMessageInput = page.locator('[data-testid="message-input"]');
-    await expect(chatMessageInput).toBeVisible({ timeout: 10000 });
-
-    // Wait for thread to be created
-    await page.waitForTimeout(2000);
+    // Wait for navigation to chat view and message input to be ready
+    await waitForMessageInput(page);
+    await page.waitForTimeout(1000);
 
     // Navigate back to projects
     await goToProjects(page);
@@ -395,10 +396,9 @@ test.describe('E2E: Project Management', () => {
     await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
 
-    // Wait for navigation to chat view
-    await page.waitForTimeout(2000);
-    await expect(chatMessageInput).toBeVisible({ timeout: 10000 });
-    await page.waitForTimeout(2000);
+    // Wait for navigation to chat view and message input to be ready
+    await waitForMessageInput(page);
+    await page.waitForTimeout(1000);
 
     // Navigate back to projects to verify threads
     await goToProjects(page);

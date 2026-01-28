@@ -254,10 +254,32 @@ test.describe('Large Prompts - Long-form Content Handling', () => {
       // Navigate back to threads list
       await page.getByRole('menuitem', { name: 'Threads' }).click();
       await page.waitForTimeout(1000);
+      
+      // Wait for threads list to be visible - check for "New Thread" button or thread items
+      const newThreadButton = page.getByRole('button', { name: /create new thread|new thread/i });
+      try {
+        await expect(newThreadButton).toBeVisible({ timeout: 10000 });
+      } catch {
+        // If button not visible, might already be on threads list, just wait a bit
+        console.log('[Test 2] New Thread button not visible, waiting for threads list...');
+        await page.waitForTimeout(2000);
+      }
+      await page.waitForTimeout(1000);
+
+      // Re-query thread items (locator might be stale)
+      let threadItemsAfterNav = page.locator('div.thread-item');
+      let threadCountAfterNav = await threadItemsAfterNav.count();
+      
+      if (threadCountAfterNav === 0) {
+        threadItemsAfterNav = page
+          .locator('[role="menuitem"]')
+          .filter({ hasNotText: /^(Home|Threads|Projects|Settings)$/i });
+        threadCountAfterNav = await threadItemsAfterNav.count();
+      }
 
       // Click back to the first thread (our test thread)
       console.log('[Test 2] Clicking back to first thread...');
-      await threadItems.first().click();
+      await threadItemsAfterNav.first().click();
       await page.waitForTimeout(2000);
     } else {
       // Only one thread, just click it to reload
@@ -278,8 +300,40 @@ test.describe('Large Prompts - Long-form Content Handling', () => {
     // Wait for messages container to be visible first
     await expect(page.locator('.messages')).toBeVisible({ timeout: 10000 });
 
-    // Wait for messages to be rendered
-    await expect(page.locator('.messages .message.assistant').last()).toBeVisible({
+    // Wait for messages to load - check if any messages exist first
+    let messageCount = 0;
+    let retries = 0;
+    const maxRetries = 10;
+    
+    while (messageCount === 0 && retries < maxRetries) {
+      await page.waitForTimeout(1000);
+      messageCount = await page.locator('.messages .message').count();
+      retries++;
+      
+      if (messageCount === 0 && retries < maxRetries) {
+        console.log(`[Test 2] No messages found, retry ${retries}/${maxRetries}...`);
+      }
+    }
+    
+    if (messageCount === 0) {
+      console.log('[Test 2] No messages found after waiting, checking for loading state...');
+      // Check if there's a loading indicator
+      const loadingIndicator = page.locator('text=/Loading|loading/i');
+      const isLoading = await loadingIndicator.isVisible({ timeout: 2000 }).catch(() => false);
+      
+      if (isLoading) {
+        console.log('[Test 2] Still loading, waiting for loading to complete...');
+        await loadingIndicator.waitFor({ state: 'hidden', timeout: 30000 });
+        await page.waitForTimeout(2000);
+      }
+    }
+
+    // Wait for messages to be rendered - ensure we have at least user and assistant messages
+    const userMessages = page.locator('.messages .message.user');
+    const assistantMessages = page.locator('.messages .message.assistant');
+    
+    await expect(userMessages.first()).toBeVisible({ timeout: 10000 });
+    await expect(assistantMessages.last()).toBeVisible({
       timeout: 15000,
     });
 
