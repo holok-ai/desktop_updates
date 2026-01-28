@@ -41,13 +41,14 @@ test.describe('Auth with Test Key', () => {
 
     // Navigate to Threads page to verify sidebar items are visible
     console.log('[Test] Navigating to Threads to verify authentication');
-    await page.evaluate(() => {
-      window.location.hash = '#/threads';
-    });
-
-    // Wait for navigation with longer timeout (Windows can be slower)
-    // Don't wait for networkidle as API calls might be pending/failing
-    await page.waitForTimeout(20000);
+    
+    // Use proper Playwright navigation instead of page.evaluate() to avoid execution context destruction
+    const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
+    await expect(threadsMenuItem).toBeVisible({ timeout: 10000 });
+    await threadsMenuItem.click();
+    
+    // Wait for navigation to complete
+    await page.waitForTimeout(2000);
 
     // Verify we're authenticated by checking for navigation items
     await expect(page.getByRole('menuitem', { name: 'Home' })).toBeVisible({ timeout: 5000 });
