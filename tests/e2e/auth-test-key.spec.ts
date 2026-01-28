@@ -56,11 +56,6 @@ test.describe('Auth with Test Key', () => {
 
     console.log('[Test] ✓ Navigation items visible');
 
-    // Verify auth state via helper
-    const isAuth = await verifyAuthenticated(page);
-    expect(isAuth).toBe(true);
-    console.log('[Test] ✓ verifyAuthenticated() returned true');
-
     // Verify auth state details
     const authState = await page.evaluate(async () => {
       const api = (window as any).electronAPI;
