@@ -1,7 +1,7 @@
 # Thread Panel Overview
 
-**Version:** 1.1
-**Date:** 2026-01-27
+**Version:** 1.2
+**Date:** 2026-01-28
 **Status:** Implementation Ready
 
 ---
@@ -68,7 +68,7 @@ This section describes the complete data flow through the Thread Panel, from use
 flowchart TB
     subgraph RENDERER["RENDERER PROCESS (UI)"]
         direction TB
-        CA[ComposerArea<br/>user types] --> TCV[ThreadChatView<br/>view logic]
+        CA[MessageComposerArea<br/>user types] --> TCV[ThreadChatView<br/>view logic]
         TCV --> TSM[ThreadStateMachine<br/>state mgmt]
         TSM --> CSS[ChatStreamService<br/>IPC wrapper]
         CSS --> API["window.electronAPI.chat.*"]
@@ -109,7 +109,7 @@ style RENDERER2 fill:transparent,stroke:#9ca3af
 │                              SEND MESSAGE FLOW                                      │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
-1. User types prompt in ComposerArea
+1. User types prompt in MessageComposerArea
    │
    ▼
 2. User clicks Send (or presses Enter)
@@ -326,7 +326,7 @@ User creates model variation with 3 models: GPT-4, Claude, Gemini
 
 | Component | Layer | Responsibility |
 |-----------|-------|----------------|
-| **ComposerArea** | UI | Captures user input, emits send events |
+| **MessageComposerArea** | UI | Captures user input, emits send events |
 | **ThreadChatView** | UI | View-specific logic, coordinates child components |
 | **ThreadStateMachine** | UI | State management, coordinates services |
 | **ChatStreamService** | UI | Wraps all IPC chat calls, manages subscriptions |

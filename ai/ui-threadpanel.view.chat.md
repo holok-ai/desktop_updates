@@ -1,7 +1,7 @@
 # Thread Panel Chat View
 
-**Version:** 1.2
-**Date:** 2026-01-27
+**Version:** 1.3
+**Date:** 2026-01-28
 **Status:** Implementation Ready
 
 ---
@@ -57,9 +57,8 @@ The Chat View is the primary interface for conversational interaction, displayin
 interface ThreadChatViewProps {
   thread: Thread;
   messages: Message[];
-  composer: Snippet<[ComposerContext]>;
+  activeBranchId: string;
   onCreateVariation: (message: Message) => void;
-  onSendMessage: (content: string, context: MessageContext) => Promise<void>;
 }
 ```
 
@@ -84,9 +83,9 @@ let isStreaming = $state(false);
     onCreateVariation={handleCreateVariation}
   />
 
-  <ComposerArea
-    {composer}
-    disabled={$isMainInputDisabled}
+  <MessageComposerArea
+    {activeBranchId}
+    disabled={isStreaming}
     onSendMessage={handleSendMessage}
   />
 </div>
@@ -188,7 +187,87 @@ const timeline = $derived(() => {
 
 ---
 
-## 5. StreamingService
+## 5. MessageComposerArea.svelte
+
+**File:** `src/lib/components/threads/chat/MessageComposerArea.svelte`
+
+**Purpose:** Dedicated composer component for ThreadComponent, independent of legacy Composer. Allows the new implementation to diverge and add branch-aware features.
+
+**Responsibilities:**
+- Render text input and send button
+- Handle keyboard shortcuts (Enter to send, Shift+Enter for newline)
+- Track current branch context
+- Manage disabled state during streaming
+- Emit send message events with branch context
+
+**Props:**
+```typescript
+interface MessageComposerAreaProps {
+  activeBranchId: string;
+  disabled?: boolean;
+  onSendMessage: (content: string, branchId: string) => Promise<void>;
+}
+```
+
+**State:**
+```typescript
+let content = $state('');
+let isSending = $state(false);
+```
+
+**Template:**
+```svelte
+<div class="message-composer-area">
+  <textarea
+    bind:value={content}
+    disabled={disabled || isSending}
+    placeholder="Type a message..."
+    onkeydown={handleKeyDown}
+  />
+  <button
+    onclick={handleSend}
+    disabled={disabled || isSending || !content.trim()}
+  >
+    Send
+  </button>
+</div>
+```
+
+**Key Methods:**
+```typescript
+function handleKeyDown(event: KeyboardEvent): void {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    handleSend();
+  }
+}
+
+async function handleSend(): Promise<void> {
+  const text = content.trim();
+  if (!text || disabled || isSending) return;
+  
+  isSending = true;
+  try {
+    await onSendMessage(text, activeBranchId);
+    content = '';
+  } finally {
+    isSending = false;
+  }
+}
+```
+
+**Future Enhancements (not in initial scope):**
+- "Send to all lanes" button for model variations
+- Per-branch streaming state awareness
+- Voice input integration
+- Prompt templates dropdown
+- File/image attachment support
+
+**Size Estimate:** ~150 lines
+
+---
+
+## 6. StreamingService
 
 **File:** `src/lib/services/streaming.service.ts`
 
@@ -219,7 +298,7 @@ export const streamingService = new StreamingService();
 
 ---
 
-## 6. TimelineBuilderService
+## 7. TimelineBuilderService
 
 **File:** `src/lib/services/timeline-builder.service.ts`
 
@@ -259,7 +338,7 @@ export const timelineBuilderService = new TimelineBuilderService();
 
 ---
 
-## 7. BranchContextService
+## 8. BranchContextService
 
 **File:** `src/lib/services/branch-context.service.ts`
 

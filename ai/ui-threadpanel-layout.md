@@ -1,7 +1,7 @@
 # Thread Panel Layout
 
-**Version:** 1.0
-**Date:** 2026-01-25
+**Version:** 1.1
+**Date:** 2026-01-28
 **Status:** Implementation Ready
 
 ---
@@ -37,8 +37,7 @@ ThreadComponent.svelte (orchestrator, ~800 lines)
 │  │  │  └─ MessageBubble.svelte (existing, reuse)
 │  │  └─ BranchBoxItem.svelte (~100 lines)
 │  │     └─ BranchLane.svelte (existing, reuse)
-│  └─ ComposerArea.svelte (~100 lines)
-│     └─ Composer (snippet, passed as prop)
+│  └─ MessageComposerArea.svelte (NEW, ~150 lines)
 │
 ├─ ThreadExecutionView.svelte (NEW, ~350 lines)
 │  ├─ InstructionFileEditor.svelte (~200 lines)
@@ -80,7 +79,7 @@ Total: ~6,500 lines (vs 3,437 in ChatPane)
 | **MessageTimeline** | ~250 | NEW | Message list with branches |
 | **MessageItem** | ~150 | NEW | Single message display |
 | **BranchBoxItem** | ~100 | NEW | Branch variation box |
-| **ComposerArea** | ~100 | NEW | Input area wrapper |
+| **MessageComposerArea** | ~150 | NEW | Dedicated message input component |
 | **ThreadExecutionView** | ~350 | NEW | Execution management |
 | **InstructionFileEditor** | ~200 | NEW | Instruction file editing |
 | **ExecutionControls** | ~100 | NEW | Run/stop controls |
@@ -121,7 +120,7 @@ src/lib/
 │  │  │  ├─ MessageTimeline.svelte (~250 lines)
 │  │  │  ├─ MessageItem.svelte (~150 lines)
 │  │  │  ├─ BranchBoxItem.svelte (~100 lines)
-│  │  │  └─ ComposerArea.svelte (~100 lines)
+│  │  │  └─ MessageComposerArea.svelte (~150 lines)
 │  │  ├─ execution/
 │  │  │  ├─ ThreadExecutionView.svelte (~350 lines)
 │  │  │  ├─ InstructionFileEditor.svelte (~200 lines)

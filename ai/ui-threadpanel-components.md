@@ -1,7 +1,7 @@
 # Thread Panel Components
 
-**Version:** 1.4
-**Date:** 2026-01-27
+**Version:** 1.5
+**Date:** 2026-01-28
 **Status:** Implementation Ready
 
 ---
@@ -67,8 +67,7 @@ ThreadComponent.svelte (orchestrator, ~800 lines)
 │  │  │  └─ MessageBubble.svelte (existing, reuse)
 │  │  └─ BranchBoxItem.svelte (~100 lines)
 │  │     └─ BranchLane.svelte (existing, reuse)
-│  └─ ComposerArea.svelte (~100 lines)
-│     └─ Composer (snippet, passed as prop)
+│  └─ MessageComposerArea.svelte (NEW, ~150 lines)
 │
 ├─ ThreadExecutionView.svelte (NEW, ~350 lines)
 │  ├─ uses: useThreadView() composable
@@ -99,6 +98,43 @@ Reused code: ~1,500 lines
 Total: ~6,500 lines (vs 3,437 in ChatPane)
 ```
 
+### 3.1 Compoent File Structure 
+
+ ThreadPanel components reside in `src/lib/components/threadpanel/`:
+
+```
+src/lib/components/threadpanel/
+├── ThreadComponent.svelte          # Main orchestrator (~800 lines)
+├── ThreadHeader.svelte             # Header with title, status, actions
+├── ThreadTitle.svelte              # Editable thread title
+├── ThreadStatusIndicator.svelte    # 7-phase status display
+├── ThreadActions.svelte            # Action buttons
+├── ThreadViewTabs.svelte           # View tab navigation
+│
+├── viewchat/                       # Chat View components
+│   ├── ThreadChatView.svelte       # Chat view container
+│   ├── MessageTimeline.svelte      # Message list with branches
+│   ├── MessageItem.svelte          # Single message display
+│   ├── MessageComposerArea.svelte  # Message input component
+│   └── BranchBoxItem.svelte        # Branch variation display
+│
+├── viewprompt/                     # Prompt View components
+│   ├── ThreadPromptView.svelte     # Prompt view container
+│   ├── PromptList.svelte           # Prompt list wrapper
+│   └── PromptItem.svelte           # Single prompt item
+│
+├── viewexecution/                  # Execution View components
+│   ├── ThreadExecutionView.svelte  # Execution view container
+│   ├── InstructionFileEditor.svelte
+│   ├── ExecutionControls.svelte
+│   ├── ExecutionHistory.svelte
+│   └── ExecutionFrequencyChart.svelte
+│
+└── viewbranching/                  # Branching View components
+    ├── ThreadBranchingView.svelte  # Branching view container
+    ├── BranchingGraphCanvas.svelte # SVG canvas
+    ├── BranchingGraphNode.svelte   # Graph node
+    └── BranchingDetailPanel.svelte # Node detail panel
 ---
 
 ## 4. ThreadViewBase Composable
@@ -616,13 +652,16 @@ export function useThreadView(options: UseThreadViewOptions): ThreadViewContext 
 <script lang="ts">
   import { onMount } from 'svelte';
   import { useThreadView } from '$lib/composables/useThreadView.svelte';
+  import MessageComposerArea from './MessageComposerArea.svelte';
 
   interface Props {
-    composer: Snippet<[ComposerContext]>;
+    thread: Thread;
+    messages: Message[];
+    activeBranchId: string;
     onCreateVariation: (message: Message) => void;
   }
 
-  const { composer, onCreateVariation }: Props = $props();
+  const { thread, messages, activeBranchId, onCreateVariation }: Props = $props();
 
   const view = useThreadView({
     viewId: 'chat',
@@ -669,8 +708,8 @@ export function useThreadView(options: UseThreadViewOptions): ThreadViewContext 
     };
   });
 
-  async function handleSendMessage(content: string) {
-    await view.dispatch({ type: 'MESSAGE_SEND', content });
+  async function handleSendMessage(content: string, branchId: string) {
+    await view.dispatch({ type: 'MESSAGE_SEND', content, branchId });
   }
 </script>
 
@@ -698,7 +737,11 @@ export function useThreadView(options: UseThreadViewOptions): ThreadViewContext 
       </button>
     {/if}
 
-    <ComposerArea {composer} onSendMessage={handleSendMessage} />
+    <MessageComposerArea
+      {activeBranchId}
+      disabled={view.hasActiveStreams}
+      onSendMessage={handleSendMessage}
+    />
   </div>
 {/if}
 ```
