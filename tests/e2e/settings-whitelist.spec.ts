@@ -1,4 +1,5 @@
-import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import * as os from 'os';
 import * as path from 'path';

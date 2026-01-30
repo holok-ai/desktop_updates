@@ -23,11 +23,12 @@
 
 ## 1. Architecture Overview
 
-The Thread Panel provides a flexible layout and supporting archtiecture with these features:
-- has multiple views of current thread where each view is tailored to specific task(s)
-- supports real-time streaming update of the current thread containing one or more branches 
-- provides feedback to user as prompt and response is processed 
-- displays text, images, video and audio
+The Thread Panel provides a flexible layout and supporting architecture with the following capabilities:
+- Offers multiple views of the current thread, each tailored to specific tasks
+- Allows arranging multiple views within the app for easier access to key features
+- Supports real‑time streaming updates for threads with one or more branches
+- Gives users immediate feedback as prompts and responses are processed
+- Displays text, images, video, and audio content
 
 ### 1.1 Design Principles
 
@@ -51,10 +52,12 @@ The Thread Panel provides a flexible layout and supporting archtiecture with the
 
 | View | Purpose | Document |
 |------|---------|----------|
-| **Chat** | Message display, streaming, branching | ui-threadpanel-chatview.md |
+| **Chat** | Message display, streaming, branching | ui-threadpanel.view.chat.md |
 | **Execution** | Run thread with instructions, history | ui-threadpanel-execution-view.md |
-| **Branching** | SVG graph visualization of branches | See §3 below |
-| **Prompt** | Compact prompt list with expand/collapse | ui-threadpanel-promptview.md |
+| **Branching** | SVG graph visualization of branches | See §3 below ui-threadpanel.view.branching.md|
+| **Prompt** | Compact prompt list with expand/collapse | ui-threadpanel.view.prompt.md |
+
+More than one views can be displayed at a time (in a ThreadComposition component). This allows the user to have the Chat view and the graphic branching view shown at the same time. One instance (initially) of a view may displayed, up to 6 total (initially).  
 
 ---
 

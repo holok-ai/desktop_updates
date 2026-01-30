@@ -85,13 +85,13 @@
   });
 
   // Auto-expand sidebar when navigating to Threads or Projects
-  // Keep collapsed on home page
+  // Keep collapsed on home page and login page
   $effect(() => {
     if (currentRoute.startsWith(ROUTE.THREADS) || currentRoute.startsWith(ROUTE.PROJECTS)) {
       // Expand sidebar when user navigates to these routes
       isCollapsed = false;
-    } else if (currentRoute === ROUTE.HOME || currentRoute === '/') {
-      // Keep collapsed on home page
+    } else if (currentRoute === ROUTE.HOME || currentRoute === '/' || currentRoute === ROUTE.LOGIN) {
+      // Keep collapsed on home page and login page
       isCollapsed = true;
     }
   });

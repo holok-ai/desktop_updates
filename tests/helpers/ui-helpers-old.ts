@@ -5,7 +5,8 @@
  * and resilient to UI changes.
  */
 
-import { Page, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { Page } from 'playwright';
 
 /**
  * Check if models are already loaded by checking if model selector has options

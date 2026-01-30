@@ -1,4 +1,5 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
+import { test, expect, _electron as electron } from '@playwright/test';
+import type { ElectronApplication, Page } from 'playwright';
 
 async function getFirstWindow(app: ElectronApplication): Promise<Page> {
   const page = await app.firstWindow();

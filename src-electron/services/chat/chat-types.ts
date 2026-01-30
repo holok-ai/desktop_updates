@@ -14,7 +14,7 @@ export interface DesktopChatMessage extends ChatMessage {
  */
 export interface DesktopChatRequest extends ChatRequest {
     messages: DesktopChatMessage[];
-    thread_guid?: string;
+    thread_id?: string;
     branch_id?: string;
     working_directory?: string; // For file tools operations
 }

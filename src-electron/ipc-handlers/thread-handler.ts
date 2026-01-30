@@ -178,17 +178,6 @@ export async function initializeSampleData(): Promise<void> {
 export { broadcast, generateId };
 
 export function registerThreadHandlers(): void {
-  // No external persistence; threadsService is memory-only
-  // Ensure sample data exists for handlers that expect initial items (tests rely on this)
-  threadRepository
-    .listThreads()
-    .then(async (existing) => {
-      if (!existing || existing.length === 0) await initializeSampleData();
-    })
-    .catch((_e) => {
-      // ignore initialization errors in test environments
-    });
-
   ipcMain.handle(
     'thread:getAll',
     async (

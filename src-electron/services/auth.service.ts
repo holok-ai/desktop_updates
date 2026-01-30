@@ -2,7 +2,6 @@ import { safeStorage, app, shell } from 'electron';
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import { mokuService } from './mokuapi/moku.service.js';
-import { refreshAccessToken, isTokenValid } from '../utils/token-refresh.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -151,30 +150,17 @@ export class AuthService {
   }
 
   /**
-   * Load authentication tokens from environment variable or command-line args (for Playwright E2E tests)
+   * Load authentication tokens from environment variable (for Playwright E2E tests)
    * This bypasses encryption and allows tests to inject valid auth tokens
-   *
-   * **Cross-Platform Support:**
-   * - Checks command-line args first (--playwright-test-tokens) for Windows compatibility
-   * - Falls back to PLAYWRIGHT_TEST_TOKENS env var for backward compatibility
    */
   private loadTestTokens(): void {
-    // Try command-line args first (more reliable on Windows)
-    let testTokensJson = process.argv
-      .find((arg) => arg.startsWith('--playwright-test-tokens='))
-      ?.split('=')[1];
-
-    // Fallback to environment variable
-    if (!testTokensJson) {
-      testTokensJson = process.env.PLAYWRIGHT_TEST_TOKENS;
-    }
-
+    const testTokensJson = process.env.PLAYWRIGHT_TEST_TOKENS;
     if (!testTokensJson) {
       return; // Not in test mode
     }
 
     try {
-      log.info('[AuthService] Loading test tokens from command-line args or env var');
+      log.info('[AuthService] Loading test tokens from PLAYWRIGHT_TEST_TOKENS');
       const testData = JSON.parse(testTokensJson) as {
         accessToken?: string;
         apiKey?: string;
@@ -217,7 +203,7 @@ export class AuthService {
         testData.user?.email,
       );
     } catch (error) {
-      log.error('[AuthService] Failed to parse test tokens:', error);
+      log.error('[AuthService] Failed to parse PLAYWRIGHT_TEST_TOKENS:', error);
     }
   }
 
@@ -308,11 +294,15 @@ export class AuthService {
       // Step 2: Exchange apiKey for accessToken via MokuService
       const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
 
+      // Use default expiration if API returns null or 0 (1 hour = 3600 seconds)
+      const expiresInSeconds = expires_in || 3600;
+      log.info('[AuthService] Initial token expires_in:', expires_in, '(using:', expiresInSeconds, 'seconds)');
+
       // Create tokens object
       const tokens: AuthTokens = {
         accessToken,
         apiKey, // Cache for future token refresh
-        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
+        expiresAt: Date.now() + expiresInSeconds * 1000,
       };
 
       // Extract user info from access token (JWT)
@@ -420,11 +410,10 @@ export class AuthService {
     try {
       const apiKey = this.currentAuthState.tokens.apiKey;
 
-      // Use shared token refresh utility
-      const { accessToken, expiresAt } = await refreshAccessToken({
-        apiKey,
-        currentExpiresAt: this.currentAuthState.tokens.expiresAt,
-      });
+      const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
+
+      // Use default expiration if API returns null or 0 (1 hour = 3600 seconds)
+      const expiresInSeconds = expires_in || 3600;
 
       // Extract user info from the new access token to ensure it's up to date
       const updatedUser = this.extractUserFromToken(accessToken);
@@ -433,11 +422,12 @@ export class AuthService {
       const newTokens: AuthTokens = {
         accessToken,
         apiKey, // Keep the same apiKey
-        expiresAt,
+        expiresAt: Date.now() + expiresInSeconds * 1000,
       };
 
       // Store updated tokens with updated user profile
       this.storeAuthData(newTokens, updatedUser);
+      log.info('[AuthService] Token refresh completed successfully, expires_in:', expiresInSeconds, 'seconds');
 
       return newTokens;
     } catch (error) {
@@ -452,7 +442,7 @@ export class AuthService {
    */
   private isTokenValid(): boolean {
     return (
-      this.currentAuthState.tokens !== null && isTokenValid(this.currentAuthState.tokens.expiresAt)
+      this.currentAuthState.tokens !== null && this.currentAuthState.tokens.expiresAt > Date.now()
     );
   }
 
@@ -470,9 +460,7 @@ export class AuthService {
       await this.refreshAccessToken();
     }
     const token = this.currentAuthState.tokens?.accessToken || '';
-    const maskedToken = token
-      ? `${token.slice(0, 5)}... (${token.length} characters)`
-      : '(no token)';
+    const maskedToken = token ? `${token.slice(0, 5)}... (${token.length} characters)` : '(no token)';
     log.info('[AuthService] Access token:', maskedToken);
     return token;
   }

@@ -3,6 +3,8 @@ import { ChatCompletion } from 'openai/resources/chat/completions';
 import { ChatResponse } from 'ollama/browser';
 import { default as default_2 } from '@anthropic-ai/sdk';
 import { default as default_3 } from 'openai';
+import { GenerateContentResult } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Ollama } from 'ollama/browser';
 
 /**
@@ -127,17 +129,14 @@ export declare class ChatProviderUtils {
      */
     static readonly MAX_TOOL_ITERATIONS = 10;
     /**
-     * Adds a tool sequence branch ID to the thread_id for tool calling iterations
-     * Format: {original_thread_id},branch_id=1.0 for iteration 0
-     *         {original_thread_id},branch_id=1.0.{iteration} for iteration > 0
+     * Sets the iteration value in a branch ID string
+     * Format: row.lane.chat (3 parts) or row.lane.chat.iteration (4 parts)
      *
-     * @param request - Chat request that may contain thread_id
-     * @param iteration - Current tool loop iteration number
-     * @returns Object with thread_id or empty object if no thread_id exists
+     * @param branchId - Current branch ID string (e.g., "1.0.1" or "1.0.1.5")
+     * @param iteration - Iteration number (0-9) to set
+     * @returns New branch ID with iteration set
      */
-    static addToolSeqToBranch(request: {
-        thread_id?: string;
-    }, iteration: number): Record<string, unknown>;
+    static setBranchIteration(branchId: string, iteration: number): string;
     /**
      * Generic tool loop handler that works with any provider via the ProviderToolHandler interface
      * Manages the iteration loop, thread context, and tool execution flow
@@ -266,6 +265,72 @@ declare type ContentBlock = ToolUseBlock | TextBlock | {
     type: string;
 };
 
+export declare class GeminiChatProvider implements IChatProvider {
+    private client;
+    private defaultModel;
+    private apiEndpoint;
+    private tools;
+    private onToolUse?;
+    private toolHandler?;
+    constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    /**
+     * Send a chat request to Gemini
+     * Automatically handles tools if configured in constructor
+     */
+    chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
+    /**
+     * Send a chat request with tools enabled
+     * Private method called by chat() when tools are configured
+     */
+    private chatWithTools;
+    /**
+     * Convert ToolDefinition to Gemini's tool format
+     */
+    private convertToolsToGeminiFormat;
+}
+
+/**
+ * Tool handler for Google Gemini's function calling API
+ * Implements the ProviderToolHandler interface for Gemini-specific behavior
+ */
+export declare class GeminiToolHandler implements ProviderToolHandler<GenerateContentResult> {
+    private client;
+    private tokenCallback?;
+    constructor(client: GoogleGenerativeAI);
+    /**
+     * Set the token callback for streaming mode
+     */
+    setTokenCallback(callback?: (token: string) => void): void;
+    /**
+     * Make a request to Gemini with function calling enabled
+     */
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<GenerateContentResult>;
+    /**
+     * Make a streaming request to Gemini
+     */
+    private makeStreamingRequest;
+    /**
+     * Make a non-streaming request to Gemini
+     */
+    private makeNonStreamingRequest;
+    /**
+     * Extract tool uses (function calls) from Gemini's response
+     */
+    extractToolUses(result: GenerateContentResult): ToolUse[];
+    /**
+     * Extract text content from Gemini's response
+     */
+    extractTextContent(result: GenerateContentResult): string | null;
+    /**
+     * Format tool results for Gemini's expected format
+     */
+    formatToolResults(toolUses: ToolUse[], results: ToolResult[]): unknown[];
+    /**
+     * Append the assistant's response and tool results to the conversation
+     */
+    appendMessages(messages: unknown[], result: GenerateContentResult, toolResults: unknown[]): unknown[];
+}
+
 /**
  * Core interface for all chat providers
  */
@@ -308,10 +373,6 @@ export declare class OllamaChatProvider implements IChatProvider {
      * Ollama returns arguments as an object, while other providers return a JSON string
      */
     private parseToolArguments;
-    /**
-     * Handle the tool use loop
-     */
-    private handleToolLoop;
 }
 
 /**
@@ -454,7 +515,8 @@ export declare enum ProviderType {
     OLLAMA = "ollama",
     OPENAI = "openai",
     CLAUDE = "claude",
-    PERPLEXITY = "perplexity"
+    PERPLEXITY = "perplexity",
+    GEMINI = "gemini"
 }
 
 declare type TextBlock = {

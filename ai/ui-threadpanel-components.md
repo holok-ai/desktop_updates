@@ -17,6 +17,7 @@
 | **ui-threadpanel.view.execution.md** | Thread execution view |
 | **ui-threadpanel.view.prompt.md** | Prompt list view |
 | **system-thread-multiplexing.md** | Stream multiplexing architecture |
+| **Section 13-14** | Multi-view layout management system (LayoutConfig, ThreadLayoutSelector) |
 
 ---
 
@@ -24,7 +25,7 @@
 
 This document defines the component hierarchy, state management architecture, and shared UI components for the Thread Panel. The Thread Panel uses a hierarchical state machine to prevent race conditions and cascading effects when authentication, project, thread, or connection status changes occur.
 
-The Thread Panel integrates with the stream multiplexing system (see `system-thread-multiplexing.md`) to support concurrent chat streams across multiple branches within a thread.
+The Thread Panel integrates with the stream multiplexing system (see `system-thread-multiplexing.md`) to support concurrent chat streams across multiple branches within a thread. The Thread Panel also supports flexible multi-view layouts (Sections 13-14) allowing users to display multiple views simultaneously while enforcing the constraint that only one instance of each view type can be displayed per layout.
 
 ---
 
@@ -44,6 +45,13 @@ The Thread Panel integrates with the stream multiplexing system (see `system-thr
 | 10 | Handle streaming timeouts and errors with clear user feedback |
 | 11 | Support multiple concurrent streams per thread (branch-level streaming) |
 | 12 | Display per-branch streaming status with 7-phase indicators |
+| **Layout Management** | |
+| 13 | Support 5 multi-view layout templates (single-col, vertical-split, col-left-split, col-right-split, quad-split) |
+| 14 | User can select layout template from toolbar |
+| 15 | Enforce constraint: only one instance of each view type per layout |
+| 16 | Each pane displays one of 4 views independently |
+| 17 | Layout configuration persists across thread switches |
+| 18 | Responsive behavior: collapse multi-pane layouts to single-column on screens < 900px |
 
 ---
 
