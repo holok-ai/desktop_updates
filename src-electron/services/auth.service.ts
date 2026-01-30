@@ -83,17 +83,28 @@ export class AuthService {
    */
   private loadStoredAuth(): void {
     try {
-      // Check if safeStorage is available
-      if (!safeStorage.isEncryptionAvailable()) {
-        log.warn('[AuthService] Encryption not available on this system');
-        return;
+      const encryptionAvailable = safeStorage.isEncryptionAvailable();
+      if (!encryptionAvailable) {
+        log.warn('[AuthService] Encryption not available on this system, will use plain text storage');
       }
 
       // Load tokens from secure storage
-      const encryptedTokens = this.getFromStorage(STORAGE_KEY_TOKENS);
-      if (encryptedTokens) {
-        const decryptedTokens = safeStorage.decryptString(encryptedTokens);
-        const tokens = JSON.parse(decryptedTokens) as AuthTokens;
+      const storedTokens = this.getFromStorage(STORAGE_KEY_TOKENS);
+      if (storedTokens) {
+        let tokensJson: string;
+        if (encryptionAvailable) {
+          try {
+            tokensJson = safeStorage.decryptString(storedTokens);
+          } catch (error) {
+            // If decryption fails, try parsing as plain text (for migration)
+            log.warn('[AuthService] Decryption failed, trying plain text');
+            tokensJson = storedTokens.toString('utf-8');
+          }
+        } else {
+          tokensJson = storedTokens.toString('utf-8');
+        }
+
+        const tokens = JSON.parse(tokensJson) as AuthTokens;
 
         // Check if access token is still valid
         if (tokens.expiresAt > Date.now()) {
@@ -113,10 +124,22 @@ export class AuthService {
       }
 
       // Load user profile
-      const encryptedUser = this.getFromStorage(STORAGE_KEY_USER);
-      if (encryptedUser) {
-        const decryptedUser = safeStorage.decryptString(encryptedUser);
-        this.currentAuthState.user = JSON.parse(decryptedUser) as UserProfile;
+      const storedUser = this.getFromStorage(STORAGE_KEY_USER);
+      if (storedUser) {
+        let userJson: string;
+        if (encryptionAvailable) {
+          try {
+            userJson = safeStorage.decryptString(storedUser);
+          } catch (error) {
+            // If decryption fails, try parsing as plain text (for migration)
+            log.warn('[AuthService] Decryption failed, trying plain text');
+            userJson = storedUser.toString('utf-8');
+          }
+        } else {
+          userJson = storedUser.toString('utf-8');
+        }
+
+        this.currentAuthState.user = JSON.parse(userJson) as UserProfile;
         this.currentAuthState.isAuthenticated = true;
         log.info('[AuthService] User profile loaded:', this.currentAuthState.user?.email);
       }
@@ -447,20 +470,31 @@ export class AuthService {
    */
   private storeAuthData(tokens: AuthTokens, user: UserProfile): void {
     try {
-      if (!safeStorage.isEncryptionAvailable()) {
+      const encryptionAvailable = safeStorage.isEncryptionAvailable();
+      
+      if (!encryptionAvailable) {
         log.warn('[AuthService] Encryption not available, storing in plain text (INSECURE)');
-        // In production, should fail here or use alternative secure storage
       }
 
-      // Encrypt and store tokens
+      // Store tokens
       const tokensJson = JSON.stringify(tokens);
-      const encryptedTokens = safeStorage.encryptString(tokensJson);
-      this.saveToStorage(STORAGE_KEY_TOKENS, encryptedTokens);
+      let tokensBuffer: Buffer;
+      if (encryptionAvailable) {
+        tokensBuffer = safeStorage.encryptString(tokensJson);
+      } else {
+        tokensBuffer = Buffer.from(tokensJson, 'utf-8');
+      }
+      this.saveToStorage(STORAGE_KEY_TOKENS, tokensBuffer);
 
-      // Encrypt and store user profile
+      // Store user profile
       const userJson = JSON.stringify(user);
-      const encryptedUser = safeStorage.encryptString(userJson);
-      this.saveToStorage(STORAGE_KEY_USER, encryptedUser);
+      let userBuffer: Buffer;
+      if (encryptionAvailable) {
+        userBuffer = safeStorage.encryptString(userJson);
+      } else {
+        userBuffer = Buffer.from(userJson, 'utf-8');
+      }
+      this.saveToStorage(STORAGE_KEY_USER, userBuffer);
 
       // Update in-memory state
       this.currentAuthState = {

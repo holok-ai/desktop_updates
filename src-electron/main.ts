@@ -16,6 +16,7 @@ import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 import { modelRepository } from './repository/model-repository.js';
+import { autoUpdaterService } from './services/auto-updater.service.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -483,6 +484,9 @@ void app.whenReady().then(() => {
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 
+  autoUpdaterService.initialize();
+  autoUpdaterService.checkForUpdates();
+
   // Create the application menu
   createMenu();
 
@@ -509,8 +513,22 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (_event) => {
   appLog.info('Application exiting');
+  
+  // On Windows, allow quit during update installation
+  // Check if this is an update-related quit
+  if (process.platform === 'win32') {
+    // Don't prevent default quit behavior during updates
+    // This allows the installer to replace the executable
+  }
+});
+
+// Handle will-quit event to prevent blocking during updates
+app.on('will-quit', (_event) => {
+  // On Windows, if we're quitting for an update, don't prevent it
+  // This is handled by electron-updater's quitAndInstall
+  appLog.info('Application will quit');
 });
 
 // Optional: Handle second instance (single instance lock)
