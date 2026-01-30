@@ -1,30 +1,17 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import * as os from 'os';
 import * as path from 'path';
 
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
-
 function getFileToolsSection(page: Page) {
-  // Scope queries to the File Tools section to avoid strict-mode conflicts
-  return page.locator('section').filter({ hasText: 'File Tools' }).first();
+  // Scope queries to the Allowed Directories section to avoid strict-mode conflicts
+  return page.locator('section').filter({ hasText: 'Allowed Directories' }).first();
 }
 
 async function navigateToSettings(page: Page): Promise<void> {
-  await page.reload();
+  // Wait for page to be in stable state before any navigation
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
-
-  // Login if needed
-  const loginBtn = page.getByRole('button', { name: 'Sign In (Mock)' });
-  if ((await loginBtn.count()) > 0) {
-    await expect(loginBtn).toBeVisible({ timeout: 5000 });
-    await loginBtn.click();
-    await page.waitForTimeout(500);
-  }
+  await page.waitForTimeout(300);
 
   // Open Settings via sidebar profile submenu
   const profileButton = page
@@ -35,9 +22,16 @@ async function navigateToSettings(page: Page): Promise<void> {
   await expect(profileButton).toBeVisible();
   await profileButton.click();
 
-  const settingsItem = page.getByRole('menuitem', { name: 'Settings' });
-  await expect(settingsItem).toBeVisible();
-  await settingsItem.click();
+  // Open Settings via sidebar - try multiple selectors
+  let settingsItem = page.getByRole('menuitem', { name: /Settings/i });
+  if ((await settingsItem.count()) === 0) {
+    settingsItem = page.getByRole('button', { name: /Settings/i });
+  }
+  if ((await settingsItem.count()) === 0) {
+    settingsItem = page.getByRole('link', { name: /Settings/i });
+  }
+  await expect(settingsItem.first()).toBeVisible({ timeout: 60000 });
+  await settingsItem.first().click();
 
   // Wait for Settings page to load
   const heading = page.getByRole('heading', { name: 'Settings' });
@@ -49,20 +43,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
-    }
+    app = await launchAuthenticatedApp();
   });
 
   test.afterAll(async () => {
@@ -76,9 +57,12 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     const page = await getFirstWindow(app);
     await navigateToSettings(page);
 
-    // Look for File Tools section (exact match on heading level to avoid strict-mode conflicts)
-    const fileToolsHeading = page.getByRole('heading', { level: 2, name: /^File Tools$/ });
-    await expect(fileToolsHeading).toBeVisible();
+    // Look for Allowed Directories section (exact match on heading level to avoid strict-mode conflicts)
+    const allowedDirsHeading = page.getByRole('heading', {
+      level: 2,
+      name: /^Allowed Directories$/,
+    });
+    await expect(allowedDirsHeading).toBeVisible();
 
     // Look for whitelist subsection heading
     const whitelistHeading = page.getByRole('heading', {
@@ -93,7 +77,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     const page = await getFirstWindow(app);
     // Ensure underlying settings whitelist is cleared before loading settings UI
     await page.evaluate(async () => {
-      await window.electronAPI.settings.setMultiple({ directoryWhitelist: [] });
+      await (window as any).electronAPI.settings.setMultiple({ directoryWhitelist: [] });
     });
     await navigateToSettings(page);
 
@@ -121,7 +105,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
 
     const section = getFileToolsSection(page);
 
-    // Find input and add button within File Tools section
+    // Find input and add button within Allowed Directories section
     const pathInput = section.getByPlaceholder(/Enter folder path/i);
     await expect(pathInput).toBeVisible();
 
@@ -221,9 +205,9 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
 
     // Persist whitelist using settings API (equivalent to what Save does for this field)
     await page.evaluate(async (p) => {
-      const all = await window.electronAPI.settings.getAll();
+      const all = await (window as any).electronAPI.settings.getAll();
       const next = [...(all.directoryWhitelist ?? []), p];
-      await window.electronAPI.settings.setMultiple({ directoryWhitelist: next });
+      await (window as any).electronAPI.settings.setMultiple({ directoryWhitelist: next });
     }, testPath);
     await page.waitForTimeout(300);
 
@@ -242,7 +226,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     // Navigate back to settings
     await navigateToSettings(page);
 
-    // Verify path is still there (within File Tools section)
+    // Verify path is still there (within Allowed Directories section)
     const sectionAfter = getFileToolsSection(page);
     const pathItem = sectionAfter.getByText(testPath).first();
     await expect(pathItem).toBeVisible();

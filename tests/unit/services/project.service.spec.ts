@@ -34,21 +34,22 @@ describe('ProjectService', () => {
         privacyMode: 'project_only',
       },
     ];
+    const loadProjects = vi.fn().mockResolvedValue(undefined);
     const getAll = vi.fn().mockResolvedValue(sampleProjects);
-    const projectOverrides: Partial<ProjectAPI> = { getAll };
+    const projectOverrides: Partial<ProjectAPI> = { loadProjects, getAll };
     setElectronAPIMocks({ project: projectOverrides });
 
     await projectService.loadProjects();
 
-    expect(getAll).toHaveBeenCalledTimes(1);
+    expect(loadProjects).toHaveBeenCalledTimes(1);
     expect(get(projects)).toEqual(sampleProjects);
   });
 
   it('loadProjects logs context and rethrows errors', async () => {
     const error = new Error('ipc unavailable');
-    const getAll = vi.fn().mockRejectedValue(error);
+    const loadProjects = vi.fn().mockRejectedValue(error);
     const logger = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const projectOverrides: Partial<ProjectAPI> = { getAll };
+    const projectOverrides: Partial<ProjectAPI> = { loadProjects };
     setElectronAPIMocks({ project: projectOverrides });
 
     await expect(projectService.loadProjects()).rejects.toThrow(error);

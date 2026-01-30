@@ -57,9 +57,9 @@ export function registerChatHandlers(auth?: AuthService): void {
 
         // Create DesktopChatService with tool support
         const newConfig: ProviderConfig = {
-          url: (config as any).url || '', // Will use default if empty
-          apiKey: config.apiKey || '',
-          model: config.model
+          url: (config as { url?: string }).url ?? '', // Will use default if empty
+          apiKey: config.apiKey ?? '',
+          model: config.model,
         };
         chatService = new DesktopChatService(providerType, newConfig, toolOrchestrator);
 
@@ -110,7 +110,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           (status: ToolStatus) => {
             // Send tool status events back to renderer
             event.sender.send('chat:toolStatus', status);
-          }
+          },
         );
         log.info('[IPC] Chat message sent successfully');
         return { success: true };

@@ -83,6 +83,7 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
           mainWindow.webContents.send('auth:callback-success', {
             user: authState.user,
             isAuthenticated: authState.isAuthenticated,
+            isTestMode: authState.isTestMode,
           });
           authLog.info('auth:callback-success sent to renderer');
         } else {
@@ -178,6 +179,7 @@ export function registerAuthHandlers(): AuthService {
         user: authState.user,
         tokens: null, // Never send tokens to renderer
         isAuthenticated: authState.isAuthenticated,
+        isTestMode: authState.isTestMode,
       };
     } catch (error) {
       authLog.error('Error exchanging auth code', {
@@ -213,6 +215,7 @@ export function registerAuthHandlers(): AuthService {
         user: authState.user,
         tokens: null, // Never send tokens to renderer
         isAuthenticated: authState.isAuthenticated,
+        isTestMode: authState.isTestMode,
       };
     } catch (error) {
       authLog.error('Error with mock login', {
@@ -235,6 +238,7 @@ export function registerAuthHandlers(): AuthService {
       user: authState.user,
       tokens: null, // Never send tokens to renderer
       isAuthenticated: authState.isAuthenticated,
+      isTestMode: authState.isTestMode, // Include test mode flag
     });
   });
 

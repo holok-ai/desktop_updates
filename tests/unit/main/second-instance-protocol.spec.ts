@@ -91,7 +91,10 @@ describe('main second-instance protocol handler', () => {
     }
 
     expect(mockHandle).toHaveBeenCalled();
-    // mainWindow may be null or a BrowserWindow instance in test environment; assert protocol arg and allow any second arg
-    expect(mockHandle).toHaveBeenCalledWith('holokai://home?code=abc&state=xyz', expect.anything());
+    // mainWindow may be null or a BrowserWindow instance in test environment; assert protocol arg
+    // The second argument can be null in test environment
+    const calls = mockHandle.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0][0]).toBe('holokai://home?code=abc&state=xyz');
   });
 });

@@ -36,10 +36,10 @@
     "security:all": "npm run security:audit && npm run security:deps && npm run security:snyk && npm run security:secrets && npm run security:lockfile",
     "security:fix": "npm audit fix && snyk wizard",
     "test": "vitest",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run tests/integration",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npm run build:prod && playwright test",
-    "test:e2e:spec": "npm run build:prod && playwright test tests/e2e/thread.service.spec.ts",
-    "test:unit:spec": "npm run build:prod && pnpm vitest tests/unit/services/chat-service-context.spec.ts"
+    "test:e2e": "npm run build:prod && playwright test"
   },
   "keywords": [
     "electron",
@@ -66,7 +66,7 @@
     "ollama": "^0.6.2",
     "openai": "^6.7.0",
     "pdf2json": "^4.0.2",
-    "playwright": "^1.56.1",
+    "playwright": "1.43.1",
     "primeicons": "^7.0.0",
     "primeng": "^17.18.11",
     "prismjs": "^1.30.0",
@@ -77,7 +77,7 @@
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^4.1.0",
     "@doyensec/electronegativity": "^1.10.3",
-    "@playwright/test": "^1.56.1",
+    "@playwright/test": "1.43.1",
     "@secretlint/secretlint-rule-preset-recommend": "^11.2.5",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@tsconfig/svelte": "^5.0.0",

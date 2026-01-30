@@ -63,7 +63,7 @@ export class WindowsShellTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  execute(params: Record<string, unknown>): Promise<ToolResult> {
     const command = params.command as string;
     const args = (params.arguments as string) || '';
 
@@ -73,10 +73,10 @@ export class WindowsShellTool implements ITool {
     if (!command || !ALLOWED_COMMANDS.includes(command.toLowerCase())) {
       const error = `Command '${command}' is not allowed. Allowed commands: ${ALLOWED_COMMANDS.join(', ')}`;
       log.error('[WindowsShellTool]', error);
-      return {
+      return Promise.resolve({
         success: false,
         error,
-      };
+      });
     }
 
     try {
@@ -104,21 +104,22 @@ export class WindowsShellTool implements ITool {
         output: output.trim(),
       };
 
-      return {
+      return Promise.resolve({
         success: true,
         data: result,
-      };
-    } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error executing command';
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error executing command';
       log.error('[WindowsShellTool] Command execution failed:', {
         command,
         error: errorMessage,
       });
 
-      return {
+      return Promise.resolve({
         success: false,
         error: `Command execution failed: ${errorMessage}`,
-      };
+      });
     }
   }
 }

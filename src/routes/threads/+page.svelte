@@ -32,7 +32,8 @@
     title: '',
     description: '',
     status: THREAD_STATUS.ACTIVE,
-    currentBranchId: '1.0'
+    currentBranchId: '1.0',
+    messages: []
   });
 
   let selectedModel: ModelDetails | null = $state(null);

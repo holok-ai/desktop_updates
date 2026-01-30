@@ -469,6 +469,7 @@ export interface AuthState {
   user: UserProfile | null;
   tokens: null; // Tokens never exposed to renderer
   isAuthenticated: boolean;
+  isTestMode?: boolean; // Flag to indicate test tokens are being used
 }
 
 /**
@@ -524,7 +525,6 @@ export interface ChatAPI {
 
   // Stop listening to token events
   offToken: () => void;
-
 
   // Listen for tool use events (event-based)
   onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;

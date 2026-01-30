@@ -2119,7 +2119,6 @@
           if (isOriginalBranchPath) {
             // Check if this message comes after any fork point
             for (const forkBranchId of forkPoints) {
-              const forkParts = normalizeBranchId(forkBranchId).split('.');
               const forkRowNum = getRowNumber(normalizeBranchId(forkBranchId));
               
               if (msgRowNum > forkRowNum) {

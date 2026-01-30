@@ -5,7 +5,7 @@
   import DashboardCard from './DashboardCard.svelte';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import type { ApplicationSummary } from '../../../src-electron/preload';
+  import type { ApplicationSummary } from '$lib/types/thread.type';
 
   const { availableApplications } = $props<{
     availableApplications: ApplicationSummary[];

@@ -1,5 +1,5 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
-import type { MessageStatus } from './status.type.ts';
+import type { MessageStatus, ThreadStatus } from './status.type.ts';
 
 export interface MessageVersion {
   content: string;
@@ -25,4 +25,33 @@ export interface Message {
   /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
   branchId: string;
   modelId?: string | null;
+}
+
+export interface Thread {
+  messages: Message[];
+  id: string;
+  title: string;
+  description: string;
+  status: ThreadStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata?: Record<string, unknown>;
+  currentBranchId: string;
+}
+
+export interface ModelDetails {
+  id: string;
+  title: string;
+  accessName: string;
+  provider: string;
+  slug: string;
+  url: string;
+}
+
+export interface ApplicationSummary {
+  id: string;
+  title: string;
+  models?: ModelDetails[];
+  provider: string;
+  url: string;
 }

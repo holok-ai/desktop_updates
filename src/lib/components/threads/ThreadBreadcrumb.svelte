@@ -9,8 +9,7 @@
   import { projects } from '$lib/stores/project.store';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import type { Thread } from '../../../src-electron/preload';
-  import type { Message } from '$lib/types/thread.type';
+  import type { Thread, Message } from '$lib/types/thread.type';
   import { getBranchMessages } from '$lib/utils/branch-utils';
 
   interface Props {

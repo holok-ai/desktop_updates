@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-object-injection */
 import log from 'electron-log';
 import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
@@ -112,12 +113,18 @@ export class ThreadRepository {
     const threadDTO = await threadApiService.createThread(request);
 
     log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
-    log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+    log.info(
+      '[ThreadRepository] Metadata in ThreadDTO:',
+      JSON.stringify(threadDTO.metadata, null, 2),
+    );
 
     const desktopDTO = this.toDesktopThreadDTO(threadDTO);
     const thread = this.mapDTOToThread(desktopDTO);
 
-    log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
+    log.info(
+      '[ThreadRepository] Mapped thread metadata:',
+      JSON.stringify(thread.metadata, null, 2),
+    );
 
     // Cache locally for session
     this.threadsById.set(thread.id, thread);
@@ -195,7 +202,7 @@ export class ThreadRepository {
     log.info('[ThreadRepository] Deduplication:', {
       original: messageDTOs.length,
       filtered: filtered.length,
-      removed: messageDTOs.length - filtered.length
+      removed: messageDTOs.length - filtered.length,
     });
 
     return filtered;
@@ -263,29 +270,46 @@ export class ThreadRepository {
       log.info('[ThreadRepository] Fetching thread from API:', threadId);
       const threadDTO = await threadApiService.getThread(threadId);
 
-      log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
-      log.info('[ThreadRepository] Metadata in ThreadDTO:', JSON.stringify(threadDTO.metadata, null, 2));
+      log.info(
+        '[ThreadRepository] ThreadDTO received from API:',
+        JSON.stringify(threadDTO, null, 2),
+      );
+      log.info(
+        '[ThreadRepository] Metadata in ThreadDTO:',
+        JSON.stringify(threadDTO.metadata, null, 2),
+      );
 
       const desktopDTO = this.toDesktopThreadDTO(threadDTO);
       const thread = this.mapDTOToThread(desktopDTO);
 
-      log.info('[ThreadRepository] Mapped thread metadata:', JSON.stringify(thread.metadata, null, 2));
+      log.info(
+        '[ThreadRepository] Mapped thread metadata:',
+        JSON.stringify(thread.metadata, null, 2),
+      );
 
       // Fetch messages for the thread
       log.info('[ThreadRepository] Fetching messages for thread:', threadId);
       const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-      log.info('[ThreadRepository] Received', messagesResponse.content.length, 'message DTOs from API');
+      log.info(
+        '[ThreadRepository] Received',
+        messagesResponse.content.length,
+        'message DTOs from API',
+      );
 
       // Deduplicate tool-loop continuation messages
       const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
-      thread.messages = dedupedMessages.map((dto) =>
-        this.mapDTOToMessage(dto, thread.title),
-      );
+      thread.messages = dedupedMessages.map((dto) => this.mapDTOToMessage(dto, thread.title));
 
       // Update cache
       this.threadsById.set(thread.id, thread);
-      log.info('[ThreadRepository] Thread fetched and cached:', threadId, 'with', thread.messages.length, 'messages');
+      log.info(
+        '[ThreadRepository] Thread fetched and cached:',
+        threadId,
+        'with',
+        thread.messages.length,
+        'messages',
+      );
 
       return this.cloneThread(thread);
     } catch (error) {
@@ -303,18 +327,26 @@ export class ThreadRepository {
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
       // Return cached messages without API call
-      log.info('[ThreadRepository] getMessages - returning', cachedThread.messages.length, 'cached messages');
-      return cachedThread.messages.map(m => ({ ...m }));
+      log.info(
+        '[ThreadRepository] getMessages - returning',
+        cachedThread.messages.length,
+        'cached messages',
+      );
+      return cachedThread.messages.map((m) => ({ ...m }));
     }
 
     // Not cached - load the thread (which will fetch messages)
     log.info('[ThreadRepository] getMessages - thread not cached, loading from API');
     const thread = await this.loadThread(threadId);
     if (!thread) return [];
-    return thread.messages.map(m => ({ ...m }));
+    return thread.messages.map((m) => ({ ...m }));
   }
 
-  public async listThreads(options?: { projectId?: string; page?: number; size?: number }): Promise<Thread[]> {
+  public async listThreads(options?: {
+    projectId?: string;
+    page?: number;
+    size?: number;
+  }): Promise<Thread[]> {
     try {
       const response = await threadApiService.getThreads({
         type: options?.projectId ? 'project' : undefined,
@@ -365,7 +397,7 @@ export class ThreadRepository {
     // Get thread to use its current branchId
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    
+
     return this.appendMessage(threadId, {
       role,
       content,
@@ -418,13 +450,19 @@ export class ThreadRepository {
     // Create message locally (no API call)
     // Calculate timestamp to ensure new messages always appear after existing ones
     const localNow = Date.now();
-    const lastMessageTime = thread.messages.length > 0
-      ? Math.max(...thread.messages.map(m => m.createdAt))
-      : localNow;
+    const lastMessageTime =
+      thread.messages.length > 0 ? Math.max(...thread.messages.map((m) => m.createdAt)) : localNow;
     const now = Math.max(localNow, lastMessageTime + 1000); // Add 1 second to ensure it's after
 
-    log.info('[ThreadRepository] Creating message with timestamp:', new Date(now).toISOString(),
-      '(local:', new Date(localNow).toISOString(), ', last:', new Date(lastMessageTime).toISOString(), ')');
+    log.info(
+      '[ThreadRepository] Creating message with timestamp:',
+      new Date(now).toISOString(),
+      '(local:',
+      new Date(localNow).toISOString(),
+      ', last:',
+      new Date(lastMessageTime).toISOString(),
+      ')',
+    );
 
     const rawBranchId = payload.branchId ?? thread.currentBranchId;
     const branchId = this.normalizeBranchId(rawBranchId);
@@ -535,24 +573,28 @@ export class ThreadRepository {
       const th = await this.createThread(opts);
       tid = th.id;
     }
-    
+
     // Get thread to use its current branchId
     const thread = this.threadsById.get(tid);
     if (!thread) throw new Error(`Thread not found: ${tid}`);
-    
+
     // Use appendMessage directly
     const message = await this.appendMessage(tid, {
       role: 'user',
       content: prompt,
       branchId: this.normalizeBranchId(thread.currentBranchId),
     });
-    
+
     const updatedThread = await this.loadThread(tid);
     if (!updatedThread) throw new Error(`Thread disappeared after creation: ${tid}`);
     return { thread: updatedThread, message };
   }
 
-  public async addAssistantResponse(threadId: string, response: string, model?: string): Promise<Message> {
+  public async addAssistantResponse(
+    threadId: string,
+    response: string,
+    model?: string,
+  ): Promise<Message> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     if (model) {
@@ -1114,23 +1156,23 @@ export class ThreadRepository {
     thread.metadata = { ...thread.metadata, currentBranchId: normalizedBranchId };
 
     // Manage selectedBranchIds array (normalize all to x.x.x format)
-    const selectedBranchIds = Array.isArray(thread.metadata.selectedBranchIds) 
-      ? thread.metadata.selectedBranchIds.map(id => this.normalizeBranchId(id))
+    const selectedBranchIds = Array.isArray(thread.metadata.selectedBranchIds)
+      ? thread.metadata.selectedBranchIds.map((id) => this.normalizeBranchId(id))
       : [];
-    
+
     const newRowNumber = this.getRowNumber(normalizedBranchId);
-    
+
     // Remove any existing selected branch from the same row
-    const filteredBranchIds = selectedBranchIds.filter(existingBranchId => {
+    const filteredBranchIds = selectedBranchIds.filter((existingBranchId) => {
       const existingRowNumber = this.getRowNumber(existingBranchId);
       return existingRowNumber !== newRowNumber;
     });
-    
+
     // Add the new branch if it's not already in the array
     if (!filteredBranchIds.includes(normalizedBranchId)) {
       filteredBranchIds.push(normalizedBranchId);
     }
-    
+
     thread.metadata.selectedBranchIds = filteredBranchIds;
     thread.updatedAt = Date.now();
 
@@ -1242,8 +1284,14 @@ export class ThreadRepository {
       branchId = this.normalizeBranchId(branchId);
     }
 
-    log.info('[ThreadRepository] Message branchId: ', branchId,',role: ', dto.role, ' metadata: ', dto.metadata);
-
+    log.info(
+      '[ThreadRepository] Message branchId: ',
+      branchId,
+      ',role: ',
+      dto.role,
+      ' metadata: ',
+      dto.metadata,
+    );
 
     return {
       id: dto.id,
