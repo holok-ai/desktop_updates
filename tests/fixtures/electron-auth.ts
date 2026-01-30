@@ -7,7 +7,8 @@
  * @see tests/e2e/README-auth-test-key.md for detailed documentation
  */
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron } from '@playwright/test';
+import type { ElectronApplication, Page } from 'playwright';
 import { ensureValidToken, refreshTokenViaElectron } from '../helpers/token-helpers.js';
 
 /**

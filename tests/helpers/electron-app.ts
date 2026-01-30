@@ -4,7 +4,8 @@
  * Provides isolated Electron instances per test with proper cleanup
  */
 
-import { _electron as electron, type ElectronApplication } from '@playwright/test';
+import { _electron as electron } from '@playwright/test';
+import type { ElectronApplication } from 'playwright';
 import { TEST_TOKENS } from '../fixtures/electron-auth';
 
 /**

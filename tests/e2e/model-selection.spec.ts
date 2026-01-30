@@ -1,4 +1,5 @@
-import { test, expect, ElectronApplication } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import type { ElectronApplication } from 'playwright';
 import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 

@@ -5,7 +5,7 @@
  * including token refresh logic that mirrors the production AuthService.
  */
 
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright';
 
 export interface TestTokens {
   accessToken: string;
