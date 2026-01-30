@@ -1,6 +1,11 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { createThread, waitForMessageInput, navigateToHome } from '../helpers/ui-helpers';
+import {
+  createThread,
+  waitForMessageInput,
+  navigateToHome,
+  findModelByName,
+} from '../helpers/ui-helpers';
 
 test.describe('E2E: Markdown Rendering', () => {
   let app: ElectronApplication | undefined;
@@ -36,8 +41,8 @@ test.describe('E2E: Markdown Rendering', () => {
       await page.waitForTimeout(500);
     }
 
-    // Create thread using helper function with Haiku 3.5 for faster, cost-effective testing
-    await createThread(page, 'Test markdown rendering', undefined, 'claude-3-5-haiku-20241022');
+    // Create thread using helper function (uses Haiku by default)
+    await createThread(page, 'Test markdown rendering');
 
     // Wait for streaming to complete
     await waitForMessageInput(page);
@@ -60,6 +65,16 @@ test.describe('E2E: Markdown Rendering', () => {
     await expect(message.locator('ul')).toBeVisible();
     const listItems = message.locator('ul li');
     await expect(listItems).toHaveCount(3);
+
+    // CRITICAL: Wait for any assistant response streaming to complete before test ends
+    // This prevents test 2 from getting stuck waiting for test 1's streaming
+    const streamingMessage = page.locator('.message.assistant.streaming');
+    const isStreaming = await streamingMessage.isVisible({ timeout: 2000 }).catch(() => false);
+    if (isStreaming) {
+      console.log('[Test 1] Waiting for assistant streaming to complete...');
+      await expect(streamingMessage).toBeHidden({ timeout: 120000 });
+      console.log('[Test 1] Streaming completed');
+    }
   });
 
   test('renders inline code and code blocks with syntax highlighting', async () => {
@@ -78,8 +93,8 @@ test.describe('E2E: Markdown Rendering', () => {
     }
 
     // Already authenticated - no login needed!
-    // Create thread using helper function with Haiku 3.5 for faster, cost-effective testing
-    await createThread(page, 'Test code blocks', undefined, 'claude-3-5-haiku-20241022');
+    // Create thread using helper function (uses Haiku by default)
+    await createThread(page, 'Test code blocks');
 
     // Wait for streaming to complete
     await waitForMessageInput(page);

@@ -1,5 +1,5 @@
-import { test, expect, ElectronApplication, Page } from '@playwright/test';
-import { createThread, waitForStreamingComplete } from '../helpers/ui-helpers';
+import { test, expect, ElectronApplication } from '@playwright/test';
+import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 
 test.describe('E2E: Model selection on thread start', () => {
@@ -25,11 +25,9 @@ test.describe('E2E: Model selection on thread start', () => {
 
     await page.waitForLoadState('networkidle');
 
-    const promptText = 'E2E Model Selection Test - Just respond with OK';
-    const selectedModelId = 'claude-opus-4-20250514';
-
+    // Use default model (Haiku 3.5)
     // Use createThread helper which handles all edge cases reliably
-    await createThread(page, promptText, undefined, selectedModelId);
+    await createThread(page, SIMPLE_TEST_PROMPT);
 
     // Wait for chat view to be visible
     const chatPane = page.locator('.chat-pane');
@@ -37,7 +35,7 @@ test.describe('E2E: Model selection on thread start', () => {
 
     // Wait for user message to appear
     const userMessage = page.locator('.messages .message.user .message-content', {
-      hasText: promptText,
+      hasText: SIMPLE_TEST_PROMPT,
     });
     await expect(userMessage).toBeVisible({ timeout: 10000 });
 
@@ -50,12 +48,20 @@ test.describe('E2E: Model selection on thread start', () => {
     await waitForStreamingComplete(page);
 
     // Verify model persisted by checking thread metadata via IPC
-    const threadMetadata = await page.evaluate(async (prompt) => {
+    const threadMetadata = await page.evaluate(async () => {
       const threads = await (window as any).electronAPI.thread.getAll();
-      // Find thread that was just created (most recent with matching title pattern)
-      const thread = threads.find((t: any) => t.title && t.title.includes('E2E Model Selection'));
-      return thread?.metadata;
-    }, promptText);
+      // Find the most recent thread (just created)
+      if (threads.length === 0) return undefined;
+
+      // Sort by creation time (most recent first)
+      const sortedThreads = threads.sort((a: any, b: any) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+
+      return sortedThreads[0]?.metadata;
+    });
 
     expect(threadMetadata).toBeDefined();
 

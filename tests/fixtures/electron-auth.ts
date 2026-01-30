@@ -41,6 +41,23 @@ export const TEST_TOKENS = {
  * The expired access token will be automatically refreshed by AuthService.getAccessToken()
  * when the first API call is made. No manual token refresh needed.
  *
+ * **Cross-Platform Support:**
+ * - Uses command-line args for Windows compatibility (env vars don't propagate reliably)
+ * - Falls back to env vars for backward compatibility
+ *
+ * **Command-Line Override:**
+ * You can override the API key from command line:
+ * ```bash
+ * # Windows PowerShell
+ * $env:TEST_API_KEY="your-api-key-here"; npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
+ *
+ * # Windows CMD
+ * set TEST_API_KEY=your-api-key-here && npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
+ *
+ * # macOS/Linux
+ * TEST_API_KEY=your-api-key-here npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
+ * ```
+ *
  * @returns ElectronApplication instance with authenticated user
  *
  * @example
@@ -57,7 +74,24 @@ export const TEST_TOKENS = {
  * ```
  */
 export async function launchAuthenticatedApp(): Promise<ElectronApplication> {
-  const testTokensJson = JSON.stringify(TEST_TOKENS);
+  // Allow overriding API key from command line
+  const apiKeyOverride = process.env.TEST_API_KEY;
+  const accessTokenOverride = process.env.TEST_ACCESS_TOKEN;
+
+  const testTokens = {
+    ...TEST_TOKENS,
+    ...(apiKeyOverride && { apiKey: apiKeyOverride }),
+    ...(accessTokenOverride && { accessToken: accessTokenOverride }),
+  };
+
+  const testTokensJson = JSON.stringify(testTokens);
+
+  if (apiKeyOverride) {
+    console.log('[E2E] Using API key from TEST_API_KEY environment variable');
+  }
+  if (accessTokenOverride) {
+    console.log('[E2E] Using access token from TEST_ACCESS_TOKEN environment variable');
+  }
 
   // Configure environment for E2E tests
   const testEnv = {
@@ -70,16 +104,25 @@ export async function launchAuthenticatedApp(): Promise<ElectronApplication> {
     const electronExec = (await import('electron')).default as unknown as string;
     return await electron.launch({
       executablePath: electronExec,
-      args: ['.'],
-      env: testEnv,
+      args: [
+        '.',
+        // Pass test tokens via command line for Windows compatibility
+        // This is more reliable than env vars on Windows
+        `--playwright-test-tokens=${testTokensJson}`,
+      ],
+      env: testEnv, // Keep env var for backward compatibility
     });
   } catch {
     // Fallback to built version (production)
     const electronExec = (await import('electron')).default as unknown as string;
     return await electron.launch({
       executablePath: electronExec,
-      args: ['dist-electron/main.js'],
-      env: testEnv,
+      args: [
+        'dist-electron/main.js',
+        // Pass test tokens via command line for Windows compatibility
+        `--playwright-test-tokens=${testTokensJson}`,
+      ],
+      env: testEnv, // Keep env var for backward compatibility
     });
   }
 }

@@ -1,6 +1,6 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { createThread, waitForStreamingComplete } from '../helpers/ui-helpers';
+import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat prompt/response', () => {
   let app: ElectronApplication | undefined;
@@ -28,12 +28,11 @@ test.describe('E2E: Chat prompt/response', () => {
     // Already authenticated - no login needed!
 
     // Create a thread with a simple prompt
-    const prompt = `Just say "Okay" ${Date.now()}`;
-    await createThread(page, prompt);
+    await createThread(page, SIMPLE_TEST_PROMPT);
 
     // Wait for user message to appear in the UI
     await expect(
-      page.locator('.messages .message.user .message-content', { hasText: 'Just say "Okay"' }),
+      page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
     // Wait for assistant response to start streaming (message appears)

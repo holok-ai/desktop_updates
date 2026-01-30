@@ -10,7 +10,7 @@
 
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, waitForStreamingComplete } from '../helpers/ui-helpers';
+import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Hybrid Approach', () => {
   let app: ElectronApplication;
@@ -44,7 +44,9 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
       }
 
       // Wait a bit for any pending operations to complete
-      await page.waitForTimeout(500);
+      await expect(modal)
+        .toBeHidden({ timeout: 5000 })
+        .catch(() => {});
       console.log('✓ State reset complete');
     } catch (error) {
       console.error('⚠️ State reset failed:', error);
@@ -55,11 +57,10 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
     console.log('\n=== Test 1: First Prompt ===');
     const page = await app.firstWindow();
 
-    const prompt = `Say "Test 1" ${Date.now()}`;
-    await createThread(page, prompt);
+    await createThread(page, SIMPLE_TEST_PROMPT);
 
     await expect(
-      page.locator('.messages .message.user .message-content', { hasText: 'Say "Test 1"' }),
+      page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
@@ -74,11 +75,10 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
     console.log('\n=== Test 2: Second Prompt ===');
     const page = await app.firstWindow();
 
-    const prompt = `Say "Test 2" ${Date.now()}`;
-    await createThread(page, prompt);
+    await createThread(page, SIMPLE_TEST_PROMPT);
 
     await expect(
-      page.locator('.messages .message.user .message-content', { hasText: 'Say "Test 2"' }),
+      page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
@@ -93,11 +93,10 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
     console.log('\n=== Test 3: Third Prompt ===');
     const page = await app.firstWindow();
 
-    const prompt = `Say "Test 3" ${Date.now()}`;
-    await createThread(page, prompt);
+    await createThread(page, SIMPLE_TEST_PROMPT);
 
     await expect(
-      page.locator('.messages .message.user .message-content', { hasText: 'Say "Test 3"' }),
+      page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
@@ -135,9 +134,10 @@ test.describe('E2E: Chat - Different Scenarios', () => {
       const modal = page.locator('[role="dialog"]');
       if (await modal.isVisible({ timeout: 1000 }).catch(() => false)) {
         await page.keyboard.press('Escape');
+        await expect(modal)
+          .toBeHidden({ timeout: 5000 })
+          .catch(() => {});
       }
-
-      await page.waitForTimeout(500);
     } catch (error) {
       console.error('⚠️ State reset failed:', error);
     }

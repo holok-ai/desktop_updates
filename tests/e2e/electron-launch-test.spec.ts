@@ -33,7 +33,7 @@ test.describe('Electron App Launch Test', () => {
       // Get URL
       const url = page.url();
       console.log('\n4. Current URL:', url);
-      expect(url).toContain('index.html');
+      expect(url).toContain('localhost:5177');
 
       // Check if app is healthy
       console.log('\n5. Checking app health...');

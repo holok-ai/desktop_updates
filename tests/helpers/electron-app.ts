@@ -5,23 +5,7 @@
  */
 
 import { _electron as electron, type ElectronApplication } from '@playwright/test';
-
-/**
- * Test credentials with long-lived apiKey (expires 2036)
- */
-const TEST_TOKENS = {
-  accessToken:
-    'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJrb25nLnBoYW1AbmtrLmNvbS52biIsIm9yZ2FuaXphdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiYXBwU2x1Z3MiOlsiMDRkZGJjNjMiLCIyMGE1NzhkYSIsIjMwMTViY2ZmIiwiNDc4ZjJjYTciLCI4ZGI5ZDkwOCIsImEyMzY1ZTdlIiwiYThmMGVkZmIiLCJkNmQyMTBmMSIsImRjNzQzZTg0IiwiZTNiN2Q5OWIiXSwic3ViIjoiMTk0NTFmNzUtZDlmNi00ZGEyLWIxN2ItYWYzYjY0OWU2ZmU4IiwiaXNzIjoibW9rdS1hcGkiLCJpYXQiOjE3NjkzNDgzMzcsImV4cCI6MTc2OTQzNDczN30.BrTOuoXYM69qzTXSQUh84uwXIAOiqfoXaCs-HWDR2YE_IFrPxVOeQAeayinGUAXu',
-  apiKey:
-    'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJrb25nLnBoYW1AbmtrLmNvbS52biIsIm9yZ2FuaXphdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwic3ViIjoiMTk0NTFmNzUtZDlmNi00ZGEyLWIxN2ItYWYzYjY0OWU2ZmU4IiwiaXNzIjoibW9rdS1hcGkiLCJpYXQiOjE3NjkyNDM1NjcsImV4cCI6MjA4NDc3NjM2N30.ZhksfPL5K59H96ZVYmUwKyOb9abvVwh6V9XXv1uijRiMPVGs3pktfdO_yzESDXtO',
-  user: {
-    id: '19451f75-d9f6-4da2-b17b-af3b649e6fe8',
-    email: 'kong.pham@nkk.com.vn',
-    name: 'Kong Pham',
-    organizationId: '00000000-0000-0000-0000-000000000001',
-  },
-  expiresAt: 1769434737000,
-};
+import { TEST_TOKENS } from '../fixtures/electron-auth';
 
 /**
  * Launch Electron app with isolated instance

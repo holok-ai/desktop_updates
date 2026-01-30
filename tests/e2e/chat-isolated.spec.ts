@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, waitForStreamingComplete } from '../helpers/ui-helpers';
+import { createThread, SIMPLE_TEST_PROMPT, waitForStreamingComplete } from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Isolated Instances', () => {
   test('send prompt and receive assistant response', async () => {
@@ -105,16 +105,15 @@ test.describe('E2E: Chat with Isolated Instances', () => {
 
       console.log('✓ Third instance launched (no hanging!)');
 
-      const prompt = `Reply with "Test 3" ${Date.now()}`;
-      console.log('Creating thread with prompt:', prompt);
+      console.log('Creating thread with prompt:', SIMPLE_TEST_PROMPT);
 
-      await createThread(page, prompt);
+      await createThread(page, SIMPLE_TEST_PROMPT);
       console.log('✓ Thread created');
 
       // Wait for user message
       await expect(
         page.locator('.messages .message.user .message-content', {
-          hasText: 'Reply with "Test 3"',
+          hasText: SIMPLE_TEST_PROMPT,
         }),
       ).toBeVisible({ timeout: 10000 });
       console.log('✓ User message visible');

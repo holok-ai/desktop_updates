@@ -1,6 +1,6 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { navigateToHome, ensureAgentsLoaded } from '../helpers/ui-helpers';
+import { navigateToHome, ensureAgentsLoaded, findModelByName } from '../helpers/ui-helpers';
 
 test.describe('E2E: Thread management', () => {
   let app: ElectronApplication | undefined;
@@ -70,11 +70,12 @@ test.describe('E2E: Thread management', () => {
       await page.waitForTimeout(500);
     }
 
-    // Select Claude Opus 4 model if model selector exists
+    // Select model if model selector exists (use default Haiku 3.5)
     const modelSelect = page.locator('select.model-selector-compact');
     if ((await modelSelect.count()) > 0) {
       await expect(modelSelect).toBeVisible({ timeout: 5000 });
-      await modelSelect.selectOption('claude-opus-4-20250514');
+      const haikuModel = await findModelByName(page, 'haiku');
+      await modelSelect.selectOption(haikuModel);
       await page.waitForTimeout(500);
     }
 
@@ -104,33 +105,35 @@ test.describe('E2E: Thread management', () => {
       // Wait for thread to appear in sidebar
       let threadItem = page.locator('div.thread-item').first();
       let threadCount = await threadItem.count();
-      
+
       // If no thread-item found, try menuitem
       if (threadCount === 0) {
-        threadItem = page.locator('[role="menuitem"]').filter({ hasText: uniquePrompt.substring(0, 20) });
+        threadItem = page
+          .locator('[role="menuitem"]')
+          .filter({ hasText: uniquePrompt.substring(0, 20) });
         threadCount = await threadItem.count();
       }
-      
+
       // If still not found, try any thread item
       if (threadCount === 0) {
         threadItem = page.locator('div.thread-item, [role="menuitem"]').first();
         threadCount = await threadItem.count();
       }
-      
+
       // Wait for thread item to be visible
       if (threadCount > 0) {
         await expect(threadItem).toBeVisible({ timeout: 10000 });
-        
+
         // Dismiss any "Unsaved Changes" modal that might be blocking
         const unsavedModal = page.locator('text=Unsaved Changes');
         if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
           await page.getByRole('button', { name: 'Cancel' }).click();
           await page.waitForTimeout(500);
         }
-        
+
         await threadItem.click();
         await page.waitForTimeout(2000);
-        
+
         // Wait for URL to change or chat pane to appear
         try {
           await page.waitForFunction(() => window.location.href.includes('threadId='), {
@@ -139,7 +142,7 @@ test.describe('E2E: Thread management', () => {
         } catch {
           // URL might not change, just wait for chat pane
         }
-        
+
         // Check if chat pane is now visible
         isChatVisible = await chatPane.isVisible({ timeout: 5000 }).catch(() => false);
       }
@@ -151,11 +154,11 @@ test.describe('E2E: Thread management', () => {
       await page.waitForTimeout(2000);
       isChatVisible = await chatPane.isVisible({ timeout: 10000 }).catch(() => false);
     }
-    
+
     // If still not visible, try clicking thread again or navigating to threads and back
     if (!isChatVisible) {
       console.log('[thread-management] Chat pane still not visible, trying recovery...');
-      
+
       // Dismiss any modal that might be blocking
       const modalOverlay = page.locator('.modal-overlay, [role="presentation"]');
       if (await modalOverlay.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -169,28 +172,28 @@ test.describe('E2E: Thread management', () => {
           await page.waitForTimeout(500);
         }
       }
-      
+
       // Navigate to threads list
       await page.getByRole('menuitem', { name: 'Threads' }).click();
       await page.waitForTimeout(1000);
-      
+
       // Find and click the thread again
       const threadItem = page.locator('div.thread-item, [role="menuitem"]').first();
-      if (await threadItem.count() > 0) {
+      if ((await threadItem.count()) > 0) {
         await expect(threadItem).toBeVisible({ timeout: 5000 });
-        
+
         // Dismiss modal if present
         const unsavedModal = page.locator('text=Unsaved Changes');
         if (await unsavedModal.isVisible({ timeout: 1000 }).catch(() => false)) {
           await page.getByRole('button', { name: 'Cancel' }).click();
           await page.waitForTimeout(500);
         }
-        
+
         await threadItem.click();
         await page.waitForTimeout(2000);
       }
     }
-    
+
     await expect(chatPane).toBeVisible({ timeout: 10000 });
   });
 });

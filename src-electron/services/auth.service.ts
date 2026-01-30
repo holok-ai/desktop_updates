@@ -128,17 +128,30 @@ export class AuthService {
   }
 
   /**
-   * Load authentication tokens from environment variable (for Playwright E2E tests)
+   * Load authentication tokens from environment variable or command-line args (for Playwright E2E tests)
    * This bypasses encryption and allows tests to inject valid auth tokens
+   *
+   * **Cross-Platform Support:**
+   * - Checks command-line args first (--playwright-test-tokens) for Windows compatibility
+   * - Falls back to PLAYWRIGHT_TEST_TOKENS env var for backward compatibility
    */
   private loadTestTokens(): void {
-    const testTokensJson = process.env.PLAYWRIGHT_TEST_TOKENS;
+    // Try command-line args first (more reliable on Windows)
+    let testTokensJson = process.argv
+      .find((arg) => arg.startsWith('--playwright-test-tokens='))
+      ?.split('=')[1];
+
+    // Fallback to environment variable
+    if (!testTokensJson) {
+      testTokensJson = process.env.PLAYWRIGHT_TEST_TOKENS;
+    }
+
     if (!testTokensJson) {
       return; // Not in test mode
     }
 
     try {
-      log.info('[AuthService] Loading test tokens from PLAYWRIGHT_TEST_TOKENS');
+      log.info('[AuthService] Loading test tokens from command-line args or env var');
       const testData = JSON.parse(testTokensJson) as {
         accessToken?: string;
         apiKey?: string;
@@ -181,7 +194,7 @@ export class AuthService {
         testData.user?.email,
       );
     } catch (error) {
-      log.error('[AuthService] Failed to parse PLAYWRIGHT_TEST_TOKENS:', error);
+      log.error('[AuthService] Failed to parse test tokens:', error);
     }
   }
 

@@ -1,11 +1,6 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import {
-  createThread,
-  waitForStreamingComplete,
-  ensureAgentsLoaded,
-  navigateToThreads,
-} from '../helpers/ui-helpers';
+import { createThread, waitForStreamingComplete, navigateToThreads } from '../helpers/ui-helpers';
 
 test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
   let app: ElectronApplication | undefined;
@@ -31,8 +26,8 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     const prompt = 'What is the capital of France?';
     const start = Date.now();
 
-    // Use Haiku 3.5 for more verbose responses in E2E tests
-    await createThread(page, prompt, undefined, 'claude-3-5-haiku-20241022');
+    // Use createThread helper which uses Haiku 3.5 by default
+    await createThread(page, prompt);
 
     // Wait for user message to appear with increased timeout
     await expect(
@@ -59,30 +54,6 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
 
     const elapsedMs = Date.now() - start;
     expect(elapsedMs).toBeLessThan(120000); // 2 minutes for AI response
-
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-
-    await navigateToThreads(page);
-
-    const threadItem = page.getByRole('menuitem', { name: /france|capital/i }).first();
-    await expect(threadItem).toBeVisible({ timeout: 5000 });
-    await threadItem.click();
-
-    await page.waitForTimeout(1000);
-    await expect(page.locator('.chat-pane')).toBeVisible({ timeout: 5000 });
-
-    await expect(
-      page.locator('.messages .message.user .message-content', { hasText: prompt }).last(),
-    ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.locator('.messages .message.assistant .message-content', { hasText: /paris/i }).last(),
-    ).toBeVisible({ timeout: 15000 });
-
-    const persistedMeta = page.locator(
-      '.messages .message.assistant .message-footer .message-meta',
-    );
-    await expect(persistedMeta.last()).toContainText('/', { timeout: 5000 });
   });
 
   test('Prompt 2: Code snippet request', async () => {

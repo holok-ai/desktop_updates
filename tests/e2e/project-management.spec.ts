@@ -1,6 +1,6 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { waitForMessageInput } from '../helpers/ui-helpers';
+import { waitForMessageInput, findModelByName } from '../helpers/ui-helpers';
 
 // Helpers
 async function goToProjects(page: Page) {
@@ -296,10 +296,12 @@ test.describe('E2E: Project Management', () => {
     // First wait for modal overlay
     const modalOverlay = page.locator('.modal-overlay, [role="presentation"]');
     await expect(modalOverlay).toBeVisible({ timeout: 10000 });
-    
+
     // Then wait for the delete project heading (most reliable)
-    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible({ timeout: 10000 });
-    
+    await expect(page.getByRole('heading', { name: 'Delete Project' })).toBeVisible({
+      timeout: 10000,
+    });
+
     // Also verify dialog exists
     const deleteModal = page.locator('[role="dialog"]');
     await expect(deleteModal).toBeVisible({ timeout: 5000 });
@@ -372,10 +374,11 @@ test.describe('E2E: Project Management', () => {
     });
     await expect(formMessageInput).toBeVisible({ timeout: 10000 });
 
-    // Select Opus 4 model from the combobox
+    // Select Haiku 3.5 model from the combobox
     const modelCombobox = page.getByRole('combobox', { name: /Choose model/i });
     await expect(modelCombobox).toBeVisible({ timeout: 60000 });
-    await modelCombobox.selectOption('claude-opus-4-20250514');
+    const haikuModel = await findModelByName(page, 'haiku');
+    await modelCombobox.selectOption(haikuModel);
 
     // Type a message to create the thread
     await formMessageInput.fill('Thread 1 message');
@@ -402,7 +405,8 @@ test.describe('E2E: Project Management', () => {
 
     // Wait for form and fill it
     await expect(formMessageInput).toBeVisible({ timeout: 10000 });
-    await modelCombobox.selectOption('claude-opus-4-20250514');
+    const haikuModel2 = await findModelByName(page, 'haiku');
+    await modelCombobox.selectOption(haikuModel2);
     await formMessageInput.fill('Thread 2 message');
     await expect(submitButton).toBeEnabled({ timeout: 60000 });
     await submitButton.click();
@@ -494,7 +498,8 @@ test.describe('E2E: Project Management', () => {
     // Select Opus 4 model from the combobox
     const modelCombobox = page.getByRole('combobox', { name: /Choose model/i });
     await expect(modelCombobox).toBeVisible({ timeout: 60000 });
-    await modelCombobox.selectOption('claude-opus-4-20250514');
+    const opusModel = await findModelByName(page, 'opus');
+    await modelCombobox.selectOption(opusModel);
 
     // Type a message
     await formMessageInput.fill('Private thread message');

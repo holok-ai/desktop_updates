@@ -8,64 +8,6 @@
 import { Page, expect } from '@playwright/test';
 
 /**
- * Standard test prompt for simple response tests
- * Use this instead of creating unique prompts that do the same thing.
- * Reduces API costs and test execution time.
- */
-export const SIMPLE_TEST_PROMPT = 'Just respond with OK';
-
-/**
- * Model lookup helper - finds model by name pattern
- * Avoids hardcoding specific model IDs with dates
- *
- * @param page - Playwright page object
- * @param modelName - Model type to find: 'opus', 'sonnet', or 'haiku'
- * @returns Model ID (value attribute) or null if not found
- *
- * @example
- * const opusId = await findModelByName(page, 'opus');
- * await createThread(page, 'Hello', undefined, opusId);
- */
-export async function findModelByName(
-  page: Page,
-  modelName: 'opus' | 'sonnet' | 'haiku',
-): Promise<string | null> {
-  const modelSelect = page.locator('select.model-selector-compact');
-
-  // Wait for model selector to be visible and populated
-  await expect(modelSelect).toBeVisible({ timeout: 10000 });
-  await expect(modelSelect.locator('option')).not.toHaveCount(0, { timeout: 10000 });
-
-  // Get all options
-  const options = modelSelect.locator('option');
-  const count = await options.count();
-
-  // Search patterns for each model type (matches latest versions)
-  const patterns: Record<string, RegExp> = {
-    opus: /opus.*4/i, // Match "opus 4" or "opus-4"
-    sonnet: /sonnet.*3\.?5/i, // Match "sonnet 3.5" or "sonnet-3.5"
-    haiku: /haiku/i, // Match any "haiku" (will prefer 3.5 if available)
-  };
-
-  const pattern = patterns[modelName];
-
-  // Search through options
-  for (let i = 0; i < count; i++) {
-    const option = options.nth(i);
-    const text = await option.textContent();
-    const value = await option.getAttribute('value');
-
-    if (text && value && pattern.test(text)) {
-      console.log(`✓ Found ${modelName} model: ${value} (${text})`);
-      return value;
-    }
-  }
-
-  console.warn(`⚠ No ${modelName} model found, returning null`);
-  return null;
-}
-
-/**
  * Check if models are already loaded by checking if model selector has options
  */
 async function areModelsLoaded(page: Page): Promise<boolean> {
@@ -89,8 +31,8 @@ async function areModelsLoaded(page: Page): Promise<boolean> {
 }
 
 /**
- * Navigate to Home page
- * Just navigates to home and waits briefly for the page to load
+ * Navigate to Home page and wait for models to load
+ * This is required before navigating to Threads to ensure models are loaded
  */
 export async function navigateToHome(page: Page): Promise<void> {
   const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
@@ -100,9 +42,17 @@ export async function navigateToHome(page: Page): Promise<void> {
   // Wait for home page to load
   await page.waitForLoadState('networkidle');
 
-  // Wait briefly for UI to stabilize (5 seconds as suggested)
-  await page.waitForTimeout(5000);
-  console.log('[navigateToHome] Home page loaded');
+  // Check if models are already loaded (e.g., in serial test mode)
+  const modelsAlreadyLoaded = await areModelsLoaded(page);
+
+  if (modelsAlreadyLoaded) {
+    console.log('[navigateToHome] Models already loaded, skipping wait');
+    await page.waitForTimeout(2000); // Short wait for UI to stabilize
+  } else {
+    console.log('[navigateToHome] Waiting for models to load...');
+    // Wait up to 60 seconds for models to load on homepage
+    await page.waitForTimeout(60000);
+  }
 }
 
 /**
@@ -123,16 +73,9 @@ export async function navigateToThreads(page: Page): Promise<void> {
     if (isStreaming) {
       console.log('[E2E] Waiting for streaming to complete...');
       // Wait for streaming to finish (indicator disappears)
-      // Use shorter timeout (30s) and force navigate if stuck
-      try {
-        await streamingIndicator.waitFor({ state: 'hidden', timeout: 30000 });
-        await page.waitForTimeout(1000); // Extra wait for UI to stabilize
-        console.log('[E2E] Streaming completed');
-      } catch (error) {
-        console.warn('[E2E] Streaming did not complete within 30s, forcing navigation...');
-        // Streaming is stuck (backend issue) - force navigate anyway
-        // The navigation will interrupt the stuck streaming
-      }
+      await streamingIndicator.waitFor({ state: 'hidden', timeout: 120000 });
+      await page.waitForTimeout(1000); // Extra wait for UI to stabilize
+      console.log('[E2E] Streaming completed');
     }
 
     // Check for and dismiss "Unsaved Changes" modal if present (fallback)
@@ -201,12 +144,11 @@ export async function navigateToProjects(page: Page): Promise<void> {
   await expect(homeMenuItem).toBeVisible({ timeout: 10000 });
   await homeMenuItem.click();
 
-  // Wait for projects page to load
+  // Wait for home page to load
   await page.waitForLoadState('networkidle');
 
-  // Wait for projects list or empty state to be visible
-  const projectsList = page.locator('.projects-list, .empty-state');
-  await expect(projectsList).toBeVisible({ timeout: 10000 });
+  // Wait 60 seconds for models to load on homepage
+  await page.waitForTimeout(60000);
 }
 
 /**
@@ -271,34 +213,35 @@ export async function selectAgentAndModel(
 
     // Wait for model options to be populated
     console.log('[selectAgentAndModel] Waiting for model options to load...');
-    await expect(modelSelect.locator('option')).not.toHaveCount(0, { timeout: 30000 });
+    await page.waitForFunction(
+      () => {
+        const select = document.querySelector('select.model-selector-compact') as HTMLSelectElement;
+        return select && select.options.length > 0;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
 
-    // Use model lookup if no specific model ID provided
-    let targetModelId = modelId;
+    // Default to Claude Opus 4 if no model specified
+    const targetModelId = modelId || 'claude-opus-4-20250514';
 
-    if (!targetModelId) {
-      // Default to Haiku 3.5 for E2E tests (faster and cost-effective)
-      console.log('[selectAgentAndModel] Looking up Haiku model...');
-      targetModelId = (await findModelByName(page, 'haiku')) || undefined;
+    try {
+      // Try to select the target model by value
+      await modelSelect.selectOption(targetModelId);
+      console.log(`✓ Selected model: ${targetModelId}`);
+    } catch (error) {
+      console.warn(`⚠ Failed to select model ${targetModelId}, trying fallback...`);
 
-      if (!targetModelId) {
-        console.warn('[selectAgentAndModel] Haiku not found, trying Opus 4...');
-        targetModelId = (await findModelByName(page, 'opus')) || undefined;
-      }
-
-      if (!targetModelId) {
-        console.warn(
-          '[selectAgentAndModel] No preferred model found, will use first available model',
-        );
-      }
-    }
-
-    if (targetModelId) {
-      try {
-        await modelSelect.selectOption(targetModelId);
-        console.log(`✓ Selected model: ${targetModelId}`);
-      } catch (error) {
-        console.warn(`⚠ Failed to select model ${targetModelId}, selecting first available...`);
+      // Fallback: try to find any Opus 4 model by text
+      const opus4Option = modelSelect.locator('option').filter({ hasText: /opus.*4/i });
+      if ((await opus4Option.count()) > 0) {
+        const opus4Value = await opus4Option.first().getAttribute('value');
+        if (opus4Value) {
+          await modelSelect.selectOption(opus4Value);
+          console.log(`✓ Selected fallback model: ${opus4Value}`);
+        }
+      } else {
+        // Last resort: select first model
         const firstModelOption = await modelSelect.locator('option').first();
         const firstModelValue = await firstModelOption.getAttribute('value');
         if (firstModelValue) {
@@ -306,15 +249,9 @@ export async function selectAgentAndModel(
           console.log(`✓ Selected first available model: ${firstModelValue}`);
         }
       }
-    } else {
-      // No model specified and lookup failed - select first available
-      const firstModelOption = await modelSelect.locator('option').first();
-      const firstModelValue = await firstModelOption.getAttribute('value');
-      if (firstModelValue) {
-        await modelSelect.selectOption(firstModelValue);
-        console.log(`✓ Selected first available model: ${firstModelValue}`);
-      }
     }
+
+    await page.waitForTimeout(500);
   }
 }
 

@@ -77,7 +77,7 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
     const page = await getFirstWindow(app);
     // Ensure underlying settings whitelist is cleared before loading settings UI
     await page.evaluate(async () => {
-      await window.electronAPI.settings.setMultiple({ directoryWhitelist: [] });
+      await (window as any).electronAPI.settings.setMultiple({ directoryWhitelist: [] });
     });
     await navigateToSettings(page);
 
@@ -205,9 +205,9 @@ test.describe('E2E: Settings - File Tools Whitelist', () => {
 
     // Persist whitelist using settings API (equivalent to what Save does for this field)
     await page.evaluate(async (p) => {
-      const all = await window.electronAPI.settings.getAll();
+      const all = await (window as any).electronAPI.settings.getAll();
       const next = [...(all.directoryWhitelist ?? []), p];
-      await window.electronAPI.settings.setMultiple({ directoryWhitelist: next });
+      await (window as any).electronAPI.settings.setMultiple({ directoryWhitelist: next });
     }, testPath);
     await page.waitForTimeout(300);
 
