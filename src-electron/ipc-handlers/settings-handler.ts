@@ -1,5 +1,4 @@
-/* eslint-disable security/detect-child-process */
-import { ipcMain, dialog, app } from 'electron';
+import { ipcMain, dialog, app, shell } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
@@ -180,19 +179,28 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
-   * Open log file in VS Code
+   * Open log file in default application
    */
-  ipcMain.handle('settings:openLogInVSCode', (): Promise<{ success: boolean; error?: string }> => {
+  ipcMain.handle('settings:openLogInVSCode', async (): Promise<{ success: boolean; error?: string }> => {
     settingsLog.info('OpenLogInVSCode called');
     try {
       const logPath = path.join(app.getPath('userData'), 'logs', 'desktop.log');
-      // Spawn VS Code without waiting for it to complete
-      exec(`code "${logPath}"`);
-      return Promise.resolve({ success: true });
+      
+      // Check if log file exists
+      const fs = await import('node:fs');
+      if (!fs.existsSync(logPath)) {
+        settingsLog.warn('Log file does not exist:', logPath);
+        return { success: false, error: 'Log file does not exist yet' };
+      }
+
+      // Use shell.openPath to open with default application (works on all platforms)
+      await shell.openPath(logPath);
+      settingsLog.info('Log file opened successfully:', logPath);
+      return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to open log file';
       settingsLog.error('OpenLogInVSCode failed', { error: message });
-      return Promise.resolve({ success: false, error: message });
+      return { success: false, error: message };
     }
   });
 
