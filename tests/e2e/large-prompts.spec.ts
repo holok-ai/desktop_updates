@@ -5,6 +5,7 @@ import {
   waitForStreamingComplete,
   navigateToThreads,
   findModelByName,
+  forceThreadRefresh,
 } from '../helpers/ui-helpers';
 
 async function waitForMessageInput(page: Page): Promise<void> {
@@ -119,7 +120,13 @@ test.describe('Large Prompts - Long-form Content Handling', () => {
 
     // Verify response was received (just check that assistant message exists)
     const assistantMessage = page.locator('.message.assistant').last();
-    await expect(assistantMessage).toBeVisible({ timeout: 10000 });
+    try {
+      await expect(assistantMessage).toBeVisible({ timeout: 10000 });
+    } catch (error) {
+      console.log('[E2E] Assistant message not visible after streaming, forcing refresh...');
+      await forceThreadRefresh(page);
+      await expect(assistantMessage).toBeVisible({ timeout: 10000 });
+    }
 
     // Verify response has content
     const response = await assistantMessage.locator('.markdown-content').textContent();

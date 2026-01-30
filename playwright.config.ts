@@ -17,7 +17,7 @@ export default defineConfig({
   use: {
     trace: 'on-first-retry', // Capture trace on retries
     video: 'retain-on-failure', // Keep videos only on failure
-    screenshot: 'only-on-failure', // Screenshots only on failure (recommended)
+    screenshot: 'on', // Screenshots only on failure (recommended)
     // Alternative: screenshot: 'on' to capture on every test (generates many files)
     // Set default timeout for page methods like waitForFunction
     actionTimeout: 120000, // 2 minutes for actions

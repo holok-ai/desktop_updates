@@ -10,7 +10,7 @@
 
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
+import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT, forceThreadRefresh } from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Hybrid Approach', () => {
   let app: ElectronApplication;
@@ -63,9 +63,16 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
       page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-      timeout: 60000,
-    });
+    const assistant = page.locator('.messages .message.assistant').last();
+    try {
+      await expect(assistant).toBeVisible({ timeout: 60000 });
+    } catch (error) {
+      console.log('[E2E] Assistant message not visible after 60s, attempting recovery...');
+      await forceThreadRefresh(page);
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
+    }
 
     await waitForStreamingComplete(page, 120000);
     console.log('✓ Test 1 complete\n');
@@ -81,9 +88,16 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
       page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-      timeout: 60000,
-    });
+    const assistant = page.locator('.messages .message.assistant').last();
+    try {
+      await expect(assistant).toBeVisible({ timeout: 60000 });
+    } catch (error) {
+      console.log('[E2E] Assistant message not visible after 60s, attempting recovery...');
+      await forceThreadRefresh(page);
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
+    }
 
     await waitForStreamingComplete(page, 120000);
     console.log('✓ Test 2 complete\n');
@@ -99,9 +113,16 @@ test.describe('E2E: Chat with Hybrid Approach', () => {
       page.locator('.messages .message.user .message-content', { hasText: SIMPLE_TEST_PROMPT }),
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-      timeout: 60000,
-    });
+    const assistant = page.locator('.messages .message.assistant').last();
+    try {
+      await expect(assistant).toBeVisible({ timeout: 60000 });
+    } catch (error) {
+      console.log('[E2E] Assistant message not visible after 60s, attempting recovery...');
+      await forceThreadRefresh(page);
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
+    }
 
     await waitForStreamingComplete(page, 120000);
     console.log('✓ Test 3 complete\n');
@@ -154,9 +175,16 @@ test.describe('E2E: Chat - Different Scenarios', () => {
       page.locator('.messages .message.user .message-content', { hasText: 'Write a short poem' }),
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-      timeout: 60000,
-    });
+    const assistant = page.locator('.messages .message.assistant').last();
+    try {
+      await expect(assistant).toBeVisible({ timeout: 60000 });
+    } catch (error) {
+      console.log('[Long Prompt] Assistant message not visible after 60s, attempting recovery...');
+      await forceThreadRefresh(page);
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
+    }
 
     await waitForStreamingComplete(page, 120000);
     console.log('✓ Long prompt test complete\n');

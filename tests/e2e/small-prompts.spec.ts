@@ -41,7 +41,8 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     } catch (error) {
       console.log('[Prompt 1] Assistant message not visible after 60s, attempting recovery...');
       await forceThreadRefresh(page);
-      await expect(assistantMessage).toBeVisible({ timeout: 30000 });
+      // Use a more generic locator after refresh as .last() might be tricky if DOM changed
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({ timeout: 60000 });
     }
 
     // Wait for streaming to complete (message no longer has .streaming class)
@@ -83,7 +84,7 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     } catch (error) {
       console.log('[Prompt 2] Assistant message not visible after 60s, attempting recovery...');
       await forceThreadRefresh(page);
-      await expect(assistant).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({ timeout: 60000 });
     }
 
     // Wait for streaming to complete

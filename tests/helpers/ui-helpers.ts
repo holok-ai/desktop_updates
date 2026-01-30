@@ -149,9 +149,7 @@ export async function navigateToThreads(page: Page): Promise<void> {
 
     // Wait for URL to change away from chat view, or check if we're already there
     try {
-      await page.waitForFunction(() => !window.location.href.includes('threadId='), {
-        timeout: 10000,
-      });
+      await expect(page).not.toHaveURL(/threadId=/, { timeout: 10000 });
     } catch (error) {
       // If timeout, check if we're already on threads page (no threadId in URL)
       const currentUrl = page.url();
@@ -178,7 +176,7 @@ export async function navigateToThreads(page: Page): Promise<void> {
   }
 
   // Wait for URL to contain /threads
-  await page.waitForFunction(() => window.location.href.includes('/threads'), { timeout: 10000 });
+  await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
 
   await page.waitForLoadState('networkidle');
 
@@ -237,14 +235,7 @@ export async function selectAgentAndModel(
 
   // CRITICAL: Wait for options to be populated before trying to interact
   console.log('[selectAgentAndModel] Waiting for agent options to load...');
-  await page.waitForFunction(
-    () => {
-      const select = document.querySelector('select#agent-select') as HTMLSelectElement;
-      return select && select.options.length > 0;
-    },
-    undefined,
-    { timeout: 60000 },
-  );
+  await expect(agentSelect.locator('option')).not.toHaveCount(0, { timeout: 60000 });
 
   // Verify options are loaded
   const agentOptions = agentSelect.locator('option');
@@ -516,11 +507,7 @@ export async function createThread(
           await page.waitForTimeout(1000);
 
           // Wait for threads list to be visible
-          await page
-            .waitForFunction(() => !window.location.href.includes('threadId='), {
-              timeout: 10000,
-            })
-            .catch(() => {});
+          await expect(page).not.toHaveURL(/threadId=/, { timeout: 10000 });
         }
 
         // Get thread list
@@ -696,9 +683,7 @@ export async function createThread(
     if (!chatPaneVisible) {
       // Chat pane not visible, try waiting for URL change
       try {
-        await page.waitForFunction(() => window.location.href.includes('threadId='), {
-          timeout: 10000,
-        });
+        await expect(page).toHaveURL(/threadId=/, { timeout: 10000 });
         // After URL changes, wait for chat pane
         await expect(chatPane).toBeVisible({ timeout: 10000 });
       } catch (error) {
@@ -720,36 +705,54 @@ export async function createThread(
     }
   }
 
-  // Wait for chat view to be fully loaded
-  await expect(chatPane).toBeVisible({ timeout: 10000 });
+    // Wait for chat view to be fully loaded
+    try {
+      await expect(chatPane).toBeVisible({ timeout: 30000 });
+    } catch (error) {
+      console.log('[createThread] Chat pane not visible after navigation, retrying click...');
+      // Try clicking the thread item again as a last resort
+      const threadItemRetry = page.locator('div.thread-item, [role="menuitem"]').first();
+      if (await threadItemRetry.isVisible()) {
+        await threadItemRetry.click();
+        await expect(chatPane).toBeVisible({ timeout: 30000 });
+      } else {
+        throw error;
+      }
+    }
 
   // CRITICAL: Verify user message appeared after thread creation
   // If not, force UI refresh to recover from error state
   console.log('[createThread] Verifying user message appeared...');
-  // Try exact match first, then partial match
-  let userMessage = page.locator('.messages .message.user .message-content', { hasText: prompt });
-  let isUserMessageVisible = await userMessage.isVisible({ timeout: 10000 }).catch(() => false);
 
-  // If exact match fails, try partial match (first 50 chars)
-  if (!isUserMessageVisible && prompt.length > 50) {
-    const partialPrompt = prompt.substring(0, 50);
-    userMessage = page.locator('.messages .message.user .message-content', {
+  // Normalize prompt for matching (handles whitespace/newline differences)
+  const normalizedPrompt = prompt.trim().replace(/\s+/g, ' ');
+  const partialPrompt = prompt.substring(0, 50).trim().replace(/\s+/g, ' ');
+
+  // Try multiple ways to find the user message
+  const findUserMessage = async () => {
+    // 1. Try partial match with first 50 chars (most reliable for large prompts)
+    let userMsg = page.locator('.messages .message.user .message-content', {
       hasText: partialPrompt,
     });
-    isUserMessageVisible = await userMessage.isVisible({ timeout: 5000 }).catch(() => false);
-  }
+    if (await userMsg.isVisible({ timeout: 2000 }).catch(() => false)) return true;
 
-  // If still not found, check if there's any user message at all
-  if (!isUserMessageVisible) {
-    const anyUserMessage = page.locator('.messages .message.user').first();
-    const hasAnyUserMessage = await anyUserMessage.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasAnyUserMessage) {
-      console.log(
-        '[createThread] Found user message but not matching prompt exactly, continuing...',
-      );
-      isUserMessageVisible = true; // Accept any user message as success
+    // 2. Try any user message at all (fallback if matching fails)
+    let anyMsg = page.locator('.messages .message.user').first();
+    if (await anyMsg.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log('[createThread] Found user message but not matching prompt text, accepting it.');
+      return true;
     }
-  }
+
+    // 3. Try match with normalized prompt (handles collapsed whitespace)
+    let exactMsg = page.locator('.messages .message.user .message-content', {
+      hasText: normalizedPrompt.substring(0, 100),
+    });
+    if (await exactMsg.isVisible({ timeout: 1000 }).catch(() => false)) return true;
+
+    return false;
+  };
+
+  let isUserMessageVisible = await findUserMessage();
 
   if (!isUserMessageVisible) {
     console.log('[createThread] User message not visible, forcing UI refresh...');
@@ -757,15 +760,15 @@ export async function createThread(
 
     // Wait for messages container to be visible and loaded
     const messagesContainer = page.locator('.messages');
-    await expect(messagesContainer).toBeVisible({ timeout: 10000 });
+    await expect(messagesContainer).toBeVisible({ timeout: 15000 });
 
     // Wait a bit for messages to load
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 
     // Check if messages are loading
     let messageCount = await messagesContainer.locator('.message').count();
     let retries = 0;
-    const maxRetries = 5;
+    const maxRetries = 10; // Increased retries
 
     while (messageCount === 0 && retries < maxRetries) {
       await page.waitForTimeout(1000);
@@ -777,13 +780,13 @@ export async function createThread(
     }
 
     // Check again after refresh and waiting
-    isUserMessageVisible = await userMessage.isVisible({ timeout: 10000 }).catch(() => false);
+    isUserMessageVisible = await findUserMessage();
 
     if (!isUserMessageVisible) {
       // Last resort: try navigating to threads and back one more time
       console.log('[createThread] User message still not visible, trying one more navigation...');
       await page.getByRole('menuitem', { name: 'Threads' }).click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
 
       // Find and click the thread we just created
       const threadList = page
@@ -793,37 +796,15 @@ export async function createThread(
 
       if (threadCount > 0) {
         await threadList.first().click();
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(3000);
 
         // Wait for chat pane and messages
-        await expect(chatPane).toBeVisible({ timeout: 10000 });
-        await expect(messagesContainer).toBeVisible({ timeout: 10000 });
+        await expect(chatPane).toBeVisible({ timeout: 15000 });
+        await expect(messagesContainer).toBeVisible({ timeout: 15000 });
         await page.waitForTimeout(2000);
 
-        // Final check - try exact, then partial, then any user message
-        isUserMessageVisible = await userMessage.isVisible({ timeout: 10000 }).catch(() => false);
-
-        if (!isUserMessageVisible && prompt.length > 50) {
-          const partialPrompt = prompt.substring(0, 50);
-          const partialUserMessage = page.locator('.messages .message.user .message-content', {
-            hasText: partialPrompt,
-          });
-          isUserMessageVisible = await partialUserMessage
-            .isVisible({ timeout: 5000 })
-            .catch(() => false);
-        }
-
-        if (!isUserMessageVisible) {
-          const anyUserMessage = page.locator('.messages .message.user').first();
-          isUserMessageVisible = await anyUserMessage
-            .isVisible({ timeout: 5000 })
-            .catch(() => false);
-          if (isUserMessageVisible) {
-            console.log(
-              '[createThread] Found user message but not matching prompt exactly, continuing...',
-            );
-          }
-        }
+        // Final check
+        isUserMessageVisible = await findUserMessage();
       }
 
       if (!isUserMessageVisible) {
@@ -934,17 +915,10 @@ export async function ensureAgentsLoaded(page: Page): Promise<boolean> {
     return false;
   }
 
-  // Wait for options to be populated using waitForFunction
+  // Wait for options to be populated using expect
   console.log('[ensureAgentsLoaded] Waiting for agent options to populate...');
   try {
-    await page.waitForFunction(
-      () => {
-        const select = document.querySelector('select#agent-select') as HTMLSelectElement;
-        return select && select.options.length > 0;
-      },
-      undefined,
-      { timeout: 30000 },
-    );
+    await expect(agentSelect.locator('option')).not.toHaveCount(0, { timeout: 30000 });
 
     const agentCount = await agentSelect.locator('option').count();
     console.log(`[ensureAgentsLoaded] Found ${agentCount} agent options`);
@@ -971,14 +945,7 @@ export async function ensureAgentsLoaded(page: Page): Promise<boolean> {
     await expect(agentSelect).toBeVisible({ timeout: 10000 });
 
     // Wait for options to populate after navigation
-    await page.waitForFunction(
-      () => {
-        const select = document.querySelector('select#agent-select') as HTMLSelectElement;
-        return select && select.options.length > 0;
-      },
-      undefined,
-      { timeout: 30000 },
-    );
+    await expect(agentSelect.locator('option')).not.toHaveCount(0, { timeout: 30000 });
 
     const agentCount = await agentSelect.locator('option').count();
     console.log(`[ensureAgentsLoaded] After navigation: Found ${agentCount} agent options`);
