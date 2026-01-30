@@ -5,7 +5,8 @@
  * and resilient to UI changes.
  */
 
-import { Page, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { Page } from 'playwright';
 
 /**
  * Standard test prompt for simple response tests
