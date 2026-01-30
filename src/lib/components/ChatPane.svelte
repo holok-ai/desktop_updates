@@ -1660,11 +1660,11 @@
         messages: requestMessages,
         streaming: true,
         model: modelToUse,
-        ...(currentThread?.id && { thread_guid: currentThread.id }),  // Pass raw thread ID
-        branch_id: branchId,  // DesktopChatService will format with formatThreadId()
+        ...(currentThread?.id && { thread_id: currentThread.id }),  
+        branch_id: branchId,  
       };
       console.log('[ChatPane sendMessage] Built request:', {
-        thread_guid: request.thread_guid,
+        thread_id: request.thread_id,
         branch_id: branchId,
         model: modelToUse,
         provider: providerToUse,
@@ -1823,7 +1823,7 @@
         messages: historyMessages,
         streaming: true,
         model: modelName,
-        ...(currentThread?.id && { thread_guid: currentThread.id }),
+        ...(currentThread?.id && { thread_id: currentThread.id }),
       };
 
       // Use chat for all requests - tools are invisible to user
@@ -2246,12 +2246,12 @@
         messages: historyMessages,
         streaming: true,
         model: modelToUse,
-        ...(currentThread?.id && { thread_guid: threadData }),
+        ...(currentThread?.id && { thread_id: currentThread.id }),
         branch_id: branchKey,
       };
 
       console.log('[generateResponseForVariation] Final request for variation:', {
-        thread_id: request.thread_guid,
+        thread_id: request.thread_id,
         branch_id: request.branch_id,
         messages: request.messages,
       });

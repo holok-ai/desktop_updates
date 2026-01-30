@@ -69,18 +69,12 @@ export class DesktopChatService {
     onToolStatus?: ToolStatusCallback
   ): Promise<void> {
     // Extract desktop-specific properties
-    const { thread_guid, branch_id, working_directory, ...chatRequest } = request;
-    const capBranchId = (id: string | undefined): string | undefined => {
-      if (!id) return undefined;
-      const parts = id.split('.');
-      return parts.length > 3 ? parts.slice(0, 3).join('.') : id;
-    };
-    const cappedBranchId = capBranchId(branch_id);
+    const { thread_id, branch_id, working_directory, ...chatRequest } = request;
+   
 
     log.info('[DesktopChatService] chat called', {
-      thread_guid,
+      thread_id,
       branch_id,
-      cappedBranchId,
       messageCount: request.messages.length,
       working_directory: working_directory || this.workingDirectory,
       hasTools: !!this.toolOrchestra
@@ -101,13 +95,13 @@ export class DesktopChatService {
 
     try {
       // Format thread_id from thread_guid and branch_id
-      const thread_id = formatThreadId(thread_guid, cappedBranchId);
       log.info('[DesktopChatService] formatted thread_id', { thread_id });
 
       // Call ChatService - it handles tools internally if configured
       await this.chatService.chat({
         ...chatRequest,
-        ...(thread_id && { thread_id })
+        ...(thread_id && { thread_id }),
+        ...(branch_id && { branch_id }),
       }, onToken);
     } finally {
       // Clean up status callback

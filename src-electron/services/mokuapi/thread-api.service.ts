@@ -124,8 +124,6 @@ class ThreadApiService {
 
     const url = `${mokuApiUrl}/api/threads${params.toString() ? '?' + params.toString() : ''}`;
 
-    log.info('[ThreadApiService] Fetching threads with filters:', JSON.stringify(filters));
-
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -144,6 +142,7 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<ThreadDTO>;
+    log.info('[ThreadApiService] Fetched threads with filters:', JSON.stringify(filters), `Found ${data.content.length} threads`);
     return data;
   }
 

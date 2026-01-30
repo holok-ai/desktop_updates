@@ -271,11 +271,15 @@ export class AuthService {
       // Step 2: Exchange apiKey for accessToken via MokuService
       const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
 
+      // Use default expiration if API returns null or 0 (1 hour = 3600 seconds)
+      const expiresInSeconds = expires_in || 3600;
+      log.info('[AuthService] Initial token expires_in:', expires_in, '(using:', expiresInSeconds, 'seconds)');
+
       // Create tokens object
       const tokens: AuthTokens = {
         accessToken,
         apiKey, // Cache for future token refresh
-        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
+        expiresAt: Date.now() + expiresInSeconds * 1000,
       };
 
       // Extract user info from access token (JWT)
@@ -385,6 +389,9 @@ export class AuthService {
 
       const { accessToken, expires_in } = await mokuService.exchangeApiKeyForAccessToken(apiKey);
 
+      // Use default expiration if API returns null or 0 (1 hour = 3600 seconds)
+      const expiresInSeconds = expires_in || 3600;
+
       // Extract user info from the new access token to ensure it's up to date
       const updatedUser = this.extractUserFromToken(accessToken);
 
@@ -392,11 +399,12 @@ export class AuthService {
       const newTokens: AuthTokens = {
         accessToken,
         apiKey, // Keep the same apiKey
-        expiresAt: Date.now() + expires_in * 1000 - 60 * 1000, // 1-minute safety buffer
+        expiresAt: Date.now() + expiresInSeconds * 1000,
       };
 
       // Store updated tokens with updated user profile
       this.storeAuthData(newTokens, updatedUser);
+      log.info('[AuthService] Token refresh completed successfully, expires_in:', expiresInSeconds, 'seconds');
 
       return newTokens;
     } catch (error) {
