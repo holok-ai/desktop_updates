@@ -56,9 +56,16 @@ test.describe('E2E: Settings', () => {
     await expect(profileButton).toBeVisible();
     await profileButton.click();
 
-    const settingsItem = page.getByRole('button', { name: 'Settings' });
-    await expect(settingsItem).toBeVisible();
-    await settingsItem.click();
+    // Open Settings via sidebar - try multiple selectors
+    let settingsItem = page.getByRole('menuitem', { name: /Settings/i });
+    if ((await settingsItem.count()) === 0) {
+      settingsItem = page.getByRole('button', { name: /Settings/i });
+    }
+    if ((await settingsItem.count()) === 0) {
+      settingsItem = page.getByRole('link', { name: /Settings/i });
+    }
+    await expect(settingsItem.first()).toBeVisible({ timeout: 6000 });
+    await settingsItem.first().click();
 
     // Expect Settings heading
     const heading = page.getByRole('heading', { name: 'Settings' });

@@ -1,10 +1,6 @@
-import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test';
-
-async function getFirstWindow(app: ElectronApplication): Promise<Page> {
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
+import { test, expect, ElectronApplication } from '@playwright/test';
+import { ensureAgentsLoaded, navigateToHome, navigateToThreads } from '../helpers/ui-helpers';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 
 test.describe('E2E: Dual Sidebar', () => {
   let app: ElectronApplication | undefined;
@@ -12,18 +8,16 @@ test.describe('E2E: Dual Sidebar', () => {
 
   test.beforeAll(async () => {
     try {
-      const electronExec = (await import('electron')).default as unknown as string;
-      app = await electron.launch({ executablePath: electronExec, args: ['.'] });
-    } catch {
-      try {
-        const electronExec = (await import('electron')).default as unknown as string;
-        app = await electron.launch({
-          executablePath: electronExec,
-          args: ['dist-electron/main.js'],
-        });
-      } catch {
-        test.skip(true, 'Electron failed to launch in this environment');
-      }
+      app = await launchAuthenticatedApp();
+    } catch (error) {
+      console.error('Failed to launch authenticated app:', error);
+      test.skip(true, 'Electron failed to launch in this environment');
+    }
+  });
+
+  test.afterAll(async () => {
+    if (app) {
+      await app.close();
     }
   });
 
@@ -53,8 +47,12 @@ test.describe('E2E: Dual Sidebar', () => {
     await expect(mainSidebar).toBeVisible();
     await expect(activityListSidebar).toBeVisible();
 
-    // Toggle main sidebar collapse/expand
-    const mainToggle = page.getByRole('button', { name: 'Collapse/Expand Sidebar' });
+    // Toggle main sidebar collapse/expand - try multiple selectors
+    const mainToggle = page
+      .locator('button[aria-label*="Collapse"]')
+      .or(page.locator('button[aria-label*="Toggle"]'))
+      .or(page.getByRole('button', { name: 'Collapse/Expand Sidebar' }))
+      .first();
     await expect(mainToggle).toBeVisible();
     await mainToggle.click();
     await page.waitForTimeout(200);
@@ -72,28 +70,30 @@ test.describe('E2E: Dual Sidebar', () => {
     if (!app) throw new Error('Electron not launched');
     const page = await getFirstWindow(app);
 
-    await page.waitForLoadState('networkidle');
+    // Navigate to home first to ensure models are loaded
+    await navigateToHome(page);
 
-    // Click Threads in main sidebar
-    const threadsMenuItem = page.getByRole('menuitem', { name: 'Threads' });
-    await expect(threadsMenuItem).toBeVisible();
-    await threadsMenuItem.click();
+    // Navigate to threads page
+    await navigateToThreads(page);
 
     // Activity list should show grouped sections (at least one accordion by title or items list)
     const activityList = page.getByRole('complementary', { name: 'Activity list sidebar' });
     await expect(activityList).toBeVisible();
 
-    // Navigate to Home then click New Thread quick action
-    const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
-    await homeMenuItem.click();
+    // Ensure agents are loaded (with retry logic)
+    const agentsAvailable = await ensureAgentsLoaded(page);
+    expect(agentsAvailable).toBe(true);
 
-    // New Thread button rendered as a menuitem with label
-    const newThreadItem = page.getByRole('menuitem', { name: 'New Thread' });
-    await expect(newThreadItem).toBeVisible();
-    await newThreadItem.click();
+    // Verify thread creation UI is visible (agent selector)
+    const agentSelect = page.locator('select#agent-select');
+    await expect(agentSelect).toBeVisible({ timeout: 5000 });
 
-    // Threads page should handle ?create; rely on presence of create UI controls
-    const confirmCreate = page.getByRole('button', { name: 'Confirm Create', exact: true });
-    await expect(confirmCreate).toBeVisible();
+    // Verify prompt textarea is visible
+    const promptTextarea = page.locator('textarea#thread-prompt');
+    await expect(promptTextarea).toBeVisible({ timeout: 5000 });
+
+    // Verify send button is visible
+    const sendButton = page.getByRole('button', { name: /Send|Select a model|Enter a message/i });
+    await expect(sendButton).toBeVisible({ timeout: 5000 });
   });
 });

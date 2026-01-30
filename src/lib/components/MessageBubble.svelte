@@ -369,7 +369,6 @@
       {/if}
       {#if message.role === 'user' && onCreateVariation && message.status !== MESSAGE_STATUS.SENDING}
         <VariationButton
-          {message}
           onclick={() => onCreateVariation?.(message.id)}
           disabled={isStreaming}
           canCreate={canCreateVariationForMessage()}

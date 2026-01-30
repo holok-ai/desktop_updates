@@ -68,6 +68,7 @@
           assistantMessage={assistantResponses().get(originalBranch()?.id ?? '') ?? null}
           branchIndex={branchIdToIndex().get(originalBranch()?.branchId ?? '') ?? 0}
           isSelected={branchIdToIndex().get(originalBranch()?.branchId ?? '') === selectedBranchIndex}
+          isActiveBranch={false}
           onSelect={() => onSelectBranch(branchIdToIndex().get(originalBranch()?.branchId ?? '') ?? 0)}
           hideHeader={true}
         />
@@ -82,6 +83,7 @@
               assistantMessage={assistantResponses().get(userMsg.id) ?? null}
               branchIndex={branchIdToIndex().get(userMsg.branchId) ?? 0}
               isSelected={branchIdToIndex().get(userMsg.branchId) === selectedBranchIndex}
+              isActiveBranch={false}
               onSelect={() => onSelectBranch(branchIdToIndex().get(userMsg.branchId) ?? 0)}
               hideHeader={true}
             />
@@ -97,6 +99,7 @@
           assistantMessage={assistantResponses().get(userMsg.id) ?? null}
           branchIndex={branchIdToIndex().get(userMsg.branchId) ?? 0}
           isSelected={branchIdToIndex().get(userMsg.branchId) === selectedBranchIndex}
+          isActiveBranch={false}
           onSelect={() => onSelectBranch(branchIdToIndex().get(userMsg.branchId) ?? 0)}
         />
       {/each}

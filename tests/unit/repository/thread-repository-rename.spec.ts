@@ -47,6 +47,13 @@ vi.mock('../../../src-electron/services/title-generator.service', () => ({
   },
 }));
 
+// Mock thread-api service
+vi.mock('../../../src-electron/services/mokuapi/thread-api.service', () => ({
+  threadApiService: {
+    updateThread: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 describe('ThreadRepository - Rename Operations', () => {
   let repository: ThreadRepository;
 
@@ -60,24 +67,24 @@ describe('ThreadRepository - Rename Operations', () => {
   });
 
   describe('renameThread()', () => {
-    it('should rename a thread successfully', () => {
+    it('should rename a thread successfully', async () => {
       // Create a thread
-      const thread = repository.createThread({ title: 'Original Title' });
+      const thread = await repository.createThread({ title: 'Original Title' });
 
       // Rename it
-      const renamed = repository.renameThread(thread.id, 'New Title');
+      const renamed = await repository.renameThread(thread.id, 'New Title');
 
       expect(renamed.title).toBe('New Title');
       expect(renamed.metadata.title).toBe('New Title');
       expect(renamed.id).toBe(thread.id);
     });
 
-    it('should track title history', () => {
-      const thread = repository.createThread({ title: 'First Title' });
+    it('should track title history', async () => {
+      const thread = await repository.createThread({ title: 'First Title' });
 
-      repository.renameThread(thread.id, 'Second Title');
+      await repository.renameThread(thread.id, 'Second Title');
 
-      const updated = repository.loadThread(thread.id);
+      const updated = await repository.loadThread(thread.id);
       expect(updated).not.toBeNull();
       expect(updated!.metadata.titleHistory).toBeDefined();
       expect(updated!.metadata.titleHistory).toHaveLength(1);
@@ -88,14 +95,14 @@ describe('ThreadRepository - Rename Operations', () => {
       expect(historyEntry.timestamp).toBeGreaterThan(0);
     });
 
-    it('should track multiple renames in history', () => {
-      const thread = repository.createThread({ title: 'Title 1' });
+    it('should track multiple renames in history', async () => {
+      const thread = await repository.createThread({ title: 'Title 1' });
 
-      repository.renameThread(thread.id, 'Title 2');
-      repository.renameThread(thread.id, 'Title 3');
-      repository.renameThread(thread.id, 'Title 4');
+      await repository.renameThread(thread.id, 'Title 2');
+      await repository.renameThread(thread.id, 'Title 3');
+      await repository.renameThread(thread.id, 'Title 4');
 
-      const updated = repository.loadThread(thread.id);
+      const updated = await repository.loadThread(thread.id);
       expect(updated!.metadata.titleHistory).toHaveLength(3);
       expect(updated!.metadata.titleHistory![0].previousTitle).toBe('Title 1');
       expect(updated!.metadata.titleHistory![1].previousTitle).toBe('Title 2');
@@ -103,75 +110,75 @@ describe('ThreadRepository - Rename Operations', () => {
       expect(updated!.title).toBe('Title 4');
     });
 
-    it('should include userId in history entry when provided', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should include userId in history entry when provided', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
 
-      repository.renameThread(thread.id, 'Updated', 'user123');
+      await repository.renameThread(thread.id, 'Updated', 'user123');
 
-      const updated = repository.loadThread(thread.id);
+      const updated = await repository.loadThread(thread.id);
       expect(updated!.metadata.titleHistory![0].userId).toBe('user123');
     });
 
-    it('should trim and sanitize the new title', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should trim and sanitize the new title', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
 
-      const renamed = repository.renameThread(thread.id, '  New Title  ');
+      const renamed = await repository.renameThread(thread.id, '  New Title  ');
 
       expect(renamed.title).toBe('New Title');
     });
 
-    it('should throw error for non-existent thread', () => {
-      expect(() => {
-        repository.renameThread('non-existent-id', 'New Title');
-      }).toThrow('Thread not found');
+    it('should throw error for non-existent thread', async () => {
+      await expect(async () => {
+        await repository.renameThread('non-existent-id', 'New Title');
+      }).rejects.toThrow('Thread not found');
     });
 
-    it('should throw error for empty title', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should throw error for empty title', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
 
-      expect(() => {
-        repository.renameThread(thread.id, '');
-      }).toThrow('TITLE_EMPTY');
+      await expect(async () => {
+        await repository.renameThread(thread.id, '');
+      }).rejects.toThrow('TITLE_EMPTY');
     });
 
-    it('should throw error for whitespace-only title', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should throw error for whitespace-only title', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
 
-      expect(() => {
-        repository.renameThread(thread.id, '   ');
-      }).toThrow('TITLE_EMPTY');
+      await expect(async () => {
+        await repository.renameThread(thread.id, '   ');
+      }).rejects.toThrow('TITLE_EMPTY');
     });
 
-    it('should throw error for title over 200 characters', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should throw error for title over 200 characters', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
       const longTitle = 'A'.repeat(201);
 
-      expect(() => {
-        repository.renameThread(thread.id, longTitle);
-      }).toThrow('TITLE_TOO_LONG');
+      await expect(async () => {
+        await repository.renameThread(thread.id, longTitle);
+      }).rejects.toThrow('TITLE_TOO_LONG');
     });
 
-    it('should allow title at exactly 200 characters', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should allow title at exactly 200 characters', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
       const maxTitle = 'A'.repeat(200);
 
-      const renamed = repository.renameThread(thread.id, maxTitle);
+      const renamed = await repository.renameThread(thread.id, maxTitle);
 
       expect(renamed.title).toBe(maxTitle);
     });
 
-    it('should not modify thread if title is unchanged', () => {
-      const thread = repository.createThread({ title: 'Same Title' });
+    it('should not modify thread if title is unchanged', async () => {
+      const thread = await repository.createThread({ title: 'Same Title' });
       const originalUpdatedAt = thread.updatedAt;
 
-      const renamed = repository.renameThread(thread.id, 'Same Title');
+      const renamed = await repository.renameThread(thread.id, 'Same Title');
 
       expect(renamed.title).toBe('Same Title');
       expect(renamed.metadata.titleHistory).toBeUndefined();
     });
 
-    it('should update thread updatedAt timestamp', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should update thread updatedAt timestamp', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
       const originalUpdatedAt = thread.updatedAt;
 
       // Wait a tiny bit to ensure timestamp changes
@@ -180,40 +187,40 @@ describe('ThreadRepository - Rename Operations', () => {
         // spin
       }
 
-      const renamed = repository.renameThread(thread.id, 'New Title');
+      const renamed = await repository.renameThread(thread.id, 'New Title');
 
       expect(renamed.updatedAt).toBeGreaterThan(originalUpdatedAt);
     });
 
-    it('should preserve other thread metadata', () => {
-      const thread = repository.createThread({
+    it('should preserve other thread metadata', async () => {
+      const thread = await repository.createThread({
         title: 'Original',
         description: 'Test description',
         model: 'gpt-4',
       });
 
-      const renamed = repository.renameThread(thread.id, 'New Title');
+      const renamed = await repository.renameThread(thread.id, 'New Title');
 
       expect(renamed.metadata.description).toBe('Test description');
       expect(renamed.metadata.model).toBe('gpt-4');
     });
 
-    it('should preserve thread messages', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should preserve thread messages', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
       repository.addMessage(thread.id, 'user', 'Hello');
       repository.addMessage(thread.id, 'assistant', 'Hi there');
 
-      const renamed = repository.renameThread(thread.id, 'New Title');
+      const renamed = await repository.renameThread(thread.id, 'New Title');
 
       expect(renamed.messages).toHaveLength(2);
       expect(renamed.messages[0].content).toBe('Hello');
       expect(renamed.messages[1].content).toBe('Hi there');
     });
 
-    it('should be case-sensitive for unchanged title check', () => {
-      const thread = repository.createThread({ title: 'Original Title' });
+    it('should be case-sensitive for unchanged title check', async () => {
+      const thread = await repository.createThread({ title: 'Original Title' });
 
-      const renamed = repository.renameThread(thread.id, 'original title');
+      const renamed = await repository.renameThread(thread.id, 'original title');
 
       expect(renamed.metadata.titleHistory).toBeDefined();
       expect(renamed.metadata.titleHistory).toHaveLength(1);
@@ -221,71 +228,71 @@ describe('ThreadRepository - Rename Operations', () => {
   });
 
   describe('undoRenameThread()', () => {
-    it('should restore previous title successfully', () => {
-      const thread = repository.createThread({ title: 'First' });
-      repository.renameThread(thread.id, 'Second');
+    it('should restore previous title successfully', async () => {
+      const thread = await repository.createThread({ title: 'First' });
+      await repository.renameThread(thread.id, 'Second');
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.title).toBe('First');
       expect(undone.metadata.title).toBe('First');
     });
 
-    it('should remove last history entry', () => {
-      const thread = repository.createThread({ title: 'First' });
-      repository.renameThread(thread.id, 'Second');
-      repository.renameThread(thread.id, 'Third');
+    it('should remove last history entry', async () => {
+      const thread = await repository.createThread({ title: 'First' });
+      await repository.renameThread(thread.id, 'Second');
+      await repository.renameThread(thread.id, 'Third');
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.title).toBe('Second');
       expect(undone.metadata.titleHistory).toHaveLength(1);
     });
 
-    it('should handle multiple undo operations', () => {
-      const thread = repository.createThread({ title: 'Title 1' });
-      repository.renameThread(thread.id, 'Title 2');
-      repository.renameThread(thread.id, 'Title 3');
+    it('should handle multiple undo operations', async () => {
+      const thread = await repository.createThread({ title: 'Title 1' });
+      await repository.renameThread(thread.id, 'Title 2');
+      await repository.renameThread(thread.id, 'Title 3');
 
-      repository.undoRenameThread(thread.id);
-      const afterFirst = repository.loadThread(thread.id);
+      await repository.undoRenameThread(thread.id);
+      const afterFirst = await repository.loadThread(thread.id);
       expect(afterFirst!.title).toBe('Title 2');
 
-      repository.undoRenameThread(thread.id);
-      const afterSecond = repository.loadThread(thread.id);
+      await repository.undoRenameThread(thread.id);
+      const afterSecond = await repository.loadThread(thread.id);
       expect(afterSecond!.title).toBe('Title 1');
     });
 
-    it('should throw error for non-existent thread', () => {
-      expect(() => {
-        repository.undoRenameThread('non-existent-id');
-      }).toThrow('Thread not found');
+    it('should throw error for non-existent thread', async () => {
+      await expect(async () => {
+        await repository.undoRenameThread('non-existent-id');
+      }).rejects.toThrow('Thread not found');
     });
 
-    it('should throw error when no rename history exists', () => {
-      const thread = repository.createThread({ title: 'Original' });
+    it('should throw error when no rename history exists', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
 
-      expect(() => {
-        repository.undoRenameThread(thread.id);
-      }).toThrow('NO_RENAME_HISTORY');
+      await expect(async () => {
+        await repository.undoRenameThread(thread.id);
+      }).rejects.toThrow('NO_RENAME_HISTORY');
     });
 
-    it('should throw error when history is empty array', () => {
-      const thread = repository.createThread({
+    it('should throw error when history is empty array', async () => {
+      const thread = await repository.createThread({
         title: 'Original',
         titleHistory: [],
       });
 
-      expect(() => {
-        repository.undoRenameThread(thread.id);
-      }).toThrow('NO_RENAME_HISTORY');
+      await expect(async () => {
+        await repository.undoRenameThread(thread.id);
+      }).rejects.toThrow('NO_RENAME_HISTORY');
     });
 
-    it('should update thread updatedAt timestamp', () => {
-      const thread = repository.createThread({ title: 'First' });
-      repository.renameThread(thread.id, 'Second');
+    it('should update thread updatedAt timestamp', async () => {
+      const thread = await repository.createThread({ title: 'First' });
+      await repository.renameThread(thread.id, 'Second');
 
-      const beforeUndo = repository.loadThread(thread.id);
+      const beforeUndo = await repository.loadThread(thread.id);
       const originalUpdatedAt = beforeUndo!.updatedAt;
 
       // Wait a bit
@@ -294,106 +301,106 @@ describe('ThreadRepository - Rename Operations', () => {
         // spin
       }
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.updatedAt).toBeGreaterThan(originalUpdatedAt);
     });
 
-    it('should preserve other thread metadata', () => {
-      const thread = repository.createThread({
+    it('should preserve other thread metadata', async () => {
+      const thread = await repository.createThread({
         title: 'First',
         description: 'Test',
         model: 'gpt-4',
       });
-      repository.renameThread(thread.id, 'Second');
+      await repository.renameThread(thread.id, 'Second');
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.metadata.description).toBe('Test');
       expect(undone.metadata.model).toBe('gpt-4');
     });
 
-    it('should preserve thread messages', () => {
-      const thread = repository.createThread({ title: 'First' });
+    it('should preserve thread messages', async () => {
+      const thread = await repository.createThread({ title: 'First' });
       repository.addMessage(thread.id, 'user', 'Message 1');
-      repository.renameThread(thread.id, 'Second');
+      await repository.renameThread(thread.id, 'Second');
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.messages).toHaveLength(1);
       expect(undone.messages[0].content).toBe('Message 1');
     });
 
-    it('should clear history after undoing all renames', () => {
-      const thread = repository.createThread({ title: 'First' });
-      repository.renameThread(thread.id, 'Second');
+    it('should clear history after undoing all renames', async () => {
+      const thread = await repository.createThread({ title: 'First' });
+      await repository.renameThread(thread.id, 'Second');
 
-      const undone = repository.undoRenameThread(thread.id);
+      const undone = await repository.undoRenameThread(thread.id);
 
       expect(undone.metadata.titleHistory).toHaveLength(0);
 
       // Should throw on second undo
-      expect(() => {
-        repository.undoRenameThread(thread.id);
-      }).toThrow('NO_RENAME_HISTORY');
+      await expect(async () => {
+        await repository.undoRenameThread(thread.id);
+      }).rejects.toThrow('NO_RENAME_HISTORY');
     });
 
-    it('should handle complex rename and undo sequences', () => {
-      const thread = repository.createThread({ title: 'A' });
-      repository.renameThread(thread.id, 'B');
-      repository.renameThread(thread.id, 'C');
-      repository.undoRenameThread(thread.id); // Back to B
-      repository.renameThread(thread.id, 'D');
+    it('should handle complex rename and undo sequences', async () => {
+      const thread = await repository.createThread({ title: 'A' });
+      await repository.renameThread(thread.id, 'B');
+      await repository.renameThread(thread.id, 'C');
+      await repository.undoRenameThread(thread.id); // Back to B
+      await repository.renameThread(thread.id, 'D');
 
-      const current = repository.loadThread(thread.id);
+      const current = await repository.loadThread(thread.id);
       expect(current!.title).toBe('D');
       expect(current!.metadata.titleHistory).toHaveLength(2);
 
-      repository.undoRenameThread(thread.id);
-      const afterUndo = repository.loadThread(thread.id);
+      await repository.undoRenameThread(thread.id);
+      const afterUndo = await repository.loadThread(thread.id);
       expect(afterUndo!.title).toBe('B');
     });
   });
 
   describe('Integration with other repository methods', () => {
-    it('should work with saveThread', () => {
-      const thread = repository.createThread({ title: 'Original' });
-      repository.renameThread(thread.id, 'Renamed');
+    it('should work with saveThread', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
+      await repository.renameThread(thread.id, 'Renamed');
 
-      const loaded = repository.loadThread(thread.id);
+      const loaded = await repository.loadThread(thread.id);
       const saved = repository.saveThread(loaded!);
 
       expect(saved.title).toBe('Renamed');
       expect(saved.metadata.titleHistory).toHaveLength(1);
     });
 
-    it('should preserve rename history when updating metadata', () => {
-      const thread = repository.createThread({ title: 'First' });
-      repository.renameThread(thread.id, 'Second');
+    it('should preserve rename history when updating metadata', async () => {
+      const thread = await repository.createThread({ title: 'First' });
+      await repository.renameThread(thread.id, 'Second');
 
       repository.updateThreadMetadata(thread.id, { model: 'gpt-4' });
 
-      const updated = repository.loadThread(thread.id);
+      const updated = await repository.loadThread(thread.id);
       expect(updated!.metadata.titleHistory).toHaveLength(1);
       expect(updated!.metadata.model).toBe('gpt-4');
     });
 
-    it('should include rename history in loadThread result', () => {
-      const thread = repository.createThread({ title: 'Original' });
-      repository.renameThread(thread.id, 'Updated');
+    it('should include rename history in loadThread result', async () => {
+      const thread = await repository.createThread({ title: 'Original' });
+      await repository.renameThread(thread.id, 'Updated');
 
-      const loaded = repository.loadThread(thread.id);
+      const loaded = await repository.loadThread(thread.id);
 
       expect(loaded!.metadata.titleHistory).toBeDefined();
       expect(loaded!.metadata.titleHistory).toHaveLength(1);
     });
 
-    it('should include renamed threads in listThreads', () => {
-      const thread1 = repository.createThread({ title: 'Thread 1' });
-      const thread2 = repository.createThread({ title: 'Thread 2' });
-      repository.renameThread(thread2.id, 'Thread 2 Renamed');
+    it('should include renamed threads in listThreads', async () => {
+      const thread1 = await repository.createThread({ title: 'Thread 1' });
+      const thread2 = await repository.createThread({ title: 'Thread 2' });
+      await repository.renameThread(thread2.id, 'Thread 2 Renamed');
 
-      const all = repository.listThreads();
+      const all = await repository.listThreads();
 
       expect(all).toHaveLength(2);
       const renamed = all.find((t) => t.id === thread2.id);
