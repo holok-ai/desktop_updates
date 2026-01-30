@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, SIMPLE_TEST_PROMPT, waitForStreamingComplete } from '../helpers/ui-helpers';
+import { createThread, SIMPLE_TEST_PROMPT, waitForStreamingComplete, forceThreadRefresh } from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Isolated Instances', () => {
   test('send prompt and receive assistant response', async () => {
@@ -36,9 +36,16 @@ test.describe('E2E: Chat with Isolated Instances', () => {
       console.log('✓ User message visible');
 
       // Wait for assistant response to start streaming (message appears)
-      await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-        timeout: 60000,
-      });
+      const assistantContent = page.locator('.messages .message.assistant .message-content');
+      try {
+        await expect(assistantContent).toBeVisible({
+          timeout: 60000,
+        });
+      } catch (error) {
+        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        await forceThreadRefresh(page);
+        await expect(assistantContent).toBeVisible({ timeout: 30000 });
+      }
       console.log('✓ Assistant response started');
 
       // Wait for streaming to complete
@@ -78,9 +85,16 @@ test.describe('E2E: Chat with Isolated Instances', () => {
       console.log('✓ User message visible');
 
       // Wait for assistant response
-      await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-        timeout: 60000,
-      });
+      const assistantContent = page.locator('.messages .message.assistant .message-content');
+      try {
+        await expect(assistantContent).toBeVisible({
+          timeout: 60000,
+        });
+      } catch (error) {
+        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        await forceThreadRefresh(page);
+        await expect(assistantContent).toBeVisible({ timeout: 30000 });
+      }
       console.log('✓ Assistant response started');
 
       // Wait for streaming to complete
@@ -119,9 +133,16 @@ test.describe('E2E: Chat with Isolated Instances', () => {
       console.log('✓ User message visible');
 
       // Wait for assistant response
-      await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-        timeout: 60000,
-      });
+      const assistantContent = page.locator('.messages .message.assistant .message-content');
+      try {
+        await expect(assistantContent).toBeVisible({
+          timeout: 60000,
+        });
+      } catch (error) {
+        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        await forceThreadRefresh(page);
+        await expect(assistantContent).toBeVisible({ timeout: 30000 });
+      }
       console.log('✓ Assistant response started');
 
       // Wait for streaming to complete

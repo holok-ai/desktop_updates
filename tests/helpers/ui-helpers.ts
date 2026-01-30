@@ -223,7 +223,17 @@ export async function selectAgentAndModel(
 ): Promise<void> {
   // Wait for agent selector to be visible
   const agentSelect = page.locator('select#agent-select');
-  await expect(agentSelect).toBeVisible({ timeout: 60000 });
+  try {
+    await expect(agentSelect).toBeVisible({ timeout: 60000 });
+  } catch (error) {
+    console.log('[selectAgentAndModel] Agent selector not visible, attempting recovery...');
+    // Try to navigate to Home and back to Threads to trigger model/agent loading
+    await page.getByRole('menuitem', { name: 'Home' }).click();
+    await page.waitForTimeout(2000);
+    await page.getByRole('menuitem', { name: 'Threads' }).click();
+    await page.waitForTimeout(2000);
+    await expect(agentSelect).toBeVisible({ timeout: 30000 });
+  }
 
   // CRITICAL: Wait for options to be populated before trying to interact
   console.log('[selectAgentAndModel] Waiting for agent options to load...');

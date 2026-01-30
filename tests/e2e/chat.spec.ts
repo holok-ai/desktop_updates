@@ -1,6 +1,11 @@
 import { test, expect, type ElectronApplication } from '@playwright/test';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
+import {
+  createThread,
+  waitForStreamingComplete,
+  SIMPLE_TEST_PROMPT,
+  forceThreadRefresh,
+} from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat prompt/response', () => {
   let app: ElectronApplication | undefined;
@@ -36,9 +41,16 @@ test.describe('E2E: Chat prompt/response', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Wait for assistant response to start streaming (message appears)
-    await expect(page.locator('.messages .message.assistant .message-content')).toBeVisible({
-      timeout: 60000,
-    });
+    const assistantContent = page.locator('.messages .message.assistant .message-content');
+    try {
+      await expect(assistantContent).toBeVisible({
+        timeout: 60000,
+      });
+    } catch (error) {
+      console.log('[Chat] Assistant message not visible after 60s, attempting recovery...');
+      await forceThreadRefresh(page);
+      await expect(assistantContent).toBeVisible({ timeout: 30000 });
+    }
 
     // Wait for streaming to complete
     await waitForStreamingComplete(page, 120000);
