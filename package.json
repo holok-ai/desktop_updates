@@ -5,6 +5,7 @@
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
   "scripts": {
+    "prepare": "husky",
     "postinstall": "node scripts/install-chat-service.js",
     "dev": "vite",
     "build": "vite build",
@@ -105,7 +106,9 @@
     "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-svelte": "^3.12.5",
     "globals": "^16.4.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.0.1",
+    "lint-staged": "^15.5.2",
     "lockfile-lint": "^4.13.2",
     "nodemon": "^3.0.0",
     "npm-audit-resolver": "^3.0.0-RC.0",
@@ -171,5 +174,18 @@
     "linux": {
       "target": "AppImage"
     }
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.svelte": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   }
 }

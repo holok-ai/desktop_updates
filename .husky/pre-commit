@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+# Exit on first error (fail-fast)
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Phase 1: Code Quality (staged files only via lint-staged)
+echo "📝 Phase 1: Linting and formatting..."
+npx lint-staged
+
+echo "✅ All pre-commit checks passed!"
