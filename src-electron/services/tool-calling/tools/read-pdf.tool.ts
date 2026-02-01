@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadPdfResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import PDFParser from 'pdf2json';
@@ -35,9 +36,24 @@ export class ReadPdfTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const userPath = params.file_path as string;
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_pdf',
+        state: 'in_progress',
+        message: `Reading PDF file: ${userPath}`,
+      });
+    }
 
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -106,6 +122,14 @@ export class ReadPdfTool implements ITool {
           format: 'pdf',
         },
       };
+
+      // Emit completion status
+      if (executionContext.statusCallback) {
+        executionContext.statusCallback({
+          toolName: 'read_pdf',
+          state: 'complete',
+        });
+      }
 
       return {
         success: true,

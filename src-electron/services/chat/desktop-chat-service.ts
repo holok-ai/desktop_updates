@@ -1,12 +1,13 @@
 import { ChatService } from '@holokai/chat-component';
-import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult } from '@holokai/chat-component';
+import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult, ChatRequest } from '@holokai/chat-component';
 import type { DesktopChatRequest } from './chat-types.js';
-import { formatThreadId } from './chat-types.js';
 import type {
   ToolOrchestra,
-  ToolUseCallback
+  ToolUseCallback,
+  ToolExecutionContext
 } from '../tool-calling/orchestrator-types.js';
 import type { ToolStatusCallback } from '../tool-calling/tool-types.js';
+import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
 import log from 'electron-log';
 
 /**
@@ -15,26 +16,36 @@ import log from 'electron-log';
  */
 export class DesktopChatService {
   private chatService: ChatService;
-  private workingDirectory: string | null = null;
-  private toolOrchestra: ToolOrchestra | null = null;
+  private toolOrchestra: ToolOrchestra;
   private providerType: string;
   private model: string;
+  private threadContext: ToolExecutionContext;
 
   constructor(
     providerType: string,
     config: ProviderConfig,
-    toolOrchestra?: ToolOrchestra
+    workingDirectory?: string
   ) {
     this.providerType = providerType;
     this.model = config.model;
 
+    // Get singleton orchestrator
+    this.toolOrchestra = ToolOrchestrator.getInstance();
+
+    // Initialize thread context
+    this.threadContext = {
+      workingDirectory: workingDirectory || process.cwd(),
+      threadId: '',
+      branchId: '',
+    };
+
     log.info('[DesktopChatService] Initializing with provider:', providerType, {
       model: config.model,
-      hasTools: !!toolOrchestra
+      workingDirectory: this.threadContext.workingDirectory,
     });
 
     // Check if this provider/model combination supports tool calling
-    const canUseTools = toolOrchestra?.supportsToolCalling(providerType, config.model) ?? false;
+    const canUseTools = this.toolOrchestra.supportsToolCalling(providerType, config.model);
     log.info('[DesktopChatService] Tool calling support:', {
       provider: providerType,
       model: config.model,
@@ -42,11 +53,17 @@ export class DesktopChatService {
     });
 
     // Get tool definitions and create callback adapter if tools are available AND supported
-    const tools: ToolDefinition[] | undefined = (toolOrchestra) ? toolOrchestra.getToolDefinitions() : undefined;
+    const tools: ToolDefinition[] | undefined = canUseTools ? this.toolOrchestra.getToolDefinitions() : undefined;
     const onToolUse: ((toolUse: ChatComponentToolUse) => Promise<ToolResult>) | undefined =
-      (toolOrchestra) ? async (toolUse: ChatComponentToolUse) => {
-        return await toolOrchestra.executeTool(toolUse.name, toolUse.input);
-      } : undefined;
+      canUseTools
+        ? async (toolUse: ChatComponentToolUse) => {
+            return await this.toolOrchestra.executeTool(
+              toolUse.name,
+              toolUse.input,
+              this.threadContext
+            );
+          }
+        : undefined;
 
     if (canUseTools) {
       this.chatService = new ChatService(providerType, config, true, tools, onToolUse);
@@ -54,13 +71,10 @@ export class DesktopChatService {
     else {
       this.chatService = new ChatService(providerType, config, true, undefined, undefined);
     }
-
-    this.toolOrchestra = toolOrchestra || null;
   }
 
   /**
    * Send chat message with desktop-specific request handling
-   * Tool support is automatically enabled if toolOrchestra was provided in constructor
    */
   async chat(
     request: DesktopChatRequest,
@@ -70,44 +84,31 @@ export class DesktopChatService {
   ): Promise<void> {
     // Extract desktop-specific properties
     const { thread_id, branch_id, working_directory, ...chatRequest } = request;
-   
 
     log.info('[DesktopChatService] chat called', {
       thread_id,
       branch_id,
       messageCount: request.messages.length,
-      working_directory: working_directory || this.workingDirectory,
-      hasTools: !!this.toolOrchestra
+      working_directory: working_directory || this.threadContext.workingDirectory,
     });
 
-    // Handle working directory
+    // Update thread context for this message
     if (working_directory) {
-      this.workingDirectory = working_directory;
-      if (this.toolOrchestra?.setWorkingDirectory) {
-        this.toolOrchestra.setWorkingDirectory(working_directory);
-      }
+      this.threadContext.workingDirectory = working_directory;
     }
-
-    // Set up tool status callback
-    if (onToolStatus && this.toolOrchestra?.setStatusCallback) {
-      this.toolOrchestra.setStatusCallback(onToolStatus);
-    }
+    this.threadContext.threadId = thread_id || '';
+    this.threadContext.branchId = branch_id || '';
+    this.threadContext.statusCallback = onToolStatus || undefined;
 
     try {
-      // Format thread_id from thread_guid and branch_id
-      log.info('[DesktopChatService] formatted thread_id', { thread_id });
-
-      // Call ChatService - it handles tools internally if configured
       await this.chatService.chat({
         ...chatRequest,
         ...(thread_id && { thread_id }),
         ...(branch_id && { branch_id }),
-      }, onToken);
+      } as ChatRequest & { thread_id?: string; branch_id?: string }, onToken);
     } finally {
-      // Clean up status callback
-      if (onToolStatus && this.toolOrchestra?.setStatusCallback) {
-        this.toolOrchestra.setStatusCallback(null);
-      }
+      // Clear status callback after message completes
+      this.threadContext.statusCallback = undefined;
     }
   }
 
@@ -119,17 +120,17 @@ export class DesktopChatService {
   }
 
   /**
-   * Set working directory for file operations
+   * Update working directory for this chat service instance
    */
   setWorkingDirectory(directory: string): void {
     log.info('[DesktopChatService] Setting working directory:', directory);
-    this.workingDirectory = directory;
+    this.threadContext.workingDirectory = directory;
   }
 
   /**
    * Get current working directory
    */
-  getWorkingDirectory(): string | null {
-    return this.workingDirectory;
+  getWorkingDirectory(): string {
+    return this.threadContext.workingDirectory;
   }
 }
