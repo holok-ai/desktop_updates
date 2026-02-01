@@ -172,7 +172,7 @@ export function registerChatHandlers(auth?: AuthService): void {
    */
   ipcMain.handle(
     'chat:updateAllowedPaths',
-    async (_event, allowedPaths: string[]): Promise<{ success: boolean }> => {
+    (_event, allowedPaths: string[]): { success: boolean } => {
       log.info('[IPC] chat:updateAllowedPaths called');
       const orchestrator = ToolOrchestrator.getInstance();
       orchestrator.setAllowedPaths(allowedPaths);

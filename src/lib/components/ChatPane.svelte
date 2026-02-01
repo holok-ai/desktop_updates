@@ -2275,9 +2275,7 @@
       }
 
       // Format thread_id with branch_id: "threadId,branch_id=branchId"
-      const threadData: string | undefined = currentThread?.id
-        ? `${currentThread.id},branch_id=${branchKey}`
-        : undefined;
+      // Note: threadData is not used - thread_id and branch_id are now separate properties in DesktopChatRequest
 
       const request: DesktopChatRequest = {
         messages: historyMessages,
