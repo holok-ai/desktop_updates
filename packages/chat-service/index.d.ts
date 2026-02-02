@@ -3,8 +3,7 @@ import { ChatCompletion } from 'openai/resources/chat/completions';
 import { ChatResponse } from 'ollama/browser';
 import { default as default_2 } from '@anthropic-ai/sdk';
 import { default as default_3 } from 'openai';
-import { GenerateContentResult } from '@google/generative-ai';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { Ollama } from 'ollama/browser';
 
 /**
@@ -293,10 +292,11 @@ export declare class GeminiChatProvider implements IChatProvider {
  * Tool handler for Google Gemini's function calling API
  * Implements the ProviderToolHandler interface for Gemini-specific behavior
  */
-export declare class GeminiToolHandler implements ProviderToolHandler<GenerateContentResult> {
+export declare class GeminiToolHandler implements ProviderToolHandler<any> {
     private client;
+    private apiEndpoint;
     private tokenCallback?;
-    constructor(client: GoogleGenerativeAI);
+    constructor(client: GoogleGenAI, apiEndpoint: string);
     /**
      * Set the token callback for streaming mode
      */
@@ -304,7 +304,7 @@ export declare class GeminiToolHandler implements ProviderToolHandler<GenerateCo
     /**
      * Make a request to Gemini with function calling enabled
      */
-    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<GenerateContentResult>;
+    makeRequest(model: string, messages: unknown[], tools: unknown[], threadContext: Record<string, unknown>, shouldStream: boolean): Promise<any>;
     /**
      * Make a streaming request to Gemini
      */
@@ -316,11 +316,11 @@ export declare class GeminiToolHandler implements ProviderToolHandler<GenerateCo
     /**
      * Extract tool uses (function calls) from Gemini's response
      */
-    extractToolUses(result: GenerateContentResult): ToolUse[];
+    extractToolUses(response: any): ToolUse[];
     /**
      * Extract text content from Gemini's response
      */
-    extractTextContent(result: GenerateContentResult): string | null;
+    extractTextContent(response: any): string | null;
     /**
      * Format tool results for Gemini's expected format
      */
@@ -328,7 +328,7 @@ export declare class GeminiToolHandler implements ProviderToolHandler<GenerateCo
     /**
      * Append the assistant's response and tool results to the conversation
      */
-    appendMessages(messages: unknown[], result: GenerateContentResult, toolResults: unknown[]): unknown[];
+    appendMessages(messages: unknown[], response: any, toolResults: unknown[]): unknown[];
 }
 
 /**

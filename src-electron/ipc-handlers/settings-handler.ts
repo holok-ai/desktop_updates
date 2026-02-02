@@ -3,7 +3,6 @@ import { SettingsService, type AppSettings } from '../services/settings.service.
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 import path from 'node:path';
-import { exec } from 'node:child_process';
 
 /**
  * Settings IPC Handlers

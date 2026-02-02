@@ -34,7 +34,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       providerType: string,
       config: ProviderConfig,
     ): Promise<{ success: boolean; error?: string }> => {
-      log.info('[IPC] chat:createProvider called', { providerType });
+      log.info('[IPC] chat:createProvider called ', { providerType }, config.apiKey);
 
       try {
         // Inject access token from auth service if available

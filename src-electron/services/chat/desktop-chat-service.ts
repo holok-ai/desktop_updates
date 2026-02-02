@@ -1,7 +1,6 @@
 import { ChatService } from '@holokai/chat-component';
 import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult } from '@holokai/chat-component';
 import type { DesktopChatRequest } from './chat-types.js';
-import { formatThreadId } from './chat-types.js';
 import type {
   ToolOrchestra,
   ToolUseCallback

@@ -2236,11 +2236,6 @@
         console.log('[ChatPane] generateResponseForVariation - Ready to send request');
       }
 
-      // Format thread_id with branch_id: "threadId,branch_id=branchId"
-      const threadData: string | undefined = currentThread?.id
-        ? `${currentThread.id},branch_id=${branchKey}`
-        : undefined;
-
       const request: DesktopChatRequest = {
         messages: historyMessages,
         streaming: true,
