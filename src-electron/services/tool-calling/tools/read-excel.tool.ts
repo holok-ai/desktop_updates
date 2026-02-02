@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadExcelResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
@@ -41,10 +42,25 @@ export class ReadExcelTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const userPath = params.file_path as string;
     const sheetName = params.sheet_name as string | undefined;
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_excel',
+        state: 'in_progress',
+        message: `Reading Excel file: ${userPath}`,
+      });
+    }
 
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -177,6 +193,14 @@ export class ReadExcelTool implements ITool {
           columnCount: s.columnCount,
         })),
       };
+
+      // Emit completion status
+      if (executionContext.statusCallback) {
+        executionContext.statusCallback({
+          toolName: 'read_excel',
+          state: 'complete',
+        });
+      }
 
       return {
         success: true,

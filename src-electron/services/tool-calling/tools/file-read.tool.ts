@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadFileResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 
 export class FileReadTool implements ITool {
@@ -45,13 +46,28 @@ export class FileReadTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const userPath = (params.file_path || params.path) as string;
     const encoding = (params.encoding as 'utf-8' | 'ascii' | 'latin1') ?? 'utf-8';
     const start_line = params.start_line as number | undefined;
     const end_line = params.end_line as number | undefined;
 
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_file',
+        state: 'in_progress',
+        message: `Reading file: ${userPath}`,
+      });
+    }
 
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -126,6 +142,14 @@ export class FileReadTool implements ITool {
       },
       truncated,
     };
+
+    // Emit completion status
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_file',
+        state: 'complete',
+      });
+    }
 
     return {
       success: true,

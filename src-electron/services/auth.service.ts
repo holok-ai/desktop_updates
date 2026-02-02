@@ -95,7 +95,7 @@ export class AuthService {
         if (encryptionAvailable) {
           try {
             tokensJson = safeStorage.decryptString(storedTokens);
-          } catch (error) {
+          } catch (_error) {
             // If decryption fails, try parsing as plain text (for migration)
             log.warn('[AuthService] Decryption failed, trying plain text');
             tokensJson = storedTokens.toString('utf-8');
@@ -130,7 +130,7 @@ export class AuthService {
         if (encryptionAvailable) {
           try {
             userJson = safeStorage.decryptString(storedUser);
-          } catch (error) {
+          } catch (_error) {
             // If decryption fails, try parsing as plain text (for migration)
             log.warn('[AuthService] Decryption failed, trying plain text');
             userJson = storedUser.toString('utf-8');

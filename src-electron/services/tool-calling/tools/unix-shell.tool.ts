@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ShellResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import { execSync } from 'child_process';
 import log from 'electron-log';
 
@@ -64,7 +65,10 @@ export class UnixShellTool implements ITool {
     };
   }
 
-  execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    _executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const command = params.command as string;
     const args = (params.arguments as string) || '';
 
