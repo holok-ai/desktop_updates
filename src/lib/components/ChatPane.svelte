@@ -1177,10 +1177,24 @@
       `[ChatPane] Initializing chat provider: ${config.provider} with model ${config.model} at ${config.url}`,
     );
 
-    const result = await window.electronAPI.chat.createProvider(config.provider, {
-      url: config.url,
-      model: config.model,
-    });
+    if (!currentThread?.id) {
+      console.error('[ChatPane] Cannot initialize chat service: thread ID is missing');
+      error = 'Thread ID is required';
+      return false;
+    }
+
+    const threadId = currentThread.id;
+    const workingDirectory = currentThread.metadata?.workingDirectory as string | undefined;
+
+    const result = await window.electronAPI.chat.createProvider(
+      threadId,
+      config.provider,
+      {
+        url: config.url,
+        model: config.model,
+      },
+      workingDirectory
+    );
 
     if (!result.success) {
       error = result.error || 'Failed to initialize chat service';
@@ -1217,7 +1231,13 @@
     // Remove any existing token listeners to prevent duplicates
     window.electronAPI.chat.offToken();
 
-    window.electronAPI.chat.onToken((token: string) => {
+    window.electronAPI.chat.onToken((data: { threadId: string; token: string }) => {
+      // Only process tokens for the current thread
+      if (data.threadId !== currentThread?.id) {
+        return;
+      }
+
+      const token = data.token;
       console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
 
       // First token received – clear the no-response timeout
@@ -1680,7 +1700,14 @@
 
       console.log('[ChatPane sendMessage] *** CALLING window.electronAPI.chat.chat() ***');
       // Use chat for all requests - tools are invisible to user
-      const result = await window.electronAPI.chat.chat(request) as { success: boolean; error?: string };
+      if (!currentThread?.id) {
+        error = 'Thread ID is required';
+        console.error('[ChatPane] Cannot send message: thread ID is missing');
+        showStreamingIndicator = false;
+        isStreaming = false;
+        return;
+      }
+      const result = await window.electronAPI.chat.chat(currentThread.id, request) as { success: boolean; error?: string };
       console.log('[ChatPane sendMessage] *** Chat call returned ***', result);
 
       if (!result.success) {
@@ -1827,7 +1854,13 @@
       };
 
       // Use chat for all requests - tools are invisible to user
-      const chatResult = await window.electronAPI.chat.chat(request);
+      if (!currentThread?.id) {
+        error = 'Thread ID is required';
+        console.error('[ChatPane] Cannot generate response: thread ID is missing');
+        showToast(`Error generating response: Thread ID is required`);
+        return;
+      }
+      const chatResult = await window.electronAPI.chat.chat(currentThread.id, request);
 
       if (!chatResult.success) {
         error = chatResult.error || 'Chat failed';
@@ -2060,7 +2093,12 @@
       // Set up token listener that captures to local variable and updates branch-specific streaming text
       // When running in parallel, each variation will update its own branch's streaming text
       window.electronAPI.chat.offToken();
-      window.electronAPI.chat.onToken((token: string) => {
+      window.electronAPI.chat.onToken((data: { threadId: string; token: string }) => {
+        // Only process tokens for the current thread
+        if (data.threadId !== currentThread?.id) {
+          return;
+        }
+        const token = data.token;
         variationResponseText = variationResponseText + token;
         // Update branch-specific streaming text
         streamingTextByBranch.set(branchKey, variationResponseText);
@@ -2237,9 +2275,7 @@
       }
 
       // Format thread_id with branch_id: "threadId,branch_id=branchId"
-      const threadData: string | undefined = currentThread?.id
-        ? `${currentThread.id},branch_id=${branchKey}`
-        : undefined;
+      // Note: threadData is not used - thread_id and branch_id are now separate properties in DesktopChatRequest
 
       const request: DesktopChatRequest = {
         messages: historyMessages,
@@ -2257,7 +2293,12 @@
 
       // Use chat for variations (same as normal messages)
       // The backend will persist both user and assistant messages when branch_id is included
-      const result = await window.electronAPI.chat.chat(request) as { success: boolean; error?: string };
+      if (!currentThread?.id) {
+        error = 'Thread ID is required';
+        console.error('[ChatPane] Cannot generate variation: thread ID is missing');
+        return;
+      }
+      const result = await window.electronAPI.chat.chat(currentThread.id, request) as { success: boolean; error?: string };
 
       if (!result.success) {
         error = result.error || 'Chat failed';
@@ -2315,7 +2356,9 @@
   // Cleanup on unmount
   async function cleanup() {
     window.electronAPI.chat.offToken();
-    await window.electronAPI.chat.close();
+    if (currentThread?.id) {
+      await window.electronAPI.chat.destroyProvider(currentThread.id);
+    }
   }
 
   // Process pending messages when coming back online
@@ -2325,7 +2368,12 @@
       setupTokenListener,
       getResponseText: () => responseText,
       // Use chat for all requests - tools are invisible to user
-      chat: (request) => window.electronAPI.chat.chat(request),
+      chat: (request) => {
+        if (!currentThread?.id) {
+          throw new Error('Thread ID is required');
+        }
+        return window.electronAPI.chat.chat(currentThread.id, request);
+      },
       setStreaming: (streaming) => {
         isStreaming = streaming;
       },

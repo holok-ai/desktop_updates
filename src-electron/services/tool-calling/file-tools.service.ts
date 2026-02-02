@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type {
-  ToolStatusCallback,
   ToolResult,
   FolderEntry,
   WriteFileParams,
@@ -12,50 +11,26 @@ import type {
 
 /**
  * File Tools Service
- * Provides local file system access tools for LLMs with security restrictions.
- * Enables LLMs to read folder contents and file contents during conversations.
+ * Provides security and utility methods for file operations
+ * NO LONGER STORES WORKING DIRECTORY STATE
  */
-
 export class FileToolsService {
-  private workingDirectory: string;
   private blacklistedPaths: Set<string>;
   private allowedPaths: Set<string>;
-  private maxFileSize: number = 10 * 1024 * 1024; // 10MB
-  private maxFolderFiles: number = 1000;
-  private statusCallback: ToolStatusCallback | null = null;
+  private readonly maxFileSize: number = 10 * 1024 * 1024; // 10MB
+  private readonly maxFolderFiles: number = 1000;
 
-  // Thresholds for status display
-  private static readonly STATUS_DELAY_MS = 2000; // Show status after 2 seconds
-  private static readonly LARGE_FILE_SIZE = 1024 * 1024; // 1MB - show status immediately
-
-  constructor(workingDir?: string, allowedPaths?: string[]) {
-    this.workingDirectory = workingDir || process.cwd();
+  constructor(allowedPaths?: string[]) {
     this.blacklistedPaths = this.initializeBlacklist();
-    this.allowedPaths = new Set((allowedPaths || []).map((p) => path.normalize(path.resolve(p))));
+    this.allowedPaths = new Set((allowedPaths || []).map((p) =>
+      path.normalize(path.resolve(p))
+    ));
+
     log.info('[FileToolsService] Initialized', JSON.stringify({
-      workingDirectory: this.workingDirectory,
       blacklistedPathsCount: this.blacklistedPaths.size,
       allowedPathsCount: this.allowedPaths.size,
       allowedPaths: Array.from(this.allowedPaths),
     }));
-  }
-
-
-  /**
-   * Set the callback for tool status updates
-   * @param callback - Function to call when tool status changes
-   */
-  public setStatusCallback(callback: ToolStatusCallback | null): void {
-    this.statusCallback = callback;
-  }
-
-  /**
-   * Emit a tool status event if callback is set
-   */
-  public emitStatus(toolName: string, state: 'in_progress' | 'complete', message?: string): void {
-    if (this.statusCallback) {
-      this.statusCallback({ toolName, state, message });
-    }
   }
 
   /**
@@ -69,125 +44,6 @@ export class FileToolsService {
     return this.maxFolderFiles;
   }
 
-  public getStatusDelayMs(): number {
-    return FileToolsService.STATUS_DELAY_MS;
-  }
-
-  public getLargeFileSize(): number {
-    return FileToolsService.LARGE_FILE_SIZE;
-  }
-
-  /**
-   * Get user-friendly message for tool operation
-   */
-  private getToolStatusMessage(toolName: string, input: Record<string, unknown>): string {
-    switch (toolName) {
-      case 'read_folder': {
-        const folderPath = input.path as string;
-        return `Reading folder: ${folderPath}`;
-      }
-      case 'read_file': {
-        const filePath = (input.file_path || input.path) as string;
-        return `Reading file: ${filePath}`;
-      }
-      case 'write_file': {
-        const writePath = input.path as string;
-        return `Writing file: ${writePath}`;
-      }
-      default:
-        return `Executing: ${toolName}`;
-    }
-  }
-
-  /**
-   * Check if we should show status immediately (large file)
-   */
-  private async shouldShowStatusImmediately(
-    toolName: string,
-    input: Record<string, unknown>,
-  ): Promise<boolean> {
-    if (toolName === 'read_file') {
-      const userPath = (input.file_path || input.path) as string;
-      const resolvedPath = this.resolvePath(userPath);
-      try {
-        // eslint-disable-next-line security/detect-non-literal-fs-filename
-        const stats = await fs.promises.stat(resolvedPath);
-        return stats.size > FileToolsService.LARGE_FILE_SIZE;
-      } catch {
-        return false;
-      }
-    }
-    if (toolName === 'write_file') {
-      const content = input.content as string;
-      return Boolean(content && content.length > FileToolsService.LARGE_FILE_SIZE);
-    }
-    return false;
-  }
-
-  /**
-   * Execute a tool by name with input parameters
-   */
-  public async executeTool(toolName: string, input: Record<string, unknown>): Promise<ToolResult> {
-    log.info(`[FileTools] Executing: ${toolName}`, { input });
-
-    // Enforce default overwrite=false for write_file unless explicitly set to true
-    if (toolName === 'write_file' && !('overwrite' in input)) {
-      input.overwrite = false;
-    }
-
-    const statusMessage = this.getToolStatusMessage(toolName, input);
-    let statusTimeout: ReturnType<typeof setTimeout> | null = null;
-    let statusShown = false;
-
-    // Check if we should show status immediately (large file)
-    const showImmediately = await this.shouldShowStatusImmediately(toolName, input);
-    if (showImmediately) {
-      this.emitStatus(toolName, 'in_progress', statusMessage);
-      statusShown = true;
-    } else {
-      // Set up delayed status (show after 2 seconds)
-      statusTimeout = setTimeout(() => {
-        this.emitStatus(toolName, 'in_progress', statusMessage);
-        statusShown = true;
-      }, FileToolsService.STATUS_DELAY_MS);
-    }
-
-    try {
-      let result: ToolResult;
-      switch (toolName) {
-        case 'read_folder':
-          result = await this.readFolder(input);
-          break;
-        case 'read_file':
-          result = await this.readFile(input);
-          break;
-        case 'write_file':
-          result = await this.writeFile(input as unknown as WriteFileParams);
-          break;
-        default:
-          result = {
-            success: false,
-            error: `Unknown tool: ${toolName}`,
-          };
-      }
-
-      return result;
-    } catch (error) {
-      log.error(`[FileTools] Error executing ${toolName}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    } finally {
-      // Clear timeout and emit complete status
-      if (statusTimeout) {
-        clearTimeout(statusTimeout);
-      }
-      if (statusShown) {
-        this.emitStatus(toolName, 'complete');
-      }
-    }
-  }
 
   /**
    * Read folder contents with optional recursive traversal
@@ -199,7 +55,7 @@ export class FileToolsService {
     const include_hidden = (params.include_hidden as boolean) ?? false;
     const filter_extensions = params.filter_extensions as string[] | undefined;
 
-    const resolvedPath = this.resolvePath(userPath);
+    const resolvedPath = this.resolvePath(userPath, process.cwd());
 
     // Security check
     const pathCheck = this.checkPathAccess(resolvedPath);
@@ -269,7 +125,7 @@ export class FileToolsService {
     const start_line = params.start_line as number | undefined;
     const end_line = params.end_line as number | undefined;
 
-    const resolvedPath = this.resolvePath(userPath);
+    const resolvedPath = this.resolvePath(userPath, process.cwd());
 
     // Security check
     const pathCheck = this.checkPathAccess(resolvedPath);
@@ -364,7 +220,7 @@ export class FileToolsService {
       };
     }
 
-    const resolvedPath = this.resolvePath(userPath);
+    const resolvedPath = this.resolvePath(userPath, process.cwd());
 
     // Security check - must be in allowed directories and not blacklisted
     const pathCheck = this.checkPathAccess(resolvedPath);
@@ -539,17 +395,24 @@ export class FileToolsService {
   }
 
   /**
-   * Resolve user-provided path to absolute path
-   * Supports relative paths, absolute paths, and tilde expansion
+   * Resolve path relative to provided working directory
+   * @param userPath - User-provided path (relative or absolute)
+   * @param workingDirectory - Context working directory
    */
-  public resolvePath(userPath: string): string {
-    if (userPath.startsWith('~')) {
-      userPath = path.join(app.getPath('home'), userPath.slice(1));
+  public resolvePath(userPath: string, workingDirectory: string): string { let resolved = userPath;
+
+    // Expand home directory
+    if (resolved.startsWith('~')) {
+      const homedir = app.getPath('home');
+      resolved = path.join(homedir, resolved.slice(1));
     }
-    if (!path.isAbsolute(userPath)) {
-      userPath = path.resolve(this.workingDirectory, userPath);
+
+    // Resolve relative paths against working directory
+    if (!path.isAbsolute(resolved)) {
+      resolved = path.resolve(workingDirectory, resolved);
     }
-    return path.normalize(userPath);
+
+    return path.normalize(resolved);
   }
 
   /**
@@ -681,20 +544,6 @@ export class FileToolsService {
     return blacklist;
   }
 
-  /**
-   * Set the working directory for relative path resolution
-   */
-  public setWorkingDirectory(dir: string): void {
-    this.workingDirectory = dir;
-    log.info('[FileToolsService] Working directory updated', { dir });
-  }
-
-  /**
-   * Get the current working directory
-   */
-  public getWorkingDirectory(): string {
-    return this.workingDirectory;
-  }
 
   /**
    * Set allowed paths (whitelist) for file access

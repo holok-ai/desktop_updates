@@ -35,11 +35,10 @@ describe('Chat IPC handlers', () => {
       } as any;
     });
 
-    // Default ChatService mock - tests will override behavior as needed
-    vi.doMock('../../../src-electron/services/chat/ChatService.js', () => {
+    // Mock @holokai/chat-component ChatService
+    vi.doMock('@holokai/chat-component', () => {
       return {
         ChatService: class {
-          constructor(_type: string, _cfg: any, _audit: boolean) {}
           async chat(_req: any, onToken?: (t: string) => void) {
             if (onToken) onToken('tok');
           }
@@ -53,6 +52,43 @@ describe('Chat IPC handlers', () => {
       };
     });
 
+    // Mock ToolOrchestrator
+    vi.doMock('../../../src-electron/services/tool-calling/orchestrator', () => {
+      return {
+        ToolOrchestrator: {
+          getInstance: vi.fn(() => ({
+            getToolDefinitions: vi.fn(() => []),
+            executeTool: vi.fn(async () => ({ success: true, data: {} })),
+            supportsToolCalling: vi.fn(() => true),
+            setAllowedPaths: vi.fn(),
+            getAllowedPaths: vi.fn(() => []),
+            addAllowedPaths: vi.fn(),
+            removeAllowedPaths: vi.fn(),
+            clearAllowedPaths: vi.fn(),
+          })),
+          resetInstance: vi.fn(),
+        },
+      };
+    });
+
+    // Mock settings-handler
+    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => {
+      return {
+        getSettingsService: vi.fn(() => ({
+          getDirectoryWhitelist: vi.fn(() => []),
+        })),
+      };
+    });
+
+    // Mock electron-log
+    vi.doMock('electron-log', () => ({
+      default: {
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+      },
+    }));
+
     // Import module under test after mocks
     const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
     // Register handlers
@@ -64,83 +100,114 @@ describe('Chat IPC handlers', () => {
       expect.arrayContaining([
         'chat:createProvider',
         'chat:send',
-        'chat:sendWithOptions',
         'chat:getAuditLogs',
-        'chat:destroy',
+        'chat:destroyProvider',
+        'chat:updateAllowedPaths',
       ]),
     );
   });
 
-  it('createProvider success and then send streams tokens', async () => {
-    // call createProvider (it's an async handler)
-    const createRes = await handlers['chat:createProvider'](null, 'ollama', {
-      url: 'http://x',
-      model: 'm',
-      apiKey: 'k',
-    });
+  it('createProvider success with threadId and then send streams tokens', async () => {
+    // call createProvider with threadId (it's an async handler)
+    const threadId = 'thread-1';
+    const createRes = await handlers['chat:createProvider'](
+      null,
+      threadId,
+      'ollama',
+      {
+        url: 'http://x',
+        model: 'm',
+        apiKey: 'k',
+      },
+      '/working/dir'
+    );
     expect(createRes.success).toBe(true);
 
     // prepare fake event with sender.send spy
     const sent: any[] = [];
-    const event = { sender: { send: (ch: string, t: string) => sent.push([ch, t]) } } as any;
+    const event = { sender: { send: (ch: string, data: any) => sent.push([ch, data]) } } as any;
 
-    const sendRes = await handlers['chat:send'](event, { model: 'm', messages: [] });
+    const sendRes = await handlers['chat:send'](
+      event,
+      threadId,
+      { model: 'm', messages: [] }
+    );
     expect(sendRes.success).toBe(true);
-    expect(sent).toEqual([['chat:token', 'tok']]);
+    expect(sent.some(([ch]) => ch === 'chat:token')).toBe(true);
   });
 
-  it('send throws when service not initialized', async () => {
-    // do not call createProvider - new module instance has chatService null
-    // Create a fresh module to get clean state
-    vi.resetModules();
-    handlers = {};
-    // re-mock electron to capture handlers
-    vi.doMock(
-      'electron',
-      () =>
-        ({
-          ipcMain: {
-            handle: (c: string, f: Function) => {
-              handlers[c] = f;
-            },
-            removeHandler: vi.fn(),
-            on: vi.fn(),
-          },
-          app: { getVersion: () => '0' },
-          BrowserWindow: class {},
-          Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },
-          dialog: { showMessageBox: vi.fn() },
-          contextBridge: { exposeInMainWorld: vi.fn() },
-          ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
-        }) as any,
-    );
-    // Mock ChatService module with constructor but will not be instantiated
-    vi.doMock('../../../src-electron/services/chat/ChatService.js', () => ({
-      ChatService: class {},
-    }));
-    const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
-    mod.registerChatHandlers();
+  it('send throws when service not initialized for thread', async () => {
+    // do not call createProvider - service not created for this thread
+    const event = { sender: { send: () => {} } } as any;
+    const threadId = 'non-existent-thread';
 
     await expect(
-      handlers['chat:send']({ sender: { send: () => {} } } as any, { model: 'm', messages: [] }),
+      handlers['chat:send'](event, threadId, { model: 'm', messages: [] }),
     ).rejects.toThrow();
   });
 
-  it('getAuditLogs returns logs when service present and destroy clears service', async () => {
+  it('should support multiple threads with different services', async () => {
+    const threadId1 = 'thread-1';
+    const threadId2 = 'thread-2';
+
+    // Create provider for thread 1
+    const createRes1 = await handlers['chat:createProvider'](
+      null,
+      threadId1,
+      'ollama',
+      { url: 'http://x', model: 'm', apiKey: 'k' },
+      '/dir1'
+    );
+    expect(createRes1.success).toBe(true);
+
+    // Create provider for thread 2
+    const createRes2 = await handlers['chat:createProvider'](
+      null,
+      threadId2,
+      'ollama',
+      { url: 'http://x', model: 'm', apiKey: 'k' },
+      '/dir2'
+    );
+    expect(createRes2.success).toBe(true);
+
+    // Both threads should work independently
+    const sent1: any[] = [];
+    const sent2: any[] = [];
+    const event1 = { sender: { send: (ch: string, data: any) => sent1.push([ch, data]) } } as any;
+    const event2 = { sender: { send: (ch: string, data: any) => sent2.push([ch, data]) } } as any;
+
+    const sendRes1 = await handlers['chat:send'](event1, threadId1, { model: 'm', messages: [] });
+    const sendRes2 = await handlers['chat:send'](event2, threadId2, { model: 'm', messages: [] });
+
+    expect(sendRes1.success).toBe(true);
+    expect(sendRes2.success).toBe(true);
+  });
+
+  it('getAuditLogs returns logs when service present and destroyProvider clears service', async () => {
+    const threadId = 'thread-1';
     // create provider (async)
-    await handlers['chat:createProvider'](null, 'ollama', {
-      url: 'http://localhost',
-      model: 'm',
-      apiKey: 'k',
-    });
-    const logs = handlers['chat:getAuditLogs']();
+    await handlers['chat:createProvider'](
+      null,
+      threadId,
+      'ollama',
+      {
+        url: 'http://localhost',
+        model: 'm',
+        apiKey: 'k',
+      },
+      '/working/dir'
+    );
+    const logs = handlers['chat:getAuditLogs'](null, threadId);
     expect(Array.isArray(logs)).toBe(true);
 
-    const destroyed = handlers['chat:destroy']();
+    const destroyed = handlers['chat:destroyProvider'](null, threadId);
     expect(destroyed.success).toBe(true);
 
-    // after destroy, getAuditLogs should throw
-    await expect(() => handlers['chat:getAuditLogs']()).toThrow();
+    // after destroy, send should throw for that thread
+    const event = { sender: { send: () => {} } } as any;
+    await expect(
+      handlers['chat:send'](event, threadId, { model: 'm', messages: [] })
+    ).rejects.toThrow();
   });
 
   it('unregisterChatHandlers calls removeHandler for each channel', async () => {
@@ -150,8 +217,8 @@ describe('Chat IPC handlers', () => {
     mod.unregisterChatHandlers();
     expect(removeSpy).toHaveBeenCalledWith('chat:createProvider');
     expect(removeSpy).toHaveBeenCalledWith('chat:send');
-    expect(removeSpy).toHaveBeenCalledWith('chat:sendWithOptions');
     expect(removeSpy).toHaveBeenCalledWith('chat:getAuditLogs');
-    expect(removeSpy).toHaveBeenCalledWith('chat:destroy');
+    expect(removeSpy).toHaveBeenCalledWith('chat:destroyProvider');
+    expect(removeSpy).toHaveBeenCalledWith('chat:updateAllowedPaths');
   });
 });

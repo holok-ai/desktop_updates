@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadFolderResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 
 export class FolderReadTool implements ITool {
@@ -49,14 +50,29 @@ export class FolderReadTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const userPath = params.path as string;
     const recursive = (params.recursive as boolean) ?? false;
     const max_depth = (params.max_depth as number) ?? 3;
     const include_hidden = (params.include_hidden as boolean) ?? false;
     const filter_extensions = params.filter_extensions as string[] | undefined;
 
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_folder',
+        state: 'in_progress',
+        message: `Reading folder: ${userPath}`,
+      });
+    }
 
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -113,6 +129,14 @@ export class FolderReadTool implements ITool {
       total_files: entries.filter((e) => e.type === 'file').length,
       total_directories: entries.filter((e) => e.type === 'directory').length,
     };
+
+    // Emit completion status
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_folder',
+        state: 'complete',
+      });
+    }
 
     return {
       success: true,

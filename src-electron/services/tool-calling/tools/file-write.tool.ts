@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, WriteFileParams, WriteFileResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import log from 'electron-log';
@@ -48,7 +49,10 @@ export class FileWriteTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const writeParams = params as unknown as WriteFileParams;
 
     // Explicitly default overwrite to false if not provided
@@ -63,7 +67,19 @@ export class FileWriteTool implements ITool {
       };
     }
 
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'write_file',
+        state: 'in_progress',
+        message: `Writing file: ${userPath}`,
+      });
+    }
 
     // Security check - must be in allowed directories and not blacklisted
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -129,6 +145,14 @@ export class FileWriteTool implements ITool {
           previousSize: previousSize,
         },
       };
+
+      // Emit completion status
+      if (executionContext.statusCallback) {
+        executionContext.statusCallback({
+          toolName: 'write_file',
+          state: 'complete',
+        });
+      }
 
       return {
         success: true,

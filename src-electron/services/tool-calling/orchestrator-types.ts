@@ -28,6 +28,24 @@ export type ToolUseCallback = (
 ) => void;
 
 /**
+ * Context provided for each tool execution
+ * Isolated per thread/message
+ */
+export interface ToolExecutionContext {
+  /** Working directory for this execution - used to resolve relative paths */
+  workingDirectory: string;
+
+  /** Thread ID for this execution (required) */
+  threadId: string;
+
+  /** Branch ID for this execution (required) */
+  branchId: string;
+
+  /** Status callback for this execution (optional) - called for progress updates */
+  statusCallback?: ToolStatusCallback;
+}
+
+/**
  * Tool orchestra interface - provides tool definitions and execution
  */
 export interface ToolOrchestra {
@@ -37,9 +55,13 @@ export interface ToolOrchestra {
   getToolDefinitions(): ToolDefinition[];
 
   /**
-   * Execute a tool by name with input parameters
+   * Execute a tool by name with input parameters and execution context
    */
-  executeTool(name: string, input: Record<string, unknown>): Promise<ToolResult>;
+  executeTool(
+    name: string,
+    input: Record<string, unknown>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult>;
 
   /**
    * Determines if a provider/model combination supports tool calling
@@ -47,17 +69,27 @@ export interface ToolOrchestra {
   supportsToolCalling(provider: string, model: string): boolean;
 
   /**
-   * Set working directory for file operations
+   * Set allowed paths for file access (global setting)
    */
-  setWorkingDirectory?(dir: string): void;
+  setAllowedPaths(paths: string[]): void;
 
   /**
-   * Set callback for tool status updates
+   * Get current allowed paths
    */
-  setStatusCallback?(callback: ToolStatusCallback | null): void;
+  getAllowedPaths(): string[];
 
   /**
-   * Get current working directory
+   * Add allowed paths to whitelist
    */
-  getWorkingDirectory?(): string;
+  addAllowedPaths(...paths: string[]): void;
+
+  /**
+   * Remove allowed paths from whitelist
+   */
+  removeAllowedPaths(...paths: string[]): void;
+
+  /**
+   * Clear all allowed paths
+   */
+  clearAllowedPaths(): void;
 }

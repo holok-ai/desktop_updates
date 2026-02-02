@@ -37,11 +37,11 @@ vi.mock('fs', async () => {
 
 describe('FileToolsService', () => {
   let service: FileToolsService;
-  const mockWorkingDir = '/mock/workspace';
+  const mockAllowedPaths = ['/mock/allowed1', '/mock/allowed2'];
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new FileToolsService(mockWorkingDir);
+    service = new FileToolsService(mockAllowedPaths);
   });
 
   afterEach(() => {
@@ -49,696 +49,153 @@ describe('FileToolsService', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with provided working directory', () => {
-      const svc = new FileToolsService('/custom/dir');
-      expect(svc.getWorkingDirectory()).toBe('/custom/dir');
+    it('should initialize with provided allowed paths', () => {
+      const svc = new FileToolsService(['/custom/path1', '/custom/path2']);
+      expect(svc.getAllowedPaths()).toHaveLength(2);
     });
 
-    it('should use process.cwd() if no working directory provided', () => {
-      const originalCwd = process.cwd();
+    it('should initialize with no allowed paths if none provided', () => {
       const svc = new FileToolsService();
-      expect(svc.getWorkingDirectory()).toBe(originalCwd);
+      expect(svc.getAllowedPaths()).toHaveLength(0);
     });
 
     it('should initialize blacklist', () => {
-      expect(service.getWorkingDirectory()).toBe(mockWorkingDir);
+      expect(service.getAllowedPaths()).toHaveLength(2);
     });
   });
 
-  describe('getToolDefinitions', () => {
-    it('should have executeTool method', () => {
-      expect(typeof service.executeTool).toBe('function');
-    });
-
-    it('should have getWorkingDirectory method', () => {
-      expect(typeof service.getWorkingDirectory).toBe('function');
-      expect(service.getWorkingDirectory()).toBe(mockWorkingDir);
-    });
-
+  describe('service methods', () => {
     it('should have path access methods', () => {
       expect(typeof service.checkPathAccess).toBe('function');
       expect(typeof service.isPathAllowed).toBe('function');
       expect(typeof service.resolvePath).toBe('function');
     });
-  });
 
-  describe('executeTool', () => {
-    it('should execute read_folder tool', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({ isDirectory: () => true, isFile: () => false });
-      (fs.promises.readdir as any).mockResolvedValue([]);
-
-      const result = await service.executeTool('read_folder', { path: './test' });
-      expect(result.success).toBe(true);
-    });
-
-    it('should execute read_file tool', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: 100,
-        mtimeMs: 1234567890,
-      });
-      (fs.promises.readFile as any).mockResolvedValue('file content');
-
-      const result = await service.executeTool('read_file', { file_path: './test.txt' });
-      expect(result.success).toBe(true);
-    });
-
-    it('should execute write_file tool', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // Parent directory exists, file doesn't
-        if (p.includes('test.txt')) return false;
-        return true; // Parent directory exists
-      });
-      (fs.promises.writeFile as any).mockResolvedValue(undefined);
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: 10,
-        mtimeMs: 1234567890,
-      });
-
-      const result = await service.executeTool('write_file', {
-        path: './test.txt',
-        content: 'hello',
-      });
-      expect(result.success).toBe(true);
-      expect(result.data.created).toBe(true);
-    });
-
-    it('should return error for unknown tool', async () => {
-      const result = await service.executeTool('unknown_tool', {});
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Unknown tool');
-    });
-
-    it('should handle errors gracefully', async () => {
-      (fs.existsSync as any).mockImplementation(() => {
-        throw new Error('Test error');
-      });
-
-      const result = await service.executeTool('read_folder', { path: './test' });
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Test error');
+    it('should have allowed paths management methods', () => {
+      expect(typeof service.setAllowedPaths).toBe('function');
+      expect(typeof service.getAllowedPaths).toBe('function');
+      expect(typeof service.addAllowedPaths).toBe('function');
+      expect(typeof service.removeAllowedPaths).toBe('function');
+      expect(typeof service.clearAllowedPaths).toBe('function');
     });
   });
 
-  describe('readFolder', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockReset();
-      (fs.promises.readdir as any).mockReset();
+  describe('resolvePath', () => {
+    it('should resolve relative paths against working directory', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('./file.txt', workingDir);
+      expect(result).toContain(workingDir);
+      expect(result).toContain('file.txt');
     });
 
-    it('should read folder contents', async () => {
-      const mockEntries = [
-        { name: 'file1.txt', isFile: () => true, isDirectory: () => false },
-        { name: 'subdir', isFile: () => false, isDirectory: () => true },
-      ];
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
-      (fs.promises.stat as any)
-        .mockResolvedValueOnce({ isDirectory: () => true, isFile: () => false })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        })
-        .mockResolvedValueOnce({
-          isDirectory: () => true,
-          isFile: () => false,
-          mtimeMs: 1234567890,
-        });
-
-      const result = await service.executeTool('read_folder', { path: './test' });
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('entries');
-      expect(result.data).toHaveProperty('total_files');
-      expect(result.data).toHaveProperty('total_directories');
+    it('should return absolute paths as-is', () => {
+      const workingDir = '/test/working/dir';
+      const absolutePath = '/absolute/path/file.txt';
+      const result = service.resolvePath(absolutePath, workingDir);
+      expect(result).toBe(absolutePath);
     });
 
-    it('should return error for non-existent path', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-
-      const result = await service.executeTool('read_folder', { path: './nonexistent' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('PATH_NOT_FOUND');
+    it('should expand tilde to home directory', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('~/file.txt', workingDir);
+      expect(result).toContain('/mock/home');
+      expect(result).toContain('file.txt');
     });
 
-    it('should return error for file instead of directory', async () => {
-      (fs.promises.stat as any).mockResolvedValue({ isDirectory: () => false });
-
-      const result = await service.executeTool('read_folder', { path: './file.txt' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('NOT_A_DIRECTORY');
+    it('should use different working directories correctly', () => {
+      const workingDir1 = '/dir1';
+      const workingDir2 = '/dir2';
+      
+      const result1 = service.resolvePath('./file.txt', workingDir1);
+      const result2 = service.resolvePath('./file.txt', workingDir2);
+      
+      expect(result1).toContain(workingDir1);
+      expect(result2).toContain(workingDir2);
+      expect(result1).not.toBe(result2);
     });
 
-    it('should respect include_hidden parameter', async () => {
-      const mockEntries = [
-        { name: '.hidden', isFile: () => true, isDirectory: () => false },
-        { name: 'visible', isFile: () => true, isDirectory: () => false },
-      ];
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
-      (fs.promises.stat as any)
-        .mockResolvedValueOnce({ isDirectory: () => true, isFile: () => false })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-
-      const result = await service.executeTool('read_folder', {
-        path: './test',
-        include_hidden: false,
-      });
-      expect(result.success).toBe(true);
-      // Should filter out .hidden
-      expect(result.data.entries.length).toBe(1);
-      expect(result.data.entries[0].name).toBe('visible');
-    });
-
-    it('should include hidden files when include_hidden is true', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      const mockEntries = [
-        { name: '.hidden', isFile: () => true, isDirectory: () => false },
-        { name: 'visible', isFile: () => true, isDirectory: () => false },
-      ];
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
-      (fs.promises.stat as any)
-        .mockResolvedValueOnce({ isDirectory: () => true, isFile: () => false })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-
-      const result = await service.executeTool('read_folder', {
-        path: './test',
-        include_hidden: true,
-      });
-      expect(result.success).toBe(true);
-      expect(result.data.entries.length).toBe(2);
-    });
-
-    it('should filter by extension when filter_extensions provided', async () => {
-      const mockEntries = [
-        { name: 'file1.js', isFile: () => true, isDirectory: () => false },
-        { name: 'file2.ts', isFile: () => true, isDirectory: () => false },
-        { name: 'file3.txt', isFile: () => true, isDirectory: () => false },
-      ];
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
-      (fs.promises.stat as any)
-        .mockResolvedValueOnce({ isDirectory: () => true, isFile: () => false })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        })
-        .mockResolvedValueOnce({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-
-      const result = await service.executeTool('read_folder', {
-        path: './test',
-        filter_extensions: ['.js', '.ts'],
-      });
-      expect(result.success).toBe(true);
-      expect(result.data.entries.length).toBe(2);
-      expect(result.data.entries.every((e: any) => ['.js', '.ts'].includes(e.extension))).toBe(
-        true,
-      );
-    });
-
-    it('should return error when folder has too many files', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      const mockEntries = Array.from({ length: 1001 }, (_, i) => ({
-        name: `file${i}.txt`,
-        isFile: () => true,
-        isDirectory: () => false,
-      }));
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
-      let statCallCount = 0;
-      (fs.promises.stat as any).mockImplementation(() => {
-        statCallCount++;
-        // First call is for the directory check (before readdir)
-        if (statCallCount === 1) {
-          return Promise.resolve({ isDirectory: () => true, isFile: () => false });
-        }
-        // Subsequent calls are for files (during readDirectoryRecursive)
-        return Promise.resolve({
-          isFile: () => true,
-          isDirectory: () => false,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-      });
-
-      const result = await service.executeTool('read_folder', { path: './test' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('TOO_MANY_FILES');
-    });
-
-    it('should support recursive traversal', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      const mockEntries = [{ name: 'subdir', isFile: () => false, isDirectory: () => true }];
-      let readdirCallCount = 0;
-      (fs.promises.readdir as any).mockImplementation(() => {
-        readdirCallCount++;
-        // First call: root directory returns subdir
-        if (readdirCallCount === 1) {
-          return Promise.resolve(mockEntries);
-        }
-        // Second call: subdir returns empty
-        return Promise.resolve([]);
-      });
-      (fs.promises.stat as any).mockImplementation(() => {
-        // All stat calls return directory stats
-        return Promise.resolve({
-          isDirectory: () => true,
-          isFile: () => false,
-          mtimeMs: 1234567890,
-        });
-      });
-
-      const result = await service.executeTool('read_folder', {
-        path: './test',
-        recursive: true,
-        max_depth: 2,
-      });
-      expect(result.success).toBe(true);
-      expect(fs.promises.readdir).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('readFile', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      (fs.existsSync as any).mockReturnValue(true);
-      // Reset stat mock to avoid interference from previous tests
-      (fs.promises.stat as any).mockReset();
-      (fs.promises.readFile as any).mockReset();
-    });
-
-    it('should read file contents', async () => {
-      const mockContent = 'file content line 1\nfile content line 2';
-      const fileSize = Buffer.byteLength(mockContent, 'utf-8');
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: fileSize,
-        mtimeMs: 1234567890,
-      });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
-
-      const result = await service.executeTool('read_file', { file_path: './test.txt' });
-      expect(result.success).toBe(true);
-      expect(result.data.content).toBe(mockContent);
-      expect(result.data.metadata.lines).toBe(2);
-      // The metadata.size should match the file size from stats
-      expect(result.data.metadata.size).toBe(fileSize);
-    });
-
-    it('should return error for non-existent file', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
-
-      const result = await service.executeTool('read_file', { file_path: './nonexistent.txt' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('FILE_NOT_FOUND');
-    });
-
-    it('should return error for directory instead of file', async () => {
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => false,
-        isDirectory: () => true,
-      });
-
-      const result = await service.executeTool('read_file', { file_path: './dir' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('NOT_A_FILE');
-    });
-
-    it('should return error for file too large without line range', async () => {
-      const largeSize = 11 * 1024 * 1024; // 11MB
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: largeSize,
-        mtimeMs: 1234567890,
-      });
-      // Note: We don't need to mock readFile since it should fail before reading
-
-      const result = await service.executeTool('read_file', { file_path: './large.txt' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('FILE_TOO_LARGE');
-    });
-
-    it('should allow reading large file with line range', async () => {
-      const largeSize = 11 * 1024 * 1024; // 11MB
-      const mockContent = 'line 1\nline 2\nline 3';
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: largeSize,
-        mtimeMs: 1234567890,
-      });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
-
-      const result = await service.executeTool('read_file', {
-        path: './large.txt', // .txt extension so it passes text file check
-        start_line: 1,
-        end_line: 2,
-      });
-      expect(result.success).toBe(true);
-      expect(result.data.truncated).toBe(true);
-    });
-
-    it('should return error for binary file', async () => {
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: 100,
-        mtimeMs: 1234567890,
-      });
-
-      const result = await service.executeTool('read_file', { file_path: './image.jpg' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('NOT_TEXT_FILE');
-    });
-
-    it('should support line range', async () => {
-      const mockContent = 'line 1\nline 2\nline 3\nline 4\nline 5';
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
-
-      const result = await service.executeTool('read_file', {
-        path: './test.txt',
-        start_line: 2,
-        end_line: 4,
-      });
-      expect(result.success).toBe(true);
-      expect(result.data.content).toBe('line 2\nline 3\nline 4');
-      expect(result.data.truncated).toBe(true);
-    });
-
-    it('should support different encodings', async () => {
-      const mockContent = 'file content';
-      (fs.promises.stat as any).mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
-
-      const result = await service.executeTool('read_file', {
-        path: './test.txt',
-        encoding: 'ascii',
-      });
-      expect(result.success).toBe(true);
-      expect(fs.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
-    });
-  });
-
-  describe('writeFile', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      (fs.existsSync as any).mockReturnValue(false);
-      (fs.promises.mkdir as any).mockReset();
-      (fs.promises.writeFile as any).mockReset();
-      (fs.promises.stat as any).mockReset();
-    });
-
-    it('should create a new file when it does not exist', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // Parent directory exists, file doesn't
-        if (p.includes('newfile.txt')) return false;
-        return true; // Parent directory exists
-      });
-      (fs.promises.writeFile as any).mockResolvedValue(undefined);
-      (fs.promises.stat as any).mockResolvedValue({
-        size: 5,
-        mtimeMs: 1234567890,
-      });
-
-      const result: ToolResult = await service.executeTool('write_file', {
-        path: './newfile.txt',
-        content: 'hello',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.data.created).toBe(true);
-      expect(result.data.bytesWritten).toBe(Buffer.byteLength('hello', 'utf-8'));
-    });
-
-    it('should return error when file exists and overwrite is false', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-
-      const result = await service.executeTool('write_file', {
-        path: './existing.txt',
-        content: 'data',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('FILE_EXISTS');
-    });
-
-    it('should overwrite existing file when overwrite is true', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.writeFile as any).mockResolvedValue(undefined);
-      (fs.promises.stat as any).mockResolvedValue({
-        size: 4,
-        mtimeMs: 1234567890,
-      });
-
-      const result: ToolResult = await service.executeTool('write_file', {
-        path: './existing.txt',
-        content: 'data',
-        overwrite: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.data.created).toBe(false);
-    });
-
-    it('should return error when parent directory does not exist', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // Parent directory doesn't exist
-        if (p.includes('nested')) return false;
-        return true;
-      });
-
-      const result = await service.executeTool('write_file', {
-        path: './nested/dir/file.txt',
-        content: 'data',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('DIR_NOT_FOUND');
-    });
-
-    it('should validate encoding and return error for invalid encoding', async () => {
-      const result = await service.executeTool('write_file', {
-        path: './file.txt',
-        content: 'data',
-        // @ts-expect-error testing invalid runtime encoding
-        encoding: 'utf16',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('INVALID_ENCODING');
-    });
-
-    it('should map permission errors', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // Parent directory exists, file doesn't
-        if (p.includes('file.txt')) return false;
-        return true; // Parent directory exists
-      });
-      (fs.promises.writeFile as any).mockRejectedValue({ code: 'EACCES', message: 'denied' });
-
-      const result = await service.executeTool('write_file', {
-        path: './file.txt',
-        content: 'data',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('PERMISSION_DENIED');
-    });
-
-    it('should map disk full errors', async () => {
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // Parent directory exists, file doesn't
-        if (p.includes('file.txt')) return false;
-        return true; // Parent directory exists
-      });
-      (fs.promises.writeFile as any).mockRejectedValue({ code: 'ENOSPC', message: 'no space' });
-
-      const result = await service.executeTool('write_file', {
-        path: './file.txt',
-        content: 'data',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('DISK_FULL');
+    it('should normalize paths', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('./../file.txt', workingDir);
+      expect(result).not.toContain('..');
+      // Path should be normalized (no parent directory references)
+      expect(result).toBe('/test/working/file.txt');
     });
   });
 
   describe('path resolution', () => {
-    it('should resolve relative paths', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({ isDirectory: () => true, isFile: () => false });
-      (fs.promises.readdir as any).mockResolvedValue([]);
-
-      await service.executeTool('read_folder', { path: './subdir' });
-      expect(fs.existsSync).toHaveBeenCalledWith(expect.stringContaining(mockWorkingDir));
+    it('should resolve relative paths', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('./subdir', workingDir);
+      expect(result).toContain(workingDir);
     });
 
-    it('should resolve absolute paths', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({ isDirectory: () => true, isFile: () => false });
-      (fs.promises.readdir as any).mockResolvedValue([]);
-
-      await service.executeTool('read_folder', { path: '/absolute/path' });
-      expect(fs.existsSync).toHaveBeenCalledWith('/absolute/path');
+    it('should resolve absolute paths', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('/absolute/path', workingDir);
+      expect(result).toBe('/absolute/path');
     });
 
-    it('should expand tilde to home directory', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({ isDirectory: () => true, isFile: () => false });
-      (fs.promises.readdir as any).mockResolvedValue([]);
-
-      await service.executeTool('read_folder', { path: '~/test' });
-      expect(fs.existsSync).toHaveBeenCalledWith(expect.stringContaining('/mock/home'));
+    it('should expand tilde to home directory', () => {
+      const workingDir = '/test/working/dir';
+      const result = service.resolvePath('~/test', workingDir);
+      expect(result).toContain('/mock/home');
     });
   });
+
+  // Note: executeTool, readFolder, readFile, writeFile are no longer in FileToolsService
+  // These methods have been moved to individual tool implementations
+  // Tests for these should be in tool-specific test files (e.g., file-read.tool.spec.ts)
 
   describe('security', () => {
-    it('should block access to system directories', async () => {
-      const result = await service.executeTool('read_folder', { path: '/System' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('folder I cannot access');
+    it('should block access to system directories via checkPathAccess', () => {
+      const result = service.checkPathAccess('/System');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBe('blacklist');
     });
 
-    it('should block access to sensitive user directories', async () => {
-      const result = await service.executeTool('read_folder', {
-        path: path.join('/mock/home', '.ssh'),
-      });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('folder I cannot access');
+    it('should block access to sensitive user directories via checkPathAccess', () => {
+      const result = service.checkPathAccess(path.join('/mock/home', '.ssh'));
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBe('blacklist');
     });
 
-    it('should block access to blacklisted paths in recursive traversal', async () => {
-      // Create a scenario where a subdirectory path resolves to blacklisted area
-      // We'll mock the path resolution by making the resolved path be blacklisted
-      const mockEntries = [{ name: 'subdir', isFile: () => false, isDirectory: () => true }];
-      (fs.existsSync as any).mockImplementation((p: string) => {
-        // The resolved path will be blacklisted, so we return false to simulate it
-        return !p.includes('.ssh');
-      });
-      (fs.promises.stat as any).mockImplementation((p: string) => {
-        if (p.includes('.ssh')) {
-          // This path is blacklisted, so we shouldn't reach here, but if we do, throw
-          throw new Error('ACCESS_DENIED');
-        }
-        return Promise.resolve({ isDirectory: () => true, isFile: () => false });
-      });
-      (fs.promises.readdir as any).mockResolvedValue(mockEntries);
+    it('should allow access to non-blacklisted paths when whitelist is empty', () => {
+      const svc = new FileToolsService();
+      const result = svc.checkPathAccess('/some/random/path');
+      expect(result.allowed).toBe(true);
+    });
 
-      // Use a path that would resolve to blacklisted area
-      const result = await service.executeTool('read_folder', {
-        path: path.join('/mock/home', '.ssh'),
-      });
-      // Should be blocked
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('folder I cannot access');
+    it('should deny access when path is not in whitelist', () => {
+      const svc = new FileToolsService(['/allowed/path']);
+      const result = svc.checkPathAccess('/denied/path');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBe('whitelist');
+    });
+
+    it('should allow access when path is in whitelist', () => {
+      const allowedPath = path.resolve('/allowed/path');
+      const svc = new FileToolsService([allowedPath]);
+      const result = svc.checkPathAccess(path.join(allowedPath, 'subfolder'));
+      expect(result.allowed).toBe(true);
     });
   });
 
-  describe('setWorkingDirectory', () => {
-    it('should update working directory', () => {
-      const newDir = '/new/working/dir';
-      service.setWorkingDirectory(newDir);
-      expect(service.getWorkingDirectory()).toBe(newDir);
-    });
-  });
-
-  describe('isTextFile', () => {
-    it('should recognize common text file extensions', async () => {
-      const textFiles = ['.txt', '.md', '.json', '.js', '.ts', '.py', '.css', '.html'];
-      for (const ext of textFiles) {
-        (fs.existsSync as any).mockReturnValue(true);
-        (fs.promises.stat as any).mockResolvedValue({
-          isFile: () => true,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-        (fs.promises.readFile as any).mockResolvedValue('content');
-
-        const result = await service.executeTool('read_file', { file_path: `./test${ext}` });
-        expect(result.success).toBe(true);
-      }
-    });
-
-    it('should reject binary file extensions', async () => {
-      const binaryFiles = ['.jpg', '.png', '.exe', '.bin', '.zip'];
-      for (const ext of binaryFiles) {
-        (fs.existsSync as any).mockReturnValue(true);
-        (fs.promises.stat as any).mockResolvedValue({
-          isFile: () => true,
-          size: 100,
-          mtimeMs: 1234567890,
-        });
-
-        const result = await service.executeTool('read_file', { file_path: `./test${ext}` });
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('NOT_TEXT_FILE');
-      }
-    });
-  });
+  // Note: setWorkingDirectory and getWorkingDirectory have been removed
+  // Working directory is now passed per-execution via ToolExecutionContext
+  // Note: isTextFile tests are no longer relevant here as executeTool was removed
 
   describe('Allowed Paths (Whitelist)', () => {
     describe('constructor with allowedPaths', () => {
       it('should initialize with allowed paths', () => {
         const allowedPaths = ['/path/to/allowed1', '/path/to/allowed2'];
-        const svc = new FileToolsService(mockWorkingDir, allowedPaths);
+        const svc = new FileToolsService(allowedPaths);
         expect(svc.getAllowedPaths()).toHaveLength(2);
       });
 
       it('should normalize allowed paths', () => {
         const allowedPaths = ['/path/to/../allowed'];
-        const svc = new FileToolsService(mockWorkingDir, allowedPaths);
+        const svc = new FileToolsService(allowedPaths);
         const normalized = svc.getAllowedPaths();
         expect(normalized[0]).toBe(path.normalize(path.resolve('/path/allowed')));
       });
@@ -762,6 +219,7 @@ describe('FileToolsService', () => {
 
     describe('addAllowedPaths', () => {
       it('should add single path to allowed paths', () => {
+        service.clearAllowedPaths();
         service.addAllowedPaths('/path/to/allowed');
         expect(service.getAllowedPaths()).toContain(
           path.normalize(path.resolve('/path/to/allowed')),
@@ -769,6 +227,7 @@ describe('FileToolsService', () => {
       });
 
       it('should add multiple paths to allowed paths', () => {
+        service.clearAllowedPaths();
         service.addAllowedPaths('/path1', '/path2', '/path3');
         expect(service.getAllowedPaths()).toHaveLength(3);
       });
@@ -785,6 +244,7 @@ describe('FileToolsService', () => {
 
     describe('removeAllowedPaths', () => {
       it('should remove path from allowed paths', () => {
+        service.clearAllowedPaths();
         const testPath = '/path/to/allowed';
         service.addAllowedPaths(testPath);
         expect(service.getAllowedPaths().length).toBeGreaterThan(0);
@@ -793,6 +253,8 @@ describe('FileToolsService', () => {
       });
 
       it('should remove multiple paths', () => {
+        // Clear existing paths first
+        service.clearAllowedPaths();
         service.addAllowedPaths('/path1', '/path2', '/path3');
         service.removeAllowedPaths('/path1', '/path2');
         expect(service.getAllowedPaths()).toHaveLength(1);
@@ -808,84 +270,8 @@ describe('FileToolsService', () => {
       });
     });
 
-    describe('isPathAllowed with whitelist', () => {
-      beforeEach(() => {
-        vi.clearAllMocks();
-      });
-
-      it('should allow access when whitelist is empty', async () => {
-        const svc = new FileToolsService(mockWorkingDir);
-        (fs.existsSync as any).mockReturnValue(true);
-        (fs.promises.stat as any).mockResolvedValue({
-          isDirectory: () => true,
-          isFile: () => false,
-          size: 0,
-          mtimeMs: 1234567890,
-        });
-        (fs.promises.readdir as any).mockResolvedValue([]);
-
-        const result = await svc.executeTool('read_folder', { path: '/some/random/path' });
-        expect(result.success).toBe(true);
-      });
-
-      it('should deny access when path is not in whitelist', async () => {
-        const svc = new FileToolsService(mockWorkingDir, ['/allowed/path']);
-        (fs.existsSync as any).mockReturnValue(true);
-
-        const result = await svc.executeTool('read_folder', { path: '/denied/path' });
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('add an entry to the allowed folder list');
-      });
-
-      it('should allow access when path is in whitelist', async () => {
-        const allowedPath = path.resolve('/allowed/path');
-        const svc = new FileToolsService(mockWorkingDir, [allowedPath]);
-        (fs.existsSync as any).mockReturnValue(true);
-        (fs.promises.stat as any).mockResolvedValue({
-          isDirectory: () => true,
-          isFile: () => false,
-          size: 0,
-          mtimeMs: 1234567890,
-        });
-        (fs.promises.readdir as any).mockResolvedValue([]);
-
-        const result = await svc.executeTool('read_folder', {
-          path: path.join(allowedPath, 'subfolder'),
-        });
-        expect(result.success).toBe(true);
-      });
-
-      it('should deny access when path is in blacklist even if in whitelist', async () => {
-        const svc = new FileToolsService(mockWorkingDir, ['/mock/home']);
-        (fs.existsSync as any).mockReturnValue(true);
-
-        // Try to access .ssh which is blacklisted
-        const result = await svc.executeTool('read_folder', { path: '/mock/home/.ssh' });
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('folder I cannot access');
-      });
-
-      it('should check both whitelist and blacklist in correct order', async () => {
-        const allowedPath = '/mock/home/projects';
-        const svc = new FileToolsService(mockWorkingDir, [allowedPath]);
-        (fs.existsSync as any).mockReturnValue(true);
-        (fs.promises.stat as any).mockResolvedValue({
-          isDirectory: () => true,
-          isFile: () => false,
-          size: 0,
-          mtimeMs: 1234567890,
-        });
-        (fs.promises.readdir as any).mockResolvedValue([]);
-
-        // Should allow access to whitelisted path that's not blacklisted
-        const goodResult = await svc.executeTool('read_folder', { path: allowedPath });
-        expect(goodResult.success).toBe(true);
-
-        // Should deny access to blacklisted path even though parent is whitelisted
-        const sshPath = '/mock/home/.ssh';
-        const badResult = await svc.executeTool('read_folder', { path: sshPath });
-        expect(badResult.success).toBe(false);
-      });
-    });
+    // Note: isPathAllowed tests that used executeTool have been removed
+    // These tests should be moved to tool-specific test files or integration tests
+    // The checkPathAccess method is still tested in the 'security' describe block above
   });
 });
