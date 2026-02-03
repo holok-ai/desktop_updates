@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { ElectronApplication, Page } from 'playwright';
+import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
 
 /**
  * E2E Test: Multi-Thread Chat Workflow
@@ -21,17 +22,15 @@ test.describe('Multi-Thread Chat E2E', () => {
   let electronApp: ElectronApplication;
   let window: Page;
 
-  test.beforeAll(async ({ playwright }) => {
+  test.beforeAll(async () => {
     // Launch Electron app
-    electronApp = await playwright.electron.launch({
-      args: ['.'],
-    });
+    electronApp = await launchElectronApp();
     window = await electronApp.firstWindow();
     await window.waitForLoadState('domcontentloaded');
   });
 
   test.afterAll(async () => {
-    await electronApp.close();
+    await closeElectronApp(electronApp);
   });
 
   test('should open multiple threads and send messages with tool use', async () => {
