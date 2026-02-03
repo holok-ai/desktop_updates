@@ -1912,6 +1912,123 @@
     }
   }
 
+  async function handleCreateInlineModelVariations(messageId: string, modelIds: string[]) {
+    const message = messages.find((m) => m.id === messageId);
+    if (!message || message.role !== 'user') return;
+    if (!currentThread) return;
+    if (modelIds.length === 0) return;
+
+    try {
+      // Mirror the model-variation branch of handleSubmitVariation, but without showing the modal
+      isCreatingVariation = true;
+      hasCreatedVariations = true;
+      allowAutoSelection = false;
+      variationError = '';
+
+      const content = message.content;
+
+      if (modelIds.length === 1) {
+        const [modelId] = modelIds;
+        const result = await threadService.createVariation(
+          currentThread,
+          message,
+          content,
+          modelId,
+        );
+
+        if (!result.success) {
+          variationError = result.error;
+          console.error('[ChatPane] Failed to create inline model variation:', result.error);
+          return;
+        }
+
+        messages = [...messages, result.message];
+
+        activeBranchIndex = null;
+        hiddenForkPoints = new Set();
+        _branchSelectionTime = null;
+
+        await generateResponseForVariation(result.message);
+      } else {
+        const createdMessages: Message[] = [];
+        const currentMessages = await threadService.getMessages(currentThread.id);
+
+        for (const modelId of modelIds) {
+          const messagesForBranchId = [...currentMessages, ...createdMessages];
+          const result = await threadService.createVariation(
+            currentThread,
+            message,
+            content,
+            modelId,
+            messagesForBranchId,
+          );
+
+          if (!result.success) {
+            variationError = result.error;
+            console.error('[ChatPane] Failed to create inline model variation with selected model:', result.error);
+            return;
+          }
+
+          createdMessages.push(result.message);
+        }
+
+        messages = [...messages, ...createdMessages];
+
+        activeBranchIndex = null;
+        hiddenForkPoints = new Set();
+        _branchSelectionTime = null;
+
+        for (const message of createdMessages) {
+          await generateResponseForVariation(message);
+        }
+      }
+    } finally {
+      isCreatingVariation = false;
+    }
+  }
+
+  async function handleSwitchModel(messageId: string, modelId: string) {
+    if (!currentThread) {
+      showToast('Error: No active thread');
+      return;
+    }
+
+    try {
+      // Get model details
+      const allModels = await window.electronAPI.models.listAll();
+      const modelDetails = allModels.find((m) => m.accessName === modelId);
+
+      if (!modelDetails) {
+        showToast('Error: Model not found');
+        return;
+      }
+
+      // Update thread metadata with new model
+      const updatedThread = await threadService.update(currentThread.id, {
+        metadata: {
+          ...currentThread.metadata,
+          modelAccessName: modelDetails.accessName,
+          provider: modelDetails.provider,
+          url: modelDetails.url,
+        },
+      });
+
+      currentThread = updatedThread;
+      showToast(`Switched to model: ${modelDetails.title}`);
+
+      // Reinitialize chat service with new model
+      chatServiceCreated = false;
+      await initializeChatService({
+        provider: modelDetails.provider,
+        url: modelDetails.url,
+        model: modelDetails.accessName,
+      });
+    } catch (error) {
+      console.error('[ChatPane] Error switching model:', error);
+      showToast(`Error: ${error instanceof Error ? error.message : 'Failed to switch model'}`);
+    }
+  }
+
   async function handleSubmitVariation(content: string, _branchType: BranchType, modelIds: string[]) {
     if (!currentThread || !showVariationModalFor) return;
 
@@ -2715,11 +2832,14 @@
           {#if item.type === 'message'}
           <div class="message-wrapper">
             <MessageBubble
-                message={item.message}
+              message={item.message}
               onRetry={retryMessage}
               onEdit={handleEdit}
               onShowVersions={handleShowVersions}
               onCreateVariation={handleCreateVariation}
+              onCreateModelVariations={handleCreateInlineModelVariations}
+              onSwitchModel={handleSwitchModel}
+              currentModel={modelName}
               threadId={currentThread?.id}
               {isStreaming}
               {showComments}
