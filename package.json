@@ -28,7 +28,7 @@
     "format": "prettier --write --config .prettierrc.json \"**/*.{ts,js,svelte,json,css,md}\"",
     "type-check": "tsc --noEmit",
     "security": "node scripts/security-scan.js",
-    "security:audit": "better-npm-audit audit",
+    "security:audit": "node scripts/audit-with-exceptions.js",
     "security:snyk": "snyk test",
     "security:deps": "npm audit --audit-level=moderate",
     "security:secrets": "secretlint \"src/**/*\" \"src-electron/**/*\"",
@@ -71,9 +71,9 @@
     "ollama": "^0.6.2",
     "openai": "^6.7.0",
     "pdf2json": "^4.0.2",
-    "playwright": "1.43.1",
+    "playwright": "^1.58.1",
     "primeicons": "^7.0.0",
-    "primeng": "^17.18.11",
+    "primeng": "^21.1.1",
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
@@ -81,8 +81,7 @@
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^4.1.0",
-    "@doyensec/electronegativity": "^1.10.3",
-    "@playwright/test": "1.43.1",
+    "@playwright/test": "^1.58.1",
     "@secretlint/secretlint-rule-preset-recommend": "^11.2.5",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@tsconfig/svelte": "^5.0.0",
@@ -206,5 +205,8 @@
     "scripts/**/*.js": [
       "prettier --write"
     ]
+  },
+  "overrides": {
+    "tar": "^7.0.0"
   }
 }

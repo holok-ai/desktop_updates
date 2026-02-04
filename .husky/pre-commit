@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 
+# Source common Windows workarounds
+. "$(dirname "$0")/common.sh"
+
 # Exit on first error (fail-fast)
 set -e
 

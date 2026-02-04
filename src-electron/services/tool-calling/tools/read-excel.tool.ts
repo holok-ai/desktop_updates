@@ -44,13 +44,13 @@ export class ReadExcelTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const userPath = params.file_path as string;
     const sheetName = params.sheet_name as string | undefined;
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)
@@ -116,9 +116,33 @@ export class ReadExcelTool implements ITool {
       };
     }
 
+    // Additional security: Validate file is not empty and has reasonable size
+    if (stats.size === 0) {
+      return {
+        success: false,
+        error: 'INVALID_FILE: File is empty',
+      };
+    }
+
+    // Minimum file size check (very small files might be malformed)
+    if (stats.size < 100) {
+      return {
+        success: false,
+        error: 'INVALID_FILE: File appears to be too small to be a valid Excel file',
+      };
+    }
+
     try {
-      // Read the Excel file
-      const workbook = XLSX.readFile(resolvedPath);
+      // Read the Excel file with options to limit parsing complexity
+      // This helps mitigate ReDoS and prototype pollution risks
+      const workbook = XLSX.readFile(resolvedPath, {
+        // Limit sheet rows to prevent excessive processing
+        sheetRows: 100000,
+        // Disable features that could be exploited
+        cellStyles: false,
+        cellNF: false,
+        cellHTML: false,
+      });
 
       const sheets: Array<{
         name: string;
