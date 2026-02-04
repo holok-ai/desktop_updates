@@ -92,6 +92,52 @@ Code test coverage should be 90% or greater.
 2. **Update ticket status**: Move ticket to "In Progress" in Kanban
 3. **Link ticket to branch**: Use "create branch..." command or manually link with "Development" command after creating branch
 
+**Pre-Commit Hooks (Automated):**
+
+This project uses Husky pre-commit hooks to automatically enforce code quality and security standards before each commit. The following checks run automatically:
+
+| Phase | Check | Description |
+|-------|-------|-------------|
+| 1 | **Linting** | ESLint checks staged `.ts`, `.js`, `.svelte` files |
+| 1 | **Formatting** | Prettier formats staged files |
+| 2 | **Type Checking** | TypeScript compiler validates types (incremental) |
+| 3 | **Security Audit** | npm audit checks for vulnerable dependencies |
+| 3 | **Secret Detection** | Secretlint scans for exposed credentials |
+
+**Optional Advanced Security (Opt-in):**
+```bash
+# Enable Snyk vulnerability scanning
+SNYK_ENABLED=1 git commit -m "your message"
+
+# Use the full security scan for comprehensive analysis
+npm run security
+```
+
+**Running Checks Manually:**
+```bash
+# Linting
+npm run lint
+npm run lint:fix          # Auto-fix issues
+
+# Formatting
+npm run format            # Format all files
+
+# Type checking
+npm run type-check
+
+# Security scanning
+npm run precommit:security    # Audit + secrets
+npm run precommit:audit       # npm audit only
+npm run precommit:secrets     # Secretlint only
+npm run security              # Full security scan
+```
+
+**Bypassing Hooks (Emergency Only):**
+```bash
+git commit --no-verify -m "emergency fix"
+```
+⚠️ **Warning**: Only use `--no-verify` in genuine emergencies. All bypassed commits should be reviewed and fixed promptly.
+
 **Before submitting a PR:**
 
 1. **Format code**: Run `npm run format` - this must be run on all source code before submitting a PR to ensure consistent formatting across all development machines

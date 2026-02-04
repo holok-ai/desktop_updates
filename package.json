@@ -36,6 +36,10 @@
     "security:sbom": "cyclonedx-npm --output-format json --output-file sbom.json",
     "security:all": "npm run security:audit && npm run security:deps && npm run security:snyk && npm run security:secrets && npm run security:lockfile",
     "security:fix": "npm audit fix && snyk wizard",
+    "precommit:security": "npm run security:audit && npm run security:secrets",
+    "precommit:audit": "npm audit --audit-level=moderate",
+    "precommit:secrets": "secretlint \"src/**/*\" \"src-electron/**/*\"",
+    "precommit:snyk": "snyk test",
     "test": "vitest",
     "test:unit": "vitest run",
     "test:integration": "vitest run tests/integration",
@@ -176,7 +180,19 @@
     }
   },
   "lint-staged": {
-    "*.{ts,tsx,js}": [
+    "src/**/*.{ts,tsx,js}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "src-electron/**/*.{ts,tsx,js}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "src-shared/**/*.{ts,tsx,js}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "tests/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
       "prettier --write"
     ],
@@ -185,6 +201,9 @@
       "prettier --write"
     ],
     "*.{json,css,md}": [
+      "prettier --write"
+    ],
+    "scripts/**/*.js": [
       "prettier --write"
     ]
   }

@@ -7,6 +7,8 @@ dist-electron/
 release/
 .svelte-kit/
 build/
+.tsbuildinfo
+.tsbuildinfo.electron
 
 # Environment files
 .env
@@ -20,7 +22,6 @@ sbom.json
 audit-report.json
 snyk-report.json
 retire-report.json
-electronegativity-report.json
 eslint-security-report.json
 npm-audit.json
 outdated-report.json

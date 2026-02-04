@@ -1,6 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo.electron",
     "module": "NodeNext",
     "outDir": "./dist-electron",
     "rootDir": ".",

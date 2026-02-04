@@ -169,14 +169,7 @@ class SecurityScanner {
   }
 
   async scanElectron() {
-    // console.log(chalk.yellow('\n⚡ Electron Security Scanning\n'));
-
-    // // Electronegativity - Electron-specific security checks
-    // const electronScan = this.runCommand(
-    //   'npx electronegativity -i ./ -x node_modules -o ' +
-    //     path.join(this.reportDir, 'electronegativity-report.sarif'),
-    //   'Running Electronegativity (Electron security)',
-    // );
+    console.log(chalk.yellow('\n⚡ Electron Security Scanning\n'));
 
     // Check for common Electron security misconfigurations
     console.log(chalk.blue('\n🔍 Checking Electron security best practices...'));
@@ -480,7 +473,6 @@ class SecurityScanner {
       <li>🔧 Run <code>npm run security:fix</code> to auto-fix issues</li>
       <li>📦 Run <code>npm audit fix</code> to fix vulnerable dependencies</li>
       <li>🔍 Run <code>npx snyk wizard</code> for guided vulnerability fixes</li>
-      <li>⚡ Review Electron security: <code>./security-reports/electronegativity-report.sarif</code></li>
       <li>🔒 Update dependencies: <code>npm update</code></li>
     </ul>
   </div>
@@ -491,7 +483,6 @@ class SecurityScanner {
       <li>📁 <code>npm-audit.json</code> - NPM vulnerability audit</li>
       <li>📁 <code>snyk-report.json</code> - Snyk security analysis</li>
       <li>📁 <code>retire-report.json</code> - Retired packages check</li>
-      <li>📁 <code>electronegativity-report.sarif</code> - Electron security analysis</li>
       <li>📁 <code>eslint-security.json</code> - Code security analysis</li>
       <li>📁 <code>sbom.json</code> - Software Bill of Materials</li>
       <li>📁 <code>outdated-packages.json</code> - Outdated dependencies</li>
