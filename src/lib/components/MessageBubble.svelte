@@ -25,7 +25,7 @@
     message: Message;
     messages?: Message[];
     onRetry?: (messageId: string) => void;
-    onEdit?: (messageId: string, currentContent: string) => void;
+    onEdit?: (messageId: string, currentContent: string, modelId?: string) => void;
     onShowVersions?: (messageId: string) => void;
     onCreateVariation?: (messageId: string) => void;
     onCreateModelVariations?: (messageId: string, modelIds: string[]) => void;
@@ -44,7 +44,6 @@
     onShowVersions,
     onCreateVariation,
     onCreateModelVariations,
-    onSwitchModel,
     currentModel = null,
     isStreaming = false,
     threadId,
@@ -90,38 +89,37 @@
 
   let modelSelectionPosition = $state<{ top: number; left: number } | null>(null);
 
+  function calculatePanelPosition(panelWidth: number, panelHeight: number, clientX: number, clientY: number) {
+    const margin = 8;
+    const extraMarginForTop = 16;
+    const padding = 72;
+
+    let left = clientX;
+    if (left + panelWidth > window.innerWidth - margin) {
+      left = window.innerWidth - panelWidth - margin - padding;
+    }
+    if (left < margin) {
+      left = margin;
+    }
+
+    const spaceBelow = window.innerHeight - clientY - extraMarginForTop;
+    let top: number;
+    if (spaceBelow < panelHeight + margin + extraMarginForTop) {
+      top = Math.max(margin, clientY - panelHeight - margin - 100);
+    } else {
+      top = clientY + margin + extraMarginForTop;
+    }
+
+    return { top, left };
+  }
+
   async function handleModelSelectionClick(event: MouseEvent) {
     event.stopPropagation();
     if (!showModelSelection) {
       await loadModels();
-      const panelWidth = 280;
-      const panelHeight = 320;
-      const margin = 8;
-      const extraMarginForTop = 16;
-      const padding = 72;
-
       const { clientX, clientY } = event;
-
-      let left = clientX;
-      if (left + panelWidth > window.innerWidth - margin) {
-        left = window.innerWidth - panelWidth - margin - padding;
-      }
-      if (left < margin) {
-        left = margin;
-      }
-
-      // If there is not enough space below, show above the click instead
-      const spaceBelow = window.innerHeight - clientY - extraMarginForTop;
-      let top: number;
-      if (spaceBelow < panelHeight + margin + extraMarginForTop) {
-        // Above
-        top = Math.max(margin, clientY - panelHeight - margin - 100); // to make this above the button;
-      } else {
-        // Below
-        top = clientY + margin + extraMarginForTop;
-      }
-
-      modelSelectionPosition = { top: top, left };
+      const { top, left } = calculatePanelPosition(280, 320, clientX, clientY);
+      modelSelectionPosition = { top, left };
       showModelSelection = true;
     } else {
       showModelSelection = false;
@@ -135,19 +133,6 @@
     return `position: fixed; top: ${top}px; left: ${left}px; z-index: 9999;`;
   });
 
-  function handleSwitchModel(modelId: string) {
-    if (onSwitchModel && message.id) {
-      onSwitchModel(message.id, modelId);
-      showModelDropdown = false;
-    }
-  }
-
-  function handleModelDropdownClick() {
-    if (!showModelDropdown) {
-      loadModels();
-    }
-    showModelDropdown = !showModelDropdown;
-  }
   let editedContent = $state('');
   // Cache for inline preview blob URLs: key is `${threadId}:${attachment.id}`, value is the blob URL
   // URLs are populated in getInlinePreviewUrl() when attachments are rendered (line 342)
@@ -405,7 +390,6 @@
         <button class="cancel-button" onclick={handleCancelEdit} disabled={isStreaming}>
           Cancel
         </button>
-        <span class="edit-hint">⌘+Enter to save, Esc to cancel</span>
       </div>
     </div>
   {:else}
@@ -498,42 +482,6 @@
           🔀
         </button>
       {/if}
-      <!-- HIDE THIS FOR NOW, currently it's not needed -->
-      <!-- {#if message.role === 'user' && currentModelName() && message.status !== MESSAGE_STATUS.SENDING}
-        <div class="model-switch-container">
-          <button
-            class="action-button"
-            onclick={handleModelDropdownClick}
-            disabled={isStreaming}
-            aria-label="Switch model"
-            title="Switch model"
-          >
-            🔄
-          </button>
-          {#if showModelDropdown}
-            <div class="model-dropdown-menu model-switch-dropdown">
-              {#if loadingModels}
-                <div class="dropdown-item">Loading models...</div>
-              {:else if availableModels.length === 0}
-                <div class="dropdown-item">No models available</div>
-              {:else}
-                {#each availableModels as model (model.id)}
-                  <button
-                    class="dropdown-item"
-                    class:selected={model.accessName === message.modelId}
-                    onclick={() => handleSwitchModel(model.accessName)}
-                  >
-                    {model.title}
-                    {#if model.accessName === message.modelId}
-                      <span class="checkmark">✓</span>
-                    {/if}
-                  </button>
-                {/each}
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/if} -->
       {#if message.status === MESSAGE_STATUS.FAILED && onRetry}
         <button class="retry-button" onclick={handleRetry} aria-label="Retry sending message">
           Retry
@@ -936,6 +884,28 @@
 
   .model-switch-container {
     position: relative;
+  }
+
+  .model-switch-container .action-button {
+    width: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+  }
+
+  .model-switch-container span:first-child {
+    margin-right: 0.25rem;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .action-button:hover {

@@ -28,24 +28,34 @@
   );
 
   // Get model name from current branch's messages, fallback to thread metadata
-  let modelName = $state('Unknown Model');
-
-  $effect(() => {
+  const modelName = $derived.by(() => {
     const currentMessages = messagesProp ?? [];
-    const currentBranchId = thread.currentBranchId;
-
-    if (currentMessages.length > 0 && currentBranchId) {
-      const branchMessages = getBranchMessages(currentMessages, currentBranchId);
-      // Find the most recent message with a modelId
-      const messageWithModel = [...branchMessages]
-        .reverse()
-        .find(m => m.modelId);
-      if (messageWithModel?.modelId) {
-        modelName = messageWithModel.modelId;
-        return;
+    
+    // First, check the most recent message in the entire thread (regardless of branch)
+    // This ensures we show the model from the latest message sent
+    if (currentMessages.length > 0) {
+      const mostRecentMessageWithModel = [...currentMessages]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
+      if (mostRecentMessageWithModel?.modelId) {
+        return mostRecentMessageWithModel.modelId;
       }
     }
-    modelName = (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+    
+    // Fallback: check current branch messages (for variations)
+    const currentBranchId = thread.currentBranchId;
+    if (currentMessages.length > 0 && currentBranchId) {
+      const branchMessages = getBranchMessages(currentMessages, currentBranchId);
+      const messageWithModel = [...branchMessages]
+        .reverse()
+        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
+      if (messageWithModel?.modelId) {
+        return messageWithModel.modelId;
+      }
+    }
+    
+    // Final fallback to thread metadata (which includes the selected model from the dropdown)
+    return (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
   });
 
   // Navigate to project's thread tab

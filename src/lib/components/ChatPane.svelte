@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher, tick } from 'svelte';
   import { get } from 'svelte/store';
-  import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
+  import type { Thread, DesktopChatRequest, ModelDetails } from '../../../src-electron/preload';
   import { outboxService } from '$lib/services/outbox.service';
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
@@ -52,6 +52,12 @@
   let modelUrl = $state('');
   let modelProvider = $state('');
 
+  // Model selector above composer
+  let selectedModelId = $state<string | null>(null);
+  let showModelSelector = $state(false);
+  let availableModels: ModelDetails[] = $state([]);
+  let loadingModels = $state(false);
+
   // Track current provider config to detect changes
   interface ProviderConfig {
     provider: string;
@@ -95,6 +101,18 @@
       modelProvider = (meta.provider as string) ?? '';
 
       console.log('[ChatPane] Extracted values:', { modelName, modelUrl, modelProvider });
+
+      // Initialize selected model from thread metadata when thread changes
+      // Will be updated by messages effect if a message has a modelId
+      if (threadIdChanged) {
+        selectedModelId = modelName || null;
+      }
+
+      // Load models if we have a selectedModelId but models aren't loaded yet
+      // This ensures the dropdown can show the correct model title
+      if (selectedModelId && availableModels.length === 0) {
+        loadModels();
+      }
 
       // Track loaded threads
       if (thread.id && !threadLoadedIds.has(thread.id)) {
@@ -159,6 +177,23 @@
       // If selectedBranchIds are the same, don't update currentThread to avoid triggering other effects
     } else {
       currentThread = thread;
+    }
+  });
+
+  // Update selectedModelId from most recent message's modelId (like breadcrumb does)
+  // This ensures dropdown shows the model that was actually used, not just thread metadata
+  $effect(() => {
+    if (messages.length > 0) {
+      const mostRecentMessageWithModel = [...messages]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
+      if (mostRecentMessageWithModel?.modelId) {
+        selectedModelId = mostRecentMessageWithModel.modelId;
+        // Load models if needed to show the title
+        if (availableModels.length === 0) {
+          loadModels();
+        }
+      }
     }
   });
 
@@ -1470,6 +1505,7 @@
     console.log('[ChatPane] branchId computed', { rawBranchId, normalizedBranchId: branchId });
 
     // Determine model for the new message
+    // Priority: selectedModelId (from dropdown) > branch modelId > null
     let modelId: string | null = null;
 
     // Use sendingBranchIndex if we're sending from a branch box, otherwise use activeBranchIndex
@@ -1483,12 +1519,16 @@
       }
     }
 
+    // Use selectedModelId if set (from dropdown), otherwise use branch modelId
+    const finalModelId = selectedModelId || modelId;
+
     // Only create user message if it doesn't already exist (skip for initial prompt auto-send)
     let userMsg: Message | null = null;
     if (!skipUserMessageCreation) {
       // Create and add optimistic message with the correct branchId
       userMsg = transmitter.addOptimisticMessage(userMessage, isOnline, branchId);
-      userMsg.modelId = modelId;
+      // Set modelId on optimistic message (selectedModelId takes precedence)
+      userMsg.modelId = finalModelId;
 
       // Send the user message (handles outbox and persistence)
       await transmitter.sendUserMessage(userMsg, thread, isOnline);
@@ -1586,11 +1626,13 @@
       }
 
       // Resolve model/provider/url to use for this send
-      let modelToUse = modelName;
+      // Use selectedModelId if set, otherwise fall back to thread model
+      let modelToUse = selectedModelId || modelName;
       let providerToUse = modelProvider;
       let urlToUse = modelUrl;
 
       // If this branch has a specific modelId (model variation), prefer it
+      // Otherwise, if selectedModelId is set, use that
       if (modelId) {
         try {
           const allModels = await window.electronAPI.models.listAll();
@@ -1603,6 +1645,19 @@
         } catch (err) {
           console.error('[ChatPane] Failed to get model details for sendMessage:', err);
           // Fall back to thread-level model if lookup fails
+        }
+      } else if (selectedModelId) {
+        // Use selected model from dropdown
+        try {
+          const allModels = await window.electronAPI.models.listAll();
+          const modelDetails = allModels.find((m) => m.accessName === selectedModelId);
+          if (modelDetails) {
+            modelToUse = modelDetails.accessName;
+            providerToUse = modelDetails.provider;
+            urlToUse = modelDetails.url;
+          }
+        } catch (err) {
+          console.error('[ChatPane] Failed to get model details for selectedModelId:', err);
         }
       }
 
@@ -1735,9 +1790,17 @@
         console.log('[ChatPane] Using user message ID:', actualUserMessage?.id || userMsg.id, '(optimistic:', userMsg.id, ')');
 
         // Replace the optimistic message with the actual one from backend
+        // Always preserve modelId from optimistic message (it has the selected model)
         if (actualUserMessage && actualUserMessage.id !== userMsg.id) {
+          // Use optimistic message's modelId if it exists, otherwise use backend's
+          const preservedModelId = userMsg.modelId || actualUserMessage.modelId;
           messages = messages.map(m =>
-            m.id === userMsg.id ? { ...actualUserMessage, status: MESSAGE_STATUS.SENT } : m
+            m.id === userMsg.id ? { ...actualUserMessage, status: MESSAGE_STATUS.SENT, modelId: preservedModelId } : m
+          );
+        } else if (userMsg.modelId) {
+          // If optimistic message has modelId, ensure it's set on the message
+          messages = messages.map(m =>
+            m.id === userMsg.id ? { ...m, modelId: userMsg.modelId } : m
           );
         }
 
@@ -1987,14 +2050,25 @@
     }
   }
 
-  async function handleSwitchModel(messageId: string, modelId: string) {
+  async function loadModels() {
+    if (availableModels.length > 0) return;
+    loadingModels = true;
+    try {
+      availableModels = await window.electronAPI.models.listAll();
+    } catch (error) {
+      console.error('Error loading models:', error);
+    } finally {
+      loadingModels = false;
+    }
+  }
+
+  async function handleSelectModel(modelId: string) {
     if (!currentThread) {
       showToast('Error: No active thread');
       return;
     }
 
     try {
-      // Get model details
       const allModels = await window.electronAPI.models.listAll();
       const modelDetails = allModels.find((m) => m.accessName === modelId);
 
@@ -2003,18 +2077,23 @@
         return;
       }
 
+      selectedModelId = modelId;
+
       // Update thread metadata with new model
       const updatedThread = await threadService.update(currentThread.id, {
         metadata: {
           ...currentThread.metadata,
           modelAccessName: modelDetails.accessName,
+          model: modelDetails.accessName,
           provider: modelDetails.provider,
           url: modelDetails.url,
         },
       });
 
       currentThread = updatedThread;
-      showToast(`Switched to model: ${modelDetails.title}`);
+      modelName = modelDetails.accessName;
+      modelProvider = modelDetails.provider;
+      modelUrl = modelDetails.url;
 
       // Reinitialize chat service with new model
       chatServiceCreated = false;
@@ -2023,10 +2102,20 @@
         url: modelDetails.url,
         model: modelDetails.accessName,
       });
+
+      showModelSelector = false;
+      showToast(`Switched to model: ${modelDetails.title}`);
     } catch (error) {
-      console.error('[ChatPane] Error switching model:', error);
-      showToast(`Error: ${error instanceof Error ? error.message : 'Failed to switch model'}`);
+      console.error('[ChatPane] Error selecting model:', error);
+      showToast(`Error: ${error instanceof Error ? error.message : 'Failed to select model'}`);
     }
+  }
+
+  function handleModelSelectorClick() {
+    if (!showModelSelector) {
+      loadModels();
+    }
+    showModelSelector = !showModelSelector;
   }
 
   async function handleSubmitVariation(content: string, _branchType: BranchType, modelIds: string[]) {
@@ -2617,8 +2706,18 @@
       // ignore if API not available
     }
 
+    // Close model selector when clicking outside
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.model-selector-container') && showModelSelector) {
+        showModelSelector = false;
+      }
+    }
+    document.addEventListener('click', handleClickOutside);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
       if (unsubThreadUpdated) unsubThreadUpdated();
       if (unsubToolUse) unsubToolUse();
       if (unsubToolStatus) unsubToolStatus();
@@ -2838,7 +2937,6 @@
               onShowVersions={handleShowVersions}
               onCreateVariation={handleCreateVariation}
               onCreateModelVariations={handleCreateInlineModelVariations}
-              onSwitchModel={handleSwitchModel}
               currentModel={modelName}
               threadId={currentThread?.id}
               {isStreaming}
@@ -2933,6 +3031,51 @@
     {/if}
 
     <div class="composer">
+      <!-- Model selector above composer -->
+      {#if currentThread}
+        <div class="model-selector-container">
+          <button
+            class="model-selector-button"
+            onclick={handleModelSelectorClick}
+            disabled={isStreaming}
+            aria-label="Select model"
+            title="Select model for new messages"
+          >
+            <span>
+              {#if selectedModelId}
+                {availableModels.find(m => m.accessName === selectedModelId)?.title ?? selectedModelId}
+              {:else if modelName}
+                {availableModels.find(m => m.accessName === modelName)?.title ?? modelName}
+              {:else}
+                Select model
+              {/if}
+            </span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          {#if showModelSelector}
+            <div class="model-selector-dropdown">
+              {#if loadingModels}
+                <div class="dropdown-item">Loading models...</div>
+              {:else if availableModels.length === 0}
+                <div class="dropdown-item">No models available</div>
+              {:else}
+                {#each availableModels as model (model.id)}
+                  <button
+                    class="dropdown-item"
+                    class:selected={model.accessName === (selectedModelId || modelName)}
+                    onclick={() => handleSelectModel(model.accessName)}
+                  >
+                    {model.title}
+                    {#if model.accessName === (selectedModelId || modelName)}
+                      <span class="checkmark">✓</span>
+                    {/if}
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
       <!-- Composer is rendered in the page and wired separately -->
       {#if composer}
         {@render composer({ sendMessage, isStreaming, disabled: isMainInputDisabled })}
@@ -3538,6 +3681,90 @@
     max-width: 100%;
     /* Ensure scrollbar appears when content overflows */
     overflow-x: auto !important;
+  }
+
+  .model-selector-container {
+    position: absolute;
+    top: -12px;
+    right: 86px;
+    z-index: 10;
+  }
+
+  .model-selector-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.125rem 0.375rem;
+    background: var(--surface-main);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: auto;
+    min-width: 150px;
+    max-width: 300px;
+  }
+
+  .model-selector-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .model-selector-button span:first-child {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dropdown-arrow {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    color: var(--text-secondary);
+  }
+
+  .model-selector-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.5rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 300px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .model-selector-dropdown .dropdown-item {
+    display: flex;
+    align-items: center;
+    border-radius: 0;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-main);
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .model-selector-dropdown .dropdown-item:hover {
+    background: var(--primary-color);
+  }
+
+  .model-selector-dropdown .checkmark {
+    color: var(--accent-color);
+    font-weight: bold;
   }
 
   .composer {

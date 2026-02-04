@@ -176,10 +176,17 @@ export class MessageTransmitter {
 
     // Persist user message immediately to get correct timestamp ordering
     if (thread !== null && isPermanent && typeof userMsg.clientMessageId === 'string') {
-      const metadata = this.extractMessageMetadata(thread);
+      // If message has a modelId, use it directly in metadata (like variations do)
+      // Otherwise, use thread metadata
+      const baseMetadata = this.extractMessageMetadata(thread);
+      const metadata = (userMsg.modelId !== null && userMsg.modelId !== undefined && userMsg.modelId !== '')
+        ? { ...baseMetadata, modelId: userMsg.modelId, model: userMsg.modelId }
+        : baseMetadata;
       log.info(
         '[MessageTransmitter] Persisting user message, optimistic timestamp:',
         new Date(userMsg.createdAt).toISOString(),
+        'with modelId:',
+        userMsg.modelId,
       );
       const result = await threadService.appendMessage(thread.id, {
         role: 'user',
