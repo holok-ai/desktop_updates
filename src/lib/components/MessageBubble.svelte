@@ -25,9 +25,10 @@
     message: Message;
     messages?: Message[];
     onRetry?: (messageId: string) => void;
-    onEdit?: (messageId: string, currentContent: string) => void;
+    onEdit?: (messageId: string, currentContent: string, modelId?: string) => void;
     onShowVersions?: (messageId: string) => void;
     onCreateVariation?: (messageId: string) => void;
+    currentModel?: string | null;
     threadId?: string;
     isStreaming?: boolean;
     showComments?: boolean;
@@ -40,6 +41,7 @@
     onEdit,
     onShowVersions,
     onCreateVariation,
+    currentModel = null,
     isStreaming = false,
     threadId,
     showComments = false,
@@ -55,6 +57,12 @@
     } catch {
       return false;
     }
+  });
+
+  const currentModelName = $derived(() => {
+    if (message.modelId && message.modelId !== '') return message.modelId;
+    if (currentModel && currentModel !== '') return currentModel;
+    return null;
   });
   let editedContent = $state('');
   // Cache for inline preview blob URLs: key is `${threadId}:${attachment.id}`, value is the blob URL
@@ -295,7 +303,6 @@
         <button class="cancel-button" onclick={handleCancelEdit} disabled={isStreaming}>
           Cancel
         </button>
-        <span class="edit-hint">⌘+Enter to save, Esc to cancel</span>
       </div>
     </div>
   {:else}
@@ -304,6 +311,7 @@
     </div>
   {/if}
   <div class="message-footer">
+    <span class="message-meta">Model: {currentModelName()}</span>
     <span class="message-meta">
       {new Date(message.createdAt).toLocaleString()}
       {#if message.isEdited}

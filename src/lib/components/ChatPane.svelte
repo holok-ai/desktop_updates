@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher, tick } from 'svelte';
   import { get } from 'svelte/store';
-  import type { Thread, DesktopChatRequest } from '../../../src-electron/preload';
+  import type { Thread, DesktopChatRequest, ModelDetails } from '../../../src-electron/preload';
   import { outboxService } from '$lib/services/outbox.service';
   import { networkService } from '$lib/services/network.service';
   import { MessageTransmitter } from '$lib/services/message-transmitter.service';
@@ -52,6 +52,17 @@
   let modelUrl = $state('');
   let modelProvider = $state('');
 
+  // Model selector above composer
+  let selectedModelId = $state<string | null>(null);
+  // The model currently applied by the thread context (selected branches / main path).
+  // This should NOT override the user's explicit dropdown selection for the next send.
+  let appliedModelId = $state<string | null>(null);
+  // Track if user explicitly picked a model in the dropdown for this thread.
+  let manualModelSelectionThreadId = $state<string | null>(null);
+  let showModelSelector = $state(false);
+  let availableModels: ModelDetails[] = $state([]);
+  let loadingModels = $state(false);
+
   // Track current provider config to detect changes
   interface ProviderConfig {
     provider: string;
@@ -95,6 +106,20 @@
       modelProvider = (meta.provider as string) ?? '';
 
       console.log('[ChatPane] Extracted values:', { modelName, modelUrl, modelProvider });
+
+      // Initialize selected model from thread metadata when thread changes.
+      // This is the default "next message" model until the user manually picks a different one.
+      if (threadIdChanged) {
+        selectedModelId = modelName || null;
+        appliedModelId = null;
+        manualModelSelectionThreadId = null;
+      }
+
+      // Load models if we have a selectedModelId but models aren't loaded yet
+      // This ensures the dropdown can show the correct model title
+      if (selectedModelId && availableModels.length === 0) {
+        loadModels();
+      }
 
       // Track loaded threads
       if (thread.id && !threadLoadedIds.has(thread.id)) {
@@ -159,6 +184,125 @@
       // If selectedBranchIds are the same, don't update currentThread to avoid triggering other effects
     } else {
       currentThread = thread;
+    }
+  });
+
+  // Update appliedModelId based on latest row (fork point) and selected branches
+  // Rules:
+  // - Look at the highest row (getRowNumber) that has messages with a modelId
+  // - If that row has variations and one is selected: use that variation's model
+  // - If that row has variations and none are selected: use the original branch's model for that row
+  // - If that row has no variations: use the latest message's model in that row
+  $effect(() => {
+    if (messages.length === 0) return;
+
+    const messagesWithModel = messages.filter(
+      (m) => m.modelId && m.modelId !== null && m.modelId !== '',
+    );
+    if (messagesWithModel.length === 0) return;
+
+    // Find highest row that has any message with a modelId
+    let maxRow = 0;
+    for (const m of messagesWithModel) {
+      const row = getRowNumber(normalizeBranchId(m.branchId));
+      if (row > maxRow) {
+        maxRow = row;
+      }
+    }
+
+    // Consider only messages in that row
+    const rowMessages = messagesWithModel.filter(
+      (m) => getRowNumber(normalizeBranchId(m.branchId)) === maxRow,
+    );
+    if (rowMessages.length === 0) return;
+
+    // Determine base branch and variation branches for this row
+    const normalizedIds = Array.from(
+      new Set(rowMessages.map((m) => normalizeBranchId(m.branchId))),
+    );
+    let baseBranchId: string | null = null;
+    const variationBranchIds: string[] = [];
+
+    for (const id of normalizedIds) {
+      const parts = id.split('.');
+      if (parts.length === 3 && parts[1] === '0' && parts[2] === '0') {
+        baseBranchId = id;
+      } else if (parts.length === 3) {
+        variationBranchIds.push(id);
+      }
+    }
+
+    const selectedBranchIds = Array.isArray(currentThread?.metadata?.selectedBranchIds)
+      ? (currentThread.metadata.selectedBranchIds as string[])
+      : [];
+
+    // Find selected variation branches in this row
+    const selectedVariationIds = variationBranchIds.filter((variationId) => {
+      return selectedBranchIds.some((selectedId) => {
+        const normSelected = normalizeBranchId(selectedId);
+        return normSelected === variationId || normSelected.startsWith(`${variationId}.`);
+      });
+    });
+
+    let modelToUse: string | null = null;
+
+    if (selectedVariationIds.length > 0) {
+      // Use latest message from any selected variation in this row
+      let latestSelectedMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isInSelectedVariation = selectedVariationIds.some(
+          (variationId) =>
+            normId === variationId || normId.startsWith(`${variationId}.`),
+        );
+        if (!isInSelectedVariation) continue;
+        if (!latestSelectedMsg || m.createdAt > latestSelectedMsg.createdAt) {
+          latestSelectedMsg = m;
+        }
+      }
+      modelToUse = latestSelectedMsg?.modelId ?? null;
+    } else if (baseBranchId) {
+      // No selected variation in this row - use latest message from base branch
+      let latestBaseMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isBase =
+          normId === baseBranchId || normId.startsWith(`${baseBranchId}.`);
+        if (!isBase) continue;
+        if (!latestBaseMsg || m.createdAt > latestBaseMsg.createdAt) {
+          latestBaseMsg = m;
+        }
+      }
+      modelToUse = latestBaseMsg?.modelId ?? null;
+    }
+
+    // Fallbacks: latest message in this row, then latest message overall
+    if (!modelToUse) {
+      const latestInRow = rowMessages.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestInRow?.modelId ?? null;
+    }
+
+    if (!modelToUse) {
+      const latestOverall = messagesWithModel.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestOverall?.modelId ?? null;
+    }
+
+    if (modelToUse) {
+      appliedModelId = modelToUse;
+      // Only auto-sync the dropdown if the user hasn't manually selected a model for this thread.
+      if (currentThread?.id && manualModelSelectionThreadId !== currentThread.id) {
+        selectedModelId = modelToUse;
+      }
+      // Load models if needed to show the title
+      if (availableModels.length === 0) {
+        loadModels();
+      }
     }
   });
 
@@ -1469,26 +1613,31 @@
     branchId = normalizeBranchId(branchId);
     console.log('[ChatPane] branchId computed', { rawBranchId, normalizedBranchId: branchId });
 
-    // Determine model for the new message
+    // Determine branch-specific model for the new message.
+    // IMPORTANT: only use branch model override when sending FROM a branch box.
+    // When sending from the main composer, the dropdown selection must win.
     let modelId: string | null = null;
-
-    // Use sendingBranchIndex if we're sending from a branch box, otherwise use activeBranchIndex
-    const branchIndexToUse = sendingBranchIndex !== null ? sendingBranchIndex : activeBranchIndex;
-
-    if (branchIndexToUse !== null) {
-      // Get modelId from the branch's user message
-      const branchBox = branchBoxes.find((b) => b.branchIndex === branchIndexToUse);
+    if (sendingBranchIndex !== null) {
+      const branchBox = branchBoxes.find((b) => b.branchIndex === sendingBranchIndex);
       if (branchBox) {
         modelId = branchBox.userMessage.modelId ?? null;
       }
     }
+
+    // Use selectedModelId if set (from dropdown), otherwise use branch modelId
+    // Priority for the next send:
+    // 1) User's explicit dropdown selection (selectedModelId)
+    // 2) Applied model from selected branch context (appliedModelId)
+    // 3) Branch box model / thread metadata fallback (modelId / modelName)
+    const finalModelId = selectedModelId || appliedModelId || modelId;
 
     // Only create user message if it doesn't already exist (skip for initial prompt auto-send)
     let userMsg: Message | null = null;
     if (!skipUserMessageCreation) {
       // Create and add optimistic message with the correct branchId
       userMsg = transmitter.addOptimisticMessage(userMessage, isOnline, branchId);
-      userMsg.modelId = modelId;
+      // Set modelId on optimistic message (selectedModelId takes precedence)
+      userMsg.modelId = finalModelId;
 
       // Send the user message (handles outbox and persistence)
       await transmitter.sendUserMessage(userMsg, thread, isOnline);
@@ -1512,15 +1661,16 @@
 
     console.log('[ChatPane sendMessage] Online, checking chat service initialization');
 
-    // Resolve model/provider/url to use for this send
-    let modelToUse = modelId || modelName;
+    // Resolve model/provider/url to use for this send (for chat service init)
+    // Must match the actual model we’re sending with.
+    let modelToUse = finalModelId || modelName;
     let providerToUse = modelProvider;
     let urlToUse = modelUrl;
 
-    if (modelId) {
+    if (finalModelId) {
       try {
         const allModels = await window.electronAPI.models.listAll();
-        const modelDetails = allModels.find((m) => m.accessName === modelId);
+        const modelDetails = allModels.find((m) => m.accessName === finalModelId);
         if (modelDetails) {
           modelToUse = modelDetails.accessName;
           providerToUse = modelDetails.provider;
@@ -1586,12 +1736,14 @@
       }
 
       // Resolve model/provider/url to use for this send
-      let modelToUse = modelName;
+      // Use selectedModelId if set, otherwise fall back to thread model
+      let modelToUse = selectedModelId || appliedModelId || modelName;
       let providerToUse = modelProvider;
       let urlToUse = modelUrl;
 
-      // If this branch has a specific modelId (model variation), prefer it
-      if (modelId) {
+      // If sending from a branch input, the branch can force a specific model (variation lane).
+      // For main composer sends, the dropdown selection should win.
+      if (sendingBranchIndex !== null && modelId) {
         try {
           const allModels = await window.electronAPI.models.listAll();
           const modelDetails = allModels.find((m) => m.accessName === modelId);
@@ -1603,6 +1755,19 @@
         } catch (err) {
           console.error('[ChatPane] Failed to get model details for sendMessage:', err);
           // Fall back to thread-level model if lookup fails
+        }
+      } else if (selectedModelId) {
+        // Use selected model from dropdown
+        try {
+          const allModels = await window.electronAPI.models.listAll();
+          const modelDetails = allModels.find((m) => m.accessName === selectedModelId);
+          if (modelDetails) {
+            modelToUse = modelDetails.accessName;
+            providerToUse = modelDetails.provider;
+            urlToUse = modelDetails.url;
+          }
+        } catch (err) {
+          console.error('[ChatPane] Failed to get model details for selectedModelId:', err);
         }
       }
 
@@ -1735,9 +1900,17 @@
         console.log('[ChatPane] Using user message ID:', actualUserMessage?.id || userMsg.id, '(optimistic:', userMsg.id, ')');
 
         // Replace the optimistic message with the actual one from backend
+        // Always preserve modelId from optimistic message (it has the selected model)
         if (actualUserMessage && actualUserMessage.id !== userMsg.id) {
+          // Use optimistic message's modelId if it exists, otherwise use backend's
+          const preservedModelId = userMsg.modelId || actualUserMessage.modelId;
           messages = messages.map(m =>
-            m.id === userMsg.id ? { ...actualUserMessage, status: MESSAGE_STATUS.SENT } : m
+            m.id === userMsg.id ? { ...actualUserMessage, status: MESSAGE_STATUS.SENT, modelId: preservedModelId } : m
+          );
+        } else if (userMsg.modelId) {
+          // If optimistic message has modelId, ensure it's set on the message
+          messages = messages.map(m =>
+            m.id === userMsg.id ? { ...m, modelId: userMsg.modelId } : m
           );
         }
 
@@ -1901,6 +2074,82 @@
     if (message) {
       showVersionsFor = { messageId, content: message.content };
     }
+  }
+
+  // Model selector functions
+  async function loadModels() {
+    if (availableModels.length > 0) return;
+    loadingModels = true;
+    try {
+      availableModels = await window.electronAPI.models.listAll();
+    } catch (error) {
+      console.error('Error loading models:', error);
+    } finally {
+      loadingModels = false;
+    }
+  }
+
+  async function handleSelectModel(modelId: string) {
+    if (!currentThread) {
+      showToast('Error: No active thread');
+      return;
+    }
+
+    try {
+      const allModels = await window.electronAPI.models.listAll();
+      const modelDetails = allModels.find((m) => m.accessName === modelId);
+
+      if (!modelDetails) {
+        showToast('Error: Model not found');
+        return;
+      }
+
+    selectedModelId = modelId;
+    // Mark manual selection so branch/message effects don't override the user's choice for next send
+    if (currentThread?.id) {
+      manualModelSelectionThreadId = currentThread.id;
+    }
+
+      // Update thread metadata with new model
+      // NOTE: Electron IPC requires args to be structured-cloneable. Svelte rune state can hold proxy objects,
+      // so we sanitize metadata into plain JSON before sending it across IPC.
+      const safeMetadata = JSON.parse(JSON.stringify(currentThread.metadata ?? {})) as Record<string, unknown>;
+      const updatedThread = await threadService.update(currentThread.id, {
+        metadata: {
+          ...safeMetadata,
+          modelAccessName: modelDetails.accessName,
+          model: modelDetails.accessName,
+          provider: modelDetails.provider,
+          url: modelDetails.url,
+        },
+      });
+
+      currentThread = updatedThread;
+      modelName = modelDetails.accessName;
+      modelProvider = modelDetails.provider;
+      modelUrl = modelDetails.url;
+
+      // Reinitialize chat service with new model
+      chatServiceCreated = false;
+      await initializeChatService({
+        provider: modelDetails.provider,
+        url: modelDetails.url,
+        model: modelDetails.accessName,
+      });
+
+      showModelSelector = false;
+      showToast(`Switched to model: ${modelDetails.title}`);
+    } catch (error) {
+      console.error('[ChatPane] Error selecting model:', error);
+      showToast(`Error: ${error instanceof Error ? error.message : 'Failed to select model'}`);
+    }
+  }
+
+  function handleModelSelectorClick() {
+    if (!showModelSelector) {
+      loadModels();
+    }
+    showModelSelector = !showModelSelector;
   }
 
   // Branching handlers
@@ -2195,9 +2444,13 @@
         contextMessages = getBranchMessages(messages, userMessage.branchId);
       }
 
+      // Check if userMessage is already in contextMessages to avoid duplicate
+      const userMessageInContext = contextMessages.some(m => m.id === userMessage.id);
+      
       const historyMessages = [
         ...contextMessages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        { role: 'user' as const, content: userMessage.content },
+        // Only add userMessage if it's not already in contextMessages
+        ...(userMessageInContext ? [] : [{ role: 'user' as const, content: userMessage.content }]),
       ];
 
       // Get model details if modelId is provided (for model variations)
@@ -2500,8 +2753,18 @@
       // ignore if API not available
     }
 
+    // Close model selector when clicking outside
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.model-selector-container') && showModelSelector) {
+        showModelSelector = false;
+      }
+    }
+    document.addEventListener('click', handleClickOutside);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
       if (unsubThreadUpdated) unsubThreadUpdated();
       if (unsubToolUse) unsubToolUse();
       if (unsubToolStatus) unsubToolStatus();
@@ -2715,11 +2978,12 @@
           {#if item.type === 'message'}
           <div class="message-wrapper">
             <MessageBubble
-                message={item.message}
+              message={item.message}
               onRetry={retryMessage}
               onEdit={handleEdit}
               onShowVersions={handleShowVersions}
               onCreateVariation={handleCreateVariation}
+              currentModel={modelName}
               threadId={currentThread?.id}
               {isStreaming}
               {showComments}
@@ -2813,6 +3077,51 @@
     {/if}
 
     <div class="composer">
+      <!-- Model selector above composer -->
+      {#if currentThread}
+        <div class="model-selector-container">
+          <button
+            class="model-selector-button"
+            onclick={handleModelSelectorClick}
+            disabled={isStreaming}
+            aria-label="Select model"
+            title="Select model for new messages"
+          >
+            <span>
+              {#if selectedModelId}
+                {availableModels.find(m => m.accessName === selectedModelId)?.title ?? selectedModelId}
+              {:else if modelName}
+                {availableModels.find(m => m.accessName === modelName)?.title ?? modelName}
+              {:else}
+                Select model
+              {/if}
+            </span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          {#if showModelSelector}
+            <div class="model-selector-dropdown">
+              {#if loadingModels}
+                <div class="dropdown-item">Loading models...</div>
+              {:else if availableModels.length === 0}
+                <div class="dropdown-item">No models available</div>
+              {:else}
+                {#each availableModels as model (model.id)}
+                  <button
+                    class="dropdown-item"
+                    class:selected={model.accessName === (selectedModelId || appliedModelId || modelName)}
+                    onclick={() => handleSelectModel(model.accessName)}
+                  >
+                    {model.title}
+                    {#if model.accessName === (selectedModelId || appliedModelId || modelName)}
+                      <span class="checkmark">✓</span>
+                    {/if}
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
       <!-- Composer is rendered in the page and wired separately -->
       {#if composer}
         {@render composer({ sendMessage, isStreaming, disabled: isMainInputDisabled })}
@@ -3418,6 +3727,90 @@
     max-width: 100%;
     /* Ensure scrollbar appears when content overflows */
     overflow-x: auto !important;
+  }
+
+  .model-selector-container {
+    position: absolute;
+    top: -12px;
+    right: 86px;
+    z-index: 10;
+  }
+
+  .model-selector-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.125rem 0.375rem;
+    background: var(--surface-main);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: auto;
+    min-width: 150px;
+    max-width: 300px;
+  }
+
+  .model-selector-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .model-selector-button span:first-child {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dropdown-arrow {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    color: var(--text-secondary);
+  }
+
+  .model-selector-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.5rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 300px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .model-selector-dropdown .dropdown-item {
+    display: flex;
+    align-items: center;
+    border-radius: 0;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-main);
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .model-selector-dropdown .dropdown-item:hover {
+    background: var(--primary-color);
+  }
+
+  .model-selector-dropdown .checkmark {
+    color: var(--accent-color);
+    font-weight: bold;
   }
 
   .composer {
