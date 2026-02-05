@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+
+# Source common Windows workarounds
+. "$(dirname "$0")/common.sh"
+
+# Exit on first error (fail-fast)
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Phase 1: Code Quality (staged files only via lint-staged)
+echo "📝 Phase 1: Linting and formatting..."
+npx lint-staged
+
+# Phase 2: Type Safety (full project with incremental compilation)
+echo "🔷 Phase 2: Type checking..."
+npm run type-check
+
+# Phase 3: Security Scanning
+echo "🔒 Phase 3: Security scanning..."
+npm run precommit:security
+
+# Phase 4: Advanced Security (Optional - graceful degradation)
+# Snyk: Runs if SNYK_ENABLED=1 or snyk is authenticated
+if [ "$SNYK_ENABLED" = "1" ]; then
+  echo "🔐 Phase 4a: Snyk vulnerability scanning..."
+  npm run precommit:snyk
+fi
+
+echo "✅ All pre-commit checks passed!"

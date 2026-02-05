@@ -1,0 +1,17 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.1
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  SNYK-JS-XLSX-5457926:
+    - '*':
+        reason: No fix available - Prototype pollution in controlled environment. xlsx is only used for reading user-provided Excel files with security checks in place (path validation, file size limits, controlled environment)
+        expires: 2026-08-04T00:00:00.000Z
+        created: 2026-02-04T00:00:00.000Z
+  SNYK-JS-XLSX-6252523:
+    - '*':
+        reason: >-
+          No fix available - ReDoS in controlled environment with input
+          validation. xlsx is only used for reading user-provided Excel files with file size limits (100MB max) and security checks
+        expires: 2026-08-04T00:00:00.000Z
+        created: 2026-02-04T00:00:00.000Z
+patch: {}

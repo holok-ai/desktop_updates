@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "NPM Audit Exception Configuration - Documents accepted security vulnerabilities with mitigation strategies",
+  "exceptions": {
+    "xlsx": {
+      "ids": ["1108110", "1108111"],
+      "reason": "No fix available on npm. Latest version 0.18.5 has known vulnerabilities. Fixes exist in 0.19.3+ but SheetJS does not publish to npm (only available via CDN).",
+      "mitigation": [
+        "xlsx only used in read-excel.tool.ts for controlled Excel file reading",
+        "Path validation and access control checks enforce security boundaries",
+        "File size limits (100MB max) prevent DoS attacks",
+        "Only processes user-provided files with explicit permission",
+        "No arbitrary code execution paths exposed",
+        "Running in Electron main process with sandboxed renderer"
+      ],
+      "vulnerabilities": [
+        {
+          "id": "1108110",
+          "advisory": "GHSA-4r6h-8v6p-xvw6",
+          "cve": "CVE-2023-30533",
+          "title": "Prototype Pollution in sheetJS",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-4r6h-8v6p-xvw6"
+        },
+        {
+          "id": "1108111",
+          "advisory": "GHSA-5pgg-2g8v-p4x9",
+          "cve": "CVE-2024-22363",
+          "title": "SheetJS Regular Expression Denial of Service (ReDoS)",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-5pgg-2g8v-p4x9"
+        }
+      ],
+      "reviewDate": "2026-02-04",
+      "expiryDate": "2026-08-04",
+      "reviewer": "Development Team",
+      "alternatives": [
+        "exceljs - More actively maintained, better security track record",
+        "node-xlsx - Simpler library with fewer features but fewer vulnerabilities",
+        "SheetJS Pro - Commercial version with security fixes (not published to npm)"
+      ],
+      "actionItems": [
+        "Monitor npm for xlsx updates monthly",
+        "Re-evaluate before expiry date (2026-08-04)",
+        "Consider migrating to exceljs if vulnerabilities escalate"
+      ]
+    }
+  },
+  "meta": {
+    "lastUpdated": "2026-02-04",
+    "nextReview": "2026-08-04",
+    "documentVersion": "1.0.0"
+  }
+}
