@@ -10,7 +10,7 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread, Message } from '$lib/types/thread.type';
-  import { getBranchMessages } from '$lib/utils/branch-utils';
+  import { normalizeBranchId, getRowNumber } from '$lib/utils/branch-utils';
 
   interface Props {
     thread: Thread;
@@ -27,35 +27,120 @@
     projectId ? $projects.find(p => p.id === projectId) : null
   );
 
-  // Get model name from current branch's messages, fallback to thread metadata
+  // Get model name from messages using the same rules as ChatPane's selectedModelId:
+  // - Look at the highest row (getRowNumber) that has messages with a modelId
+  // - If that row has variations and one is selected: use that variation's model
+  // - If that row has variations and none are selected: use the original branch's model for that row
+  // - If that row has no variations: use the latest message's model in that row
   const modelName = $derived.by(() => {
     const currentMessages = messagesProp ?? [];
-    
-    // First, check the most recent message in the entire thread (regardless of branch)
-    // This ensures we show the model from the latest message sent
-    if (currentMessages.length > 0) {
-      const mostRecentMessageWithModel = [...currentMessages]
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
-      if (mostRecentMessageWithModel?.modelId) {
-        return mostRecentMessageWithModel.modelId;
+
+    if (currentMessages.length === 0) {
+      return (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+    }
+
+    const messagesWithModel = currentMessages.filter(
+      (m) => m.modelId && m.modelId !== null && m.modelId !== '',
+    );
+    if (messagesWithModel.length === 0) {
+      return (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+    }
+
+    // Find highest row that has any message with a modelId
+    let maxRow = 0;
+    for (const m of messagesWithModel) {
+      const row = getRowNumber(normalizeBranchId(m.branchId));
+      if (row > maxRow) {
+        maxRow = row;
       }
     }
-    
-    // Fallback: check current branch messages (for variations)
-    const currentBranchId = thread.currentBranchId;
-    if (currentMessages.length > 0 && currentBranchId) {
-      const branchMessages = getBranchMessages(currentMessages, currentBranchId);
-      const messageWithModel = [...branchMessages]
-        .reverse()
-        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
-      if (messageWithModel?.modelId) {
-        return messageWithModel.modelId;
+
+    // Consider only messages in that row
+    const rowMessages = messagesWithModel.filter(
+      (m) => getRowNumber(normalizeBranchId(m.branchId)) === maxRow,
+    );
+    if (rowMessages.length === 0) {
+      return (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+    }
+
+    // Determine base branch and variation branches for this row
+    const normalizedIds = Array.from(
+      new Set(rowMessages.map((m) => normalizeBranchId(m.branchId))),
+    );
+    let baseBranchId: string | null = null;
+    const variationBranchIds: string[] = [];
+
+    for (const id of normalizedIds) {
+      const parts = id.split('.');
+      if (parts.length === 3 && parts[1] === '0' && parts[2] === '0') {
+        baseBranchId = id;
+      } else if (parts.length === 3) {
+        variationBranchIds.push(id);
       }
     }
-    
-    // Final fallback to thread metadata (which includes the selected model from the dropdown)
-    return (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
+
+    const selectedBranchIds = Array.isArray(thread.metadata?.selectedBranchIds)
+      ? (thread.metadata.selectedBranchIds as string[])
+      : [];
+
+    // Find selected variation branches in this row
+    const selectedVariationIds = variationBranchIds.filter((variationId) => {
+      return selectedBranchIds.some((selectedId) => {
+        const normSelected = normalizeBranchId(selectedId);
+        return normSelected === variationId || normSelected.startsWith(`${variationId}.`);
+      });
+    });
+
+    let modelToUse: string | null = null;
+
+    if (selectedVariationIds.length > 0) {
+      // Use latest message from any selected variation in this row
+      let latestSelectedMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isInSelectedVariation = selectedVariationIds.some(
+          (variationId) =>
+            normId === variationId || normId.startsWith(`${variationId}.`),
+        );
+        if (!isInSelectedVariation) continue;
+        if (!latestSelectedMsg || m.createdAt > latestSelectedMsg.createdAt) {
+          latestSelectedMsg = m;
+        }
+      }
+      modelToUse = latestSelectedMsg?.modelId ?? null;
+    } else if (baseBranchId) {
+      // No selected variation in this row - use latest message from base branch
+      let latestBaseMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isBase =
+          normId === baseBranchId || normId.startsWith(`${baseBranchId}.`);
+        if (!isBase) continue;
+        if (!latestBaseMsg || m.createdAt > latestBaseMsg.createdAt) {
+          latestBaseMsg = m;
+        }
+      }
+      modelToUse = latestBaseMsg?.modelId ?? null;
+    }
+
+    // Fallbacks: latest message in this row, then latest message overall, then metadata
+    if (!modelToUse) {
+      const latestInRow = rowMessages.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestInRow?.modelId ?? null;
+    }
+
+    if (!modelToUse) {
+      const latestOverall = messagesWithModel.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestOverall?.modelId ?? null;
+    }
+
+    return modelToUse ?? (thread.metadata?.modelAccessName as string) ?? 'Unknown Model';
   });
 
   // Navigate to project's thread tab

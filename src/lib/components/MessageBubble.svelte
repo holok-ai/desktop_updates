@@ -3,15 +3,15 @@
   import type { Message } from '$lib/types/thread.type';
   import type { MessageStatus } from '$lib/types/status.type';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
   import type { Attachment, ResponseComment } from '../../../src-shared/types/attachment.types';
   import AttachmentPreview from './AttachmentPreview.svelte';
   import CommentBubbleIcon from './CommentBubbleIcon.svelte';
   import CommentDisplay from './CommentDisplay.svelte';
   import CommentEditor from './CommentEditor.svelte';
   import { threadService } from '$lib/services/thread.service';
+  import VariationButton from './branching/VariationButton.svelte';
   import { canCreateVariation } from '$lib/utils/branch-utils';
-  import type { ModelDetails } from '../../../src-electron/preload';
   import {
     copyToClipboard,
     copyResponse,
@@ -28,8 +28,6 @@
     onEdit?: (messageId: string, currentContent: string, modelId?: string) => void;
     onShowVersions?: (messageId: string) => void;
     onCreateVariation?: (messageId: string) => void;
-    onCreateModelVariations?: (messageId: string, modelIds: string[]) => void;
-    onSwitchModel?: (messageId: string, modelId: string) => void;
     currentModel?: string | null;
     threadId?: string;
     isStreaming?: boolean;
@@ -43,7 +41,6 @@
     onEdit,
     onShowVersions,
     onCreateVariation,
-    onCreateModelVariations,
     currentModel = null,
     isStreaming = false,
     threadId,
@@ -51,11 +48,6 @@
   }: Props = $props();
 
   let isEditingInline = $state(false);
-  let showModelDropdown = $state(false);
-  let showModelSelection = $state(false);
-  let availableModels: ModelDetails[] = $state([]);
-  let loadingModels = $state(false);
-  let selectedModelIds = $state(new Set<string>());
 
   const canCreateVariationForMessage = $derived(() => {
     if (message.role !== 'user') return false;
@@ -67,72 +59,11 @@
     }
   });
 
-  // Get current model name
   const currentModelName = $derived(() => {
     if (message.modelId && message.modelId !== '') return message.modelId;
     if (currentModel && currentModel !== '') return currentModel;
     return null;
   });
-
-  // Load models when component mounts or when model selection is opened
-  async function loadModels() {
-    if (availableModels.length > 0) return;
-    loadingModels = true;
-    try {
-      availableModels = await window.electronAPI.models.listAll();
-    } catch (error) {
-      console.error('Error loading models:', error);
-    } finally {
-      loadingModels = false;
-    }
-  }
-
-  let modelSelectionPosition = $state<{ top: number; left: number } | null>(null);
-
-  function calculatePanelPosition(panelWidth: number, panelHeight: number, clientX: number, clientY: number) {
-    const margin = 8;
-    const extraMarginForTop = 16;
-    const padding = 72;
-
-    let left = clientX;
-    if (left + panelWidth > window.innerWidth - margin) {
-      left = window.innerWidth - panelWidth - margin - padding;
-    }
-    if (left < margin) {
-      left = margin;
-    }
-
-    const spaceBelow = window.innerHeight - clientY - extraMarginForTop;
-    let top: number;
-    if (spaceBelow < panelHeight + margin + extraMarginForTop) {
-      top = Math.max(margin, clientY - panelHeight - margin - 100);
-    } else {
-      top = clientY + margin + extraMarginForTop;
-    }
-
-    return { top, left };
-  }
-
-  async function handleModelSelectionClick(event: MouseEvent) {
-    event.stopPropagation();
-    if (!showModelSelection) {
-      await loadModels();
-      const { clientX, clientY } = event;
-      const { top, left } = calculatePanelPosition(280, 320, clientX, clientY);
-      modelSelectionPosition = { top, left };
-      showModelSelection = true;
-    } else {
-      showModelSelection = false;
-    }
-  }
-
-  const modelSelectionStyle = $derived(() => {
-    const pos = modelSelectionPosition;
-    const top = pos?.top ?? 80;
-    const left = pos?.left ?? 80;
-    return `position: fixed; top: ${top}px; left: ${left}px; z-index: 9999;`;
-  });
-
   let editedContent = $state('');
   // Cache for inline preview blob URLs: key is `${threadId}:${attachment.id}`, value is the blob URL
   // URLs are populated in getInlinePreviewUrl() when attachments are rendered (line 342)
@@ -336,24 +267,6 @@
   onDestroy(() => {
     cleanupInlinePreviewUrls();
   });
-
-  // Close dropdowns when clicking outside
-  onMount(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.model-switch-container') && showModelDropdown) {
-        showModelDropdown = false;
-      }
-      if (!target.closest('.model-selection-panel') && !target.closest('.action-button') && !target.closest('.model-switch-container') && showModelSelection) {
-        showModelSelection = false;
-        selectedModelIds = new Set();
-      }
-    }
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  });
 </script>
 
 <div
@@ -456,30 +369,27 @@
         <button
           class="action-button"
           onclick={handleEdit}
-          aria-label="Edit Prompt"
-          title="Edit Prompt"
+          aria-label="Edit message"
+          title="Edit message"
         >
           ✎
         </button>
       {/if}
-      {#if message.role === 'user' && onShowVersions && message.isEdited && message.status !== MESSAGE_STATUS.SENDING}
+      {#if message.role === 'user' && onCreateVariation && message.status !== MESSAGE_STATUS.SENDING}
+        <VariationButton
+          onclick={() => onCreateVariation?.(message.id)}
+          disabled={isStreaming}
+          canCreate={canCreateVariationForMessage()}
+        />
+      {/if}
+      {#if message.isEdited}
         <button
           class="action-button"
           onclick={handleShowVersions}
-          aria-label="Version History"
-          title="Version History"
+          aria-label="View edit history"
+          title="View edit history"
         >
           📜
-        </button>
-      {/if}
-      {#if message.role === 'user' && onCreateVariation && canCreateVariationForMessage() && message.status !== MESSAGE_STATUS.SENDING}
-        <button
-          class="action-button"
-          onclick={handleModelSelectionClick}
-          aria-label="Model Selection"
-          title="Model Selection"
-        >
-          🔀
         </button>
       {/if}
       {#if message.status === MESSAGE_STATUS.FAILED && onRetry}
@@ -492,70 +402,6 @@
       {/if}
     </div>
   </div>
-  
-  {#if message.role === 'user' && message.status !== MESSAGE_STATUS.SENDING}
-    <div class="user-message-actions">
-      {#if showModelSelection}
-        <div
-          class="model-selection-panel"
-          style={modelSelectionStyle()}
-        >
-          <div class="model-selection-header">
-            <h4>Select Models</h4>
-            <button class="close-btn" onclick={() => showModelSelection = false}>×</button>
-          </div>
-          {#if loadingModels}
-            <div class="loading">Loading models...</div>
-          {:else if availableModels.length === 0}
-            <div class="error">No models available</div>
-          {:else}
-            <div class="model-selection-list">
-              {#each availableModels as model (model.id)}
-                <label class="model-selection-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedModelIds.has(model.accessName)}
-                    onchange={(e) => {
-                      if (e.currentTarget.checked) {
-                        selectedModelIds = new Set([...selectedModelIds, model.accessName]);
-                      } else {
-                        const newSet = new Set(selectedModelIds);
-                        newSet.delete(model.accessName);
-                        selectedModelIds = newSet;
-                      }
-                    }}
-                  />
-                  <span>{model.title}</span>
-                </label>
-              {/each}
-            </div>
-            <div class="model-selection-actions">
-              <button
-                class="primary-btn"
-                disabled={selectedModelIds.size === 0}
-                onclick={() => {
-                  if (selectedModelIds.size > 0 && onCreateModelVariations) {
-                    onCreateModelVariations(message.id, Array.from(selectedModelIds));
-                    showModelSelection = false;
-                    selectedModelIds = new Set();
-                  }
-                }}
-              >
-                Create Variations ({selectedModelIds.size})
-              </button>
-              <button class="secondary-btn" onclick={() => {
-                showModelSelection = false;
-                selectedModelIds = new Set();
-              }}>
-                Cancel
-              </button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/if}
-  
   {#if message.error}
     <div class="error-text">{message.error}</div>
   {/if}
@@ -849,7 +695,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-left: 4px;
   }
 
   .edited-indicator {
@@ -865,62 +710,6 @@
   }
 
   .action-button {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid transparent;
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    color: inherit;
-    transition:
-      background 0.2s ease,
-      border-color 0.2s ease;
-  }
-
-
-  .model-switch-container {
-    position: relative;
-  }
-
-  .model-switch-container .action-button {
-    width: auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 200px;
-    padding: 0.125rem 0.375rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: transparent;
-  }
-
-  .model-switch-container span:first-child {
-    margin-right: 0.25rem;
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .action-button:hover {
-    background: rgba(148, 163, 184, 0.12);
-    border-color: rgba(148, 163, 184, 0.35);
-  }
-
-  .action-button:focus {
-    outline: none;
-    border-color: rgba(100, 108, 255, 0.28);
-    box-shadow: 0 0 0 4px rgba(100, 108, 255, 0.08);
-  }
-
-  /* Legacy styles - keeping for compatibility */
-  .action-button.legacy {
     background: transparent;
     color: #666;
     border: 1px solid #ccc;
@@ -1029,251 +818,5 @@
 
   .copy-menu button:hover {
     background: var(--surface-hover);
-  }
-
-  .user-message-actions {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(148, 163, 184, 0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .model-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-
-  .model-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
-
-  .model-dropdown-container {
-    position: relative;
-  }
-
-  .model-dropdown-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.375rem 0.75rem;
-    background: var(--surface-hover);
-    border: 1px solid var(--surface-border);
-    border-radius: 4px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: all 0.2s;
-  }
-
-  .model-dropdown-btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--surface-border);
-  }
-
-  .model-dropdown-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .dropdown-arrow {
-    font-size: 0.75rem;
-  }
-
-  .model-dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 0.25rem;
-    background: var(--surface-card);
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    min-width: 200px;
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 9999;
-  }
-
-  .model-switch-dropdown {
-    position: fixed;
-    right: 16px;
-    bottom: 96px;
-    left: auto;
-    top: auto;
-    margin: 0;
-  }
-
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: transparent;
-    border: none;
-    text-align: left;
-    font-size: 0.875rem;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: background 0.15s;
-  }
-
-  .dropdown-item:hover {
-    background: var(--surface-hover);
-  }
-
-  .dropdown-item.selected {
-    background: var(--surface-hover);
-    font-weight: 500;
-  }
-
-  .checkmark {
-    color: #646cff;
-    font-weight: bold;
-  }
-
-  .user-action-buttons {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .user-action-btn {
-    padding: 0.375rem 0.75rem;
-    background: var(--surface-hover);
-    border: 1px solid var(--surface-border);
-    border-radius: 4px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: all 0.2s;
-  }
-
-  .user-action-btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--surface-border);
-  }
-
-  .user-action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .model-selection-panel {
-    margin-top: 0;
-    padding: 1rem;
-    background: var(--surface-card);
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    max-height: 400px;
-    overflow-y: auto;
-    min-width: 250px;
-  }
-
-  .model-selection-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-  }
-
-  .model-selection-header h4 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-  }
-
-  .model-selection-header .close-btn {
-    background: transparent;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-secondary);
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .model-selection-header .close-btn:hover {
-    color: var(--text-primary);
-  }
-
-  .model-selection-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .model-selection-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.15s;
-  }
-
-  .model-selection-item:hover {
-    background: var(--surface-hover);
-  }
-
-  .model-selection-item input[type="checkbox"] {
-    cursor: pointer;
-  }
-
-  .model-selection-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-  }
-
-  .primary-btn {
-    padding: 0.5rem 1rem;
-    background: #646cff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s;
-  }
-
-  .primary-btn:hover {
-    background: #535bf2;
-  }
-
-  .secondary-btn {
-    padding: 0.5rem 1rem;
-    background: var(--surface-hover);
-    color: var(--text-primary);
-    border: 1px solid var(--surface-border);
-    border-radius: 4px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .secondary-btn:hover {
-    background: var(--surface-hover);
-    border-color: var(--surface-border);
-  }
-
-  .loading {
-    padding: 1rem;
-    text-align: center;
-    color: var(--text-secondary);
   }
 </style>

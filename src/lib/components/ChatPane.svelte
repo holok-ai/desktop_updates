@@ -54,6 +54,11 @@
 
   // Model selector above composer
   let selectedModelId = $state<string | null>(null);
+  // The model currently applied by the thread context (selected branches / main path).
+  // This should NOT override the user's explicit dropdown selection for the next send.
+  let appliedModelId = $state<string | null>(null);
+  // Track if user explicitly picked a model in the dropdown for this thread.
+  let manualModelSelectionThreadId = $state<string | null>(null);
   let showModelSelector = $state(false);
   let availableModels: ModelDetails[] = $state([]);
   let loadingModels = $state(false);
@@ -102,10 +107,12 @@
 
       console.log('[ChatPane] Extracted values:', { modelName, modelUrl, modelProvider });
 
-      // Initialize selected model from thread metadata when thread changes
-      // Will be updated by messages effect if a message has a modelId
+      // Initialize selected model from thread metadata when thread changes.
+      // This is the default "next message" model until the user manually picks a different one.
       if (threadIdChanged) {
         selectedModelId = modelName || null;
+        appliedModelId = null;
+        manualModelSelectionThreadId = null;
       }
 
       // Load models if we have a selectedModelId but models aren't loaded yet
@@ -180,19 +187,121 @@
     }
   });
 
-  // Update selectedModelId from most recent message's modelId (like breadcrumb does)
-  // This ensures dropdown shows the model that was actually used, not just thread metadata
+  // Update appliedModelId based on latest row (fork point) and selected branches
+  // Rules:
+  // - Look at the highest row (getRowNumber) that has messages with a modelId
+  // - If that row has variations and one is selected: use that variation's model
+  // - If that row has variations and none are selected: use the original branch's model for that row
+  // - If that row has no variations: use the latest message's model in that row
   $effect(() => {
-    if (messages.length > 0) {
-      const mostRecentMessageWithModel = [...messages]
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .find(m => m.modelId && m.modelId !== null && m.modelId !== '');
-      if (mostRecentMessageWithModel?.modelId) {
-        selectedModelId = mostRecentMessageWithModel.modelId;
-        // Load models if needed to show the title
-        if (availableModels.length === 0) {
-          loadModels();
+    if (messages.length === 0) return;
+
+    const messagesWithModel = messages.filter(
+      (m) => m.modelId && m.modelId !== null && m.modelId !== '',
+    );
+    if (messagesWithModel.length === 0) return;
+
+    // Find highest row that has any message with a modelId
+    let maxRow = 0;
+    for (const m of messagesWithModel) {
+      const row = getRowNumber(normalizeBranchId(m.branchId));
+      if (row > maxRow) {
+        maxRow = row;
+      }
+    }
+
+    // Consider only messages in that row
+    const rowMessages = messagesWithModel.filter(
+      (m) => getRowNumber(normalizeBranchId(m.branchId)) === maxRow,
+    );
+    if (rowMessages.length === 0) return;
+
+    // Determine base branch and variation branches for this row
+    const normalizedIds = Array.from(
+      new Set(rowMessages.map((m) => normalizeBranchId(m.branchId))),
+    );
+    let baseBranchId: string | null = null;
+    const variationBranchIds: string[] = [];
+
+    for (const id of normalizedIds) {
+      const parts = id.split('.');
+      if (parts.length === 3 && parts[1] === '0' && parts[2] === '0') {
+        baseBranchId = id;
+      } else if (parts.length === 3) {
+        variationBranchIds.push(id);
+      }
+    }
+
+    const selectedBranchIds = Array.isArray(currentThread?.metadata?.selectedBranchIds)
+      ? (currentThread.metadata.selectedBranchIds as string[])
+      : [];
+
+    // Find selected variation branches in this row
+    const selectedVariationIds = variationBranchIds.filter((variationId) => {
+      return selectedBranchIds.some((selectedId) => {
+        const normSelected = normalizeBranchId(selectedId);
+        return normSelected === variationId || normSelected.startsWith(`${variationId}.`);
+      });
+    });
+
+    let modelToUse: string | null = null;
+
+    if (selectedVariationIds.length > 0) {
+      // Use latest message from any selected variation in this row
+      let latestSelectedMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isInSelectedVariation = selectedVariationIds.some(
+          (variationId) =>
+            normId === variationId || normId.startsWith(`${variationId}.`),
+        );
+        if (!isInSelectedVariation) continue;
+        if (!latestSelectedMsg || m.createdAt > latestSelectedMsg.createdAt) {
+          latestSelectedMsg = m;
         }
+      }
+      modelToUse = latestSelectedMsg?.modelId ?? null;
+    } else if (baseBranchId) {
+      // No selected variation in this row - use latest message from base branch
+      let latestBaseMsg: (typeof messagesWithModel)[number] | null = null;
+      for (const m of rowMessages) {
+        const normId = normalizeBranchId(m.branchId);
+        const isBase =
+          normId === baseBranchId || normId.startsWith(`${baseBranchId}.`);
+        if (!isBase) continue;
+        if (!latestBaseMsg || m.createdAt > latestBaseMsg.createdAt) {
+          latestBaseMsg = m;
+        }
+      }
+      modelToUse = latestBaseMsg?.modelId ?? null;
+    }
+
+    // Fallbacks: latest message in this row, then latest message overall
+    if (!modelToUse) {
+      const latestInRow = rowMessages.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestInRow?.modelId ?? null;
+    }
+
+    if (!modelToUse) {
+      const latestOverall = messagesWithModel.reduce((latest, m) => {
+        if (!latest || m.createdAt > latest.createdAt) return m;
+        return latest;
+      });
+      modelToUse = latestOverall?.modelId ?? null;
+    }
+
+    if (modelToUse) {
+      appliedModelId = modelToUse;
+      // Only auto-sync the dropdown if the user hasn't manually selected a model for this thread.
+      if (currentThread?.id && manualModelSelectionThreadId !== currentThread.id) {
+        selectedModelId = modelToUse;
+      }
+      // Load models if needed to show the title
+      if (availableModels.length === 0) {
+        loadModels();
       }
     }
   });
@@ -1504,23 +1613,23 @@
     branchId = normalizeBranchId(branchId);
     console.log('[ChatPane] branchId computed', { rawBranchId, normalizedBranchId: branchId });
 
-    // Determine model for the new message
-    // Priority: selectedModelId (from dropdown) > branch modelId > null
+    // Determine branch-specific model for the new message.
+    // IMPORTANT: only use branch model override when sending FROM a branch box.
+    // When sending from the main composer, the dropdown selection must win.
     let modelId: string | null = null;
-
-    // Use sendingBranchIndex if we're sending from a branch box, otherwise use activeBranchIndex
-    const branchIndexToUse = sendingBranchIndex !== null ? sendingBranchIndex : activeBranchIndex;
-
-    if (branchIndexToUse !== null) {
-      // Get modelId from the branch's user message
-      const branchBox = branchBoxes.find((b) => b.branchIndex === branchIndexToUse);
+    if (sendingBranchIndex !== null) {
+      const branchBox = branchBoxes.find((b) => b.branchIndex === sendingBranchIndex);
       if (branchBox) {
         modelId = branchBox.userMessage.modelId ?? null;
       }
     }
 
     // Use selectedModelId if set (from dropdown), otherwise use branch modelId
-    const finalModelId = selectedModelId || modelId;
+    // Priority for the next send:
+    // 1) User's explicit dropdown selection (selectedModelId)
+    // 2) Applied model from selected branch context (appliedModelId)
+    // 3) Branch box model / thread metadata fallback (modelId / modelName)
+    const finalModelId = selectedModelId || appliedModelId || modelId;
 
     // Only create user message if it doesn't already exist (skip for initial prompt auto-send)
     let userMsg: Message | null = null;
@@ -1552,15 +1661,16 @@
 
     console.log('[ChatPane sendMessage] Online, checking chat service initialization');
 
-    // Resolve model/provider/url to use for this send
-    let modelToUse = modelId || modelName;
+    // Resolve model/provider/url to use for this send (for chat service init)
+    // Must match the actual model we’re sending with.
+    let modelToUse = finalModelId || modelName;
     let providerToUse = modelProvider;
     let urlToUse = modelUrl;
 
-    if (modelId) {
+    if (finalModelId) {
       try {
         const allModels = await window.electronAPI.models.listAll();
-        const modelDetails = allModels.find((m) => m.accessName === modelId);
+        const modelDetails = allModels.find((m) => m.accessName === finalModelId);
         if (modelDetails) {
           modelToUse = modelDetails.accessName;
           providerToUse = modelDetails.provider;
@@ -1627,13 +1737,13 @@
 
       // Resolve model/provider/url to use for this send
       // Use selectedModelId if set, otherwise fall back to thread model
-      let modelToUse = selectedModelId || modelName;
+      let modelToUse = selectedModelId || appliedModelId || modelName;
       let providerToUse = modelProvider;
       let urlToUse = modelUrl;
 
-      // If this branch has a specific modelId (model variation), prefer it
-      // Otherwise, if selectedModelId is set, use that
-      if (modelId) {
+      // If sending from a branch input, the branch can force a specific model (variation lane).
+      // For main composer sends, the dropdown selection should win.
+      if (sendingBranchIndex !== null && modelId) {
         try {
           const allModels = await window.electronAPI.models.listAll();
           const modelDetails = allModels.find((m) => m.accessName === modelId);
@@ -1966,90 +2076,7 @@
     }
   }
 
-  // Branching handlers
-  function handleCreateVariation(messageId: string) {
-    const message = messages.find((m) => m.id === messageId);
-    if (message && message.role === 'user') {
-      showVariationModalFor = message;
-      variationError = '';
-    }
-  }
-
-  async function handleCreateInlineModelVariations(messageId: string, modelIds: string[]) {
-    const message = messages.find((m) => m.id === messageId);
-    if (!message || message.role !== 'user') return;
-    if (!currentThread) return;
-    if (modelIds.length === 0) return;
-
-    try {
-      // Mirror the model-variation branch of handleSubmitVariation, but without showing the modal
-      isCreatingVariation = true;
-      hasCreatedVariations = true;
-      allowAutoSelection = false;
-      variationError = '';
-
-      const content = message.content;
-
-      if (modelIds.length === 1) {
-        const [modelId] = modelIds;
-        const result = await threadService.createVariation(
-          currentThread,
-          message,
-          content,
-          modelId,
-        );
-
-        if (!result.success) {
-          variationError = result.error;
-          console.error('[ChatPane] Failed to create inline model variation:', result.error);
-          return;
-        }
-
-        messages = [...messages, result.message];
-
-        activeBranchIndex = null;
-        hiddenForkPoints = new Set();
-        _branchSelectionTime = null;
-
-        await generateResponseForVariation(result.message);
-      } else {
-        const createdMessages: Message[] = [];
-        const currentMessages = await threadService.getMessages(currentThread.id);
-
-        for (const modelId of modelIds) {
-          const messagesForBranchId = [...currentMessages, ...createdMessages];
-          const result = await threadService.createVariation(
-            currentThread,
-            message,
-            content,
-            modelId,
-            messagesForBranchId,
-          );
-
-          if (!result.success) {
-            variationError = result.error;
-            console.error('[ChatPane] Failed to create inline model variation with selected model:', result.error);
-            return;
-          }
-
-          createdMessages.push(result.message);
-        }
-
-        messages = [...messages, ...createdMessages];
-
-        activeBranchIndex = null;
-        hiddenForkPoints = new Set();
-        _branchSelectionTime = null;
-
-        for (const message of createdMessages) {
-          await generateResponseForVariation(message);
-        }
-      }
-    } finally {
-      isCreatingVariation = false;
-    }
-  }
-
+  // Model selector functions
   async function loadModels() {
     if (availableModels.length > 0) return;
     loadingModels = true;
@@ -2077,12 +2104,19 @@
         return;
       }
 
-      selectedModelId = modelId;
+    selectedModelId = modelId;
+    // Mark manual selection so branch/message effects don't override the user's choice for next send
+    if (currentThread?.id) {
+      manualModelSelectionThreadId = currentThread.id;
+    }
 
       // Update thread metadata with new model
+      // NOTE: Electron IPC requires args to be structured-cloneable. Svelte rune state can hold proxy objects,
+      // so we sanitize metadata into plain JSON before sending it across IPC.
+      const safeMetadata = JSON.parse(JSON.stringify(currentThread.metadata ?? {})) as Record<string, unknown>;
       const updatedThread = await threadService.update(currentThread.id, {
         metadata: {
-          ...currentThread.metadata,
+          ...safeMetadata,
           modelAccessName: modelDetails.accessName,
           model: modelDetails.accessName,
           provider: modelDetails.provider,
@@ -2116,6 +2150,15 @@
       loadModels();
     }
     showModelSelector = !showModelSelector;
+  }
+
+  // Branching handlers
+  function handleCreateVariation(messageId: string) {
+    const message = messages.find((m) => m.id === messageId);
+    if (message && message.role === 'user') {
+      showVariationModalFor = message;
+      variationError = '';
+    }
   }
 
   async function handleSubmitVariation(content: string, _branchType: BranchType, modelIds: string[]) {
@@ -2401,9 +2444,13 @@
         contextMessages = getBranchMessages(messages, userMessage.branchId);
       }
 
+      // Check if userMessage is already in contextMessages to avoid duplicate
+      const userMessageInContext = contextMessages.some(m => m.id === userMessage.id);
+      
       const historyMessages = [
         ...contextMessages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        { role: 'user' as const, content: userMessage.content },
+        // Only add userMessage if it's not already in contextMessages
+        ...(userMessageInContext ? [] : [{ role: 'user' as const, content: userMessage.content }]),
       ];
 
       // Get model details if modelId is provided (for model variations)
@@ -2936,7 +2983,6 @@
               onEdit={handleEdit}
               onShowVersions={handleShowVersions}
               onCreateVariation={handleCreateVariation}
-              onCreateModelVariations={handleCreateInlineModelVariations}
               currentModel={modelName}
               threadId={currentThread?.id}
               {isStreaming}
@@ -3062,11 +3108,11 @@
                 {#each availableModels as model (model.id)}
                   <button
                     class="dropdown-item"
-                    class:selected={model.accessName === (selectedModelId || modelName)}
+                    class:selected={model.accessName === (selectedModelId || appliedModelId || modelName)}
                     onclick={() => handleSelectModel(model.accessName)}
                   >
                     {model.title}
-                    {#if model.accessName === (selectedModelId || modelName)}
+                    {#if model.accessName === (selectedModelId || appliedModelId || modelName)}
                       <span class="checkmark">✓</span>
                     {/if}
                   </button>
