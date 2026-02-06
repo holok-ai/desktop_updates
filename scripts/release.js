@@ -63,8 +63,15 @@ if (!semverRegex.test(newVersion)) {
 const tagName = `v${newVersion}`;
 let tagExistsRemotely = false;
 try {
-  execSync(`git ls-remote --tags origin ${tagName}`, { cwd: rootDir, stdio: 'pipe' });
-  tagExistsRemotely = true;
+  const result = execSync(`git ls-remote --tags origin ${tagName}`, {
+    cwd: rootDir,
+    stdio: 'pipe',
+    encoding: 'utf8',
+  });
+  if (result.trim()) {
+    tagExistsRemotely = true;
+    console.log(`ℹ️  Found tag ${tagName} in source repository (desktop)`);
+  }
 } catch {
   // Tag doesn't exist remotely
 }
@@ -84,14 +91,6 @@ if (tagExistsRemotely) {
     );
     process.exit(1);
   }
-}
-
-// Check if GH_TOKEN is set
-if (!process.env.GH_TOKEN) {
-  console.error('❌ Error: GH_TOKEN environment variable not set');
-  console.error('\nSet it with:');
-  console.error('  export GH_TOKEN=your_token_here');
-  process.exit(1);
 }
 
 // Check if git is clean
@@ -199,6 +198,20 @@ try {
     console.log('✅ Version updated\n');
   } else {
     console.log(`✅ Verified package.json version: ${newVersion}\n`);
+  }
+
+  // Check if GH_TOKEN is set (needed for publishing, even for public repos)
+  if (!process.env.GH_TOKEN) {
+    console.error('❌ Error: GH_TOKEN environment variable not set');
+    console.error(
+      '\nGH_TOKEN is required to publish releases to GitHub, even for public repositories.',
+    );
+    console.error('It is used to authenticate API requests when uploading release artifacts.\n');
+    console.error('Set it with:');
+    console.error('  macOS: launchctl setenv GH_TOKEN your_token_here');
+    console.error('  Windows: setx GH_TOKEN "your_token_here"');
+    console.error('  Linux: export GH_TOKEN=your_token_here');
+    process.exit(1);
   }
 
   // Check platform
