@@ -2,21 +2,22 @@
 
 /**
  * Release Script for Holokai Desktop
- * 
+ *
  * Automates the process of:
  * 1. Updating version in package.json
  * 2. Committing and tagging
  * 3. Pushing to GitHub
  * 4. Building and publishing to GitHub releases
- * 
+ * 5. Optionally marking release as mandatory
+ *
  * Usage:
- *   node scripts/release.js [version]
- * 
+ *   node scripts/release.js [version] [--mandatory]
+ *
  * Examples:
- *   node scripts/release.js 1.0.1          # Patch release
+ *   node scripts/release.js 1.0.1          # Optional release
+ *   node scripts/release.js 1.0.1 --mandatory  # Mandatory release
  *   node scripts/release.js 1.1.0          # Minor release
  *   node scripts/release.js 2.0.0          # Major release
- *   node scripts/release.js                # Prompts for version
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -33,15 +34,18 @@ const packageJsonPath = join(rootDir, 'package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
 const currentVersion = packageJson.version;
 
-// Get new version from command line or prompt
-const newVersion = process.argv[2];
+// Parse command line arguments
+const args = process.argv.slice(2);
+const newVersion = args.find((arg) => !arg.startsWith('--'));
+const isMandatory = args.includes('--mandatory');
 
 if (!newVersion) {
   console.error('❌ Error: Version required');
   console.error('\nUsage:');
-  console.error('  node scripts/release.js <version>');
+  console.error('  node scripts/release.js <version> [--mandatory]');
   console.error('\nExamples:');
   console.error('  node scripts/release.js 1.0.1');
+  console.error('  node scripts/release.js 1.0.1 --mandatory');
   console.error('  node scripts/release.js 1.1.0');
   console.error(`\nCurrent version: ${currentVersion}`);
   process.exit(1);
@@ -75,7 +79,9 @@ if (tagExistsRemotely) {
   // Check if version changed (only if tag doesn't exist)
   if (newVersion === currentVersion) {
     console.error(`❌ Error: Version ${newVersion} is already the current version`);
-    console.error('If you want to publish for another platform, make sure the tag exists on remote first.');
+    console.error(
+      'If you want to publish for another platform, make sure the tag exists on remote first.',
+    );
     process.exit(1);
   }
 }
@@ -105,7 +111,12 @@ try {
 
 console.log('🚀 Starting release process...\n');
 console.log(`Current version: ${currentVersion}`);
-console.log(`New version: ${newVersion}\n`);
+console.log(`New version: ${newVersion}`);
+if (isMandatory) {
+  console.log('⚠️  This will be marked as a MANDATORY update\n');
+} else {
+  console.log('');
+}
 
 try {
   // Step 1: Update version in package.json (only if tag doesn't exist remotely)
@@ -127,7 +138,7 @@ try {
   // Step 2/3: Create and push tag (skip if already exists remotely)
   const stepLabel = tagExistsRemotely ? 'Step 2' : 'Step 3';
   console.log(`🏷️  ${stepLabel}: Checking git tag...`);
-  
+
   // Check if tag exists locally
   let tagExistsLocally = false;
   try {
@@ -136,11 +147,11 @@ try {
   } catch {
     // Tag doesn't exist locally
   }
-  
+
   if (tagExistsRemotely) {
     console.log(`ℹ️  Tag ${tagName} already exists on remote. Skipping tag creation.`);
     console.log('   This is normal when building for multiple platforms.\n');
-    
+
     // Make sure we have the tag locally (for electron-builder to detect version)
     if (!tagExistsLocally) {
       console.log('📥 Fetching tag from remote...');
@@ -154,7 +165,7 @@ try {
       execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
       console.log('✅ Tag created\n');
     }
-    
+
     // Step 4: Push commits and tags
     console.log('📤 Step 4: Pushing to GitHub...');
     execSync('git push', { cwd: rootDir, stdio: 'inherit' });
@@ -165,10 +176,10 @@ try {
   // Step 3/4/5: Build and publish for current platform
   const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 5';
   console.log(`🔨 ${buildStepNumber}: Building and publishing to GitHub releases...`);
-  
+
   // Re-read package.json to ensure we have the latest version
   const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-  
+
   // If tag doesn't exist remotely, we should have updated package.json
   // If tag exists remotely, package.json should already have the correct version
   if (!tagExistsRemotely && currentPackageJson.version !== newVersion) {
@@ -177,31 +188,33 @@ try {
     console.error('   This should not happen. Please check package.json manually.');
     process.exit(1);
   }
-  
+
   // Ensure package.json has the correct version (in case tag exists but package.json doesn't)
   if (currentPackageJson.version !== newVersion) {
-    console.log(`⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`);
+    console.log(
+      `⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`,
+    );
     currentPackageJson.version = newVersion;
     writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
     console.log('✅ Version updated\n');
   } else {
     console.log(`✅ Verified package.json version: ${newVersion}\n`);
   }
-  
+
   // Check platform
   const platform = process.platform;
   console.log(`Current platform: ${platform}\n`);
-  
+
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
-  
+
   if (platform === 'darwin') {
     console.log('\n📦 Building for macOS...');
     console.log(`   - Version: ${newVersion}`);
     console.log('   - macOS: DMG and ZIP files\n');
-    execSync(`npx electron-builder --mac --publish=always`, { 
-      cwd: rootDir, 
+    execSync(`npx electron-builder --mac --publish=always`, {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
     console.log('\n⚠️  Note: Windows builds should be done on a Windows machine');
     console.log('   Build Windows installer separately and upload to the same release');
@@ -209,31 +222,93 @@ try {
     console.log('\n📦 Building for Windows...');
     console.log(`   - Version: ${newVersion}`);
     console.log('   - Windows: NSIS installer (x64)\n');
-    execSync('npx electron-builder --win --x64 --publish=always', { 
-      cwd: rootDir, 
+    execSync('npx electron-builder --win --x64 --publish=always', {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
     console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
     console.log('   Build macOS installer separately and upload to the same release');
   } else {
     console.log('\n📦 Building for current platform...');
     console.log(`   - Version: ${newVersion}\n`);
-    execSync('npx electron-builder --publish=always', { 
-      cwd: rootDir, 
+    execSync('npx electron-builder --publish=always', {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
   }
-  
-  console.log('\n✅ Release published successfully!');
-  console.log(`\n🎉 Version ${newVersion} is now available at:`);
-  console.log(`   https://github.com/holok-ai/desktop/releases/tag/v${newVersion}`);
 
+  console.log('\n✅ Release published successfully!');
+
+  // Update release notes if mandatory flag is set
+  if (isMandatory) {
+    console.log('\n📝 Updating release notes to mark as mandatory...');
+    try {
+      const tagName = `v${newVersion}`;
+      const apiUrl = `https://api.github.com/repos/holok-ai/desktop-updates/releases/tags/${tagName}`;
+
+      // First, get the current release
+      const getResponse = await fetch(apiUrl, {
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+          Authorization: `token ${process.env.GH_TOKEN}`,
+        },
+      });
+
+      if (!getResponse.ok) {
+        console.warn(
+          `⚠️  Warning: Could not fetch release (${getResponse.status}). You may need to manually add [MANDATORY] to the release notes.`,
+        );
+      } else {
+        const release = await getResponse.json();
+        const currentBody = release.body || '';
+
+        // Check if already marked as mandatory
+        if (currentBody.toLowerCase().includes('[mandatory]')) {
+          console.log('✅ Release already marked as mandatory');
+        } else {
+          // Prepend [MANDATORY] to release notes
+          const updatedBody = `[MANDATORY]\n\n${currentBody}`;
+
+          // Update the release
+          const updateResponse = await fetch(apiUrl, {
+            method: 'PATCH',
+            headers: {
+              Accept: 'application/vnd.github.v3+json',
+              Authorization: `token ${process.env.GH_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              body: updatedBody,
+            }),
+          });
+
+          if (updateResponse.ok) {
+            console.log('✅ Release marked as mandatory');
+          } else {
+            const errorText = await updateResponse.text();
+            console.warn(`⚠️  Warning: Could not update release notes (${updateResponse.status}).`);
+            console.warn(`   Error: ${errorText}`);
+            console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
+            console.warn(
+              `   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️  Warning: Error updating release notes: ${error.message}`);
+      console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
+      console.warn(`   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`);
+    }
+  }
+
+  console.log(`\n🎉 Version ${newVersion} is now available at:`);
+  console.log(`   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`);
 } catch (error) {
   console.error('\n❌ Error during release process:', error.message);
   console.error('\n⚠️  Note: Version in package.json has been updated.');
   console.error('You may need to revert it manually if the release failed.');
   process.exit(1);
 }
-

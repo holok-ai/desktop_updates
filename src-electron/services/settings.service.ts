@@ -33,6 +33,7 @@ export interface AppSettings {
 
   updateAvailable?: boolean;
   latestVersion?: string;
+  pendingUpdateVersion?: string;
 }
 
 /**

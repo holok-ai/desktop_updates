@@ -1,6 +1,6 @@
 {
   "name": "holokai-desktop",
-  "version": "1.0.9",
+  "version": "1.0.0",
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
@@ -149,8 +149,8 @@
       {
         "provider": "github",
         "owner": "holok-ai",
-        "repo": "desktop",
-        "private": true
+        "repo": "desktop-updates",
+        "private": false
       }
     ],
     "win": {

@@ -513,14 +513,30 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on('before-quit', (_event) => {
+app.on('before-quit', (event) => {
   appLog.info('Application exiting');
-  
-  // On Windows, allow quit during update installation
-  // Check if this is an update-related quit
-  if (process.platform === 'win32') {
-    // Don't prevent default quit behavior during updates
-    // This allows the installer to replace the executable
+
+  // Check for pending updates before quitting
+  const pendingVersion = autoUpdaterService.getPendingUpdateVersion();
+  if (pendingVersion) {
+    event.preventDefault();
+
+    // Handle pending update installation
+    autoUpdaterService
+      .checkForPendingUpdateOnShutdown()
+      .then((updateInstalled) => {
+        // If update was not installed (user cancelled/closed dialog), allow quit to proceed
+        if (!updateInstalled) {
+          appLog.info('Update installation cancelled, allowing quit to proceed');
+          app.quit();
+        }
+        // If update was installed, quitAndInstall() will handle the quit
+      })
+      .catch((error) => {
+        appLog.error('Error checking for pending update:', error);
+        // On error, allow quit to proceed
+        app.quit();
+      });
   }
 });
 
