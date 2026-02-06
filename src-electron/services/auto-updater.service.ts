@@ -109,7 +109,7 @@ class AutoUpdaterService {
   private async fetchUpdateMetadata(version: string): Promise<UpdateMetadata | null> {
     try {
       const response = await fetch(
-        `https://api.github.com/repos/holok-ai/desktop-updates/releases/tags/v${version}`,
+        `https://api.github.com/repos/holok-ai/desktop_updates/releases/tags/v${version}`,
         {
           headers: {
             Accept: 'application/vnd.github.v3+json',
@@ -270,7 +270,7 @@ class AutoUpdaterService {
           detailLines.push('GitHub reported "Bad credentials" (HTTP 401).');
         }
         detailLines.push(
-          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop-updates repository.',
+          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop_updates repository.',
         );
 
         dialog

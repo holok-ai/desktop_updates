@@ -59,9 +59,9 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if tag exists remotely in desktop-updates repo (for multi-platform builds)
+// Check if tag exists remotely in desktop_updates repo (for multi-platform builds)
 const tagName = `v${newVersion}`;
-const desktopUpdatesRepo = 'holok-ai/desktop-updates';
+const desktopUpdatesRepo = 'holok-ai/desktop_updates';
 const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
 let tagExistsRemotely = false;
 
@@ -74,7 +74,7 @@ try {
   });
   if (result.trim()) {
     tagExistsRemotely = true;
-    console.log(`ℹ️  Found tag ${tagName} in desktop-updates repository`);
+    console.log(`ℹ️  Found tag ${tagName} in desktop_updates repository`);
   }
 } catch {
   // Tag doesn't exist remotely or git command failed
@@ -121,50 +121,6 @@ if (isMandatory) {
   console.log('');
 }
 
-// Verify desktop-updates repository exists
-console.log('🔍 Verifying desktop-updates repository exists...');
-try {
-  const https = await import('node:https');
-  const url = `https://api.github.com/repos/${desktopUpdatesRepo}`;
-  const options = {
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      'User-Agent': 'holokai-desktop-release-script',
-      ...(process.env.GH_TOKEN && { Authorization: `token ${process.env.GH_TOKEN}` }),
-    },
-  };
-
-  const response = await new Promise((resolve, reject) => {
-    https
-      .get(url, options, (res) => {
-        resolve(res);
-      })
-      .on('error', reject);
-  });
-
-  if (response.statusCode === 404) {
-    console.error(`❌ Error: Repository ${desktopUpdatesRepo} does not exist!`);
-    console.error('\nPlease create the repository first:');
-    console.error(`   1. Go to https://github.com/organizations/holok-ai/repositories/new`);
-    console.error(`   2. Repository name: desktop-updates`);
-    console.error(`   3. Make it PUBLIC`);
-    console.error(`   4. Do NOT initialize with README, .gitignore, or license`);
-    console.error(`   5. Click "Create repository"`);
-    console.error(`\nThen run the release command again.`);
-    process.exit(1);
-  } else if (response.statusCode !== 200) {
-    console.error(`❌ Error: Could not verify repository (HTTP ${response.statusCode})`);
-    console.error('   Please check that:');
-    console.error('   1. The repository exists');
-    console.error('   2. Your GH_TOKEN has access to it');
-    process.exit(1);
-  }
-  console.log('✅ Repository verified\n');
-} catch (error) {
-  console.warn(`⚠️  Warning: Could not verify repository: ${error.message}`);
-  console.warn('   Continuing anyway, but publish may fail if repository does not exist.\n');
-}
-
 try {
   // Step 1: Prepare tag (only if tag doesn't exist remotely)
   if (!tagExistsRemotely) {
@@ -176,7 +132,7 @@ try {
 
   // Step 2: Prepare tag (only if tag exists remotely, fetch it)
   if (tagExistsRemotely) {
-    console.log(`🏷️  Step 2: Fetching tag from desktop-updates...`);
+    console.log(`🏷️  Step 2: Fetching tag from desktop_updates...`);
     const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
 
     // Check if tag exists locally
@@ -207,7 +163,7 @@ try {
         });
         console.log('✅ Tag fetched\n');
       } catch (error) {
-        console.warn(`⚠️  Warning: Could not fetch tag from desktop-updates: ${error.message}`);
+        console.warn(`⚠️  Warning: Could not fetch tag from desktop_updates: ${error.message}`);
         console.warn('   You may need to create the tag manually.\n');
       }
     } else {
@@ -313,8 +269,8 @@ try {
     console.log('📤 Step 7: Pushing to GitHub...');
     execSync('git push', { cwd: rootDir, stdio: 'inherit' });
 
-    // Push tags to desktop-updates repo
-    console.log(`📤 Pushing tag to desktop-updates repository...`);
+    // Push tags to desktop_updates repo
+    console.log(`📤 Pushing tag to desktop_updates repository...`);
     const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
     try {
       let updatesRemoteExists = false;
@@ -339,11 +295,11 @@ try {
         cwd: rootDir,
         stdio: 'inherit',
       });
-      console.log('✅ Tag pushed to desktop-updates\n');
+      console.log('✅ Tag pushed to desktop_updates\n');
     } catch (error) {
-      console.warn(`⚠️  Warning: Could not push tag to desktop-updates: ${error.message}`);
+      console.warn(`⚠️  Warning: Could not push tag to desktop_updates: ${error.message}`);
       console.warn('   Tag exists locally and will be used by electron-builder.');
-      console.warn('   You may need to manually push the tag to desktop-updates.\n');
+      console.warn('   You may need to manually push the tag to desktop_updates.\n');
     }
   } else {
     // Tag exists remotely, ensure package.json has correct version
@@ -363,7 +319,7 @@ try {
     console.log('\n📝 Updating release notes to mark as mandatory...');
     try {
       const tagName = `v${newVersion}`;
-      const apiUrl = `https://api.github.com/repos/holok-ai/desktop-updates/releases/tags/${tagName}`;
+      const apiUrl = `https://api.github.com/repos/holok-ai/desktop_updates/releases/tags/${tagName}`;
 
       // First, get the current release
       const getResponse = await fetch(apiUrl, {
@@ -409,7 +365,7 @@ try {
             console.warn(`   Error: ${errorText}`);
             console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
             console.warn(
-              `   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`,
+              `   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`,
             );
           }
         }
@@ -417,12 +373,12 @@ try {
     } catch (error) {
       console.warn(`⚠️  Warning: Error updating release notes: ${error.message}`);
       console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
-      console.warn(`   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`);
+      console.warn(`   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`);
     }
   }
 
   console.log(`\n🎉 Version ${newVersion} is now available at:`);
-  console.log(`   https://github.com/holok-ai/desktop-updates/releases/tag/v${newVersion}`);
+  console.log(`   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`);
 } catch (error) {
   console.error('\n❌ Error during release process:', error.message);
   console.error('\n⚠️  Note: Version in package.json has been updated.');
