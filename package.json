@@ -73,7 +73,7 @@
     "pdf2json": "^4.0.2",
     "playwright": "^1.58.1",
     "primeicons": "^7.0.0",
-    "primeng": "^21.1.1",
+    "primeng": "17.18.11",
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
