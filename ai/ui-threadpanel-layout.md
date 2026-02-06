@@ -1,7 +1,7 @@
-# Thread Panel Layout
+# Thread Panel Layout System
 
-**Version:** 1.1
-**Date:** 2026-01-28
+**Version:** 2.0
+**Date:** 2026-01-30
 **Status:** Implementation Ready
 
 ---
@@ -11,180 +11,345 @@
 | Document | Description |
 |----------|-------------|
 | **ui-threadpanel-overview.md** | Architecture and design principles |
-| **ui-threadpanel-components.md** | Header, tabs, status indicator |
-| **ui-threadpanel-chatview.md** | Chat view and message timeline |
-| **ui-threadpanel-execution-view.md** | Thread execution view |
-| **ui-threadpanel-promptview.md** | Prompt list view |
+| **ui-threadpanel-components.md** | Component hierarchy and state machine (Sections 13-14) |
+| **Sections 13-14 in ui-threadpanel-components.md** | LayoutConfig interface and ThreadLayoutSelector component |
 
 ---
 
-## 1. Component Tree
+## 1. Overview
+
+The Thread Panel Layout System allows users to display multiple views simultaneously in a flexible multi-pane configuration. Five pre-defined layout templates accommodate different workflows, from single-view simplicity to a 2x2 grid for comprehensive analysis. View types: Chat, Execution, Branching, Prompt, and File.
+
+**Key principle:** Only one instance of each view type per layout. This eliminates the need for infrastructure changes to streaming, state management, or messaging systems.
+
+---
+
+## 2. Layout Templates
+
+### 2.1 Single Column (Default)
+
+Single full-width pane. Ideal for focused, sequential work.
 
 ```
-ThreadComponent.svelte (orchestrator, ~800 lines)
-├─ ThreadHeader.svelte (~150 lines)
-│  ├─ ThreadBreadcrumb.svelte (existing, reuse)
-│  ├─ ThreadTitle.svelte (~80 lines)
-│  ├─ ThreadStatusIndicator.svelte (NEW, ~200 lines)
-│  └─ ThreadActions.svelte (~100 lines)
-│
-├─ ThreadViewTabs.svelte (NEW, ~100 lines)
-│  └─ TabButton.svelte
-│
-├─ ThreadChatView.svelte (~400 lines)
-│  ├─ MessageTimeline.svelte (~250 lines)
-│  │  ├─ MessageItem.svelte (~150 lines)
-│  │  │  └─ MessageBubble.svelte (existing, reuse)
-│  │  └─ BranchBoxItem.svelte (~100 lines)
-│  │     └─ BranchLane.svelte (existing, reuse)
-│  └─ MessageComposerArea.svelte (NEW, ~150 lines)
-│
-├─ ThreadExecutionView.svelte (NEW, ~350 lines)
-│  ├─ InstructionFileEditor.svelte (~200 lines)
-│  ├─ ExecutionControls.svelte (~100 lines)
-│  ├─ ExecutionHistory.svelte (~150 lines)
-│  └─ ExecutionFrequencyChart.svelte (~100 lines)
-│
-├─ ThreadBranchingView.svelte (NEW, ~500 lines)
-│  ├─ BranchingGraphCanvas.svelte (SVG-based, ~300 lines)
-│  └─ BranchingGraphNode.svelte (~100 lines)
-│
-├─ ThreadPromptView.svelte (NEW, ~200 lines)
-│  ├─ PromptList.svelte (~50 lines)
-│  └─ PromptItem.svelte (~100 lines)
-│
-└─ Modals (shared)
-   ├─ VariationModal.svelte (existing, reuse)
-   ├─ MessageVersionHistory.svelte (existing, reuse)
-   └─ MoveThreadModal.svelte (existing, reuse)
+┌─────────────────────────────────┐
+│                                 │
+│         Chat View (Full)        │
+│                                 │
+└─────────────────────────────────┘
+```
 
-Total new code: ~5,000 lines
-Reused code: ~1,500 lines
-Total: ~6,500 lines (vs 3,437 in ChatPane)
+**Configuration:**
+- **Template:** `single-col`
+- **Panes:** 1
+- **View:** Chat (default)
+- **Use case:** Message-focused conversation
+
+---
+
+### 2.2 Vertical Split
+
+Two side-by-side panes (50/50 split). Left for primary content, right for supporting context.
+
+```
+┌──────────────────┬──────────────────┐
+│                  │                  │
+│   Chat View      │ Branching View   │
+│   (Left 50%)     │   (Right 50%)    │
+│                  │                  │
+└──────────────────┴──────────────────┘
+```
+
+**Configuration:**
+- **Template:** `vertical-split`
+- **Panes:** 2 (left, right)
+- **Views:** Chat (left), Branching (right)
+- **Use case:** Compare branching decisions while composing messages
+
+---
+
+### 2.3 Left Column Split
+
+Three panes: left (tall) + right side split top/bottom. Focuses main content on left.
+
+```
+┌──────────────────┬──────────────────┐
+│                  │                  │
+│                  │ Execution View   │
+│   Chat View      ├──────────────────┤
+│                  │                  │
+│   (Left Tall)    │ Prompt View      │
+│                  │                  │
+└──────────────────┴──────────────────┘
+```
+
+**Configuration:**
+- **Template:** `col-left-split`
+- **Panes:** 3 (left tall, right-top, right-bottom)
+- **Views:** Chat (left), Execution (right-top), Prompt (right-bottom)
+- **Use case:** Message composition with execution monitoring and prompts
+
+---
+
+### 2.4 Right Column Split
+
+Three panes: left side split top/bottom + right (tall). Focuses supporting content on right.
+
+```
+┌──────────────────┬──────────────────┐
+│                  │                  │
+│ Execution View   │                  │
+├──────────────────┤ Branching View   │
+│                  │                  │
+│ Prompt View      │   (Right Tall)   │
+│                  │                  │
+└──────────────────┴──────────────────┘
+```
+
+**Configuration:**
+- **Template:** `col-right-split`
+- **Panes:** 3 (left-top, left-bottom, right tall)
+- **Views:** Execution (left-top), Prompt (left-bottom), Branching (right)
+- **Use case:** Branching analysis with supporting execution and prompt context
+
+---
+
+### 2.5 Quad Split (2x2 Grid)
+
+Four equal panes arranged in a 2x2 grid. Comprehensive view of four of the five view types.
+
+```
+┌──────────────────┬──────────────────┐
+│                  │                  │
+│   Chat View      │ Execution View   │
+│   (Top-Left)     │   (Top-Right)    │
+│                  │                  │
+├──────────────────┼──────────────────┤
+│                  │                  │
+│ Branching View   │ Prompt/File View │
+│  (Bottom-Left)   │ (Bottom-Right)   │
+│                  │                  │
+└──────────────────┴──────────────────┘
+```
+
+**Configuration:**
+- **Template:** `quad-split`
+- **Panes:** 4 (top-left, top-right, bottom-left, bottom-right)
+- **Views:** Chat (top-left), Execution (top-right), Branching (bottom-left), Prompt or File (bottom-right)
+- **Use case:** Comprehensive workspace with multiple view types visible simultaneously
+
+---
+
+### 2.6 Layout with 5th View (File View)
+
+The File View can be added to any layout template as a replacement for Prompt or other views:
+
+| Layout | File View Position | Common Use Case |
+|--------|-------------------|------------------|
+| Single Column | N/A | File browser in separate window |
+| Vertical Split | Right pane | Chat (left), File browser (right) |
+| Left Column Split | Right-bottom | Chat (left), File (right-bottom) |
+| Right Column Split | Left-top or left-bottom | File browser + chat branching support |
+| Quad Split | Bottom-right | Complete workspace with file access |
+
+**Note:** The single-instance constraint applies to File View—only one File View per layout. User can toggle between File View and Prompt View in the bottom-right pane of quad layout.
+
+---
+
+## 3. Responsive Behavior
+
+Layouts adapt to screen size to maintain usability:
+
+| Screen Width | Behavior |
+|--------------|----------|
+| ≥ 1200px | Render as configured |
+| 900-1199px | Render if fits, otherwise collapse |
+| 600-899px | Auto-collapse to single-column |
+| < 600px | Force single-column, hide layout selector |
+
+---
+
+## 4. Single-Instance-Per-View-Type Constraint
+
+**Core Rule:** Only ONE instance of each view type per layout. A thread panel can display Chat, Execution, Branching, Prompt, and File—but never two Chat views, two File views, etc.
+
+### 4.1 Why This Constraint?
+
+This constraint ensures:
+- **No streaming conflicts:** Only one Chat View receives tokens from the stream
+- **No state duplication:** Message timeline exists once per thread
+- **Simplified architecture:** Views are presentation-only; no per-pane state machines
+- **Minimal code impact:** ~300-400 lines of new UI code, zero changes to services
+
+### 4.2 Architectural Implications
+
+**WITH single-instance constraint:**
+- ✅ ChatStreamService remains single-pane
+- ✅ ThreadStateMachine unchanged
+- ✅ useThreadView composable unchanged
+- ✅ IPC architecture unchanged
+- ✅ Message synchronization unchanged
+
+**WITHOUT single-instance constraint:**
+- ❌ ChatStreamService needs multi-listener routing
+- ❌ Per-pane state machines required
+- ❌ useThreadView needs multi-pane state
+- ❌ IPC coordination complexity
+- ❌ Potential message duplication
+
+### 4.3 Implementation Detail
+
+When user switches layouts, views are **moved between panes in the DOM**, not duplicated. The Chat View component instance persists; it just renders in a different pane location.
+
+---
+
+## 5. Validation Rules
+
+### 5.1 Layout Validator
+
+The `LayoutValidator` class enforces these rules:
+
+```typescript
+class LayoutValidator {
+  static validate(config: ThreadLayoutConfig): void {
+    // Rule 1: No duplicate view types
+    if (uniqueViewTypes !== totalViewCount) {
+      throw new Error("Duplicate view types in layout");
+    }
+    
+    // Rule 2: At least one pane required
+    if (paneCount === 0) {
+      throw new Error("Layout must contain at least one pane");
+    }
+    
+    // Rule 3: Exactly one pane has focus
+    if (focusedPaneCount !== 1) {
+      throw new Error("Exactly 1 pane must be focused");
+    }
+  }
+}
+```
+
+### 5.2 Validation Points
+
+| Operation | Validation |
+|-----------|-----------|
+| **Layout creation** | Validate before assigning to state |
+| **Layout switching** | Validate new layout before apply |
+| **Pane focus change** | Ensure exactly 1 focused pane |
+| **View assignment** | Prevent duplicate view types |
+
+### 5.3 Concise Rule Reference
+
+1. **No duplicate views:** Each view type appears at most once
+2. **Minimum 1 pane:** Layout must have ≥ 1 pane
+3. **Exactly 1 focus:** One pane must have keyboard focus
+4. **Valid template:** Must be one of 5 templates
+
+---
+
+## 6. LayoutConfig Interface
+
+```typescript
+export type ViewType = 'chat' | 'execution' | 'branching' | 'prompt' | 'file';
+export type LayoutTemplate = 'single-col' | 'vertical-split' | 'col-left-split' | 'col-right-split' | 'quad-split';
+
+interface PaneConfig {
+  id: string;              // Unique identifier
+  viewType: ViewType;      // Which view in this pane
+  focused: boolean;        // Keyboard focus
+  cssClass?: string;       // Layout styling
+  scrollPosition?: number;  // Per-pane scroll state
+}
+
+interface ThreadLayoutConfig {
+  template: LayoutTemplate;
+  panes: PaneConfig[];
+  modifiedAt: number;
+  name?: string;           // Optional user-defined name
+}
 ```
 
 ---
 
-## 2. Component Summary
+## 7. Layout Selection UI
 
-| Component | Lines | Status | Description |
-|-----------|-------|--------|-------------|
-| **ThreadComponent** | ~800 | NEW | Main orchestrator |
-| **ThreadHeader** | ~150 | NEW | Header with title, status, actions |
-| **ThreadTitle** | ~80 | NEW | Editable thread title |
-| **ThreadStatusIndicator** | ~200 | NEW | 3-circle status display |
-| **ThreadActions** | ~100 | NEW | Action buttons (comments, move) |
-| **ThreadViewTabs** | ~100 | NEW | View tab navigation |
-| **ThreadChatView** | ~400 | NEW | Chat message view |
-| **MessageTimeline** | ~250 | NEW | Message list with branches |
-| **MessageItem** | ~150 | NEW | Single message display |
-| **BranchBoxItem** | ~100 | NEW | Branch variation box |
-| **MessageComposerArea** | ~150 | NEW | Dedicated message input component |
-| **ThreadExecutionView** | ~350 | NEW | Execution management |
-| **InstructionFileEditor** | ~200 | NEW | Instruction file editing |
-| **ExecutionControls** | ~100 | NEW | Run/stop controls |
-| **ExecutionHistory** | ~150 | NEW | Execution history list |
-| **ExecutionFrequencyChart** | ~100 | NEW | Execution frequency chart |
-| **ThreadBranchingView** | ~500 | NEW | Branch graph visualization |
-| **BranchingGraphCanvas** | ~300 | NEW | SVG canvas for graph |
-| **BranchingGraphNode** | ~100 | NEW | Graph node component |
-| **ThreadPromptView** | ~200 | NEW | Prompt list view |
-| **PromptList** | ~50 | NEW | Prompt container |
-| **PromptItem** | ~100 | NEW | Single prompt display |
+### 7.1 ThreadLayoutSelector Component
 
-**Reused Components:**
-- ThreadBreadcrumb.svelte
-- MessageBubble.svelte
-- BranchLane.svelte
-- MarkdownRenderer.svelte
-- VariationModal.svelte
-- MessageVersionHistory.svelte
-- MoveThreadModal.svelte
+Displays 5 layout buttons in header with icons:
+
+| Icon | Template | Label | Action |
+|------|----------|-------|--------|
+| ≡ | single-col | Single | Full-width view |
+| ⬌ | vertical-split | Split | Left-right split |
+| ⬅ | col-left-split | Left | Left tall, right split |
+| ➡ | col-right-split | Right | Left split, right tall |
+| ▦ | quad-split | Grid | 2x2 grid |
+
+### 7.2 User Workflow
+
+1. User clicks layout button in toolbar
+2. ThreadLayoutSelector validates new layout
+3. LayoutValidator confirms no duplicate views
+4. Layout applies: views move to new panes
+5. Scroll positions preserved per pane
+6. Focus set to primary pane
 
 ---
 
-## 3. File Structure
+## 8. Data Flow
 
 ```
-src/lib/
-├─ components/
-│  ├─ ThreadComponent.svelte (~800 lines)
-│  ├─ threads/
-│  │  ├─ ThreadHeader.svelte (~150 lines)
-│  │  ├─ ThreadTitle.svelte (~80 lines)
-│  │  ├─ ThreadStatusIndicator.svelte (~200 lines)
-│  │  ├─ ThreadActions.svelte (~100 lines)
-│  │  ├─ ThreadViewTabs.svelte (~100 lines)
-│  │  ├─ chat/
-│  │  │  ├─ ThreadChatView.svelte (~400 lines)
-│  │  │  ├─ MessageTimeline.svelte (~250 lines)
-│  │  │  ├─ MessageItem.svelte (~150 lines)
-│  │  │  ├─ BranchBoxItem.svelte (~100 lines)
-│  │  │  └─ MessageComposerArea.svelte (~150 lines)
-│  │  ├─ execution/
-│  │  │  ├─ ThreadExecutionView.svelte (~350 lines)
-│  │  │  ├─ InstructionFileEditor.svelte (~200 lines)
-│  │  │  ├─ ExecutionControls.svelte (~100 lines)
-│  │  │  ├─ ExecutionHistory.svelte (~150 lines)
-│  │  │  └─ ExecutionFrequencyChart.svelte (~100 lines)
-│  │  ├─ branching/
-│  │  │  ├─ ThreadBranchingView.svelte (~500 lines)
-│  │  │  ├─ BranchingGraphCanvas.svelte (~300 lines)
-│  │  │  └─ BranchingGraphNode.svelte (~100 lines)
-│  │  └─ prompt/
-│  │     ├─ ThreadPromptView.svelte (~200 lines)
-│  │     ├─ PromptList.svelte (~50 lines)
-│  │     └─ PromptItem.svelte (~100 lines)
-│  └─ (reuse existing)
-│     ├─ ThreadBreadcrumb.svelte
-│     ├─ MessageBubble.svelte
-│     ├─ BranchLane.svelte
-│     ├─ MarkdownRenderer.svelte
-│     └─ modals/
-│        ├─ VariationModal.svelte
-│        ├─ MessageVersionHistory.svelte
-│        └─ MoveThreadModal.svelte
-│
-├─ services/
-│  ├─ streaming.service.ts (~300 lines)
-│  ├─ timeline-builder.service.ts (~250 lines)
-│  ├─ branch-context.service.ts (~150 lines)
-│  ├─ thread-status.service.ts (~100 lines)
-│  ├─ execution-runner.service.ts (~200 lines)
-│  └─ branch-graph-layout.service.ts (~300 lines)
-│
-├─ stores/
-│  └─ thread-view.store.ts (~200 lines)
-│
-└─ utils/
-   └─ branch-utils.ts (already exists, minor updates)
+User clicks layout button
+        ↓
+ThreadLayoutSelector.onLayoutChange()
+        ↓
+LayoutValidator.validate(newLayout)
+        ↓
+Configuration valid?
+        ├─ No → Error logged, no change
+        └─ Yes → threadLayoutStore.setLayout(newLayout)
+                        ↓
+                Views re-render in new pane positions
+                        ↓
+                Scroll positions restored
+                        ↓
+                Focus transferred to focused pane
 ```
 
 ---
 
-## 4. Service Layer Summary
+## 9. Persistence
 
-| Service | Lines | Purpose |
-|---------|-------|---------|
-| **StreamingService** | ~300 | Token streaming with timeout handling |
-| **TimelineBuilderService** | ~250 | Message timeline generation |
-| **BranchContextService** | ~150 | LLM context assembly |
-| **ThreadStatusService** | ~100 | Status indicator state machine |
-| **ExecutionRunnerService** | ~200 | Thread execution management |
-| **BranchGraphLayoutService** | ~300 | Graph layout calculations |
+Layout configuration is saved to localStorage:
+
+```typescript
+const STORAGE_KEY = 'thread-layout-config';
+
+// On layout change
+threadLayoutStore.setLayout(config);  // Saves to localStorage
+
+// On thread load
+const savedLayout = localStorage.getItem(STORAGE_KEY);
+// If valid, apply; otherwise use default
+```
+
+Persists across:
+- ✅ View switching (Chat → Branching → Chat)
+- ✅ Thread switching
+- ✅ Application restart
 
 ---
 
-## 5. Key Differences from ChatPane
+## 10. Implementation Summary
 
-| Aspect | ChatPane | ThreadComponent |
-|--------|----------|-----------------|
-| Main file | 3,437 lines | ~800 lines (77% reduction) |
-| Structure | Monolithic | Modular with views |
-| Business logic | In component | Extracted to services |
-| State management | Mixed | Hybrid (stores + $state) |
-| Testability | Difficult | Services independently testable |
-| Views | Single | 4 distinct views |
+| Aspect | Details |
+|--------|---------|
+| **New files** | `src/lib/types/layout.ts`, `src/lib/components/threadpanel/ThreadLayoutSelector.svelte` |
+| **Modified files** | `src/lib/components/threadpanel/ThreadComponent.svelte` |
+| **New code** | ~300-400 lines |
+| **Infrastructure changes** | None (0 lines) |
+| **Implementation time** | 2-3 days |
+| **Risk level** | LOW (UI layer only) |
 
 ---
 

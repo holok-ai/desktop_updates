@@ -41,6 +41,7 @@ export class DesktopChatService {
 
     log.info('[DesktopChatService] Initializing with provider:', providerType, {
       model: config.model,
+      urL: config.url, 
       workingDirectory: this.threadContext.workingDirectory,
     });
 
@@ -53,7 +54,7 @@ export class DesktopChatService {
     });
 
     // Get tool definitions and create callback adapter if tools are available AND supported
-    const tools: ToolDefinition[] | undefined = canUseTools ? this.toolOrchestra.getToolDefinitions() : undefined;
+    const tools: ToolDefinition[] = canUseTools ? this.toolOrchestra.getToolDefinitions() : [];
     const onToolUse: ((toolUse: ChatComponentToolUse) => Promise<ToolResult>) | undefined =
       canUseTools
         ? async (toolUse: ChatComponentToolUse) => {
@@ -83,29 +84,23 @@ export class DesktopChatService {
     onToolStatus?: ToolStatusCallback
   ): Promise<void> {
     // Extract desktop-specific properties
-    const { thread_id, branch_id, working_directory, ...chatRequest } = request;
+    const { working_directory } = request;
 
     log.info('[DesktopChatService] chat called', {
-      thread_id,
-      branch_id,
+      thread_id: request.thread_id,
+      branch_id: request.branch_id,
       messageCount: request.messages.length,
       working_directory: working_directory || this.threadContext.workingDirectory,
     });
 
     // Update thread context for this message
     if (working_directory) {
-      this.threadContext.workingDirectory = working_directory;
+      (request as any).workingDirectory = working_directory; 
     }
-    this.threadContext.threadId = thread_id || '';
-    this.threadContext.branchId = branch_id || '';
-    this.threadContext.statusCallback = onToolStatus || undefined;
+    (request as any).statusCallback = onToolStatus || undefined;
 
     try {
-      await this.chatService.chat({
-        ...chatRequest,
-        ...(thread_id && { thread_id }),
-        ...(branch_id && { branch_id }),
-      } as ChatRequest & { thread_id?: string; branch_id?: string }, onToken);
+      await this.chatService.chat(request, onToken);
     } finally {
       // Clear status callback after message completes
       this.threadContext.statusCallback = undefined;
