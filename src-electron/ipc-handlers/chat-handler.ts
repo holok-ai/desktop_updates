@@ -112,6 +112,7 @@ export function registerChatHandlers(auth?: AuthService): void {
         await chatService.chat(
           request,
           (token: string) => {
+            log.info('[IPC] Sending token to renderer:', { threadId, tokenLength: token.length, tokenPreview: token.substring(0, 30) });
             event.sender.send('chat:token', { threadId, token });
           },
           (toolName, input, notification) => {

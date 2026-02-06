@@ -293,18 +293,6 @@ export declare class GeminiChatProvider implements IChatProvider {
      * Append a message to the conversation
      */
     private appendMessage;
-    /**
-     * Convert ToolDefinition to Gemini's tool format
-     */
-    private convertToolsToGeminiFormat;
-    /**
-     * Recursively convert type strings to Type enum values
-     */
-    private convertSchemaTypes;
-    /**
-     * Map string type names to Type enum values
-     */
-    private mapStringToSchemaType;
 }
 
 /**
@@ -339,6 +327,7 @@ export declare class GeminiToolHandler implements ProviderToolHandler<any> {
     extractToolUses(response: any): ToolUse[];
     /**
      * Extract text content from Gemini's response
+     * Manually extracts from parts to avoid SDK warning message when function calls are present
      */
     extractTextContent(response: any): string | null;
     /**
@@ -543,7 +532,8 @@ export declare enum ProviderType {
     OPENAI = "openai",
     CLAUDE = "claude",
     PERPLEXITY = "perplexity",
-    GEMINI = "gemini"
+    GEMINI = "gemini",
+    COPILOT = "copilot"
 }
 
 declare type TextBlock = {

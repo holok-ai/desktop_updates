@@ -1241,6 +1241,7 @@
 
       const token = data.token;
       console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
+      console.log('[ChatPane onToken] Before accumulation - responseText length:', responseText.length, 'content:', responseText.substring(0, 50));
 
       // First token received – clear the no-response timeout
       if (streamingNoResponseTimeout) {
@@ -1261,7 +1262,8 @@
       }, STREAMING_IDLE_TIMEOUT_MS);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
-      console.log('[ChatPane onToken] responseText now length:', responseText.length);
+      console.log('[ChatPane onToken] After accumulation - responseText length:', responseText.length, 'content:', responseText);
+      console.log('[ChatPane onToken] isStreaming:', isStreaming, 'showStreamingIndicator:', showStreamingIndicator);
 
       // If streaming to a branch, also update branch-specific streaming text
       if (streamingBranchIndex !== null) {
