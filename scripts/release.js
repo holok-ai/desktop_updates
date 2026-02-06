@@ -121,6 +121,50 @@ if (isMandatory) {
   console.log('');
 }
 
+// Verify desktop-updates repository exists
+console.log('🔍 Verifying desktop-updates repository exists...');
+try {
+  const https = await import('node:https');
+  const url = `https://api.github.com/repos/${desktopUpdatesRepo}`;
+  const options = {
+    headers: {
+      Accept: 'application/vnd.github.v3+json',
+      'User-Agent': 'holokai-desktop-release-script',
+      ...(process.env.GH_TOKEN && { Authorization: `token ${process.env.GH_TOKEN}` }),
+    },
+  };
+
+  const response = await new Promise((resolve, reject) => {
+    https
+      .get(url, options, (res) => {
+        resolve(res);
+      })
+      .on('error', reject);
+  });
+
+  if (response.statusCode === 404) {
+    console.error(`❌ Error: Repository ${desktopUpdatesRepo} does not exist!`);
+    console.error('\nPlease create the repository first:');
+    console.error(`   1. Go to https://github.com/organizations/holok-ai/repositories/new`);
+    console.error(`   2. Repository name: desktop-updates`);
+    console.error(`   3. Make it PUBLIC`);
+    console.error(`   4. Do NOT initialize with README, .gitignore, or license`);
+    console.error(`   5. Click "Create repository"`);
+    console.error(`\nThen run the release command again.`);
+    process.exit(1);
+  } else if (response.statusCode !== 200) {
+    console.error(`❌ Error: Could not verify repository (HTTP ${response.statusCode})`);
+    console.error('   Please check that:');
+    console.error('   1. The repository exists');
+    console.error('   2. Your GH_TOKEN has access to it');
+    process.exit(1);
+  }
+  console.log('✅ Repository verified\n');
+} catch (error) {
+  console.warn(`⚠️  Warning: Could not verify repository: ${error.message}`);
+  console.warn('   Continuing anyway, but publish may fail if repository does not exist.\n');
+}
+
 try {
   // Step 1: Prepare tag (only if tag doesn't exist remotely)
   if (!tagExistsRemotely) {
@@ -200,15 +244,53 @@ try {
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
   console.log('✅ Build successful!\n');
 
-  // Only update version AFTER successful build
+  // Step 4/5: Publish release (before updating version)
+  const publishStepNumber = tagExistsRemotely ? 'Step 4' : 'Step 4';
+  console.log(`🚀 ${publishStepNumber}: Publishing to GitHub releases...`);
+
+  if (platform === 'darwin') {
+    console.log('\n📦 Building for macOS...');
+    console.log(`   - Version: ${newVersion}`);
+    console.log('   - macOS: DMG and ZIP files\n');
+    execSync(`npx electron-builder --mac --publish=always`, {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
+    });
+    console.log('\n⚠️  Note: Windows builds should be done on a Windows machine');
+    console.log('   Build Windows installer separately and upload to the same release');
+  } else if (platform === 'win32') {
+    console.log('\n📦 Building for Windows...');
+    console.log(`   - Version: ${newVersion}`);
+    console.log('   - Windows: NSIS installer (x64)\n');
+    execSync('npx electron-builder --win --x64 --publish=always', {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
+    });
+    console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
+    console.log('   Build macOS installer separately and upload to the same release');
+  } else {
+    console.log('\n📦 Building for current platform...');
+    console.log(`   - Version: ${newVersion}\n`);
+    execSync('npx electron-builder --publish=always', {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
+    });
+  }
+
+  console.log('\n✅ Release published successfully!');
+
+  // Only update version AFTER successful publish
   if (!tagExistsRemotely) {
-    console.log('📝 Step 4: Updating version in package.json...');
+    console.log('📝 Step 5: Updating version in package.json...');
     const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
     currentPackageJson.version = newVersion;
     writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
     console.log('✅ Version updated\n');
 
-    console.log('📦 Step 5: Committing version change...');
+    console.log('📦 Step 6: Committing version change...');
     execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
     execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
     console.log('✅ Committed\n');
@@ -228,7 +310,7 @@ try {
     }
 
     // Push commits and tags
-    console.log('📤 Step 6: Pushing to GitHub...');
+    console.log('📤 Step 7: Pushing to GitHub...');
     execSync('git push', { cwd: rootDir, stdio: 'inherit' });
 
     // Push tags to desktop-updates repo
@@ -275,44 +357,6 @@ try {
       console.log('✅ Version updated\n');
     }
   }
-
-  // Step 6/7: Publish release
-  const publishStepNumber = tagExistsRemotely ? 'Step 4' : 'Step 7';
-  console.log(`🚀 ${publishStepNumber}: Publishing to GitHub releases...`);
-
-  if (platform === 'darwin') {
-    console.log('\n📦 Building for macOS...');
-    console.log(`   - Version: ${newVersion}`);
-    console.log('   - macOS: DMG and ZIP files\n');
-    execSync(`npx electron-builder --mac --publish=always`, {
-      cwd: rootDir,
-      stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
-    });
-    console.log('\n⚠️  Note: Windows builds should be done on a Windows machine');
-    console.log('   Build Windows installer separately and upload to the same release');
-  } else if (platform === 'win32') {
-    console.log('\n📦 Building for Windows...');
-    console.log(`   - Version: ${newVersion}`);
-    console.log('   - Windows: NSIS installer (x64)\n');
-    execSync('npx electron-builder --win --x64 --publish=always', {
-      cwd: rootDir,
-      stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
-    });
-    console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
-    console.log('   Build macOS installer separately and upload to the same release');
-  } else {
-    console.log('\n📦 Building for current platform...');
-    console.log(`   - Version: ${newVersion}\n`);
-    execSync('npx electron-builder --publish=always', {
-      cwd: rootDir,
-      stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
-    });
-  }
-
-  console.log('\n✅ Release published successfully!');
 
   // Update release notes if mandatory flag is set
   if (isMandatory) {
