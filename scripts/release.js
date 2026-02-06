@@ -30,9 +30,11 @@ const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 const packageJsonPath = join(rootDir, 'package.json');
 
-// Read current version
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+// Read current version and keep original content so we can revert on failure
+const originalPackageJsonContent = readFileSync(packageJsonPath, 'utf8');
+const packageJson = JSON.parse(originalPackageJsonContent);
 const currentVersion = packageJson.version;
+let packageJsonModified = false;
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -177,6 +179,17 @@ try {
   const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 3';
   console.log(`🔨 ${buildStepNumber}: Building application...`);
 
+  // For first-platform builds, ensure package.json version matches newVersion before build
+  if (!tagExistsRemotely) {
+    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    if (currentPackageJson.version !== newVersion) {
+      currentPackageJson.version = newVersion;
+      writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+      packageJsonModified = true;
+      console.log(`📝 package.json version set to ${newVersion} for build\n`);
+    }
+  }
+
   // Check if GH_TOKEN is set (needed for publishing, even for public repos)
   if (!process.env.GH_TOKEN) {
     console.error('❌ Error: GH_TOKEN environment variable not set');
@@ -238,15 +251,9 @@ try {
 
   console.log('\n✅ Release published successfully!');
 
-  // Only update version AFTER successful publish
+  // Only commit/tag AFTER successful publish (version already set before build)
   if (!tagExistsRemotely) {
-    console.log('📝 Step 5: Updating version in package.json...');
-    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-    currentPackageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
-    console.log('✅ Version updated\n');
-
-    console.log('📦 Step 6: Committing version change...');
+    console.log('📦 Step 5: Committing version change...');
     execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
     execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
     console.log('✅ Committed\n');
@@ -310,6 +317,7 @@ try {
       );
       currentPackageJson.version = newVersion;
       writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+      packageJsonModified = true;
       console.log('✅ Version updated\n');
     }
   }
@@ -381,7 +389,10 @@ try {
   console.log(`   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`);
 } catch (error) {
   console.error('\n❌ Error during release process:', error.message);
-  console.error('\n⚠️  Note: Version in package.json has been updated.');
-  console.error('You may need to revert it manually if the release failed.');
+  if (packageJsonModified) {
+    console.error('\n⚠️  Reverting package.json to previous version...');
+    writeFileSync(packageJsonPath, originalPackageJsonContent);
+    console.error('   package.json reverted.');
+  }
   process.exit(1);
 }
