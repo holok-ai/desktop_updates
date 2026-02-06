@@ -122,51 +122,35 @@ if (isMandatory) {
 }
 
 try {
-  // Step 1: Update version in package.json (only if tag doesn't exist remotely)
+  // Step 1: Prepare tag (only if tag doesn't exist remotely)
   if (!tagExistsRemotely) {
-    console.log('📝 Step 1: Updating version in package.json...');
-    packageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-    console.log('✅ Version updated\n');
-
-    // Step 2: Commit the change
-    console.log('📦 Step 2: Committing version change...');
-    execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
-    execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
-    console.log('✅ Committed\n');
+    console.log('📝 Step 1: Preparing release...');
+    console.log('   (Version will be updated after successful build)\n');
   } else {
     console.log('📝 Step 1: Skipping version update (tag already exists)\n');
   }
 
-  // Step 2/3: Create and push tag (skip if already exists remotely)
-  const stepLabel = tagExistsRemotely ? 'Step 2' : 'Step 3';
-  console.log(`🏷️  ${stepLabel}: Checking git tag...`);
-
-  // Check if tag exists locally
-  let tagExistsLocally = false;
-  try {
-    execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
-    tagExistsLocally = true;
-  } catch {
-    // Tag doesn't exist locally
-  }
-
+  // Step 2: Prepare tag (only if tag exists remotely, fetch it)
   if (tagExistsRemotely) {
-    console.log(`ℹ️  Tag ${tagName} already exists on remote. Skipping tag creation.`);
-    console.log('   This is normal when building for multiple platforms.\n');
+    console.log(`🏷️  Step 2: Fetching tag from desktop-updates...`);
+    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
 
-    // Make sure we have the tag locally (for electron-builder to detect version)
+    // Check if tag exists locally
+    let tagExistsLocally = false;
+    try {
+      execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
+      tagExistsLocally = true;
+    } catch {
+      // Tag doesn't exist locally
+    }
+
     if (!tagExistsLocally) {
-      console.log('📥 Fetching tag from desktop-updates...');
-      const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
       try {
-        // Try to fetch from desktop-updates remote
         let updatesRemoteExists = false;
         try {
           execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
           updatesRemoteExists = true;
         } catch {
-          // Add remote if it doesn't exist
           execSync(`git remote add updates ${desktopUpdatesUrl}`, {
             cwd: rootDir,
             stdio: 'pipe',
@@ -182,83 +166,16 @@ try {
         console.warn(`⚠️  Warning: Could not fetch tag from desktop-updates: ${error.message}`);
         console.warn('   You may need to create the tag manually.\n');
       }
+    } else {
+      console.log('✅ Tag already exists locally\n');
     }
   } else {
-    // Tag doesn't exist, create it
-    if (!tagExistsLocally) {
-      execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
-      console.log('✅ Tag created\n');
-    }
-
-    // Step 4: Push commits to source repo and tags to desktop-updates
-    console.log('📤 Step 4: Pushing to GitHub...');
-    // Push commits to source repo (desktop)
-    execSync('git push', { cwd: rootDir, stdio: 'inherit' });
-
-    // Push tags to desktop-updates repo
-    console.log(`📤 Pushing tag to desktop-updates repository...`);
-    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
-    try {
-      // Check if desktop-updates remote exists
-      let updatesRemoteExists = false;
-      try {
-        execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
-        updatesRemoteExists = true;
-      } catch {
-        // Remote doesn't exist
-      }
-
-      if (!updatesRemoteExists) {
-        // Add desktop-updates as a remote
-        execSync(`git remote add updates ${desktopUpdatesUrl}`, {
-          cwd: rootDir,
-          stdio: 'pipe',
-        });
-      }
-
-      // Push tag to desktop-updates using URL with token
-      const pushUrl = process.env.GH_TOKEN
-        ? `https://${process.env.GH_TOKEN}@github.com/${desktopUpdatesRepo}.git`
-        : desktopUpdatesUrl;
-      execSync(`git push ${pushUrl} ${tagName}`, {
-        cwd: rootDir,
-        stdio: 'inherit',
-      });
-      console.log('✅ Tag pushed to desktop-updates\n');
-    } catch (error) {
-      console.warn(`⚠️  Warning: Could not push tag to desktop-updates: ${error.message}`);
-      console.warn('   Tag exists locally and will be used by electron-builder.');
-      console.warn('   You may need to manually push the tag to desktop-updates.\n');
-    }
+    console.log('🏷️  Step 2: Tag will be created after successful build\n');
   }
 
-  // Step 3/4/5: Build and publish for current platform
-  const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 5';
-  console.log(`🔨 ${buildStepNumber}: Building and publishing to GitHub releases...`);
-
-  // Re-read package.json to ensure we have the latest version
-  const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-
-  // If tag doesn't exist remotely, we should have updated package.json
-  // If tag exists remotely, package.json should already have the correct version
-  if (!tagExistsRemotely && currentPackageJson.version !== newVersion) {
-    console.error(`❌ Error: package.json version mismatch!`);
-    console.error(`   Expected: ${newVersion}, Found: ${currentPackageJson.version}`);
-    console.error('   This should not happen. Please check package.json manually.');
-    process.exit(1);
-  }
-
-  // Ensure package.json has the correct version (in case tag exists but package.json doesn't)
-  if (currentPackageJson.version !== newVersion) {
-    console.log(
-      `⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`,
-    );
-    currentPackageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
-    console.log('✅ Version updated\n');
-  } else {
-    console.log(`✅ Verified package.json version: ${newVersion}\n`);
-  }
+  // Step 3/4/5: Build first (before updating version)
+  const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 3';
+  console.log(`🔨 ${buildStepNumber}: Building application...`);
 
   // Check if GH_TOKEN is set (needed for publishing, even for public repos)
   if (!process.env.GH_TOKEN) {
@@ -278,7 +195,90 @@ try {
   const platform = process.platform;
   console.log(`Current platform: ${platform}\n`);
 
+  // Build with current version first
+  console.log('📦 Building application (this may take a few minutes)...\n');
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
+  console.log('✅ Build successful!\n');
+
+  // Only update version AFTER successful build
+  if (!tagExistsRemotely) {
+    console.log('📝 Step 4: Updating version in package.json...');
+    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    currentPackageJson.version = newVersion;
+    writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+    console.log('✅ Version updated\n');
+
+    console.log('📦 Step 5: Committing version change...');
+    execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
+    execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
+    console.log('✅ Committed\n');
+
+    // Create tag if it doesn't exist locally
+    let tagExistsLocally = false;
+    try {
+      execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
+      tagExistsLocally = true;
+    } catch {
+      // Tag doesn't exist locally
+    }
+
+    if (!tagExistsLocally) {
+      execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Tag created\n');
+    }
+
+    // Push commits and tags
+    console.log('📤 Step 6: Pushing to GitHub...');
+    execSync('git push', { cwd: rootDir, stdio: 'inherit' });
+
+    // Push tags to desktop-updates repo
+    console.log(`📤 Pushing tag to desktop-updates repository...`);
+    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
+    try {
+      let updatesRemoteExists = false;
+      try {
+        execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
+        updatesRemoteExists = true;
+      } catch {
+        // Remote doesn't exist
+      }
+
+      if (!updatesRemoteExists) {
+        execSync(`git remote add updates ${desktopUpdatesUrl}`, {
+          cwd: rootDir,
+          stdio: 'pipe',
+        });
+      }
+
+      const pushUrl = process.env.GH_TOKEN
+        ? `https://${process.env.GH_TOKEN}@github.com/${desktopUpdatesRepo}.git`
+        : desktopUpdatesUrl;
+      execSync(`git push ${pushUrl} ${tagName}`, {
+        cwd: rootDir,
+        stdio: 'inherit',
+      });
+      console.log('✅ Tag pushed to desktop-updates\n');
+    } catch (error) {
+      console.warn(`⚠️  Warning: Could not push tag to desktop-updates: ${error.message}`);
+      console.warn('   Tag exists locally and will be used by electron-builder.');
+      console.warn('   You may need to manually push the tag to desktop-updates.\n');
+    }
+  } else {
+    // Tag exists remotely, ensure package.json has correct version
+    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    if (currentPackageJson.version !== newVersion) {
+      console.log(
+        `⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`,
+      );
+      currentPackageJson.version = newVersion;
+      writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+      console.log('✅ Version updated\n');
+    }
+  }
+
+  // Step 6/7: Publish release
+  const publishStepNumber = tagExistsRemotely ? 'Step 4' : 'Step 7';
+  console.log(`🚀 ${publishStepNumber}: Publishing to GitHub releases...`);
 
   if (platform === 'darwin') {
     console.log('\n📦 Building for macOS...');
