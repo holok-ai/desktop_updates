@@ -59,21 +59,25 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if tag exists remotely (for multi-platform builds)
+// Check if tag exists remotely in desktop-updates repo (for multi-platform builds)
 const tagName = `v${newVersion}`;
+const desktopUpdatesRepo = 'holok-ai/desktop-updates';
+const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
 let tagExistsRemotely = false;
+
+// Check if tag exists in desktop-updates repo using git ls-remote
 try {
-  const result = execSync(`git ls-remote --tags origin ${tagName}`, {
+  const result = execSync(`git ls-remote --tags ${desktopUpdatesUrl} ${tagName}`, {
     cwd: rootDir,
     stdio: 'pipe',
     encoding: 'utf8',
   });
   if (result.trim()) {
     tagExistsRemotely = true;
-    console.log(`ℹ️  Found tag ${tagName} in source repository (desktop)`);
+    console.log(`ℹ️  Found tag ${tagName} in desktop-updates repository`);
   }
 } catch {
-  // Tag doesn't exist remotely
+  // Tag doesn't exist remotely or git command failed
 }
 
 // If tag exists remotely, skip version check (this is a second platform build)
@@ -153,10 +157,31 @@ try {
 
     // Make sure we have the tag locally (for electron-builder to detect version)
     if (!tagExistsLocally) {
-      console.log('📥 Fetching tag from remote...');
-      // Fetch all tags (simpler and more reliable)
-      execSync(`git fetch origin --tags`, { cwd: rootDir, stdio: 'inherit' });
-      console.log('✅ Tags fetched\n');
+      console.log('📥 Fetching tag from desktop-updates...');
+      const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
+      try {
+        // Try to fetch from desktop-updates remote
+        let updatesRemoteExists = false;
+        try {
+          execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
+          updatesRemoteExists = true;
+        } catch {
+          // Add remote if it doesn't exist
+          execSync(`git remote add updates ${desktopUpdatesUrl}`, {
+            cwd: rootDir,
+            stdio: 'pipe',
+          });
+        }
+
+        execSync(`git fetch updates tag ${tagName}`, {
+          cwd: rootDir,
+          stdio: 'inherit',
+        });
+        console.log('✅ Tag fetched\n');
+      } catch (error) {
+        console.warn(`⚠️  Warning: Could not fetch tag from desktop-updates: ${error.message}`);
+        console.warn('   You may need to create the tag manually.\n');
+      }
     }
   } else {
     // Tag doesn't exist, create it
@@ -165,11 +190,46 @@ try {
       console.log('✅ Tag created\n');
     }
 
-    // Step 4: Push commits and tags
+    // Step 4: Push commits to source repo and tags to desktop-updates
     console.log('📤 Step 4: Pushing to GitHub...');
+    // Push commits to source repo (desktop)
     execSync('git push', { cwd: rootDir, stdio: 'inherit' });
-    execSync('git push --tags', { cwd: rootDir, stdio: 'inherit' });
-    console.log('✅ Pushed to GitHub\n');
+
+    // Push tags to desktop-updates repo
+    console.log(`📤 Pushing tag to desktop-updates repository...`);
+    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
+    try {
+      // Check if desktop-updates remote exists
+      let updatesRemoteExists = false;
+      try {
+        execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
+        updatesRemoteExists = true;
+      } catch {
+        // Remote doesn't exist
+      }
+
+      if (!updatesRemoteExists) {
+        // Add desktop-updates as a remote
+        execSync(`git remote add updates ${desktopUpdatesUrl}`, {
+          cwd: rootDir,
+          stdio: 'pipe',
+        });
+      }
+
+      // Push tag to desktop-updates using URL with token
+      const pushUrl = process.env.GH_TOKEN
+        ? `https://${process.env.GH_TOKEN}@github.com/${desktopUpdatesRepo}.git`
+        : desktopUpdatesUrl;
+      execSync(`git push ${pushUrl} ${tagName}`, {
+        cwd: rootDir,
+        stdio: 'inherit',
+      });
+      console.log('✅ Tag pushed to desktop-updates\n');
+    } catch (error) {
+      console.warn(`⚠️  Warning: Could not push tag to desktop-updates: ${error.message}`);
+      console.warn('   Tag exists locally and will be used by electron-builder.');
+      console.warn('   You may need to manually push the tag to desktop-updates.\n');
+    }
   }
 
   // Step 3/4/5: Build and publish for current platform
