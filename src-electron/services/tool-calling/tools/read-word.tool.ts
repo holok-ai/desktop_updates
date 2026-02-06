@@ -5,6 +5,7 @@
 
 import type { ITool, ToolContext } from './base-tool.js';
 import type { ToolDefinition, ToolResult, ReadWordResult } from '../tool-types.js';
+import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import mammoth from 'mammoth';
@@ -35,9 +36,24 @@ export class ReadWordTool implements ITool {
     };
   }
 
-  async execute(params: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    params: Record<string, unknown>,
+    executionContext: ToolExecutionContext
+  ): Promise<ToolResult> {
     const userPath = params.file_path as string;
-    const resolvedPath = this.context.service.resolvePath(userPath);
+    const resolvedPath = this.context.service.resolvePath(
+      userPath,
+      executionContext.workingDirectory
+    );
+
+    // Emit status using executionContext callback (if provided)
+    if (executionContext.statusCallback) {
+      executionContext.statusCallback({
+        toolName: 'read_word',
+        state: 'in_progress',
+        message: `Reading Word document: ${userPath}`,
+      });
+    }
 
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
@@ -120,6 +136,14 @@ export class ReadWordTool implements ITool {
         },
         warnings: result.messages.map((m) => m.message),
       };
+
+      // Emit completion status
+      if (executionContext.statusCallback) {
+        executionContext.statusCallback({
+          toolName: 'read_word',
+          state: 'complete',
+        });
+      }
 
       return {
         success: true,

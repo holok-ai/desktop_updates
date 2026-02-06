@@ -12,7 +12,7 @@
 | Notifications | System notifications (OS native) for workflows, mentions, alerts | 1 | |
 | Toast Notifications | Show toast notifications with information, warning, and error types; in-app notifications with auto-dismiss | 1 | |
 | Dual-Sidebar Navigation | Primary sidebar (icons) + secondary sidebar (context-specific lists) | 1 | |
-| Flexible Thread Layout | Drag and drop layout area for a thread, including chat, graphic, prompt, execution and file views | 1 | |
+| Flexible Thread Layout | Drag and drop layout area for thread views, including chat, graphic, prompt, execution and file views | 1 | |
 | Tab-Based View Switching | UI tabs for Chat, Execution, Branching, Prompt, File views; switch between views via tabs or keyboard | 1 | |
 | State Persistence | Remember window size, position, maximized state; restore last active view | 1 | |
 | User Preferences | Persist theme (light/dark), font size, sidebar state, notification settings | 1 | |
@@ -31,12 +31,13 @@
 | Threads in Personal & Shared Projects | Allow threads to be created in personal and shared projects | 1 | |
 | Thread Management (Delete, Rename, Move) | Delete, rename and move a thread from user to project thread | 1 | |
 | Thread Branching & Retry | Create conversation variations from any point; max 2 retry branches per divergence point | 1 | |
+| Branch Metadata Display | Show model name, token count, duration, and timestamp in visualization | 1 | |
 | Background Agent | Background process to run prompts that analyze user activity | 1 | |
-| Auto-Title Generation | Use background agent to  generate thread titles after 2nd exchange | 1 | |
+| Auto-Title Generation | Use background agent to generate thread titles after 2nd exchange | 1 | |
+| Recommendations | Present ai-based options for thread (suggest tools, different model, make a workflow, etc) | 2 | |
 | Thread Search & Filtering | Full-text search across titles and content; filter by date, model used | 1 | |
 | Thread Organization | Pin important threads, archive old threads, move between personal and project | 2 | |
 | Clipboard Operations | Copy prompts, responses, and code blocks to system clipboard | 1 | |
-| Branch Metadata Display | Show model name, token count, duration, and timestamp in visualization | 1 | |
 | View Tool Iterations | Visualize tool call sequences in branching view as distinct nodes | 1 | |
 | Tool Call Inputs/Outputs Display | Show tool parameters and results at Inspect zoom level | 1| |
 

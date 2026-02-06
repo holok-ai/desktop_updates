@@ -95,9 +95,9 @@ export class AuthService {
         if (encryptionAvailable) {
           try {
             tokensJson = safeStorage.decryptString(storedTokens);
-          } catch (error) {
+          } catch (_error) {
             // If decryption fails, try parsing as plain text (for migration)
-            log.warn('[AuthService] Decryption failed, trying plain text', error);
+            log.warn('[AuthService] Decryption failed, trying plain text', _error);
             tokensJson = storedTokens.toString('utf-8');
           }
         } else {
@@ -130,9 +130,9 @@ export class AuthService {
         if (encryptionAvailable) {
           try {
             userJson = safeStorage.decryptString(storedUser);
-          } catch (error) {
+          } catch (_error) {
             // If decryption fails, try parsing as plain text (for migration)
-            log.warn('[AuthService] Decryption failed, trying plain text',error);
+            log.warn('[AuthService] Decryption failed, trying plain text', _error);
             userJson = storedUser.toString('utf-8');
           }
         } else {

@@ -2,6 +2,7 @@ import { mokuService } from '../services/mokuapi/moku.service.js';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import log from 'electron-log';
 import type { ApplicationSummary, ModelDetails } from '../preload.js';
+import { ModelReference } from '../services/mokuapi/application.types.js';
 
 export class ModelRepository {
   private readonly apps: ApplicationSummary[] = [];
@@ -84,8 +85,7 @@ export class ModelRepository {
       for (const app of applications) {
         try {
           const appDetail = await mokuService.getApplicationDetail(app.id);
-          const agentDetail = await mokuService.getAgentDetail(app.id); 
-
+//          const agentDetail = await mokuService.getAgentDetail(app.id); 
           const agentUrl: string  = holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug; 
 //              String agentUrl = holoUrlService.getBaseUrl() + "/api/custom/" +
 //                                app.getProvider().getType().toString().toLowerCase() + "/" +
@@ -94,21 +94,28 @@ export class ModelRepository {
             id: appDetail.id,
             title: appDetail.name, 
             provider: appDetail.providerName,
-            url: agentUrl,
+            url: agentUrl , //(appDetail.providerName === 'openai') ? holoApiUrl + "/api/openai" : agentUrl,
             models: []
           };
+          console.log("App summary: ", appDetail.name, appDetail.providerName, appSummary.url); 
+
           appSummary.models = [];
 
           // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
             for (const model of appDetail.models) {
+              // const modelUrl: string = (appDetail.providerName === 'openai') 
+              //             ? holoApiUrl + "/api/openai" + this.getEndpoint(model)
+              //             : agentUrl ;  //holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug + this.getEndpoint(model); 
+              // console.log("App details - url, model: ", modelUrl, model); 
+
               const modelDetails: ModelDetails = {
                 id: model.id,
                 title: model.name,
                 accessName: model.accessModel,
-                provider: (agentDetail ? agentDetail.provider : ''),
+                provider: appDetail.providerName,
                 slug: appDetail.urlSlug,
-                url: (agentDetail ? agentDetail.url : '')
+                url: agentUrl // modelUrl
               };
               this.models.push(modelDetails);
               appSummary.models?.push(modelDetails);
@@ -148,6 +155,28 @@ export class ModelRepository {
       // Don't throw - allow application to continue even if model refresh fails
     } finally {
       this.isRefreshing = false;
+    }
+  }
+
+ private  getEndpoint(modelReference: ModelReference): string {
+    try {
+      if (!modelReference || ! modelReference.metadata) 
+        return ''; 
+
+      // Extract endpoint value using regex
+      const match = modelReference.metadata.match(/endpoint[=:]([^,}]+)/);
+      if (match) {
+        let endpoint = match[1].trim().replace(/["']/g, ''); // Remove quotes
+
+        if (endpoint && !endpoint.startsWith('/')) {
+          endpoint = '/' + endpoint;
+        }
+        return endpoint;
+      }
+      return '';
+    } catch (error) {
+      console.error('Failed to parse metadata:', error);
+      return '';
     }
   }
 

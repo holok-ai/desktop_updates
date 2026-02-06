@@ -1,23 +1,23 @@
-var $o = Object.defineProperty;
-var Wo = (n, e, t) => e in n ? $o(n, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : n[e] = t;
-var P = (n, e, t) => Wo(n, typeof e != "symbol" ? e + "" : e, t);
-import { Ollama as Qt } from "ollama/browser";
-import Ko from "openai";
-import Yo from "@anthropic-ai/sdk";
-class gn {
+var Wo = Object.defineProperty;
+var Ko = (t, e, n) => e in t ? Wo(t, e, { enumerable: !0, configurable: !0, writable: !0, value: n }) : t[e] = n;
+var w = (t, e, n) => Ko(t, typeof e != "symbol" ? e + "" : e, n);
+import { Ollama as Zn } from "ollama/browser";
+import Yo from "openai";
+import zo from "@anthropic-ai/sdk";
+class gt {
   /**
    * Convert internal ChatRequest to Ollama-specific format
    */
   static toOllamaRequest(e) {
-    const t = e.messages.filter((a) => a.role !== "system"), o = e.system ? [{ role: "system", content: e.system }, ...t.map((a) => ({ role: a.role, content: a.content }))] : t.map((a) => ({ role: a.role, content: a.content })), i = {
+    const n = e.messages.filter((a) => a.role !== "system"), o = e.system ? [{ role: "system", content: e.system }, ...n.map((a) => ({ role: a.role, content: a.content }))] : n.map((a) => ({ role: a.role, content: a.content })), i = {
       model: e.model,
       messages: o,
       stream: e.streaming !== !1
     };
-    return (e.temperature !== void 0 || e.maxTokens !== void 0 || e.topP !== void 0 || e.frequencyPenalty !== void 0 || e.presencePenalty !== void 0 || e.stop !== void 0) && (i.options = {}, e.temperature !== void 0 && (i.options.temperature = e.temperature), e.maxTokens !== void 0 && (i.options.num_predict = e.maxTokens), e.topP !== void 0 && (i.options.top_p = e.topP), e.frequencyPenalty !== void 0 && (i.options.frequency_penalty = e.frequencyPenalty), e.presencePenalty !== void 0 && (i.options.presence_penalty = e.presencePenalty), e.stop !== void 0 && (i.options.stop = e.stop)), e.responseFormat && (i.format = e.responseFormat), i;
+    return (e.temperature !== void 0 || e.maxTokens !== void 0 || e.topP !== void 0 || e.frequencyPenalty !== void 0 || e.presencePenalty !== void 0 || e.stop !== void 0 || e.thread_id !== void 0 || e.branch_id !== void 0) && (i.options = {}, e.temperature !== void 0 && (i.options.temperature = e.temperature), e.maxTokens !== void 0 && (i.options.num_predict = e.maxTokens), e.topP !== void 0 && (i.options.top_p = e.topP), e.frequencyPenalty !== void 0 && (i.options.frequency_penalty = e.frequencyPenalty), e.presencePenalty !== void 0 && (i.options.presence_penalty = e.presencePenalty), e.stop !== void 0 && (i.options.stop = e.stop), e.thread_id !== void 0 && (i.thread_id = e.thread_id), e.branch_id !== void 0 && (i.branch_id = e.branch_id)), e.responseFormat && (i.format = e.responseFormat), i;
   }
 }
-const ee = class ee {
+const te = class te {
   /**
    * Sets the iteration value in a branch ID string
    * Format: row.lane.chat (3 parts) or row.lane.chat.iteration (4 parts)
@@ -26,11 +26,11 @@ const ee = class ee {
    * @param iteration - Iteration number (0-9) to set
    * @returns New branch ID with iteration set
    */
-  static setBranchIteration(e, t) {
+  static setBranchIteration(e, n) {
     if (!e)
       return e;
     const o = e.split(".");
-    return o.length === 3 ? `${e}.${t}` : o.length === 4 ? (o[3] = t.toString(), o.join(".")) : e;
+    return o.length === 3 ? `${e}.${n}` : o.length === 4 ? (o[3] = n.toString(), o.join(".")) : e;
   }
   /**
    * Generic tool loop handler that works with any provider via the ProviderToolHandler interface
@@ -45,127 +45,126 @@ const ee = class ee {
    * @param onTokenReceived - Optional callback for streaming tokens
    * @param shouldStream - Whether to use streaming mode
    */
-  static async handleToolLoop(e, t, o, i, r, a, u, c = !1) {
-    const d = r.thread_id;
-    var f = r.branch_id;
+  static async handleToolLoop(e, n, o, i, r, a, u, d = !1) {
+    var c = r.branch_id !== void 0 ? r.branch_id : "";
     console.log("[ChatProviderUtils] handleToolLoop starting", {
-      model: t,
+      model: n,
       initialMessagesCount: o.length,
       toolsCount: i.length,
-      originalThreadId: d,
-      originalBranchId: f,
-      shouldStream: c,
+      originalThreadId: r.thread_id,
+      originalBranchId: c,
+      shouldStream: d,
       hasOnTokenReceived: !!u,
-      maxIterations: ee.MAX_TOOL_ITERATIONS
+      maxIterations: te.MAX_TOOL_ITERATIONS
     });
-    let m = o;
-    for (let p = 0; p < ee.MAX_TOOL_ITERATIONS; p++) {
+    let f = o;
+    for (let p = 0; p < te.MAX_TOOL_ITERATIONS; p++) {
       console.log("[ChatProviderUtils] handleToolLoop - Starting iteration", {
         iteration: p,
-        currentMessagesCount: m.length
-      }), f = ee.setBranchIteration(f, p);
+        currentMessagesCount: f.length
+      }), c = te.setBranchIteration(c, p);
       const h = {
-        thread_id: d,
-        branch_id: f
+        thread_id: r.thread_id,
+        branch_id: c
       };
       console.log("[ChatProviderUtils] handleToolLoop - Thread context for iteration", {
         iteration: p,
         threadContext: h
       });
-      const g = "setTokenCallback" in e && typeof e.setTokenCallback == "function";
-      g ? (console.log("[ChatProviderUtils] handleToolLoop - Setting token callback"), e.setTokenCallback(u)) : console.log("[ChatProviderUtils] handleToolLoop - Handler does not support streaming callback"), console.log("[ChatProviderUtils] handleToolLoop - Making request to handler");
-      const _ = await e.makeRequest(
-        t,
-        m,
+      const m = "setTokenCallback" in e && typeof e.setTokenCallback == "function";
+      m ? (console.log("[ChatProviderUtils] handleToolLoop - Setting token callback"), e.setTokenCallback(u)) : console.log("[ChatProviderUtils] handleToolLoop - Handler does not support streaming callback"), console.log("[ChatProviderUtils] handleToolLoop - Making request to handler");
+      const g = await e.makeRequest(
+        n,
+        f,
         i,
         h,
-        c
+        d
       );
       console.log("[ChatProviderUtils] handleToolLoop - Request completed", {
         iteration: p,
-        hasResponse: !!_
+        hasResponse: !!g
       });
-      const T = !c || !g;
+      const T = !d || !m;
       if (console.log("[ChatProviderUtils] handleToolLoop - Text content handling", {
         iteration: p,
         shouldSendTextContent: T,
-        hasStreamingCallback: g,
-        shouldStream: c
+        hasStreamingCallback: m,
+        shouldStream: d
       }), T) {
-        const y = e.extractTextContent(_);
+        const _ = e.extractTextContent(g);
         console.log("[ChatProviderUtils] handleToolLoop - Extracted text content", {
           iteration: p,
-          hasTextContent: !!y,
-          textContentLength: (y == null ? void 0 : y.length) || 0,
-          textPreview: (y == null ? void 0 : y.substring(0, 100)) + "...",
-          willCallOnTokenReceived: !!(y && u)
-        }), y && u && u(y);
+          hasTextContent: !!_,
+          textContentLength: (_ == null ? void 0 : _.length) || 0,
+          textPreview: (_ == null ? void 0 : _.substring(0, 100)) + "...",
+          willCallOnTokenReceived: !!(_ && u)
+        }), _ && u && u(_);
       }
       console.log("[ChatProviderUtils] handleToolLoop - Extracting tool uses");
-      const C = e.extractToolUses(_);
+      const y = e.extractToolUses(g);
       console.log("[ChatProviderUtils] handleToolLoop - Tool uses extracted", {
         iteration: p,
-        toolUsesCount: C.length,
-        toolUses: C.map((y) => ({ id: y.id, name: y.name, inputKeys: Object.keys(y.input) }))
+        toolUsesCount: y.length,
+        toolUses: y.map((_) => ({ id: _.id, name: _.name, inputKeys: Object.keys(_.input) }))
       });
-      const S = _.stop_reason;
-      if (S === "tool_use" && C.length === 0 && (console.warn('[ChatProviderUtils] handleToolLoop - MISMATCH: stop_reason="tool_use" but no tool_use blocks found in content', {
+      const E = g.stop_reason;
+      if (E === "tool_use" && y.length === 0 && (console.warn('[ChatProviderUtils] handleToolLoop - MISMATCH: stop_reason="tool_use" but no tool_use blocks found in content', {
         iteration: p,
-        stopReason: S,
-        responseId: _.id,
-        contentBlocks: _.content
-      }), console.warn("[ChatProviderUtils] handleToolLoop - This may indicate a proxy is modifying Claude responses")), C.length === 0) {
+        stopReason: E,
+        responseId: g.id,
+        contentBlocks: g.content
+      }), console.warn("[ChatProviderUtils] handleToolLoop - This may indicate a proxy is modifying Claude responses")), y.length === 0) {
         console.log("[ChatProviderUtils] handleToolLoop - No tool uses found, ending loop", {
           iteration: p,
-          stopReason: S
+          stopReason: E
         });
         return;
       }
       console.log("[ChatProviderUtils] handleToolLoop - Executing tools", {
         iteration: p,
-        toolUsesCount: C.length
+        toolUsesCount: y.length
       });
-      const E = [];
-      for (const y of C) {
+      const S = [];
+      for (const _ of y) {
         console.log("[ChatProviderUtils] handleToolLoop - Executing tool", {
           iteration: p,
-          toolId: y.id,
-          toolName: y.name,
-          inputKeys: Object.keys(y.input)
+          toolId: _.id,
+          toolName: _.name,
+          inputKeys: Object.keys(_.input)
         });
-        const R = await a(y);
+        const C = await a(_);
         console.log("[ChatProviderUtils] handleToolLoop - Tool execution completed", {
           iteration: p,
-          toolId: y.id,
-          toolName: y.name,
-          resultSuccess: R == null ? void 0 : R.success,
-          hasResultData: !!(R != null && R.data),
-          hasResultError: !!(R != null && R.error)
-        }), E.push(R);
+          toolId: _.id,
+          toolName: _.name,
+          resultSuccess: C == null ? void 0 : C.success,
+          hasResultData: !!(C != null && C.data),
+          hasResultError: !!(C != null && C.error)
+        }), S.push(C);
       }
       console.log("[ChatProviderUtils] handleToolLoop - All tools executed", {
         iteration: p,
-        toolResultsCount: E.length
+        toolResultsCount: S.length
       }), console.log("[ChatProviderUtils] handleToolLoop - Formatting tool results");
-      const I = e.formatToolResults(C, E);
-      console.log("[ChatProviderUtils] handleToolLoop - Appending messages"), m = e.appendMessages(m, _, I), console.log("[ChatProviderUtils] handleToolLoop - Iteration complete, continuing loop", {
+      const I = e.formatToolResults(y, S);
+      console.log("[ChatProviderUtils] handleToolLoop - Appending messages"), f = e.appendMessages(f, g, I), console.log("[ChatProviderUtils] handleToolLoop - Iteration complete, continuing loop", {
         iteration: p,
-        newMessagesCount: m.length
+        newMessagesCount: f.length
       });
     }
     throw console.error("[ChatProviderUtils] handleToolLoop - Maximum iterations exceeded", {
-      maxIterations: ee.MAX_TOOL_ITERATIONS
+      maxIterations: te.MAX_TOOL_ITERATIONS
     }), new Error("Tool loop exceeded maximum iterations");
   }
 };
 /**
  * Maximum number of tool calling iterations to prevent infinite loops
  */
-P(ee, "MAX_TOOL_ITERATIONS", 10);
-let W = ee;
-class zo {
+w(te, "MAX_TOOL_ITERATIONS", 25);
+let Z = te;
+class Xo {
   constructor(e) {
-    P(this, "onTokenReceived");
+    w(this, "onTokenReceived");
     this.ollama = e;
   }
   /**
@@ -174,40 +173,40 @@ class zo {
   setTokenCallback(e) {
     this.onTokenReceived = e;
   }
-  async makeRequest(e, t, o, i, r) {
+  async makeRequest(e, n, o, i, r) {
     var a;
     if (console.log("[OllamaToolHandler] makeRequest called", {
       model: e,
       shouldStream: r,
       toolsCount: o.length,
-      messagesCount: t.length,
+      messagesCount: n.length,
       threadContext: i
     }), r) {
       console.log("[OllamaToolHandler] Using streaming mode");
       const u = await this.ollama.chat({
         ...i,
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         stream: !0
       });
-      let c = null, d = 0;
+      let d = null, c = 0;
       for await (const f of u) {
-        d++;
-        const m = (a = f.message) == null ? void 0 : a.content;
-        m && this.onTokenReceived && this.onTokenReceived(m), c = f;
+        c++;
+        const p = (a = f.message) == null ? void 0 : a.content;
+        p && this.onTokenReceived && this.onTokenReceived(p), d = f;
       }
       return console.log("[OllamaToolHandler] Stream complete", {
-        chunkCount: d,
-        hasFinalMessage: !!c,
-        finalMessageKeys: c ? Object.keys(c) : []
-      }), c;
+        chunkCount: c,
+        hasFinalMessage: !!d,
+        finalMessageKeys: d ? Object.keys(d) : []
+      }), d;
     } else {
       console.log("[OllamaToolHandler] Using non-streaming mode");
       const u = await this.ollama.chat({
         ...i,
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         stream: !1
       });
@@ -218,12 +217,12 @@ class zo {
     }
   }
   extractToolUses(e) {
-    const t = this.extractToolCalls(e.message);
+    const n = this.extractToolCalls(e.message);
     return console.log("[OllamaToolHandler] extractToolUses", {
       hasMessage: !!e.message,
-      toolCallsCount: t.length,
-      toolCalls: t.map((o) => ({ id: o.id, name: o.name }))
-    }), t.map((o) => ({
+      toolCallsCount: n.length,
+      toolCalls: n.map((o) => ({ id: o.id, name: o.name }))
+    }), n.map((o) => ({
       id: o.id,
       name: o.name,
       input: this.parseToolArguments(o.arguments)
@@ -231,34 +230,34 @@ class zo {
   }
   extractTextContent(e) {
     var o;
-    const t = ((o = e.message) == null ? void 0 : o.content) || null;
+    const n = ((o = e.message) == null ? void 0 : o.content) || null;
     return console.log("[OllamaToolHandler] extractTextContent", {
-      hasContent: !!t,
-      contentLength: (t == null ? void 0 : t.length) || 0
-    }), t;
+      hasContent: !!n,
+      contentLength: (n == null ? void 0 : n.length) || 0
+    }), n;
   }
-  formatToolResults(e, t) {
+  formatToolResults(e, n) {
     return console.log("[OllamaToolHandler] formatToolResults", {
       toolUsesCount: e.length,
-      resultsCount: t.length
+      resultsCount: n.length
     }), e.map((o, i) => ({
       id: o.id,
-      result: JSON.stringify(t[i])
+      result: JSON.stringify(n[i])
     }));
   }
-  appendMessages(e, t, o) {
+  appendMessages(e, n, o) {
     var r, a;
     console.log("[OllamaToolHandler] appendMessages", {
       currentMessagesCount: e.length,
       toolResultsCount: o.length,
-      hasResponseMessage: !!t.message
+      hasResponseMessage: !!n.message
     });
     const i = [
       ...e,
       {
         role: "assistant",
-        content: ((r = t.message) == null ? void 0 : r.content) || "",
-        tool_calls: ((a = t.message) == null ? void 0 : a.tool_calls) || []
+        content: ((r = n.message) == null ? void 0 : r.content) || "",
+        tool_calls: ((a = n.message) == null ? void 0 : a.tool_calls) || []
       }
     ];
     for (const u of o)
@@ -283,7 +282,7 @@ class zo {
       messageKeys: e ? Object.keys(e) : []
     }), !(e != null && e.tool_calls) || !Array.isArray(e.tool_calls))
       return [];
-    const t = e.tool_calls.map((i, r) => {
+    const n = e.tool_calls.map((i, r) => {
       var a, u;
       return {
         id: i.id || `tool_${r}`,
@@ -292,9 +291,9 @@ class zo {
       };
     });
     return console.log("[OllamaToolHandler] extractToolCalls result", {
-      extractedCount: t.length,
-      calls: t.map((i) => ({ id: i.id, name: i.name }))
-    }), t;
+      extractedCount: n.length,
+      calls: n.map((i) => ({ id: i.id, name: i.name }))
+    }), n;
   }
   /**
    * Parse tool arguments from various formats
@@ -311,81 +310,64 @@ class zo {
     return typeof e == "object" ? e : { value: e };
   }
 }
-class Xo {
-  constructor(e, t, o, i = [], r) {
-    P(this, "ollama");
-    P(this, "defaultModel");
-    P(this, "tools");
-    P(this, "onToolUse");
-    P(this, "toolHandler");
-    this.ollama = new Qt({ host: e, headers: {
-      "X-api-key": t
-    } }), this.defaultModel = o, this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new zo(this.ollama)), console.log(`OllamaChatProvider initialized with endpoint ${e} and model ${o}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
+class Qo {
+  constructor(e, n, o, i = [], r) {
+    w(this, "ollama");
+    w(this, "defaultModel");
+    w(this, "tools");
+    w(this, "onToolUse");
+    w(this, "toolHandler");
+    this.ollama = new Zn({ host: e, headers: {
+      "X-api-key": n
+    } }), this.defaultModel = o, this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new Xo(this.ollama)), console.log(`OllamaChatProvider initialized with endpoint ${e} and model ${o}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
   }
   /**
    * Send a chat request to Ollama
    * Automatically handles tools if configured in constructor
    */
-  async chat(e, t) {
-    var c, d;
-    const o = e;
+  async chat(e, n) {
+    var a, u;
     if (console.log("[OllamaChatProvider] chat called", {
-      hasThreadId: !!o.thread_id,
-      thread_id: o.thread_id,
+      hasThreadId: !!e.thread_id,
+      thread_id: e.thread_id,
       hasTools: this.tools.length > 0
     }), this.tools.length > 0 && this.onToolUse) {
-      await this.chatWithTools(e, t);
+      await this.chatWithTools(e, n);
       return;
     }
-    const i = e.model || this.defaultModel, r = { ...e, model: i }, a = gn.toOllamaRequest(r);
-    let u = {};
-    if (o.thread_id) {
-      const f = W.setBranchIteration(e.branch_id, 0);
-      u = {
-        thread_id: o.thread_id,
-        branch_id: f
-      };
-    }
+    const o = e.model || this.defaultModel, i = { ...e, model: o }, r = gt.toOllamaRequest(i);
     try {
-      if (a.stream) {
-        const f = await this.ollama.chat({
-          ...u,
-          ...a,
-          stream: !0
-        });
-        for await (const m of f) {
-          const p = (c = m.message) == null ? void 0 : c.content;
-          p && t && t(p);
+      if (r.stream) {
+        const d = await this.ollama.chat(r);
+        for await (const c of d) {
+          const f = (a = c.message) == null ? void 0 : a.content;
+          f && n && n(f);
         }
       } else {
-        const m = (d = (await this.ollama.chat({
-          ...u,
-          ...a,
-          stream: !1
-        })).message) == null ? void 0 : d.content;
-        m && t && t(m);
+        const c = (u = (await this.ollama.chat(r)).message) == null ? void 0 : u.content;
+        c && n && n(c);
       }
-    } catch (f) {
-      throw console.error("Error in Ollama API call:", f), f;
+    } catch (d) {
+      throw console.error("Error in Ollama API call:", d), d;
     }
   }
   /**
    * Send a chat request with tools enabled
    * Private method called by chat() when tools are configured
    */
-  async chatWithTools(e, t) {
+  async chatWithTools(e, n) {
     if (!this.toolHandler || !this.onToolUse)
       throw new Error("Tool handler not configured");
-    const o = e.model || this.defaultModel, i = { ...e, model: o }, r = gn.toOllamaRequest(i), a = this.convertToolsToOllamaFormat(this.tools);
+    const o = e.model || this.defaultModel, i = { ...e, model: o }, r = gt.toOllamaRequest(i), a = this.convertToolsToOllamaFormat(this.tools);
     try {
-      await W.handleToolLoop(
+      await Z.handleToolLoop(
         this.toolHandler,
         r.model,
         r.messages || [],
         a,
         e,
         this.onToolUse,
-        t,
+        n,
         e.streaming !== !1
       );
     } catch (u) {
@@ -396,12 +378,12 @@ class Xo {
    * Convert ToolDefinition to Ollama's tools format
    */
   convertToolsToOllamaFormat(e) {
-    return e.map((t) => ({
+    return e.map((n) => ({
       type: "function",
       function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.input_schema
+        name: n.name,
+        description: n.description,
+        parameters: n.input_schema
       }
     }));
   }
@@ -409,10 +391,10 @@ class Xo {
    * Extract tool calls from Ollama response
    */
   extractToolCalls(e) {
-    return !e.tool_calls || !Array.isArray(e.tool_calls) ? [] : e.tool_calls.map((t, o) => ({
+    return !e.tool_calls || !Array.isArray(e.tool_calls) ? [] : e.tool_calls.map((n, o) => ({
       id: `call_${Date.now()}_${o}`,
-      name: t.function.name,
-      arguments: t.function.arguments
+      name: n.function.name,
+      arguments: n.function.arguments
     }));
   }
   /**
@@ -426,15 +408,15 @@ class Xo {
       return e;
     if (typeof e == "string")
       try {
-        const t = JSON.parse(e);
-        return t && typeof t == "object" && !Array.isArray(t) ? t : {};
-      } catch (t) {
-        return console.warn("[OllamaChatProvider] Failed to parse tool arguments", { error: t, raw: e }), {};
+        const n = JSON.parse(e);
+        return n && typeof n == "object" && !Array.isArray(n) ? n : {};
+      } catch (n) {
+        return console.warn("[OllamaChatProvider] Failed to parse tool arguments", { error: n, raw: e }), {};
       }
     return {};
   }
 }
-class yn {
+class yt {
   /**
    * Map internal message format to OpenAI's ChatCompletionMessageParam
    */
@@ -448,27 +430,53 @@ class yn {
   /**
    * Convert internal ChatRequest to OpenAI-specific format
    */
-  static toOpenAIRequest(e) {
-    let t;
-    if (e.system) {
-      const i = e.messages.filter((r) => r.role !== "system");
-      t = [
-        { role: "system", content: e.system },
-        ...i.map((r) => this.mapMessage(r))
-      ];
-    } else
-      t = e.messages.map((i) => this.mapMessage(i));
-    const o = {
-      model: e.model,
-      messages: t,
-      stream: e.streaming !== !1
-    };
-    return e.temperature !== void 0 && (o.temperature = e.temperature), e.maxTokens !== void 0 && (o.max_tokens = e.maxTokens), e.topP !== void 0 && (o.top_p = e.topP), e.frequencyPenalty !== void 0 && (o.frequency_penalty = e.frequencyPenalty), e.presencePenalty !== void 0 && (o.presence_penalty = e.presencePenalty), e.stop !== void 0 && (o.stop = e.stop), e.responseFormat !== void 0 && (o.response_format = e.responseFormat), o;
+  static toOpenAIRequest(e, n) {
+    if (e) {
+      let o;
+      if (n.system) {
+        const r = n.messages.filter((a) => a.role !== "system");
+        o = [
+          { role: "system", content: n.system },
+          ...r.map((a) => this.mapMessage(a))
+        ];
+      } else
+        o = n.messages.map((r) => this.mapMessage(r));
+      const i = {
+        model: n.model,
+        input: o,
+        // Responses API uses 'input' not 'messages'
+        stream: n.streaming !== !1
+      };
+      return n.maxTokens !== void 0 && (i.max_tokens = n.maxTokens), n.thread_id !== void 0 && (i.thread_id = n.thread_id), n.branch_id !== void 0 && (i.branch_id = n.branch_id), i;
+    } else {
+      let o;
+      if (n.system) {
+        const r = n.messages.filter((a) => a.role !== "system");
+        o = [
+          { role: "system", content: n.system },
+          ...r.map((a) => this.mapMessage(a))
+        ];
+      } else
+        o = n.messages.map((r) => this.mapMessage(r));
+      const i = {
+        model: n.model,
+        messages: o,
+        stream: n.streaming !== !1
+      };
+      return n.temperature !== void 0 && (i.temperature = n.temperature), n.maxTokens !== void 0 && (i.max_tokens = n.maxTokens), n.topP !== void 0 && (i.top_p = n.topP), n.frequencyPenalty !== void 0 && (i.frequency_penalty = n.frequencyPenalty), n.presencePenalty !== void 0 && (i.presence_penalty = n.presencePenalty), n.stop !== void 0 && (i.stop = n.stop), n.responseFormat !== void 0 && (i.response_format = n.responseFormat), n.thread_id !== void 0 && (i.thread_id = n.thread_id), n.branch_id !== void 0 && (i.branch_id = n.branch_id), n.responseFormat !== void 0 && (i.response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: "schema_name",
+          schema: n.responseFormat,
+          strict: !0
+        }
+      }), i;
+    }
   }
 }
-class Qo {
+class Zo {
   constructor(e) {
-    P(this, "onTokenReceived");
+    w(this, "onTokenReceived");
     this.client = e;
   }
   /**
@@ -477,83 +485,83 @@ class Qo {
   setTokenCallback(e) {
     this.onTokenReceived = e;
   }
-  async makeRequest(e, t, o, i, r) {
+  async makeRequest(e, n, o, i, r) {
     return console.log("[OpenAIToolHandler] makeRequest called", {
       model: e,
       shouldStream: r,
       toolsCount: o.length,
-      messagesCount: t.length,
+      messagesCount: n.length,
       threadContext: i
-    }), r ? (console.log("[OpenAIToolHandler] Using streaming mode"), await this.makeStreamingRequest(e, t, o, i)) : (console.log("[OpenAIToolHandler] Using non-streaming mode"), await this.makeNonStreamingRequest(e, t, o, i));
+    }), r ? (console.log("[OpenAIToolHandler] Using streaming mode"), await this.makeStreamingRequest(e, n, o, i)) : (console.log("[OpenAIToolHandler] Using non-streaming mode"), await this.makeNonStreamingRequest(e, n, o, i));
   }
   extractToolUses(e) {
-    var o, i, r, a, u, c, d;
-    const t = e.choices[0];
+    var o, i, r, a, u, d, c;
+    const n = e.choices[0];
     if (console.log("[OpenAIToolHandler] extractToolUses", {
-      hasChoice: !!t,
-      finishReason: t == null ? void 0 : t.finish_reason,
-      hasToolCalls: !!((o = t == null ? void 0 : t.message) != null && o.tool_calls),
-      toolCallsCount: ((r = (i = t == null ? void 0 : t.message) == null ? void 0 : i.tool_calls) == null ? void 0 : r.length) || 0,
-      hasFunctionCall: !!((a = t == null ? void 0 : t.message) != null && a.function_call)
-    }), (t == null ? void 0 : t.finish_reason) === "tool_calls" || (u = t == null ? void 0 : t.message) != null && u.tool_calls) {
-      const f = (c = t == null ? void 0 : t.message) == null ? void 0 : c.tool_calls;
+      hasChoice: !!n,
+      finishReason: n == null ? void 0 : n.finish_reason,
+      hasToolCalls: !!((o = n == null ? void 0 : n.message) != null && o.tool_calls),
+      toolCallsCount: ((r = (i = n == null ? void 0 : n.message) == null ? void 0 : i.tool_calls) == null ? void 0 : r.length) || 0,
+      hasFunctionCall: !!((a = n == null ? void 0 : n.message) != null && a.function_call)
+    }), (n == null ? void 0 : n.finish_reason) === "tool_calls" || (u = n == null ? void 0 : n.message) != null && u.tool_calls) {
+      const f = (d = n == null ? void 0 : n.message) == null ? void 0 : d.tool_calls;
       if (f && f.length > 0) {
-        const m = f.map((p) => ({
-          id: p.id,
-          name: p.function.name,
-          input: this.parseToolArguments(p.function.arguments)
+        const p = f.map((h) => ({
+          id: h.id,
+          name: h.function.name,
+          input: this.parseToolArguments(h.function.arguments)
         }));
         return console.log("[OpenAIToolHandler] Extracted tool uses (tool_calls format)", {
-          count: m.length,
-          tools: m.map((p) => ({ id: p.id, name: p.name }))
-        }), m;
+          count: p.length,
+          tools: p.map((h) => ({ id: h.id, name: h.name }))
+        }), p;
       }
     }
-    if ((t == null ? void 0 : t.finish_reason) === "function_call") {
-      const f = (d = t == null ? void 0 : t.message) == null ? void 0 : d.function_call;
+    if ((n == null ? void 0 : n.finish_reason) === "function_call") {
+      const f = (c = n == null ? void 0 : n.message) == null ? void 0 : c.function_call;
       if (f) {
-        const m = {
+        const p = {
           id: `call_${Date.now()}`,
           name: f.name,
           input: this.parseToolArguments(f.arguments || "{}")
         };
         return console.log("[OpenAIToolHandler] Extracted tool use (function_call format)", {
-          id: m.id,
-          name: m.name
-        }), [m];
+          id: p.id,
+          name: p.name
+        }), [p];
       }
     }
     return console.log("[OpenAIToolHandler] No tool uses found"), [];
   }
   extractTextContent(e) {
     var o, i;
-    const t = (i = (o = e.choices[0]) == null ? void 0 : o.message) == null ? void 0 : i.content;
+    const n = (i = (o = e.choices[0]) == null ? void 0 : o.message) == null ? void 0 : i.content;
     return console.log("[OpenAIToolHandler] extractTextContent", {
-      hasContent: !!t,
-      contentLength: (t == null ? void 0 : t.length) || 0
-    }), t || null;
+      hasContent: !!n,
+      contentLength: (n == null ? void 0 : n.length) || 0
+    }), n || null;
   }
-  formatToolResults(e, t) {
+  formatToolResults(e, n) {
     return console.log("[OpenAIToolHandler] formatToolResults", {
       toolUsesCount: e.length,
-      resultsCount: t.length
+      resultsCount: n.length
     }), e.map((o, i) => ({
       role: "tool",
       tool_call_id: o.id,
-      content: JSON.stringify(t[i])
+      content: JSON.stringify(n[i])
     }));
   }
-  appendMessages(e, t, o) {
+  appendMessages(e, n, o) {
     var a;
     console.log("[OpenAIToolHandler] appendMessages", {
       currentMessagesCount: e.length,
       toolResultsCount: o.length,
-      hasResponseMessage: !!((a = t.choices[0]) != null && a.message)
+      hasResponseMessage: !!((a = n.choices[0]) != null && a.message)
     });
     const i = {
       role: "assistant",
-      content: t.choices[0].message.content,
-      tool_calls: t.choices[0].message.tool_calls
+      content: n.choices[0].message.content,
+      tool_calls: n.choices[0].message.tool_calls
     }, r = [
       ...e,
       i,
@@ -566,56 +574,56 @@ class Qo {
   /**
    * Make a streaming request to OpenAI API
    */
-  async makeStreamingRequest(e, t, o, i) {
-    var r, a, u, c;
+  async makeStreamingRequest(e, n, o, i) {
+    var r, a, u, d;
     console.log("[OpenAIToolHandler] makeStreamingRequest calling API", {
       model: e,
-      messagesCount: t.length,
+      messagesCount: n.length,
       toolsCount: o.length,
       threadContext: i
     });
     try {
-      const d = Date.now(), f = await this.client.chat.completions.create({
+      const c = Date.now(), f = await this.client.chat.completions.create({
         ...i,
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         stream: !0
       });
       console.log("[OpenAIToolHandler] Stream received, processing chunks");
-      let m = "", p = [], h = null, g = 0;
-      for await (const T of f) {
+      let p = "", h = [], m = null, g = 0;
+      for await (const y of f) {
         g++;
-        const C = T.choices[0], S = C == null ? void 0 : C.delta;
-        if (S != null && S.content && (m += S.content, this.onTokenReceived && this.onTokenReceived(S.content)), S != null && S.tool_calls)
-          for (const E of S.tool_calls) {
-            const I = E.index;
-            p[I] ? (E.id && (p[I].id += E.id), (u = E.function) != null && u.name && (p[I].function.name += E.function.name), (c = E.function) != null && c.arguments && (p[I].function.arguments += E.function.arguments)) : p[I] = {
-              id: E.id || "",
+        const E = y.choices[0], S = E == null ? void 0 : E.delta;
+        if (S != null && S.content && (p += S.content, this.onTokenReceived && this.onTokenReceived(S.content)), S != null && S.tool_calls)
+          for (const I of S.tool_calls) {
+            const _ = I.index;
+            h[_] ? (I.id && (h[_].id += I.id), (u = I.function) != null && u.name && (h[_].function.name += I.function.name), (d = I.function) != null && d.arguments && (h[_].function.arguments += I.function.arguments)) : h[_] = {
+              id: I.id || "",
               type: "function",
               function: {
-                name: ((r = E.function) == null ? void 0 : r.name) || "",
-                arguments: ((a = E.function) == null ? void 0 : a.arguments) || ""
+                name: ((r = I.function) == null ? void 0 : r.name) || "",
+                arguments: ((a = I.function) == null ? void 0 : a.arguments) || ""
               }
             };
           }
-        C != null && C.finish_reason && (h = C.finish_reason);
+        E != null && E.finish_reason && (m = E.finish_reason);
       }
-      const _ = Date.now() - d;
+      const T = Date.now() - c;
       return console.log("[OpenAIToolHandler] makeStreamingRequest complete", {
-        duration: `${_}ms`,
+        duration: `${T}ms`,
         chunkCount: g,
-        accumulatedContentLength: m.length,
-        toolCallsCount: p.length,
-        finishReason: h
+        accumulatedContentLength: p.length,
+        toolCallsCount: h.length,
+        finishReason: m
       }), {
         choices: [
           {
-            finish_reason: h || "stop",
+            finish_reason: m || "stop",
             message: {
               role: "assistant",
-              content: m || null,
-              tool_calls: p.length > 0 ? p : void 0
+              content: p || null,
+              tool_calls: h.length > 0 ? h : void 0
             },
             index: 0,
             logprobs: null
@@ -626,43 +634,43 @@ class Qo {
         created: Math.floor(Date.now() / 1e3),
         model: e
       };
-    } catch (d) {
+    } catch (c) {
       throw console.error("[OpenAIToolHandler] makeStreamingRequest failed", {
-        error: d,
-        errorMessage: d instanceof Error ? d.message : String(d),
-        errorStack: d instanceof Error ? d.stack : void 0
-      }), d;
+        error: c,
+        errorMessage: c instanceof Error ? c.message : String(c),
+        errorStack: c instanceof Error ? c.stack : void 0
+      }), c;
     }
   }
   /**
    * Make a non-streaming request to OpenAI API
    */
-  async makeNonStreamingRequest(e, t, o, i) {
-    var r, a, u, c, d, f, m, p, h, g, _, T, C;
+  async makeNonStreamingRequest(e, n, o, i) {
+    var r, a, u, d, c, f, p, h, m, g, T, y, E;
     console.log("[OpenAIToolHandler] makeNonStreamingRequest calling API", {
       model: e,
-      messagesCount: t.length,
+      messagesCount: n.length,
       toolsCount: o.length,
       threadContext: i
     });
     try {
-      const S = Date.now(), E = await this.client.chat.completions.create({
+      const S = Date.now(), I = await this.client.chat.completions.create({
         ...i,
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         stream: !1
-      }), I = Date.now() - S;
+      }), _ = Date.now() - S;
       return console.log("[OpenAIToolHandler] makeNonStreamingRequest response received", {
-        duration: `${I}ms`,
-        hasResponse: !!E,
-        hasChoices: !!E.choices,
-        choicesCount: ((r = E.choices) == null ? void 0 : r.length) || 0,
-        finishReason: (u = (a = E.choices) == null ? void 0 : a[0]) == null ? void 0 : u.finish_reason,
-        hasContent: !!((f = (d = (c = E.choices) == null ? void 0 : c[0]) == null ? void 0 : d.message) != null && f.content),
-        hasToolCalls: !!((h = (p = (m = E.choices) == null ? void 0 : m[0]) == null ? void 0 : p.message) != null && h.tool_calls),
-        toolCallsCount: ((C = (T = (_ = (g = E.choices) == null ? void 0 : g[0]) == null ? void 0 : _.message) == null ? void 0 : T.tool_calls) == null ? void 0 : C.length) || 0
-      }), E;
+        duration: `${_}ms`,
+        hasResponse: !!I,
+        hasChoices: !!I.choices,
+        choicesCount: ((r = I.choices) == null ? void 0 : r.length) || 0,
+        finishReason: (u = (a = I.choices) == null ? void 0 : a[0]) == null ? void 0 : u.finish_reason,
+        hasContent: !!((f = (c = (d = I.choices) == null ? void 0 : d[0]) == null ? void 0 : c.message) != null && f.content),
+        hasToolCalls: !!((m = (h = (p = I.choices) == null ? void 0 : p[0]) == null ? void 0 : h.message) != null && m.tool_calls),
+        toolCallsCount: ((E = (y = (T = (g = I.choices) == null ? void 0 : g[0]) == null ? void 0 : T.message) == null ? void 0 : y.tool_calls) == null ? void 0 : E.length) || 0
+      }), I;
     } catch (S) {
       throw console.error("[OpenAIToolHandler] makeNonStreamingRequest failed", {
         error: S,
@@ -678,141 +686,199 @@ class Qo {
     if (!e)
       return {};
     try {
-      const t = JSON.parse(e);
-      return t && typeof t == "object" && !Array.isArray(t) ? t : {};
-    } catch (t) {
-      return console.warn("[OpenAIToolHandler] Failed to parse tool arguments", { error: t, raw: e }), {};
+      const n = JSON.parse(e);
+      return n && typeof n == "object" && !Array.isArray(n) ? n : {};
+    } catch (n) {
+      return console.warn("[OpenAIToolHandler] Failed to parse tool arguments", { error: n, raw: e }), {};
     }
   }
 }
-class Zo {
-  constructor(e, t, o, i = [], r) {
-    P(this, "client");
-    P(this, "defaultModel");
-    P(this, "tools");
-    P(this, "onToolUse");
-    P(this, "toolHandler");
-    this.client = new Ko({ apiKey: t, baseURL: e, dangerouslyAllowBrowser: !0 }), this.defaultModel = o || "gpt-3.5-turbo", this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new Qo(this.client)), console.log(`OpenAIChatProvider initialized with model ${this.defaultModel}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
+class jo {
+  constructor(e) {
+    this.client = e;
+  }
+  /**
+   * Handle streaming Chat Completions request
+   */
+  async chatStreaming(e, n, o) {
+    var i, r;
+    try {
+      const a = await this.client.chat.completions.create(e);
+      for await (const u of a) {
+        const d = ((r = (i = u.choices[0]) == null ? void 0 : i.delta) == null ? void 0 : r.content) || "";
+        d && o && o(d);
+      }
+    } catch (a) {
+      throw console.error("[ChatCompletionsHandler] Streaming request failed:", a), a;
+    }
+  }
+  /**
+   * Handle non-streaming Chat Completions request
+   */
+  async chatNonStreaming(e, n, o) {
+    var i, r;
+    try {
+      const u = ((r = (i = (await this.client.chat.completions.create(e)).choices[0]) == null ? void 0 : i.message) == null ? void 0 : r.content) || "";
+      u && o && o(u);
+    } catch (a) {
+      throw console.error("[ChatCompletionsHandler] Non-streaming request failed:", a), a;
+    }
+  }
+}
+class ei {
+  constructor(e) {
+    this.client = e;
+  }
+  /**
+   * Handle streaming Responses API request
+   * Responses API has a different event structure than Chat Completions
+   */
+  async chatStreaming(e, n, o) {
+    try {
+      const i = await this.client.responses.create(e);
+      for await (const r of i) {
+        if (r.type === "text_delta") {
+          r.text && o && o(r.text);
+          continue;
+        }
+        if (r.type === "done") {
+          console.log("[ResponsesHandler] Response stream completed");
+          break;
+        }
+        const a = r.event || r;
+        if (a.type === "response.content_part.added") {
+          const u = a.part;
+          (u == null ? void 0 : u.type) === "output_text" && u.text && o && o(u.text);
+        } else if (a.type === "response.output_text.delta")
+          a.delta && o && o(a.delta);
+        else if (a.type === "response.content_part.delta") {
+          const u = a.delta;
+          u != null && u.text && o && o(u.text);
+        } else if (a.type === "response.output_item.done") {
+          const u = a.item;
+          if ((u == null ? void 0 : u.type) === "message" && u.content && Array.isArray(u.content))
+            for (const d of u.content)
+              d.type === "output_text" && d.text && o && o(d.text);
+        }
+      }
+    } catch (i) {
+      throw console.error("[ResponsesHandler] Streaming request failed:", i), i;
+    }
+  }
+  /**
+   * Handle non-streaming Responses API request
+   */
+  async chatNonStreaming(e, n, o) {
+    try {
+      const r = (await this.client.responses.create(e)).output_text;
+      r && o && o(r);
+    } catch (i) {
+      throw console.error("[ResponsesHandler] Non-streaming request failed:", i), i;
+    }
+  }
+}
+var B = /* @__PURE__ */ ((t) => (t.CHAT = "CHAT", t.RESPONSE = "RESPONSE", t))(B || {});
+class ti {
+  /**
+   * Create the appropriate handler based on endpoint type
+   */
+  static create(e, n) {
+    return n === "RESPONSE" ? new ei(e) : new jo(e);
+  }
+}
+class ni {
+  constructor(e, n, o, i = [], r) {
+    w(this, "client");
+    w(this, "defaultModel");
+    w(this, "tools");
+    w(this, "onToolUse");
+    w(this, "toolHandler");
+    w(this, "endpointType", B.CHAT);
+    this.client = new Yo({ apiKey: n, baseURL: e, dangerouslyAllowBrowser: !0 }), this.defaultModel = o || "gpt-5.2-chat-latest", this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new Zo(this.client)), console.log("OpenAIChatProvider initialized url: ${baseURL} with model ${this.defaultModel}${tools.length > 0 ? ` and ${tools.length} tools` : ''}");
+  }
+  /**
+   * Determines the appropriate endpoint type based on the model name
+   * @param modelName - The OpenAI model name
+   * @returns The endpoint type (CHAT or RESPONSE)
+   **/
+  getEndpointType(e) {
+    const n = e.toLowerCase();
+    return n.includes("-chat") || n.startsWith("gpt-4") || n.startsWith("gpt-3.5") || n.startsWith("chatgpt") ? B.CHAT : (n.includes("-pro") || n.includes("-reasoning") || n.startsWith("gpt-5") && !n.includes("-chat") || n.startsWith("o"), B.RESPONSE);
   }
   /**
    * Send a chat request to OpenAI
    * Automatically handles tools if configured in constructor
    */
-  async chat(e, t) {
-    var u, c, d, f;
-    const o = e;
+  async chat(e, n) {
     if (console.log("[OpenAIChatProvider] chat called", {
-      hasThreadId: !!o.thread_id,
-      thread_id: o.thread_id,
+      hasThreadId: !!e.thread_id,
+      thread_id: e.thread_id,
+      branch_id: e.branch_id,
       hasTools: this.tools.length > 0
     }), this.tools.length > 0 && this.onToolUse) {
-      await this.chatWithTools(e, t);
+      await this.chatWithTools(e, n);
       return;
     }
-    const i = e.model || this.defaultModel, r = yn.toOpenAIRequest({ ...e, model: i });
-    let a = {};
-    if (o.thread_id) {
-      const m = W.setBranchIteration(e.branch_id, 0);
-      a = {
-        thread_id: o.thread_id,
-        branch_id: m
-      };
-    }
+    this.endpointType = this.getEndpointType(e.model);
+    const o = this.endpointType === B.RESPONSE, i = yt.toOpenAIRequest(o, e);
     try {
-      if (e.streaming !== !1) {
-        const m = {
-          model: r.model,
-          messages: r.messages,
-          temperature: e.temperature,
-          max_tokens: e.maxTokens,
-          top_p: e.topP,
-          frequency_penalty: e.frequencyPenalty,
-          presence_penalty: e.presencePenalty,
-          stop: e.stop,
-          stream: !0,
-          ...a
-        };
-        e.responseFormat !== void 0 && (m.response_format = e.responseFormat);
-        const p = await this.client.chat.completions.create(m);
-        for await (const h of p) {
-          const g = ((c = (u = h.choices[0]) == null ? void 0 : u.delta) == null ? void 0 : c.content) || "";
-          g && t && t(g);
-        }
-      } else {
-        const m = {
-          model: r.model,
-          messages: r.messages,
-          temperature: e.temperature,
-          max_tokens: e.maxTokens,
-          top_p: e.topP,
-          frequency_penalty: e.frequencyPenalty,
-          presence_penalty: e.presencePenalty,
-          stop: e.stop,
-          ...a
-        };
-        e.responseFormat !== void 0 && (m.response_format = {
-          type: "json_schema",
-          json_schema: {
-            name: "schema_name",
-            schema: e.responseFormat,
-            strict: !0
-          }
-        });
-        const h = ((f = (d = (await this.client.chat.completions.create(m)).choices[0]) == null ? void 0 : d.message) == null ? void 0 : f.content) || "";
-        h && t && t(h);
-      }
-    } catch (m) {
-      throw console.error("Error in OpenAI API call:", m), m;
+      const r = ti.create(this.client, this.endpointType);
+      e.streaming !== !1 ? await r.chatStreaming(i, e.model, n) : await r.chatNonStreaming(i, e.model, n);
+    } catch (r) {
+      throw console.error("Error in OpenAI API call:", r), r;
     }
   }
   /**
    * Send a chat request with tools enabled
    * Private method called by chat() when tools are configured
    */
-  async chatWithTools(e, t) {
+  async chatWithTools(e, n) {
+    var a;
+    this.endpointType = this.getEndpointType(e.model);
+    const o = this.endpointType === B.RESPONSE;
     if (console.log("[OpenAIChatProvider] chatWithTools called", {
       hasToolHandler: !!this.toolHandler,
       hasOnToolUse: !!this.onToolUse,
-      toolsCount: this.tools.length
+      toolsCount: ((a = this.tools) == null ? void 0 : a.length) || 0
     }), !this.toolHandler || !this.onToolUse)
       throw new Error("Tool handler not configured");
-    const o = e.model || this.defaultModel, i = yn.toOpenAIRequest({ ...e, model: o }), r = this.convertToolsToOpenAIFormat(this.tools);
+    const i = yt.toOpenAIRequest(o, e), r = this.convertToolsToOpenAIFormat(this.tools || []);
     console.log("[OpenAIChatProvider] Converted request", {
       model: i.model,
       messagesCount: i.messages.length,
-      toolsCount: r.length,
+      toolsCount: (r == null ? void 0 : r.length) || 0,
       shouldStream: e.streaming !== !1
     });
     try {
-      console.log("[OpenAIChatProvider] Calling ChatProviderUtils.handleToolLoop"), await W.handleToolLoop(
+      console.log("[OpenAIChatProvider] Calling ChatProviderUtils.handleToolLoop"), await Z.handleToolLoop(
         this.toolHandler,
         i.model,
         i.messages,
         r,
         e,
         this.onToolUse,
-        t,
+        n,
         e.streaming !== !1
       ), console.log("[OpenAIChatProvider] handleToolLoop completed");
-    } catch (a) {
-      throw console.error("[OpenAIChatProvider] Tool-enabled chat failed:", a), a;
+    } catch (u) {
+      throw console.error("[OpenAIChatProvider] Tool-enabled chat failed:", u), u;
     }
   }
   /**
    * Convert ToolDefinition to OpenAI's tools format (new API)
    */
   convertToolsToOpenAIFormat(e) {
-    return e.map((t) => ({
+    return e.map((n) => ({
       type: "function",
       function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.input_schema
+        name: n.name,
+        description: n.description,
+        parameters: n.input_schema
       }
     }));
   }
 }
-class Tn {
+class Tt {
   /**
    * Map internal message role to Claude's expected format
    */
@@ -838,9 +904,9 @@ class Tn {
    * Convert internal ChatRequest to Claude-specific format
    */
   static toClaudeRequest(e) {
-    const t = e.messages.filter((i) => i.role !== "system"), o = {
+    const n = e.messages.filter((i) => i.role !== "system"), o = {
       model: e.model,
-      messages: t.map((i) => this.mapMessage(i)),
+      messages: n.map((i) => this.mapMessage(i)),
       stream: e.streaming !== !1
     };
     if (e.system) {
@@ -858,12 +924,12 @@ Respond only with the JSON, no other text.`;
       }
       o.system = i;
     }
-    return e.temperature !== void 0 && (o.temperature = e.temperature), e.maxTokens !== void 0 && (o.max_tokens = e.maxTokens), e.topP !== void 0 && (o.top_p = e.topP), e.stop !== void 0 && (o.stop_sequences = e.stop), o;
+    return e.temperature !== void 0 && (o.temperature = e.temperature), e.maxTokens !== void 0 && (o.max_tokens = e.maxTokens), e.topP !== void 0 && (o.top_p = e.topP), e.stop !== void 0 && (o.stop_sequences = e.stop), e.thread_id !== void 0 && (o.thread_id = e.thread_id), e.branch_id !== void 0 && (o.branch_id = e.branch_id), o;
   }
 }
-class jo {
+class oi {
   constructor(e) {
-    P(this, "onTokenReceived");
+    w(this, "onTokenReceived");
     this.client = e;
   }
   /**
@@ -873,12 +939,12 @@ class jo {
   setTokenCallback(e) {
     this.onTokenReceived = e;
   }
-  async makeRequest(e, t, o, i, r) {
+  async makeRequest(e, n, o, i, r) {
     return console.log("[ClaudeToolHandler] makeRequest called", {
       model: e,
       shouldStream: r,
       toolsCount: o.length,
-      messagesCount: t.length,
+      messagesCount: n.length,
       threadContext: i,
       tools: o.map((a) => {
         var u;
@@ -887,12 +953,12 @@ class jo {
           description: ((u = a.description) == null ? void 0 : u.substring(0, 50)) + "..."
         };
       }),
-      messages: t.map((a) => ({
+      messages: n.map((a) => ({
         role: a.role,
         contentType: Array.isArray(a.content) ? "array" : typeof a.content,
         contentPreview: Array.isArray(a.content) ? `[${a.content.length} blocks]` : typeof a.content == "string" ? a.content.substring(0, 50) + "..." : "N/A"
       }))
-    }), r ? (console.log("[ClaudeToolHandler] Using streaming mode"), await this.makeStreamingRequest(e, t, o, i)) : (console.log("[ClaudeToolHandler] Using non-streaming mode"), await this.makeNonStreamingRequest(e, t, o, i));
+    }), r ? (console.log("[ClaudeToolHandler] Using streaming mode"), await this.makeStreamingRequest(e, n, o, i)) : (console.log("[ClaudeToolHandler] Using non-streaming mode"), await this.makeNonStreamingRequest(e, n, o, i));
   }
   extractToolUses(e) {
     console.log("[ClaudeToolHandler] extractToolUses - Full response", {
@@ -911,41 +977,41 @@ class jo {
         } : {}
       }))
     });
-    const t = this.extractToolUseBlocks(e.content);
+    const n = this.extractToolUseBlocks(e.content);
     return console.log("[ClaudeToolHandler] extractToolUses - Extracted tools", {
       contentBlocksCount: e.content.length,
-      toolUseBlocksCount: t.length,
-      toolUses: t.map((o) => ({
+      toolUseBlocksCount: n.length,
+      toolUses: n.map((o) => ({
         id: o.id,
         name: o.name,
         inputKeys: Object.keys(o.input)
       }))
-    }), t.map((o) => ({
+    }), n.map((o) => ({
       id: o.id,
       name: o.name,
       input: o.input
     }));
   }
   extractTextContent(e) {
-    const t = e.content.filter((o) => o.type === "text").map((o) => o.text).join("");
+    const n = e.content.filter((o) => o.type === "text").map((o) => o.text).join("");
     return console.log("[ClaudeToolHandler] extractTextContent", {
-      hasContent: !!t,
-      contentLength: (t == null ? void 0 : t.length) || 0
-    }), t || null;
+      hasContent: !!n,
+      contentLength: (n == null ? void 0 : n.length) || 0
+    }), n || null;
   }
-  formatToolResults(e, t) {
+  formatToolResults(e, n) {
     console.log("[ClaudeToolHandler] formatToolResults - Input", {
       toolUsesCount: e.length,
-      resultsCount: t.length,
+      resultsCount: n.length,
       toolUses: e.map((i) => ({ id: i.id, name: i.name })),
-      results: t.map((i) => ({
+      results: n.map((i) => ({
         success: i == null ? void 0 : i.success,
         hasData: !!(i != null && i.data),
         hasError: !!(i != null && i.error)
       }))
     });
     const o = e.map((i, r) => {
-      const a = t[r], u = {
+      const a = n[r], u = {
         type: "tool_result",
         tool_use_id: i.id,
         content: JSON.stringify({
@@ -965,7 +1031,7 @@ class jo {
       formattedResultsCount: o.length
     }), o;
   }
-  appendMessages(e, t, o) {
+  appendMessages(e, n, o) {
     console.log("[ClaudeToolHandler] appendMessages - Input state", {
       currentMessagesCount: e.length,
       currentMessages: e.map((u) => ({
@@ -973,13 +1039,13 @@ class jo {
         contentType: Array.isArray(u.content) ? "array" : typeof u.content,
         contentLength: Array.isArray(u.content) || typeof u.content == "string" ? u.content.length : "N/A"
       })),
-      responseContentBlocks: t.content.length,
-      responseContentTypes: t.content.map((u) => u.type),
+      responseContentBlocks: n.content.length,
+      responseContentTypes: n.content.map((u) => u.type),
       toolResultsCount: o.length
     });
     const i = {
       role: "assistant",
-      content: t.content
+      content: n.content
     }, r = {
       role: "user",
       content: o
@@ -1006,56 +1072,56 @@ class jo {
    * Make a streaming request to Claude API
    * Streams text tokens in real-time while collecting the final message for tool extraction
    */
-  async makeStreamingRequest(e, t, o, i) {
+  async makeStreamingRequest(e, n, o, i) {
     var r, a;
     console.log("[ClaudeToolHandler] makeStreamingRequest calling API", {
       model: e,
-      messagesCount: t.length,
+      messagesCount: n.length,
       toolsCount: o.length,
       threadContext: i
     });
     try {
       const u = Date.now();
-      let c = 0, d = 0;
+      let d = 0, c = 0;
       const f = this.client.messages.stream({
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         max_tokens: 4096,
         stream: !0,
         ...i
-      }).on("text", (h) => {
-        c++, this.onTokenReceived && this.onTokenReceived(h);
-      }).on("contentBlock", (h) => {
-        d++, console.log("[ClaudeToolHandler] Stream contentBlock event", {
-          contentBlockCount: d,
-          blockType: h.type,
-          ...h.type === "tool_use" ? {
-            toolId: h.id,
-            toolName: h.name
+      }).on("text", (m) => {
+        d++, this.onTokenReceived && this.onTokenReceived(m);
+      }).on("contentBlock", (m) => {
+        c++, console.log("[ClaudeToolHandler] Stream contentBlock event", {
+          contentBlockCount: c,
+          blockType: m.type,
+          ...m.type === "tool_use" ? {
+            toolId: m.id,
+            toolName: m.name
           } : {}
         });
-      }).on("message", (h) => {
+      }).on("message", (m) => {
         console.log("[ClaudeToolHandler] Stream message event", {
-          messageId: h.id,
-          stopReason: h.stop_reason,
-          contentBlocksCount: h.content.length,
-          contentTypes: h.content.map((g) => g.type)
+          messageId: m.id,
+          stopReason: m.stop_reason,
+          contentBlocksCount: m.content.length,
+          contentTypes: m.content.map((g) => g.type)
         });
       });
       console.log("[ClaudeToolHandler] Stream started, waiting for final message");
-      const m = await f.finalMessage(), p = Date.now() - u;
+      const p = await f.finalMessage(), h = Date.now() - u;
       return console.log("[ClaudeToolHandler] makeStreamingRequest complete", {
-        duration: `${p}ms`,
-        hasMessage: !!m,
-        responseId: m.id,
-        model: m.model,
-        stopReason: m.stop_reason,
-        contentBlocksCount: ((r = m.content) == null ? void 0 : r.length) || 0,
-        contentBlockTypes: ((a = m.content) == null ? void 0 : a.map((h) => h.type)) || [],
-        totalTokensStreamed: c,
-        usage: m.usage
-      }), m;
+        duration: `${h}ms`,
+        hasMessage: !!p,
+        responseId: p.id,
+        model: p.model,
+        stopReason: p.stop_reason,
+        contentBlocksCount: ((r = p.content) == null ? void 0 : r.length) || 0,
+        contentBlockTypes: ((a = p.content) == null ? void 0 : a.map((m) => m.type)) || [],
+        totalTokensStreamed: d,
+        usage: p.usage
+      }), p;
     } catch (u) {
       throw console.error("[ClaudeToolHandler] makeStreamingRequest failed", {
         error: u,
@@ -1067,33 +1133,33 @@ class jo {
   /**
    * Make a non-streaming request to Claude API
    */
-  async makeNonStreamingRequest(e, t, o, i) {
+  async makeNonStreamingRequest(e, n, o, i) {
     var r, a;
     console.log("[ClaudeToolHandler] makeNonStreamingRequest calling API", {
       model: e,
-      messagesCount: t.length,
+      messagesCount: n.length,
       toolsCount: o.length,
       threadContext: i
     });
     try {
-      const u = Date.now(), c = await this.client.messages.create({
+      const u = Date.now(), d = await this.client.messages.create({
         model: e,
-        messages: t,
+        messages: n,
         tools: o,
         max_tokens: 4096,
         stream: !1,
         ...i
-      }), d = Date.now() - u;
+      }), c = Date.now() - u;
       return console.log("[ClaudeToolHandler] makeNonStreamingRequest response received", {
-        duration: `${d}ms`,
-        hasResponse: !!c,
-        responseId: c.id,
-        model: c.model,
-        stopReason: c.stop_reason,
-        contentBlocksCount: ((r = c.content) == null ? void 0 : r.length) || 0,
-        contentBlockTypes: ((a = c.content) == null ? void 0 : a.map((f) => f.type)) || [],
-        usage: c.usage
-      }), c;
+        duration: `${c}ms`,
+        hasResponse: !!d,
+        responseId: d.id,
+        model: d.model,
+        stopReason: d.stop_reason,
+        contentBlocksCount: ((r = d.content) == null ? void 0 : r.length) || 0,
+        contentBlockTypes: ((a = d.content) == null ? void 0 : a.map((f) => f.type)) || [],
+        usage: d.usage
+      }), d;
     } catch (u) {
       throw console.error("[ClaudeToolHandler] makeNonStreamingRequest failed", {
         error: u,
@@ -1106,87 +1172,59 @@ class jo {
    * Extract tool_use blocks from response content
    */
   extractToolUseBlocks(e) {
-    return e.filter((t) => t.type === "tool_use");
+    return e.filter((n) => n.type === "tool_use");
   }
 }
-class ei {
-  constructor(e, t, o, i = [], r) {
-    P(this, "client");
-    P(this, "defaultModel");
-    P(this, "tools");
-    P(this, "onToolUse");
-    P(this, "toolHandler");
-    this.client = new Yo({
-      apiKey: t,
+class ii {
+  constructor(e, n, o, i = [], r) {
+    w(this, "client");
+    w(this, "defaultModel");
+    w(this, "tools");
+    w(this, "onToolUse");
+    w(this, "toolHandler");
+    this.client = new zo({
+      apiKey: n,
       dangerouslyAllowBrowser: !0
-    }), e && (this.client.baseURL = e), this.defaultModel = o || "claude-3-opus-20240229", this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new jo(this.client)), console.log(`ClaudeChatProvider initialized with model ${this.defaultModel}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
+    }), e && (this.client.baseURL = e), this.defaultModel = o || "claude-3-opus-20240229", this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new oi(this.client)), console.log(`ClaudeChatProvider initialized with model ${this.defaultModel}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
   }
   /**
    * Send a chat request to Claude
    * Automatically handles tools if configured in constructor
    */
-  async chat(e, t) {
-    const o = e;
+  async chat(e, n) {
     if (console.log("[ClaudeChatProvider] chat called", {
-      hasThreadId: !!o.thread_id,
-      thread_id: o.thread_id,
+      hasThreadId: !!e.thread_id,
+      thread_id: e.thread_id,
       hasTools: this.tools.length > 0
     }), this.tools.length > 0 && this.onToolUse) {
-      await this.chatWithTools(e, t);
+      await this.chatWithTools(e, n);
       return;
     }
-    const i = e.model || this.defaultModel, r = Tn.toClaudeRequest({ ...e, model: i });
-    let a = {};
-    if (o.thread_id) {
-      const u = W.setBranchIteration(e.branch_id, 0);
-      a = {
-        thread_id: o.thread_id,
-        branch_id: u
-      };
-    }
+    const o = e.model || this.defaultModel, i = Tt.toClaudeRequest({ ...e, model: o });
     try {
       if (e.streaming !== !1) {
-        const u = this.client.messages.stream({
-          ...a,
-          model: r.model,
-          messages: r.messages,
-          temperature: e.temperature,
-          max_tokens: e.maxTokens || 4096,
-          top_p: e.topP,
-          stop_sequences: e.stop,
-          stream: !0,
-          system: r.system
-        }).on("text", (d) => {
-          t && t(d);
+        const r = this.client.messages.stream(i).on("text", (u) => {
+          n && n(u);
         });
         console.log("waiting for final message");
-        const c = await u.finalMessage();
-        console.log(c);
+        const a = await r.finalMessage();
+        console.log(a);
       } else {
-        const u = await this.client.messages.create({
-          ...a,
-          model: r.model,
-          messages: r.messages,
-          temperature: e.temperature,
-          max_tokens: e.maxTokens || 4096,
-          top_p: e.topP,
-          stop_sequences: e.stop,
-          system: r.system
-        });
-        if (u.content && u.content.length > 0) {
-          const c = u.content.filter((d) => d.type === "text").map((d) => d.text).join("");
-          t && t(c);
+        const r = await this.client.messages.create(i);
+        if (r.content && r.content.length > 0) {
+          const a = r.content.filter((u) => u.type === "text").map((u) => u.text).join("");
+          n && n(a);
         }
       }
-    } catch (u) {
-      throw console.error("Error in Claude API call:", u), u;
+    } catch (r) {
+      throw console.error("Error in Claude API call:", r), r;
     }
   }
   /**
    * Send a chat request with tools enabled
    * Private method called by chat() when tools are configured
    */
-  async chatWithTools(e, t) {
+  async chatWithTools(e, n) {
     var a;
     if (console.log("[ClaudeChatProvider] chatWithTools called", {
       hasToolHandler: !!this.toolHandler,
@@ -1198,39 +1236,39 @@ class ei {
       requestStreaming: e.streaming
     }), !this.toolHandler || !this.onToolUse)
       throw new Error("Tool handler not configured");
-    const o = e.model || this.defaultModel, i = Tn.toClaudeRequest({ ...e, model: o }), r = this.convertToolsToClaudeFormat(this.tools);
+    const o = e.model || this.defaultModel, i = Tt.toClaudeRequest({ ...e, model: o }), r = this.convertToolsToClaudeFormat(this.tools);
     console.log("[ClaudeChatProvider] Converted request for tool loop", {
       model: i.model,
       system: ((a = i.system) == null ? void 0 : a.substring(0, 100)) + "...",
       messagesCount: i.messages.length,
       messages: i.messages.map((u) => {
-        var c;
+        var d;
         return {
           role: u.role,
           contentType: typeof u.content,
-          contentPreview: typeof u.content == "string" ? u.content.substring(0, 50) + "..." : `[${((c = u.content) == null ? void 0 : c.length) || 0} items]`
+          contentPreview: typeof u.content == "string" ? u.content.substring(0, 50) + "..." : `[${((d = u.content) == null ? void 0 : d.length) || 0} items]`
         };
       }),
       toolsCount: r.length,
       tools: r.map((u) => {
-        var c;
+        var d;
         return {
           name: u.name,
-          description: ((c = u.description) == null ? void 0 : c.substring(0, 50)) + "..."
+          description: ((d = u.description) == null ? void 0 : d.substring(0, 50)) + "..."
         };
       }),
       shouldStream: e.streaming !== !1,
-      hasOnTokenReceived: !!t
+      hasOnTokenReceived: !!n
     });
     try {
-      console.log("[ClaudeChatProvider] Calling ChatProviderUtils.handleToolLoop"), await W.handleToolLoop(
+      console.log("[ClaudeChatProvider] Calling ChatProviderUtils.handleToolLoop"), await Z.handleToolLoop(
         this.toolHandler,
         i.model,
         i.messages,
         r,
         e,
         this.onToolUse,
-        t,
+        n,
         e.streaming !== !1
       ), console.log("[ClaudeChatProvider] handleToolLoop completed successfully");
     } catch (u) {
@@ -1245,10 +1283,10 @@ class ei {
    * Convert ToolDefinition to Claude's tool format
    */
   convertToolsToClaudeFormat(e) {
-    return e.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.input_schema
+    return e.map((n) => ({
+      name: n.name,
+      description: n.description,
+      input_schema: n.input_schema
     }));
   }
 }
@@ -1257,31 +1295,31 @@ class ei {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-let ni, ti;
-function oi() {
+let si, ri;
+function li() {
   return {
-    geminiUrl: ni,
-    vertexUrl: ti
+    geminiUrl: si,
+    vertexUrl: ri
   };
 }
-function ii(n, e, t, o) {
+function ai(t, e, n, o) {
   var i, r;
-  if (!(n != null && n.baseUrl)) {
-    const a = oi();
-    return e ? (i = a.vertexUrl) !== null && i !== void 0 ? i : t : (r = a.geminiUrl) !== null && r !== void 0 ? r : o;
+  if (!(t != null && t.baseUrl)) {
+    const a = li();
+    return e ? (i = a.vertexUrl) !== null && i !== void 0 ? i : n : (r = a.geminiUrl) !== null && r !== void 0 ? r : o;
   }
-  return n.baseUrl;
+  return t.baseUrl;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class z {
+class X {
 }
-function v(n, e) {
-  const t = /\{([^}]+)\}/g;
-  return n.replace(t, (o, i) => {
+function v(t, e) {
+  const n = /\{([^}]+)\}/g;
+  return t.replace(n, (o, i) => {
     if (Object.prototype.hasOwnProperty.call(e, i)) {
       const r = e[i];
       return r != null ? String(r) : "";
@@ -1289,116 +1327,116 @@ function v(n, e) {
       throw new Error(`Key '${i}' not found in valueMap.`);
   });
 }
-function l(n, e, t) {
+function l(t, e, n) {
   for (let r = 0; r < e.length - 1; r++) {
     const a = e[r];
     if (a.endsWith("[]")) {
       const u = a.slice(0, -2);
-      if (!(u in n))
-        if (Array.isArray(t))
-          n[u] = Array.from({ length: t.length }, () => ({}));
+      if (!(u in t))
+        if (Array.isArray(n))
+          t[u] = Array.from({ length: n.length }, () => ({}));
         else
           throw new Error(`Value must be a list given an array path ${a}`);
-      if (Array.isArray(n[u])) {
-        const c = n[u];
-        if (Array.isArray(t))
-          for (let d = 0; d < c.length; d++) {
-            const f = c[d];
-            l(f, e.slice(r + 1), t[d]);
+      if (Array.isArray(t[u])) {
+        const d = t[u];
+        if (Array.isArray(n))
+          for (let c = 0; c < d.length; c++) {
+            const f = d[c];
+            l(f, e.slice(r + 1), n[c]);
           }
         else
-          for (const d of c)
-            l(d, e.slice(r + 1), t);
+          for (const c of d)
+            l(c, e.slice(r + 1), n);
       }
       return;
     } else if (a.endsWith("[0]")) {
       const u = a.slice(0, -3);
-      u in n || (n[u] = [{}]);
-      const c = n[u];
-      l(c[0], e.slice(r + 1), t);
+      u in t || (t[u] = [{}]);
+      const d = t[u];
+      l(d[0], e.slice(r + 1), n);
       return;
     }
-    (!n[a] || typeof n[a] != "object") && (n[a] = {}), n = n[a];
+    (!t[a] || typeof t[a] != "object") && (t[a] = {}), t = t[a];
   }
-  const o = e[e.length - 1], i = n[o];
+  const o = e[e.length - 1], i = t[o];
   if (i !== void 0) {
-    if (!t || typeof t == "object" && Object.keys(t).length === 0 || t === i)
+    if (!n || typeof n == "object" && Object.keys(n).length === 0 || n === i)
       return;
-    if (typeof i == "object" && typeof t == "object" && i !== null && t !== null)
-      Object.assign(i, t);
+    if (typeof i == "object" && typeof n == "object" && i !== null && n !== null)
+      Object.assign(i, n);
     else
       throw new Error(`Cannot set value for an existing key. Key: ${o}`);
   } else
-    o === "_self" && typeof t == "object" && t !== null && !Array.isArray(t) ? Object.assign(n, t) : n[o] = t;
+    o === "_self" && typeof n == "object" && n !== null && !Array.isArray(n) ? Object.assign(t, n) : t[o] = n;
 }
-function s(n, e, t = void 0) {
+function s(t, e, n = void 0) {
   try {
     if (e.length === 1 && e[0] === "_self")
-      return n;
+      return t;
     for (let o = 0; o < e.length; o++) {
-      if (typeof n != "object" || n === null)
-        return t;
+      if (typeof t != "object" || t === null)
+        return n;
       const i = e[o];
       if (i.endsWith("[]")) {
         const r = i.slice(0, -2);
-        if (r in n) {
-          const a = n[r];
-          return Array.isArray(a) ? a.map((u) => s(u, e.slice(o + 1), t)) : t;
+        if (r in t) {
+          const a = t[r];
+          return Array.isArray(a) ? a.map((u) => s(u, e.slice(o + 1), n)) : n;
         } else
-          return t;
+          return n;
       } else
-        n = n[i];
+        t = t[i];
     }
-    return n;
+    return t;
   } catch (o) {
     if (o instanceof TypeError)
-      return t;
+      return n;
     throw o;
   }
 }
-function si(n, e) {
-  for (const [t, o] of Object.entries(e)) {
-    const i = t.split("."), r = o.split("."), a = /* @__PURE__ */ new Set();
+function ui(t, e) {
+  for (const [n, o] of Object.entries(e)) {
+    const i = n.split("."), r = o.split("."), a = /* @__PURE__ */ new Set();
     let u = -1;
-    for (let c = 0; c < i.length; c++)
-      if (i[c] === "*") {
-        u = c;
+    for (let d = 0; d < i.length; d++)
+      if (i[d] === "*") {
+        u = d;
         break;
       }
     if (u !== -1 && r.length > u)
-      for (let c = u; c < r.length; c++) {
-        const d = r[c];
-        d !== "*" && !d.endsWith("[]") && !d.endsWith("[0]") && a.add(d);
+      for (let d = u; d < r.length; d++) {
+        const c = r[d];
+        c !== "*" && !c.endsWith("[]") && !c.endsWith("[0]") && a.add(c);
       }
-    be(n, i, r, 0, a);
+    Be(t, i, r, 0, a);
   }
 }
-function be(n, e, t, o, i) {
-  if (o >= e.length || typeof n != "object" || n === null)
+function Be(t, e, n, o, i) {
+  if (o >= e.length || typeof t != "object" || t === null)
     return;
   const r = e[o];
   if (r.endsWith("[]")) {
-    const a = r.slice(0, -2), u = n;
+    const a = r.slice(0, -2), u = t;
     if (a in u && Array.isArray(u[a]))
-      for (const c of u[a])
-        be(c, e, t, o + 1, i);
+      for (const d of u[a])
+        Be(d, e, n, o + 1, i);
   } else if (r === "*") {
-    if (typeof n == "object" && n !== null && !Array.isArray(n)) {
-      const a = n, u = Object.keys(a).filter((d) => !d.startsWith("_") && !i.has(d)), c = {};
-      for (const d of u)
-        c[d] = a[d];
-      for (const [d, f] of Object.entries(c)) {
-        const m = [];
-        for (const p of t.slice(o))
-          p === "*" ? m.push(d) : m.push(p);
-        l(a, m, f);
+    if (typeof t == "object" && t !== null && !Array.isArray(t)) {
+      const a = t, u = Object.keys(a).filter((c) => !c.startsWith("_") && !i.has(c)), d = {};
+      for (const c of u)
+        d[c] = a[c];
+      for (const [c, f] of Object.entries(d)) {
+        const p = [];
+        for (const h of n.slice(o))
+          h === "*" ? p.push(c) : p.push(h);
+        l(a, p, f);
       }
-      for (const d of u)
-        delete a[d];
+      for (const c of u)
+        delete a[c];
     }
   } else {
-    const a = n;
-    r in a && be(a[r], e, t, o + 1, i);
+    const a = t;
+    r in a && Be(a[r], e, n, o + 1, i);
   }
 }
 /**
@@ -1406,163 +1444,163 @@ function be(n, e, t, o, i) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function on(n) {
-  if (typeof n != "string")
+function it(t) {
+  if (typeof t != "string")
     throw new Error("fromImageBytes must be a string");
-  return n;
+  return t;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function ri(n) {
-  const e = {}, t = s(n, [
+function di(t) {
+  const e = {}, n = s(t, [
     "operationName"
   ]);
-  t != null && l(e, ["operationName"], t);
-  const o = s(n, ["resourceName"]);
+  n != null && l(e, ["operationName"], n);
+  const o = s(t, ["resourceName"]);
   return o != null && l(e, ["_url", "resourceName"], o), e;
 }
-function li(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["metadata"]);
+function ci(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, [
+  const a = s(t, [
     "response",
     "generateVideoResponse"
   ]);
-  return a != null && l(e, ["response"], ui(a)), e;
+  return a != null && l(e, ["response"], pi(a)), e;
 }
-function ai(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["metadata"]);
+function fi(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, ["response"]);
-  return a != null && l(e, ["response"], di(a)), e;
+  const a = s(t, ["response"]);
+  return a != null && l(e, ["response"], hi(a)), e;
 }
-function ui(n) {
-  const e = {}, t = s(n, [
+function pi(t) {
+  const e = {}, n = s(t, [
     "generatedSamples"
   ]);
-  if (t != null) {
-    let r = t;
-    Array.isArray(r) && (r = r.map((a) => ci(a))), l(e, ["generatedVideos"], r);
+  if (n != null) {
+    let r = n;
+    Array.isArray(r) && (r = r.map((a) => mi(a))), l(e, ["generatedVideos"], r);
   }
-  const o = s(n, [
+  const o = s(t, [
     "raiMediaFilteredCount"
   ]);
   o != null && l(e, ["raiMediaFilteredCount"], o);
-  const i = s(n, [
+  const i = s(t, [
     "raiMediaFilteredReasons"
   ]);
   return i != null && l(e, ["raiMediaFilteredReasons"], i), e;
 }
-function di(n) {
-  const e = {}, t = s(n, ["videos"]);
-  if (t != null) {
-    let r = t;
-    Array.isArray(r) && (r = r.map((a) => fi(a))), l(e, ["generatedVideos"], r);
+function hi(t) {
+  const e = {}, n = s(t, ["videos"]);
+  if (n != null) {
+    let r = n;
+    Array.isArray(r) && (r = r.map((a) => gi(a))), l(e, ["generatedVideos"], r);
   }
-  const o = s(n, [
+  const o = s(t, [
     "raiMediaFilteredCount"
   ]);
   o != null && l(e, ["raiMediaFilteredCount"], o);
-  const i = s(n, [
+  const i = s(t, [
     "raiMediaFilteredReasons"
   ]);
   return i != null && l(e, ["raiMediaFilteredReasons"], i), e;
 }
-function ci(n) {
-  const e = {}, t = s(n, ["video"]);
-  return t != null && l(e, ["video"], Ti(t)), e;
+function mi(t) {
+  const e = {}, n = s(t, ["video"]);
+  return n != null && l(e, ["video"], Si(n)), e;
 }
-function fi(n) {
-  const e = {}, t = s(n, ["_self"]);
-  return t != null && l(e, ["video"], _i(t)), e;
+function gi(t) {
+  const e = {}, n = s(t, ["_self"]);
+  return n != null && l(e, ["video"], Ii(n)), e;
 }
-function pi(n) {
-  const e = {}, t = s(n, [
+function yi(t) {
+  const e = {}, n = s(t, [
     "operationName"
   ]);
-  return t != null && l(e, ["_url", "operationName"], t), e;
+  return n != null && l(e, ["_url", "operationName"], n), e;
 }
-function mi(n) {
-  const e = {}, t = s(n, [
+function Ti(t) {
+  const e = {}, n = s(t, [
     "operationName"
   ]);
-  return t != null && l(e, ["_url", "operationName"], t), e;
+  return n != null && l(e, ["_url", "operationName"], n), e;
 }
-function hi(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["metadata"]);
+function Ci(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, ["response"]);
-  return a != null && l(e, ["response"], gi(a)), e;
+  const a = s(t, ["response"]);
+  return a != null && l(e, ["response"], _i(a)), e;
 }
-function gi(n) {
-  const e = {}, t = s(n, [
+function _i(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["parent"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["parent"]);
   o != null && l(e, ["parent"], o);
-  const i = s(n, ["documentName"]);
+  const i = s(t, ["documentName"]);
   return i != null && l(e, ["documentName"], i), e;
 }
-function Zt(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["metadata"]);
+function jn(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, ["response"]);
-  return a != null && l(e, ["response"], yi(a)), e;
+  const a = s(t, ["response"]);
+  return a != null && l(e, ["response"], Ei(a)), e;
 }
-function yi(n) {
-  const e = {}, t = s(n, [
+function Ei(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["parent"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["parent"]);
   o != null && l(e, ["parent"], o);
-  const i = s(n, ["documentName"]);
+  const i = s(t, ["documentName"]);
   return i != null && l(e, ["documentName"], i), e;
 }
-function Ti(n) {
-  const e = {}, t = s(n, ["uri"]);
-  t != null && l(e, ["uri"], t);
-  const o = s(n, ["encodedVideo"]);
-  o != null && l(e, ["videoBytes"], on(o));
-  const i = s(n, ["encoding"]);
+function Si(t) {
+  const e = {}, n = s(t, ["uri"]);
+  n != null && l(e, ["uri"], n);
+  const o = s(t, ["encodedVideo"]);
+  o != null && l(e, ["videoBytes"], it(o));
+  const i = s(t, ["encoding"]);
   return i != null && l(e, ["mimeType"], i), e;
 }
-function _i(n) {
-  const e = {}, t = s(n, ["gcsUri"]);
-  t != null && l(e, ["uri"], t);
-  const o = s(n, [
+function Ii(t) {
+  const e = {}, n = s(t, ["gcsUri"]);
+  n != null && l(e, ["uri"], n);
+  const o = s(t, [
     "bytesBase64Encoded"
   ]);
-  o != null && l(e, ["videoBytes"], on(o));
-  const i = s(n, ["mimeType"]);
+  o != null && l(e, ["videoBytes"], it(o));
+  const i = s(t, ["mimeType"]);
   return i != null && l(e, ["mimeType"], i), e;
 }
 /**
@@ -1570,246 +1608,246 @@ function _i(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-var _n;
-(function(n) {
-  n.OUTCOME_UNSPECIFIED = "OUTCOME_UNSPECIFIED", n.OUTCOME_OK = "OUTCOME_OK", n.OUTCOME_FAILED = "OUTCOME_FAILED", n.OUTCOME_DEADLINE_EXCEEDED = "OUTCOME_DEADLINE_EXCEEDED";
-})(_n || (_n = {}));
-var Cn;
-(function(n) {
-  n.LANGUAGE_UNSPECIFIED = "LANGUAGE_UNSPECIFIED", n.PYTHON = "PYTHON";
-})(Cn || (Cn = {}));
-var En;
-(function(n) {
-  n.SCHEDULING_UNSPECIFIED = "SCHEDULING_UNSPECIFIED", n.SILENT = "SILENT", n.WHEN_IDLE = "WHEN_IDLE", n.INTERRUPT = "INTERRUPT";
-})(En || (En = {}));
-var Q;
-(function(n) {
-  n.TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED", n.STRING = "STRING", n.NUMBER = "NUMBER", n.INTEGER = "INTEGER", n.BOOLEAN = "BOOLEAN", n.ARRAY = "ARRAY", n.OBJECT = "OBJECT", n.NULL = "NULL";
-})(Q || (Q = {}));
-var Sn;
-(function(n) {
-  n.API_SPEC_UNSPECIFIED = "API_SPEC_UNSPECIFIED", n.SIMPLE_SEARCH = "SIMPLE_SEARCH", n.ELASTIC_SEARCH = "ELASTIC_SEARCH";
-})(Sn || (Sn = {}));
-var In;
-(function(n) {
-  n.AUTH_TYPE_UNSPECIFIED = "AUTH_TYPE_UNSPECIFIED", n.NO_AUTH = "NO_AUTH", n.API_KEY_AUTH = "API_KEY_AUTH", n.HTTP_BASIC_AUTH = "HTTP_BASIC_AUTH", n.GOOGLE_SERVICE_ACCOUNT_AUTH = "GOOGLE_SERVICE_ACCOUNT_AUTH", n.OAUTH = "OAUTH", n.OIDC_AUTH = "OIDC_AUTH";
-})(In || (In = {}));
-var vn;
-(function(n) {
-  n.HTTP_IN_UNSPECIFIED = "HTTP_IN_UNSPECIFIED", n.HTTP_IN_QUERY = "HTTP_IN_QUERY", n.HTTP_IN_HEADER = "HTTP_IN_HEADER", n.HTTP_IN_PATH = "HTTP_IN_PATH", n.HTTP_IN_BODY = "HTTP_IN_BODY", n.HTTP_IN_COOKIE = "HTTP_IN_COOKIE";
-})(vn || (vn = {}));
-var An;
-(function(n) {
-  n.PHISH_BLOCK_THRESHOLD_UNSPECIFIED = "PHISH_BLOCK_THRESHOLD_UNSPECIFIED", n.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", n.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", n.BLOCK_HIGH_AND_ABOVE = "BLOCK_HIGH_AND_ABOVE", n.BLOCK_HIGHER_AND_ABOVE = "BLOCK_HIGHER_AND_ABOVE", n.BLOCK_VERY_HIGH_AND_ABOVE = "BLOCK_VERY_HIGH_AND_ABOVE", n.BLOCK_ONLY_EXTREMELY_HIGH = "BLOCK_ONLY_EXTREMELY_HIGH";
-})(An || (An = {}));
-var Rn;
-(function(n) {
-  n.UNSPECIFIED = "UNSPECIFIED", n.BLOCKING = "BLOCKING", n.NON_BLOCKING = "NON_BLOCKING";
-})(Rn || (Rn = {}));
-var Pn;
-(function(n) {
-  n.MODE_UNSPECIFIED = "MODE_UNSPECIFIED", n.MODE_DYNAMIC = "MODE_DYNAMIC";
-})(Pn || (Pn = {}));
-var wn;
-(function(n) {
-  n.MODE_UNSPECIFIED = "MODE_UNSPECIFIED", n.AUTO = "AUTO", n.ANY = "ANY", n.NONE = "NONE", n.VALIDATED = "VALIDATED";
-})(wn || (wn = {}));
-var Mn;
-(function(n) {
-  n.THINKING_LEVEL_UNSPECIFIED = "THINKING_LEVEL_UNSPECIFIED", n.LOW = "LOW", n.MEDIUM = "MEDIUM", n.HIGH = "HIGH", n.MINIMAL = "MINIMAL";
-})(Mn || (Mn = {}));
-var Nn;
-(function(n) {
-  n.HARM_CATEGORY_UNSPECIFIED = "HARM_CATEGORY_UNSPECIFIED", n.HARM_CATEGORY_HARASSMENT = "HARM_CATEGORY_HARASSMENT", n.HARM_CATEGORY_HATE_SPEECH = "HARM_CATEGORY_HATE_SPEECH", n.HARM_CATEGORY_SEXUALLY_EXPLICIT = "HARM_CATEGORY_SEXUALLY_EXPLICIT", n.HARM_CATEGORY_DANGEROUS_CONTENT = "HARM_CATEGORY_DANGEROUS_CONTENT", n.HARM_CATEGORY_CIVIC_INTEGRITY = "HARM_CATEGORY_CIVIC_INTEGRITY", n.HARM_CATEGORY_IMAGE_HATE = "HARM_CATEGORY_IMAGE_HATE", n.HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT = "HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT", n.HARM_CATEGORY_IMAGE_HARASSMENT = "HARM_CATEGORY_IMAGE_HARASSMENT", n.HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT = "HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT", n.HARM_CATEGORY_JAILBREAK = "HARM_CATEGORY_JAILBREAK";
-})(Nn || (Nn = {}));
-var xn;
-(function(n) {
-  n.HARM_BLOCK_METHOD_UNSPECIFIED = "HARM_BLOCK_METHOD_UNSPECIFIED", n.SEVERITY = "SEVERITY", n.PROBABILITY = "PROBABILITY";
-})(xn || (xn = {}));
-var Dn;
-(function(n) {
-  n.HARM_BLOCK_THRESHOLD_UNSPECIFIED = "HARM_BLOCK_THRESHOLD_UNSPECIFIED", n.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", n.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", n.BLOCK_ONLY_HIGH = "BLOCK_ONLY_HIGH", n.BLOCK_NONE = "BLOCK_NONE", n.OFF = "OFF";
-})(Dn || (Dn = {}));
-var kn;
-(function(n) {
-  n.FINISH_REASON_UNSPECIFIED = "FINISH_REASON_UNSPECIFIED", n.STOP = "STOP", n.MAX_TOKENS = "MAX_TOKENS", n.SAFETY = "SAFETY", n.RECITATION = "RECITATION", n.LANGUAGE = "LANGUAGE", n.OTHER = "OTHER", n.BLOCKLIST = "BLOCKLIST", n.PROHIBITED_CONTENT = "PROHIBITED_CONTENT", n.SPII = "SPII", n.MALFORMED_FUNCTION_CALL = "MALFORMED_FUNCTION_CALL", n.IMAGE_SAFETY = "IMAGE_SAFETY", n.UNEXPECTED_TOOL_CALL = "UNEXPECTED_TOOL_CALL", n.IMAGE_PROHIBITED_CONTENT = "IMAGE_PROHIBITED_CONTENT", n.NO_IMAGE = "NO_IMAGE", n.IMAGE_RECITATION = "IMAGE_RECITATION", n.IMAGE_OTHER = "IMAGE_OTHER";
-})(kn || (kn = {}));
-var Un;
-(function(n) {
-  n.HARM_PROBABILITY_UNSPECIFIED = "HARM_PROBABILITY_UNSPECIFIED", n.NEGLIGIBLE = "NEGLIGIBLE", n.LOW = "LOW", n.MEDIUM = "MEDIUM", n.HIGH = "HIGH";
-})(Un || (Un = {}));
-var Ln;
-(function(n) {
-  n.HARM_SEVERITY_UNSPECIFIED = "HARM_SEVERITY_UNSPECIFIED", n.HARM_SEVERITY_NEGLIGIBLE = "HARM_SEVERITY_NEGLIGIBLE", n.HARM_SEVERITY_LOW = "HARM_SEVERITY_LOW", n.HARM_SEVERITY_MEDIUM = "HARM_SEVERITY_MEDIUM", n.HARM_SEVERITY_HIGH = "HARM_SEVERITY_HIGH";
-})(Ln || (Ln = {}));
-var Fn;
-(function(n) {
-  n.URL_RETRIEVAL_STATUS_UNSPECIFIED = "URL_RETRIEVAL_STATUS_UNSPECIFIED", n.URL_RETRIEVAL_STATUS_SUCCESS = "URL_RETRIEVAL_STATUS_SUCCESS", n.URL_RETRIEVAL_STATUS_ERROR = "URL_RETRIEVAL_STATUS_ERROR", n.URL_RETRIEVAL_STATUS_PAYWALL = "URL_RETRIEVAL_STATUS_PAYWALL", n.URL_RETRIEVAL_STATUS_UNSAFE = "URL_RETRIEVAL_STATUS_UNSAFE";
-})(Fn || (Fn = {}));
-var Gn;
-(function(n) {
-  n.BLOCKED_REASON_UNSPECIFIED = "BLOCKED_REASON_UNSPECIFIED", n.SAFETY = "SAFETY", n.OTHER = "OTHER", n.BLOCKLIST = "BLOCKLIST", n.PROHIBITED_CONTENT = "PROHIBITED_CONTENT", n.IMAGE_SAFETY = "IMAGE_SAFETY", n.MODEL_ARMOR = "MODEL_ARMOR", n.JAILBREAK = "JAILBREAK";
-})(Gn || (Gn = {}));
-var Vn;
-(function(n) {
-  n.TRAFFIC_TYPE_UNSPECIFIED = "TRAFFIC_TYPE_UNSPECIFIED", n.ON_DEMAND = "ON_DEMAND", n.PROVISIONED_THROUGHPUT = "PROVISIONED_THROUGHPUT";
-})(Vn || (Vn = {}));
-var ve;
-(function(n) {
-  n.MODALITY_UNSPECIFIED = "MODALITY_UNSPECIFIED", n.TEXT = "TEXT", n.IMAGE = "IMAGE", n.AUDIO = "AUDIO";
-})(ve || (ve = {}));
-var Hn;
-(function(n) {
-  n.MEDIA_RESOLUTION_UNSPECIFIED = "MEDIA_RESOLUTION_UNSPECIFIED", n.MEDIA_RESOLUTION_LOW = "MEDIA_RESOLUTION_LOW", n.MEDIA_RESOLUTION_MEDIUM = "MEDIA_RESOLUTION_MEDIUM", n.MEDIA_RESOLUTION_HIGH = "MEDIA_RESOLUTION_HIGH";
-})(Hn || (Hn = {}));
-var qn;
-(function(n) {
-  n.TUNING_MODE_UNSPECIFIED = "TUNING_MODE_UNSPECIFIED", n.TUNING_MODE_FULL = "TUNING_MODE_FULL", n.TUNING_MODE_PEFT_ADAPTER = "TUNING_MODE_PEFT_ADAPTER";
-})(qn || (qn = {}));
-var bn;
-(function(n) {
-  n.ADAPTER_SIZE_UNSPECIFIED = "ADAPTER_SIZE_UNSPECIFIED", n.ADAPTER_SIZE_ONE = "ADAPTER_SIZE_ONE", n.ADAPTER_SIZE_TWO = "ADAPTER_SIZE_TWO", n.ADAPTER_SIZE_FOUR = "ADAPTER_SIZE_FOUR", n.ADAPTER_SIZE_EIGHT = "ADAPTER_SIZE_EIGHT", n.ADAPTER_SIZE_SIXTEEN = "ADAPTER_SIZE_SIXTEEN", n.ADAPTER_SIZE_THIRTY_TWO = "ADAPTER_SIZE_THIRTY_TWO";
-})(bn || (bn = {}));
-var Be;
-(function(n) {
-  n.JOB_STATE_UNSPECIFIED = "JOB_STATE_UNSPECIFIED", n.JOB_STATE_QUEUED = "JOB_STATE_QUEUED", n.JOB_STATE_PENDING = "JOB_STATE_PENDING", n.JOB_STATE_RUNNING = "JOB_STATE_RUNNING", n.JOB_STATE_SUCCEEDED = "JOB_STATE_SUCCEEDED", n.JOB_STATE_FAILED = "JOB_STATE_FAILED", n.JOB_STATE_CANCELLING = "JOB_STATE_CANCELLING", n.JOB_STATE_CANCELLED = "JOB_STATE_CANCELLED", n.JOB_STATE_PAUSED = "JOB_STATE_PAUSED", n.JOB_STATE_EXPIRED = "JOB_STATE_EXPIRED", n.JOB_STATE_UPDATING = "JOB_STATE_UPDATING", n.JOB_STATE_PARTIALLY_SUCCEEDED = "JOB_STATE_PARTIALLY_SUCCEEDED";
-})(Be || (Be = {}));
-var Bn;
-(function(n) {
-  n.TUNING_TASK_UNSPECIFIED = "TUNING_TASK_UNSPECIFIED", n.TUNING_TASK_I2V = "TUNING_TASK_I2V", n.TUNING_TASK_T2V = "TUNING_TASK_T2V", n.TUNING_TASK_R2V = "TUNING_TASK_R2V";
-})(Bn || (Bn = {}));
-var Jn;
-(function(n) {
-  n.MEDIA_RESOLUTION_UNSPECIFIED = "MEDIA_RESOLUTION_UNSPECIFIED", n.MEDIA_RESOLUTION_LOW = "MEDIA_RESOLUTION_LOW", n.MEDIA_RESOLUTION_MEDIUM = "MEDIA_RESOLUTION_MEDIUM", n.MEDIA_RESOLUTION_HIGH = "MEDIA_RESOLUTION_HIGH", n.MEDIA_RESOLUTION_ULTRA_HIGH = "MEDIA_RESOLUTION_ULTRA_HIGH";
-})(Jn || (Jn = {}));
+var Ct;
+(function(t) {
+  t.OUTCOME_UNSPECIFIED = "OUTCOME_UNSPECIFIED", t.OUTCOME_OK = "OUTCOME_OK", t.OUTCOME_FAILED = "OUTCOME_FAILED", t.OUTCOME_DEADLINE_EXCEEDED = "OUTCOME_DEADLINE_EXCEEDED";
+})(Ct || (Ct = {}));
+var _t;
+(function(t) {
+  t.LANGUAGE_UNSPECIFIED = "LANGUAGE_UNSPECIFIED", t.PYTHON = "PYTHON";
+})(_t || (_t = {}));
+var Et;
+(function(t) {
+  t.SCHEDULING_UNSPECIFIED = "SCHEDULING_UNSPECIFIED", t.SILENT = "SILENT", t.WHEN_IDLE = "WHEN_IDLE", t.INTERRUPT = "INTERRUPT";
+})(Et || (Et = {}));
+var q;
+(function(t) {
+  t.TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED", t.STRING = "STRING", t.NUMBER = "NUMBER", t.INTEGER = "INTEGER", t.BOOLEAN = "BOOLEAN", t.ARRAY = "ARRAY", t.OBJECT = "OBJECT", t.NULL = "NULL";
+})(q || (q = {}));
+var St;
+(function(t) {
+  t.API_SPEC_UNSPECIFIED = "API_SPEC_UNSPECIFIED", t.SIMPLE_SEARCH = "SIMPLE_SEARCH", t.ELASTIC_SEARCH = "ELASTIC_SEARCH";
+})(St || (St = {}));
+var It;
+(function(t) {
+  t.AUTH_TYPE_UNSPECIFIED = "AUTH_TYPE_UNSPECIFIED", t.NO_AUTH = "NO_AUTH", t.API_KEY_AUTH = "API_KEY_AUTH", t.HTTP_BASIC_AUTH = "HTTP_BASIC_AUTH", t.GOOGLE_SERVICE_ACCOUNT_AUTH = "GOOGLE_SERVICE_ACCOUNT_AUTH", t.OAUTH = "OAUTH", t.OIDC_AUTH = "OIDC_AUTH";
+})(It || (It = {}));
+var vt;
+(function(t) {
+  t.HTTP_IN_UNSPECIFIED = "HTTP_IN_UNSPECIFIED", t.HTTP_IN_QUERY = "HTTP_IN_QUERY", t.HTTP_IN_HEADER = "HTTP_IN_HEADER", t.HTTP_IN_PATH = "HTTP_IN_PATH", t.HTTP_IN_BODY = "HTTP_IN_BODY", t.HTTP_IN_COOKIE = "HTTP_IN_COOKIE";
+})(vt || (vt = {}));
+var At;
+(function(t) {
+  t.PHISH_BLOCK_THRESHOLD_UNSPECIFIED = "PHISH_BLOCK_THRESHOLD_UNSPECIFIED", t.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", t.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", t.BLOCK_HIGH_AND_ABOVE = "BLOCK_HIGH_AND_ABOVE", t.BLOCK_HIGHER_AND_ABOVE = "BLOCK_HIGHER_AND_ABOVE", t.BLOCK_VERY_HIGH_AND_ABOVE = "BLOCK_VERY_HIGH_AND_ABOVE", t.BLOCK_ONLY_EXTREMELY_HIGH = "BLOCK_ONLY_EXTREMELY_HIGH";
+})(At || (At = {}));
+var Rt;
+(function(t) {
+  t.UNSPECIFIED = "UNSPECIFIED", t.BLOCKING = "BLOCKING", t.NON_BLOCKING = "NON_BLOCKING";
+})(Rt || (Rt = {}));
+var Pt;
+(function(t) {
+  t.MODE_UNSPECIFIED = "MODE_UNSPECIFIED", t.MODE_DYNAMIC = "MODE_DYNAMIC";
+})(Pt || (Pt = {}));
+var wt;
+(function(t) {
+  t.MODE_UNSPECIFIED = "MODE_UNSPECIFIED", t.AUTO = "AUTO", t.ANY = "ANY", t.NONE = "NONE", t.VALIDATED = "VALIDATED";
+})(wt || (wt = {}));
+var Mt;
+(function(t) {
+  t.THINKING_LEVEL_UNSPECIFIED = "THINKING_LEVEL_UNSPECIFIED", t.LOW = "LOW", t.MEDIUM = "MEDIUM", t.HIGH = "HIGH", t.MINIMAL = "MINIMAL";
+})(Mt || (Mt = {}));
+var Nt;
+(function(t) {
+  t.HARM_CATEGORY_UNSPECIFIED = "HARM_CATEGORY_UNSPECIFIED", t.HARM_CATEGORY_HARASSMENT = "HARM_CATEGORY_HARASSMENT", t.HARM_CATEGORY_HATE_SPEECH = "HARM_CATEGORY_HATE_SPEECH", t.HARM_CATEGORY_SEXUALLY_EXPLICIT = "HARM_CATEGORY_SEXUALLY_EXPLICIT", t.HARM_CATEGORY_DANGEROUS_CONTENT = "HARM_CATEGORY_DANGEROUS_CONTENT", t.HARM_CATEGORY_CIVIC_INTEGRITY = "HARM_CATEGORY_CIVIC_INTEGRITY", t.HARM_CATEGORY_IMAGE_HATE = "HARM_CATEGORY_IMAGE_HATE", t.HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT = "HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT", t.HARM_CATEGORY_IMAGE_HARASSMENT = "HARM_CATEGORY_IMAGE_HARASSMENT", t.HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT = "HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT", t.HARM_CATEGORY_JAILBREAK = "HARM_CATEGORY_JAILBREAK";
+})(Nt || (Nt = {}));
+var xt;
+(function(t) {
+  t.HARM_BLOCK_METHOD_UNSPECIFIED = "HARM_BLOCK_METHOD_UNSPECIFIED", t.SEVERITY = "SEVERITY", t.PROBABILITY = "PROBABILITY";
+})(xt || (xt = {}));
+var Dt;
+(function(t) {
+  t.HARM_BLOCK_THRESHOLD_UNSPECIFIED = "HARM_BLOCK_THRESHOLD_UNSPECIFIED", t.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", t.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", t.BLOCK_ONLY_HIGH = "BLOCK_ONLY_HIGH", t.BLOCK_NONE = "BLOCK_NONE", t.OFF = "OFF";
+})(Dt || (Dt = {}));
+var kt;
+(function(t) {
+  t.FINISH_REASON_UNSPECIFIED = "FINISH_REASON_UNSPECIFIED", t.STOP = "STOP", t.MAX_TOKENS = "MAX_TOKENS", t.SAFETY = "SAFETY", t.RECITATION = "RECITATION", t.LANGUAGE = "LANGUAGE", t.OTHER = "OTHER", t.BLOCKLIST = "BLOCKLIST", t.PROHIBITED_CONTENT = "PROHIBITED_CONTENT", t.SPII = "SPII", t.MALFORMED_FUNCTION_CALL = "MALFORMED_FUNCTION_CALL", t.IMAGE_SAFETY = "IMAGE_SAFETY", t.UNEXPECTED_TOOL_CALL = "UNEXPECTED_TOOL_CALL", t.IMAGE_PROHIBITED_CONTENT = "IMAGE_PROHIBITED_CONTENT", t.NO_IMAGE = "NO_IMAGE", t.IMAGE_RECITATION = "IMAGE_RECITATION", t.IMAGE_OTHER = "IMAGE_OTHER";
+})(kt || (kt = {}));
+var Ut;
+(function(t) {
+  t.HARM_PROBABILITY_UNSPECIFIED = "HARM_PROBABILITY_UNSPECIFIED", t.NEGLIGIBLE = "NEGLIGIBLE", t.LOW = "LOW", t.MEDIUM = "MEDIUM", t.HIGH = "HIGH";
+})(Ut || (Ut = {}));
+var Lt;
+(function(t) {
+  t.HARM_SEVERITY_UNSPECIFIED = "HARM_SEVERITY_UNSPECIFIED", t.HARM_SEVERITY_NEGLIGIBLE = "HARM_SEVERITY_NEGLIGIBLE", t.HARM_SEVERITY_LOW = "HARM_SEVERITY_LOW", t.HARM_SEVERITY_MEDIUM = "HARM_SEVERITY_MEDIUM", t.HARM_SEVERITY_HIGH = "HARM_SEVERITY_HIGH";
+})(Lt || (Lt = {}));
+var Gt;
+(function(t) {
+  t.URL_RETRIEVAL_STATUS_UNSPECIFIED = "URL_RETRIEVAL_STATUS_UNSPECIFIED", t.URL_RETRIEVAL_STATUS_SUCCESS = "URL_RETRIEVAL_STATUS_SUCCESS", t.URL_RETRIEVAL_STATUS_ERROR = "URL_RETRIEVAL_STATUS_ERROR", t.URL_RETRIEVAL_STATUS_PAYWALL = "URL_RETRIEVAL_STATUS_PAYWALL", t.URL_RETRIEVAL_STATUS_UNSAFE = "URL_RETRIEVAL_STATUS_UNSAFE";
+})(Gt || (Gt = {}));
+var Ft;
+(function(t) {
+  t.BLOCKED_REASON_UNSPECIFIED = "BLOCKED_REASON_UNSPECIFIED", t.SAFETY = "SAFETY", t.OTHER = "OTHER", t.BLOCKLIST = "BLOCKLIST", t.PROHIBITED_CONTENT = "PROHIBITED_CONTENT", t.IMAGE_SAFETY = "IMAGE_SAFETY", t.MODEL_ARMOR = "MODEL_ARMOR", t.JAILBREAK = "JAILBREAK";
+})(Ft || (Ft = {}));
+var Ht;
+(function(t) {
+  t.TRAFFIC_TYPE_UNSPECIFIED = "TRAFFIC_TYPE_UNSPECIFIED", t.ON_DEMAND = "ON_DEMAND", t.PROVISIONED_THROUGHPUT = "PROVISIONED_THROUGHPUT";
+})(Ht || (Ht = {}));
+var Re;
+(function(t) {
+  t.MODALITY_UNSPECIFIED = "MODALITY_UNSPECIFIED", t.TEXT = "TEXT", t.IMAGE = "IMAGE", t.AUDIO = "AUDIO";
+})(Re || (Re = {}));
+var Vt;
+(function(t) {
+  t.MEDIA_RESOLUTION_UNSPECIFIED = "MEDIA_RESOLUTION_UNSPECIFIED", t.MEDIA_RESOLUTION_LOW = "MEDIA_RESOLUTION_LOW", t.MEDIA_RESOLUTION_MEDIUM = "MEDIA_RESOLUTION_MEDIUM", t.MEDIA_RESOLUTION_HIGH = "MEDIA_RESOLUTION_HIGH";
+})(Vt || (Vt = {}));
+var bt;
+(function(t) {
+  t.TUNING_MODE_UNSPECIFIED = "TUNING_MODE_UNSPECIFIED", t.TUNING_MODE_FULL = "TUNING_MODE_FULL", t.TUNING_MODE_PEFT_ADAPTER = "TUNING_MODE_PEFT_ADAPTER";
+})(bt || (bt = {}));
+var qt;
+(function(t) {
+  t.ADAPTER_SIZE_UNSPECIFIED = "ADAPTER_SIZE_UNSPECIFIED", t.ADAPTER_SIZE_ONE = "ADAPTER_SIZE_ONE", t.ADAPTER_SIZE_TWO = "ADAPTER_SIZE_TWO", t.ADAPTER_SIZE_FOUR = "ADAPTER_SIZE_FOUR", t.ADAPTER_SIZE_EIGHT = "ADAPTER_SIZE_EIGHT", t.ADAPTER_SIZE_SIXTEEN = "ADAPTER_SIZE_SIXTEEN", t.ADAPTER_SIZE_THIRTY_TWO = "ADAPTER_SIZE_THIRTY_TWO";
+})(qt || (qt = {}));
 var Je;
-(function(n) {
-  n.COLLECTION = "COLLECTION";
+(function(t) {
+  t.JOB_STATE_UNSPECIFIED = "JOB_STATE_UNSPECIFIED", t.JOB_STATE_QUEUED = "JOB_STATE_QUEUED", t.JOB_STATE_PENDING = "JOB_STATE_PENDING", t.JOB_STATE_RUNNING = "JOB_STATE_RUNNING", t.JOB_STATE_SUCCEEDED = "JOB_STATE_SUCCEEDED", t.JOB_STATE_FAILED = "JOB_STATE_FAILED", t.JOB_STATE_CANCELLING = "JOB_STATE_CANCELLING", t.JOB_STATE_CANCELLED = "JOB_STATE_CANCELLED", t.JOB_STATE_PAUSED = "JOB_STATE_PAUSED", t.JOB_STATE_EXPIRED = "JOB_STATE_EXPIRED", t.JOB_STATE_UPDATING = "JOB_STATE_UPDATING", t.JOB_STATE_PARTIALLY_SUCCEEDED = "JOB_STATE_PARTIALLY_SUCCEEDED";
 })(Je || (Je = {}));
-var On;
-(function(n) {
-  n.FEATURE_SELECTION_PREFERENCE_UNSPECIFIED = "FEATURE_SELECTION_PREFERENCE_UNSPECIFIED", n.PRIORITIZE_QUALITY = "PRIORITIZE_QUALITY", n.BALANCED = "BALANCED", n.PRIORITIZE_COST = "PRIORITIZE_COST";
-})(On || (On = {}));
-var $n;
-(function(n) {
-  n.ENVIRONMENT_UNSPECIFIED = "ENVIRONMENT_UNSPECIFIED", n.ENVIRONMENT_BROWSER = "ENVIRONMENT_BROWSER";
-})($n || ($n = {}));
-var Wn;
-(function(n) {
-  n.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", n.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", n.BLOCK_ONLY_HIGH = "BLOCK_ONLY_HIGH", n.BLOCK_NONE = "BLOCK_NONE";
-})(Wn || (Wn = {}));
-var Kn;
-(function(n) {
-  n.DONT_ALLOW = "DONT_ALLOW", n.ALLOW_ADULT = "ALLOW_ADULT", n.ALLOW_ALL = "ALLOW_ALL";
-})(Kn || (Kn = {}));
-var Yn;
-(function(n) {
-  n.auto = "auto", n.en = "en", n.ja = "ja", n.ko = "ko", n.hi = "hi", n.zh = "zh", n.pt = "pt", n.es = "es";
-})(Yn || (Yn = {}));
-var zn;
-(function(n) {
-  n.MASK_MODE_DEFAULT = "MASK_MODE_DEFAULT", n.MASK_MODE_USER_PROVIDED = "MASK_MODE_USER_PROVIDED", n.MASK_MODE_BACKGROUND = "MASK_MODE_BACKGROUND", n.MASK_MODE_FOREGROUND = "MASK_MODE_FOREGROUND", n.MASK_MODE_SEMANTIC = "MASK_MODE_SEMANTIC";
-})(zn || (zn = {}));
-var Xn;
-(function(n) {
-  n.CONTROL_TYPE_DEFAULT = "CONTROL_TYPE_DEFAULT", n.CONTROL_TYPE_CANNY = "CONTROL_TYPE_CANNY", n.CONTROL_TYPE_SCRIBBLE = "CONTROL_TYPE_SCRIBBLE", n.CONTROL_TYPE_FACE_MESH = "CONTROL_TYPE_FACE_MESH";
-})(Xn || (Xn = {}));
-var Qn;
-(function(n) {
-  n.SUBJECT_TYPE_DEFAULT = "SUBJECT_TYPE_DEFAULT", n.SUBJECT_TYPE_PERSON = "SUBJECT_TYPE_PERSON", n.SUBJECT_TYPE_ANIMAL = "SUBJECT_TYPE_ANIMAL", n.SUBJECT_TYPE_PRODUCT = "SUBJECT_TYPE_PRODUCT";
-})(Qn || (Qn = {}));
-var Zn;
-(function(n) {
-  n.EDIT_MODE_DEFAULT = "EDIT_MODE_DEFAULT", n.EDIT_MODE_INPAINT_REMOVAL = "EDIT_MODE_INPAINT_REMOVAL", n.EDIT_MODE_INPAINT_INSERTION = "EDIT_MODE_INPAINT_INSERTION", n.EDIT_MODE_OUTPAINT = "EDIT_MODE_OUTPAINT", n.EDIT_MODE_CONTROLLED_EDITING = "EDIT_MODE_CONTROLLED_EDITING", n.EDIT_MODE_STYLE = "EDIT_MODE_STYLE", n.EDIT_MODE_BGSWAP = "EDIT_MODE_BGSWAP", n.EDIT_MODE_PRODUCT_IMAGE = "EDIT_MODE_PRODUCT_IMAGE";
-})(Zn || (Zn = {}));
-var jn;
-(function(n) {
-  n.FOREGROUND = "FOREGROUND", n.BACKGROUND = "BACKGROUND", n.PROMPT = "PROMPT", n.SEMANTIC = "SEMANTIC", n.INTERACTIVE = "INTERACTIVE";
-})(jn || (jn = {}));
-var et;
-(function(n) {
-  n.ASSET = "ASSET", n.STYLE = "STYLE";
-})(et || (et = {}));
-var nt;
-(function(n) {
-  n.INSERT = "INSERT", n.REMOVE = "REMOVE", n.REMOVE_STATIC = "REMOVE_STATIC", n.OUTPAINT = "OUTPAINT";
-})(nt || (nt = {}));
-var tt;
-(function(n) {
-  n.OPTIMIZED = "OPTIMIZED", n.LOSSLESS = "LOSSLESS";
-})(tt || (tt = {}));
-var ot;
-(function(n) {
-  n.SUPERVISED_FINE_TUNING = "SUPERVISED_FINE_TUNING", n.PREFERENCE_TUNING = "PREFERENCE_TUNING", n.DISTILLATION = "DISTILLATION";
-})(ot || (ot = {}));
-var it;
-(function(n) {
-  n.STATE_UNSPECIFIED = "STATE_UNSPECIFIED", n.STATE_PENDING = "STATE_PENDING", n.STATE_ACTIVE = "STATE_ACTIVE", n.STATE_FAILED = "STATE_FAILED";
-})(it || (it = {}));
-var st;
-(function(n) {
-  n.STATE_UNSPECIFIED = "STATE_UNSPECIFIED", n.PROCESSING = "PROCESSING", n.ACTIVE = "ACTIVE", n.FAILED = "FAILED";
-})(st || (st = {}));
-var rt;
-(function(n) {
-  n.SOURCE_UNSPECIFIED = "SOURCE_UNSPECIFIED", n.UPLOADED = "UPLOADED", n.GENERATED = "GENERATED", n.REGISTERED = "REGISTERED";
-})(rt || (rt = {}));
-var lt;
-(function(n) {
-  n.TURN_COMPLETE_REASON_UNSPECIFIED = "TURN_COMPLETE_REASON_UNSPECIFIED", n.MALFORMED_FUNCTION_CALL = "MALFORMED_FUNCTION_CALL", n.RESPONSE_REJECTED = "RESPONSE_REJECTED", n.NEED_MORE_INPUT = "NEED_MORE_INPUT";
-})(lt || (lt = {}));
-var at;
-(function(n) {
-  n.MODALITY_UNSPECIFIED = "MODALITY_UNSPECIFIED", n.TEXT = "TEXT", n.IMAGE = "IMAGE", n.VIDEO = "VIDEO", n.AUDIO = "AUDIO", n.DOCUMENT = "DOCUMENT";
-})(at || (at = {}));
-var ut;
-(function(n) {
-  n.VAD_SIGNAL_TYPE_UNSPECIFIED = "VAD_SIGNAL_TYPE_UNSPECIFIED", n.VAD_SIGNAL_TYPE_SOS = "VAD_SIGNAL_TYPE_SOS", n.VAD_SIGNAL_TYPE_EOS = "VAD_SIGNAL_TYPE_EOS";
-})(ut || (ut = {}));
-var dt;
-(function(n) {
-  n.TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED", n.ACTIVITY_START = "ACTIVITY_START", n.ACTIVITY_END = "ACTIVITY_END";
-})(dt || (dt = {}));
-var ct;
-(function(n) {
-  n.START_SENSITIVITY_UNSPECIFIED = "START_SENSITIVITY_UNSPECIFIED", n.START_SENSITIVITY_HIGH = "START_SENSITIVITY_HIGH", n.START_SENSITIVITY_LOW = "START_SENSITIVITY_LOW";
-})(ct || (ct = {}));
-var ft;
-(function(n) {
-  n.END_SENSITIVITY_UNSPECIFIED = "END_SENSITIVITY_UNSPECIFIED", n.END_SENSITIVITY_HIGH = "END_SENSITIVITY_HIGH", n.END_SENSITIVITY_LOW = "END_SENSITIVITY_LOW";
-})(ft || (ft = {}));
-var pt;
-(function(n) {
-  n.ACTIVITY_HANDLING_UNSPECIFIED = "ACTIVITY_HANDLING_UNSPECIFIED", n.START_OF_ACTIVITY_INTERRUPTS = "START_OF_ACTIVITY_INTERRUPTS", n.NO_INTERRUPTION = "NO_INTERRUPTION";
-})(pt || (pt = {}));
-var mt;
-(function(n) {
-  n.TURN_COVERAGE_UNSPECIFIED = "TURN_COVERAGE_UNSPECIFIED", n.TURN_INCLUDES_ONLY_ACTIVITY = "TURN_INCLUDES_ONLY_ACTIVITY", n.TURN_INCLUDES_ALL_INPUT = "TURN_INCLUDES_ALL_INPUT";
-})(mt || (mt = {}));
-var ht;
-(function(n) {
-  n.SCALE_UNSPECIFIED = "SCALE_UNSPECIFIED", n.C_MAJOR_A_MINOR = "C_MAJOR_A_MINOR", n.D_FLAT_MAJOR_B_FLAT_MINOR = "D_FLAT_MAJOR_B_FLAT_MINOR", n.D_MAJOR_B_MINOR = "D_MAJOR_B_MINOR", n.E_FLAT_MAJOR_C_MINOR = "E_FLAT_MAJOR_C_MINOR", n.E_MAJOR_D_FLAT_MINOR = "E_MAJOR_D_FLAT_MINOR", n.F_MAJOR_D_MINOR = "F_MAJOR_D_MINOR", n.G_FLAT_MAJOR_E_FLAT_MINOR = "G_FLAT_MAJOR_E_FLAT_MINOR", n.G_MAJOR_E_MINOR = "G_MAJOR_E_MINOR", n.A_FLAT_MAJOR_F_MINOR = "A_FLAT_MAJOR_F_MINOR", n.A_MAJOR_G_FLAT_MINOR = "A_MAJOR_G_FLAT_MINOR", n.B_FLAT_MAJOR_G_MINOR = "B_FLAT_MAJOR_G_MINOR", n.B_MAJOR_A_FLAT_MINOR = "B_MAJOR_A_FLAT_MINOR";
-})(ht || (ht = {}));
-var gt;
-(function(n) {
-  n.MUSIC_GENERATION_MODE_UNSPECIFIED = "MUSIC_GENERATION_MODE_UNSPECIFIED", n.QUALITY = "QUALITY", n.DIVERSITY = "DIVERSITY", n.VOCALIZATION = "VOCALIZATION";
-})(gt || (gt = {}));
-var se;
-(function(n) {
-  n.PLAYBACK_CONTROL_UNSPECIFIED = "PLAYBACK_CONTROL_UNSPECIFIED", n.PLAY = "PLAY", n.PAUSE = "PAUSE", n.STOP = "STOP", n.RESET_CONTEXT = "RESET_CONTEXT";
-})(se || (se = {}));
-class Oe {
+var Bt;
+(function(t) {
+  t.TUNING_TASK_UNSPECIFIED = "TUNING_TASK_UNSPECIFIED", t.TUNING_TASK_I2V = "TUNING_TASK_I2V", t.TUNING_TASK_T2V = "TUNING_TASK_T2V", t.TUNING_TASK_R2V = "TUNING_TASK_R2V";
+})(Bt || (Bt = {}));
+var Jt;
+(function(t) {
+  t.MEDIA_RESOLUTION_UNSPECIFIED = "MEDIA_RESOLUTION_UNSPECIFIED", t.MEDIA_RESOLUTION_LOW = "MEDIA_RESOLUTION_LOW", t.MEDIA_RESOLUTION_MEDIUM = "MEDIA_RESOLUTION_MEDIUM", t.MEDIA_RESOLUTION_HIGH = "MEDIA_RESOLUTION_HIGH", t.MEDIA_RESOLUTION_ULTRA_HIGH = "MEDIA_RESOLUTION_ULTRA_HIGH";
+})(Jt || (Jt = {}));
+var Oe;
+(function(t) {
+  t.COLLECTION = "COLLECTION";
+})(Oe || (Oe = {}));
+var Ot;
+(function(t) {
+  t.FEATURE_SELECTION_PREFERENCE_UNSPECIFIED = "FEATURE_SELECTION_PREFERENCE_UNSPECIFIED", t.PRIORITIZE_QUALITY = "PRIORITIZE_QUALITY", t.BALANCED = "BALANCED", t.PRIORITIZE_COST = "PRIORITIZE_COST";
+})(Ot || (Ot = {}));
+var $t;
+(function(t) {
+  t.ENVIRONMENT_UNSPECIFIED = "ENVIRONMENT_UNSPECIFIED", t.ENVIRONMENT_BROWSER = "ENVIRONMENT_BROWSER";
+})($t || ($t = {}));
+var Wt;
+(function(t) {
+  t.BLOCK_LOW_AND_ABOVE = "BLOCK_LOW_AND_ABOVE", t.BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE", t.BLOCK_ONLY_HIGH = "BLOCK_ONLY_HIGH", t.BLOCK_NONE = "BLOCK_NONE";
+})(Wt || (Wt = {}));
+var Kt;
+(function(t) {
+  t.DONT_ALLOW = "DONT_ALLOW", t.ALLOW_ADULT = "ALLOW_ADULT", t.ALLOW_ALL = "ALLOW_ALL";
+})(Kt || (Kt = {}));
+var Yt;
+(function(t) {
+  t.auto = "auto", t.en = "en", t.ja = "ja", t.ko = "ko", t.hi = "hi", t.zh = "zh", t.pt = "pt", t.es = "es";
+})(Yt || (Yt = {}));
+var zt;
+(function(t) {
+  t.MASK_MODE_DEFAULT = "MASK_MODE_DEFAULT", t.MASK_MODE_USER_PROVIDED = "MASK_MODE_USER_PROVIDED", t.MASK_MODE_BACKGROUND = "MASK_MODE_BACKGROUND", t.MASK_MODE_FOREGROUND = "MASK_MODE_FOREGROUND", t.MASK_MODE_SEMANTIC = "MASK_MODE_SEMANTIC";
+})(zt || (zt = {}));
+var Xt;
+(function(t) {
+  t.CONTROL_TYPE_DEFAULT = "CONTROL_TYPE_DEFAULT", t.CONTROL_TYPE_CANNY = "CONTROL_TYPE_CANNY", t.CONTROL_TYPE_SCRIBBLE = "CONTROL_TYPE_SCRIBBLE", t.CONTROL_TYPE_FACE_MESH = "CONTROL_TYPE_FACE_MESH";
+})(Xt || (Xt = {}));
+var Qt;
+(function(t) {
+  t.SUBJECT_TYPE_DEFAULT = "SUBJECT_TYPE_DEFAULT", t.SUBJECT_TYPE_PERSON = "SUBJECT_TYPE_PERSON", t.SUBJECT_TYPE_ANIMAL = "SUBJECT_TYPE_ANIMAL", t.SUBJECT_TYPE_PRODUCT = "SUBJECT_TYPE_PRODUCT";
+})(Qt || (Qt = {}));
+var Zt;
+(function(t) {
+  t.EDIT_MODE_DEFAULT = "EDIT_MODE_DEFAULT", t.EDIT_MODE_INPAINT_REMOVAL = "EDIT_MODE_INPAINT_REMOVAL", t.EDIT_MODE_INPAINT_INSERTION = "EDIT_MODE_INPAINT_INSERTION", t.EDIT_MODE_OUTPAINT = "EDIT_MODE_OUTPAINT", t.EDIT_MODE_CONTROLLED_EDITING = "EDIT_MODE_CONTROLLED_EDITING", t.EDIT_MODE_STYLE = "EDIT_MODE_STYLE", t.EDIT_MODE_BGSWAP = "EDIT_MODE_BGSWAP", t.EDIT_MODE_PRODUCT_IMAGE = "EDIT_MODE_PRODUCT_IMAGE";
+})(Zt || (Zt = {}));
+var jt;
+(function(t) {
+  t.FOREGROUND = "FOREGROUND", t.BACKGROUND = "BACKGROUND", t.PROMPT = "PROMPT", t.SEMANTIC = "SEMANTIC", t.INTERACTIVE = "INTERACTIVE";
+})(jt || (jt = {}));
+var en;
+(function(t) {
+  t.ASSET = "ASSET", t.STYLE = "STYLE";
+})(en || (en = {}));
+var tn;
+(function(t) {
+  t.INSERT = "INSERT", t.REMOVE = "REMOVE", t.REMOVE_STATIC = "REMOVE_STATIC", t.OUTPAINT = "OUTPAINT";
+})(tn || (tn = {}));
+var nn;
+(function(t) {
+  t.OPTIMIZED = "OPTIMIZED", t.LOSSLESS = "LOSSLESS";
+})(nn || (nn = {}));
+var on;
+(function(t) {
+  t.SUPERVISED_FINE_TUNING = "SUPERVISED_FINE_TUNING", t.PREFERENCE_TUNING = "PREFERENCE_TUNING", t.DISTILLATION = "DISTILLATION";
+})(on || (on = {}));
+var sn;
+(function(t) {
+  t.STATE_UNSPECIFIED = "STATE_UNSPECIFIED", t.STATE_PENDING = "STATE_PENDING", t.STATE_ACTIVE = "STATE_ACTIVE", t.STATE_FAILED = "STATE_FAILED";
+})(sn || (sn = {}));
+var rn;
+(function(t) {
+  t.STATE_UNSPECIFIED = "STATE_UNSPECIFIED", t.PROCESSING = "PROCESSING", t.ACTIVE = "ACTIVE", t.FAILED = "FAILED";
+})(rn || (rn = {}));
+var ln;
+(function(t) {
+  t.SOURCE_UNSPECIFIED = "SOURCE_UNSPECIFIED", t.UPLOADED = "UPLOADED", t.GENERATED = "GENERATED", t.REGISTERED = "REGISTERED";
+})(ln || (ln = {}));
+var an;
+(function(t) {
+  t.TURN_COMPLETE_REASON_UNSPECIFIED = "TURN_COMPLETE_REASON_UNSPECIFIED", t.MALFORMED_FUNCTION_CALL = "MALFORMED_FUNCTION_CALL", t.RESPONSE_REJECTED = "RESPONSE_REJECTED", t.NEED_MORE_INPUT = "NEED_MORE_INPUT";
+})(an || (an = {}));
+var un;
+(function(t) {
+  t.MODALITY_UNSPECIFIED = "MODALITY_UNSPECIFIED", t.TEXT = "TEXT", t.IMAGE = "IMAGE", t.VIDEO = "VIDEO", t.AUDIO = "AUDIO", t.DOCUMENT = "DOCUMENT";
+})(un || (un = {}));
+var dn;
+(function(t) {
+  t.VAD_SIGNAL_TYPE_UNSPECIFIED = "VAD_SIGNAL_TYPE_UNSPECIFIED", t.VAD_SIGNAL_TYPE_SOS = "VAD_SIGNAL_TYPE_SOS", t.VAD_SIGNAL_TYPE_EOS = "VAD_SIGNAL_TYPE_EOS";
+})(dn || (dn = {}));
+var cn;
+(function(t) {
+  t.TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED", t.ACTIVITY_START = "ACTIVITY_START", t.ACTIVITY_END = "ACTIVITY_END";
+})(cn || (cn = {}));
+var fn;
+(function(t) {
+  t.START_SENSITIVITY_UNSPECIFIED = "START_SENSITIVITY_UNSPECIFIED", t.START_SENSITIVITY_HIGH = "START_SENSITIVITY_HIGH", t.START_SENSITIVITY_LOW = "START_SENSITIVITY_LOW";
+})(fn || (fn = {}));
+var pn;
+(function(t) {
+  t.END_SENSITIVITY_UNSPECIFIED = "END_SENSITIVITY_UNSPECIFIED", t.END_SENSITIVITY_HIGH = "END_SENSITIVITY_HIGH", t.END_SENSITIVITY_LOW = "END_SENSITIVITY_LOW";
+})(pn || (pn = {}));
+var hn;
+(function(t) {
+  t.ACTIVITY_HANDLING_UNSPECIFIED = "ACTIVITY_HANDLING_UNSPECIFIED", t.START_OF_ACTIVITY_INTERRUPTS = "START_OF_ACTIVITY_INTERRUPTS", t.NO_INTERRUPTION = "NO_INTERRUPTION";
+})(hn || (hn = {}));
+var mn;
+(function(t) {
+  t.TURN_COVERAGE_UNSPECIFIED = "TURN_COVERAGE_UNSPECIFIED", t.TURN_INCLUDES_ONLY_ACTIVITY = "TURN_INCLUDES_ONLY_ACTIVITY", t.TURN_INCLUDES_ALL_INPUT = "TURN_INCLUDES_ALL_INPUT";
+})(mn || (mn = {}));
+var gn;
+(function(t) {
+  t.SCALE_UNSPECIFIED = "SCALE_UNSPECIFIED", t.C_MAJOR_A_MINOR = "C_MAJOR_A_MINOR", t.D_FLAT_MAJOR_B_FLAT_MINOR = "D_FLAT_MAJOR_B_FLAT_MINOR", t.D_MAJOR_B_MINOR = "D_MAJOR_B_MINOR", t.E_FLAT_MAJOR_C_MINOR = "E_FLAT_MAJOR_C_MINOR", t.E_MAJOR_D_FLAT_MINOR = "E_MAJOR_D_FLAT_MINOR", t.F_MAJOR_D_MINOR = "F_MAJOR_D_MINOR", t.G_FLAT_MAJOR_E_FLAT_MINOR = "G_FLAT_MAJOR_E_FLAT_MINOR", t.G_MAJOR_E_MINOR = "G_MAJOR_E_MINOR", t.A_FLAT_MAJOR_F_MINOR = "A_FLAT_MAJOR_F_MINOR", t.A_MAJOR_G_FLAT_MINOR = "A_MAJOR_G_FLAT_MINOR", t.B_FLAT_MAJOR_G_MINOR = "B_FLAT_MAJOR_G_MINOR", t.B_MAJOR_A_FLAT_MINOR = "B_MAJOR_A_FLAT_MINOR";
+})(gn || (gn = {}));
+var yn;
+(function(t) {
+  t.MUSIC_GENERATION_MODE_UNSPECIFIED = "MUSIC_GENERATION_MODE_UNSPECIFIED", t.QUALITY = "QUALITY", t.DIVERSITY = "DIVERSITY", t.VOCALIZATION = "VOCALIZATION";
+})(yn || (yn = {}));
+var re;
+(function(t) {
+  t.PLAYBACK_CONTROL_UNSPECIFIED = "PLAYBACK_CONTROL_UNSPECIFIED", t.PLAY = "PLAY", t.PAUSE = "PAUSE", t.STOP = "STOP", t.RESET_CONTEXT = "RESET_CONTEXT";
+})(re || (re = {}));
+class $e {
   constructor(e) {
-    const t = {};
+    const n = {};
     for (const o of e.headers.entries())
-      t[o[0]] = o[1];
-    this.headers = t, this.responseInternal = e;
+      n[o[0]] = o[1];
+    this.headers = n, this.responseInternal = e;
   }
   json() {
     return this.responseInternal.json();
   }
 }
-class fe {
+class pe {
   /**
    * Returns the concatenation of all text parts from the first candidate in the response.
    *
@@ -1833,22 +1871,22 @@ class fe {
    * ```
    */
   get text() {
-    var e, t, o, i, r, a, u, c;
-    if (((i = (o = (t = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || t === void 0 ? void 0 : t.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
+    var e, n, o, i, r, a, u, d;
+    if (((i = (o = (n = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || n === void 0 ? void 0 : n.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
       return;
     this.candidates && this.candidates.length > 1 && console.warn("there are multiple candidates in the response, returning text from the first one.");
-    let d = "", f = !1;
-    const m = [];
-    for (const p of (c = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) !== null && c !== void 0 ? c : []) {
-      for (const [h, g] of Object.entries(p))
-        h !== "text" && h !== "thought" && h !== "thoughtSignature" && (g !== null || g !== void 0) && m.push(h);
-      if (typeof p.text == "string") {
-        if (typeof p.thought == "boolean" && p.thought)
+    let c = "", f = !1;
+    const p = [];
+    for (const h of (d = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) !== null && d !== void 0 ? d : []) {
+      for (const [m, g] of Object.entries(h))
+        m !== "text" && m !== "thought" && m !== "thoughtSignature" && (g !== null || g !== void 0) && p.push(m);
+      if (typeof h.text == "string") {
+        if (typeof h.thought == "boolean" && h.thought)
           continue;
-        f = !0, d += p.text;
+        f = !0, c += h.text;
       }
     }
-    return m.length > 0 && console.warn(`there are non-text parts ${m} in the response, returning concatenation of all text parts. Please refer to the non text parts for a full response from model.`), f ? d : void 0;
+    return p.length > 0 && console.warn(`there are non-text parts ${p} in the response, returning concatenation of all text parts. Please refer to the non text parts for a full response from model.`), f ? c : void 0;
   }
   /**
    * Returns the concatenation of all inline data parts from the first candidate
@@ -1861,18 +1899,18 @@ class fe {
    * a warning will be logged.
    */
   get data() {
-    var e, t, o, i, r, a, u, c;
-    if (((i = (o = (t = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || t === void 0 ? void 0 : t.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
+    var e, n, o, i, r, a, u, d;
+    if (((i = (o = (n = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || n === void 0 ? void 0 : n.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
       return;
     this.candidates && this.candidates.length > 1 && console.warn("there are multiple candidates in the response, returning data from the first one.");
-    let d = "";
+    let c = "";
     const f = [];
-    for (const m of (c = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) !== null && c !== void 0 ? c : []) {
-      for (const [p, h] of Object.entries(m))
-        p !== "inlineData" && (h !== null || h !== void 0) && f.push(p);
-      m.inlineData && typeof m.inlineData.data == "string" && (d += atob(m.inlineData.data));
+    for (const p of (d = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) !== null && d !== void 0 ? d : []) {
+      for (const [h, m] of Object.entries(p))
+        h !== "inlineData" && (m !== null || m !== void 0) && f.push(h);
+      p.inlineData && typeof p.inlineData.data == "string" && (c += atob(p.inlineData.data));
     }
-    return f.length > 0 && console.warn(`there are non-data parts ${f} in the response, returning concatenation of all data parts. Please refer to the non data parts for a full response from model.`), d.length > 0 ? btoa(d) : void 0;
+    return f.length > 0 && console.warn(`there are non-data parts ${f} in the response, returning concatenation of all data parts. Please refer to the non data parts for a full response from model.`), c.length > 0 ? btoa(c) : void 0;
   }
   /**
    * Returns the function calls from the first candidate in the response.
@@ -1920,13 +1958,13 @@ class fe {
    * ```
    */
   get functionCalls() {
-    var e, t, o, i, r, a, u, c;
-    if (((i = (o = (t = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || t === void 0 ? void 0 : t.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
+    var e, n, o, i, r, a, u, d;
+    if (((i = (o = (n = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || n === void 0 ? void 0 : n.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
       return;
     this.candidates && this.candidates.length > 1 && console.warn("there are multiple candidates in the response, returning function calls from the first one.");
-    const d = (c = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || c === void 0 ? void 0 : c.filter((f) => f.functionCall).map((f) => f.functionCall).filter((f) => f !== void 0);
-    if ((d == null ? void 0 : d.length) !== 0)
-      return d;
+    const c = (d = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || d === void 0 ? void 0 : d.filter((f) => f.functionCall).map((f) => f.functionCall).filter((f) => f !== void 0);
+    if ((c == null ? void 0 : c.length) !== 0)
+      return c;
   }
   /**
    * Returns the first executable code from the first candidate in the response.
@@ -1952,13 +1990,13 @@ class fe {
    * ```
    */
   get executableCode() {
-    var e, t, o, i, r, a, u, c, d;
-    if (((i = (o = (t = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || t === void 0 ? void 0 : t.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
+    var e, n, o, i, r, a, u, d, c;
+    if (((i = (o = (n = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || n === void 0 ? void 0 : n.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
       return;
     this.candidates && this.candidates.length > 1 && console.warn("there are multiple candidates in the response, returning executable code from the first one.");
-    const f = (c = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || c === void 0 ? void 0 : c.filter((m) => m.executableCode).map((m) => m.executableCode).filter((m) => m !== void 0);
+    const f = (d = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || d === void 0 ? void 0 : d.filter((p) => p.executableCode).map((p) => p.executableCode).filter((p) => p !== void 0);
     if ((f == null ? void 0 : f.length) !== 0)
-      return (d = f == null ? void 0 : f[0]) === null || d === void 0 ? void 0 : d.code;
+      return (c = f == null ? void 0 : f[0]) === null || c === void 0 ? void 0 : c.code;
   }
   /**
    * Returns the first code execution result from the first candidate in the response.
@@ -1983,54 +2021,20 @@ class fe {
    * ```
    */
   get codeExecutionResult() {
-    var e, t, o, i, r, a, u, c, d;
-    if (((i = (o = (t = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || t === void 0 ? void 0 : t.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
+    var e, n, o, i, r, a, u, d, c;
+    if (((i = (o = (n = (e = this.candidates) === null || e === void 0 ? void 0 : e[0]) === null || n === void 0 ? void 0 : n.content) === null || o === void 0 ? void 0 : o.parts) === null || i === void 0 ? void 0 : i.length) === 0)
       return;
     this.candidates && this.candidates.length > 1 && console.warn("there are multiple candidates in the response, returning code execution result from the first one.");
-    const f = (c = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || c === void 0 ? void 0 : c.filter((m) => m.codeExecutionResult).map((m) => m.codeExecutionResult).filter((m) => m !== void 0);
+    const f = (d = (u = (a = (r = this.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content) === null || u === void 0 ? void 0 : u.parts) === null || d === void 0 ? void 0 : d.filter((p) => p.codeExecutionResult).map((p) => p.codeExecutionResult).filter((p) => p !== void 0);
     if ((f == null ? void 0 : f.length) !== 0)
-      return (d = f == null ? void 0 : f[0]) === null || d === void 0 ? void 0 : d.output;
+      return (c = f == null ? void 0 : f[0]) === null || c === void 0 ? void 0 : c.output;
   }
 }
-class yt {
+class Tn {
 }
-class Tt {
-}
-class Ci {
-}
-class Ei {
-}
-class Si {
-}
-class Ii {
-}
-class _t {
-}
-class Ct {
-}
-class Et {
+class Cn {
 }
 class vi {
-}
-class Ae {
-  /**
-   * Instantiates an Operation of the same type as the one being called with the fields set from the API response.
-   * @internal
-   */
-  _fromAPIResponse({ apiResponse: e, _isVertexAI: t }) {
-    const o = new Ae();
-    let i;
-    const r = e;
-    return t ? i = ai(r) : i = li(r), Object.assign(o, i), o;
-  }
-}
-class St {
-}
-class It {
-}
-class vt {
-}
-class At {
 }
 class Ai {
 }
@@ -2038,17 +2042,33 @@ class Ri {
 }
 class Pi {
 }
-class sn {
+class _n {
+}
+class En {
+}
+class Sn {
+}
+class wi {
+}
+class Pe {
   /**
    * Instantiates an Operation of the same type as the one being called with the fields set from the API response.
    * @internal
    */
-  _fromAPIResponse({ apiResponse: e, _isVertexAI: t }) {
-    const o = new sn(), r = hi(e);
-    return Object.assign(o, r), o;
+  _fromAPIResponse({ apiResponse: e, _isVertexAI: n }) {
+    const o = new Pe();
+    let i;
+    const r = e;
+    return n ? i = fi(r) : i = ci(r), Object.assign(o, i), o;
   }
 }
-class wi {
+class In {
+}
+class vn {
+}
+class An {
+}
+class Rn {
 }
 class Mi {
 }
@@ -2056,9 +2076,27 @@ class Ni {
 }
 class xi {
 }
-class Rt {
+class st {
+  /**
+   * Instantiates an Operation of the same type as the one being called with the fields set from the API response.
+   * @internal
+   */
+  _fromAPIResponse({ apiResponse: e, _isVertexAI: n }) {
+    const o = new st(), r = Ci(e);
+    return Object.assign(o, r), o;
+  }
 }
 class Di {
+}
+class ki {
+}
+class Ui {
+}
+class Li {
+}
+class Pn {
+}
+class Gi {
   /**
    * Returns the concatenation of all text parts from the server content if present.
    *
@@ -2067,12 +2105,12 @@ class Di {
    * parts will be returned, and a warning will be logged.
    */
   get text() {
-    var e, t, o;
+    var e, n, o;
     let i = "", r = !1;
     const a = [];
-    for (const u of (o = (t = (e = this.serverContent) === null || e === void 0 ? void 0 : e.modelTurn) === null || t === void 0 ? void 0 : t.parts) !== null && o !== void 0 ? o : []) {
-      for (const [c, d] of Object.entries(u))
-        c !== "text" && c !== "thought" && d !== null && a.push(c);
+    for (const u of (o = (n = (e = this.serverContent) === null || e === void 0 ? void 0 : e.modelTurn) === null || n === void 0 ? void 0 : n.parts) !== null && o !== void 0 ? o : []) {
+      for (const [d, c] of Object.entries(u))
+        d !== "text" && d !== "thought" && c !== null && a.push(d);
       if (typeof u.text == "string") {
         if (typeof u.thought == "boolean" && u.thought)
           continue;
@@ -2090,18 +2128,18 @@ class Di {
    * a warning will be logged.
    */
   get data() {
-    var e, t, o;
+    var e, n, o;
     let i = "";
     const r = [];
-    for (const a of (o = (t = (e = this.serverContent) === null || e === void 0 ? void 0 : e.modelTurn) === null || t === void 0 ? void 0 : t.parts) !== null && o !== void 0 ? o : []) {
-      for (const [u, c] of Object.entries(a))
-        u !== "inlineData" && c !== null && r.push(u);
+    for (const a of (o = (n = (e = this.serverContent) === null || e === void 0 ? void 0 : e.modelTurn) === null || n === void 0 ? void 0 : n.parts) !== null && o !== void 0 ? o : []) {
+      for (const [u, d] of Object.entries(a))
+        u !== "inlineData" && d !== null && r.push(u);
       a.inlineData && typeof a.inlineData.data == "string" && (i += atob(a.inlineData.data));
     }
     return r.length > 0 && console.warn(`there are non-data parts ${r} in the response, returning concatenation of all data parts. Please refer to the non data parts for a full response from model.`), i.length > 0 ? btoa(i) : void 0;
   }
 }
-class ki {
+class Fi {
   /**
    * Returns the first audio chunk from the server content, if present.
    *
@@ -2113,13 +2151,13 @@ class ki {
       return this.serverContent.audioChunks[0];
   }
 }
-class rn {
+class rt {
   /**
    * Instantiates an Operation of the same type as the one being called with the fields set from the API response.
    * @internal
    */
-  _fromAPIResponse({ apiResponse: e, _isVertexAI: t }) {
-    const o = new rn(), r = Zt(e);
+  _fromAPIResponse({ apiResponse: e, _isVertexAI: n }) {
+    const o = new rt(), r = jn(e);
     return Object.assign(o, r), o;
   }
 }
@@ -2128,158 +2166,158 @@ class rn {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function x(n, e) {
+function k(t, e) {
   if (!e || typeof e != "string")
     throw new Error("model is required and must be a string");
   if (e.includes("..") || e.includes("?") || e.includes("&"))
     throw new Error("invalid model parameter");
-  if (n.isVertexAI()) {
+  if (t.isVertexAI()) {
     if (e.startsWith("publishers/") || e.startsWith("projects/") || e.startsWith("models/"))
       return e;
     if (e.indexOf("/") >= 0) {
-      const t = e.split("/", 2);
-      return `publishers/${t[0]}/models/${t[1]}`;
+      const n = e.split("/", 2);
+      return `publishers/${n[0]}/models/${n[1]}`;
     } else
       return `publishers/google/models/${e}`;
   } else
     return e.startsWith("models/") || e.startsWith("tunedModels/") ? e : `models/${e}`;
 }
-function jt(n, e) {
-  const t = x(n, e);
-  return t ? t.startsWith("publishers/") && n.isVertexAI() ? `projects/${n.getProject()}/locations/${n.getLocation()}/${t}` : t.startsWith("models/") && n.isVertexAI() ? `projects/${n.getProject()}/locations/${n.getLocation()}/publishers/google/${t}` : t : "";
+function eo(t, e) {
+  const n = k(t, e);
+  return n ? n.startsWith("publishers/") && t.isVertexAI() ? `projects/${t.getProject()}/locations/${t.getLocation()}/${n}` : n.startsWith("models/") && t.isVertexAI() ? `projects/${t.getProject()}/locations/${t.getLocation()}/publishers/google/${n}` : n : "";
 }
-function eo(n) {
-  return Array.isArray(n) ? n.map((e) => Re(e)) : [Re(n)];
+function to(t) {
+  return Array.isArray(t) ? t.map((e) => we(e)) : [we(t)];
 }
-function Re(n) {
-  if (typeof n == "object" && n !== null)
-    return n;
-  throw new Error(`Could not parse input as Blob. Unsupported blob type: ${typeof n}`);
+function we(t) {
+  if (typeof t == "object" && t !== null)
+    return t;
+  throw new Error(`Could not parse input as Blob. Unsupported blob type: ${typeof t}`);
 }
-function no(n) {
-  const e = Re(n);
+function no(t) {
+  const e = we(t);
   if (e.mimeType && e.mimeType.startsWith("image/"))
     return e;
   throw new Error(`Unsupported mime type: ${e.mimeType}`);
 }
-function to(n) {
-  const e = Re(n);
+function oo(t) {
+  const e = we(t);
   if (e.mimeType && e.mimeType.startsWith("audio/"))
     return e;
   throw new Error(`Unsupported mime type: ${e.mimeType}`);
 }
-function Pt(n) {
-  if (n == null)
+function wn(t) {
+  if (t == null)
     throw new Error("PartUnion is required");
-  if (typeof n == "object")
-    return n;
-  if (typeof n == "string")
-    return { text: n };
-  throw new Error(`Unsupported part type: ${typeof n}`);
+  if (typeof t == "object")
+    return t;
+  if (typeof t == "string")
+    return { text: t };
+  throw new Error(`Unsupported part type: ${typeof t}`);
 }
-function oo(n) {
-  if (n == null || Array.isArray(n) && n.length === 0)
+function io(t) {
+  if (t == null || Array.isArray(t) && t.length === 0)
     throw new Error("PartListUnion is required");
-  return Array.isArray(n) ? n.map((e) => Pt(e)) : [Pt(n)];
+  return Array.isArray(t) ? t.map((e) => wn(e)) : [wn(t)];
 }
-function $e(n) {
-  return n != null && typeof n == "object" && "parts" in n && Array.isArray(n.parts);
+function We(t) {
+  return t != null && typeof t == "object" && "parts" in t && Array.isArray(t.parts);
 }
-function wt(n) {
-  return n != null && typeof n == "object" && "functionCall" in n;
+function Mn(t) {
+  return t != null && typeof t == "object" && "functionCall" in t;
 }
-function Mt(n) {
-  return n != null && typeof n == "object" && "functionResponse" in n;
+function Nn(t) {
+  return t != null && typeof t == "object" && "functionResponse" in t;
 }
-function F(n) {
-  if (n == null)
+function F(t) {
+  if (t == null)
     throw new Error("ContentUnion is required");
-  return $e(n) ? n : {
+  return We(t) ? t : {
     role: "user",
-    parts: oo(n)
+    parts: io(t)
   };
 }
-function ln(n, e) {
+function lt(t, e) {
   if (!e)
     return [];
-  if (n.isVertexAI() && Array.isArray(e))
-    return e.flatMap((t) => {
-      const o = F(t);
+  if (t.isVertexAI() && Array.isArray(e))
+    return e.flatMap((n) => {
+      const o = F(n);
       return o.parts && o.parts.length > 0 && o.parts[0].text !== void 0 ? [o.parts[0].text] : [];
     });
-  if (n.isVertexAI()) {
-    const t = F(e);
-    return t.parts && t.parts.length > 0 && t.parts[0].text !== void 0 ? [t.parts[0].text] : [];
+  if (t.isVertexAI()) {
+    const n = F(e);
+    return n.parts && n.parts.length > 0 && n.parts[0].text !== void 0 ? [n.parts[0].text] : [];
   }
-  return Array.isArray(e) ? e.map((t) => F(t)) : [F(e)];
+  return Array.isArray(e) ? e.map((n) => F(n)) : [F(e)];
 }
-function b(n) {
-  if (n == null || Array.isArray(n) && n.length === 0)
+function J(t) {
+  if (t == null || Array.isArray(t) && t.length === 0)
     throw new Error("contents are required");
-  if (!Array.isArray(n)) {
-    if (wt(n) || Mt(n))
+  if (!Array.isArray(t)) {
+    if (Mn(t) || Nn(t))
       throw new Error("To specify functionCall or functionResponse parts, please wrap them in a Content object, specifying the role for them");
-    return [F(n)];
+    return [F(t)];
   }
-  const e = [], t = [], o = $e(n[0]);
-  for (const i of n) {
-    const r = $e(i);
+  const e = [], n = [], o = We(t[0]);
+  for (const i of t) {
+    const r = We(i);
     if (r != o)
       throw new Error("Mixing Content and Parts is not supported, please group the parts into a the appropriate Content objects and specify the roles for them");
     if (r)
       e.push(i);
     else {
-      if (wt(i) || Mt(i))
+      if (Mn(i) || Nn(i))
         throw new Error("To specify functionCall or functionResponse parts, please wrap them, and any other parts, in Content objects as appropriate, specifying the role for them");
-      t.push(i);
+      n.push(i);
     }
   }
-  return o || e.push({ role: "user", parts: oo(t) }), e;
+  return o || e.push({ role: "user", parts: io(n) }), e;
 }
-function Ui(n, e) {
-  n.includes("null") && (e.nullable = !0);
-  const t = n.filter((o) => o !== "null");
-  if (t.length === 1)
-    e.type = Object.values(Q).includes(t[0].toUpperCase()) ? t[0].toUpperCase() : Q.TYPE_UNSPECIFIED;
+function Hi(t, e) {
+  t.includes("null") && (e.nullable = !0);
+  const n = t.filter((o) => o !== "null");
+  if (n.length === 1)
+    e.type = Object.values(q).includes(n[0].toUpperCase()) ? n[0].toUpperCase() : q.TYPE_UNSPECIFIED;
   else {
     e.anyOf = [];
-    for (const o of t)
+    for (const o of n)
       e.anyOf.push({
-        type: Object.values(Q).includes(o.toUpperCase()) ? o.toUpperCase() : Q.TYPE_UNSPECIFIED
+        type: Object.values(q).includes(o.toUpperCase()) ? o.toUpperCase() : q.TYPE_UNSPECIFIED
       });
   }
 }
-function le(n) {
-  const e = {}, t = ["items"], o = ["anyOf"], i = ["properties"];
-  if (n.type && n.anyOf)
+function ae(t) {
+  const e = {}, n = ["items"], o = ["anyOf"], i = ["properties"];
+  if (t.type && t.anyOf)
     throw new Error("type and anyOf cannot be both populated.");
-  const r = n.anyOf;
-  r != null && r.length == 2 && (r[0].type === "null" ? (e.nullable = !0, n = r[1]) : r[1].type === "null" && (e.nullable = !0, n = r[0])), n.type instanceof Array && Ui(n.type, e);
-  for (const [a, u] of Object.entries(n))
+  const r = t.anyOf;
+  r != null && r.length == 2 && (r[0].type === "null" ? (e.nullable = !0, t = r[1]) : r[1].type === "null" && (e.nullable = !0, t = r[0])), t.type instanceof Array && Hi(t.type, e);
+  for (const [a, u] of Object.entries(t))
     if (u != null)
       if (a == "type") {
         if (u === "null")
           throw new Error("type: null can not be the only possible type for the field.");
         if (u instanceof Array)
           continue;
-        e.type = Object.values(Q).includes(u.toUpperCase()) ? u.toUpperCase() : Q.TYPE_UNSPECIFIED;
-      } else if (t.includes(a))
-        e[a] = le(u);
+        e.type = Object.values(q).includes(u.toUpperCase()) ? u.toUpperCase() : q.TYPE_UNSPECIFIED;
+      } else if (n.includes(a))
+        e[a] = ae(u);
       else if (o.includes(a)) {
-        const c = [];
-        for (const d of u) {
-          if (d.type == "null") {
+        const d = [];
+        for (const c of u) {
+          if (c.type == "null") {
             e.nullable = !0;
             continue;
           }
-          c.push(le(d));
+          d.push(ae(c));
         }
-        e[a] = c;
+        e[a] = d;
       } else if (i.includes(a)) {
-        const c = {};
-        for (const [d, f] of Object.entries(u))
-          c[d] = le(f);
-        e[a] = c;
+        const d = {};
+        for (const [c, f] of Object.entries(u))
+          d[c] = ae(f);
+        e[a] = d;
       } else {
         if (a === "additionalProperties")
           continue;
@@ -2287,54 +2325,54 @@ function le(n) {
       }
   return e;
 }
-function an(n) {
-  return le(n);
+function at(t) {
+  return ae(t);
 }
-function un(n) {
-  if (typeof n == "object")
-    return n;
-  if (typeof n == "string")
+function ut(t) {
+  if (typeof t == "object")
+    return t;
+  if (typeof t == "string")
     return {
       voiceConfig: {
         prebuiltVoiceConfig: {
-          voiceName: n
+          voiceName: t
         }
       }
     };
-  throw new Error(`Unsupported speechConfig type: ${typeof n}`);
+  throw new Error(`Unsupported speechConfig type: ${typeof t}`);
 }
-function dn(n) {
-  if ("multiSpeakerVoiceConfig" in n)
+function dt(t) {
+  if ("multiSpeakerVoiceConfig" in t)
     throw new Error("multiSpeakerVoiceConfig is not supported in the live API.");
-  return n;
+  return t;
 }
-function ue(n) {
-  if (n.functionDeclarations)
-    for (const e of n.functionDeclarations)
-      e.parameters && (Object.keys(e.parameters).includes("$schema") ? e.parametersJsonSchema || (e.parametersJsonSchema = e.parameters, delete e.parameters) : e.parameters = le(e.parameters)), e.response && (Object.keys(e.response).includes("$schema") ? e.responseJsonSchema || (e.responseJsonSchema = e.response, delete e.response) : e.response = le(e.response));
-  return n;
+function de(t) {
+  if (t.functionDeclarations)
+    for (const e of t.functionDeclarations)
+      e.parameters && (Object.keys(e.parameters).includes("$schema") ? e.parametersJsonSchema || (e.parametersJsonSchema = e.parameters, delete e.parameters) : e.parameters = ae(e.parameters)), e.response && (Object.keys(e.response).includes("$schema") ? e.responseJsonSchema || (e.responseJsonSchema = e.response, delete e.response) : e.response = ae(e.response));
+  return t;
 }
-function de(n) {
-  if (n == null)
+function ce(t) {
+  if (t == null)
     throw new Error("tools is required");
-  if (!Array.isArray(n))
+  if (!Array.isArray(t))
     throw new Error("tools is required and must be an array of Tools");
   const e = [];
-  for (const t of n)
-    e.push(t);
+  for (const n of t)
+    e.push(n);
   return e;
 }
-function Li(n, e, t, o = 1) {
-  const i = !e.startsWith(`${t}/`) && e.split("/").length === o;
-  return n.isVertexAI() ? e.startsWith("projects/") ? e : e.startsWith("locations/") ? `projects/${n.getProject()}/${e}` : e.startsWith(`${t}/`) ? `projects/${n.getProject()}/locations/${n.getLocation()}/${e}` : i ? `projects/${n.getProject()}/locations/${n.getLocation()}/${t}/${e}` : e : i ? `${t}/${e}` : e;
+function Vi(t, e, n, o = 1) {
+  const i = !e.startsWith(`${n}/`) && e.split("/").length === o;
+  return t.isVertexAI() ? e.startsWith("projects/") ? e : e.startsWith("locations/") ? `projects/${t.getProject()}/${e}` : e.startsWith(`${n}/`) ? `projects/${t.getProject()}/locations/${t.getLocation()}/${e}` : i ? `projects/${t.getProject()}/locations/${t.getLocation()}/${n}/${e}` : e : i ? `${n}/${e}` : e;
 }
-function X(n, e) {
+function Q(t, e) {
   if (typeof e != "string")
     throw new Error("name must be a string");
-  return Li(n, e, "cachedContents");
+  return Vi(t, e, "cachedContents");
 }
-function io(n) {
-  switch (n) {
+function so(t) {
+  switch (t) {
     case "STATE_UNSPECIFIED":
       return "JOB_STATE_UNSPECIFIED";
     case "CREATING":
@@ -2344,108 +2382,108 @@ function io(n) {
     case "FAILED":
       return "JOB_STATE_FAILED";
     default:
-      return n;
+      return t;
   }
 }
-function Z(n) {
-  return on(n);
+function j(t) {
+  return it(t);
 }
-function Fi(n) {
-  return n != null && typeof n == "object" && "name" in n;
+function bi(t) {
+  return t != null && typeof t == "object" && "name" in t;
 }
-function Gi(n) {
-  return n != null && typeof n == "object" && "video" in n;
+function qi(t) {
+  return t != null && typeof t == "object" && "video" in t;
 }
-function Vi(n) {
-  return n != null && typeof n == "object" && "uri" in n;
+function Bi(t) {
+  return t != null && typeof t == "object" && "uri" in t;
 }
-function so(n) {
+function ro(t) {
   var e;
-  let t;
-  if (Fi(n) && (t = n.name), !(Vi(n) && (t = n.uri, t === void 0)) && !(Gi(n) && (t = (e = n.video) === null || e === void 0 ? void 0 : e.uri, t === void 0))) {
-    if (typeof n == "string" && (t = n), t === void 0)
+  let n;
+  if (bi(t) && (n = t.name), !(Bi(t) && (n = t.uri, n === void 0)) && !(qi(t) && (n = (e = t.video) === null || e === void 0 ? void 0 : e.uri, n === void 0))) {
+    if (typeof t == "string" && (n = t), n === void 0)
       throw new Error("Could not extract file name from the provided input.");
-    if (t.startsWith("https://")) {
-      const i = t.split("files/")[1].match(/[a-z0-9]+/);
+    if (n.startsWith("https://")) {
+      const i = n.split("files/")[1].match(/[a-z0-9]+/);
       if (i === null)
-        throw new Error(`Could not extract file name from URI ${t}`);
-      t = i[0];
-    } else t.startsWith("files/") && (t = t.split("files/")[1]);
-    return t;
+        throw new Error(`Could not extract file name from URI ${n}`);
+      n = i[0];
+    } else n.startsWith("files/") && (n = n.split("files/")[1]);
+    return n;
   }
 }
-function ro(n, e) {
-  let t;
-  return n.isVertexAI() ? t = e ? "publishers/google/models" : "models" : t = e ? "models" : "tunedModels", t;
+function lo(t, e) {
+  let n;
+  return t.isVertexAI() ? n = e ? "publishers/google/models" : "models" : n = e ? "models" : "tunedModels", n;
 }
-function lo(n) {
+function ao(t) {
   for (const e of ["models", "tunedModels", "publisherModels"])
-    if (Hi(n, e))
-      return n[e];
+    if (Ji(t, e))
+      return t[e];
   return [];
 }
-function Hi(n, e) {
-  return n !== null && typeof n == "object" && e in n;
+function Ji(t, e) {
+  return t !== null && typeof t == "object" && e in t;
 }
-function qi(n, e = {}) {
-  const t = n, o = {
-    name: t.name,
-    description: t.description,
-    parametersJsonSchema: t.inputSchema
+function Oi(t, e = {}) {
+  const n = t, o = {
+    name: n.name,
+    description: n.description,
+    parametersJsonSchema: n.inputSchema
   };
-  return t.outputSchema && (o.responseJsonSchema = t.outputSchema), e.behavior && (o.behavior = e.behavior), {
+  return n.outputSchema && (o.responseJsonSchema = n.outputSchema), e.behavior && (o.behavior = e.behavior), {
     functionDeclarations: [
       o
     ]
   };
 }
-function bi(n, e = {}) {
-  const t = [], o = /* @__PURE__ */ new Set();
-  for (const i of n) {
+function $i(t, e = {}) {
+  const n = [], o = /* @__PURE__ */ new Set();
+  for (const i of t) {
     const r = i.name;
     if (o.has(r))
       throw new Error(`Duplicate function name ${r} found in MCP tools. Please ensure function names are unique.`);
     o.add(r);
-    const a = qi(i, e);
-    a.functionDeclarations && t.push(...a.functionDeclarations);
+    const a = Oi(i, e);
+    a.functionDeclarations && n.push(...a.functionDeclarations);
   }
-  return { functionDeclarations: t };
+  return { functionDeclarations: n };
 }
-function ao(n, e) {
-  let t;
+function uo(t, e) {
+  let n;
   if (typeof e == "string")
-    if (n.isVertexAI())
+    if (t.isVertexAI())
       if (e.startsWith("gs://"))
-        t = { format: "jsonl", gcsUri: [e] };
+        n = { format: "jsonl", gcsUri: [e] };
       else if (e.startsWith("bq://"))
-        t = { format: "bigquery", bigqueryUri: e };
+        n = { format: "bigquery", bigqueryUri: e };
       else
         throw new Error(`Unsupported string source for Vertex AI: ${e}`);
     else if (e.startsWith("files/"))
-      t = { fileName: e };
+      n = { fileName: e };
     else
       throw new Error(`Unsupported string source for Gemini API: ${e}`);
   else if (Array.isArray(e)) {
-    if (n.isVertexAI())
+    if (t.isVertexAI())
       throw new Error("InlinedRequest[] is not supported in Vertex AI.");
-    t = { inlinedRequests: e };
+    n = { inlinedRequests: e };
   } else
-    t = e;
-  const o = [t.gcsUri, t.bigqueryUri].filter(Boolean).length, i = [
-    t.inlinedRequests,
-    t.fileName
+    n = e;
+  const o = [n.gcsUri, n.bigqueryUri].filter(Boolean).length, i = [
+    n.inlinedRequests,
+    n.fileName
   ].filter(Boolean).length;
-  if (n.isVertexAI()) {
+  if (t.isVertexAI()) {
     if (i > 0 || o !== 1)
       throw new Error("Exactly one of `gcsUri` or `bigqueryUri` must be set for Vertex AI.");
   } else if (o > 0 || i !== 1)
     throw new Error("Exactly one of `inlinedRequests`, `fileName`, must be set for Gemini API.");
-  return t;
+  return n;
 }
-function Bi(n) {
-  if (typeof n != "string")
-    return n;
-  const e = n;
+function Wi(t) {
+  if (typeof t != "string")
+    return t;
+  const e = t;
   if (e.startsWith("gs://"))
     return {
       format: "jsonl",
@@ -2458,44 +2496,44 @@ function Bi(n) {
     };
   throw new Error(`Unsupported destination: ${e}`);
 }
-function uo(n) {
-  if (typeof n != "object" || n === null)
-    return {};
-  const e = n, t = e.inlinedResponses;
+function co(t) {
   if (typeof t != "object" || t === null)
-    return n;
-  const i = t.inlinedResponses;
+    return {};
+  const e = t, n = e.inlinedResponses;
+  if (typeof n != "object" || n === null)
+    return t;
+  const i = n.inlinedResponses;
   if (!Array.isArray(i) || i.length === 0)
-    return n;
+    return t;
   let r = !1;
   for (const a of i) {
     if (typeof a != "object" || a === null)
       continue;
-    const c = a.response;
-    if (typeof c != "object" || c === null)
+    const d = a.response;
+    if (typeof d != "object" || d === null)
       continue;
-    if (c.embedding !== void 0) {
+    if (d.embedding !== void 0) {
       r = !0;
       break;
     }
   }
-  return r && (e.inlinedEmbedContentResponses = e.inlinedResponses, delete e.inlinedResponses), n;
+  return r && (e.inlinedEmbedContentResponses = e.inlinedResponses, delete e.inlinedResponses), t;
 }
-function ce(n, e) {
-  const t = e;
-  if (!n.isVertexAI()) {
-    if (/batches\/[^/]+$/.test(t))
-      return t.split("/").pop();
-    throw new Error(`Invalid batch job name: ${t}.`);
+function fe(t, e) {
+  const n = e;
+  if (!t.isVertexAI()) {
+    if (/batches\/[^/]+$/.test(n))
+      return n.split("/").pop();
+    throw new Error(`Invalid batch job name: ${n}.`);
   }
-  if (/^projects\/[^/]+\/locations\/[^/]+\/batchPredictionJobs\/[^/]+$/.test(t))
-    return t.split("/").pop();
-  if (/^\d+$/.test(t))
-    return t;
-  throw new Error(`Invalid batch job name: ${t}.`);
+  if (/^projects\/[^/]+\/locations\/[^/]+\/batchPredictionJobs\/[^/]+$/.test(n))
+    return n.split("/").pop();
+  if (/^\d+$/.test(n))
+    return n;
+  throw new Error(`Invalid batch job name: ${n}.`);
 }
-function co(n) {
-  const e = n;
+function fo(t) {
+  const e = t;
   return e === "BATCH_STATE_UNSPECIFIED" ? "JOB_STATE_UNSPECIFIED" : e === "BATCH_STATE_PENDING" ? "JOB_STATE_PENDING" : e === "BATCH_STATE_RUNNING" ? "JOB_STATE_RUNNING" : e === "BATCH_STATE_SUCCEEDED" ? "JOB_STATE_SUCCEEDED" : e === "BATCH_STATE_FAILED" ? "JOB_STATE_FAILED" : e === "BATCH_STATE_CANCELLED" ? "JOB_STATE_CANCELLED" : e === "BATCH_STATE_EXPIRED" ? "JOB_STATE_EXPIRED" : e;
 }
 /**
@@ -2503,18 +2541,18 @@ function co(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Ji(n) {
-  const e = {}, t = s(n, ["responsesFile"]);
-  t != null && l(e, ["fileName"], t);
-  const o = s(n, [
+function Ki(t) {
+  const e = {}, n = s(t, ["responsesFile"]);
+  n != null && l(e, ["fileName"], n);
+  const o = s(t, [
     "inlinedResponses",
     "inlinedResponses"
   ]);
   if (o != null) {
     let r = o;
-    Array.isArray(r) && (r = r.map((a) => Is(a))), l(e, ["inlinedResponses"], r);
+    Array.isArray(r) && (r = r.map((a) => Ps(a))), l(e, ["inlinedResponses"], r);
   }
-  const i = s(n, [
+  const i = s(t, [
     "inlinedEmbedContentResponses",
     "inlinedResponses"
   ]);
@@ -2524,105 +2562,105 @@ function Ji(n) {
   }
   return e;
 }
-function Oi(n) {
-  const e = {}, t = s(n, ["predictionsFormat"]);
-  t != null && l(e, ["format"], t);
-  const o = s(n, [
+function Yi(t) {
+  const e = {}, n = s(t, ["predictionsFormat"]);
+  n != null && l(e, ["format"], n);
+  const o = s(t, [
     "gcsDestination",
     "outputUriPrefix"
   ]);
   o != null && l(e, ["gcsUri"], o);
-  const i = s(n, [
+  const i = s(t, [
     "bigqueryDestination",
     "outputUri"
   ]);
   return i != null && l(e, ["bigqueryUri"], i), e;
 }
-function $i(n) {
-  const e = {}, t = s(n, ["format"]);
-  t != null && l(e, ["predictionsFormat"], t);
-  const o = s(n, ["gcsUri"]);
+function zi(t) {
+  const e = {}, n = s(t, ["format"]);
+  n != null && l(e, ["predictionsFormat"], n);
+  const o = s(t, ["gcsUri"]);
   o != null && l(e, ["gcsDestination", "outputUriPrefix"], o);
-  const i = s(n, ["bigqueryUri"]);
-  if (i != null && l(e, ["bigqueryDestination", "outputUri"], i), s(n, ["fileName"]) !== void 0)
+  const i = s(t, ["bigqueryUri"]);
+  if (i != null && l(e, ["bigqueryDestination", "outputUri"], i), s(t, ["fileName"]) !== void 0)
     throw new Error("fileName parameter is not supported in Vertex AI.");
-  if (s(n, ["inlinedResponses"]) !== void 0)
+  if (s(t, ["inlinedResponses"]) !== void 0)
     throw new Error("inlinedResponses parameter is not supported in Vertex AI.");
-  if (s(n, ["inlinedEmbedContentResponses"]) !== void 0)
+  if (s(t, ["inlinedEmbedContentResponses"]) !== void 0)
     throw new Error("inlinedEmbedContentResponses parameter is not supported in Vertex AI.");
   return e;
 }
-function Ee(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, [
+function Ie(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, [
     "metadata",
     "displayName"
   ]);
   o != null && l(e, ["displayName"], o);
-  const i = s(n, ["metadata", "state"]);
-  i != null && l(e, ["state"], co(i));
-  const r = s(n, [
+  const i = s(t, ["metadata", "state"]);
+  i != null && l(e, ["state"], fo(i));
+  const r = s(t, [
     "metadata",
     "createTime"
   ]);
   r != null && l(e, ["createTime"], r);
-  const a = s(n, [
+  const a = s(t, [
     "metadata",
     "endTime"
   ]);
   a != null && l(e, ["endTime"], a);
-  const u = s(n, [
+  const u = s(t, [
     "metadata",
     "updateTime"
   ]);
   u != null && l(e, ["updateTime"], u);
-  const c = s(n, ["metadata", "model"]);
-  c != null && l(e, ["model"], c);
-  const d = s(n, ["metadata", "output"]);
-  return d != null && l(e, ["dest"], Ji(uo(d))), e;
+  const d = s(t, ["metadata", "model"]);
+  d != null && l(e, ["model"], d);
+  const c = s(t, ["metadata", "output"]);
+  return c != null && l(e, ["dest"], Ki(co(c))), e;
 }
-function We(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["displayName"]);
+function Ke(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["displayName"]);
   o != null && l(e, ["displayName"], o);
-  const i = s(n, ["state"]);
-  i != null && l(e, ["state"], co(i));
-  const r = s(n, ["error"]);
+  const i = s(t, ["state"]);
+  i != null && l(e, ["state"], fo(i));
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, ["createTime"]);
+  const a = s(t, ["createTime"]);
   a != null && l(e, ["createTime"], a);
-  const u = s(n, ["startTime"]);
+  const u = s(t, ["startTime"]);
   u != null && l(e, ["startTime"], u);
-  const c = s(n, ["endTime"]);
-  c != null && l(e, ["endTime"], c);
-  const d = s(n, ["updateTime"]);
-  d != null && l(e, ["updateTime"], d);
-  const f = s(n, ["model"]);
+  const d = s(t, ["endTime"]);
+  d != null && l(e, ["endTime"], d);
+  const c = s(t, ["updateTime"]);
+  c != null && l(e, ["updateTime"], c);
+  const f = s(t, ["model"]);
   f != null && l(e, ["model"], f);
-  const m = s(n, ["inputConfig"]);
-  m != null && l(e, ["src"], Wi(m));
-  const p = s(n, ["outputConfig"]);
-  p != null && l(e, ["dest"], Oi(uo(p)));
-  const h = s(n, [
+  const p = s(t, ["inputConfig"]);
+  p != null && l(e, ["src"], Xi(p));
+  const h = s(t, ["outputConfig"]);
+  h != null && l(e, ["dest"], Yi(co(h)));
+  const m = s(t, [
     "completionStats"
   ]);
-  return h != null && l(e, ["completionStats"], h), e;
+  return m != null && l(e, ["completionStats"], m), e;
 }
-function Wi(n) {
-  const e = {}, t = s(n, ["instancesFormat"]);
-  t != null && l(e, ["format"], t);
-  const o = s(n, ["gcsSource", "uris"]);
+function Xi(t) {
+  const e = {}, n = s(t, ["instancesFormat"]);
+  n != null && l(e, ["format"], n);
+  const o = s(t, ["gcsSource", "uris"]);
   o != null && l(e, ["gcsUri"], o);
-  const i = s(n, [
+  const i = s(t, [
     "bigquerySource",
     "inputUri"
   ]);
   return i != null && l(e, ["bigqueryUri"], i), e;
 }
-function Ki(n, e) {
-  const t = {};
+function Qi(t, e) {
+  const n = {};
   if (s(e, ["format"]) !== void 0)
     throw new Error("format parameter is not supported in Gemini API.");
   if (s(e, ["gcsUri"]) !== void 0)
@@ -2630,276 +2668,276 @@ function Ki(n, e) {
   if (s(e, ["bigqueryUri"]) !== void 0)
     throw new Error("bigqueryUri parameter is not supported in Gemini API.");
   const o = s(e, ["fileName"]);
-  o != null && l(t, ["fileName"], o);
+  o != null && l(n, ["fileName"], o);
   const i = s(e, [
     "inlinedRequests"
   ]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => Ss(n, a))), l(t, ["requests", "requests"], r);
+    Array.isArray(r) && (r = r.map((a) => Rs(t, a))), l(n, ["requests", "requests"], r);
   }
-  return t;
+  return n;
 }
-function Yi(n) {
-  const e = {}, t = s(n, ["format"]);
-  t != null && l(e, ["instancesFormat"], t);
-  const o = s(n, ["gcsUri"]);
+function Zi(t) {
+  const e = {}, n = s(t, ["format"]);
+  n != null && l(e, ["instancesFormat"], n);
+  const o = s(t, ["gcsUri"]);
   o != null && l(e, ["gcsSource", "uris"], o);
-  const i = s(n, ["bigqueryUri"]);
-  if (i != null && l(e, ["bigquerySource", "inputUri"], i), s(n, ["fileName"]) !== void 0)
+  const i = s(t, ["bigqueryUri"]);
+  if (i != null && l(e, ["bigquerySource", "inputUri"], i), s(t, ["fileName"]) !== void 0)
     throw new Error("fileName parameter is not supported in Vertex AI.");
-  if (s(n, ["inlinedRequests"]) !== void 0)
+  if (s(t, ["inlinedRequests"]) !== void 0)
     throw new Error("inlinedRequests parameter is not supported in Vertex AI.");
   return e;
 }
-function zi(n) {
-  const e = {}, t = s(n, ["data"]);
-  if (t != null && l(e, ["data"], t), s(n, ["displayName"]) !== void 0)
+function ji(t) {
+  const e = {}, n = s(t, ["data"]);
+  if (n != null && l(e, ["data"], n), s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const o = s(n, ["mimeType"]);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function Xi(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function es(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function Qi(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function ts(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function Zi(n) {
-  const e = {}, t = s(n, ["content"]);
-  t != null && l(e, ["content"], t);
-  const o = s(n, [
+function ns(t) {
+  const e = {}, n = s(t, ["content"]);
+  n != null && l(e, ["content"], n);
+  const o = s(t, [
     "citationMetadata"
   ]);
-  o != null && l(e, ["citationMetadata"], ji(o));
-  const i = s(n, ["tokenCount"]);
+  o != null && l(e, ["citationMetadata"], os(o));
+  const i = s(t, ["tokenCount"]);
   i != null && l(e, ["tokenCount"], i);
-  const r = s(n, ["finishReason"]);
+  const r = s(t, ["finishReason"]);
   r != null && l(e, ["finishReason"], r);
-  const a = s(n, ["avgLogprobs"]);
+  const a = s(t, ["avgLogprobs"]);
   a != null && l(e, ["avgLogprobs"], a);
-  const u = s(n, [
+  const u = s(t, [
     "groundingMetadata"
   ]);
   u != null && l(e, ["groundingMetadata"], u);
-  const c = s(n, ["index"]);
-  c != null && l(e, ["index"], c);
-  const d = s(n, [
+  const d = s(t, ["index"]);
+  d != null && l(e, ["index"], d);
+  const c = s(t, [
     "logprobsResult"
   ]);
-  d != null && l(e, ["logprobsResult"], d);
-  const f = s(n, [
+  c != null && l(e, ["logprobsResult"], c);
+  const f = s(t, [
     "safetyRatings"
   ]);
   if (f != null) {
-    let p = f;
-    Array.isArray(p) && (p = p.map((h) => h)), l(e, ["safetyRatings"], p);
+    let h = f;
+    Array.isArray(h) && (h = h.map((m) => m)), l(e, ["safetyRatings"], h);
   }
-  const m = s(n, [
+  const p = s(t, [
     "urlContextMetadata"
   ]);
-  return m != null && l(e, ["urlContextMetadata"], m), e;
+  return p != null && l(e, ["urlContextMetadata"], p), e;
 }
-function ji(n) {
-  const e = {}, t = s(n, ["citationSources"]);
-  if (t != null) {
-    let o = t;
+function os(t) {
+  const e = {}, n = s(t, ["citationSources"]);
+  if (n != null) {
+    let o = n;
     Array.isArray(o) && (o = o.map((i) => i)), l(e, ["citations"], o);
   }
   return e;
 }
-function fo(n) {
-  const e = {}, t = s(n, ["parts"]);
-  if (t != null) {
-    let i = t;
-    Array.isArray(i) && (i = i.map((r) => Ns(r))), l(e, ["parts"], i);
+function po(t) {
+  const e = {}, n = s(t, ["parts"]);
+  if (n != null) {
+    let i = n;
+    Array.isArray(i) && (i = i.map((r) => Us(r))), l(e, ["parts"], i);
   }
-  const o = s(n, ["role"]);
+  const o = s(t, ["role"]);
   return o != null && l(e, ["role"], o), e;
 }
-function es(n, e) {
-  const t = {}, o = s(n, ["displayName"]);
-  if (e !== void 0 && o != null && l(e, ["batch", "displayName"], o), s(n, ["dest"]) !== void 0)
+function is(t, e) {
+  const n = {}, o = s(t, ["displayName"]);
+  if (e !== void 0 && o != null && l(e, ["batch", "displayName"], o), s(t, ["dest"]) !== void 0)
     throw new Error("dest parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function ns(n, e) {
-  const t = {}, o = s(n, ["displayName"]);
+function ss(t, e) {
+  const n = {}, o = s(t, ["displayName"]);
   e !== void 0 && o != null && l(e, ["displayName"], o);
-  const i = s(n, ["dest"]);
-  return e !== void 0 && i != null && l(e, ["outputConfig"], $i(Bi(i))), t;
+  const i = s(t, ["dest"]);
+  return e !== void 0 && i != null && l(e, ["outputConfig"], zi(Wi(i))), n;
 }
-function Nt(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["_url", "model"], x(n, o));
+function xn(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["_url", "model"], k(t, o));
   const i = s(e, ["src"]);
-  i != null && l(t, ["batch", "inputConfig"], Ki(n, ao(n, i)));
+  i != null && l(n, ["batch", "inputConfig"], Qi(t, uo(t, i)));
   const r = s(e, ["config"]);
-  return r != null && es(r, t), t;
+  return r != null && is(r, n), n;
 }
-function ts(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["model"], x(n, o));
+function rs(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["model"], k(t, o));
   const i = s(e, ["src"]);
-  i != null && l(t, ["inputConfig"], Yi(ao(n, i)));
+  i != null && l(n, ["inputConfig"], Zi(uo(t, i)));
   const r = s(e, ["config"]);
-  return r != null && ns(r, t), t;
+  return r != null && ss(r, n), n;
 }
-function os(n, e) {
-  const t = {}, o = s(n, ["displayName"]);
-  return e !== void 0 && o != null && l(e, ["batch", "displayName"], o), t;
+function ls(t, e) {
+  const n = {}, o = s(t, ["displayName"]);
+  return e !== void 0 && o != null && l(e, ["batch", "displayName"], o), n;
 }
-function is(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["_url", "model"], x(n, o));
+function as(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["_url", "model"], k(t, o));
   const i = s(e, ["src"]);
-  i != null && l(t, ["batch", "inputConfig"], cs(n, i));
+  i != null && l(n, ["batch", "inputConfig"], ms(t, i));
   const r = s(e, ["config"]);
-  return r != null && os(r, t), t;
+  return r != null && ls(r, n), n;
 }
-function ss(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function us(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function rs(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function ds(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function ls(n) {
-  const e = {}, t = s(n, [
+function cs(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["name"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["name"]);
   o != null && l(e, ["name"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   return r != null && l(e, ["error"], r), e;
 }
-function as(n) {
-  const e = {}, t = s(n, [
+function fs(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["name"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["name"]);
   o != null && l(e, ["name"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   return r != null && l(e, ["error"], r), e;
 }
-function us(n, e) {
-  const t = {}, o = s(e, ["contents"]);
+function ps(t, e) {
+  const n = {}, o = s(e, ["contents"]);
   if (o != null) {
-    let r = ln(n, o);
-    Array.isArray(r) && (r = r.map((a) => a)), l(t, ["requests[]", "request", "content"], r);
+    let r = lt(t, o);
+    Array.isArray(r) && (r = r.map((a) => a)), l(n, ["requests[]", "request", "content"], r);
   }
   const i = s(e, ["config"]);
-  return i != null && (l(t, ["_self"], ds(i, t)), si(t, { "requests[].*": "requests[].request.*" })), t;
+  return i != null && (l(n, ["_self"], hs(i, n)), ui(n, { "requests[].*": "requests[].request.*" })), n;
 }
-function ds(n, e) {
-  const t = {}, o = s(n, ["taskType"]);
+function hs(t, e) {
+  const n = {}, o = s(t, ["taskType"]);
   e !== void 0 && o != null && l(e, ["requests[]", "taskType"], o);
-  const i = s(n, ["title"]);
+  const i = s(t, ["title"]);
   e !== void 0 && i != null && l(e, ["requests[]", "title"], i);
-  const r = s(n, [
+  const r = s(t, [
     "outputDimensionality"
   ]);
-  if (e !== void 0 && r != null && l(e, ["requests[]", "outputDimensionality"], r), s(n, ["mimeType"]) !== void 0)
+  if (e !== void 0 && r != null && l(e, ["requests[]", "outputDimensionality"], r), s(t, ["mimeType"]) !== void 0)
     throw new Error("mimeType parameter is not supported in Gemini API.");
-  if (s(n, ["autoTruncate"]) !== void 0)
+  if (s(t, ["autoTruncate"]) !== void 0)
     throw new Error("autoTruncate parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function cs(n, e) {
-  const t = {}, o = s(e, ["fileName"]);
-  o != null && l(t, ["file_name"], o);
+function ms(t, e) {
+  const n = {}, o = s(e, ["fileName"]);
+  o != null && l(n, ["file_name"], o);
   const i = s(e, [
     "inlinedRequests"
   ]);
-  return i != null && l(t, ["requests"], us(n, i)), t;
+  return i != null && l(n, ["requests"], ps(t, i)), n;
 }
-function fs(n) {
+function gs(t) {
   const e = {};
-  if (s(n, ["displayName"]) !== void 0)
+  if (s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const t = s(n, ["fileUri"]);
-  t != null && l(e, ["fileUri"], t);
-  const o = s(n, ["mimeType"]);
+  const n = s(t, ["fileUri"]);
+  n != null && l(e, ["fileUri"], n);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function ps(n) {
-  const e = {}, t = s(n, ["id"]);
-  t != null && l(e, ["id"], t);
-  const o = s(n, ["args"]);
+function ys(t) {
+  const e = {}, n = s(t, ["id"]);
+  n != null && l(e, ["id"], n);
+  const o = s(t, ["args"]);
   o != null && l(e, ["args"], o);
-  const i = s(n, ["name"]);
-  if (i != null && l(e, ["name"], i), s(n, ["partialArgs"]) !== void 0)
+  const i = s(t, ["name"]);
+  if (i != null && l(e, ["name"], i), s(t, ["partialArgs"]) !== void 0)
     throw new Error("partialArgs parameter is not supported in Gemini API.");
-  if (s(n, ["willContinue"]) !== void 0)
+  if (s(t, ["willContinue"]) !== void 0)
     throw new Error("willContinue parameter is not supported in Gemini API.");
   return e;
 }
-function ms(n) {
-  const e = {}, t = s(n, [
+function Ts(t) {
+  const e = {}, n = s(t, [
     "allowedFunctionNames"
   ]);
-  t != null && l(e, ["allowedFunctionNames"], t);
-  const o = s(n, ["mode"]);
-  if (o != null && l(e, ["mode"], o), s(n, ["streamFunctionCallArguments"]) !== void 0)
+  n != null && l(e, ["allowedFunctionNames"], n);
+  const o = s(t, ["mode"]);
+  if (o != null && l(e, ["mode"], o), s(t, ["streamFunctionCallArguments"]) !== void 0)
     throw new Error("streamFunctionCallArguments parameter is not supported in Gemini API.");
   return e;
 }
-function hs(n, e, t) {
+function Cs(t, e, n) {
   const o = {}, i = s(e, [
     "systemInstruction"
   ]);
-  t !== void 0 && i != null && l(t, ["systemInstruction"], fo(F(i)));
+  n !== void 0 && i != null && l(n, ["systemInstruction"], po(F(i)));
   const r = s(e, ["temperature"]);
   r != null && l(o, ["temperature"], r);
   const a = s(e, ["topP"]);
   a != null && l(o, ["topP"], a);
   const u = s(e, ["topK"]);
   u != null && l(o, ["topK"], u);
-  const c = s(e, [
+  const d = s(e, [
     "candidateCount"
   ]);
-  c != null && l(o, ["candidateCount"], c);
-  const d = s(e, [
+  d != null && l(o, ["candidateCount"], d);
+  const c = s(e, [
     "maxOutputTokens"
   ]);
-  d != null && l(o, ["maxOutputTokens"], d);
+  c != null && l(o, ["maxOutputTokens"], c);
   const f = s(e, [
     "stopSequences"
   ]);
   f != null && l(o, ["stopSequences"], f);
-  const m = s(e, [
+  const p = s(e, [
     "responseLogprobs"
   ]);
-  m != null && l(o, ["responseLogprobs"], m);
-  const p = s(e, ["logprobs"]);
-  p != null && l(o, ["logprobs"], p);
-  const h = s(e, [
+  p != null && l(o, ["responseLogprobs"], p);
+  const h = s(e, ["logprobs"]);
+  h != null && l(o, ["logprobs"], h);
+  const m = s(e, [
     "presencePenalty"
   ]);
-  h != null && l(o, ["presencePenalty"], h);
+  m != null && l(o, ["presencePenalty"], m);
   const g = s(e, [
     "frequencyPenalty"
   ]);
   g != null && l(o, ["frequencyPenalty"], g);
-  const _ = s(e, ["seed"]);
-  _ != null && l(o, ["seed"], _);
-  const T = s(e, [
+  const T = s(e, ["seed"]);
+  T != null && l(o, ["seed"], T);
+  const y = s(e, [
     "responseMimeType"
   ]);
-  T != null && l(o, ["responseMimeType"], T);
-  const C = s(e, [
+  y != null && l(o, ["responseMimeType"], y);
+  const E = s(e, [
     "responseSchema"
   ]);
-  C != null && l(o, ["responseSchema"], an(C));
+  E != null && l(o, ["responseSchema"], at(E));
   const S = s(e, [
     "responseJsonSchema"
   ]);
@@ -2907,291 +2945,291 @@ function hs(n, e, t) {
     throw new Error("routingConfig parameter is not supported in Gemini API.");
   if (s(e, ["modelSelectionConfig"]) !== void 0)
     throw new Error("modelSelectionConfig parameter is not supported in Gemini API.");
-  const E = s(e, [
+  const I = s(e, [
     "safetySettings"
   ]);
-  if (t !== void 0 && E != null) {
-    let G = E;
-    Array.isArray(G) && (G = G.map((L) => xs(L))), l(t, ["safetySettings"], G);
+  if (n !== void 0 && I != null) {
+    let H = I;
+    Array.isArray(H) && (H = H.map((G) => Ls(G))), l(n, ["safetySettings"], H);
   }
-  const I = s(e, ["tools"]);
-  if (t !== void 0 && I != null) {
-    let G = de(I);
-    Array.isArray(G) && (G = G.map((L) => ks(ue(L)))), l(t, ["tools"], G);
+  const _ = s(e, ["tools"]);
+  if (n !== void 0 && _ != null) {
+    let H = ce(_);
+    Array.isArray(H) && (H = H.map((G) => Fs(de(G)))), l(n, ["tools"], H);
   }
-  const y = s(e, ["toolConfig"]);
-  if (t !== void 0 && y != null && l(t, ["toolConfig"], Ds(y)), s(e, ["labels"]) !== void 0)
+  const C = s(e, ["toolConfig"]);
+  if (n !== void 0 && C != null && l(n, ["toolConfig"], Gs(C)), s(e, ["labels"]) !== void 0)
     throw new Error("labels parameter is not supported in Gemini API.");
   const R = s(e, [
     "cachedContent"
   ]);
-  t !== void 0 && R != null && l(t, ["cachedContent"], X(n, R));
-  const M = s(e, [
+  n !== void 0 && R != null && l(n, ["cachedContent"], Q(t, R));
+  const P = s(e, [
     "responseModalities"
   ]);
-  M != null && l(o, ["responseModalities"], M);
+  P != null && l(o, ["responseModalities"], P);
   const D = s(e, [
     "mediaResolution"
   ]);
   D != null && l(o, ["mediaResolution"], D);
   const A = s(e, ["speechConfig"]);
-  if (A != null && l(o, ["speechConfig"], un(A)), s(e, ["audioTimestamp"]) !== void 0)
+  if (A != null && l(o, ["speechConfig"], ut(A)), s(e, ["audioTimestamp"]) !== void 0)
     throw new Error("audioTimestamp parameter is not supported in Gemini API.");
   const N = s(e, [
     "thinkingConfig"
   ]);
   N != null && l(o, ["thinkingConfig"], N);
-  const k = s(e, ["imageConfig"]);
-  k != null && l(o, ["imageConfig"], Es(k));
-  const q = s(e, [
+  const x = s(e, ["imageConfig"]);
+  x != null && l(o, ["imageConfig"], As(x));
+  const U = s(e, [
     "enableEnhancedCivicAnswers"
   ]);
-  if (q != null && l(o, ["enableEnhancedCivicAnswers"], q), s(e, ["modelArmorConfig"]) !== void 0)
+  if (U != null && l(o, ["enableEnhancedCivicAnswers"], U), s(e, ["modelArmorConfig"]) !== void 0)
     throw new Error("modelArmorConfig parameter is not supported in Gemini API.");
   return o;
 }
-function gs(n) {
-  const e = {}, t = s(n, [
+function _s(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["candidates"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["candidates"]);
   if (o != null) {
-    let c = o;
-    Array.isArray(c) && (c = c.map((d) => Zi(d))), l(e, ["candidates"], c);
+    let d = o;
+    Array.isArray(d) && (d = d.map((c) => ns(c))), l(e, ["candidates"], d);
   }
-  const i = s(n, ["modelVersion"]);
+  const i = s(t, ["modelVersion"]);
   i != null && l(e, ["modelVersion"], i);
-  const r = s(n, [
+  const r = s(t, [
     "promptFeedback"
   ]);
   r != null && l(e, ["promptFeedback"], r);
-  const a = s(n, ["responseId"]);
+  const a = s(t, ["responseId"]);
   a != null && l(e, ["responseId"], a);
-  const u = s(n, [
+  const u = s(t, [
     "usageMetadata"
   ]);
   return u != null && l(e, ["usageMetadata"], u), e;
 }
-function ys(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function Es(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function Ts(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], ce(n, o)), t;
+function Ss(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], fe(t, o)), n;
 }
-function _s(n) {
+function Is(t) {
   const e = {};
-  if (s(n, ["authConfig"]) !== void 0)
+  if (s(t, ["authConfig"]) !== void 0)
     throw new Error("authConfig parameter is not supported in Gemini API.");
-  const t = s(n, ["enableWidget"]);
-  return t != null && l(e, ["enableWidget"], t), e;
+  const n = s(t, ["enableWidget"]);
+  return n != null && l(e, ["enableWidget"], n), e;
 }
-function Cs(n) {
+function vs(t) {
   const e = {};
-  if (s(n, ["excludeDomains"]) !== void 0)
+  if (s(t, ["excludeDomains"]) !== void 0)
     throw new Error("excludeDomains parameter is not supported in Gemini API.");
-  if (s(n, ["blockingConfidence"]) !== void 0)
+  if (s(t, ["blockingConfidence"]) !== void 0)
     throw new Error("blockingConfidence parameter is not supported in Gemini API.");
-  const t = s(n, [
+  const n = s(t, [
     "timeRangeFilter"
   ]);
-  return t != null && l(e, ["timeRangeFilter"], t), e;
+  return n != null && l(e, ["timeRangeFilter"], n), e;
 }
-function Es(n) {
-  const e = {}, t = s(n, ["aspectRatio"]);
-  t != null && l(e, ["aspectRatio"], t);
-  const o = s(n, ["imageSize"]);
-  if (o != null && l(e, ["imageSize"], o), s(n, ["personGeneration"]) !== void 0)
+function As(t) {
+  const e = {}, n = s(t, ["aspectRatio"]);
+  n != null && l(e, ["aspectRatio"], n);
+  const o = s(t, ["imageSize"]);
+  if (o != null && l(e, ["imageSize"], o), s(t, ["personGeneration"]) !== void 0)
     throw new Error("personGeneration parameter is not supported in Gemini API.");
-  if (s(n, ["outputMimeType"]) !== void 0)
+  if (s(t, ["outputMimeType"]) !== void 0)
     throw new Error("outputMimeType parameter is not supported in Gemini API.");
-  if (s(n, ["outputCompressionQuality"]) !== void 0)
+  if (s(t, ["outputCompressionQuality"]) !== void 0)
     throw new Error("outputCompressionQuality parameter is not supported in Gemini API.");
   return e;
 }
-function Ss(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["request", "model"], x(n, o));
+function Rs(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["request", "model"], k(t, o));
   const i = s(e, ["contents"]);
   if (i != null) {
-    let u = b(i);
-    Array.isArray(u) && (u = u.map((c) => fo(c))), l(t, ["request", "contents"], u);
+    let u = J(i);
+    Array.isArray(u) && (u = u.map((d) => po(d))), l(n, ["request", "contents"], u);
   }
   const r = s(e, ["metadata"]);
-  r != null && l(t, ["metadata"], r);
+  r != null && l(n, ["metadata"], r);
   const a = s(e, ["config"]);
-  return a != null && l(t, ["request", "generationConfig"], hs(n, a, s(t, ["request"], {}))), t;
+  return a != null && l(n, ["request", "generationConfig"], Cs(t, a, s(n, ["request"], {}))), n;
 }
-function Is(n) {
-  const e = {}, t = s(n, ["response"]);
-  t != null && l(e, ["response"], gs(t));
-  const o = s(n, ["metadata"]);
+function Ps(t) {
+  const e = {}, n = s(t, ["response"]);
+  n != null && l(e, ["response"], _s(n));
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["error"]);
+  const i = s(t, ["error"]);
   return i != null && l(e, ["error"], i), e;
 }
-function vs(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function ws(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  if (e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), s(n, ["filter"]) !== void 0)
+  const i = s(t, ["pageToken"]);
+  if (e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), s(t, ["filter"]) !== void 0)
     throw new Error("filter parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function As(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function Ms(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
+  const i = s(t, ["pageToken"]);
   e !== void 0 && i != null && l(e, ["_query", "pageToken"], i);
-  const r = s(n, ["filter"]);
-  return e !== void 0 && r != null && l(e, ["_query", "filter"], r), t;
+  const r = s(t, ["filter"]);
+  return e !== void 0 && r != null && l(e, ["_query", "filter"], r), n;
 }
-function Rs(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && vs(t, e), e;
+function Ns(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && ws(n, e), e;
 }
-function Ps(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && As(t, e), e;
+function xs(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && Ms(n, e), e;
 }
-function ws(n) {
-  const e = {}, t = s(n, [
+function Ds(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, ["operations"]);
+  const i = s(t, ["operations"]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => Ee(a))), l(e, ["batchJobs"], r);
+    Array.isArray(r) && (r = r.map((a) => Ie(a))), l(e, ["batchJobs"], r);
   }
   return e;
 }
-function Ms(n) {
-  const e = {}, t = s(n, [
+function ks(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, [
+  const i = s(t, [
     "batchPredictionJobs"
   ]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => We(a))), l(e, ["batchJobs"], r);
+    Array.isArray(r) && (r = r.map((a) => Ke(a))), l(e, ["batchJobs"], r);
   }
   return e;
 }
-function Ns(n) {
-  const e = {}, t = s(n, [
+function Us(t) {
+  const e = {}, n = s(t, [
     "mediaResolution"
   ]);
-  t != null && l(e, ["mediaResolution"], t);
-  const o = s(n, [
+  n != null && l(e, ["mediaResolution"], n);
+  const o = s(t, [
     "codeExecutionResult"
   ]);
   o != null && l(e, ["codeExecutionResult"], o);
-  const i = s(n, [
+  const i = s(t, [
     "executableCode"
   ]);
   i != null && l(e, ["executableCode"], i);
-  const r = s(n, ["fileData"]);
-  r != null && l(e, ["fileData"], fs(r));
-  const a = s(n, ["functionCall"]);
-  a != null && l(e, ["functionCall"], ps(a));
-  const u = s(n, [
+  const r = s(t, ["fileData"]);
+  r != null && l(e, ["fileData"], gs(r));
+  const a = s(t, ["functionCall"]);
+  a != null && l(e, ["functionCall"], ys(a));
+  const u = s(t, [
     "functionResponse"
   ]);
   u != null && l(e, ["functionResponse"], u);
-  const c = s(n, ["inlineData"]);
-  c != null && l(e, ["inlineData"], zi(c));
-  const d = s(n, ["text"]);
-  d != null && l(e, ["text"], d);
-  const f = s(n, ["thought"]);
+  const d = s(t, ["inlineData"]);
+  d != null && l(e, ["inlineData"], ji(d));
+  const c = s(t, ["text"]);
+  c != null && l(e, ["text"], c);
+  const f = s(t, ["thought"]);
   f != null && l(e, ["thought"], f);
-  const m = s(n, [
+  const p = s(t, [
     "thoughtSignature"
   ]);
-  m != null && l(e, ["thoughtSignature"], m);
-  const p = s(n, [
+  p != null && l(e, ["thoughtSignature"], p);
+  const h = s(t, [
     "videoMetadata"
   ]);
-  return p != null && l(e, ["videoMetadata"], p), e;
+  return h != null && l(e, ["videoMetadata"], h), e;
 }
-function xs(n) {
-  const e = {}, t = s(n, ["category"]);
-  if (t != null && l(e, ["category"], t), s(n, ["method"]) !== void 0)
+function Ls(t) {
+  const e = {}, n = s(t, ["category"]);
+  if (n != null && l(e, ["category"], n), s(t, ["method"]) !== void 0)
     throw new Error("method parameter is not supported in Gemini API.");
-  const o = s(n, ["threshold"]);
+  const o = s(t, ["threshold"]);
   return o != null && l(e, ["threshold"], o), e;
 }
-function Ds(n) {
-  const e = {}, t = s(n, [
+function Gs(t) {
+  const e = {}, n = s(t, [
     "retrievalConfig"
   ]);
-  t != null && l(e, ["retrievalConfig"], t);
-  const o = s(n, [
+  n != null && l(e, ["retrievalConfig"], n);
+  const o = s(t, [
     "functionCallingConfig"
   ]);
-  return o != null && l(e, ["functionCallingConfig"], ms(o)), e;
+  return o != null && l(e, ["functionCallingConfig"], Ts(o)), e;
 }
-function ks(n) {
+function Fs(t) {
   const e = {};
-  if (s(n, ["retrieval"]) !== void 0)
+  if (s(t, ["retrieval"]) !== void 0)
     throw new Error("retrieval parameter is not supported in Gemini API.");
-  const t = s(n, ["computerUse"]);
-  t != null && l(e, ["computerUse"], t);
-  const o = s(n, ["fileSearch"]);
+  const n = s(t, ["computerUse"]);
+  n != null && l(e, ["computerUse"], n);
+  const o = s(t, ["fileSearch"]);
   o != null && l(e, ["fileSearch"], o);
-  const i = s(n, [
+  const i = s(t, [
     "codeExecution"
   ]);
-  if (i != null && l(e, ["codeExecution"], i), s(n, ["enterpriseWebSearch"]) !== void 0)
+  if (i != null && l(e, ["codeExecution"], i), s(t, ["enterpriseWebSearch"]) !== void 0)
     throw new Error("enterpriseWebSearch parameter is not supported in Gemini API.");
-  const r = s(n, [
+  const r = s(t, [
     "functionDeclarations"
   ]);
   if (r != null) {
     let f = r;
-    Array.isArray(f) && (f = f.map((m) => m)), l(e, ["functionDeclarations"], f);
+    Array.isArray(f) && (f = f.map((p) => p)), l(e, ["functionDeclarations"], f);
   }
-  const a = s(n, ["googleMaps"]);
-  a != null && l(e, ["googleMaps"], _s(a));
-  const u = s(n, ["googleSearch"]);
-  u != null && l(e, ["googleSearch"], Cs(u));
-  const c = s(n, [
+  const a = s(t, ["googleMaps"]);
+  a != null && l(e, ["googleMaps"], Is(a));
+  const u = s(t, ["googleSearch"]);
+  u != null && l(e, ["googleSearch"], vs(u));
+  const d = s(t, [
     "googleSearchRetrieval"
   ]);
-  c != null && l(e, ["googleSearchRetrieval"], c);
-  const d = s(n, ["urlContext"]);
-  return d != null && l(e, ["urlContext"], d), e;
+  d != null && l(e, ["googleSearchRetrieval"], d);
+  const c = s(t, ["urlContext"]);
+  return c != null && l(e, ["urlContext"], c), e;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-var Y;
-(function(n) {
-  n.PAGED_ITEM_BATCH_JOBS = "batchJobs", n.PAGED_ITEM_MODELS = "models", n.PAGED_ITEM_TUNING_JOBS = "tuningJobs", n.PAGED_ITEM_FILES = "files", n.PAGED_ITEM_CACHED_CONTENTS = "cachedContents", n.PAGED_ITEM_FILE_SEARCH_STORES = "fileSearchStores", n.PAGED_ITEM_DOCUMENTS = "documents";
-})(Y || (Y = {}));
-class te {
-  constructor(e, t, o, i) {
-    this.pageInternal = [], this.paramsInternal = {}, this.requestInternal = t, this.init(e, o, i);
+var z;
+(function(t) {
+  t.PAGED_ITEM_BATCH_JOBS = "batchJobs", t.PAGED_ITEM_MODELS = "models", t.PAGED_ITEM_TUNING_JOBS = "tuningJobs", t.PAGED_ITEM_FILES = "files", t.PAGED_ITEM_CACHED_CONTENTS = "cachedContents", t.PAGED_ITEM_FILE_SEARCH_STORES = "fileSearchStores", t.PAGED_ITEM_DOCUMENTS = "documents";
+})(z || (z = {}));
+class oe {
+  constructor(e, n, o, i) {
+    this.pageInternal = [], this.paramsInternal = {}, this.requestInternal = n, this.init(e, o, i);
   }
-  init(e, t, o) {
+  init(e, n, o) {
     var i, r;
-    this.nameInternal = e, this.pageInternal = t[this.nameInternal] || [], this.sdkHttpResponseInternal = t == null ? void 0 : t.sdkHttpResponse, this.idxInternal = 0;
+    this.nameInternal = e, this.pageInternal = n[this.nameInternal] || [], this.sdkHttpResponseInternal = n == null ? void 0 : n.sdkHttpResponse, this.idxInternal = 0;
     let a = { config: {} };
-    !o || Object.keys(o).length === 0 ? a = { config: {} } : typeof o == "object" ? a = Object.assign({}, o) : a = o, a.config && (a.config.pageToken = t.nextPageToken), this.paramsInternal = a, this.pageInternalSize = (r = (i = a.config) === null || i === void 0 ? void 0 : i.pageSize) !== null && r !== void 0 ? r : this.pageInternal.length;
+    !o || Object.keys(o).length === 0 ? a = { config: {} } : typeof o == "object" ? a = Object.assign({}, o) : a = o, a.config && (a.config.pageToken = n.nextPageToken), this.paramsInternal = a, this.pageInternalSize = (r = (i = a.config) === null || i === void 0 ? void 0 : i.pageSize) !== null && r !== void 0 ? r : this.pageInternal.length;
   }
   initNextPage(e) {
     this.init(this.nameInternal, e, this.paramsInternal);
@@ -3321,32 +3359,32 @@ class te {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Us extends z {
+class Hs extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.list = async (t = {}) => new te(Y.PAGED_ITEM_BATCH_JOBS, (o) => this.listInternal(o), await this.listInternal(t), t), this.create = async (t) => (this.apiClient.isVertexAI() && (t.config = this.formatDestination(t.src, t.config)), this.createInternal(t)), this.createEmbeddings = async (t) => {
+    super(), this.apiClient = e, this.list = async (n = {}) => new oe(z.PAGED_ITEM_BATCH_JOBS, (o) => this.listInternal(o), await this.listInternal(n), n), this.create = async (n) => (this.apiClient.isVertexAI() && (n.config = this.formatDestination(n.src, n.config)), this.createInternal(n)), this.createEmbeddings = async (n) => {
       if (console.warn("batches.createEmbeddings() is experimental and may change without notice."), this.apiClient.isVertexAI())
         throw new Error("Vertex AI does not support batches.createEmbeddings.");
-      return this.createEmbeddingsInternal(t);
+      return this.createEmbeddingsInternal(n);
     };
   }
   // Helper function to handle inlined generate content requests
   createInlinedGenerateContentRequest(e) {
-    const t = Nt(
+    const n = xn(
       this.apiClient,
       // Use instance apiClient
       e
-    ), o = t._url, i = v("{model}:batchGenerateContent", o), u = t.batch.inputConfig.requests, c = u.requests, d = [];
-    for (const f of c) {
-      const m = Object.assign({}, f);
-      if (m.systemInstruction) {
-        const p = m.systemInstruction;
-        delete m.systemInstruction;
-        const h = m.request;
-        h.systemInstruction = p, m.request = h;
+    ), o = n._url, i = v("{model}:batchGenerateContent", o), u = n.batch.inputConfig.requests, d = u.requests, c = [];
+    for (const f of d) {
+      const p = Object.assign({}, f);
+      if (p.systemInstruction) {
+        const h = p.systemInstruction;
+        delete p.systemInstruction;
+        const m = p.request;
+        m.systemInstruction = h, p.request = m;
       }
-      d.push(m);
+      c.push(p);
     }
-    return u.requests = d, delete t.config, delete t._url, delete t._query, { path: i, body: t };
+    return u.requests = c, delete n.config, delete n._url, delete n._query, { path: i, body: n };
   }
   // Helper function to get the first GCS URI
   getGcsUri(e) {
@@ -3363,8 +3401,8 @@ class Us extends z {
       return e.bigqueryUri;
   }
   // Function to format the destination configuration for Vertex AI
-  formatDestination(e, t) {
-    const o = t ? Object.assign({}, t) : {}, i = Date.now().toString();
+  formatDestination(e, n) {
+    const o = n ? Object.assign({}, n) : {}, i = Date.now().toString();
     if (o.displayName || (o.displayName = `genaiBatchJob_${i}`), o.dest === void 0) {
       const r = this.getGcsUri(e), a = this.getBigqueryUri(e);
       if (r)
@@ -3384,28 +3422,28 @@ class Us extends z {
    *
    */
   async createInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = ts(this.apiClient, e);
-      return u = v("batchPredictionJobs", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = rs(this.apiClient, e);
+      return u = v("batchPredictionJobs", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json()), a.then((f) => We(f));
+      }).then((f) => f.json()), a.then((f) => Ke(f));
     } else {
-      const d = Nt(this.apiClient, e);
-      return u = v("{model}:batchGenerateContent", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = xn(this.apiClient, e);
+      return u = v("{model}:batchGenerateContent", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ee(f));
+      }).then((f) => f.json()), a.then((f) => Ie(f));
     }
   }
   /**
@@ -3416,20 +3454,20 @@ class Us extends z {
    *
    */
   async createEmbeddingsInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = is(this.apiClient, e);
+      const u = as(this.apiClient, e);
       return r = v("{model}:asyncBatchEmbedContent", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => Ee(c));
+      }).then((d) => d.json()), i.then((d) => Ie(d));
     }
   }
   /**
@@ -3444,28 +3482,28 @@ class Us extends z {
    * ```
    */
   async get(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Ts(this.apiClient, e);
-      return u = v("batchPredictionJobs/{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ss(this.apiClient, e);
+      return u = v("batchPredictionJobs/{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json()), a.then((f) => We(f));
+      }).then((f) => f.json()), a.then((f) => Ke(f));
     } else {
-      const d = ys(this.apiClient, e);
-      return u = v("batches/{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Es(this.apiClient, e);
+      return u = v("batches/{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ee(f));
+      }).then((f) => f.json()), a.then((f) => Ie(f));
     }
   }
   /**
@@ -3480,24 +3518,24 @@ class Us extends z {
    * ```
    */
   async cancel(e) {
-    var t, o, i, r;
+    var n, o, i, r;
     let a = "", u = {};
     if (this.apiClient.isVertexAI()) {
-      const c = Qi(this.apiClient, e);
-      a = v("batchPredictionJobs/{name}:cancel", c._url), u = c._query, delete c._url, delete c._query, await this.apiClient.request({
+      const d = ts(this.apiClient, e);
+      a = v("batchPredictionJobs/{name}:cancel", d._url), u = d._query, delete d._url, delete d._query, await this.apiClient.request({
         path: a,
         queryParams: u,
-        body: JSON.stringify(c),
+        body: JSON.stringify(d),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       });
     } else {
-      const c = Xi(this.apiClient, e);
-      a = v("batches/{name}:cancel", c._url), u = c._query, delete c._url, delete c._query, await this.apiClient.request({
+      const d = es(this.apiClient, e);
+      a = v("batches/{name}:cancel", d._url), u = d._query, delete d._url, delete d._query, await this.apiClient.request({
         path: a,
         queryParams: u,
-        body: JSON.stringify(c),
+        body: JSON.stringify(d),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
@@ -3505,43 +3543,43 @@ class Us extends z {
     }
   }
   async listInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Ps(e);
-      return u = v("batchPredictionJobs", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = xs(e);
+      return u = v("batchPredictionJobs", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Ms(f), p = new Rt();
-        return Object.assign(p, m), p;
+        const p = ks(f), h = new Pn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = Rs(e);
-      return u = v("batches", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ns(e);
+      return u = v("batches", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = ws(f), p = new Rt();
-        return Object.assign(p, m), p;
+        const p = Ds(f), h = new Pn();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -3557,38 +3595,38 @@ class Us extends z {
    * ```
    */
   async delete(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = rs(this.apiClient, e);
-      return u = v("batchPredictionJobs/{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = ds(this.apiClient, e);
+      return u = v("batchPredictionJobs/{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
-      })), a.then((f) => as(f));
+        }, h;
+      })), a.then((f) => fs(f));
     } else {
-      const d = ss(this.apiClient, e);
-      return u = v("batches/{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = us(this.apiClient, e);
+      return u = v("batches/{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
-      })), a.then((f) => ls(f));
+        }, h;
+      })), a.then((f) => cs(f));
     }
   }
 }
@@ -3597,213 +3635,213 @@ class Us extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Ls(n) {
-  const e = {}, t = s(n, ["data"]);
-  if (t != null && l(e, ["data"], t), s(n, ["displayName"]) !== void 0)
+function Vs(t) {
+  const e = {}, n = s(t, ["data"]);
+  if (n != null && l(e, ["data"], n), s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const o = s(n, ["mimeType"]);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function xt(n) {
-  const e = {}, t = s(n, ["parts"]);
-  if (t != null) {
-    let i = t;
-    Array.isArray(i) && (i = i.map((r) => ir(r))), l(e, ["parts"], i);
+function Dn(t) {
+  const e = {}, n = s(t, ["parts"]);
+  if (n != null) {
+    let i = n;
+    Array.isArray(i) && (i = i.map((r) => ar(r))), l(e, ["parts"], i);
   }
-  const o = s(n, ["role"]);
+  const o = s(t, ["role"]);
   return o != null && l(e, ["role"], o), e;
 }
-function Fs(n, e) {
-  const t = {}, o = s(n, ["ttl"]);
+function bs(t, e) {
+  const n = {}, o = s(t, ["ttl"]);
   e !== void 0 && o != null && l(e, ["ttl"], o);
-  const i = s(n, ["expireTime"]);
+  const i = s(t, ["expireTime"]);
   e !== void 0 && i != null && l(e, ["expireTime"], i);
-  const r = s(n, ["displayName"]);
+  const r = s(t, ["displayName"]);
   e !== void 0 && r != null && l(e, ["displayName"], r);
-  const a = s(n, ["contents"]);
+  const a = s(t, ["contents"]);
   if (e !== void 0 && a != null) {
-    let f = b(a);
-    Array.isArray(f) && (f = f.map((m) => xt(m))), l(e, ["contents"], f);
+    let f = J(a);
+    Array.isArray(f) && (f = f.map((p) => Dn(p))), l(e, ["contents"], f);
   }
-  const u = s(n, [
+  const u = s(t, [
     "systemInstruction"
   ]);
-  e !== void 0 && u != null && l(e, ["systemInstruction"], xt(F(u)));
-  const c = s(n, ["tools"]);
-  if (e !== void 0 && c != null) {
-    let f = c;
-    Array.isArray(f) && (f = f.map((m) => rr(m))), l(e, ["tools"], f);
+  e !== void 0 && u != null && l(e, ["systemInstruction"], Dn(F(u)));
+  const d = s(t, ["tools"]);
+  if (e !== void 0 && d != null) {
+    let f = d;
+    Array.isArray(f) && (f = f.map((p) => dr(p))), l(e, ["tools"], f);
   }
-  const d = s(n, ["toolConfig"]);
-  if (e !== void 0 && d != null && l(e, ["toolConfig"], sr(d)), s(n, ["kmsKeyName"]) !== void 0)
+  const c = s(t, ["toolConfig"]);
+  if (e !== void 0 && c != null && l(e, ["toolConfig"], ur(c)), s(t, ["kmsKeyName"]) !== void 0)
     throw new Error("kmsKeyName parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function Gs(n, e) {
-  const t = {}, o = s(n, ["ttl"]);
+function qs(t, e) {
+  const n = {}, o = s(t, ["ttl"]);
   e !== void 0 && o != null && l(e, ["ttl"], o);
-  const i = s(n, ["expireTime"]);
+  const i = s(t, ["expireTime"]);
   e !== void 0 && i != null && l(e, ["expireTime"], i);
-  const r = s(n, ["displayName"]);
+  const r = s(t, ["displayName"]);
   e !== void 0 && r != null && l(e, ["displayName"], r);
-  const a = s(n, ["contents"]);
+  const a = s(t, ["contents"]);
   if (e !== void 0 && a != null) {
-    let m = b(a);
-    Array.isArray(m) && (m = m.map((p) => p)), l(e, ["contents"], m);
+    let p = J(a);
+    Array.isArray(p) && (p = p.map((h) => h)), l(e, ["contents"], p);
   }
-  const u = s(n, [
+  const u = s(t, [
     "systemInstruction"
   ]);
   e !== void 0 && u != null && l(e, ["systemInstruction"], F(u));
-  const c = s(n, ["tools"]);
-  if (e !== void 0 && c != null) {
-    let m = c;
-    Array.isArray(m) && (m = m.map((p) => lr(p))), l(e, ["tools"], m);
+  const d = s(t, ["tools"]);
+  if (e !== void 0 && d != null) {
+    let p = d;
+    Array.isArray(p) && (p = p.map((h) => cr(h))), l(e, ["tools"], p);
   }
-  const d = s(n, ["toolConfig"]);
-  e !== void 0 && d != null && l(e, ["toolConfig"], d);
-  const f = s(n, ["kmsKeyName"]);
-  return e !== void 0 && f != null && l(e, ["encryption_spec", "kmsKeyName"], f), t;
+  const c = s(t, ["toolConfig"]);
+  e !== void 0 && c != null && l(e, ["toolConfig"], c);
+  const f = s(t, ["kmsKeyName"]);
+  return e !== void 0 && f != null && l(e, ["encryption_spec", "kmsKeyName"], f), n;
 }
-function Vs(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["model"], jt(n, o));
+function Bs(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["model"], eo(t, o));
   const i = s(e, ["config"]);
-  return i != null && Fs(i, t), t;
+  return i != null && bs(i, n), n;
 }
-function Hs(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["model"], jt(n, o));
+function Js(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["model"], eo(t, o));
   const i = s(e, ["config"]);
-  return i != null && Gs(i, t), t;
+  return i != null && qs(i, n), n;
 }
-function qs(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], X(n, o)), t;
+function Os(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], Q(t, o)), n;
 }
-function bs(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], X(n, o)), t;
+function $s(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], Q(t, o)), n;
 }
-function Bs(n) {
-  const e = {}, t = s(n, [
+function Ws(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  return t != null && l(e, ["sdkHttpResponse"], t), e;
+  return n != null && l(e, ["sdkHttpResponse"], n), e;
 }
-function Js(n) {
-  const e = {}, t = s(n, [
+function Ks(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  return t != null && l(e, ["sdkHttpResponse"], t), e;
+  return n != null && l(e, ["sdkHttpResponse"], n), e;
 }
-function Os(n) {
+function Ys(t) {
   const e = {};
-  if (s(n, ["displayName"]) !== void 0)
+  if (s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const t = s(n, ["fileUri"]);
-  t != null && l(e, ["fileUri"], t);
-  const o = s(n, ["mimeType"]);
+  const n = s(t, ["fileUri"]);
+  n != null && l(e, ["fileUri"], n);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function $s(n) {
-  const e = {}, t = s(n, ["id"]);
-  t != null && l(e, ["id"], t);
-  const o = s(n, ["args"]);
+function zs(t) {
+  const e = {}, n = s(t, ["id"]);
+  n != null && l(e, ["id"], n);
+  const o = s(t, ["args"]);
   o != null && l(e, ["args"], o);
-  const i = s(n, ["name"]);
-  if (i != null && l(e, ["name"], i), s(n, ["partialArgs"]) !== void 0)
+  const i = s(t, ["name"]);
+  if (i != null && l(e, ["name"], i), s(t, ["partialArgs"]) !== void 0)
     throw new Error("partialArgs parameter is not supported in Gemini API.");
-  if (s(n, ["willContinue"]) !== void 0)
+  if (s(t, ["willContinue"]) !== void 0)
     throw new Error("willContinue parameter is not supported in Gemini API.");
   return e;
 }
-function Ws(n) {
-  const e = {}, t = s(n, [
+function Xs(t) {
+  const e = {}, n = s(t, [
     "allowedFunctionNames"
   ]);
-  t != null && l(e, ["allowedFunctionNames"], t);
-  const o = s(n, ["mode"]);
-  if (o != null && l(e, ["mode"], o), s(n, ["streamFunctionCallArguments"]) !== void 0)
+  n != null && l(e, ["allowedFunctionNames"], n);
+  const o = s(t, ["mode"]);
+  if (o != null && l(e, ["mode"], o), s(t, ["streamFunctionCallArguments"]) !== void 0)
     throw new Error("streamFunctionCallArguments parameter is not supported in Gemini API.");
   return e;
 }
-function Ks(n) {
-  const e = {}, t = s(n, ["description"]);
-  t != null && l(e, ["description"], t);
-  const o = s(n, ["name"]);
+function Qs(t) {
+  const e = {}, n = s(t, ["description"]);
+  n != null && l(e, ["description"], n);
+  const o = s(t, ["name"]);
   o != null && l(e, ["name"], o);
-  const i = s(n, ["parameters"]);
+  const i = s(t, ["parameters"]);
   i != null && l(e, ["parameters"], i);
-  const r = s(n, [
+  const r = s(t, [
     "parametersJsonSchema"
   ]);
   r != null && l(e, ["parametersJsonSchema"], r);
-  const a = s(n, ["response"]);
+  const a = s(t, ["response"]);
   a != null && l(e, ["response"], a);
-  const u = s(n, [
+  const u = s(t, [
     "responseJsonSchema"
   ]);
-  if (u != null && l(e, ["responseJsonSchema"], u), s(n, ["behavior"]) !== void 0)
+  if (u != null && l(e, ["responseJsonSchema"], u), s(t, ["behavior"]) !== void 0)
     throw new Error("behavior parameter is not supported in Vertex AI.");
   return e;
 }
-function Ys(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], X(n, o)), t;
+function Zs(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], Q(t, o)), n;
 }
-function zs(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  return o != null && l(t, ["_url", "name"], X(n, o)), t;
+function js(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  return o != null && l(n, ["_url", "name"], Q(t, o)), n;
 }
-function Xs(n) {
+function er(t) {
   const e = {};
-  if (s(n, ["authConfig"]) !== void 0)
+  if (s(t, ["authConfig"]) !== void 0)
     throw new Error("authConfig parameter is not supported in Gemini API.");
-  const t = s(n, ["enableWidget"]);
-  return t != null && l(e, ["enableWidget"], t), e;
+  const n = s(t, ["enableWidget"]);
+  return n != null && l(e, ["enableWidget"], n), e;
 }
-function Qs(n) {
+function tr(t) {
   const e = {};
-  if (s(n, ["excludeDomains"]) !== void 0)
+  if (s(t, ["excludeDomains"]) !== void 0)
     throw new Error("excludeDomains parameter is not supported in Gemini API.");
-  if (s(n, ["blockingConfidence"]) !== void 0)
+  if (s(t, ["blockingConfidence"]) !== void 0)
     throw new Error("blockingConfidence parameter is not supported in Gemini API.");
-  const t = s(n, [
+  const n = s(t, [
     "timeRangeFilter"
   ]);
-  return t != null && l(e, ["timeRangeFilter"], t), e;
+  return n != null && l(e, ["timeRangeFilter"], n), e;
 }
-function Zs(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function nr(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), t;
+  const i = s(t, ["pageToken"]);
+  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), n;
 }
-function js(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function or(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), t;
+  const i = s(t, ["pageToken"]);
+  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), n;
 }
-function er(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && Zs(t, e), e;
+function ir(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && nr(n, e), e;
 }
-function nr(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && js(t, e), e;
+function sr(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && or(n, e), e;
 }
-function tr(n) {
-  const e = {}, t = s(n, [
+function rr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, [
+  const i = s(t, [
     "cachedContents"
   ]);
   if (i != null) {
@@ -3812,16 +3850,16 @@ function tr(n) {
   }
   return e;
 }
-function or(n) {
-  const e = {}, t = s(n, [
+function lr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, [
+  const i = s(t, [
     "cachedContents"
   ]);
   if (i != null) {
@@ -3830,147 +3868,147 @@ function or(n) {
   }
   return e;
 }
-function ir(n) {
-  const e = {}, t = s(n, [
+function ar(t) {
+  const e = {}, n = s(t, [
     "mediaResolution"
   ]);
-  t != null && l(e, ["mediaResolution"], t);
-  const o = s(n, [
+  n != null && l(e, ["mediaResolution"], n);
+  const o = s(t, [
     "codeExecutionResult"
   ]);
   o != null && l(e, ["codeExecutionResult"], o);
-  const i = s(n, [
+  const i = s(t, [
     "executableCode"
   ]);
   i != null && l(e, ["executableCode"], i);
-  const r = s(n, ["fileData"]);
-  r != null && l(e, ["fileData"], Os(r));
-  const a = s(n, ["functionCall"]);
-  a != null && l(e, ["functionCall"], $s(a));
-  const u = s(n, [
+  const r = s(t, ["fileData"]);
+  r != null && l(e, ["fileData"], Ys(r));
+  const a = s(t, ["functionCall"]);
+  a != null && l(e, ["functionCall"], zs(a));
+  const u = s(t, [
     "functionResponse"
   ]);
   u != null && l(e, ["functionResponse"], u);
-  const c = s(n, ["inlineData"]);
-  c != null && l(e, ["inlineData"], Ls(c));
-  const d = s(n, ["text"]);
-  d != null && l(e, ["text"], d);
-  const f = s(n, ["thought"]);
+  const d = s(t, ["inlineData"]);
+  d != null && l(e, ["inlineData"], Vs(d));
+  const c = s(t, ["text"]);
+  c != null && l(e, ["text"], c);
+  const f = s(t, ["thought"]);
   f != null && l(e, ["thought"], f);
-  const m = s(n, [
+  const p = s(t, [
     "thoughtSignature"
   ]);
-  m != null && l(e, ["thoughtSignature"], m);
-  const p = s(n, [
+  p != null && l(e, ["thoughtSignature"], p);
+  const h = s(t, [
     "videoMetadata"
   ]);
-  return p != null && l(e, ["videoMetadata"], p), e;
+  return h != null && l(e, ["videoMetadata"], h), e;
 }
-function sr(n) {
-  const e = {}, t = s(n, [
+function ur(t) {
+  const e = {}, n = s(t, [
     "retrievalConfig"
   ]);
-  t != null && l(e, ["retrievalConfig"], t);
-  const o = s(n, [
+  n != null && l(e, ["retrievalConfig"], n);
+  const o = s(t, [
     "functionCallingConfig"
   ]);
-  return o != null && l(e, ["functionCallingConfig"], Ws(o)), e;
+  return o != null && l(e, ["functionCallingConfig"], Xs(o)), e;
 }
-function rr(n) {
+function dr(t) {
   const e = {};
-  if (s(n, ["retrieval"]) !== void 0)
+  if (s(t, ["retrieval"]) !== void 0)
     throw new Error("retrieval parameter is not supported in Gemini API.");
-  const t = s(n, ["computerUse"]);
-  t != null && l(e, ["computerUse"], t);
-  const o = s(n, ["fileSearch"]);
+  const n = s(t, ["computerUse"]);
+  n != null && l(e, ["computerUse"], n);
+  const o = s(t, ["fileSearch"]);
   o != null && l(e, ["fileSearch"], o);
-  const i = s(n, [
+  const i = s(t, [
     "codeExecution"
   ]);
-  if (i != null && l(e, ["codeExecution"], i), s(n, ["enterpriseWebSearch"]) !== void 0)
+  if (i != null && l(e, ["codeExecution"], i), s(t, ["enterpriseWebSearch"]) !== void 0)
     throw new Error("enterpriseWebSearch parameter is not supported in Gemini API.");
-  const r = s(n, [
+  const r = s(t, [
     "functionDeclarations"
   ]);
   if (r != null) {
     let f = r;
-    Array.isArray(f) && (f = f.map((m) => m)), l(e, ["functionDeclarations"], f);
+    Array.isArray(f) && (f = f.map((p) => p)), l(e, ["functionDeclarations"], f);
   }
-  const a = s(n, ["googleMaps"]);
-  a != null && l(e, ["googleMaps"], Xs(a));
-  const u = s(n, ["googleSearch"]);
-  u != null && l(e, ["googleSearch"], Qs(u));
-  const c = s(n, [
-    "googleSearchRetrieval"
-  ]);
-  c != null && l(e, ["googleSearchRetrieval"], c);
-  const d = s(n, ["urlContext"]);
-  return d != null && l(e, ["urlContext"], d), e;
-}
-function lr(n) {
-  const e = {}, t = s(n, ["retrieval"]);
-  t != null && l(e, ["retrieval"], t);
-  const o = s(n, ["computerUse"]);
-  if (o != null && l(e, ["computerUse"], o), s(n, ["fileSearch"]) !== void 0)
-    throw new Error("fileSearch parameter is not supported in Vertex AI.");
-  const i = s(n, [
-    "codeExecution"
-  ]);
-  i != null && l(e, ["codeExecution"], i);
-  const r = s(n, [
-    "enterpriseWebSearch"
-  ]);
-  r != null && l(e, ["enterpriseWebSearch"], r);
-  const a = s(n, [
-    "functionDeclarations"
-  ]);
-  if (a != null) {
-    let m = a;
-    Array.isArray(m) && (m = m.map((p) => Ks(p))), l(e, ["functionDeclarations"], m);
-  }
-  const u = s(n, ["googleMaps"]);
-  u != null && l(e, ["googleMaps"], u);
-  const c = s(n, ["googleSearch"]);
-  c != null && l(e, ["googleSearch"], c);
-  const d = s(n, [
+  const a = s(t, ["googleMaps"]);
+  a != null && l(e, ["googleMaps"], er(a));
+  const u = s(t, ["googleSearch"]);
+  u != null && l(e, ["googleSearch"], tr(u));
+  const d = s(t, [
     "googleSearchRetrieval"
   ]);
   d != null && l(e, ["googleSearchRetrieval"], d);
-  const f = s(n, ["urlContext"]);
+  const c = s(t, ["urlContext"]);
+  return c != null && l(e, ["urlContext"], c), e;
+}
+function cr(t) {
+  const e = {}, n = s(t, ["retrieval"]);
+  n != null && l(e, ["retrieval"], n);
+  const o = s(t, ["computerUse"]);
+  if (o != null && l(e, ["computerUse"], o), s(t, ["fileSearch"]) !== void 0)
+    throw new Error("fileSearch parameter is not supported in Vertex AI.");
+  const i = s(t, [
+    "codeExecution"
+  ]);
+  i != null && l(e, ["codeExecution"], i);
+  const r = s(t, [
+    "enterpriseWebSearch"
+  ]);
+  r != null && l(e, ["enterpriseWebSearch"], r);
+  const a = s(t, [
+    "functionDeclarations"
+  ]);
+  if (a != null) {
+    let p = a;
+    Array.isArray(p) && (p = p.map((h) => Qs(h))), l(e, ["functionDeclarations"], p);
+  }
+  const u = s(t, ["googleMaps"]);
+  u != null && l(e, ["googleMaps"], u);
+  const d = s(t, ["googleSearch"]);
+  d != null && l(e, ["googleSearch"], d);
+  const c = s(t, [
+    "googleSearchRetrieval"
+  ]);
+  c != null && l(e, ["googleSearchRetrieval"], c);
+  const f = s(t, ["urlContext"]);
   return f != null && l(e, ["urlContext"], f), e;
 }
-function ar(n, e) {
-  const t = {}, o = s(n, ["ttl"]);
+function fr(t, e) {
+  const n = {}, o = s(t, ["ttl"]);
   e !== void 0 && o != null && l(e, ["ttl"], o);
-  const i = s(n, ["expireTime"]);
-  return e !== void 0 && i != null && l(e, ["expireTime"], i), t;
+  const i = s(t, ["expireTime"]);
+  return e !== void 0 && i != null && l(e, ["expireTime"], i), n;
 }
-function ur(n, e) {
-  const t = {}, o = s(n, ["ttl"]);
+function pr(t, e) {
+  const n = {}, o = s(t, ["ttl"]);
   e !== void 0 && o != null && l(e, ["ttl"], o);
-  const i = s(n, ["expireTime"]);
-  return e !== void 0 && i != null && l(e, ["expireTime"], i), t;
+  const i = s(t, ["expireTime"]);
+  return e !== void 0 && i != null && l(e, ["expireTime"], i), n;
 }
-function dr(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  o != null && l(t, ["_url", "name"], X(n, o));
+function hr(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  o != null && l(n, ["_url", "name"], Q(t, o));
   const i = s(e, ["config"]);
-  return i != null && ar(i, t), t;
+  return i != null && fr(i, n), n;
 }
-function cr(n, e) {
-  const t = {}, o = s(e, ["name"]);
-  o != null && l(t, ["_url", "name"], X(n, o));
+function mr(t, e) {
+  const n = {}, o = s(e, ["name"]);
+  o != null && l(n, ["_url", "name"], Q(t, o));
   const i = s(e, ["config"]);
-  return i != null && ur(i, t), t;
+  return i != null && pr(i, n), n;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class fr extends z {
+class gr extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.list = async (t = {}) => new te(Y.PAGED_ITEM_CACHED_CONTENTS, (o) => this.listInternal(o), await this.listInternal(t), t);
+    super(), this.apiClient = e, this.list = async (n = {}) => new oe(z.PAGED_ITEM_CACHED_CONTENTS, (o) => this.listInternal(o), await this.listInternal(n), n);
   }
   /**
    * Creates a cached contents resource.
@@ -3999,24 +4037,24 @@ class fr extends z {
    * ```
    */
   async create(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Hs(this.apiClient, e);
-      return u = v("cachedContents", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Js(this.apiClient, e);
+      return u = v("cachedContents", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       }).then((f) => f.json()), a.then((f) => f);
     } else {
-      const d = Vs(this.apiClient, e);
-      return u = v("cachedContents", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Bs(this.apiClient, e);
+      return u = v("cachedContents", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
@@ -4035,24 +4073,24 @@ class fr extends z {
    * ```
    */
   async get(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = zs(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = js(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       }).then((f) => f.json()), a.then((f) => f);
     } else {
-      const d = Ys(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Zs(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
@@ -4071,43 +4109,43 @@ class fr extends z {
    * ```
    */
   async delete(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = bs(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = $s(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Js(f), p = new vt();
-        return Object.assign(p, m), p;
+        const p = Ks(f), h = new An();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = qs(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Os(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Bs(f), p = new vt();
-        return Object.assign(p, m), p;
+        const p = Ws(f), h = new An();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -4126,24 +4164,24 @@ class fr extends z {
    * ```
    */
   async update(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = cr(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = mr(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "PATCH",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       }).then((f) => f.json()), a.then((f) => f);
     } else {
-      const d = dr(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = hr(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "PATCH",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
@@ -4151,122 +4189,122 @@ class fr extends z {
     }
   }
   async listInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = nr(e);
-      return u = v("cachedContents", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = sr(e);
+      return u = v("cachedContents", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = or(f), p = new At();
-        return Object.assign(p, m), p;
+        const p = lr(f), h = new Rn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = er(e);
-      return u = v("cachedContents", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = ir(e);
+      return u = v("cachedContents", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = tr(f), p = new At();
-        return Object.assign(p, m), p;
+        const p = rr(f), h = new Rn();
+        return Object.assign(h, p), h;
       });
     }
   }
 }
-function Pe(n, e) {
-  var t = {};
-  for (var o in n) Object.prototype.hasOwnProperty.call(n, o) && e.indexOf(o) < 0 && (t[o] = n[o]);
-  if (n != null && typeof Object.getOwnPropertySymbols == "function")
-    for (var i = 0, o = Object.getOwnPropertySymbols(n); i < o.length; i++)
-      e.indexOf(o[i]) < 0 && Object.prototype.propertyIsEnumerable.call(n, o[i]) && (t[o[i]] = n[o[i]]);
-  return t;
+function Me(t, e) {
+  var n = {};
+  for (var o in t) Object.prototype.hasOwnProperty.call(t, o) && e.indexOf(o) < 0 && (n[o] = t[o]);
+  if (t != null && typeof Object.getOwnPropertySymbols == "function")
+    for (var i = 0, o = Object.getOwnPropertySymbols(t); i < o.length; i++)
+      e.indexOf(o[i]) < 0 && Object.prototype.propertyIsEnumerable.call(t, o[i]) && (n[o[i]] = t[o[i]]);
+  return n;
 }
-function Dt(n) {
-  var e = typeof Symbol == "function" && Symbol.iterator, t = e && n[e], o = 0;
-  if (t) return t.call(n);
-  if (n && typeof n.length == "number") return {
+function kn(t) {
+  var e = typeof Symbol == "function" && Symbol.iterator, n = e && t[e], o = 0;
+  if (n) return n.call(t);
+  if (t && typeof t.length == "number") return {
     next: function() {
-      return n && o >= n.length && (n = void 0), { value: n && n[o++], done: !n };
+      return t && o >= t.length && (t = void 0), { value: t && t[o++], done: !t };
     }
   };
   throw new TypeError(e ? "Object is not iterable." : "Symbol.iterator is not defined.");
 }
-function w(n) {
-  return this instanceof w ? (this.v = n, this) : new w(n);
+function M(t) {
+  return this instanceof M ? (this.v = t, this) : new M(t);
 }
-function J(n, e, t) {
+function $(t, e, n) {
   if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-  var o = t.apply(n, e || []), i, r = [];
+  var o = n.apply(t, e || []), i, r = [];
   return i = Object.create((typeof AsyncIterator == "function" ? AsyncIterator : Object).prototype), u("next"), u("throw"), u("return", a), i[Symbol.asyncIterator] = function() {
     return this;
   }, i;
-  function a(h) {
+  function a(m) {
     return function(g) {
-      return Promise.resolve(g).then(h, m);
+      return Promise.resolve(g).then(m, p);
     };
   }
-  function u(h, g) {
-    o[h] && (i[h] = function(_) {
-      return new Promise(function(T, C) {
-        r.push([h, _, T, C]) > 1 || c(h, _);
+  function u(m, g) {
+    o[m] && (i[m] = function(T) {
+      return new Promise(function(y, E) {
+        r.push([m, T, y, E]) > 1 || d(m, T);
       });
-    }, g && (i[h] = g(i[h])));
+    }, g && (i[m] = g(i[m])));
   }
-  function c(h, g) {
+  function d(m, g) {
     try {
-      d(o[h](g));
-    } catch (_) {
-      p(r[0][3], _);
+      c(o[m](g));
+    } catch (T) {
+      h(r[0][3], T);
     }
   }
-  function d(h) {
-    h.value instanceof w ? Promise.resolve(h.value.v).then(f, m) : p(r[0][2], h);
+  function c(m) {
+    m.value instanceof M ? Promise.resolve(m.value.v).then(f, p) : h(r[0][2], m);
   }
-  function f(h) {
-    c("next", h);
+  function f(m) {
+    d("next", m);
   }
-  function m(h) {
-    c("throw", h);
+  function p(m) {
+    d("throw", m);
   }
-  function p(h, g) {
-    h(g), r.shift(), r.length && c(r[0][0], r[0][1]);
+  function h(m, g) {
+    m(g), r.shift(), r.length && d(r[0][0], r[0][1]);
   }
 }
-function O(n) {
+function W(t) {
   if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-  var e = n[Symbol.asyncIterator], t;
-  return e ? e.call(n) : (n = typeof Dt == "function" ? Dt(n) : n[Symbol.iterator](), t = {}, o("next"), o("throw"), o("return"), t[Symbol.asyncIterator] = function() {
+  var e = t[Symbol.asyncIterator], n;
+  return e ? e.call(t) : (t = typeof kn == "function" ? kn(t) : t[Symbol.iterator](), n = {}, o("next"), o("throw"), o("return"), n[Symbol.asyncIterator] = function() {
     return this;
-  }, t);
+  }, n);
   function o(r) {
-    t[r] = n[r] && function(a) {
-      return new Promise(function(u, c) {
-        a = n[r](a), i(u, c, a.done, a.value);
+    n[r] = t[r] && function(a) {
+      return new Promise(function(u, d) {
+        a = t[r](a), i(u, d, a.done, a.value);
       });
     };
   }
-  function i(r, a, u, c) {
-    Promise.resolve(c).then(function(d) {
-      r({ value: d, done: u });
+  function i(r, a, u, d) {
+    Promise.resolve(d).then(function(c) {
+      r({ value: c, done: u });
     }, a);
   }
 }
@@ -4275,48 +4313,48 @@ function O(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function pr(n) {
+function yr(t) {
   var e;
-  if (n.candidates == null || n.candidates.length === 0)
+  if (t.candidates == null || t.candidates.length === 0)
     return !1;
-  const t = (e = n.candidates[0]) === null || e === void 0 ? void 0 : e.content;
-  return t === void 0 ? !1 : po(t);
+  const n = (e = t.candidates[0]) === null || e === void 0 ? void 0 : e.content;
+  return n === void 0 ? !1 : ho(n);
 }
-function po(n) {
-  if (n.parts === void 0 || n.parts.length === 0)
+function ho(t) {
+  if (t.parts === void 0 || t.parts.length === 0)
     return !1;
-  for (const e of n.parts)
+  for (const e of t.parts)
     if (e === void 0 || Object.keys(e).length === 0)
       return !1;
   return !0;
 }
-function mr(n) {
-  if (n.length !== 0) {
-    for (const e of n)
+function Tr(t) {
+  if (t.length !== 0) {
+    for (const e of t)
       if (e.role !== "user" && e.role !== "model")
         throw new Error(`Role must be user or model, but got ${e.role}.`);
   }
 }
-function kt(n) {
-  if (n === void 0 || n.length === 0)
+function Un(t) {
+  if (t === void 0 || t.length === 0)
     return [];
-  const e = [], t = n.length;
+  const e = [], n = t.length;
   let o = 0;
-  for (; o < t; )
-    if (n[o].role === "user")
-      e.push(n[o]), o++;
+  for (; o < n; )
+    if (t[o].role === "user")
+      e.push(t[o]), o++;
     else {
       const i = [];
       let r = !0;
-      for (; o < t && n[o].role === "model"; )
-        i.push(n[o]), r && !po(n[o]) && (r = !1), o++;
+      for (; o < n && t[o].role === "model"; )
+        i.push(t[o]), r && !ho(t[o]) && (r = !1), o++;
       r ? e.push(...i) : e.pop();
     }
   return e;
 }
-class hr {
-  constructor(e, t) {
-    this.modelsModule = e, this.apiClient = t;
+class Cr {
+  constructor(e, n) {
+    this.modelsModule = e, this.apiClient = n;
   }
   /**
    * Creates a new chat session.
@@ -4341,7 +4379,7 @@ class hr {
    * ```
    */
   create(e) {
-    return new gr(
+    return new _r(
       this.apiClient,
       this.modelsModule,
       e.model,
@@ -4352,9 +4390,9 @@ class hr {
     );
   }
 }
-class gr {
-  constructor(e, t, o, i = {}, r = []) {
-    this.apiClient = e, this.modelsModule = t, this.model = o, this.config = i, this.history = r, this.sendPromise = Promise.resolve(), mr(r);
+class _r {
+  constructor(e, n, o, i = {}, r = []) {
+    this.apiClient = e, this.modelsModule = n, this.model = o, this.config = i, this.history = r, this.sendPromise = Promise.resolve(), Tr(r);
   }
   /**
    * Sends a message to the model and returns the response.
@@ -4377,20 +4415,20 @@ class gr {
    * ```
    */
   async sendMessage(e) {
-    var t;
+    var n;
     await this.sendPromise;
     const o = F(e.message), i = this.modelsModule.generateContent({
       model: this.model,
       contents: this.getHistory(!0).concat(o),
-      config: (t = e.config) !== null && t !== void 0 ? t : this.config
+      config: (n = e.config) !== null && n !== void 0 ? n : this.config
     });
     return this.sendPromise = (async () => {
       var r, a, u;
-      const c = await i, d = (a = (r = c.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content, f = c.automaticFunctionCallingHistory, m = this.getHistory(!0).length;
-      let p = [];
-      f != null && (p = (u = f.slice(m)) !== null && u !== void 0 ? u : []);
-      const h = d ? [d] : [];
-      this.recordHistory(o, h, p);
+      const d = await i, c = (a = (r = d.candidates) === null || r === void 0 ? void 0 : r[0]) === null || a === void 0 ? void 0 : a.content, f = d.automaticFunctionCallingHistory, p = this.getHistory(!0).length;
+      let h = [];
+      f != null && (h = (u = f.slice(p)) !== null && u !== void 0 ? u : []);
+      const m = c ? [c] : [];
+      this.recordHistory(o, m, h);
     })(), await this.sendPromise.catch(() => {
       this.sendPromise = Promise.resolve();
     }), i;
@@ -4418,12 +4456,12 @@ class gr {
    * ```
    */
   async sendMessageStream(e) {
-    var t;
+    var n;
     await this.sendPromise;
     const o = F(e.message), i = this.modelsModule.generateContentStream({
       model: this.model,
       contents: this.getHistory(!0).concat(o),
-      config: (t = e.config) !== null && t !== void 0 ? t : this.config
+      config: (n = e.config) !== null && n !== void 0 ? n : this.config
     });
     this.sendPromise = i.then(() => {
     }).catch(() => {
@@ -4455,41 +4493,41 @@ class gr {
    *     chat session.
    */
   getHistory(e = !1) {
-    const t = e ? kt(this.history) : this.history;
-    return structuredClone(t);
+    const n = e ? Un(this.history) : this.history;
+    return structuredClone(n);
   }
-  processStreamResponse(e, t) {
-    return J(this, arguments, function* () {
-      var i, r, a, u, c, d;
+  processStreamResponse(e, n) {
+    return $(this, arguments, function* () {
+      var i, r, a, u, d, c;
       const f = [];
       try {
-        for (var m = !0, p = O(e), h; h = yield w(p.next()), i = h.done, !i; m = !0) {
-          u = h.value, m = !1;
+        for (var p = !0, h = W(e), m; m = yield M(h.next()), i = m.done, !i; p = !0) {
+          u = m.value, p = !1;
           const g = u;
-          if (pr(g)) {
-            const _ = (d = (c = g.candidates) === null || c === void 0 ? void 0 : c[0]) === null || d === void 0 ? void 0 : d.content;
-            _ !== void 0 && f.push(_);
+          if (yr(g)) {
+            const T = (c = (d = g.candidates) === null || d === void 0 ? void 0 : d[0]) === null || c === void 0 ? void 0 : c.content;
+            T !== void 0 && f.push(T);
           }
-          yield yield w(g);
+          yield yield M(g);
         }
       } catch (g) {
         r = { error: g };
       } finally {
         try {
-          !m && !i && (a = p.return) && (yield w(a.call(p)));
+          !p && !i && (a = h.return) && (yield M(a.call(h)));
         } finally {
           if (r) throw r.error;
         }
       }
-      this.recordHistory(t, f);
+      this.recordHistory(n, f);
     });
   }
-  recordHistory(e, t, o) {
+  recordHistory(e, n, o) {
     let i = [];
-    t.length > 0 && t.every((r) => r.role !== void 0) ? i = t : i.push({
+    n.length > 0 && n.every((r) => r.role !== void 0) ? i = n : i.push({
       role: "model",
       parts: []
-    }), o && o.length > 0 ? this.history.push(...kt(o)) : this.history.push(e), this.history.push(...i);
+    }), o && o.length > 0 ? this.history.push(...Un(o)) : this.history.push(e), this.history.push(...i);
   }
 }
 /**
@@ -4497,9 +4535,9 @@ class gr {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class he extends Error {
+class ge extends Error {
   constructor(e) {
-    super(e.message), this.name = "ApiError", this.status = e.status, Object.setPrototypeOf(this, he.prototype);
+    super(e.message), this.name = "ApiError", this.status = e.status, Object.setPrototypeOf(this, ge.prototype);
   }
 }
 /**
@@ -4507,66 +4545,66 @@ class he extends Error {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function yr(n) {
-  const e = {}, t = s(n, ["file"]);
-  return t != null && l(e, ["file"], t), e;
+function Er(t) {
+  const e = {}, n = s(t, ["file"]);
+  return n != null && l(e, ["file"], n), e;
 }
-function Tr(n) {
-  const e = {}, t = s(n, [
+function Sr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  return t != null && l(e, ["sdkHttpResponse"], t), e;
+  return n != null && l(e, ["sdkHttpResponse"], n), e;
 }
-function _r(n) {
-  const e = {}, t = s(n, ["name"]);
-  return t != null && l(e, ["_url", "file"], so(t)), e;
+function Ir(t) {
+  const e = {}, n = s(t, ["name"]);
+  return n != null && l(e, ["_url", "file"], ro(n)), e;
 }
-function Cr(n) {
-  const e = {}, t = s(n, [
+function vr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  return t != null && l(e, ["sdkHttpResponse"], t), e;
+  return n != null && l(e, ["sdkHttpResponse"], n), e;
 }
-function Er(n) {
-  const e = {}, t = s(n, ["name"]);
-  return t != null && l(e, ["_url", "file"], so(t)), e;
+function Ar(t) {
+  const e = {}, n = s(t, ["name"]);
+  return n != null && l(e, ["_url", "file"], ro(n)), e;
 }
-function Sr(n) {
-  const e = {}, t = s(n, ["uris"]);
-  return t != null && l(e, ["uris"], t), e;
+function Rr(t) {
+  const e = {}, n = s(t, ["uris"]);
+  return n != null && l(e, ["uris"], n), e;
 }
-function Ir(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function Pr(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), t;
+  const i = s(t, ["pageToken"]);
+  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), n;
 }
-function vr(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && Ir(t, e), e;
+function wr(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && Pr(n, e), e;
 }
-function Ar(n) {
-  const e = {}, t = s(n, [
+function Mr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, ["files"]);
+  const i = s(t, ["files"]);
   if (i != null) {
     let r = i;
     Array.isArray(r) && (r = r.map((a) => a)), l(e, ["files"], r);
   }
   return e;
 }
-function Rr(n) {
-  const e = {}, t = s(n, [
+function Nr(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["files"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["files"]);
   if (o != null) {
     let i = o;
     Array.isArray(i) && (i = i.map((r) => r)), l(e, ["files"], i);
@@ -4578,9 +4616,9 @@ function Rr(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Pr extends z {
+class xr extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.list = async (t = {}) => new te(Y.PAGED_ITEM_FILES, (o) => this.listInternal(o), await this.listInternal(t), t);
+    super(), this.apiClient = e, this.list = async (n = {}) => new oe(z.PAGED_ITEM_FILES, (o) => this.listInternal(o), await this.listInternal(n), n);
   }
   /**
    * Uploads a file asynchronously to the Gemini API.
@@ -4628,7 +4666,7 @@ class Pr extends z {
   async upload(e) {
     if (this.apiClient.isVertexAI())
       throw new Error("Vertex AI does not support uploading files. You can share files through a GCS bucket.");
-    return this.apiClient.uploadFile(e.file, e.config).then((t) => t);
+    return this.apiClient.uploadFile(e.file, e.config).then((n) => n);
   }
   /**
    * Downloads a remotely stored file asynchronously to a location specified in
@@ -4660,47 +4698,47 @@ class Pr extends z {
     return this.registerFilesInternal(e);
   }
   async listInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = vr(e);
+      const u = wr(e);
       return r = v("files", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => {
-        const d = Ar(c), f = new wi();
-        return Object.assign(f, d), f;
+      })), i.then((d) => {
+        const c = Mr(d), f = new Di();
+        return Object.assign(f, c), f;
       });
     }
   }
   async createInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = yr(e);
+      const u = Er(e);
       return r = v("upload/v1beta/files", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = Tr(c), f = new Mi();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = Sr(d), f = new ki();
+        return Object.assign(f, c), f;
       });
     }
   }
@@ -4720,20 +4758,20 @@ class Pr extends z {
    * ```
    */
   async get(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Er(e);
+      const u = Ar(e);
       return r = v("files/{file}", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => c);
+      }).then((d) => d.json()), i.then((d) => d);
     }
   }
   /**
@@ -4750,47 +4788,47 @@ class Pr extends z {
    * ```
    */
   async delete(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = _r(e);
+      const u = Ir(e);
       return r = v("files/{file}", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => {
-        const d = Cr(c), f = new Ni();
-        return Object.assign(f, d), f;
+      })), i.then((d) => {
+        const c = vr(d), f = new Ui();
+        return Object.assign(f, c), f;
       });
     }
   }
   async registerFilesInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Sr(e);
+      const u = Rr(e);
       return r = v("files:register", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = Rr(c), f = new xi();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = Nr(d), f = new Li();
+        return Object.assign(f, c), f;
       });
     }
   }
@@ -4800,1063 +4838,1063 @@ class Pr extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Se(n) {
-  const e = {}, t = s(n, ["data"]);
-  if (t != null && l(e, ["data"], t), s(n, ["displayName"]) !== void 0)
+function ve(t) {
+  const e = {}, n = s(t, ["data"]);
+  if (n != null && l(e, ["data"], n), s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const o = s(n, ["mimeType"]);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function wr(n) {
-  const e = {}, t = s(n, ["parts"]);
-  if (t != null) {
-    let i = t;
-    Array.isArray(i) && (i = i.map((r) => Or(r))), l(e, ["parts"], i);
+function Dr(t) {
+  const e = {}, n = s(t, ["parts"]);
+  if (n != null) {
+    let i = n;
+    Array.isArray(i) && (i = i.map((r) => Yr(r))), l(e, ["parts"], i);
   }
-  const o = s(n, ["role"]);
+  const o = s(t, ["role"]);
   return o != null && l(e, ["role"], o), e;
 }
-function Mr(n) {
+function kr(t) {
   const e = {};
-  if (s(n, ["displayName"]) !== void 0)
+  if (s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const t = s(n, ["fileUri"]);
-  t != null && l(e, ["fileUri"], t);
-  const o = s(n, ["mimeType"]);
+  const n = s(t, ["fileUri"]);
+  n != null && l(e, ["fileUri"], n);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function Nr(n) {
-  const e = {}, t = s(n, ["id"]);
-  t != null && l(e, ["id"], t);
-  const o = s(n, ["args"]);
+function Ur(t) {
+  const e = {}, n = s(t, ["id"]);
+  n != null && l(e, ["id"], n);
+  const o = s(t, ["args"]);
   o != null && l(e, ["args"], o);
-  const i = s(n, ["name"]);
-  if (i != null && l(e, ["name"], i), s(n, ["partialArgs"]) !== void 0)
+  const i = s(t, ["name"]);
+  if (i != null && l(e, ["name"], i), s(t, ["partialArgs"]) !== void 0)
     throw new Error("partialArgs parameter is not supported in Gemini API.");
-  if (s(n, ["willContinue"]) !== void 0)
+  if (s(t, ["willContinue"]) !== void 0)
     throw new Error("willContinue parameter is not supported in Gemini API.");
   return e;
 }
-function xr(n) {
-  const e = {}, t = s(n, ["description"]);
-  t != null && l(e, ["description"], t);
-  const o = s(n, ["name"]);
+function Lr(t) {
+  const e = {}, n = s(t, ["description"]);
+  n != null && l(e, ["description"], n);
+  const o = s(t, ["name"]);
   o != null && l(e, ["name"], o);
-  const i = s(n, ["parameters"]);
+  const i = s(t, ["parameters"]);
   i != null && l(e, ["parameters"], i);
-  const r = s(n, [
+  const r = s(t, [
     "parametersJsonSchema"
   ]);
   r != null && l(e, ["parametersJsonSchema"], r);
-  const a = s(n, ["response"]);
+  const a = s(t, ["response"]);
   a != null && l(e, ["response"], a);
-  const u = s(n, [
+  const u = s(t, [
     "responseJsonSchema"
   ]);
-  if (u != null && l(e, ["responseJsonSchema"], u), s(n, ["behavior"]) !== void 0)
+  if (u != null && l(e, ["responseJsonSchema"], u), s(t, ["behavior"]) !== void 0)
     throw new Error("behavior parameter is not supported in Vertex AI.");
   return e;
 }
-function Dr(n) {
-  const e = {}, t = s(n, [
+function Gr(t) {
+  const e = {}, n = s(t, [
     "modelSelectionConfig"
   ]);
-  t != null && l(e, ["modelConfig"], t);
-  const o = s(n, [
+  n != null && l(e, ["modelConfig"], n);
+  const o = s(t, [
     "responseJsonSchema"
   ]);
   o != null && l(e, ["responseJsonSchema"], o);
-  const i = s(n, [
+  const i = s(t, [
     "audioTimestamp"
   ]);
   i != null && l(e, ["audioTimestamp"], i);
-  const r = s(n, [
+  const r = s(t, [
     "candidateCount"
   ]);
   r != null && l(e, ["candidateCount"], r);
-  const a = s(n, [
+  const a = s(t, [
     "enableAffectiveDialog"
   ]);
   a != null && l(e, ["enableAffectiveDialog"], a);
-  const u = s(n, [
+  const u = s(t, [
     "frequencyPenalty"
   ]);
   u != null && l(e, ["frequencyPenalty"], u);
-  const c = s(n, ["logprobs"]);
-  c != null && l(e, ["logprobs"], c);
-  const d = s(n, [
+  const d = s(t, ["logprobs"]);
+  d != null && l(e, ["logprobs"], d);
+  const c = s(t, [
     "maxOutputTokens"
   ]);
-  d != null && l(e, ["maxOutputTokens"], d);
-  const f = s(n, [
+  c != null && l(e, ["maxOutputTokens"], c);
+  const f = s(t, [
     "mediaResolution"
   ]);
   f != null && l(e, ["mediaResolution"], f);
-  const m = s(n, [
+  const p = s(t, [
     "presencePenalty"
   ]);
-  m != null && l(e, ["presencePenalty"], m);
-  const p = s(n, [
+  p != null && l(e, ["presencePenalty"], p);
+  const h = s(t, [
     "responseLogprobs"
   ]);
-  p != null && l(e, ["responseLogprobs"], p);
-  const h = s(n, [
+  h != null && l(e, ["responseLogprobs"], h);
+  const m = s(t, [
     "responseMimeType"
   ]);
-  h != null && l(e, ["responseMimeType"], h);
-  const g = s(n, [
+  m != null && l(e, ["responseMimeType"], m);
+  const g = s(t, [
     "responseModalities"
   ]);
   g != null && l(e, ["responseModalities"], g);
-  const _ = s(n, [
+  const T = s(t, [
     "responseSchema"
   ]);
-  _ != null && l(e, ["responseSchema"], _);
-  const T = s(n, [
+  T != null && l(e, ["responseSchema"], T);
+  const y = s(t, [
     "routingConfig"
   ]);
-  T != null && l(e, ["routingConfig"], T);
-  const C = s(n, ["seed"]);
-  C != null && l(e, ["seed"], C);
-  const S = s(n, ["speechConfig"]);
+  y != null && l(e, ["routingConfig"], y);
+  const E = s(t, ["seed"]);
+  E != null && l(e, ["seed"], E);
+  const S = s(t, ["speechConfig"]);
   S != null && l(e, ["speechConfig"], S);
-  const E = s(n, [
+  const I = s(t, [
     "stopSequences"
   ]);
-  E != null && l(e, ["stopSequences"], E);
-  const I = s(n, ["temperature"]);
-  I != null && l(e, ["temperature"], I);
-  const y = s(n, [
+  I != null && l(e, ["stopSequences"], I);
+  const _ = s(t, ["temperature"]);
+  _ != null && l(e, ["temperature"], _);
+  const C = s(t, [
     "thinkingConfig"
   ]);
-  y != null && l(e, ["thinkingConfig"], y);
-  const R = s(n, ["topK"]);
+  C != null && l(e, ["thinkingConfig"], C);
+  const R = s(t, ["topK"]);
   R != null && l(e, ["topK"], R);
-  const M = s(n, ["topP"]);
-  if (M != null && l(e, ["topP"], M), s(n, ["enableEnhancedCivicAnswers"]) !== void 0)
+  const P = s(t, ["topP"]);
+  if (P != null && l(e, ["topP"], P), s(t, ["enableEnhancedCivicAnswers"]) !== void 0)
     throw new Error("enableEnhancedCivicAnswers parameter is not supported in Vertex AI.");
   return e;
 }
-function kr(n) {
+function Fr(t) {
   const e = {};
-  if (s(n, ["authConfig"]) !== void 0)
+  if (s(t, ["authConfig"]) !== void 0)
     throw new Error("authConfig parameter is not supported in Gemini API.");
-  const t = s(n, ["enableWidget"]);
-  return t != null && l(e, ["enableWidget"], t), e;
+  const n = s(t, ["enableWidget"]);
+  return n != null && l(e, ["enableWidget"], n), e;
 }
-function Ur(n) {
+function Hr(t) {
   const e = {};
-  if (s(n, ["excludeDomains"]) !== void 0)
+  if (s(t, ["excludeDomains"]) !== void 0)
     throw new Error("excludeDomains parameter is not supported in Gemini API.");
-  if (s(n, ["blockingConfidence"]) !== void 0)
+  if (s(t, ["blockingConfidence"]) !== void 0)
     throw new Error("blockingConfidence parameter is not supported in Gemini API.");
-  const t = s(n, [
+  const n = s(t, [
     "timeRangeFilter"
   ]);
-  return t != null && l(e, ["timeRangeFilter"], t), e;
+  return n != null && l(e, ["timeRangeFilter"], n), e;
 }
-function Lr(n, e) {
-  const t = {}, o = s(n, [
+function Vr(t, e) {
+  const n = {}, o = s(t, [
     "generationConfig"
   ]);
   e !== void 0 && o != null && l(e, ["setup", "generationConfig"], o);
-  const i = s(n, [
+  const i = s(t, [
     "responseModalities"
   ]);
   e !== void 0 && i != null && l(e, ["setup", "generationConfig", "responseModalities"], i);
-  const r = s(n, ["temperature"]);
+  const r = s(t, ["temperature"]);
   e !== void 0 && r != null && l(e, ["setup", "generationConfig", "temperature"], r);
-  const a = s(n, ["topP"]);
+  const a = s(t, ["topP"]);
   e !== void 0 && a != null && l(e, ["setup", "generationConfig", "topP"], a);
-  const u = s(n, ["topK"]);
+  const u = s(t, ["topK"]);
   e !== void 0 && u != null && l(e, ["setup", "generationConfig", "topK"], u);
-  const c = s(n, [
+  const d = s(t, [
     "maxOutputTokens"
   ]);
-  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], d);
+  const c = s(t, [
     "mediaResolution"
   ]);
-  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "mediaResolution"], d);
-  const f = s(n, ["seed"]);
+  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "mediaResolution"], c);
+  const f = s(t, ["seed"]);
   e !== void 0 && f != null && l(e, ["setup", "generationConfig", "seed"], f);
-  const m = s(n, ["speechConfig"]);
-  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "speechConfig"], dn(m));
-  const p = s(n, [
+  const p = s(t, ["speechConfig"]);
+  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "speechConfig"], dt(p));
+  const h = s(t, [
     "thinkingConfig"
   ]);
-  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "thinkingConfig"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "thinkingConfig"], h);
+  const m = s(t, [
     "enableAffectiveDialog"
   ]);
-  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], h);
-  const g = s(n, [
+  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], m);
+  const g = s(t, [
     "systemInstruction"
   ]);
-  e !== void 0 && g != null && l(e, ["setup", "systemInstruction"], wr(F(g)));
-  const _ = s(n, ["tools"]);
-  if (e !== void 0 && _ != null) {
-    let R = de(_);
-    Array.isArray(R) && (R = R.map((M) => Wr(ue(M)))), l(e, ["setup", "tools"], R);
+  e !== void 0 && g != null && l(e, ["setup", "systemInstruction"], Dr(F(g)));
+  const T = s(t, ["tools"]);
+  if (e !== void 0 && T != null) {
+    let R = ce(T);
+    Array.isArray(R) && (R = R.map((P) => Xr(de(P)))), l(e, ["setup", "tools"], R);
   }
-  const T = s(n, [
+  const y = s(t, [
     "sessionResumption"
   ]);
-  e !== void 0 && T != null && l(e, ["setup", "sessionResumption"], $r(T));
-  const C = s(n, [
+  e !== void 0 && y != null && l(e, ["setup", "sessionResumption"], zr(y));
+  const E = s(t, [
     "inputAudioTranscription"
   ]);
-  e !== void 0 && C != null && l(e, ["setup", "inputAudioTranscription"], C);
-  const S = s(n, [
+  e !== void 0 && E != null && l(e, ["setup", "inputAudioTranscription"], E);
+  const S = s(t, [
     "outputAudioTranscription"
   ]);
   e !== void 0 && S != null && l(e, ["setup", "outputAudioTranscription"], S);
-  const E = s(n, [
+  const I = s(t, [
     "realtimeInputConfig"
   ]);
-  e !== void 0 && E != null && l(e, ["setup", "realtimeInputConfig"], E);
-  const I = s(n, [
+  e !== void 0 && I != null && l(e, ["setup", "realtimeInputConfig"], I);
+  const _ = s(t, [
     "contextWindowCompression"
   ]);
-  e !== void 0 && I != null && l(e, ["setup", "contextWindowCompression"], I);
-  const y = s(n, ["proactivity"]);
-  if (e !== void 0 && y != null && l(e, ["setup", "proactivity"], y), s(n, ["explicitVadSignal"]) !== void 0)
+  e !== void 0 && _ != null && l(e, ["setup", "contextWindowCompression"], _);
+  const C = s(t, ["proactivity"]);
+  if (e !== void 0 && C != null && l(e, ["setup", "proactivity"], C), s(t, ["explicitVadSignal"]) !== void 0)
     throw new Error("explicitVadSignal parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function Fr(n, e) {
-  const t = {}, o = s(n, [
+function br(t, e) {
+  const n = {}, o = s(t, [
     "generationConfig"
   ]);
-  e !== void 0 && o != null && l(e, ["setup", "generationConfig"], Dr(o));
-  const i = s(n, [
+  e !== void 0 && o != null && l(e, ["setup", "generationConfig"], Gr(o));
+  const i = s(t, [
     "responseModalities"
   ]);
   e !== void 0 && i != null && l(e, ["setup", "generationConfig", "responseModalities"], i);
-  const r = s(n, ["temperature"]);
+  const r = s(t, ["temperature"]);
   e !== void 0 && r != null && l(e, ["setup", "generationConfig", "temperature"], r);
-  const a = s(n, ["topP"]);
+  const a = s(t, ["topP"]);
   e !== void 0 && a != null && l(e, ["setup", "generationConfig", "topP"], a);
-  const u = s(n, ["topK"]);
+  const u = s(t, ["topK"]);
   e !== void 0 && u != null && l(e, ["setup", "generationConfig", "topK"], u);
-  const c = s(n, [
+  const d = s(t, [
     "maxOutputTokens"
   ]);
-  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], d);
+  const c = s(t, [
     "mediaResolution"
   ]);
-  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "mediaResolution"], d);
-  const f = s(n, ["seed"]);
+  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "mediaResolution"], c);
+  const f = s(t, ["seed"]);
   e !== void 0 && f != null && l(e, ["setup", "generationConfig", "seed"], f);
-  const m = s(n, ["speechConfig"]);
-  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "speechConfig"], dn(m));
-  const p = s(n, [
+  const p = s(t, ["speechConfig"]);
+  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "speechConfig"], dt(p));
+  const h = s(t, [
     "thinkingConfig"
   ]);
-  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "thinkingConfig"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "thinkingConfig"], h);
+  const m = s(t, [
     "enableAffectiveDialog"
   ]);
-  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], h);
-  const g = s(n, [
+  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], m);
+  const g = s(t, [
     "systemInstruction"
   ]);
   e !== void 0 && g != null && l(e, ["setup", "systemInstruction"], F(g));
-  const _ = s(n, ["tools"]);
-  if (e !== void 0 && _ != null) {
-    let M = de(_);
-    Array.isArray(M) && (M = M.map((D) => Kr(ue(D)))), l(e, ["setup", "tools"], M);
+  const T = s(t, ["tools"]);
+  if (e !== void 0 && T != null) {
+    let P = ce(T);
+    Array.isArray(P) && (P = P.map((D) => Qr(de(D)))), l(e, ["setup", "tools"], P);
   }
-  const T = s(n, [
+  const y = s(t, [
     "sessionResumption"
   ]);
-  e !== void 0 && T != null && l(e, ["setup", "sessionResumption"], T);
-  const C = s(n, [
+  e !== void 0 && y != null && l(e, ["setup", "sessionResumption"], y);
+  const E = s(t, [
     "inputAudioTranscription"
   ]);
-  e !== void 0 && C != null && l(e, ["setup", "inputAudioTranscription"], C);
-  const S = s(n, [
+  e !== void 0 && E != null && l(e, ["setup", "inputAudioTranscription"], E);
+  const S = s(t, [
     "outputAudioTranscription"
   ]);
   e !== void 0 && S != null && l(e, ["setup", "outputAudioTranscription"], S);
-  const E = s(n, [
+  const I = s(t, [
     "realtimeInputConfig"
   ]);
-  e !== void 0 && E != null && l(e, ["setup", "realtimeInputConfig"], E);
-  const I = s(n, [
+  e !== void 0 && I != null && l(e, ["setup", "realtimeInputConfig"], I);
+  const _ = s(t, [
     "contextWindowCompression"
   ]);
-  e !== void 0 && I != null && l(e, ["setup", "contextWindowCompression"], I);
-  const y = s(n, ["proactivity"]);
-  e !== void 0 && y != null && l(e, ["setup", "proactivity"], y);
-  const R = s(n, [
+  e !== void 0 && _ != null && l(e, ["setup", "contextWindowCompression"], _);
+  const C = s(t, ["proactivity"]);
+  e !== void 0 && C != null && l(e, ["setup", "proactivity"], C);
+  const R = s(t, [
     "explicitVadSignal"
   ]);
-  return e !== void 0 && R != null && l(e, ["setup", "explicitVadSignal"], R), t;
+  return e !== void 0 && R != null && l(e, ["setup", "explicitVadSignal"], R), n;
 }
-function Gr(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["setup", "model"], x(n, o));
+function qr(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["setup", "model"], k(t, o));
   const i = s(e, ["config"]);
-  return i != null && l(t, ["config"], Lr(i, t)), t;
+  return i != null && l(n, ["config"], Vr(i, n)), n;
 }
-function Vr(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["setup", "model"], x(n, o));
+function Br(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["setup", "model"], k(t, o));
   const i = s(e, ["config"]);
-  return i != null && l(t, ["config"], Fr(i, t)), t;
+  return i != null && l(n, ["config"], br(i, n)), n;
 }
-function Hr(n) {
-  const e = {}, t = s(n, [
+function Jr(t) {
+  const e = {}, n = s(t, [
     "musicGenerationConfig"
   ]);
-  return t != null && l(e, ["musicGenerationConfig"], t), e;
+  return n != null && l(e, ["musicGenerationConfig"], n), e;
 }
-function qr(n) {
-  const e = {}, t = s(n, [
+function Or(t) {
+  const e = {}, n = s(t, [
     "weightedPrompts"
   ]);
-  if (t != null) {
-    let o = t;
+  if (n != null) {
+    let o = n;
     Array.isArray(o) && (o = o.map((i) => i)), l(e, ["weightedPrompts"], o);
   }
   return e;
 }
-function br(n) {
-  const e = {}, t = s(n, ["media"]);
-  if (t != null) {
-    let d = eo(t);
-    Array.isArray(d) && (d = d.map((f) => Se(f))), l(e, ["mediaChunks"], d);
+function $r(t) {
+  const e = {}, n = s(t, ["media"]);
+  if (n != null) {
+    let c = to(n);
+    Array.isArray(c) && (c = c.map((f) => ve(f))), l(e, ["mediaChunks"], c);
   }
-  const o = s(n, ["audio"]);
-  o != null && l(e, ["audio"], Se(to(o)));
-  const i = s(n, [
+  const o = s(t, ["audio"]);
+  o != null && l(e, ["audio"], ve(oo(o)));
+  const i = s(t, [
     "audioStreamEnd"
   ]);
   i != null && l(e, ["audioStreamEnd"], i);
-  const r = s(n, ["video"]);
-  r != null && l(e, ["video"], Se(no(r)));
-  const a = s(n, ["text"]);
+  const r = s(t, ["video"]);
+  r != null && l(e, ["video"], ve(no(r)));
+  const a = s(t, ["text"]);
   a != null && l(e, ["text"], a);
-  const u = s(n, [
+  const u = s(t, [
     "activityStart"
   ]);
   u != null && l(e, ["activityStart"], u);
-  const c = s(n, ["activityEnd"]);
-  return c != null && l(e, ["activityEnd"], c), e;
+  const d = s(t, ["activityEnd"]);
+  return d != null && l(e, ["activityEnd"], d), e;
 }
-function Br(n) {
-  const e = {}, t = s(n, ["media"]);
-  if (t != null) {
-    let d = eo(t);
-    Array.isArray(d) && (d = d.map((f) => f)), l(e, ["mediaChunks"], d);
+function Wr(t) {
+  const e = {}, n = s(t, ["media"]);
+  if (n != null) {
+    let c = to(n);
+    Array.isArray(c) && (c = c.map((f) => f)), l(e, ["mediaChunks"], c);
   }
-  const o = s(n, ["audio"]);
-  o != null && l(e, ["audio"], to(o));
-  const i = s(n, [
+  const o = s(t, ["audio"]);
+  o != null && l(e, ["audio"], oo(o));
+  const i = s(t, [
     "audioStreamEnd"
   ]);
   i != null && l(e, ["audioStreamEnd"], i);
-  const r = s(n, ["video"]);
+  const r = s(t, ["video"]);
   r != null && l(e, ["video"], no(r));
-  const a = s(n, ["text"]);
+  const a = s(t, ["text"]);
   a != null && l(e, ["text"], a);
-  const u = s(n, [
+  const u = s(t, [
     "activityStart"
   ]);
   u != null && l(e, ["activityStart"], u);
-  const c = s(n, ["activityEnd"]);
-  return c != null && l(e, ["activityEnd"], c), e;
+  const d = s(t, ["activityEnd"]);
+  return d != null && l(e, ["activityEnd"], d), e;
 }
-function Jr(n) {
-  const e = {}, t = s(n, [
+function Kr(t) {
+  const e = {}, n = s(t, [
     "setupComplete"
   ]);
-  t != null && l(e, ["setupComplete"], t);
-  const o = s(n, [
+  n != null && l(e, ["setupComplete"], n);
+  const o = s(t, [
     "serverContent"
   ]);
   o != null && l(e, ["serverContent"], o);
-  const i = s(n, ["toolCall"]);
+  const i = s(t, ["toolCall"]);
   i != null && l(e, ["toolCall"], i);
-  const r = s(n, [
+  const r = s(t, [
     "toolCallCancellation"
   ]);
   r != null && l(e, ["toolCallCancellation"], r);
-  const a = s(n, [
+  const a = s(t, [
     "usageMetadata"
   ]);
-  a != null && l(e, ["usageMetadata"], Yr(a));
-  const u = s(n, ["goAway"]);
+  a != null && l(e, ["usageMetadata"], Zr(a));
+  const u = s(t, ["goAway"]);
   u != null && l(e, ["goAway"], u);
-  const c = s(n, [
+  const d = s(t, [
     "sessionResumptionUpdate"
   ]);
-  c != null && l(e, ["sessionResumptionUpdate"], c);
-  const d = s(n, [
+  d != null && l(e, ["sessionResumptionUpdate"], d);
+  const c = s(t, [
     "voiceActivityDetectionSignal"
   ]);
-  d != null && l(e, ["voiceActivityDetectionSignal"], d);
-  const f = s(n, [
+  c != null && l(e, ["voiceActivityDetectionSignal"], c);
+  const f = s(t, [
     "voiceActivity"
   ]);
-  return f != null && l(e, ["voiceActivity"], zr(f)), e;
+  return f != null && l(e, ["voiceActivity"], jr(f)), e;
 }
-function Or(n) {
-  const e = {}, t = s(n, [
+function Yr(t) {
+  const e = {}, n = s(t, [
     "mediaResolution"
   ]);
-  t != null && l(e, ["mediaResolution"], t);
-  const o = s(n, [
+  n != null && l(e, ["mediaResolution"], n);
+  const o = s(t, [
     "codeExecutionResult"
   ]);
   o != null && l(e, ["codeExecutionResult"], o);
-  const i = s(n, [
+  const i = s(t, [
     "executableCode"
   ]);
   i != null && l(e, ["executableCode"], i);
-  const r = s(n, ["fileData"]);
-  r != null && l(e, ["fileData"], Mr(r));
-  const a = s(n, ["functionCall"]);
-  a != null && l(e, ["functionCall"], Nr(a));
-  const u = s(n, [
+  const r = s(t, ["fileData"]);
+  r != null && l(e, ["fileData"], kr(r));
+  const a = s(t, ["functionCall"]);
+  a != null && l(e, ["functionCall"], Ur(a));
+  const u = s(t, [
     "functionResponse"
   ]);
   u != null && l(e, ["functionResponse"], u);
-  const c = s(n, ["inlineData"]);
-  c != null && l(e, ["inlineData"], Se(c));
-  const d = s(n, ["text"]);
-  d != null && l(e, ["text"], d);
-  const f = s(n, ["thought"]);
+  const d = s(t, ["inlineData"]);
+  d != null && l(e, ["inlineData"], ve(d));
+  const c = s(t, ["text"]);
+  c != null && l(e, ["text"], c);
+  const f = s(t, ["thought"]);
   f != null && l(e, ["thought"], f);
-  const m = s(n, [
+  const p = s(t, [
     "thoughtSignature"
   ]);
-  m != null && l(e, ["thoughtSignature"], m);
-  const p = s(n, [
+  p != null && l(e, ["thoughtSignature"], p);
+  const h = s(t, [
     "videoMetadata"
   ]);
-  return p != null && l(e, ["videoMetadata"], p), e;
+  return h != null && l(e, ["videoMetadata"], h), e;
 }
-function $r(n) {
-  const e = {}, t = s(n, ["handle"]);
-  if (t != null && l(e, ["handle"], t), s(n, ["transparent"]) !== void 0)
+function zr(t) {
+  const e = {}, n = s(t, ["handle"]);
+  if (n != null && l(e, ["handle"], n), s(t, ["transparent"]) !== void 0)
     throw new Error("transparent parameter is not supported in Gemini API.");
   return e;
 }
-function Wr(n) {
+function Xr(t) {
   const e = {};
-  if (s(n, ["retrieval"]) !== void 0)
+  if (s(t, ["retrieval"]) !== void 0)
     throw new Error("retrieval parameter is not supported in Gemini API.");
-  const t = s(n, ["computerUse"]);
-  t != null && l(e, ["computerUse"], t);
-  const o = s(n, ["fileSearch"]);
+  const n = s(t, ["computerUse"]);
+  n != null && l(e, ["computerUse"], n);
+  const o = s(t, ["fileSearch"]);
   o != null && l(e, ["fileSearch"], o);
-  const i = s(n, [
+  const i = s(t, [
     "codeExecution"
   ]);
-  if (i != null && l(e, ["codeExecution"], i), s(n, ["enterpriseWebSearch"]) !== void 0)
+  if (i != null && l(e, ["codeExecution"], i), s(t, ["enterpriseWebSearch"]) !== void 0)
     throw new Error("enterpriseWebSearch parameter is not supported in Gemini API.");
-  const r = s(n, [
+  const r = s(t, [
     "functionDeclarations"
   ]);
   if (r != null) {
     let f = r;
-    Array.isArray(f) && (f = f.map((m) => m)), l(e, ["functionDeclarations"], f);
+    Array.isArray(f) && (f = f.map((p) => p)), l(e, ["functionDeclarations"], f);
   }
-  const a = s(n, ["googleMaps"]);
-  a != null && l(e, ["googleMaps"], kr(a));
-  const u = s(n, ["googleSearch"]);
-  u != null && l(e, ["googleSearch"], Ur(u));
-  const c = s(n, [
-    "googleSearchRetrieval"
-  ]);
-  c != null && l(e, ["googleSearchRetrieval"], c);
-  const d = s(n, ["urlContext"]);
-  return d != null && l(e, ["urlContext"], d), e;
-}
-function Kr(n) {
-  const e = {}, t = s(n, ["retrieval"]);
-  t != null && l(e, ["retrieval"], t);
-  const o = s(n, ["computerUse"]);
-  if (o != null && l(e, ["computerUse"], o), s(n, ["fileSearch"]) !== void 0)
-    throw new Error("fileSearch parameter is not supported in Vertex AI.");
-  const i = s(n, [
-    "codeExecution"
-  ]);
-  i != null && l(e, ["codeExecution"], i);
-  const r = s(n, [
-    "enterpriseWebSearch"
-  ]);
-  r != null && l(e, ["enterpriseWebSearch"], r);
-  const a = s(n, [
-    "functionDeclarations"
-  ]);
-  if (a != null) {
-    let m = a;
-    Array.isArray(m) && (m = m.map((p) => xr(p))), l(e, ["functionDeclarations"], m);
-  }
-  const u = s(n, ["googleMaps"]);
-  u != null && l(e, ["googleMaps"], u);
-  const c = s(n, ["googleSearch"]);
-  c != null && l(e, ["googleSearch"], c);
-  const d = s(n, [
+  const a = s(t, ["googleMaps"]);
+  a != null && l(e, ["googleMaps"], Fr(a));
+  const u = s(t, ["googleSearch"]);
+  u != null && l(e, ["googleSearch"], Hr(u));
+  const d = s(t, [
     "googleSearchRetrieval"
   ]);
   d != null && l(e, ["googleSearchRetrieval"], d);
-  const f = s(n, ["urlContext"]);
+  const c = s(t, ["urlContext"]);
+  return c != null && l(e, ["urlContext"], c), e;
+}
+function Qr(t) {
+  const e = {}, n = s(t, ["retrieval"]);
+  n != null && l(e, ["retrieval"], n);
+  const o = s(t, ["computerUse"]);
+  if (o != null && l(e, ["computerUse"], o), s(t, ["fileSearch"]) !== void 0)
+    throw new Error("fileSearch parameter is not supported in Vertex AI.");
+  const i = s(t, [
+    "codeExecution"
+  ]);
+  i != null && l(e, ["codeExecution"], i);
+  const r = s(t, [
+    "enterpriseWebSearch"
+  ]);
+  r != null && l(e, ["enterpriseWebSearch"], r);
+  const a = s(t, [
+    "functionDeclarations"
+  ]);
+  if (a != null) {
+    let p = a;
+    Array.isArray(p) && (p = p.map((h) => Lr(h))), l(e, ["functionDeclarations"], p);
+  }
+  const u = s(t, ["googleMaps"]);
+  u != null && l(e, ["googleMaps"], u);
+  const d = s(t, ["googleSearch"]);
+  d != null && l(e, ["googleSearch"], d);
+  const c = s(t, [
+    "googleSearchRetrieval"
+  ]);
+  c != null && l(e, ["googleSearchRetrieval"], c);
+  const f = s(t, ["urlContext"]);
   return f != null && l(e, ["urlContext"], f), e;
 }
-function Yr(n) {
-  const e = {}, t = s(n, [
+function Zr(t) {
+  const e = {}, n = s(t, [
     "promptTokenCount"
   ]);
-  t != null && l(e, ["promptTokenCount"], t);
-  const o = s(n, [
+  n != null && l(e, ["promptTokenCount"], n);
+  const o = s(t, [
     "cachedContentTokenCount"
   ]);
   o != null && l(e, ["cachedContentTokenCount"], o);
-  const i = s(n, [
+  const i = s(t, [
     "candidatesTokenCount"
   ]);
   i != null && l(e, ["responseTokenCount"], i);
-  const r = s(n, [
+  const r = s(t, [
     "toolUsePromptTokenCount"
   ]);
   r != null && l(e, ["toolUsePromptTokenCount"], r);
-  const a = s(n, [
+  const a = s(t, [
     "thoughtsTokenCount"
   ]);
   a != null && l(e, ["thoughtsTokenCount"], a);
-  const u = s(n, [
+  const u = s(t, [
     "totalTokenCount"
   ]);
   u != null && l(e, ["totalTokenCount"], u);
-  const c = s(n, [
+  const d = s(t, [
     "promptTokensDetails"
   ]);
-  if (c != null) {
-    let h = c;
-    Array.isArray(h) && (h = h.map((g) => g)), l(e, ["promptTokensDetails"], h);
+  if (d != null) {
+    let m = d;
+    Array.isArray(m) && (m = m.map((g) => g)), l(e, ["promptTokensDetails"], m);
   }
-  const d = s(n, [
+  const c = s(t, [
     "cacheTokensDetails"
   ]);
-  if (d != null) {
-    let h = d;
-    Array.isArray(h) && (h = h.map((g) => g)), l(e, ["cacheTokensDetails"], h);
+  if (c != null) {
+    let m = c;
+    Array.isArray(m) && (m = m.map((g) => g)), l(e, ["cacheTokensDetails"], m);
   }
-  const f = s(n, [
+  const f = s(t, [
     "candidatesTokensDetails"
   ]);
   if (f != null) {
-    let h = f;
-    Array.isArray(h) && (h = h.map((g) => g)), l(e, ["responseTokensDetails"], h);
+    let m = f;
+    Array.isArray(m) && (m = m.map((g) => g)), l(e, ["responseTokensDetails"], m);
   }
-  const m = s(n, [
+  const p = s(t, [
     "toolUsePromptTokensDetails"
   ]);
-  if (m != null) {
-    let h = m;
-    Array.isArray(h) && (h = h.map((g) => g)), l(e, ["toolUsePromptTokensDetails"], h);
+  if (p != null) {
+    let m = p;
+    Array.isArray(m) && (m = m.map((g) => g)), l(e, ["toolUsePromptTokensDetails"], m);
   }
-  const p = s(n, ["trafficType"]);
-  return p != null && l(e, ["trafficType"], p), e;
+  const h = s(t, ["trafficType"]);
+  return h != null && l(e, ["trafficType"], h), e;
 }
-function zr(n) {
-  const e = {}, t = s(n, ["type"]);
-  return t != null && l(e, ["voiceActivityType"], t), e;
+function jr(t) {
+  const e = {}, n = s(t, ["type"]);
+  return n != null && l(e, ["voiceActivityType"], n), e;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Xr(n, e) {
-  const t = {}, o = s(n, ["data"]);
-  if (o != null && l(t, ["data"], o), s(n, ["displayName"]) !== void 0)
+function el(t, e) {
+  const n = {}, o = s(t, ["data"]);
+  if (o != null && l(n, ["data"], o), s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const i = s(n, ["mimeType"]);
-  return i != null && l(t, ["mimeType"], i), t;
+  const i = s(t, ["mimeType"]);
+  return i != null && l(n, ["mimeType"], i), n;
 }
-function Qr(n, e) {
-  const t = {}, o = s(n, ["content"]);
-  o != null && l(t, ["content"], o);
-  const i = s(n, [
+function tl(t, e) {
+  const n = {}, o = s(t, ["content"]);
+  o != null && l(n, ["content"], o);
+  const i = s(t, [
     "citationMetadata"
   ]);
-  i != null && l(t, ["citationMetadata"], Zr(i));
-  const r = s(n, ["tokenCount"]);
-  r != null && l(t, ["tokenCount"], r);
-  const a = s(n, ["finishReason"]);
-  a != null && l(t, ["finishReason"], a);
-  const u = s(n, ["avgLogprobs"]);
-  u != null && l(t, ["avgLogprobs"], u);
-  const c = s(n, [
+  i != null && l(n, ["citationMetadata"], nl(i));
+  const r = s(t, ["tokenCount"]);
+  r != null && l(n, ["tokenCount"], r);
+  const a = s(t, ["finishReason"]);
+  a != null && l(n, ["finishReason"], a);
+  const u = s(t, ["avgLogprobs"]);
+  u != null && l(n, ["avgLogprobs"], u);
+  const d = s(t, [
     "groundingMetadata"
   ]);
-  c != null && l(t, ["groundingMetadata"], c);
-  const d = s(n, ["index"]);
-  d != null && l(t, ["index"], d);
-  const f = s(n, [
+  d != null && l(n, ["groundingMetadata"], d);
+  const c = s(t, ["index"]);
+  c != null && l(n, ["index"], c);
+  const f = s(t, [
     "logprobsResult"
   ]);
-  f != null && l(t, ["logprobsResult"], f);
-  const m = s(n, [
+  f != null && l(n, ["logprobsResult"], f);
+  const p = s(t, [
     "safetyRatings"
   ]);
-  if (m != null) {
-    let h = m;
-    Array.isArray(h) && (h = h.map((g) => g)), l(t, ["safetyRatings"], h);
+  if (p != null) {
+    let m = p;
+    Array.isArray(m) && (m = m.map((g) => g)), l(n, ["safetyRatings"], m);
   }
-  const p = s(n, [
+  const h = s(t, [
     "urlContextMetadata"
   ]);
-  return p != null && l(t, ["urlContextMetadata"], p), t;
+  return h != null && l(n, ["urlContextMetadata"], h), n;
 }
-function Zr(n, e) {
-  const t = {}, o = s(n, ["citationSources"]);
+function nl(t, e) {
+  const n = {}, o = s(t, ["citationSources"]);
   if (o != null) {
     let i = o;
-    Array.isArray(i) && (i = i.map((r) => r)), l(t, ["citations"], i);
+    Array.isArray(i) && (i = i.map((r) => r)), l(n, ["citations"], i);
   }
-  return t;
+  return n;
 }
-function jr(n, e, t) {
+function ol(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let a = b(r);
+    let a = J(r);
     Array.isArray(a) && (a = a.map((u) => u)), l(o, ["contents"], a);
   }
   return o;
 }
-function el(n, e) {
-  const t = {}, o = s(n, [
+function il(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["tokensInfo"]);
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["tokensInfo"]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => a)), l(t, ["tokensInfo"], r);
+    Array.isArray(r) && (r = r.map((a) => a)), l(n, ["tokensInfo"], r);
   }
-  return t;
+  return n;
 }
-function nl(n, e) {
-  const t = {}, o = s(n, ["values"]);
-  o != null && l(t, ["values"], o);
-  const i = s(n, ["statistics"]);
-  return i != null && l(t, ["statistics"], tl(i)), t;
+function sl(t, e) {
+  const n = {}, o = s(t, ["values"]);
+  o != null && l(n, ["values"], o);
+  const i = s(t, ["statistics"]);
+  return i != null && l(n, ["statistics"], rl(i)), n;
 }
-function tl(n, e) {
-  const t = {}, o = s(n, ["truncated"]);
-  o != null && l(t, ["truncated"], o);
-  const i = s(n, ["token_count"]);
-  return i != null && l(t, ["tokenCount"], i), t;
+function rl(t, e) {
+  const n = {}, o = s(t, ["truncated"]);
+  o != null && l(n, ["truncated"], o);
+  const i = s(t, ["token_count"]);
+  return i != null && l(n, ["tokenCount"], i), n;
 }
-function Ne(n, e) {
-  const t = {}, o = s(n, ["parts"]);
+function De(t, e) {
+  const n = {}, o = s(t, ["parts"]);
   if (o != null) {
     let r = o;
-    Array.isArray(r) && (r = r.map((a) => ca(a))), l(t, ["parts"], r);
+    Array.isArray(r) && (r = r.map((a) => ma(a))), l(n, ["parts"], r);
   }
-  const i = s(n, ["role"]);
-  return i != null && l(t, ["role"], i), t;
+  const i = s(t, ["role"]);
+  return i != null && l(n, ["role"], i), n;
 }
-function ol(n, e) {
-  const t = {}, o = s(n, ["controlType"]);
-  o != null && l(t, ["controlType"], o);
-  const i = s(n, [
+function ll(t, e) {
+  const n = {}, o = s(t, ["controlType"]);
+  o != null && l(n, ["controlType"], o);
+  const i = s(t, [
     "enableControlImageComputation"
   ]);
-  return i != null && l(t, ["computeControl"], i), t;
+  return i != null && l(n, ["computeControl"], i), n;
 }
-function il(n, e) {
-  const t = {};
-  if (s(n, ["systemInstruction"]) !== void 0)
+function al(t, e) {
+  const n = {};
+  if (s(t, ["systemInstruction"]) !== void 0)
     throw new Error("systemInstruction parameter is not supported in Gemini API.");
-  if (s(n, ["tools"]) !== void 0)
+  if (s(t, ["tools"]) !== void 0)
     throw new Error("tools parameter is not supported in Gemini API.");
-  if (s(n, ["generationConfig"]) !== void 0)
+  if (s(t, ["generationConfig"]) !== void 0)
     throw new Error("generationConfig parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function sl(n, e, t) {
-  const o = {}, i = s(n, [
+function ul(t, e, n) {
+  const o = {}, i = s(t, [
     "systemInstruction"
   ]);
   e !== void 0 && i != null && l(e, ["systemInstruction"], F(i));
-  const r = s(n, ["tools"]);
+  const r = s(t, ["tools"]);
   if (e !== void 0 && r != null) {
     let u = r;
-    Array.isArray(u) && (u = u.map((c) => yo(c))), l(e, ["tools"], u);
+    Array.isArray(u) && (u = u.map((d) => To(d))), l(e, ["tools"], u);
   }
-  const a = s(n, [
+  const a = s(t, [
     "generationConfig"
   ]);
-  return e !== void 0 && a != null && l(e, ["generationConfig"], Xl(a)), o;
+  return e !== void 0 && a != null && l(e, ["generationConfig"], ea(a)), o;
 }
-function rl(n, e, t) {
+function dl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let u = b(r);
-    Array.isArray(u) && (u = u.map((c) => Ne(c))), l(o, ["contents"], u);
+    let u = J(r);
+    Array.isArray(u) && (u = u.map((d) => De(d))), l(o, ["contents"], u);
   }
   const a = s(e, ["config"]);
-  return a != null && il(a), o;
+  return a != null && al(a), o;
 }
-function ll(n, e, t) {
+function cl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let u = b(r);
-    Array.isArray(u) && (u = u.map((c) => c)), l(o, ["contents"], u);
+    let u = J(r);
+    Array.isArray(u) && (u = u.map((d) => d)), l(o, ["contents"], u);
   }
   const a = s(e, ["config"]);
-  return a != null && sl(a, o), o;
+  return a != null && ul(a, o), o;
 }
-function al(n, e) {
-  const t = {}, o = s(n, [
+function fl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["totalTokens"]);
-  i != null && l(t, ["totalTokens"], i);
-  const r = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["totalTokens"]);
+  i != null && l(n, ["totalTokens"], i);
+  const r = s(t, [
     "cachedContentTokenCount"
   ]);
-  return r != null && l(t, ["cachedContentTokenCount"], r), t;
+  return r != null && l(n, ["cachedContentTokenCount"], r), n;
 }
-function ul(n, e) {
-  const t = {}, o = s(n, [
+function pl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["totalTokens"]);
-  return i != null && l(t, ["totalTokens"], i), t;
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["totalTokens"]);
+  return i != null && l(n, ["totalTokens"], i), n;
 }
-function dl(n, e, t) {
+function hl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  return i != null && l(o, ["_url", "name"], x(n, i)), o;
+  return i != null && l(o, ["_url", "name"], k(t, i)), o;
 }
-function cl(n, e, t) {
+function ml(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  return i != null && l(o, ["_url", "name"], x(n, i)), o;
+  return i != null && l(o, ["_url", "name"], k(t, i)), o;
 }
-function fl(n, e) {
-  const t = {}, o = s(n, [
+function gl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  return o != null && l(t, ["sdkHttpResponse"], o), t;
+  return o != null && l(n, ["sdkHttpResponse"], o), n;
 }
-function pl(n, e) {
-  const t = {}, o = s(n, [
+function yl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  return o != null && l(t, ["sdkHttpResponse"], o), t;
+  return o != null && l(n, ["sdkHttpResponse"], o), n;
 }
-function ml(n, e, t) {
-  const o = {}, i = s(n, ["outputGcsUri"]);
+function Tl(t, e, n) {
+  const o = {}, i = s(t, ["outputGcsUri"]);
   e !== void 0 && i != null && l(e, ["parameters", "storageUri"], i);
-  const r = s(n, [
+  const r = s(t, [
     "negativePrompt"
   ]);
   e !== void 0 && r != null && l(e, ["parameters", "negativePrompt"], r);
-  const a = s(n, [
+  const a = s(t, [
     "numberOfImages"
   ]);
   e !== void 0 && a != null && l(e, ["parameters", "sampleCount"], a);
-  const u = s(n, ["aspectRatio"]);
+  const u = s(t, ["aspectRatio"]);
   e !== void 0 && u != null && l(e, ["parameters", "aspectRatio"], u);
-  const c = s(n, [
+  const d = s(t, [
     "guidanceScale"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "guidanceScale"], c);
-  const d = s(n, ["seed"]);
-  e !== void 0 && d != null && l(e, ["parameters", "seed"], d);
-  const f = s(n, [
+  e !== void 0 && d != null && l(e, ["parameters", "guidanceScale"], d);
+  const c = s(t, ["seed"]);
+  e !== void 0 && c != null && l(e, ["parameters", "seed"], c);
+  const f = s(t, [
     "safetyFilterLevel"
   ]);
   e !== void 0 && f != null && l(e, ["parameters", "safetySetting"], f);
-  const m = s(n, [
+  const p = s(t, [
     "personGeneration"
   ]);
-  e !== void 0 && m != null && l(e, ["parameters", "personGeneration"], m);
-  const p = s(n, [
+  e !== void 0 && p != null && l(e, ["parameters", "personGeneration"], p);
+  const h = s(t, [
     "includeSafetyAttributes"
   ]);
-  e !== void 0 && p != null && l(e, ["parameters", "includeSafetyAttributes"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["parameters", "includeSafetyAttributes"], h);
+  const m = s(t, [
     "includeRaiReason"
   ]);
-  e !== void 0 && h != null && l(e, ["parameters", "includeRaiReason"], h);
-  const g = s(n, ["language"]);
+  e !== void 0 && m != null && l(e, ["parameters", "includeRaiReason"], m);
+  const g = s(t, ["language"]);
   e !== void 0 && g != null && l(e, ["parameters", "language"], g);
-  const _ = s(n, [
+  const T = s(t, [
     "outputMimeType"
   ]);
-  e !== void 0 && _ != null && l(e, ["parameters", "outputOptions", "mimeType"], _);
-  const T = s(n, [
+  e !== void 0 && T != null && l(e, ["parameters", "outputOptions", "mimeType"], T);
+  const y = s(t, [
     "outputCompressionQuality"
   ]);
-  e !== void 0 && T != null && l(e, ["parameters", "outputOptions", "compressionQuality"], T);
-  const C = s(n, ["addWatermark"]);
-  e !== void 0 && C != null && l(e, ["parameters", "addWatermark"], C);
-  const S = s(n, ["labels"]);
+  e !== void 0 && y != null && l(e, ["parameters", "outputOptions", "compressionQuality"], y);
+  const E = s(t, ["addWatermark"]);
+  e !== void 0 && E != null && l(e, ["parameters", "addWatermark"], E);
+  const S = s(t, ["labels"]);
   e !== void 0 && S != null && l(e, ["labels"], S);
-  const E = s(n, ["editMode"]);
-  e !== void 0 && E != null && l(e, ["parameters", "editMode"], E);
-  const I = s(n, ["baseSteps"]);
-  return e !== void 0 && I != null && l(e, ["parameters", "editConfig", "baseSteps"], I), o;
+  const I = s(t, ["editMode"]);
+  e !== void 0 && I != null && l(e, ["parameters", "editMode"], I);
+  const _ = s(t, ["baseSteps"]);
+  return e !== void 0 && _ != null && l(e, ["parameters", "editConfig", "baseSteps"], _), o;
 }
-function hl(n, e, t) {
+function Cl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["prompt"]);
   r != null && l(o, ["instances[0]", "prompt"], r);
   const a = s(e, [
     "referenceImages"
   ]);
   if (a != null) {
-    let c = a;
-    Array.isArray(c) && (c = c.map((d) => ya(d))), l(o, ["instances[0]", "referenceImages"], c);
+    let d = a;
+    Array.isArray(d) && (d = d.map((c) => Ea(c))), l(o, ["instances[0]", "referenceImages"], d);
   }
   const u = s(e, ["config"]);
-  return u != null && ml(u, o), o;
+  return u != null && Tl(u, o), o;
 }
-function gl(n, e) {
-  const t = {}, o = s(n, [
+function _l(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "predictions"
   ]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => xe(a))), l(t, ["generatedImages"], r);
+    Array.isArray(r) && (r = r.map((a) => ke(a))), l(n, ["generatedImages"], r);
   }
-  return t;
+  return n;
 }
-function yl(n, e, t) {
-  const o = {}, i = s(n, ["taskType"]);
+function El(t, e, n) {
+  const o = {}, i = s(t, ["taskType"]);
   e !== void 0 && i != null && l(e, ["requests[]", "taskType"], i);
-  const r = s(n, ["title"]);
+  const r = s(t, ["title"]);
   e !== void 0 && r != null && l(e, ["requests[]", "title"], r);
-  const a = s(n, [
+  const a = s(t, [
     "outputDimensionality"
   ]);
-  if (e !== void 0 && a != null && l(e, ["requests[]", "outputDimensionality"], a), s(n, ["mimeType"]) !== void 0)
+  if (e !== void 0 && a != null && l(e, ["requests[]", "outputDimensionality"], a), s(t, ["mimeType"]) !== void 0)
     throw new Error("mimeType parameter is not supported in Gemini API.");
-  if (s(n, ["autoTruncate"]) !== void 0)
+  if (s(t, ["autoTruncate"]) !== void 0)
     throw new Error("autoTruncate parameter is not supported in Gemini API.");
   return o;
 }
-function Tl(n, e, t) {
-  const o = {}, i = s(n, ["taskType"]);
+function Sl(t, e, n) {
+  const o = {}, i = s(t, ["taskType"]);
   e !== void 0 && i != null && l(e, ["instances[]", "task_type"], i);
-  const r = s(n, ["title"]);
+  const r = s(t, ["title"]);
   e !== void 0 && r != null && l(e, ["instances[]", "title"], r);
-  const a = s(n, [
+  const a = s(t, [
     "outputDimensionality"
   ]);
   e !== void 0 && a != null && l(e, ["parameters", "outputDimensionality"], a);
-  const u = s(n, ["mimeType"]);
+  const u = s(t, ["mimeType"]);
   e !== void 0 && u != null && l(e, ["instances[]", "mimeType"], u);
-  const c = s(n, ["autoTruncate"]);
-  return e !== void 0 && c != null && l(e, ["parameters", "autoTruncate"], c), o;
+  const d = s(t, ["autoTruncate"]);
+  return e !== void 0 && d != null && l(e, ["parameters", "autoTruncate"], d), o;
 }
-function _l(n, e, t) {
+function Il(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let c = ln(n, r);
-    Array.isArray(c) && (c = c.map((d) => d)), l(o, ["requests[]", "content"], c);
+    let d = lt(t, r);
+    Array.isArray(d) && (d = d.map((c) => c)), l(o, ["requests[]", "content"], d);
   }
   const a = s(e, ["config"]);
-  a != null && yl(a, o);
+  a != null && El(a, o);
   const u = s(e, ["model"]);
-  return u !== void 0 && l(o, ["requests[]", "model"], x(n, u)), o;
+  return u !== void 0 && l(o, ["requests[]", "model"], k(t, u)), o;
 }
-function Cl(n, e, t) {
+function vl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let u = ln(n, r);
-    Array.isArray(u) && (u = u.map((c) => c)), l(o, ["instances[]", "content"], u);
+    let u = lt(t, r);
+    Array.isArray(u) && (u = u.map((d) => d)), l(o, ["instances[]", "content"], u);
   }
   const a = s(e, ["config"]);
-  return a != null && Tl(a, o), o;
+  return a != null && Sl(a, o), o;
 }
-function El(n, e) {
-  const t = {}, o = s(n, [
+function Al(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["embeddings"]);
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["embeddings"]);
   if (i != null) {
     let a = i;
-    Array.isArray(a) && (a = a.map((u) => u)), l(t, ["embeddings"], a);
+    Array.isArray(a) && (a = a.map((u) => u)), l(n, ["embeddings"], a);
   }
-  const r = s(n, ["metadata"]);
-  return r != null && l(t, ["metadata"], r), t;
+  const r = s(t, ["metadata"]);
+  return r != null && l(n, ["metadata"], r), n;
 }
-function Sl(n, e) {
-  const t = {}, o = s(n, [
+function Rl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "predictions[]",
     "embeddings"
   ]);
   if (i != null) {
     let a = i;
-    Array.isArray(a) && (a = a.map((u) => nl(u))), l(t, ["embeddings"], a);
+    Array.isArray(a) && (a = a.map((u) => sl(u))), l(n, ["embeddings"], a);
   }
-  const r = s(n, ["metadata"]);
-  return r != null && l(t, ["metadata"], r), t;
+  const r = s(t, ["metadata"]);
+  return r != null && l(n, ["metadata"], r), n;
 }
-function Il(n, e) {
-  const t = {}, o = s(n, ["endpoint"]);
-  o != null && l(t, ["name"], o);
-  const i = s(n, [
+function Pl(t, e) {
+  const n = {}, o = s(t, ["endpoint"]);
+  o != null && l(n, ["name"], o);
+  const i = s(t, [
     "deployedModelId"
   ]);
-  return i != null && l(t, ["deployedModelId"], i), t;
+  return i != null && l(n, ["deployedModelId"], i), n;
 }
-function vl(n, e) {
-  const t = {};
-  if (s(n, ["displayName"]) !== void 0)
+function wl(t, e) {
+  const n = {};
+  if (s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const o = s(n, ["fileUri"]);
-  o != null && l(t, ["fileUri"], o);
-  const i = s(n, ["mimeType"]);
-  return i != null && l(t, ["mimeType"], i), t;
+  const o = s(t, ["fileUri"]);
+  o != null && l(n, ["fileUri"], o);
+  const i = s(t, ["mimeType"]);
+  return i != null && l(n, ["mimeType"], i), n;
 }
-function Al(n, e) {
-  const t = {}, o = s(n, ["id"]);
-  o != null && l(t, ["id"], o);
-  const i = s(n, ["args"]);
-  i != null && l(t, ["args"], i);
-  const r = s(n, ["name"]);
-  if (r != null && l(t, ["name"], r), s(n, ["partialArgs"]) !== void 0)
+function Ml(t, e) {
+  const n = {}, o = s(t, ["id"]);
+  o != null && l(n, ["id"], o);
+  const i = s(t, ["args"]);
+  i != null && l(n, ["args"], i);
+  const r = s(t, ["name"]);
+  if (r != null && l(n, ["name"], r), s(t, ["partialArgs"]) !== void 0)
     throw new Error("partialArgs parameter is not supported in Gemini API.");
-  if (s(n, ["willContinue"]) !== void 0)
+  if (s(t, ["willContinue"]) !== void 0)
     throw new Error("willContinue parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function Rl(n, e) {
-  const t = {}, o = s(n, [
+function Nl(t, e) {
+  const n = {}, o = s(t, [
     "allowedFunctionNames"
   ]);
-  o != null && l(t, ["allowedFunctionNames"], o);
-  const i = s(n, ["mode"]);
-  if (i != null && l(t, ["mode"], i), s(n, ["streamFunctionCallArguments"]) !== void 0)
+  o != null && l(n, ["allowedFunctionNames"], o);
+  const i = s(t, ["mode"]);
+  if (i != null && l(n, ["mode"], i), s(t, ["streamFunctionCallArguments"]) !== void 0)
     throw new Error("streamFunctionCallArguments parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function Pl(n, e) {
-  const t = {}, o = s(n, ["description"]);
-  o != null && l(t, ["description"], o);
-  const i = s(n, ["name"]);
-  i != null && l(t, ["name"], i);
-  const r = s(n, ["parameters"]);
-  r != null && l(t, ["parameters"], r);
-  const a = s(n, [
+function xl(t, e) {
+  const n = {}, o = s(t, ["description"]);
+  o != null && l(n, ["description"], o);
+  const i = s(t, ["name"]);
+  i != null && l(n, ["name"], i);
+  const r = s(t, ["parameters"]);
+  r != null && l(n, ["parameters"], r);
+  const a = s(t, [
     "parametersJsonSchema"
   ]);
-  a != null && l(t, ["parametersJsonSchema"], a);
-  const u = s(n, ["response"]);
-  u != null && l(t, ["response"], u);
-  const c = s(n, [
+  a != null && l(n, ["parametersJsonSchema"], a);
+  const u = s(t, ["response"]);
+  u != null && l(n, ["response"], u);
+  const d = s(t, [
     "responseJsonSchema"
   ]);
-  if (c != null && l(t, ["responseJsonSchema"], c), s(n, ["behavior"]) !== void 0)
+  if (d != null && l(n, ["responseJsonSchema"], d), s(t, ["behavior"]) !== void 0)
     throw new Error("behavior parameter is not supported in Vertex AI.");
-  return t;
+  return n;
 }
-function wl(n, e, t, o) {
+function Dl(t, e, n, o) {
   const i = {}, r = s(e, [
     "systemInstruction"
   ]);
-  t !== void 0 && r != null && l(t, ["systemInstruction"], Ne(F(r)));
+  n !== void 0 && r != null && l(n, ["systemInstruction"], De(F(r)));
   const a = s(e, ["temperature"]);
   a != null && l(i, ["temperature"], a);
   const u = s(e, ["topP"]);
   u != null && l(i, ["topP"], u);
-  const c = s(e, ["topK"]);
-  c != null && l(i, ["topK"], c);
-  const d = s(e, [
+  const d = s(e, ["topK"]);
+  d != null && l(i, ["topK"], d);
+  const c = s(e, [
     "candidateCount"
   ]);
-  d != null && l(i, ["candidateCount"], d);
+  c != null && l(i, ["candidateCount"], c);
   const f = s(e, [
     "maxOutputTokens"
   ]);
   f != null && l(i, ["maxOutputTokens"], f);
-  const m = s(e, [
+  const p = s(e, [
     "stopSequences"
   ]);
-  m != null && l(i, ["stopSequences"], m);
-  const p = s(e, [
+  p != null && l(i, ["stopSequences"], p);
+  const h = s(e, [
     "responseLogprobs"
   ]);
-  p != null && l(i, ["responseLogprobs"], p);
-  const h = s(e, ["logprobs"]);
-  h != null && l(i, ["logprobs"], h);
+  h != null && l(i, ["responseLogprobs"], h);
+  const m = s(e, ["logprobs"]);
+  m != null && l(i, ["logprobs"], m);
   const g = s(e, [
     "presencePenalty"
   ]);
   g != null && l(i, ["presencePenalty"], g);
-  const _ = s(e, [
+  const T = s(e, [
     "frequencyPenalty"
   ]);
-  _ != null && l(i, ["frequencyPenalty"], _);
-  const T = s(e, ["seed"]);
-  T != null && l(i, ["seed"], T);
-  const C = s(e, [
+  T != null && l(i, ["frequencyPenalty"], T);
+  const y = s(e, ["seed"]);
+  y != null && l(i, ["seed"], y);
+  const E = s(e, [
     "responseMimeType"
   ]);
-  C != null && l(i, ["responseMimeType"], C);
+  E != null && l(i, ["responseMimeType"], E);
   const S = s(e, [
     "responseSchema"
   ]);
-  S != null && l(i, ["responseSchema"], an(S));
-  const E = s(e, [
+  S != null && l(i, ["responseSchema"], at(S));
+  const I = s(e, [
     "responseJsonSchema"
   ]);
-  if (E != null && l(i, ["responseJsonSchema"], E), s(e, ["routingConfig"]) !== void 0)
+  if (I != null && l(i, ["responseJsonSchema"], I), s(e, ["routingConfig"]) !== void 0)
     throw new Error("routingConfig parameter is not supported in Gemini API.");
   if (s(e, ["modelSelectionConfig"]) !== void 0)
     throw new Error("modelSelectionConfig parameter is not supported in Gemini API.");
-  const I = s(e, [
+  const _ = s(e, [
     "safetySettings"
   ]);
-  if (t !== void 0 && I != null) {
-    let L = I;
-    Array.isArray(L) && (L = L.map((oe) => Ta(oe))), l(t, ["safetySettings"], L);
+  if (n !== void 0 && _ != null) {
+    let G = _;
+    Array.isArray(G) && (G = G.map((ie) => Sa(ie))), l(n, ["safetySettings"], G);
   }
-  const y = s(e, ["tools"]);
-  if (t !== void 0 && y != null) {
-    let L = de(y);
-    Array.isArray(L) && (L = L.map((oe) => Aa(ue(oe)))), l(t, ["tools"], L);
+  const C = s(e, ["tools"]);
+  if (n !== void 0 && C != null) {
+    let G = ce(C);
+    Array.isArray(G) && (G = G.map((ie) => Ma(de(ie)))), l(n, ["tools"], G);
   }
   const R = s(e, ["toolConfig"]);
-  if (t !== void 0 && R != null && l(t, ["toolConfig"], va(R)), s(e, ["labels"]) !== void 0)
+  if (n !== void 0 && R != null && l(n, ["toolConfig"], wa(R)), s(e, ["labels"]) !== void 0)
     throw new Error("labels parameter is not supported in Gemini API.");
-  const M = s(e, [
+  const P = s(e, [
     "cachedContent"
   ]);
-  t !== void 0 && M != null && l(t, ["cachedContent"], X(n, M));
+  n !== void 0 && P != null && l(n, ["cachedContent"], Q(t, P));
   const D = s(e, [
     "responseModalities"
   ]);
@@ -5866,1460 +5904,1460 @@ function wl(n, e, t, o) {
   ]);
   A != null && l(i, ["mediaResolution"], A);
   const N = s(e, ["speechConfig"]);
-  if (N != null && l(i, ["speechConfig"], un(N)), s(e, ["audioTimestamp"]) !== void 0)
+  if (N != null && l(i, ["speechConfig"], ut(N)), s(e, ["audioTimestamp"]) !== void 0)
     throw new Error("audioTimestamp parameter is not supported in Gemini API.");
-  const k = s(e, [
+  const x = s(e, [
     "thinkingConfig"
   ]);
-  k != null && l(i, ["thinkingConfig"], k);
-  const q = s(e, ["imageConfig"]);
-  q != null && l(i, ["imageConfig"], na(q));
-  const G = s(e, [
+  x != null && l(i, ["thinkingConfig"], x);
+  const U = s(e, ["imageConfig"]);
+  U != null && l(i, ["imageConfig"], sa(U));
+  const H = s(e, [
     "enableEnhancedCivicAnswers"
   ]);
-  if (G != null && l(i, ["enableEnhancedCivicAnswers"], G), s(e, ["modelArmorConfig"]) !== void 0)
+  if (H != null && l(i, ["enableEnhancedCivicAnswers"], H), s(e, ["modelArmorConfig"]) !== void 0)
     throw new Error("modelArmorConfig parameter is not supported in Gemini API.");
   return i;
 }
-function Ml(n, e, t, o) {
+function kl(t, e, n, o) {
   const i = {}, r = s(e, [
     "systemInstruction"
   ]);
-  t !== void 0 && r != null && l(t, ["systemInstruction"], F(r));
+  n !== void 0 && r != null && l(n, ["systemInstruction"], F(r));
   const a = s(e, ["temperature"]);
   a != null && l(i, ["temperature"], a);
   const u = s(e, ["topP"]);
   u != null && l(i, ["topP"], u);
-  const c = s(e, ["topK"]);
-  c != null && l(i, ["topK"], c);
-  const d = s(e, [
+  const d = s(e, ["topK"]);
+  d != null && l(i, ["topK"], d);
+  const c = s(e, [
     "candidateCount"
   ]);
-  d != null && l(i, ["candidateCount"], d);
+  c != null && l(i, ["candidateCount"], c);
   const f = s(e, [
     "maxOutputTokens"
   ]);
   f != null && l(i, ["maxOutputTokens"], f);
-  const m = s(e, [
+  const p = s(e, [
     "stopSequences"
   ]);
-  m != null && l(i, ["stopSequences"], m);
-  const p = s(e, [
+  p != null && l(i, ["stopSequences"], p);
+  const h = s(e, [
     "responseLogprobs"
   ]);
-  p != null && l(i, ["responseLogprobs"], p);
-  const h = s(e, ["logprobs"]);
-  h != null && l(i, ["logprobs"], h);
+  h != null && l(i, ["responseLogprobs"], h);
+  const m = s(e, ["logprobs"]);
+  m != null && l(i, ["logprobs"], m);
   const g = s(e, [
     "presencePenalty"
   ]);
   g != null && l(i, ["presencePenalty"], g);
-  const _ = s(e, [
+  const T = s(e, [
     "frequencyPenalty"
   ]);
-  _ != null && l(i, ["frequencyPenalty"], _);
-  const T = s(e, ["seed"]);
-  T != null && l(i, ["seed"], T);
-  const C = s(e, [
+  T != null && l(i, ["frequencyPenalty"], T);
+  const y = s(e, ["seed"]);
+  y != null && l(i, ["seed"], y);
+  const E = s(e, [
     "responseMimeType"
   ]);
-  C != null && l(i, ["responseMimeType"], C);
+  E != null && l(i, ["responseMimeType"], E);
   const S = s(e, [
     "responseSchema"
   ]);
-  S != null && l(i, ["responseSchema"], an(S));
-  const E = s(e, [
+  S != null && l(i, ["responseSchema"], at(S));
+  const I = s(e, [
     "responseJsonSchema"
   ]);
-  E != null && l(i, ["responseJsonSchema"], E);
-  const I = s(e, [
+  I != null && l(i, ["responseJsonSchema"], I);
+  const _ = s(e, [
     "routingConfig"
   ]);
-  I != null && l(i, ["routingConfig"], I);
-  const y = s(e, [
+  _ != null && l(i, ["routingConfig"], _);
+  const C = s(e, [
     "modelSelectionConfig"
   ]);
-  y != null && l(i, ["modelConfig"], y);
+  C != null && l(i, ["modelConfig"], C);
   const R = s(e, [
     "safetySettings"
   ]);
-  if (t !== void 0 && R != null) {
-    let K = R;
-    Array.isArray(K) && (K = K.map((Fe) => Fe)), l(t, ["safetySettings"], K);
+  if (n !== void 0 && R != null) {
+    let Y = R;
+    Array.isArray(Y) && (Y = Y.map((He) => He)), l(n, ["safetySettings"], Y);
   }
-  const M = s(e, ["tools"]);
-  if (t !== void 0 && M != null) {
-    let K = de(M);
-    Array.isArray(K) && (K = K.map((Fe) => yo(ue(Fe)))), l(t, ["tools"], K);
+  const P = s(e, ["tools"]);
+  if (n !== void 0 && P != null) {
+    let Y = ce(P);
+    Array.isArray(Y) && (Y = Y.map((He) => To(de(He)))), l(n, ["tools"], Y);
   }
   const D = s(e, ["toolConfig"]);
-  t !== void 0 && D != null && l(t, ["toolConfig"], D);
+  n !== void 0 && D != null && l(n, ["toolConfig"], D);
   const A = s(e, ["labels"]);
-  t !== void 0 && A != null && l(t, ["labels"], A);
+  n !== void 0 && A != null && l(n, ["labels"], A);
   const N = s(e, [
     "cachedContent"
   ]);
-  t !== void 0 && N != null && l(t, ["cachedContent"], X(n, N));
-  const k = s(e, [
+  n !== void 0 && N != null && l(n, ["cachedContent"], Q(t, N));
+  const x = s(e, [
     "responseModalities"
   ]);
-  k != null && l(i, ["responseModalities"], k);
-  const q = s(e, [
+  x != null && l(i, ["responseModalities"], x);
+  const U = s(e, [
     "mediaResolution"
   ]);
-  q != null && l(i, ["mediaResolution"], q);
-  const G = s(e, ["speechConfig"]);
-  G != null && l(i, ["speechConfig"], un(G));
-  const L = s(e, [
+  U != null && l(i, ["mediaResolution"], U);
+  const H = s(e, ["speechConfig"]);
+  H != null && l(i, ["speechConfig"], ut(H));
+  const G = s(e, [
     "audioTimestamp"
   ]);
-  L != null && l(i, ["audioTimestamp"], L);
-  const oe = s(e, [
+  G != null && l(i, ["audioTimestamp"], G);
+  const ie = s(e, [
     "thinkingConfig"
   ]);
-  oe != null && l(i, ["thinkingConfig"], oe);
-  const mn = s(e, ["imageConfig"]);
-  if (mn != null && l(i, ["imageConfig"], ta(mn)), s(e, ["enableEnhancedCivicAnswers"]) !== void 0)
+  ie != null && l(i, ["thinkingConfig"], ie);
+  const ht = s(e, ["imageConfig"]);
+  if (ht != null && l(i, ["imageConfig"], ra(ht)), s(e, ["enableEnhancedCivicAnswers"]) !== void 0)
     throw new Error("enableEnhancedCivicAnswers parameter is not supported in Vertex AI.");
-  const hn = s(e, [
+  const mt = s(e, [
     "modelArmorConfig"
   ]);
-  return t !== void 0 && hn != null && l(t, ["modelArmorConfig"], hn), i;
+  return n !== void 0 && mt != null && l(n, ["modelArmorConfig"], mt), i;
 }
-function Ut(n, e, t) {
+function Ln(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let u = b(r);
-    Array.isArray(u) && (u = u.map((c) => Ne(c))), l(o, ["contents"], u);
+    let u = J(r);
+    Array.isArray(u) && (u = u.map((d) => De(d))), l(o, ["contents"], u);
   }
   const a = s(e, ["config"]);
-  return a != null && l(o, ["generationConfig"], wl(n, a, o)), o;
+  return a != null && l(o, ["generationConfig"], Dl(t, a, o)), o;
 }
-function Lt(n, e, t) {
+function Gn(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["contents"]);
   if (r != null) {
-    let u = b(r);
-    Array.isArray(u) && (u = u.map((c) => c)), l(o, ["contents"], u);
+    let u = J(r);
+    Array.isArray(u) && (u = u.map((d) => d)), l(o, ["contents"], u);
   }
   const a = s(e, ["config"]);
-  return a != null && l(o, ["generationConfig"], Ml(n, a, o)), o;
+  return a != null && l(o, ["generationConfig"], kl(t, a, o)), o;
 }
-function Ft(n, e) {
-  const t = {}, o = s(n, [
+function Fn(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["candidates"]);
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["candidates"]);
   if (i != null) {
-    let d = i;
-    Array.isArray(d) && (d = d.map((f) => Qr(f))), l(t, ["candidates"], d);
+    let c = i;
+    Array.isArray(c) && (c = c.map((f) => tl(f))), l(n, ["candidates"], c);
   }
-  const r = s(n, ["modelVersion"]);
-  r != null && l(t, ["modelVersion"], r);
-  const a = s(n, [
+  const r = s(t, ["modelVersion"]);
+  r != null && l(n, ["modelVersion"], r);
+  const a = s(t, [
     "promptFeedback"
   ]);
-  a != null && l(t, ["promptFeedback"], a);
-  const u = s(n, ["responseId"]);
-  u != null && l(t, ["responseId"], u);
-  const c = s(n, [
+  a != null && l(n, ["promptFeedback"], a);
+  const u = s(t, ["responseId"]);
+  u != null && l(n, ["responseId"], u);
+  const d = s(t, [
     "usageMetadata"
   ]);
-  return c != null && l(t, ["usageMetadata"], c), t;
+  return d != null && l(n, ["usageMetadata"], d), n;
 }
-function Gt(n, e) {
-  const t = {}, o = s(n, [
+function Hn(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["candidates"]);
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["candidates"]);
   if (i != null) {
     let f = i;
-    Array.isArray(f) && (f = f.map((m) => m)), l(t, ["candidates"], f);
+    Array.isArray(f) && (f = f.map((p) => p)), l(n, ["candidates"], f);
   }
-  const r = s(n, ["createTime"]);
-  r != null && l(t, ["createTime"], r);
-  const a = s(n, ["modelVersion"]);
-  a != null && l(t, ["modelVersion"], a);
-  const u = s(n, [
+  const r = s(t, ["createTime"]);
+  r != null && l(n, ["createTime"], r);
+  const a = s(t, ["modelVersion"]);
+  a != null && l(n, ["modelVersion"], a);
+  const u = s(t, [
     "promptFeedback"
   ]);
-  u != null && l(t, ["promptFeedback"], u);
-  const c = s(n, ["responseId"]);
-  c != null && l(t, ["responseId"], c);
-  const d = s(n, [
+  u != null && l(n, ["promptFeedback"], u);
+  const d = s(t, ["responseId"]);
+  d != null && l(n, ["responseId"], d);
+  const c = s(t, [
     "usageMetadata"
   ]);
-  return d != null && l(t, ["usageMetadata"], d), t;
+  return c != null && l(n, ["usageMetadata"], c), n;
 }
-function Nl(n, e, t) {
+function Ul(t, e, n) {
   const o = {};
-  if (s(n, ["outputGcsUri"]) !== void 0)
+  if (s(t, ["outputGcsUri"]) !== void 0)
     throw new Error("outputGcsUri parameter is not supported in Gemini API.");
-  if (s(n, ["negativePrompt"]) !== void 0)
+  if (s(t, ["negativePrompt"]) !== void 0)
     throw new Error("negativePrompt parameter is not supported in Gemini API.");
-  const i = s(n, [
+  const i = s(t, [
     "numberOfImages"
   ]);
   e !== void 0 && i != null && l(e, ["parameters", "sampleCount"], i);
-  const r = s(n, ["aspectRatio"]);
+  const r = s(t, ["aspectRatio"]);
   e !== void 0 && r != null && l(e, ["parameters", "aspectRatio"], r);
-  const a = s(n, [
+  const a = s(t, [
     "guidanceScale"
   ]);
-  if (e !== void 0 && a != null && l(e, ["parameters", "guidanceScale"], a), s(n, ["seed"]) !== void 0)
+  if (e !== void 0 && a != null && l(e, ["parameters", "guidanceScale"], a), s(t, ["seed"]) !== void 0)
     throw new Error("seed parameter is not supported in Gemini API.");
-  const u = s(n, [
+  const u = s(t, [
     "safetyFilterLevel"
   ]);
   e !== void 0 && u != null && l(e, ["parameters", "safetySetting"], u);
-  const c = s(n, [
+  const d = s(t, [
     "personGeneration"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "personGeneration"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["parameters", "personGeneration"], d);
+  const c = s(t, [
     "includeSafetyAttributes"
   ]);
-  e !== void 0 && d != null && l(e, ["parameters", "includeSafetyAttributes"], d);
-  const f = s(n, [
+  e !== void 0 && c != null && l(e, ["parameters", "includeSafetyAttributes"], c);
+  const f = s(t, [
     "includeRaiReason"
   ]);
   e !== void 0 && f != null && l(e, ["parameters", "includeRaiReason"], f);
-  const m = s(n, ["language"]);
-  e !== void 0 && m != null && l(e, ["parameters", "language"], m);
-  const p = s(n, [
+  const p = s(t, ["language"]);
+  e !== void 0 && p != null && l(e, ["parameters", "language"], p);
+  const h = s(t, [
     "outputMimeType"
   ]);
-  e !== void 0 && p != null && l(e, ["parameters", "outputOptions", "mimeType"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["parameters", "outputOptions", "mimeType"], h);
+  const m = s(t, [
     "outputCompressionQuality"
   ]);
-  if (e !== void 0 && h != null && l(e, ["parameters", "outputOptions", "compressionQuality"], h), s(n, ["addWatermark"]) !== void 0)
+  if (e !== void 0 && m != null && l(e, ["parameters", "outputOptions", "compressionQuality"], m), s(t, ["addWatermark"]) !== void 0)
     throw new Error("addWatermark parameter is not supported in Gemini API.");
-  if (s(n, ["labels"]) !== void 0)
+  if (s(t, ["labels"]) !== void 0)
     throw new Error("labels parameter is not supported in Gemini API.");
-  const g = s(n, ["imageSize"]);
-  if (e !== void 0 && g != null && l(e, ["parameters", "sampleImageSize"], g), s(n, ["enhancePrompt"]) !== void 0)
+  const g = s(t, ["imageSize"]);
+  if (e !== void 0 && g != null && l(e, ["parameters", "sampleImageSize"], g), s(t, ["enhancePrompt"]) !== void 0)
     throw new Error("enhancePrompt parameter is not supported in Gemini API.");
   return o;
 }
-function xl(n, e, t) {
-  const o = {}, i = s(n, ["outputGcsUri"]);
+function Ll(t, e, n) {
+  const o = {}, i = s(t, ["outputGcsUri"]);
   e !== void 0 && i != null && l(e, ["parameters", "storageUri"], i);
-  const r = s(n, [
+  const r = s(t, [
     "negativePrompt"
   ]);
   e !== void 0 && r != null && l(e, ["parameters", "negativePrompt"], r);
-  const a = s(n, [
+  const a = s(t, [
     "numberOfImages"
   ]);
   e !== void 0 && a != null && l(e, ["parameters", "sampleCount"], a);
-  const u = s(n, ["aspectRatio"]);
+  const u = s(t, ["aspectRatio"]);
   e !== void 0 && u != null && l(e, ["parameters", "aspectRatio"], u);
-  const c = s(n, [
+  const d = s(t, [
     "guidanceScale"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "guidanceScale"], c);
-  const d = s(n, ["seed"]);
-  e !== void 0 && d != null && l(e, ["parameters", "seed"], d);
-  const f = s(n, [
+  e !== void 0 && d != null && l(e, ["parameters", "guidanceScale"], d);
+  const c = s(t, ["seed"]);
+  e !== void 0 && c != null && l(e, ["parameters", "seed"], c);
+  const f = s(t, [
     "safetyFilterLevel"
   ]);
   e !== void 0 && f != null && l(e, ["parameters", "safetySetting"], f);
-  const m = s(n, [
+  const p = s(t, [
     "personGeneration"
   ]);
-  e !== void 0 && m != null && l(e, ["parameters", "personGeneration"], m);
-  const p = s(n, [
+  e !== void 0 && p != null && l(e, ["parameters", "personGeneration"], p);
+  const h = s(t, [
     "includeSafetyAttributes"
   ]);
-  e !== void 0 && p != null && l(e, ["parameters", "includeSafetyAttributes"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["parameters", "includeSafetyAttributes"], h);
+  const m = s(t, [
     "includeRaiReason"
   ]);
-  e !== void 0 && h != null && l(e, ["parameters", "includeRaiReason"], h);
-  const g = s(n, ["language"]);
+  e !== void 0 && m != null && l(e, ["parameters", "includeRaiReason"], m);
+  const g = s(t, ["language"]);
   e !== void 0 && g != null && l(e, ["parameters", "language"], g);
-  const _ = s(n, [
+  const T = s(t, [
     "outputMimeType"
   ]);
-  e !== void 0 && _ != null && l(e, ["parameters", "outputOptions", "mimeType"], _);
-  const T = s(n, [
+  e !== void 0 && T != null && l(e, ["parameters", "outputOptions", "mimeType"], T);
+  const y = s(t, [
     "outputCompressionQuality"
   ]);
-  e !== void 0 && T != null && l(e, ["parameters", "outputOptions", "compressionQuality"], T);
-  const C = s(n, ["addWatermark"]);
-  e !== void 0 && C != null && l(e, ["parameters", "addWatermark"], C);
-  const S = s(n, ["labels"]);
+  e !== void 0 && y != null && l(e, ["parameters", "outputOptions", "compressionQuality"], y);
+  const E = s(t, ["addWatermark"]);
+  e !== void 0 && E != null && l(e, ["parameters", "addWatermark"], E);
+  const S = s(t, ["labels"]);
   e !== void 0 && S != null && l(e, ["labels"], S);
-  const E = s(n, ["imageSize"]);
-  e !== void 0 && E != null && l(e, ["parameters", "sampleImageSize"], E);
-  const I = s(n, [
+  const I = s(t, ["imageSize"]);
+  e !== void 0 && I != null && l(e, ["parameters", "sampleImageSize"], I);
+  const _ = s(t, [
     "enhancePrompt"
   ]);
-  return e !== void 0 && I != null && l(e, ["parameters", "enhancePrompt"], I), o;
+  return e !== void 0 && _ != null && l(e, ["parameters", "enhancePrompt"], _), o;
 }
-function Dl(n, e, t) {
+function Gl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["prompt"]);
   r != null && l(o, ["instances[0]", "prompt"], r);
   const a = s(e, ["config"]);
-  return a != null && Nl(a, o), o;
+  return a != null && Ul(a, o), o;
 }
-function kl(n, e, t) {
+function Fl(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["prompt"]);
   r != null && l(o, ["instances[0]", "prompt"], r);
   const a = s(e, ["config"]);
-  return a != null && xl(a, o), o;
+  return a != null && Ll(a, o), o;
 }
-function Ul(n, e) {
-  const t = {}, o = s(n, [
+function Hl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "predictions"
   ]);
   if (i != null) {
     let a = i;
-    Array.isArray(a) && (a = a.map((u) => Wl(u))), l(t, ["generatedImages"], a);
+    Array.isArray(a) && (a = a.map((u) => Xl(u))), l(n, ["generatedImages"], a);
   }
-  const r = s(n, [
+  const r = s(t, [
     "positivePromptSafetyAttributes"
   ]);
-  return r != null && l(t, ["positivePromptSafetyAttributes"], ho(r)), t;
+  return r != null && l(n, ["positivePromptSafetyAttributes"], go(r)), n;
 }
-function Ll(n, e) {
-  const t = {}, o = s(n, [
+function Vl(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "predictions"
   ]);
   if (i != null) {
     let a = i;
-    Array.isArray(a) && (a = a.map((u) => xe(u))), l(t, ["generatedImages"], a);
+    Array.isArray(a) && (a = a.map((u) => ke(u))), l(n, ["generatedImages"], a);
   }
-  const r = s(n, [
+  const r = s(t, [
     "positivePromptSafetyAttributes"
   ]);
-  return r != null && l(t, ["positivePromptSafetyAttributes"], go(r)), t;
+  return r != null && l(n, ["positivePromptSafetyAttributes"], yo(r)), n;
 }
-function Fl(n, e, t) {
-  const o = {}, i = s(n, [
+function bl(t, e, n) {
+  const o = {}, i = s(t, [
     "numberOfVideos"
   ]);
-  if (e !== void 0 && i != null && l(e, ["parameters", "sampleCount"], i), s(n, ["outputGcsUri"]) !== void 0)
+  if (e !== void 0 && i != null && l(e, ["parameters", "sampleCount"], i), s(t, ["outputGcsUri"]) !== void 0)
     throw new Error("outputGcsUri parameter is not supported in Gemini API.");
-  if (s(n, ["fps"]) !== void 0)
+  if (s(t, ["fps"]) !== void 0)
     throw new Error("fps parameter is not supported in Gemini API.");
-  const r = s(n, [
+  const r = s(t, [
     "durationSeconds"
   ]);
-  if (e !== void 0 && r != null && l(e, ["parameters", "durationSeconds"], r), s(n, ["seed"]) !== void 0)
+  if (e !== void 0 && r != null && l(e, ["parameters", "durationSeconds"], r), s(t, ["seed"]) !== void 0)
     throw new Error("seed parameter is not supported in Gemini API.");
-  const a = s(n, ["aspectRatio"]);
+  const a = s(t, ["aspectRatio"]);
   e !== void 0 && a != null && l(e, ["parameters", "aspectRatio"], a);
-  const u = s(n, ["resolution"]);
+  const u = s(t, ["resolution"]);
   e !== void 0 && u != null && l(e, ["parameters", "resolution"], u);
-  const c = s(n, [
+  const d = s(t, [
     "personGeneration"
   ]);
-  if (e !== void 0 && c != null && l(e, ["parameters", "personGeneration"], c), s(n, ["pubsubTopic"]) !== void 0)
+  if (e !== void 0 && d != null && l(e, ["parameters", "personGeneration"], d), s(t, ["pubsubTopic"]) !== void 0)
     throw new Error("pubsubTopic parameter is not supported in Gemini API.");
-  const d = s(n, [
+  const c = s(t, [
     "negativePrompt"
   ]);
-  e !== void 0 && d != null && l(e, ["parameters", "negativePrompt"], d);
-  const f = s(n, [
+  e !== void 0 && c != null && l(e, ["parameters", "negativePrompt"], c);
+  const f = s(t, [
     "enhancePrompt"
   ]);
-  if (e !== void 0 && f != null && l(e, ["parameters", "enhancePrompt"], f), s(n, ["generateAudio"]) !== void 0)
+  if (e !== void 0 && f != null && l(e, ["parameters", "enhancePrompt"], f), s(t, ["generateAudio"]) !== void 0)
     throw new Error("generateAudio parameter is not supported in Gemini API.");
-  const m = s(n, ["lastFrame"]);
-  e !== void 0 && m != null && l(e, ["instances[0]", "lastFrame"], De(m));
-  const p = s(n, [
+  const p = s(t, ["lastFrame"]);
+  e !== void 0 && p != null && l(e, ["instances[0]", "lastFrame"], Ue(p));
+  const h = s(t, [
     "referenceImages"
   ]);
-  if (e !== void 0 && p != null) {
-    let h = p;
-    Array.isArray(h) && (h = h.map((g) => Va(g))), l(e, ["instances[0]", "referenceImages"], h);
+  if (e !== void 0 && h != null) {
+    let m = h;
+    Array.isArray(m) && (m = m.map((g) => Ba(g))), l(e, ["instances[0]", "referenceImages"], m);
   }
-  if (s(n, ["mask"]) !== void 0)
+  if (s(t, ["mask"]) !== void 0)
     throw new Error("mask parameter is not supported in Gemini API.");
-  if (s(n, ["compressionQuality"]) !== void 0)
+  if (s(t, ["compressionQuality"]) !== void 0)
     throw new Error("compressionQuality parameter is not supported in Gemini API.");
   return o;
 }
-function Gl(n, e, t) {
-  const o = {}, i = s(n, [
+function ql(t, e, n) {
+  const o = {}, i = s(t, [
     "numberOfVideos"
   ]);
   e !== void 0 && i != null && l(e, ["parameters", "sampleCount"], i);
-  const r = s(n, ["outputGcsUri"]);
+  const r = s(t, ["outputGcsUri"]);
   e !== void 0 && r != null && l(e, ["parameters", "storageUri"], r);
-  const a = s(n, ["fps"]);
+  const a = s(t, ["fps"]);
   e !== void 0 && a != null && l(e, ["parameters", "fps"], a);
-  const u = s(n, [
+  const u = s(t, [
     "durationSeconds"
   ]);
   e !== void 0 && u != null && l(e, ["parameters", "durationSeconds"], u);
-  const c = s(n, ["seed"]);
-  e !== void 0 && c != null && l(e, ["parameters", "seed"], c);
-  const d = s(n, ["aspectRatio"]);
-  e !== void 0 && d != null && l(e, ["parameters", "aspectRatio"], d);
-  const f = s(n, ["resolution"]);
+  const d = s(t, ["seed"]);
+  e !== void 0 && d != null && l(e, ["parameters", "seed"], d);
+  const c = s(t, ["aspectRatio"]);
+  e !== void 0 && c != null && l(e, ["parameters", "aspectRatio"], c);
+  const f = s(t, ["resolution"]);
   e !== void 0 && f != null && l(e, ["parameters", "resolution"], f);
-  const m = s(n, [
+  const p = s(t, [
     "personGeneration"
   ]);
-  e !== void 0 && m != null && l(e, ["parameters", "personGeneration"], m);
-  const p = s(n, ["pubsubTopic"]);
-  e !== void 0 && p != null && l(e, ["parameters", "pubsubTopic"], p);
-  const h = s(n, [
+  e !== void 0 && p != null && l(e, ["parameters", "personGeneration"], p);
+  const h = s(t, ["pubsubTopic"]);
+  e !== void 0 && h != null && l(e, ["parameters", "pubsubTopic"], h);
+  const m = s(t, [
     "negativePrompt"
   ]);
-  e !== void 0 && h != null && l(e, ["parameters", "negativePrompt"], h);
-  const g = s(n, [
+  e !== void 0 && m != null && l(e, ["parameters", "negativePrompt"], m);
+  const g = s(t, [
     "enhancePrompt"
   ]);
   e !== void 0 && g != null && l(e, ["parameters", "enhancePrompt"], g);
-  const _ = s(n, [
+  const T = s(t, [
     "generateAudio"
   ]);
-  e !== void 0 && _ != null && l(e, ["parameters", "generateAudio"], _);
-  const T = s(n, ["lastFrame"]);
-  e !== void 0 && T != null && l(e, ["instances[0]", "lastFrame"], $(T));
-  const C = s(n, [
+  e !== void 0 && T != null && l(e, ["parameters", "generateAudio"], T);
+  const y = s(t, ["lastFrame"]);
+  e !== void 0 && y != null && l(e, ["instances[0]", "lastFrame"], K(y));
+  const E = s(t, [
     "referenceImages"
   ]);
-  if (e !== void 0 && C != null) {
-    let I = C;
-    Array.isArray(I) && (I = I.map((y) => Ha(y))), l(e, ["instances[0]", "referenceImages"], I);
+  if (e !== void 0 && E != null) {
+    let _ = E;
+    Array.isArray(_) && (_ = _.map((C) => Ja(C))), l(e, ["instances[0]", "referenceImages"], _);
   }
-  const S = s(n, ["mask"]);
-  e !== void 0 && S != null && l(e, ["instances[0]", "mask"], Ga(S));
-  const E = s(n, [
+  const S = s(t, ["mask"]);
+  e !== void 0 && S != null && l(e, ["instances[0]", "mask"], qa(S));
+  const I = s(t, [
     "compressionQuality"
   ]);
-  return e !== void 0 && E != null && l(e, ["parameters", "compressionQuality"], E), o;
+  return e !== void 0 && I != null && l(e, ["parameters", "compressionQuality"], I), o;
 }
-function Vl(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  o != null && l(t, ["name"], o);
-  const i = s(n, ["metadata"]);
-  i != null && l(t, ["metadata"], i);
-  const r = s(n, ["done"]);
-  r != null && l(t, ["done"], r);
-  const a = s(n, ["error"]);
-  a != null && l(t, ["error"], a);
-  const u = s(n, [
+function Bl(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  o != null && l(n, ["name"], o);
+  const i = s(t, ["metadata"]);
+  i != null && l(n, ["metadata"], i);
+  const r = s(t, ["done"]);
+  r != null && l(n, ["done"], r);
+  const a = s(t, ["error"]);
+  a != null && l(n, ["error"], a);
+  const u = s(t, [
     "response",
     "generateVideoResponse"
   ]);
-  return u != null && l(t, ["response"], Bl(u)), t;
+  return u != null && l(n, ["response"], Wl(u)), n;
 }
-function Hl(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  o != null && l(t, ["name"], o);
-  const i = s(n, ["metadata"]);
-  i != null && l(t, ["metadata"], i);
-  const r = s(n, ["done"]);
-  r != null && l(t, ["done"], r);
-  const a = s(n, ["error"]);
-  a != null && l(t, ["error"], a);
-  const u = s(n, ["response"]);
-  return u != null && l(t, ["response"], Jl(u)), t;
+function Jl(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  o != null && l(n, ["name"], o);
+  const i = s(t, ["metadata"]);
+  i != null && l(n, ["metadata"], i);
+  const r = s(t, ["done"]);
+  r != null && l(n, ["done"], r);
+  const a = s(t, ["error"]);
+  a != null && l(n, ["error"], a);
+  const u = s(t, ["response"]);
+  return u != null && l(n, ["response"], Kl(u)), n;
 }
-function ql(n, e, t) {
+function Ol(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["prompt"]);
   r != null && l(o, ["instances[0]", "prompt"], r);
   const a = s(e, ["image"]);
-  a != null && l(o, ["instances[0]", "image"], De(a));
+  a != null && l(o, ["instances[0]", "image"], Ue(a));
   const u = s(e, ["video"]);
-  u != null && l(o, ["instances[0]", "video"], To(u));
-  const c = s(e, ["source"]);
-  c != null && Ol(c, o);
-  const d = s(e, ["config"]);
-  return d != null && Fl(d, o), o;
+  u != null && l(o, ["instances[0]", "video"], Co(u));
+  const d = s(e, ["source"]);
+  d != null && Yl(d, o);
+  const c = s(e, ["config"]);
+  return c != null && bl(c, o), o;
 }
-function bl(n, e, t) {
+function $l(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["prompt"]);
   r != null && l(o, ["instances[0]", "prompt"], r);
   const a = s(e, ["image"]);
-  a != null && l(o, ["instances[0]", "image"], $(a));
+  a != null && l(o, ["instances[0]", "image"], K(a));
   const u = s(e, ["video"]);
   u != null && l(o, ["instances[0]", "video"], _o(u));
-  const c = s(e, ["source"]);
-  c != null && $l(c, o);
-  const d = s(e, ["config"]);
-  return d != null && Gl(d, o), o;
+  const d = s(e, ["source"]);
+  d != null && zl(d, o);
+  const c = s(e, ["config"]);
+  return c != null && ql(c, o), o;
 }
-function Bl(n, e) {
-  const t = {}, o = s(n, [
+function Wl(t, e) {
+  const n = {}, o = s(t, [
     "generatedSamples"
   ]);
   if (o != null) {
     let a = o;
-    Array.isArray(a) && (a = a.map((u) => Yl(u))), l(t, ["generatedVideos"], a);
+    Array.isArray(a) && (a = a.map((u) => Zl(u))), l(n, ["generatedVideos"], a);
   }
-  const i = s(n, [
+  const i = s(t, [
     "raiMediaFilteredCount"
   ]);
-  i != null && l(t, ["raiMediaFilteredCount"], i);
-  const r = s(n, [
+  i != null && l(n, ["raiMediaFilteredCount"], i);
+  const r = s(t, [
     "raiMediaFilteredReasons"
   ]);
-  return r != null && l(t, ["raiMediaFilteredReasons"], r), t;
+  return r != null && l(n, ["raiMediaFilteredReasons"], r), n;
 }
-function Jl(n, e) {
-  const t = {}, o = s(n, ["videos"]);
+function Kl(t, e) {
+  const n = {}, o = s(t, ["videos"]);
   if (o != null) {
     let a = o;
-    Array.isArray(a) && (a = a.map((u) => zl(u))), l(t, ["generatedVideos"], a);
+    Array.isArray(a) && (a = a.map((u) => jl(u))), l(n, ["generatedVideos"], a);
   }
-  const i = s(n, [
+  const i = s(t, [
     "raiMediaFilteredCount"
   ]);
-  i != null && l(t, ["raiMediaFilteredCount"], i);
-  const r = s(n, [
+  i != null && l(n, ["raiMediaFilteredCount"], i);
+  const r = s(t, [
     "raiMediaFilteredReasons"
   ]);
-  return r != null && l(t, ["raiMediaFilteredReasons"], r), t;
+  return r != null && l(n, ["raiMediaFilteredReasons"], r), n;
 }
-function Ol(n, e, t) {
-  const o = {}, i = s(n, ["prompt"]);
+function Yl(t, e, n) {
+  const o = {}, i = s(t, ["prompt"]);
   e !== void 0 && i != null && l(e, ["instances[0]", "prompt"], i);
-  const r = s(n, ["image"]);
-  e !== void 0 && r != null && l(e, ["instances[0]", "image"], De(r));
-  const a = s(n, ["video"]);
-  return e !== void 0 && a != null && l(e, ["instances[0]", "video"], To(a)), o;
+  const r = s(t, ["image"]);
+  e !== void 0 && r != null && l(e, ["instances[0]", "image"], Ue(r));
+  const a = s(t, ["video"]);
+  return e !== void 0 && a != null && l(e, ["instances[0]", "video"], Co(a)), o;
 }
-function $l(n, e, t) {
-  const o = {}, i = s(n, ["prompt"]);
+function zl(t, e, n) {
+  const o = {}, i = s(t, ["prompt"]);
   e !== void 0 && i != null && l(e, ["instances[0]", "prompt"], i);
-  const r = s(n, ["image"]);
-  e !== void 0 && r != null && l(e, ["instances[0]", "image"], $(r));
-  const a = s(n, ["video"]);
+  const r = s(t, ["image"]);
+  e !== void 0 && r != null && l(e, ["instances[0]", "image"], K(r));
+  const a = s(t, ["video"]);
   return e !== void 0 && a != null && l(e, ["instances[0]", "video"], _o(a)), o;
 }
-function Wl(n, e) {
-  const t = {}, o = s(n, ["_self"]);
-  o != null && l(t, ["image"], oa(o));
-  const i = s(n, [
+function Xl(t, e) {
+  const n = {}, o = s(t, ["_self"]);
+  o != null && l(n, ["image"], la(o));
+  const i = s(t, [
     "raiFilteredReason"
   ]);
-  i != null && l(t, ["raiFilteredReason"], i);
-  const r = s(n, ["_self"]);
-  return r != null && l(t, ["safetyAttributes"], ho(r)), t;
+  i != null && l(n, ["raiFilteredReason"], i);
+  const r = s(t, ["_self"]);
+  return r != null && l(n, ["safetyAttributes"], go(r)), n;
 }
-function xe(n, e) {
-  const t = {}, o = s(n, ["_self"]);
-  o != null && l(t, ["image"], mo(o));
-  const i = s(n, [
+function ke(t, e) {
+  const n = {}, o = s(t, ["_self"]);
+  o != null && l(n, ["image"], mo(o));
+  const i = s(t, [
     "raiFilteredReason"
   ]);
-  i != null && l(t, ["raiFilteredReason"], i);
-  const r = s(n, ["_self"]);
-  r != null && l(t, ["safetyAttributes"], go(r));
-  const a = s(n, ["prompt"]);
-  return a != null && l(t, ["enhancedPrompt"], a), t;
+  i != null && l(n, ["raiFilteredReason"], i);
+  const r = s(t, ["_self"]);
+  r != null && l(n, ["safetyAttributes"], yo(r));
+  const a = s(t, ["prompt"]);
+  return a != null && l(n, ["enhancedPrompt"], a), n;
 }
-function Kl(n, e) {
-  const t = {}, o = s(n, ["_self"]);
-  o != null && l(t, ["mask"], mo(o));
-  const i = s(n, ["labels"]);
+function Ql(t, e) {
+  const n = {}, o = s(t, ["_self"]);
+  o != null && l(n, ["mask"], mo(o));
+  const i = s(t, ["labels"]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => a)), l(t, ["labels"], r);
+    Array.isArray(r) && (r = r.map((a) => a)), l(n, ["labels"], r);
   }
-  return t;
+  return n;
 }
-function Yl(n, e) {
-  const t = {}, o = s(n, ["video"]);
-  return o != null && l(t, ["video"], La(o)), t;
+function Zl(t, e) {
+  const n = {}, o = s(t, ["video"]);
+  return o != null && l(n, ["video"], Va(o)), n;
 }
-function zl(n, e) {
-  const t = {}, o = s(n, ["_self"]);
-  return o != null && l(t, ["video"], Fa(o)), t;
+function jl(t, e) {
+  const n = {}, o = s(t, ["_self"]);
+  return o != null && l(n, ["video"], ba(o)), n;
 }
-function Xl(n, e) {
-  const t = {}, o = s(n, [
+function ea(t, e) {
+  const n = {}, o = s(t, [
     "modelSelectionConfig"
   ]);
-  o != null && l(t, ["modelConfig"], o);
-  const i = s(n, [
+  o != null && l(n, ["modelConfig"], o);
+  const i = s(t, [
     "responseJsonSchema"
   ]);
-  i != null && l(t, ["responseJsonSchema"], i);
-  const r = s(n, [
+  i != null && l(n, ["responseJsonSchema"], i);
+  const r = s(t, [
     "audioTimestamp"
   ]);
-  r != null && l(t, ["audioTimestamp"], r);
-  const a = s(n, [
+  r != null && l(n, ["audioTimestamp"], r);
+  const a = s(t, [
     "candidateCount"
   ]);
-  a != null && l(t, ["candidateCount"], a);
-  const u = s(n, [
+  a != null && l(n, ["candidateCount"], a);
+  const u = s(t, [
     "enableAffectiveDialog"
   ]);
-  u != null && l(t, ["enableAffectiveDialog"], u);
-  const c = s(n, [
+  u != null && l(n, ["enableAffectiveDialog"], u);
+  const d = s(t, [
     "frequencyPenalty"
   ]);
-  c != null && l(t, ["frequencyPenalty"], c);
-  const d = s(n, ["logprobs"]);
-  d != null && l(t, ["logprobs"], d);
-  const f = s(n, [
+  d != null && l(n, ["frequencyPenalty"], d);
+  const c = s(t, ["logprobs"]);
+  c != null && l(n, ["logprobs"], c);
+  const f = s(t, [
     "maxOutputTokens"
   ]);
-  f != null && l(t, ["maxOutputTokens"], f);
-  const m = s(n, [
+  f != null && l(n, ["maxOutputTokens"], f);
+  const p = s(t, [
     "mediaResolution"
   ]);
-  m != null && l(t, ["mediaResolution"], m);
-  const p = s(n, [
+  p != null && l(n, ["mediaResolution"], p);
+  const h = s(t, [
     "presencePenalty"
   ]);
-  p != null && l(t, ["presencePenalty"], p);
-  const h = s(n, [
+  h != null && l(n, ["presencePenalty"], h);
+  const m = s(t, [
     "responseLogprobs"
   ]);
-  h != null && l(t, ["responseLogprobs"], h);
-  const g = s(n, [
+  m != null && l(n, ["responseLogprobs"], m);
+  const g = s(t, [
     "responseMimeType"
   ]);
-  g != null && l(t, ["responseMimeType"], g);
-  const _ = s(n, [
+  g != null && l(n, ["responseMimeType"], g);
+  const T = s(t, [
     "responseModalities"
   ]);
-  _ != null && l(t, ["responseModalities"], _);
-  const T = s(n, [
+  T != null && l(n, ["responseModalities"], T);
+  const y = s(t, [
     "responseSchema"
   ]);
-  T != null && l(t, ["responseSchema"], T);
-  const C = s(n, [
+  y != null && l(n, ["responseSchema"], y);
+  const E = s(t, [
     "routingConfig"
   ]);
-  C != null && l(t, ["routingConfig"], C);
-  const S = s(n, ["seed"]);
-  S != null && l(t, ["seed"], S);
-  const E = s(n, ["speechConfig"]);
-  E != null && l(t, ["speechConfig"], E);
-  const I = s(n, [
+  E != null && l(n, ["routingConfig"], E);
+  const S = s(t, ["seed"]);
+  S != null && l(n, ["seed"], S);
+  const I = s(t, ["speechConfig"]);
+  I != null && l(n, ["speechConfig"], I);
+  const _ = s(t, [
     "stopSequences"
   ]);
-  I != null && l(t, ["stopSequences"], I);
-  const y = s(n, ["temperature"]);
-  y != null && l(t, ["temperature"], y);
-  const R = s(n, [
+  _ != null && l(n, ["stopSequences"], _);
+  const C = s(t, ["temperature"]);
+  C != null && l(n, ["temperature"], C);
+  const R = s(t, [
     "thinkingConfig"
   ]);
-  R != null && l(t, ["thinkingConfig"], R);
-  const M = s(n, ["topK"]);
-  M != null && l(t, ["topK"], M);
-  const D = s(n, ["topP"]);
-  if (D != null && l(t, ["topP"], D), s(n, ["enableEnhancedCivicAnswers"]) !== void 0)
+  R != null && l(n, ["thinkingConfig"], R);
+  const P = s(t, ["topK"]);
+  P != null && l(n, ["topK"], P);
+  const D = s(t, ["topP"]);
+  if (D != null && l(n, ["topP"], D), s(t, ["enableEnhancedCivicAnswers"]) !== void 0)
     throw new Error("enableEnhancedCivicAnswers parameter is not supported in Vertex AI.");
-  return t;
+  return n;
 }
-function Ql(n, e, t) {
+function ta(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  return i != null && l(o, ["_url", "name"], x(n, i)), o;
+  return i != null && l(o, ["_url", "name"], k(t, i)), o;
 }
-function Zl(n, e, t) {
+function na(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  return i != null && l(o, ["_url", "name"], x(n, i)), o;
+  return i != null && l(o, ["_url", "name"], k(t, i)), o;
 }
-function jl(n, e) {
-  const t = {};
-  if (s(n, ["authConfig"]) !== void 0)
+function oa(t, e) {
+  const n = {};
+  if (s(t, ["authConfig"]) !== void 0)
     throw new Error("authConfig parameter is not supported in Gemini API.");
-  const o = s(n, ["enableWidget"]);
-  return o != null && l(t, ["enableWidget"], o), t;
+  const o = s(t, ["enableWidget"]);
+  return o != null && l(n, ["enableWidget"], o), n;
 }
-function ea(n, e) {
-  const t = {};
-  if (s(n, ["excludeDomains"]) !== void 0)
+function ia(t, e) {
+  const n = {};
+  if (s(t, ["excludeDomains"]) !== void 0)
     throw new Error("excludeDomains parameter is not supported in Gemini API.");
-  if (s(n, ["blockingConfidence"]) !== void 0)
+  if (s(t, ["blockingConfidence"]) !== void 0)
     throw new Error("blockingConfidence parameter is not supported in Gemini API.");
-  const o = s(n, [
+  const o = s(t, [
     "timeRangeFilter"
   ]);
-  return o != null && l(t, ["timeRangeFilter"], o), t;
+  return o != null && l(n, ["timeRangeFilter"], o), n;
 }
-function na(n, e) {
-  const t = {}, o = s(n, ["aspectRatio"]);
-  o != null && l(t, ["aspectRatio"], o);
-  const i = s(n, ["imageSize"]);
-  if (i != null && l(t, ["imageSize"], i), s(n, ["personGeneration"]) !== void 0)
+function sa(t, e) {
+  const n = {}, o = s(t, ["aspectRatio"]);
+  o != null && l(n, ["aspectRatio"], o);
+  const i = s(t, ["imageSize"]);
+  if (i != null && l(n, ["imageSize"], i), s(t, ["personGeneration"]) !== void 0)
     throw new Error("personGeneration parameter is not supported in Gemini API.");
-  if (s(n, ["outputMimeType"]) !== void 0)
+  if (s(t, ["outputMimeType"]) !== void 0)
     throw new Error("outputMimeType parameter is not supported in Gemini API.");
-  if (s(n, ["outputCompressionQuality"]) !== void 0)
+  if (s(t, ["outputCompressionQuality"]) !== void 0)
     throw new Error("outputCompressionQuality parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function ta(n, e) {
-  const t = {}, o = s(n, ["aspectRatio"]);
-  o != null && l(t, ["aspectRatio"], o);
-  const i = s(n, ["imageSize"]);
-  i != null && l(t, ["imageSize"], i);
-  const r = s(n, [
+function ra(t, e) {
+  const n = {}, o = s(t, ["aspectRatio"]);
+  o != null && l(n, ["aspectRatio"], o);
+  const i = s(t, ["imageSize"]);
+  i != null && l(n, ["imageSize"], i);
+  const r = s(t, [
     "personGeneration"
   ]);
-  r != null && l(t, ["personGeneration"], r);
-  const a = s(n, [
+  r != null && l(n, ["personGeneration"], r);
+  const a = s(t, [
     "outputMimeType"
   ]);
-  a != null && l(t, ["imageOutputOptions", "mimeType"], a);
-  const u = s(n, [
+  a != null && l(n, ["imageOutputOptions", "mimeType"], a);
+  const u = s(t, [
     "outputCompressionQuality"
   ]);
-  return u != null && l(t, ["imageOutputOptions", "compressionQuality"], u), t;
+  return u != null && l(n, ["imageOutputOptions", "compressionQuality"], u), n;
 }
-function oa(n, e) {
-  const t = {}, o = s(n, [
+function la(t, e) {
+  const n = {}, o = s(t, [
     "bytesBase64Encoded"
   ]);
-  o != null && l(t, ["imageBytes"], Z(o));
-  const i = s(n, ["mimeType"]);
-  return i != null && l(t, ["mimeType"], i), t;
+  o != null && l(n, ["imageBytes"], j(o));
+  const i = s(t, ["mimeType"]);
+  return i != null && l(n, ["mimeType"], i), n;
 }
-function mo(n, e) {
-  const t = {}, o = s(n, ["gcsUri"]);
-  o != null && l(t, ["gcsUri"], o);
-  const i = s(n, [
+function mo(t, e) {
+  const n = {}, o = s(t, ["gcsUri"]);
+  o != null && l(n, ["gcsUri"], o);
+  const i = s(t, [
     "bytesBase64Encoded"
   ]);
-  i != null && l(t, ["imageBytes"], Z(i));
-  const r = s(n, ["mimeType"]);
-  return r != null && l(t, ["mimeType"], r), t;
+  i != null && l(n, ["imageBytes"], j(i));
+  const r = s(t, ["mimeType"]);
+  return r != null && l(n, ["mimeType"], r), n;
 }
-function De(n, e) {
-  const t = {};
-  if (s(n, ["gcsUri"]) !== void 0)
+function Ue(t, e) {
+  const n = {};
+  if (s(t, ["gcsUri"]) !== void 0)
     throw new Error("gcsUri parameter is not supported in Gemini API.");
-  const o = s(n, ["imageBytes"]);
-  o != null && l(t, ["bytesBase64Encoded"], Z(o));
-  const i = s(n, ["mimeType"]);
-  return i != null && l(t, ["mimeType"], i), t;
+  const o = s(t, ["imageBytes"]);
+  o != null && l(n, ["bytesBase64Encoded"], j(o));
+  const i = s(t, ["mimeType"]);
+  return i != null && l(n, ["mimeType"], i), n;
 }
-function $(n, e) {
-  const t = {}, o = s(n, ["gcsUri"]);
-  o != null && l(t, ["gcsUri"], o);
-  const i = s(n, ["imageBytes"]);
-  i != null && l(t, ["bytesBase64Encoded"], Z(i));
-  const r = s(n, ["mimeType"]);
-  return r != null && l(t, ["mimeType"], r), t;
+function K(t, e) {
+  const n = {}, o = s(t, ["gcsUri"]);
+  o != null && l(n, ["gcsUri"], o);
+  const i = s(t, ["imageBytes"]);
+  i != null && l(n, ["bytesBase64Encoded"], j(i));
+  const r = s(t, ["mimeType"]);
+  return r != null && l(n, ["mimeType"], r), n;
 }
-function ia(n, e, t, o) {
+function aa(t, e, n, o) {
   const i = {}, r = s(e, ["pageSize"]);
-  t !== void 0 && r != null && l(t, ["_query", "pageSize"], r);
+  n !== void 0 && r != null && l(n, ["_query", "pageSize"], r);
   const a = s(e, ["pageToken"]);
-  t !== void 0 && a != null && l(t, ["_query", "pageToken"], a);
+  n !== void 0 && a != null && l(n, ["_query", "pageToken"], a);
   const u = s(e, ["filter"]);
-  t !== void 0 && u != null && l(t, ["_query", "filter"], u);
-  const c = s(e, ["queryBase"]);
-  return t !== void 0 && c != null && l(t, ["_url", "models_url"], ro(n, c)), i;
+  n !== void 0 && u != null && l(n, ["_query", "filter"], u);
+  const d = s(e, ["queryBase"]);
+  return n !== void 0 && d != null && l(n, ["_url", "models_url"], lo(t, d)), i;
 }
-function sa(n, e, t, o) {
+function ua(t, e, n, o) {
   const i = {}, r = s(e, ["pageSize"]);
-  t !== void 0 && r != null && l(t, ["_query", "pageSize"], r);
+  n !== void 0 && r != null && l(n, ["_query", "pageSize"], r);
   const a = s(e, ["pageToken"]);
-  t !== void 0 && a != null && l(t, ["_query", "pageToken"], a);
+  n !== void 0 && a != null && l(n, ["_query", "pageToken"], a);
   const u = s(e, ["filter"]);
-  t !== void 0 && u != null && l(t, ["_query", "filter"], u);
-  const c = s(e, ["queryBase"]);
-  return t !== void 0 && c != null && l(t, ["_url", "models_url"], ro(n, c)), i;
+  n !== void 0 && u != null && l(n, ["_query", "filter"], u);
+  const d = s(e, ["queryBase"]);
+  return n !== void 0 && d != null && l(n, ["_url", "models_url"], lo(t, d)), i;
 }
-function ra(n, e, t) {
+function da(t, e, n) {
   const o = {}, i = s(e, ["config"]);
-  return i != null && ia(n, i, o), o;
+  return i != null && aa(t, i, o), o;
 }
-function la(n, e, t) {
+function ca(t, e, n) {
   const o = {}, i = s(e, ["config"]);
-  return i != null && sa(n, i, o), o;
+  return i != null && ua(t, i, o), o;
 }
-function aa(n, e) {
-  const t = {}, o = s(n, [
+function fa(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "nextPageToken"
   ]);
-  i != null && l(t, ["nextPageToken"], i);
-  const r = s(n, ["_self"]);
+  i != null && l(n, ["nextPageToken"], i);
+  const r = s(t, ["_self"]);
   if (r != null) {
-    let a = lo(r);
-    Array.isArray(a) && (a = a.map((u) => Ke(u))), l(t, ["models"], a);
+    let a = ao(r);
+    Array.isArray(a) && (a = a.map((u) => Ye(u))), l(n, ["models"], a);
   }
-  return t;
+  return n;
 }
-function ua(n, e) {
-  const t = {}, o = s(n, [
+function pa(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "nextPageToken"
   ]);
-  i != null && l(t, ["nextPageToken"], i);
-  const r = s(n, ["_self"]);
+  i != null && l(n, ["nextPageToken"], i);
+  const r = s(t, ["_self"]);
   if (r != null) {
-    let a = lo(r);
-    Array.isArray(a) && (a = a.map((u) => Ye(u))), l(t, ["models"], a);
+    let a = ao(r);
+    Array.isArray(a) && (a = a.map((u) => ze(u))), l(n, ["models"], a);
   }
-  return t;
+  return n;
 }
-function da(n, e) {
-  const t = {}, o = s(n, ["maskMode"]);
-  o != null && l(t, ["maskMode"], o);
-  const i = s(n, [
+function ha(t, e) {
+  const n = {}, o = s(t, ["maskMode"]);
+  o != null && l(n, ["maskMode"], o);
+  const i = s(t, [
     "segmentationClasses"
   ]);
-  i != null && l(t, ["maskClasses"], i);
-  const r = s(n, ["maskDilation"]);
-  return r != null && l(t, ["dilation"], r), t;
+  i != null && l(n, ["maskClasses"], i);
+  const r = s(t, ["maskDilation"]);
+  return r != null && l(n, ["dilation"], r), n;
 }
-function Ke(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  o != null && l(t, ["name"], o);
-  const i = s(n, ["displayName"]);
-  i != null && l(t, ["displayName"], i);
-  const r = s(n, ["description"]);
-  r != null && l(t, ["description"], r);
-  const a = s(n, ["version"]);
-  a != null && l(t, ["version"], a);
-  const u = s(n, ["_self"]);
-  u != null && l(t, ["tunedModelInfo"], Ra(u));
-  const c = s(n, [
+function Ye(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  o != null && l(n, ["name"], o);
+  const i = s(t, ["displayName"]);
+  i != null && l(n, ["displayName"], i);
+  const r = s(t, ["description"]);
+  r != null && l(n, ["description"], r);
+  const a = s(t, ["version"]);
+  a != null && l(n, ["version"], a);
+  const u = s(t, ["_self"]);
+  u != null && l(n, ["tunedModelInfo"], Na(u));
+  const d = s(t, [
     "inputTokenLimit"
   ]);
-  c != null && l(t, ["inputTokenLimit"], c);
-  const d = s(n, [
+  d != null && l(n, ["inputTokenLimit"], d);
+  const c = s(t, [
     "outputTokenLimit"
   ]);
-  d != null && l(t, ["outputTokenLimit"], d);
-  const f = s(n, [
+  c != null && l(n, ["outputTokenLimit"], c);
+  const f = s(t, [
     "supportedGenerationMethods"
   ]);
-  f != null && l(t, ["supportedActions"], f);
-  const m = s(n, ["temperature"]);
-  m != null && l(t, ["temperature"], m);
-  const p = s(n, [
+  f != null && l(n, ["supportedActions"], f);
+  const p = s(t, ["temperature"]);
+  p != null && l(n, ["temperature"], p);
+  const h = s(t, [
     "maxTemperature"
   ]);
-  p != null && l(t, ["maxTemperature"], p);
-  const h = s(n, ["topP"]);
-  h != null && l(t, ["topP"], h);
-  const g = s(n, ["topK"]);
-  g != null && l(t, ["topK"], g);
-  const _ = s(n, ["thinking"]);
-  return _ != null && l(t, ["thinking"], _), t;
+  h != null && l(n, ["maxTemperature"], h);
+  const m = s(t, ["topP"]);
+  m != null && l(n, ["topP"], m);
+  const g = s(t, ["topK"]);
+  g != null && l(n, ["topK"], g);
+  const T = s(t, ["thinking"]);
+  return T != null && l(n, ["thinking"], T), n;
 }
-function Ye(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  o != null && l(t, ["name"], o);
-  const i = s(n, ["displayName"]);
-  i != null && l(t, ["displayName"], i);
-  const r = s(n, ["description"]);
-  r != null && l(t, ["description"], r);
-  const a = s(n, ["versionId"]);
-  a != null && l(t, ["version"], a);
-  const u = s(n, ["deployedModels"]);
+function ze(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  o != null && l(n, ["name"], o);
+  const i = s(t, ["displayName"]);
+  i != null && l(n, ["displayName"], i);
+  const r = s(t, ["description"]);
+  r != null && l(n, ["description"], r);
+  const a = s(t, ["versionId"]);
+  a != null && l(n, ["version"], a);
+  const u = s(t, ["deployedModels"]);
   if (u != null) {
-    let p = u;
-    Array.isArray(p) && (p = p.map((h) => Il(h))), l(t, ["endpoints"], p);
+    let h = u;
+    Array.isArray(h) && (h = h.map((m) => Pl(m))), l(n, ["endpoints"], h);
   }
-  const c = s(n, ["labels"]);
-  c != null && l(t, ["labels"], c);
-  const d = s(n, ["_self"]);
-  d != null && l(t, ["tunedModelInfo"], Pa(d));
-  const f = s(n, [
+  const d = s(t, ["labels"]);
+  d != null && l(n, ["labels"], d);
+  const c = s(t, ["_self"]);
+  c != null && l(n, ["tunedModelInfo"], xa(c));
+  const f = s(t, [
     "defaultCheckpointId"
   ]);
-  f != null && l(t, ["defaultCheckpointId"], f);
-  const m = s(n, ["checkpoints"]);
-  if (m != null) {
-    let p = m;
-    Array.isArray(p) && (p = p.map((h) => h)), l(t, ["checkpoints"], p);
+  f != null && l(n, ["defaultCheckpointId"], f);
+  const p = s(t, ["checkpoints"]);
+  if (p != null) {
+    let h = p;
+    Array.isArray(h) && (h = h.map((m) => m)), l(n, ["checkpoints"], h);
   }
-  return t;
+  return n;
 }
-function ca(n, e) {
-  const t = {}, o = s(n, [
+function ma(t, e) {
+  const n = {}, o = s(t, [
     "mediaResolution"
   ]);
-  o != null && l(t, ["mediaResolution"], o);
-  const i = s(n, [
+  o != null && l(n, ["mediaResolution"], o);
+  const i = s(t, [
     "codeExecutionResult"
   ]);
-  i != null && l(t, ["codeExecutionResult"], i);
-  const r = s(n, [
+  i != null && l(n, ["codeExecutionResult"], i);
+  const r = s(t, [
     "executableCode"
   ]);
-  r != null && l(t, ["executableCode"], r);
-  const a = s(n, ["fileData"]);
-  a != null && l(t, ["fileData"], vl(a));
-  const u = s(n, ["functionCall"]);
-  u != null && l(t, ["functionCall"], Al(u));
-  const c = s(n, [
+  r != null && l(n, ["executableCode"], r);
+  const a = s(t, ["fileData"]);
+  a != null && l(n, ["fileData"], wl(a));
+  const u = s(t, ["functionCall"]);
+  u != null && l(n, ["functionCall"], Ml(u));
+  const d = s(t, [
     "functionResponse"
   ]);
-  c != null && l(t, ["functionResponse"], c);
-  const d = s(n, ["inlineData"]);
-  d != null && l(t, ["inlineData"], Xr(d));
-  const f = s(n, ["text"]);
-  f != null && l(t, ["text"], f);
-  const m = s(n, ["thought"]);
-  m != null && l(t, ["thought"], m);
-  const p = s(n, [
+  d != null && l(n, ["functionResponse"], d);
+  const c = s(t, ["inlineData"]);
+  c != null && l(n, ["inlineData"], el(c));
+  const f = s(t, ["text"]);
+  f != null && l(n, ["text"], f);
+  const p = s(t, ["thought"]);
+  p != null && l(n, ["thought"], p);
+  const h = s(t, [
     "thoughtSignature"
   ]);
-  p != null && l(t, ["thoughtSignature"], p);
-  const h = s(n, [
+  h != null && l(n, ["thoughtSignature"], h);
+  const m = s(t, [
     "videoMetadata"
   ]);
-  return h != null && l(t, ["videoMetadata"], h), t;
+  return m != null && l(n, ["videoMetadata"], m), n;
 }
-function fa(n, e) {
-  const t = {}, o = s(n, ["productImage"]);
-  return o != null && l(t, ["image"], $(o)), t;
+function ga(t, e) {
+  const n = {}, o = s(t, ["productImage"]);
+  return o != null && l(n, ["image"], K(o)), n;
 }
-function pa(n, e, t) {
-  const o = {}, i = s(n, [
+function ya(t, e, n) {
+  const o = {}, i = s(t, [
     "numberOfImages"
   ]);
   e !== void 0 && i != null && l(e, ["parameters", "sampleCount"], i);
-  const r = s(n, ["baseSteps"]);
+  const r = s(t, ["baseSteps"]);
   e !== void 0 && r != null && l(e, ["parameters", "baseSteps"], r);
-  const a = s(n, ["outputGcsUri"]);
+  const a = s(t, ["outputGcsUri"]);
   e !== void 0 && a != null && l(e, ["parameters", "storageUri"], a);
-  const u = s(n, ["seed"]);
+  const u = s(t, ["seed"]);
   e !== void 0 && u != null && l(e, ["parameters", "seed"], u);
-  const c = s(n, [
+  const d = s(t, [
     "safetyFilterLevel"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "safetySetting"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["parameters", "safetySetting"], d);
+  const c = s(t, [
     "personGeneration"
   ]);
-  e !== void 0 && d != null && l(e, ["parameters", "personGeneration"], d);
-  const f = s(n, ["addWatermark"]);
+  e !== void 0 && c != null && l(e, ["parameters", "personGeneration"], c);
+  const f = s(t, ["addWatermark"]);
   e !== void 0 && f != null && l(e, ["parameters", "addWatermark"], f);
-  const m = s(n, [
+  const p = s(t, [
     "outputMimeType"
   ]);
-  e !== void 0 && m != null && l(e, ["parameters", "outputOptions", "mimeType"], m);
-  const p = s(n, [
+  e !== void 0 && p != null && l(e, ["parameters", "outputOptions", "mimeType"], p);
+  const h = s(t, [
     "outputCompressionQuality"
   ]);
-  e !== void 0 && p != null && l(e, ["parameters", "outputOptions", "compressionQuality"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["parameters", "outputOptions", "compressionQuality"], h);
+  const m = s(t, [
     "enhancePrompt"
   ]);
-  e !== void 0 && h != null && l(e, ["parameters", "enhancePrompt"], h);
-  const g = s(n, ["labels"]);
+  e !== void 0 && m != null && l(e, ["parameters", "enhancePrompt"], m);
+  const g = s(t, ["labels"]);
   return e !== void 0 && g != null && l(e, ["labels"], g), o;
 }
-function ma(n, e, t) {
+function Ta(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["source"]);
-  r != null && ga(r, o);
+  r != null && _a(r, o);
   const a = s(e, ["config"]);
-  return a != null && pa(a, o), o;
+  return a != null && ya(a, o), o;
 }
-function ha(n, e) {
-  const t = {}, o = s(n, [
+function Ca(t, e) {
+  const n = {}, o = s(t, [
     "predictions"
   ]);
   if (o != null) {
     let i = o;
-    Array.isArray(i) && (i = i.map((r) => xe(r))), l(t, ["generatedImages"], i);
+    Array.isArray(i) && (i = i.map((r) => ke(r))), l(n, ["generatedImages"], i);
   }
-  return t;
+  return n;
 }
-function ga(n, e, t) {
-  const o = {}, i = s(n, ["prompt"]);
+function _a(t, e, n) {
+  const o = {}, i = s(t, ["prompt"]);
   e !== void 0 && i != null && l(e, ["instances[0]", "prompt"], i);
-  const r = s(n, ["personImage"]);
-  e !== void 0 && r != null && l(e, ["instances[0]", "personImage", "image"], $(r));
-  const a = s(n, [
+  const r = s(t, ["personImage"]);
+  e !== void 0 && r != null && l(e, ["instances[0]", "personImage", "image"], K(r));
+  const a = s(t, [
     "productImages"
   ]);
   if (e !== void 0 && a != null) {
     let u = a;
-    Array.isArray(u) && (u = u.map((c) => fa(c))), l(e, ["instances[0]", "productImages"], u);
+    Array.isArray(u) && (u = u.map((d) => ga(d))), l(e, ["instances[0]", "productImages"], u);
   }
   return o;
 }
-function ya(n, e) {
-  const t = {}, o = s(n, [
+function Ea(t, e) {
+  const n = {}, o = s(t, [
     "referenceImage"
   ]);
-  o != null && l(t, ["referenceImage"], $(o));
-  const i = s(n, ["referenceId"]);
-  i != null && l(t, ["referenceId"], i);
-  const r = s(n, [
+  o != null && l(n, ["referenceImage"], K(o));
+  const i = s(t, ["referenceId"]);
+  i != null && l(n, ["referenceId"], i);
+  const r = s(t, [
     "referenceType"
   ]);
-  r != null && l(t, ["referenceType"], r);
-  const a = s(n, [
+  r != null && l(n, ["referenceType"], r);
+  const a = s(t, [
     "maskImageConfig"
   ]);
-  a != null && l(t, ["maskImageConfig"], da(a));
-  const u = s(n, [
+  a != null && l(n, ["maskImageConfig"], ha(a));
+  const u = s(t, [
     "controlImageConfig"
   ]);
-  u != null && l(t, ["controlImageConfig"], ol(u));
-  const c = s(n, [
+  u != null && l(n, ["controlImageConfig"], ll(u));
+  const d = s(t, [
     "styleImageConfig"
   ]);
-  c != null && l(t, ["styleImageConfig"], c);
-  const d = s(n, [
+  d != null && l(n, ["styleImageConfig"], d);
+  const c = s(t, [
     "subjectImageConfig"
   ]);
-  return d != null && l(t, ["subjectImageConfig"], d), t;
+  return c != null && l(n, ["subjectImageConfig"], c), n;
 }
-function ho(n, e) {
-  const t = {}, o = s(n, [
+function go(t, e) {
+  const n = {}, o = s(t, [
     "safetyAttributes",
     "categories"
   ]);
-  o != null && l(t, ["categories"], o);
-  const i = s(n, [
+  o != null && l(n, ["categories"], o);
+  const i = s(t, [
     "safetyAttributes",
     "scores"
   ]);
-  i != null && l(t, ["scores"], i);
-  const r = s(n, ["contentType"]);
-  return r != null && l(t, ["contentType"], r), t;
+  i != null && l(n, ["scores"], i);
+  const r = s(t, ["contentType"]);
+  return r != null && l(n, ["contentType"], r), n;
 }
-function go(n, e) {
-  const t = {}, o = s(n, [
+function yo(t, e) {
+  const n = {}, o = s(t, [
     "safetyAttributes",
     "categories"
   ]);
-  o != null && l(t, ["categories"], o);
-  const i = s(n, [
+  o != null && l(n, ["categories"], o);
+  const i = s(t, [
     "safetyAttributes",
     "scores"
   ]);
-  i != null && l(t, ["scores"], i);
-  const r = s(n, ["contentType"]);
-  return r != null && l(t, ["contentType"], r), t;
+  i != null && l(n, ["scores"], i);
+  const r = s(t, ["contentType"]);
+  return r != null && l(n, ["contentType"], r), n;
 }
-function Ta(n, e) {
-  const t = {}, o = s(n, ["category"]);
-  if (o != null && l(t, ["category"], o), s(n, ["method"]) !== void 0)
+function Sa(t, e) {
+  const n = {}, o = s(t, ["category"]);
+  if (o != null && l(n, ["category"], o), s(t, ["method"]) !== void 0)
     throw new Error("method parameter is not supported in Gemini API.");
-  const i = s(n, ["threshold"]);
-  return i != null && l(t, ["threshold"], i), t;
+  const i = s(t, ["threshold"]);
+  return i != null && l(n, ["threshold"], i), n;
 }
-function _a(n, e) {
-  const t = {}, o = s(n, ["image"]);
-  return o != null && l(t, ["image"], $(o)), t;
+function Ia(t, e) {
+  const n = {}, o = s(t, ["image"]);
+  return o != null && l(n, ["image"], K(o)), n;
 }
-function Ca(n, e, t) {
-  const o = {}, i = s(n, ["mode"]);
+function va(t, e, n) {
+  const o = {}, i = s(t, ["mode"]);
   e !== void 0 && i != null && l(e, ["parameters", "mode"], i);
-  const r = s(n, [
+  const r = s(t, [
     "maxPredictions"
   ]);
   e !== void 0 && r != null && l(e, ["parameters", "maxPredictions"], r);
-  const a = s(n, [
+  const a = s(t, [
     "confidenceThreshold"
   ]);
   e !== void 0 && a != null && l(e, ["parameters", "confidenceThreshold"], a);
-  const u = s(n, ["maskDilation"]);
+  const u = s(t, ["maskDilation"]);
   e !== void 0 && u != null && l(e, ["parameters", "maskDilation"], u);
-  const c = s(n, [
+  const d = s(t, [
     "binaryColorThreshold"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "binaryColorThreshold"], c);
-  const d = s(n, ["labels"]);
-  return e !== void 0 && d != null && l(e, ["labels"], d), o;
+  e !== void 0 && d != null && l(e, ["parameters", "binaryColorThreshold"], d);
+  const c = s(t, ["labels"]);
+  return e !== void 0 && c != null && l(e, ["labels"], c), o;
 }
-function Ea(n, e, t) {
+function Aa(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["source"]);
-  r != null && Ia(r, o);
+  r != null && Pa(r, o);
   const a = s(e, ["config"]);
-  return a != null && Ca(a, o), o;
+  return a != null && va(a, o), o;
 }
-function Sa(n, e) {
-  const t = {}, o = s(n, ["predictions"]);
+function Ra(t, e) {
+  const n = {}, o = s(t, ["predictions"]);
   if (o != null) {
     let i = o;
-    Array.isArray(i) && (i = i.map((r) => Kl(r))), l(t, ["generatedMasks"], i);
+    Array.isArray(i) && (i = i.map((r) => Ql(r))), l(n, ["generatedMasks"], i);
   }
-  return t;
+  return n;
 }
-function Ia(n, e, t) {
-  const o = {}, i = s(n, ["prompt"]);
+function Pa(t, e, n) {
+  const o = {}, i = s(t, ["prompt"]);
   e !== void 0 && i != null && l(e, ["instances[0]", "prompt"], i);
-  const r = s(n, ["image"]);
-  e !== void 0 && r != null && l(e, ["instances[0]", "image"], $(r));
-  const a = s(n, [
+  const r = s(t, ["image"]);
+  e !== void 0 && r != null && l(e, ["instances[0]", "image"], K(r));
+  const a = s(t, [
     "scribbleImage"
   ]);
-  return e !== void 0 && a != null && l(e, ["instances[0]", "scribble"], _a(a)), o;
+  return e !== void 0 && a != null && l(e, ["instances[0]", "scribble"], Ia(a)), o;
 }
-function va(n, e) {
-  const t = {}, o = s(n, [
+function wa(t, e) {
+  const n = {}, o = s(t, [
     "retrievalConfig"
   ]);
-  o != null && l(t, ["retrievalConfig"], o);
-  const i = s(n, [
+  o != null && l(n, ["retrievalConfig"], o);
+  const i = s(t, [
     "functionCallingConfig"
   ]);
-  return i != null && l(t, ["functionCallingConfig"], Rl(i)), t;
+  return i != null && l(n, ["functionCallingConfig"], Nl(i)), n;
 }
-function Aa(n, e) {
-  const t = {};
-  if (s(n, ["retrieval"]) !== void 0)
+function Ma(t, e) {
+  const n = {};
+  if (s(t, ["retrieval"]) !== void 0)
     throw new Error("retrieval parameter is not supported in Gemini API.");
-  const o = s(n, ["computerUse"]);
-  o != null && l(t, ["computerUse"], o);
-  const i = s(n, ["fileSearch"]);
-  i != null && l(t, ["fileSearch"], i);
-  const r = s(n, [
+  const o = s(t, ["computerUse"]);
+  o != null && l(n, ["computerUse"], o);
+  const i = s(t, ["fileSearch"]);
+  i != null && l(n, ["fileSearch"], i);
+  const r = s(t, [
     "codeExecution"
   ]);
-  if (r != null && l(t, ["codeExecution"], r), s(n, ["enterpriseWebSearch"]) !== void 0)
+  if (r != null && l(n, ["codeExecution"], r), s(t, ["enterpriseWebSearch"]) !== void 0)
     throw new Error("enterpriseWebSearch parameter is not supported in Gemini API.");
-  const a = s(n, [
+  const a = s(t, [
     "functionDeclarations"
   ]);
   if (a != null) {
-    let m = a;
-    Array.isArray(m) && (m = m.map((p) => p)), l(t, ["functionDeclarations"], m);
+    let p = a;
+    Array.isArray(p) && (p = p.map((h) => h)), l(n, ["functionDeclarations"], p);
   }
-  const u = s(n, ["googleMaps"]);
-  u != null && l(t, ["googleMaps"], jl(u));
-  const c = s(n, ["googleSearch"]);
-  c != null && l(t, ["googleSearch"], ea(c));
-  const d = s(n, [
+  const u = s(t, ["googleMaps"]);
+  u != null && l(n, ["googleMaps"], oa(u));
+  const d = s(t, ["googleSearch"]);
+  d != null && l(n, ["googleSearch"], ia(d));
+  const c = s(t, [
     "googleSearchRetrieval"
   ]);
-  d != null && l(t, ["googleSearchRetrieval"], d);
-  const f = s(n, ["urlContext"]);
-  return f != null && l(t, ["urlContext"], f), t;
+  c != null && l(n, ["googleSearchRetrieval"], c);
+  const f = s(t, ["urlContext"]);
+  return f != null && l(n, ["urlContext"], f), n;
 }
-function yo(n, e) {
-  const t = {}, o = s(n, ["retrieval"]);
-  o != null && l(t, ["retrieval"], o);
-  const i = s(n, ["computerUse"]);
-  if (i != null && l(t, ["computerUse"], i), s(n, ["fileSearch"]) !== void 0)
+function To(t, e) {
+  const n = {}, o = s(t, ["retrieval"]);
+  o != null && l(n, ["retrieval"], o);
+  const i = s(t, ["computerUse"]);
+  if (i != null && l(n, ["computerUse"], i), s(t, ["fileSearch"]) !== void 0)
     throw new Error("fileSearch parameter is not supported in Vertex AI.");
-  const r = s(n, [
+  const r = s(t, [
     "codeExecution"
   ]);
-  r != null && l(t, ["codeExecution"], r);
-  const a = s(n, [
+  r != null && l(n, ["codeExecution"], r);
+  const a = s(t, [
     "enterpriseWebSearch"
   ]);
-  a != null && l(t, ["enterpriseWebSearch"], a);
-  const u = s(n, [
+  a != null && l(n, ["enterpriseWebSearch"], a);
+  const u = s(t, [
     "functionDeclarations"
   ]);
   if (u != null) {
-    let p = u;
-    Array.isArray(p) && (p = p.map((h) => Pl(h))), l(t, ["functionDeclarations"], p);
+    let h = u;
+    Array.isArray(h) && (h = h.map((m) => xl(m))), l(n, ["functionDeclarations"], h);
   }
-  const c = s(n, ["googleMaps"]);
-  c != null && l(t, ["googleMaps"], c);
-  const d = s(n, ["googleSearch"]);
-  d != null && l(t, ["googleSearch"], d);
-  const f = s(n, [
+  const d = s(t, ["googleMaps"]);
+  d != null && l(n, ["googleMaps"], d);
+  const c = s(t, ["googleSearch"]);
+  c != null && l(n, ["googleSearch"], c);
+  const f = s(t, [
     "googleSearchRetrieval"
   ]);
-  f != null && l(t, ["googleSearchRetrieval"], f);
-  const m = s(n, ["urlContext"]);
-  return m != null && l(t, ["urlContext"], m), t;
+  f != null && l(n, ["googleSearchRetrieval"], f);
+  const p = s(t, ["urlContext"]);
+  return p != null && l(n, ["urlContext"], p), n;
 }
-function Ra(n, e) {
-  const t = {}, o = s(n, ["baseModel"]);
-  o != null && l(t, ["baseModel"], o);
-  const i = s(n, ["createTime"]);
-  i != null && l(t, ["createTime"], i);
-  const r = s(n, ["updateTime"]);
-  return r != null && l(t, ["updateTime"], r), t;
+function Na(t, e) {
+  const n = {}, o = s(t, ["baseModel"]);
+  o != null && l(n, ["baseModel"], o);
+  const i = s(t, ["createTime"]);
+  i != null && l(n, ["createTime"], i);
+  const r = s(t, ["updateTime"]);
+  return r != null && l(n, ["updateTime"], r), n;
 }
-function Pa(n, e) {
-  const t = {}, o = s(n, [
+function xa(t, e) {
+  const n = {}, o = s(t, [
     "labels",
     "google-vertex-llm-tuning-base-model-id"
   ]);
-  o != null && l(t, ["baseModel"], o);
-  const i = s(n, ["createTime"]);
-  i != null && l(t, ["createTime"], i);
-  const r = s(n, ["updateTime"]);
-  return r != null && l(t, ["updateTime"], r), t;
+  o != null && l(n, ["baseModel"], o);
+  const i = s(t, ["createTime"]);
+  i != null && l(n, ["createTime"], i);
+  const r = s(t, ["updateTime"]);
+  return r != null && l(n, ["updateTime"], r), n;
 }
-function wa(n, e, t) {
-  const o = {}, i = s(n, ["displayName"]);
+function Da(t, e, n) {
+  const o = {}, i = s(t, ["displayName"]);
   e !== void 0 && i != null && l(e, ["displayName"], i);
-  const r = s(n, ["description"]);
+  const r = s(t, ["description"]);
   e !== void 0 && r != null && l(e, ["description"], r);
-  const a = s(n, [
+  const a = s(t, [
     "defaultCheckpointId"
   ]);
   return e !== void 0 && a != null && l(e, ["defaultCheckpointId"], a), o;
 }
-function Ma(n, e, t) {
-  const o = {}, i = s(n, ["displayName"]);
+function ka(t, e, n) {
+  const o = {}, i = s(t, ["displayName"]);
   e !== void 0 && i != null && l(e, ["displayName"], i);
-  const r = s(n, ["description"]);
+  const r = s(t, ["description"]);
   e !== void 0 && r != null && l(e, ["description"], r);
-  const a = s(n, [
+  const a = s(t, [
     "defaultCheckpointId"
   ]);
   return e !== void 0 && a != null && l(e, ["defaultCheckpointId"], a), o;
 }
-function Na(n, e, t) {
+function Ua(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "name"], x(n, i));
+  i != null && l(o, ["_url", "name"], k(t, i));
   const r = s(e, ["config"]);
-  return r != null && wa(r, o), o;
+  return r != null && Da(r, o), o;
 }
-function xa(n, e, t) {
+function La(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["config"]);
-  return r != null && Ma(r, o), o;
+  return r != null && ka(r, o), o;
 }
-function Da(n, e, t) {
-  const o = {}, i = s(n, ["outputGcsUri"]);
+function Ga(t, e, n) {
+  const o = {}, i = s(t, ["outputGcsUri"]);
   e !== void 0 && i != null && l(e, ["parameters", "storageUri"], i);
-  const r = s(n, [
+  const r = s(t, [
     "safetyFilterLevel"
   ]);
   e !== void 0 && r != null && l(e, ["parameters", "safetySetting"], r);
-  const a = s(n, [
+  const a = s(t, [
     "personGeneration"
   ]);
   e !== void 0 && a != null && l(e, ["parameters", "personGeneration"], a);
-  const u = s(n, [
+  const u = s(t, [
     "includeRaiReason"
   ]);
   e !== void 0 && u != null && l(e, ["parameters", "includeRaiReason"], u);
-  const c = s(n, [
+  const d = s(t, [
     "outputMimeType"
   ]);
-  e !== void 0 && c != null && l(e, ["parameters", "outputOptions", "mimeType"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["parameters", "outputOptions", "mimeType"], d);
+  const c = s(t, [
     "outputCompressionQuality"
   ]);
-  e !== void 0 && d != null && l(e, ["parameters", "outputOptions", "compressionQuality"], d);
-  const f = s(n, [
+  e !== void 0 && c != null && l(e, ["parameters", "outputOptions", "compressionQuality"], c);
+  const f = s(t, [
     "enhanceInputImage"
   ]);
   e !== void 0 && f != null && l(e, ["parameters", "upscaleConfig", "enhanceInputImage"], f);
-  const m = s(n, [
+  const p = s(t, [
     "imagePreservationFactor"
   ]);
-  e !== void 0 && m != null && l(e, ["parameters", "upscaleConfig", "imagePreservationFactor"], m);
-  const p = s(n, ["labels"]);
-  e !== void 0 && p != null && l(e, ["labels"], p);
-  const h = s(n, [
+  e !== void 0 && p != null && l(e, ["parameters", "upscaleConfig", "imagePreservationFactor"], p);
+  const h = s(t, ["labels"]);
+  e !== void 0 && h != null && l(e, ["labels"], h);
+  const m = s(t, [
     "numberOfImages"
   ]);
-  e !== void 0 && h != null && l(e, ["parameters", "sampleCount"], h);
-  const g = s(n, ["mode"]);
+  e !== void 0 && m != null && l(e, ["parameters", "sampleCount"], m);
+  const g = s(t, ["mode"]);
   return e !== void 0 && g != null && l(e, ["parameters", "mode"], g), o;
 }
-function ka(n, e, t) {
+function Fa(t, e, n) {
   const o = {}, i = s(e, ["model"]);
-  i != null && l(o, ["_url", "model"], x(n, i));
+  i != null && l(o, ["_url", "model"], k(t, i));
   const r = s(e, ["image"]);
-  r != null && l(o, ["instances[0]", "image"], $(r));
+  r != null && l(o, ["instances[0]", "image"], K(r));
   const a = s(e, [
     "upscaleFactor"
   ]);
   a != null && l(o, ["parameters", "upscaleConfig", "upscaleFactor"], a);
   const u = s(e, ["config"]);
-  return u != null && Da(u, o), o;
+  return u != null && Ga(u, o), o;
 }
-function Ua(n, e) {
-  const t = {}, o = s(n, [
+function Ha(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "predictions"
   ]);
   if (i != null) {
     let r = i;
-    Array.isArray(r) && (r = r.map((a) => xe(a))), l(t, ["generatedImages"], r);
+    Array.isArray(r) && (r = r.map((a) => ke(a))), l(n, ["generatedImages"], r);
   }
-  return t;
+  return n;
 }
-function La(n, e) {
-  const t = {}, o = s(n, ["uri"]);
-  o != null && l(t, ["uri"], o);
-  const i = s(n, ["encodedVideo"]);
-  i != null && l(t, ["videoBytes"], Z(i));
-  const r = s(n, ["encoding"]);
-  return r != null && l(t, ["mimeType"], r), t;
+function Va(t, e) {
+  const n = {}, o = s(t, ["uri"]);
+  o != null && l(n, ["uri"], o);
+  const i = s(t, ["encodedVideo"]);
+  i != null && l(n, ["videoBytes"], j(i));
+  const r = s(t, ["encoding"]);
+  return r != null && l(n, ["mimeType"], r), n;
 }
-function Fa(n, e) {
-  const t = {}, o = s(n, ["gcsUri"]);
-  o != null && l(t, ["uri"], o);
-  const i = s(n, [
+function ba(t, e) {
+  const n = {}, o = s(t, ["gcsUri"]);
+  o != null && l(n, ["uri"], o);
+  const i = s(t, [
     "bytesBase64Encoded"
   ]);
-  i != null && l(t, ["videoBytes"], Z(i));
-  const r = s(n, ["mimeType"]);
-  return r != null && l(t, ["mimeType"], r), t;
+  i != null && l(n, ["videoBytes"], j(i));
+  const r = s(t, ["mimeType"]);
+  return r != null && l(n, ["mimeType"], r), n;
 }
-function Ga(n, e) {
-  const t = {}, o = s(n, ["image"]);
-  o != null && l(t, ["_self"], $(o));
-  const i = s(n, ["maskMode"]);
-  return i != null && l(t, ["maskMode"], i), t;
+function qa(t, e) {
+  const n = {}, o = s(t, ["image"]);
+  o != null && l(n, ["_self"], K(o));
+  const i = s(t, ["maskMode"]);
+  return i != null && l(n, ["maskMode"], i), n;
 }
-function Va(n, e) {
-  const t = {}, o = s(n, ["image"]);
-  o != null && l(t, ["image"], De(o));
-  const i = s(n, [
+function Ba(t, e) {
+  const n = {}, o = s(t, ["image"]);
+  o != null && l(n, ["image"], Ue(o));
+  const i = s(t, [
     "referenceType"
   ]);
-  return i != null && l(t, ["referenceType"], i), t;
+  return i != null && l(n, ["referenceType"], i), n;
 }
-function Ha(n, e) {
-  const t = {}, o = s(n, ["image"]);
-  o != null && l(t, ["image"], $(o));
-  const i = s(n, [
+function Ja(t, e) {
+  const n = {}, o = s(t, ["image"]);
+  o != null && l(n, ["image"], K(o));
+  const i = s(t, [
     "referenceType"
   ]);
-  return i != null && l(t, ["referenceType"], i), t;
+  return i != null && l(n, ["referenceType"], i), n;
 }
-function To(n, e) {
-  const t = {}, o = s(n, ["uri"]);
-  o != null && l(t, ["uri"], o);
-  const i = s(n, ["videoBytes"]);
-  i != null && l(t, ["encodedVideo"], Z(i));
-  const r = s(n, ["mimeType"]);
-  return r != null && l(t, ["encoding"], r), t;
+function Co(t, e) {
+  const n = {}, o = s(t, ["uri"]);
+  o != null && l(n, ["uri"], o);
+  const i = s(t, ["videoBytes"]);
+  i != null && l(n, ["encodedVideo"], j(i));
+  const r = s(t, ["mimeType"]);
+  return r != null && l(n, ["encoding"], r), n;
 }
-function _o(n, e) {
-  const t = {}, o = s(n, ["uri"]);
-  o != null && l(t, ["gcsUri"], o);
-  const i = s(n, ["videoBytes"]);
-  i != null && l(t, ["bytesBase64Encoded"], Z(i));
-  const r = s(n, ["mimeType"]);
-  return r != null && l(t, ["mimeType"], r), t;
+function _o(t, e) {
+  const n = {}, o = s(t, ["uri"]);
+  o != null && l(n, ["gcsUri"], o);
+  const i = s(t, ["videoBytes"]);
+  i != null && l(n, ["bytesBase64Encoded"], j(i));
+  const r = s(t, ["mimeType"]);
+  return r != null && l(n, ["mimeType"], r), n;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function qa(n, e) {
-  const t = {}, o = s(n, ["displayName"]);
-  return e !== void 0 && o != null && l(e, ["displayName"], o), t;
+function Oa(t, e) {
+  const n = {}, o = s(t, ["displayName"]);
+  return e !== void 0 && o != null && l(e, ["displayName"], o), n;
 }
-function ba(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && qa(t, e), e;
+function $a(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && Oa(n, e), e;
 }
-function Ba(n, e) {
-  const t = {}, o = s(n, ["force"]);
-  return e !== void 0 && o != null && l(e, ["_query", "force"], o), t;
+function Wa(t, e) {
+  const n = {}, o = s(t, ["force"]);
+  return e !== void 0 && o != null && l(e, ["_query", "force"], o), n;
 }
-function Ja(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["_url", "name"], t);
-  const o = s(n, ["config"]);
-  return o != null && Ba(o, e), e;
+function Ka(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["_url", "name"], n);
+  const o = s(t, ["config"]);
+  return o != null && Wa(o, e), e;
 }
-function Oa(n) {
-  const e = {}, t = s(n, ["name"]);
-  return t != null && l(e, ["_url", "name"], t), e;
+function Ya(t) {
+  const e = {}, n = s(t, ["name"]);
+  return n != null && l(e, ["_url", "name"], n), e;
 }
-function $a(n, e) {
-  const t = {}, o = s(n, [
+function za(t, e) {
+  const n = {}, o = s(t, [
     "customMetadata"
   ]);
   if (e !== void 0 && o != null) {
     let r = o;
     Array.isArray(r) && (r = r.map((a) => a)), l(e, ["customMetadata"], r);
   }
-  const i = s(n, [
+  const i = s(t, [
     "chunkingConfig"
   ]);
-  return e !== void 0 && i != null && l(e, ["chunkingConfig"], i), t;
+  return e !== void 0 && i != null && l(e, ["chunkingConfig"], i), n;
 }
-function Wa(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["name"], t);
-  const o = s(n, ["metadata"]);
+function Xa(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["name"], n);
+  const o = s(t, ["metadata"]);
   o != null && l(e, ["metadata"], o);
-  const i = s(n, ["done"]);
+  const i = s(t, ["done"]);
   i != null && l(e, ["done"], i);
-  const r = s(n, ["error"]);
+  const r = s(t, ["error"]);
   r != null && l(e, ["error"], r);
-  const a = s(n, ["response"]);
-  return a != null && l(e, ["response"], Ya(a)), e;
+  const a = s(t, ["response"]);
+  return a != null && l(e, ["response"], Za(a)), e;
 }
-function Ka(n) {
-  const e = {}, t = s(n, [
+function Qa(t) {
+  const e = {}, n = s(t, [
     "fileSearchStoreName"
   ]);
-  t != null && l(e, ["_url", "file_search_store_name"], t);
-  const o = s(n, ["fileName"]);
+  n != null && l(e, ["_url", "file_search_store_name"], n);
+  const o = s(t, ["fileName"]);
   o != null && l(e, ["fileName"], o);
-  const i = s(n, ["config"]);
-  return i != null && $a(i, e), e;
+  const i = s(t, ["config"]);
+  return i != null && za(i, e), e;
 }
-function Ya(n) {
-  const e = {}, t = s(n, [
+function Za(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, ["parent"]);
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, ["parent"]);
   o != null && l(e, ["parent"], o);
-  const i = s(n, ["documentName"]);
+  const i = s(t, ["documentName"]);
   return i != null && l(e, ["documentName"], i), e;
 }
-function za(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function ja(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), t;
+  const i = s(t, ["pageToken"]);
+  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), n;
 }
-function Xa(n) {
-  const e = {}, t = s(n, ["config"]);
-  return t != null && za(t, e), e;
+function eu(t) {
+  const e = {}, n = s(t, ["config"]);
+  return n != null && ja(n, e), e;
 }
-function Qa(n) {
-  const e = {}, t = s(n, [
+function tu(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, [
+  const i = s(t, [
     "fileSearchStores"
   ]);
   if (i != null) {
@@ -7328,60 +7366,60 @@ function Qa(n) {
   }
   return e;
 }
-function Co(n, e) {
-  const t = {}, o = s(n, ["mimeType"]);
+function Eo(t, e) {
+  const n = {}, o = s(t, ["mimeType"]);
   e !== void 0 && o != null && l(e, ["mimeType"], o);
-  const i = s(n, ["displayName"]);
+  const i = s(t, ["displayName"]);
   e !== void 0 && i != null && l(e, ["displayName"], i);
-  const r = s(n, [
+  const r = s(t, [
     "customMetadata"
   ]);
   if (e !== void 0 && r != null) {
     let u = r;
-    Array.isArray(u) && (u = u.map((c) => c)), l(e, ["customMetadata"], u);
+    Array.isArray(u) && (u = u.map((d) => d)), l(e, ["customMetadata"], u);
   }
-  const a = s(n, [
+  const a = s(t, [
     "chunkingConfig"
   ]);
-  return e !== void 0 && a != null && l(e, ["chunkingConfig"], a), t;
+  return e !== void 0 && a != null && l(e, ["chunkingConfig"], a), n;
 }
-function Za(n) {
-  const e = {}, t = s(n, [
+function nu(t) {
+  const e = {}, n = s(t, [
     "fileSearchStoreName"
   ]);
-  t != null && l(e, ["_url", "file_search_store_name"], t);
-  const o = s(n, ["config"]);
-  return o != null && Co(o, e), e;
+  n != null && l(e, ["_url", "file_search_store_name"], n);
+  const o = s(t, ["config"]);
+  return o != null && Eo(o, e), e;
 }
-function ja(n) {
-  const e = {}, t = s(n, [
+function ou(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  return t != null && l(e, ["sdkHttpResponse"], t), e;
+  return n != null && l(e, ["sdkHttpResponse"], n), e;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const eu = "Content-Type", nu = "X-Server-Timeout", tu = "User-Agent", ze = "x-goog-api-client", ou = "1.39.0", iu = `google-genai-sdk/${ou}`, su = "v1beta1", ru = "v1beta";
-class lu {
+const iu = "Content-Type", su = "X-Server-Timeout", ru = "User-Agent", Xe = "x-goog-api-client", lu = "1.39.0", au = `google-genai-sdk/${lu}`, uu = "v1beta1", du = "v1beta";
+class cu {
   constructor(e) {
-    var t, o, i;
-    this.clientOptions = Object.assign({}, e), this.customBaseUrl = (t = e.httpOptions) === null || t === void 0 ? void 0 : t.baseUrl, this.clientOptions.vertexai && (this.clientOptions.project && this.clientOptions.location ? this.clientOptions.apiKey = void 0 : this.clientOptions.apiKey && (this.clientOptions.project = void 0, this.clientOptions.location = void 0));
+    var n, o, i;
+    this.clientOptions = Object.assign({}, e), this.customBaseUrl = (n = e.httpOptions) === null || n === void 0 ? void 0 : n.baseUrl, this.clientOptions.vertexai && (this.clientOptions.project && this.clientOptions.location ? this.clientOptions.apiKey = void 0 : this.clientOptions.apiKey && (this.clientOptions.project = void 0, this.clientOptions.location = void 0));
     const r = {};
     if (this.clientOptions.vertexai) {
       if (!this.clientOptions.location && !this.clientOptions.apiKey && !this.customBaseUrl && (this.clientOptions.location = "global"), !(this.clientOptions.project && this.clientOptions.location || this.clientOptions.apiKey) && !this.customBaseUrl)
         throw new Error("Authentication is not set up. Please provide either a project and location, or an API key, or a custom base URL.");
       const u = e.project && e.location || !!e.apiKey;
-      this.customBaseUrl && !u ? (r.baseUrl = this.customBaseUrl, this.clientOptions.project = void 0, this.clientOptions.location = void 0) : this.clientOptions.apiKey || this.clientOptions.location === "global" ? r.baseUrl = "https://aiplatform.googleapis.com/" : this.clientOptions.project && this.clientOptions.location && (r.baseUrl = `https://${this.clientOptions.location}-aiplatform.googleapis.com/`), r.apiVersion = (o = this.clientOptions.apiVersion) !== null && o !== void 0 ? o : su;
+      this.customBaseUrl && !u ? (r.baseUrl = this.customBaseUrl, this.clientOptions.project = void 0, this.clientOptions.location = void 0) : this.clientOptions.apiKey || this.clientOptions.location === "global" ? r.baseUrl = "https://aiplatform.googleapis.com/" : this.clientOptions.project && this.clientOptions.location && (r.baseUrl = `https://${this.clientOptions.location}-aiplatform.googleapis.com/`), r.apiVersion = (o = this.clientOptions.apiVersion) !== null && o !== void 0 ? o : uu;
     } else {
       if (!this.clientOptions.apiKey)
-        throw new he({
+        throw new ge({
           message: "API key must be set when using the Gemini API.",
           status: 403
         });
-      r.apiVersion = (i = this.clientOptions.apiVersion) !== null && i !== void 0 ? i : ru, r.baseUrl = "https://generativelanguage.googleapis.com/";
+      r.apiVersion = (i = this.clientOptions.apiVersion) !== null && i !== void 0 ? i : du, r.baseUrl = "https://generativelanguage.googleapis.com/";
     }
     r.headers = this.getDefaultHeaders(), this.clientOptions.httpOptions = r, e.httpOptions && (this.clientOptions.httpOptions = this.patchHttpOptions(r, e.httpOptions));
   }
@@ -7433,8 +7471,8 @@ class lu {
     return this.clientOptions.apiKey;
   }
   getWebsocketBaseUrl() {
-    const e = this.getBaseUrl(), t = new URL(e);
-    return t.protocol = t.protocol == "http:" ? "ws" : "wss", t.toString();
+    const e = this.getBaseUrl(), n = new URL(e);
+    return n.protocol = n.protocol == "http:" ? "ws" : "wss", n.toString();
   }
   setBaseUrl(e) {
     if (this.clientOptions.httpOptions)
@@ -7442,17 +7480,17 @@ class lu {
     else
       throw new Error("HTTP options are not correctly set.");
   }
-  constructUrl(e, t, o) {
-    const i = [this.getRequestUrlInternal(t)];
+  constructUrl(e, n, o) {
+    const i = [this.getRequestUrlInternal(n)];
     return o && i.push(this.getBaseResourcePath()), e !== "" && i.push(e), new URL(`${i.join("/")}`);
   }
-  shouldPrependVertexProjectPath(e, t) {
-    return !(t.baseUrl && t.baseUrlResourceScope === Je.COLLECTION || this.clientOptions.apiKey || !this.clientOptions.vertexai || e.path.startsWith("projects/") || e.httpMethod === "GET" && e.path.startsWith("publishers/google/models"));
+  shouldPrependVertexProjectPath(e, n) {
+    return !(n.baseUrl && n.baseUrlResourceScope === Oe.COLLECTION || this.clientOptions.apiKey || !this.clientOptions.vertexai || e.path.startsWith("projects/") || e.httpMethod === "GET" && e.path.startsWith("publishers/google/models"));
   }
   async request(e) {
-    let t = this.clientOptions.httpOptions;
-    e.httpOptions && (t = this.patchHttpOptions(this.clientOptions.httpOptions, e.httpOptions));
-    const o = this.shouldPrependVertexProjectPath(e, t), i = this.constructUrl(e.path, t, o);
+    let n = this.clientOptions.httpOptions;
+    e.httpOptions && (n = this.patchHttpOptions(this.clientOptions.httpOptions, e.httpOptions));
+    const o = this.shouldPrependVertexProjectPath(e, n), i = this.constructUrl(e.path, n, o);
     if (e.queryParams)
       for (const [a, u] of Object.entries(e.queryParams))
         i.searchParams.append(a, String(u));
@@ -7462,104 +7500,104 @@ class lu {
         throw new Error("Request body should be empty for GET request, but got non empty request body");
     } else
       r.body = e.body;
-    return r = await this.includeExtraHttpOptionsToRequestInit(r, t, i.toString(), e.abortSignal), this.unaryApiCall(i, r, e.httpMethod);
+    return r = await this.includeExtraHttpOptionsToRequestInit(r, n, i.toString(), e.abortSignal), this.unaryApiCall(i, r, e.httpMethod);
   }
-  patchHttpOptions(e, t) {
+  patchHttpOptions(e, n) {
     const o = JSON.parse(JSON.stringify(e));
-    for (const [i, r] of Object.entries(t))
+    for (const [i, r] of Object.entries(n))
       typeof r == "object" ? o[i] = Object.assign(Object.assign({}, o[i]), r) : r !== void 0 && (o[i] = r);
     return o;
   }
   async requestStream(e) {
-    let t = this.clientOptions.httpOptions;
-    e.httpOptions && (t = this.patchHttpOptions(this.clientOptions.httpOptions, e.httpOptions));
-    const o = this.shouldPrependVertexProjectPath(e, t), i = this.constructUrl(e.path, t, o);
+    let n = this.clientOptions.httpOptions;
+    e.httpOptions && (n = this.patchHttpOptions(this.clientOptions.httpOptions, e.httpOptions));
+    const o = this.shouldPrependVertexProjectPath(e, n), i = this.constructUrl(e.path, n, o);
     (!i.searchParams.has("alt") || i.searchParams.get("alt") !== "sse") && i.searchParams.set("alt", "sse");
     let r = {};
-    return r.body = e.body, r = await this.includeExtraHttpOptionsToRequestInit(r, t, i.toString(), e.abortSignal), this.streamApiCall(i, r, e.httpMethod);
+    return r.body = e.body, r = await this.includeExtraHttpOptionsToRequestInit(r, n, i.toString(), e.abortSignal), this.streamApiCall(i, r, e.httpMethod);
   }
-  async includeExtraHttpOptionsToRequestInit(e, t, o, i) {
-    if (t && t.timeout || i) {
+  async includeExtraHttpOptionsToRequestInit(e, n, o, i) {
+    if (n && n.timeout || i) {
       const r = new AbortController(), a = r.signal;
-      if (t.timeout && (t == null ? void 0 : t.timeout) > 0) {
-        const u = setTimeout(() => r.abort(), t.timeout);
+      if (n.timeout && (n == null ? void 0 : n.timeout) > 0) {
+        const u = setTimeout(() => r.abort(), n.timeout);
         u && typeof u.unref == "function" && u.unref();
       }
       i && i.addEventListener("abort", () => {
         r.abort();
       }), e.signal = a;
     }
-    return t && t.extraBody !== null && au(e, t.extraBody), e.headers = await this.getHeadersInternal(t, o), e;
+    return n && n.extraBody !== null && fu(e, n.extraBody), e.headers = await this.getHeadersInternal(n, o), e;
   }
-  async unaryApiCall(e, t, o) {
-    return this.apiCall(e.toString(), Object.assign(Object.assign({}, t), { method: o })).then(async (i) => (await Vt(i), new Oe(i))).catch((i) => {
+  async unaryApiCall(e, n, o) {
+    return this.apiCall(e.toString(), Object.assign(Object.assign({}, n), { method: o })).then(async (i) => (await Vn(i), new $e(i))).catch((i) => {
       throw i instanceof Error ? i : new Error(JSON.stringify(i));
     });
   }
-  async streamApiCall(e, t, o) {
-    return this.apiCall(e.toString(), Object.assign(Object.assign({}, t), { method: o })).then(async (i) => (await Vt(i), this.processStreamResponse(i))).catch((i) => {
+  async streamApiCall(e, n, o) {
+    return this.apiCall(e.toString(), Object.assign(Object.assign({}, n), { method: o })).then(async (i) => (await Vn(i), this.processStreamResponse(i))).catch((i) => {
       throw i instanceof Error ? i : new Error(JSON.stringify(i));
     });
   }
   processStreamResponse(e) {
-    return J(this, arguments, function* () {
+    return $(this, arguments, function* () {
       var o;
       const i = (o = e == null ? void 0 : e.body) === null || o === void 0 ? void 0 : o.getReader(), r = new TextDecoder("utf-8");
       if (!i)
         throw new Error("Response body is empty");
       try {
         let a = "";
-        const u = "data:", c = [`
+        const u = "data:", d = [`
 
 `, "\r\r", `\r
 \r
 `];
         for (; ; ) {
-          const { done: d, value: f } = yield w(i.read());
-          if (d) {
+          const { done: c, value: f } = yield M(i.read());
+          if (c) {
             if (a.trim().length > 0)
               throw new Error("Incomplete JSON segment at the end");
             break;
           }
-          const m = r.decode(f, { stream: !0 });
+          const p = r.decode(f, { stream: !0 });
           try {
-            const g = JSON.parse(m);
+            const g = JSON.parse(p);
             if ("error" in g) {
-              const _ = JSON.parse(JSON.stringify(g.error)), T = _.status, C = _.code, S = `got status: ${T}. ${JSON.stringify(g)}`;
-              if (C >= 400 && C < 600)
-                throw new he({
+              const T = JSON.parse(JSON.stringify(g.error)), y = T.status, E = T.code, S = `got status: ${y}. ${JSON.stringify(g)}`;
+              if (E >= 400 && E < 600)
+                throw new ge({
                   message: S,
-                  status: C
+                  status: E
                 });
             }
           } catch (g) {
             if (g.name === "ApiError")
               throw g;
           }
-          a += m;
-          let p = -1, h = 0;
+          a += p;
+          let h = -1, m = 0;
           for (; ; ) {
-            p = -1, h = 0;
-            for (const T of c) {
-              const C = a.indexOf(T);
-              C !== -1 && (p === -1 || C < p) && (p = C, h = T.length);
+            h = -1, m = 0;
+            for (const y of d) {
+              const E = a.indexOf(y);
+              E !== -1 && (h === -1 || E < h) && (h = E, m = y.length);
             }
-            if (p === -1)
+            if (h === -1)
               break;
-            const g = a.substring(0, p);
-            a = a.substring(p + h);
-            const _ = g.trim();
-            if (_.startsWith(u)) {
-              const T = _.substring(u.length).trim();
+            const g = a.substring(0, h);
+            a = a.substring(h + m);
+            const T = g.trim();
+            if (T.startsWith(u)) {
+              const y = T.substring(u.length).trim();
               try {
-                const C = new Response(T, {
+                const E = new Response(y, {
                   headers: e == null ? void 0 : e.headers,
                   status: e == null ? void 0 : e.status,
                   statusText: e == null ? void 0 : e.statusText
                 });
-                yield yield w(new Oe(C));
-              } catch (C) {
-                throw new Error(`exception parsing stream chunk ${T}. ${C}`);
+                yield yield M(new $e(E));
+              } catch (E) {
+                throw new Error(`exception parsing stream chunk ${y}. ${E}`);
               }
             }
           }
@@ -7569,28 +7607,28 @@ class lu {
       }
     });
   }
-  async apiCall(e, t) {
-    return fetch(e, t).catch((o) => {
+  async apiCall(e, n) {
+    return fetch(e, n).catch((o) => {
       throw new Error(`exception ${o} sending request`);
     });
   }
   getDefaultHeaders() {
-    const e = {}, t = iu + " " + this.clientOptions.userAgentExtra;
-    return e[tu] = t, e[ze] = t, e[eu] = "application/json", e;
+    const e = {}, n = au + " " + this.clientOptions.userAgentExtra;
+    return e[ru] = n, e[Xe] = n, e[iu] = "application/json", e;
   }
-  async getHeadersInternal(e, t) {
+  async getHeadersInternal(e, n) {
     const o = new Headers();
     if (e && e.headers) {
       for (const [i, r] of Object.entries(e.headers))
         o.append(i, r);
-      e.timeout && e.timeout > 0 && o.append(nu, String(Math.ceil(e.timeout / 1e3)));
+      e.timeout && e.timeout > 0 && o.append(su, String(Math.ceil(e.timeout / 1e3)));
     }
-    return await this.clientOptions.auth.addAuthHeaders(o, t), o;
+    return await this.clientOptions.auth.addAuthHeaders(o, n), o;
   }
   getFileName(e) {
-    var t;
+    var n;
     let o = "";
-    return typeof e == "string" && (o = e.replace(/[/\\]+$/, ""), o = (t = o.split(/[/\\]/).pop()) !== null && t !== void 0 ? t : ""), o;
+    return typeof e == "string" && (o = e.replace(/[/\\]+$/, ""), o = (n = o.split(/[/\\]/).pop()) !== null && n !== void 0 ? n : ""), o;
   }
   /**
    * Uploads a file asynchronously using Gemini API only, this is not supported
@@ -7603,20 +7641,20 @@ class lu {
    * @throws An error if called on a Vertex AI client.
    * @throws An error if the `mimeType` is not provided and can not be inferred,
    */
-  async uploadFile(e, t) {
+  async uploadFile(e, n) {
     var o;
     const i = {};
-    t != null && (i.mimeType = t.mimeType, i.name = t.name, i.displayName = t.displayName), i.name && !i.name.startsWith("files/") && (i.name = `files/${i.name}`);
+    n != null && (i.mimeType = n.mimeType, i.name = n.name, i.displayName = n.displayName), i.name && !i.name.startsWith("files/") && (i.name = `files/${i.name}`);
     const r = this.clientOptions.uploader, a = await r.stat(e);
     i.sizeBytes = String(a.size);
-    const u = (o = t == null ? void 0 : t.mimeType) !== null && o !== void 0 ? o : a.type;
+    const u = (o = n == null ? void 0 : n.mimeType) !== null && o !== void 0 ? o : a.type;
     if (u === void 0 || u === "")
       throw new Error("Can not determine mimeType. Please provide mimeType in the config.");
     i.mimeType = u;
-    const c = {
+    const d = {
       file: i
-    }, d = this.getFileName(e), f = v("upload/v1beta/files", c._url), m = await this.fetchUploadUrl(f, i.sizeBytes, i.mimeType, d, c, t == null ? void 0 : t.httpOptions);
-    return r.upload(e, m, this);
+    }, c = this.getFileName(e), f = v("upload/v1beta/files", d._url), p = await this.fetchUploadUrl(f, i.sizeBytes, i.mimeType, c, d, n == null ? void 0 : n.httpOptions);
+    return r.upload(e, p, this);
   }
   /**
    * Uploads a file to a given file search store asynchronously using Gemini API only, this is not supported
@@ -7630,15 +7668,15 @@ class lu {
    * @throws An error if called on a Vertex AI client.
    * @throws An error if the `mimeType` is not provided and can not be inferred,
    */
-  async uploadFileToFileSearchStore(e, t, o) {
+  async uploadFileToFileSearchStore(e, n, o) {
     var i;
-    const r = this.clientOptions.uploader, a = await r.stat(t), u = String(a.size), c = (i = o == null ? void 0 : o.mimeType) !== null && i !== void 0 ? i : a.type;
-    if (c === void 0 || c === "")
+    const r = this.clientOptions.uploader, a = await r.stat(n), u = String(a.size), d = (i = o == null ? void 0 : o.mimeType) !== null && i !== void 0 ? i : a.type;
+    if (d === void 0 || d === "")
       throw new Error("Can not determine mimeType. Please provide mimeType in the config.");
-    const d = `upload/v1beta/${e}:uploadToFileSearchStore`, f = this.getFileName(t), m = {};
-    o != null && Co(o, m);
-    const p = await this.fetchUploadUrl(d, u, c, f, m, o == null ? void 0 : o.httpOptions);
-    return r.uploadToFileSearchStore(t, p, this);
+    const c = `upload/v1beta/${e}:uploadToFileSearchStore`, f = this.getFileName(n), p = {};
+    o != null && Eo(o, p);
+    const h = await this.fetchUploadUrl(c, u, d, f, p, o == null ? void 0 : o.httpOptions);
+    return r.uploadToFileSearchStore(n, h, this);
   }
   /**
    * Downloads a file asynchronously to the specified path.
@@ -7649,62 +7687,62 @@ class lu {
   async downloadFile(e) {
     await this.clientOptions.downloader.download(e, this);
   }
-  async fetchUploadUrl(e, t, o, i, r, a) {
+  async fetchUploadUrl(e, n, o, i, r, a) {
     var u;
-    let c = {};
-    a ? c = a : c = {
+    let d = {};
+    a ? d = a : d = {
       apiVersion: "",
       // api-version is set in the path.
-      headers: Object.assign({ "Content-Type": "application/json", "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start", "X-Goog-Upload-Header-Content-Length": `${t}`, "X-Goog-Upload-Header-Content-Type": `${o}` }, i ? { "X-Goog-Upload-File-Name": i } : {})
+      headers: Object.assign({ "Content-Type": "application/json", "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start", "X-Goog-Upload-Header-Content-Length": `${n}`, "X-Goog-Upload-Header-Content-Type": `${o}` }, i ? { "X-Goog-Upload-File-Name": i } : {})
     };
-    const d = await this.request({
+    const c = await this.request({
       path: e,
       body: JSON.stringify(r),
       httpMethod: "POST",
-      httpOptions: c
+      httpOptions: d
     });
-    if (!d || !(d != null && d.headers))
+    if (!c || !(c != null && c.headers))
       throw new Error("Server did not return an HttpResponse or the returned HttpResponse did not have headers.");
-    const f = (u = d == null ? void 0 : d.headers) === null || u === void 0 ? void 0 : u["x-goog-upload-url"];
+    const f = (u = c == null ? void 0 : c.headers) === null || u === void 0 ? void 0 : u["x-goog-upload-url"];
     if (f === void 0)
       throw new Error("Failed to get upload url. Server did not return the x-google-upload-url in the headers");
     return f;
   }
 }
-async function Vt(n) {
+async function Vn(t) {
   var e;
-  if (n === void 0)
+  if (t === void 0)
     throw new Error("response is undefined");
-  if (!n.ok) {
-    const t = n.status;
+  if (!t.ok) {
+    const n = t.status;
     let o;
-    !((e = n.headers.get("content-type")) === null || e === void 0) && e.includes("application/json") ? o = await n.json() : o = {
+    !((e = t.headers.get("content-type")) === null || e === void 0) && e.includes("application/json") ? o = await t.json() : o = {
       error: {
-        message: await n.text(),
-        code: n.status,
-        status: n.statusText
+        message: await t.text(),
+        code: t.status,
+        status: t.statusText
       }
     };
     const i = JSON.stringify(o);
-    throw t >= 400 && t < 600 ? new he({
+    throw n >= 400 && n < 600 ? new ge({
       message: i,
-      status: t
+      status: n
     }) : new Error(i);
   }
 }
-function au(n, e) {
+function fu(t, e) {
   if (!e || Object.keys(e).length === 0)
     return;
-  if (n.body instanceof Blob) {
+  if (t.body instanceof Blob) {
     console.warn("includeExtraBodyToRequestInit: extraBody provided but current request body is a Blob. extraBody will be ignored as merging is not supported for Blob bodies.");
     return;
   }
-  let t = {};
-  if (typeof n.body == "string" && n.body.length > 0)
+  let n = {};
+  if (typeof t.body == "string" && t.body.length > 0)
     try {
-      const r = JSON.parse(n.body);
+      const r = JSON.parse(t.body);
       if (typeof r == "object" && r !== null && !Array.isArray(r))
-        t = r;
+        n = r;
       else {
         console.warn("includeExtraBodyToRequestInit: Original request body is valid JSON but not a non-array object. Skip applying extraBody to the request body.");
         return;
@@ -7715,59 +7753,59 @@ function au(n, e) {
     }
   function o(r, a) {
     const u = Object.assign({}, r);
-    for (const c in a)
-      if (Object.prototype.hasOwnProperty.call(a, c)) {
-        const d = a[c], f = u[c];
-        d && typeof d == "object" && !Array.isArray(d) && f && typeof f == "object" && !Array.isArray(f) ? u[c] = o(f, d) : (f && d && typeof f != typeof d && console.warn(`includeExtraBodyToRequestInit:deepMerge: Type mismatch for key "${c}". Original type: ${typeof f}, New type: ${typeof d}. Overwriting.`), u[c] = d);
+    for (const d in a)
+      if (Object.prototype.hasOwnProperty.call(a, d)) {
+        const c = a[d], f = u[d];
+        c && typeof c == "object" && !Array.isArray(c) && f && typeof f == "object" && !Array.isArray(f) ? u[d] = o(f, c) : (f && c && typeof f != typeof c && console.warn(`includeExtraBodyToRequestInit:deepMerge: Type mismatch for key "${d}". Original type: ${typeof f}, New type: ${typeof c}. Overwriting.`), u[d] = c);
       }
     return u;
   }
-  const i = o(t, e);
-  n.body = JSON.stringify(i);
+  const i = o(n, e);
+  t.body = JSON.stringify(i);
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const uu = "mcp_used/unknown";
-let du = !1;
-function Eo(n) {
-  for (const e of n)
-    if (cu(e) || typeof e == "object" && "inputSchema" in e)
+const pu = "mcp_used/unknown";
+let hu = !1;
+function So(t) {
+  for (const e of t)
+    if (mu(e) || typeof e == "object" && "inputSchema" in e)
       return !0;
-  return du;
+  return hu;
 }
-function So(n) {
+function Io(t) {
   var e;
-  const t = (e = n[ze]) !== null && e !== void 0 ? e : "";
-  n[ze] = (t + ` ${uu}`).trimStart();
+  const n = (e = t[Xe]) !== null && e !== void 0 ? e : "";
+  t[Xe] = (n + ` ${pu}`).trimStart();
 }
-function cu(n) {
-  return n !== null && typeof n == "object" && n instanceof cn;
+function mu(t) {
+  return t !== null && typeof t == "object" && t instanceof ct;
 }
-function fu(n) {
-  return J(this, arguments, function* (t, o = 100) {
+function gu(t) {
+  return $(this, arguments, function* (n, o = 100) {
     let i, r = 0;
     for (; r < o; ) {
-      const a = yield w(t.listTools({ cursor: i }));
+      const a = yield M(n.listTools({ cursor: i }));
       for (const u of a.tools)
-        yield yield w(u), r++;
+        yield yield M(u), r++;
       if (!a.nextCursor)
         break;
       i = a.nextCursor;
     }
   });
 }
-class cn {
-  constructor(e = [], t) {
-    this.mcpTools = [], this.functionNameToMcpClient = {}, this.mcpClients = e, this.config = t;
+class ct {
+  constructor(e = [], n) {
+    this.mcpTools = [], this.functionNameToMcpClient = {}, this.mcpClients = e, this.config = n;
   }
   /**
    * Creates a McpCallableTool.
    */
-  static create(e, t) {
-    return new cn(e, t);
+  static create(e, n) {
+    return new ct(e, n);
   }
   /**
    * Validates the function names are not duplicate and initialize the function
@@ -7777,38 +7815,38 @@ class cn {
    *     names.
    */
   async initialize() {
-    var e, t, o, i;
+    var e, n, o, i;
     if (this.mcpTools.length > 0)
       return;
     const r = {}, a = [];
     for (const f of this.mcpClients)
       try {
-        for (var u = !0, c = (t = void 0, O(fu(f))), d; d = await c.next(), e = d.done, !e; u = !0) {
-          i = d.value, u = !1;
-          const m = i;
-          a.push(m);
-          const p = m.name;
-          if (r[p])
-            throw new Error(`Duplicate function name ${p} found in MCP tools. Please ensure function names are unique.`);
-          r[p] = f;
+        for (var u = !0, d = (n = void 0, W(gu(f))), c; c = await d.next(), e = c.done, !e; u = !0) {
+          i = c.value, u = !1;
+          const p = i;
+          a.push(p);
+          const h = p.name;
+          if (r[h])
+            throw new Error(`Duplicate function name ${h} found in MCP tools. Please ensure function names are unique.`);
+          r[h] = f;
         }
-      } catch (m) {
-        t = { error: m };
+      } catch (p) {
+        n = { error: p };
       } finally {
         try {
-          !u && !e && (o = c.return) && await o.call(c);
+          !u && !e && (o = d.return) && await o.call(d);
         } finally {
-          if (t) throw t.error;
+          if (n) throw n.error;
         }
       }
     this.mcpTools = a, this.functionNameToMcpClient = r;
   }
   async tool() {
-    return await this.initialize(), bi(this.mcpTools, this.config);
+    return await this.initialize(), $i(this.mcpTools, this.config);
   }
   async callTool(e) {
     await this.initialize();
-    const t = [];
+    const n = [];
     for (const o of e)
       if (o.name in this.functionNameToMcpClient) {
         const i = this.functionNameToMcpClient[o.name];
@@ -7826,14 +7864,14 @@ class cn {
           void 0,
           r
         );
-        t.push({
+        n.push({
           functionResponse: {
             name: o.name,
             response: a.isError ? { error: a } : a
           }
         });
       }
-    return t;
+    return n;
   }
 }
 /**
@@ -7841,14 +7879,14 @@ class cn {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-async function pu(n, e, t) {
-  const o = new ki();
+async function yu(t, e, n) {
+  const o = new Fi();
   let i;
-  t.data instanceof Blob ? i = JSON.parse(await t.data.text()) : i = JSON.parse(t.data), Object.assign(o, i), e(o);
+  n.data instanceof Blob ? i = JSON.parse(await n.data.text()) : i = JSON.parse(n.data), Object.assign(o, i), e(o);
 }
-class mu {
-  constructor(e, t, o) {
-    this.apiClient = e, this.auth = t, this.webSocketFactory = o;
+class Tu {
+  constructor(e, n, o) {
+    this.apiClient = e, this.auth = n, this.webSocketFactory = o;
   }
   /**
        Establishes a connection to the specified model and returns a
@@ -7881,35 +7919,35 @@ class mu {
        ```
       */
   async connect(e) {
-    var t, o;
+    var n, o;
     if (this.apiClient.isVertexAI())
       throw new Error("Live music is not supported for Vertex AI.");
     console.warn("Live music generation is experimental and may change in future versions.");
-    const i = this.apiClient.getWebsocketBaseUrl(), r = this.apiClient.getApiVersion(), a = yu(this.apiClient.getDefaultHeaders()), u = this.apiClient.getApiKey(), c = `${i}/ws/google.ai.generativelanguage.${r}.GenerativeService.BidiGenerateMusic?key=${u}`;
-    let d = () => {
+    const i = this.apiClient.getWebsocketBaseUrl(), r = this.apiClient.getApiVersion(), a = Eu(this.apiClient.getDefaultHeaders()), u = this.apiClient.getApiKey(), d = `${i}/ws/google.ai.generativelanguage.${r}.GenerativeService.BidiGenerateMusic?key=${u}`;
+    let c = () => {
     };
-    const f = new Promise((E) => {
-      d = E;
-    }), m = e.callbacks, p = function() {
-      d({});
-    }, h = this.apiClient, g = {
-      onopen: p,
-      onmessage: (E) => {
-        pu(h, m.onmessage, E);
+    const f = new Promise((I) => {
+      c = I;
+    }), p = e.callbacks, h = function() {
+      c({});
+    }, m = this.apiClient, g = {
+      onopen: h,
+      onmessage: (I) => {
+        yu(m, p.onmessage, I);
       },
-      onerror: (t = m == null ? void 0 : m.onerror) !== null && t !== void 0 ? t : function(E) {
+      onerror: (n = p == null ? void 0 : p.onerror) !== null && n !== void 0 ? n : function(I) {
       },
-      onclose: (o = m == null ? void 0 : m.onclose) !== null && o !== void 0 ? o : function(E) {
+      onclose: (o = p == null ? void 0 : p.onclose) !== null && o !== void 0 ? o : function(I) {
       }
-    }, _ = this.webSocketFactory.create(c, gu(a), g);
-    _.connect(), await f;
-    const S = { setup: { model: x(this.apiClient, e.model) } };
-    return _.send(JSON.stringify(S)), new hu(_, this.apiClient);
+    }, T = this.webSocketFactory.create(d, _u(a), g);
+    T.connect(), await f;
+    const S = { setup: { model: k(this.apiClient, e.model) } };
+    return T.send(JSON.stringify(S)), new Cu(T, this.apiClient);
   }
 }
-class hu {
-  constructor(e, t) {
-    this.conn = e, this.apiClient = t;
+class Cu {
+  constructor(e, n) {
+    this.conn = e, this.apiClient = n;
   }
   /**
       Sets inputs to steer music generation. Updates the session's current
@@ -7925,8 +7963,8 @@ class hu {
   async setWeightedPrompts(e) {
     if (!e.weightedPrompts || Object.keys(e.weightedPrompts).length === 0)
       throw new Error("Weighted prompts must be set and contain at least one entry.");
-    const t = qr(e);
-    this.conn.send(JSON.stringify({ clientContent: t }));
+    const n = Or(e);
+    this.conn.send(JSON.stringify({ clientContent: n }));
   }
   /**
       Sets a configuration to the model. Updates the session's current
@@ -7941,12 +7979,12 @@ class hu {
      */
   async setMusicGenerationConfig(e) {
     e.musicGenerationConfig || (e.musicGenerationConfig = {});
-    const t = Hr(e);
-    this.conn.send(JSON.stringify(t));
+    const n = Jr(e);
+    this.conn.send(JSON.stringify(n));
   }
   sendPlaybackControl(e) {
-    const t = { playbackControl: e };
-    this.conn.send(JSON.stringify(t));
+    const n = { playbackControl: e };
+    this.conn.send(JSON.stringify(n));
   }
   /**
    * Start the music stream.
@@ -7954,7 +7992,7 @@ class hu {
    * @experimental
    */
   play() {
-    this.sendPlaybackControl(se.PLAY);
+    this.sendPlaybackControl(re.PLAY);
   }
   /**
    * Temporarily halt the music stream. Use `play` to resume from the current
@@ -7963,7 +8001,7 @@ class hu {
    * @experimental
    */
   pause() {
-    this.sendPlaybackControl(se.PAUSE);
+    this.sendPlaybackControl(re.PAUSE);
   }
   /**
    * Stop the music stream and reset the state. Retains the current prompts
@@ -7972,7 +8010,7 @@ class hu {
    * @experimental
    */
   stop() {
-    this.sendPlaybackControl(se.STOP);
+    this.sendPlaybackControl(re.STOP);
   }
   /**
    * Resets the context of the music generation without stopping it.
@@ -7981,7 +8019,7 @@ class hu {
    * @experimental
    */
   resetContext() {
-    this.sendPlaybackControl(se.RESET_CONTEXT);
+    this.sendPlaybackControl(re.RESET_CONTEXT);
   }
   /**
        Terminates the WebSocket connection.
@@ -7992,16 +8030,16 @@ class hu {
     this.conn.close();
   }
 }
-function gu(n) {
+function _u(t) {
   const e = {};
-  return n.forEach((t, o) => {
-    e[o] = t;
+  return t.forEach((n, o) => {
+    e[o] = n;
   }), e;
 }
-function yu(n) {
+function Eu(t) {
   const e = new Headers();
-  for (const [t, o] of Object.entries(n))
-    e.append(t, o);
+  for (const [n, o] of Object.entries(t))
+    e.append(n, o);
   return e;
 }
 /**
@@ -8009,22 +8047,22 @@ function yu(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Tu = "FunctionResponse request must have an `id` field from the response of a ToolCall.FunctionalCalls in Google AI.";
-async function _u(n, e, t) {
-  const o = new Di();
+const Su = "FunctionResponse request must have an `id` field from the response of a ToolCall.FunctionalCalls in Google AI.";
+async function Iu(t, e, n) {
+  const o = new Gi();
   let i;
-  t.data instanceof Blob ? i = await t.data.text() : t.data instanceof ArrayBuffer ? i = new TextDecoder().decode(t.data) : i = t.data;
+  n.data instanceof Blob ? i = await n.data.text() : n.data instanceof ArrayBuffer ? i = new TextDecoder().decode(n.data) : i = n.data;
   const r = JSON.parse(i);
-  if (n.isVertexAI()) {
-    const a = Jr(r);
+  if (t.isVertexAI()) {
+    const a = Kr(r);
     Object.assign(o, a);
   } else
     Object.assign(o, r);
   e(o);
 }
-class Cu {
-  constructor(e, t, o) {
-    this.apiClient = e, this.auth = t, this.webSocketFactory = o, this.music = new mu(this.apiClient, this.auth, this.webSocketFactory);
+class vu {
+  constructor(e, n, o) {
+    this.apiClient = e, this.auth = n, this.webSocketFactory = o, this.music = new Tu(this.apiClient, this.auth, this.webSocketFactory);
   }
   /**
        Establishes a connection to the specified model with the given
@@ -8069,101 +8107,101 @@ class Cu {
        ```
       */
   async connect(e) {
-    var t, o, i, r, a, u;
+    var n, o, i, r, a, u;
     if (e.config && e.config.httpOptions)
       throw new Error("The Live module does not support httpOptions at request-level in LiveConnectConfig yet. Please use the client-level httpOptions configuration instead.");
-    const c = this.apiClient.getWebsocketBaseUrl(), d = this.apiClient.getApiVersion();
+    const d = this.apiClient.getWebsocketBaseUrl(), c = this.apiClient.getApiVersion();
     let f;
-    const m = this.apiClient.getHeaders();
-    e.config && e.config.tools && Eo(e.config.tools) && So(m);
-    const p = vu(m);
+    const p = this.apiClient.getHeaders();
+    e.config && e.config.tools && So(e.config.tools) && Io(p);
+    const h = wu(p);
     if (this.apiClient.isVertexAI()) {
-      const A = this.apiClient.getProject(), N = this.apiClient.getLocation(), k = this.apiClient.getApiKey(), q = !!A && !!N || !!k;
-      this.apiClient.getCustomBaseUrl() && !q ? f = c : (f = `${c}/ws/google.cloud.aiplatform.${d}.LlmBidiService/BidiGenerateContent`, await this.auth.addAuthHeaders(p, f));
+      const A = this.apiClient.getProject(), N = this.apiClient.getLocation(), x = this.apiClient.getApiKey(), U = !!A && !!N || !!x;
+      this.apiClient.getCustomBaseUrl() && !U ? f = d : (f = `${d}/ws/google.cloud.aiplatform.${c}.LlmBidiService/BidiGenerateContent`, await this.auth.addAuthHeaders(h, f));
     } else {
       const A = this.apiClient.getApiKey();
-      let N = "BidiGenerateContent", k = "key";
-      A != null && A.startsWith("auth_tokens/") && (console.warn("Warning: Ephemeral token support is experimental and may change in future versions."), d !== "v1alpha" && console.warn("Warning: The SDK's ephemeral token support is in v1alpha only. Please use const ai = new GoogleGenAI({apiKey: token.name, httpOptions: { apiVersion: 'v1alpha' }}); before session connection."), N = "BidiGenerateContentConstrained", k = "access_token"), f = `${c}/ws/google.ai.generativelanguage.${d}.GenerativeService.${N}?${k}=${A}`;
+      let N = "BidiGenerateContent", x = "key";
+      A != null && A.startsWith("auth_tokens/") && (console.warn("Warning: Ephemeral token support is experimental and may change in future versions."), c !== "v1alpha" && console.warn("Warning: The SDK's ephemeral token support is in v1alpha only. Please use const ai = new GoogleGenAI({apiKey: token.name, httpOptions: { apiVersion: 'v1alpha' }}); before session connection."), N = "BidiGenerateContentConstrained", x = "access_token"), f = `${d}/ws/google.ai.generativelanguage.${c}.GenerativeService.${N}?${x}=${A}`;
     }
-    let h = () => {
+    let m = () => {
     };
     const g = new Promise((A) => {
-      h = A;
-    }), _ = e.callbacks, T = function() {
+      m = A;
+    }), T = e.callbacks, y = function() {
       var A;
-      (A = _ == null ? void 0 : _.onopen) === null || A === void 0 || A.call(_), h({});
-    }, C = this.apiClient, S = {
-      onopen: T,
+      (A = T == null ? void 0 : T.onopen) === null || A === void 0 || A.call(T), m({});
+    }, E = this.apiClient, S = {
+      onopen: y,
       onmessage: (A) => {
-        _u(C, _.onmessage, A);
+        Iu(E, T.onmessage, A);
       },
-      onerror: (t = _ == null ? void 0 : _.onerror) !== null && t !== void 0 ? t : function(A) {
+      onerror: (n = T == null ? void 0 : T.onerror) !== null && n !== void 0 ? n : function(A) {
       },
-      onclose: (o = _ == null ? void 0 : _.onclose) !== null && o !== void 0 ? o : function(A) {
+      onclose: (o = T == null ? void 0 : T.onclose) !== null && o !== void 0 ? o : function(A) {
       }
-    }, E = this.webSocketFactory.create(f, Iu(p), S);
-    E.connect(), await g;
-    let I = x(this.apiClient, e.model);
-    if (this.apiClient.isVertexAI() && I.startsWith("publishers/")) {
+    }, I = this.webSocketFactory.create(f, Pu(h), S);
+    I.connect(), await g;
+    let _ = k(this.apiClient, e.model);
+    if (this.apiClient.isVertexAI() && _.startsWith("publishers/")) {
       const A = this.apiClient.getProject(), N = this.apiClient.getLocation();
-      A && N && (I = `projects/${A}/locations/${N}/` + I);
+      A && N && (_ = `projects/${A}/locations/${N}/` + _);
     }
-    let y = {};
-    this.apiClient.isVertexAI() && ((i = e.config) === null || i === void 0 ? void 0 : i.responseModalities) === void 0 && (e.config === void 0 ? e.config = { responseModalities: [ve.AUDIO] } : e.config.responseModalities = [ve.AUDIO]), !((r = e.config) === null || r === void 0) && r.generationConfig && console.warn("Setting `LiveConnectConfig.generation_config` is deprecated, please set the fields on `LiveConnectConfig` directly. This will become an error in a future version (not before Q3 2025).");
-    const R = (u = (a = e.config) === null || a === void 0 ? void 0 : a.tools) !== null && u !== void 0 ? u : [], M = [];
+    let C = {};
+    this.apiClient.isVertexAI() && ((i = e.config) === null || i === void 0 ? void 0 : i.responseModalities) === void 0 && (e.config === void 0 ? e.config = { responseModalities: [Re.AUDIO] } : e.config.responseModalities = [Re.AUDIO]), !((r = e.config) === null || r === void 0) && r.generationConfig && console.warn("Setting `LiveConnectConfig.generation_config` is deprecated, please set the fields on `LiveConnectConfig` directly. This will become an error in a future version (not before Q3 2025).");
+    const R = (u = (a = e.config) === null || a === void 0 ? void 0 : a.tools) !== null && u !== void 0 ? u : [], P = [];
     for (const A of R)
       if (this.isCallableTool(A)) {
         const N = A;
-        M.push(await N.tool());
+        P.push(await N.tool());
       } else
-        M.push(A);
-    M.length > 0 && (e.config.tools = M);
+        P.push(A);
+    P.length > 0 && (e.config.tools = P);
     const D = {
-      model: I,
+      model: _,
       config: e.config,
       callbacks: e.callbacks
     };
-    return this.apiClient.isVertexAI() ? y = Vr(this.apiClient, D) : y = Gr(this.apiClient, D), delete y.config, E.send(JSON.stringify(y)), new Su(E, this.apiClient);
+    return this.apiClient.isVertexAI() ? C = Br(this.apiClient, D) : C = qr(this.apiClient, D), delete C.config, I.send(JSON.stringify(C)), new Ru(I, this.apiClient);
   }
   // TODO: b/416041229 - Abstract this method to a common place.
   isCallableTool(e) {
     return "callTool" in e && typeof e.callTool == "function";
   }
 }
-const Eu = {
+const Au = {
   turnComplete: !0
 };
-class Su {
-  constructor(e, t) {
-    this.conn = e, this.apiClient = t;
+class Ru {
+  constructor(e, n) {
+    this.conn = e, this.apiClient = n;
   }
-  tLiveClientContent(e, t) {
-    if (t.turns !== null && t.turns !== void 0) {
+  tLiveClientContent(e, n) {
+    if (n.turns !== null && n.turns !== void 0) {
       let o = [];
       try {
-        o = b(t.turns), e.isVertexAI() || (o = o.map((i) => Ne(i)));
+        o = J(n.turns), e.isVertexAI() || (o = o.map((i) => De(i)));
       } catch {
-        throw new Error(`Failed to parse client content "turns", type: '${typeof t.turns}'`);
+        throw new Error(`Failed to parse client content "turns", type: '${typeof n.turns}'`);
       }
       return {
-        clientContent: { turns: o, turnComplete: t.turnComplete }
+        clientContent: { turns: o, turnComplete: n.turnComplete }
       };
     }
     return {
-      clientContent: { turnComplete: t.turnComplete }
+      clientContent: { turnComplete: n.turnComplete }
     };
   }
-  tLiveClienttToolResponse(e, t) {
+  tLiveClienttToolResponse(e, n) {
     let o = [];
-    if (t.functionResponses == null)
+    if (n.functionResponses == null)
       throw new Error("functionResponses is required.");
-    if (Array.isArray(t.functionResponses) ? o = t.functionResponses : o = [t.functionResponses], o.length === 0)
+    if (Array.isArray(n.functionResponses) ? o = n.functionResponses : o = [n.functionResponses], o.length === 0)
       throw new Error("functionResponses is required.");
     for (const r of o) {
       if (typeof r != "object" || r === null || !("name" in r) || !("response" in r))
         throw new Error(`Could not parse function response, type '${typeof r}'.`);
       if (!e.isVertexAI() && !("id" in r))
-        throw new Error(Tu);
+        throw new Error(Su);
     }
     return {
       toolResponse: { functionResponses: o }
@@ -8219,9 +8257,9 @@ class Su {
       @experimental
      */
   sendClientContent(e) {
-    e = Object.assign(Object.assign({}, Eu), e);
-    const t = this.tLiveClientContent(this.apiClient, e);
-    this.conn.send(JSON.stringify(t));
+    e = Object.assign(Object.assign({}, Au), e);
+    const n = this.tLiveClientContent(this.apiClient, e);
+    this.conn.send(JSON.stringify(n));
   }
   /**
       Send a realtime message over the established connection.
@@ -8246,12 +8284,12 @@ class Su {
       of audio and image mimetypes are allowed.
      */
   sendRealtimeInput(e) {
-    let t = {};
-    this.apiClient.isVertexAI() ? t = {
-      realtimeInput: Br(e)
-    } : t = {
-      realtimeInput: br(e)
-    }, this.conn.send(JSON.stringify(t));
+    let n = {};
+    this.apiClient.isVertexAI() ? n = {
+      realtimeInput: Wr(e)
+    } : n = {
+      realtimeInput: $r(e)
+    }, this.conn.send(JSON.stringify(n));
   }
   /**
       Send a function response message over the established connection.
@@ -8270,8 +8308,8 @@ class Su {
   sendToolResponse(e) {
     if (e.functionResponses == null)
       throw new Error("Tool response parameters are required.");
-    const t = this.tLiveClienttToolResponse(this.apiClient, e);
-    this.conn.send(JSON.stringify(t));
+    const n = this.tLiveClienttToolResponse(this.apiClient, e);
+    this.conn.send(JSON.stringify(n));
   }
   /**
        Terminates the WebSocket connection.
@@ -8300,16 +8338,16 @@ class Su {
     this.conn.close();
   }
 }
-function Iu(n) {
+function Pu(t) {
   const e = {};
-  return n.forEach((t, o) => {
-    e[o] = t;
+  return t.forEach((n, o) => {
+    e[o] = n;
   }), e;
 }
-function vu(n) {
+function wu(t) {
   const e = new Headers();
-  for (const [t, o] of Object.entries(n))
-    e.append(t, o);
+  for (const [n, o] of Object.entries(t))
+    e.append(n, o);
   return e;
 }
 /**
@@ -8317,98 +8355,98 @@ function vu(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Ht = 10;
-function qt(n) {
-  var e, t, o;
-  if (!((e = n == null ? void 0 : n.automaticFunctionCalling) === null || e === void 0) && e.disable)
+const bn = 10;
+function qn(t) {
+  var e, n, o;
+  if (!((e = t == null ? void 0 : t.automaticFunctionCalling) === null || e === void 0) && e.disable)
     return !0;
   let i = !1;
-  for (const a of (t = n == null ? void 0 : n.tools) !== null && t !== void 0 ? t : [])
-    if (ae(a)) {
+  for (const a of (n = t == null ? void 0 : t.tools) !== null && n !== void 0 ? n : [])
+    if (ue(a)) {
       i = !0;
       break;
     }
   if (!i)
     return !0;
-  const r = (o = n == null ? void 0 : n.automaticFunctionCalling) === null || o === void 0 ? void 0 : o.maximumRemoteCalls;
+  const r = (o = t == null ? void 0 : t.automaticFunctionCalling) === null || o === void 0 ? void 0 : o.maximumRemoteCalls;
   return r && (r < 0 || !Number.isInteger(r)) || r == 0 ? (console.warn("Invalid maximumRemoteCalls value provided for automatic function calling. Disabled automatic function calling. Please provide a valid integer value greater than 0. maximumRemoteCalls provided:", r), !0) : !1;
 }
-function ae(n) {
-  return "callTool" in n && typeof n.callTool == "function";
+function ue(t) {
+  return "callTool" in t && typeof t.callTool == "function";
 }
-function Au(n) {
-  var e, t, o;
-  return (o = (t = (e = n.config) === null || e === void 0 ? void 0 : e.tools) === null || t === void 0 ? void 0 : t.some((i) => ae(i))) !== null && o !== void 0 ? o : !1;
+function Mu(t) {
+  var e, n, o;
+  return (o = (n = (e = t.config) === null || e === void 0 ? void 0 : e.tools) === null || n === void 0 ? void 0 : n.some((i) => ue(i))) !== null && o !== void 0 ? o : !1;
 }
-function bt(n) {
+function Bn(t) {
   var e;
-  const t = [];
-  return !((e = n == null ? void 0 : n.config) === null || e === void 0) && e.tools && n.config.tools.forEach((o, i) => {
-    if (ae(o))
+  const n = [];
+  return !((e = t == null ? void 0 : t.config) === null || e === void 0) && e.tools && t.config.tools.forEach((o, i) => {
+    if (ue(o))
       return;
     const r = o;
-    r.functionDeclarations && r.functionDeclarations.length > 0 && t.push(i);
-  }), t;
+    r.functionDeclarations && r.functionDeclarations.length > 0 && n.push(i);
+  }), n;
 }
-function Bt(n) {
+function Jn(t) {
   var e;
-  return !(!((e = n == null ? void 0 : n.automaticFunctionCalling) === null || e === void 0) && e.ignoreCallHistory);
+  return !(!((e = t == null ? void 0 : t.automaticFunctionCalling) === null || e === void 0) && e.ignoreCallHistory);
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Ru extends z {
+class Nu extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.generateContent = async (t) => {
+    super(), this.apiClient = e, this.generateContent = async (n) => {
       var o, i, r, a, u;
-      const c = await this.processParamsMaybeAddMcpUsage(t);
-      if (this.maybeMoveToResponseJsonSchem(t), !Au(t) || qt(t.config))
-        return await this.generateContentInternal(c);
-      const d = bt(t);
-      if (d.length > 0) {
-        const _ = d.map((T) => `tools[${T}]`).join(", ");
-        throw new Error(`Automatic function calling with CallableTools (or MCP objects) and basic FunctionDeclarations is not yet supported. Incompatible tools found at ${_}.`);
-      }
-      let f, m;
-      const p = b(c.contents), h = (r = (i = (o = c.config) === null || o === void 0 ? void 0 : o.automaticFunctionCalling) === null || i === void 0 ? void 0 : i.maximumRemoteCalls) !== null && r !== void 0 ? r : Ht;
-      let g = 0;
-      for (; g < h && (f = await this.generateContentInternal(c), !(!f.functionCalls || f.functionCalls.length === 0)); ) {
-        const _ = f.candidates[0].content, T = [];
-        for (const C of (u = (a = t.config) === null || a === void 0 ? void 0 : a.tools) !== null && u !== void 0 ? u : [])
-          if (ae(C)) {
-            const E = await C.callTool(f.functionCalls);
-            T.push(...E);
-          }
-        g++, m = {
-          role: "user",
-          parts: T
-        }, c.contents = b(c.contents), c.contents.push(_), c.contents.push(m), Bt(c.config) && (p.push(_), p.push(m));
-      }
-      return Bt(c.config) && (f.automaticFunctionCallingHistory = p), f;
-    }, this.generateContentStream = async (t) => {
-      var o, i, r, a, u;
-      if (this.maybeMoveToResponseJsonSchem(t), qt(t.config)) {
-        const m = await this.processParamsMaybeAddMcpUsage(t);
-        return await this.generateContentStreamInternal(m);
-      }
-      const c = bt(t);
+      const d = await this.processParamsMaybeAddMcpUsage(n);
+      if (this.maybeMoveToResponseJsonSchem(n), !Mu(n) || qn(n.config))
+        return await this.generateContentInternal(d);
+      const c = Bn(n);
       if (c.length > 0) {
-        const m = c.map((p) => `tools[${p}]`).join(", ");
-        throw new Error(`Incompatible tools found at ${m}. Automatic function calling with CallableTools (or MCP objects) and basic FunctionDeclarations" is not yet supported.`);
+        const T = c.map((y) => `tools[${y}]`).join(", ");
+        throw new Error(`Automatic function calling with CallableTools (or MCP objects) and basic FunctionDeclarations is not yet supported. Incompatible tools found at ${T}.`);
       }
-      const d = (r = (i = (o = t == null ? void 0 : t.config) === null || o === void 0 ? void 0 : o.toolConfig) === null || i === void 0 ? void 0 : i.functionCallingConfig) === null || r === void 0 ? void 0 : r.streamFunctionCallArguments, f = (u = (a = t == null ? void 0 : t.config) === null || a === void 0 ? void 0 : a.automaticFunctionCalling) === null || u === void 0 ? void 0 : u.disable;
-      if (d && !f)
+      let f, p;
+      const h = J(d.contents), m = (r = (i = (o = d.config) === null || o === void 0 ? void 0 : o.automaticFunctionCalling) === null || i === void 0 ? void 0 : i.maximumRemoteCalls) !== null && r !== void 0 ? r : bn;
+      let g = 0;
+      for (; g < m && (f = await this.generateContentInternal(d), !(!f.functionCalls || f.functionCalls.length === 0)); ) {
+        const T = f.candidates[0].content, y = [];
+        for (const E of (u = (a = n.config) === null || a === void 0 ? void 0 : a.tools) !== null && u !== void 0 ? u : [])
+          if (ue(E)) {
+            const I = await E.callTool(f.functionCalls);
+            y.push(...I);
+          }
+        g++, p = {
+          role: "user",
+          parts: y
+        }, d.contents = J(d.contents), d.contents.push(T), d.contents.push(p), Jn(d.config) && (h.push(T), h.push(p));
+      }
+      return Jn(d.config) && (f.automaticFunctionCallingHistory = h), f;
+    }, this.generateContentStream = async (n) => {
+      var o, i, r, a, u;
+      if (this.maybeMoveToResponseJsonSchem(n), qn(n.config)) {
+        const p = await this.processParamsMaybeAddMcpUsage(n);
+        return await this.generateContentStreamInternal(p);
+      }
+      const d = Bn(n);
+      if (d.length > 0) {
+        const p = d.map((h) => `tools[${h}]`).join(", ");
+        throw new Error(`Incompatible tools found at ${p}. Automatic function calling with CallableTools (or MCP objects) and basic FunctionDeclarations" is not yet supported.`);
+      }
+      const c = (r = (i = (o = n == null ? void 0 : n.config) === null || o === void 0 ? void 0 : o.toolConfig) === null || i === void 0 ? void 0 : i.functionCallingConfig) === null || r === void 0 ? void 0 : r.streamFunctionCallArguments, f = (u = (a = n == null ? void 0 : n.config) === null || a === void 0 ? void 0 : a.automaticFunctionCalling) === null || u === void 0 ? void 0 : u.disable;
+      if (c && !f)
         throw new Error("Running in streaming mode with 'streamFunctionCallArguments' enabled, this feature is not compatible with automatic function calling (AFC). Please set 'config.automaticFunctionCalling.disable' to true to disable AFC or leave 'config.toolConfig.functionCallingConfig.streamFunctionCallArguments' to be undefined or set to false to disable streaming function call arguments feature.");
-      return await this.processAfcStream(t);
-    }, this.generateImages = async (t) => await this.generateImagesInternal(t).then((o) => {
+      return await this.processAfcStream(n);
+    }, this.generateImages = async (n) => await this.generateImagesInternal(n).then((o) => {
       var i;
       let r;
       const a = [];
       if (o != null && o.generatedImages)
-        for (const c of o.generatedImages)
-          c && (c != null && c.safetyAttributes) && ((i = c == null ? void 0 : c.safetyAttributes) === null || i === void 0 ? void 0 : i.contentType) === "Positive Prompt" ? r = c == null ? void 0 : c.safetyAttributes : a.push(c);
+        for (const d of o.generatedImages)
+          d && (d != null && d.safetyAttributes) && ((i = d == null ? void 0 : d.safetyAttributes) === null || i === void 0 ? void 0 : i.contentType) === "Positive Prompt" ? r = d == null ? void 0 : d.safetyAttributes : a.push(d);
       let u;
       return r ? u = {
         generatedImages: a,
@@ -8418,51 +8456,51 @@ class Ru extends z {
         generatedImages: a,
         sdkHttpResponse: o.sdkHttpResponse
       }, u;
-    }), this.list = async (t) => {
+    }), this.list = async (n) => {
       var o;
       const a = {
         config: Object.assign(Object.assign({}, {
           queryBase: !0
-        }), t == null ? void 0 : t.config)
+        }), n == null ? void 0 : n.config)
       };
       if (this.apiClient.isVertexAI() && !a.config.queryBase) {
         if (!((o = a.config) === null || o === void 0) && o.filter)
           throw new Error("Filtering tuned models list for Vertex AI is not currently supported");
         a.config.filter = "labels.tune-type:*";
       }
-      return new te(Y.PAGED_ITEM_MODELS, (u) => this.listInternal(u), await this.listInternal(a), a);
-    }, this.editImage = async (t) => {
+      return new oe(z.PAGED_ITEM_MODELS, (u) => this.listInternal(u), await this.listInternal(a), a);
+    }, this.editImage = async (n) => {
       const o = {
-        model: t.model,
-        prompt: t.prompt,
+        model: n.model,
+        prompt: n.prompt,
         referenceImages: [],
-        config: t.config
+        config: n.config
       };
-      return t.referenceImages && t.referenceImages && (o.referenceImages = t.referenceImages.map((i) => i.toReferenceImageAPI())), await this.editImageInternal(o);
-    }, this.upscaleImage = async (t) => {
+      return n.referenceImages && n.referenceImages && (o.referenceImages = n.referenceImages.map((i) => i.toReferenceImageAPI())), await this.editImageInternal(o);
+    }, this.upscaleImage = async (n) => {
       let o = {
         numberOfImages: 1,
         mode: "upscale"
       };
-      t.config && (o = Object.assign(Object.assign({}, o), t.config));
+      n.config && (o = Object.assign(Object.assign({}, o), n.config));
       const i = {
-        model: t.model,
-        image: t.image,
-        upscaleFactor: t.upscaleFactor,
+        model: n.model,
+        image: n.image,
+        upscaleFactor: n.upscaleFactor,
         config: o
       };
       return await this.upscaleImageInternal(i);
-    }, this.generateVideos = async (t) => {
-      var o, i, r, a, u, c;
-      if ((t.prompt || t.image || t.video) && t.source)
+    }, this.generateVideos = async (n) => {
+      var o, i, r, a, u, d;
+      if ((n.prompt || n.image || n.video) && n.source)
         throw new Error("Source and prompt/image/video are mutually exclusive. Please only use source.");
-      return this.apiClient.isVertexAI() || (!((o = t.video) === null || o === void 0) && o.uri && (!((i = t.video) === null || i === void 0) && i.videoBytes) ? t.video = {
-        uri: t.video.uri,
-        mimeType: t.video.mimeType
-      } : !((a = (r = t.source) === null || r === void 0 ? void 0 : r.video) === null || a === void 0) && a.uri && (!((c = (u = t.source) === null || u === void 0 ? void 0 : u.video) === null || c === void 0) && c.videoBytes) && (t.source.video = {
-        uri: t.source.video.uri,
-        mimeType: t.source.video.mimeType
-      })), await this.generateVideosInternal(t);
+      return this.apiClient.isVertexAI() || (!((o = n.video) === null || o === void 0) && o.uri && (!((i = n.video) === null || i === void 0) && i.videoBytes) ? n.video = {
+        uri: n.video.uri,
+        mimeType: n.video.mimeType
+      } : !((a = (r = n.source) === null || r === void 0 ? void 0 : r.video) === null || a === void 0) && a.uri && (!((d = (u = n.source) === null || u === void 0 ? void 0 : u.video) === null || d === void 0) && d.videoBytes) && (n.source.video = {
+        uri: n.source.video.uri,
+        mimeType: n.source.video.mimeType
+      })), await this.generateVideosInternal(n);
     };
   }
   /**
@@ -8482,205 +8520,205 @@ class Ru extends z {
    * MCP tools in the parameters.
    */
   async processParamsMaybeAddMcpUsage(e) {
-    var t, o, i;
-    const r = (t = e.config) === null || t === void 0 ? void 0 : t.tools;
+    var n, o, i;
+    const r = (n = e.config) === null || n === void 0 ? void 0 : n.tools;
     if (!r)
       return e;
-    const a = await Promise.all(r.map(async (c) => ae(c) ? await c.tool() : c)), u = {
+    const a = await Promise.all(r.map(async (d) => ue(d) ? await d.tool() : d)), u = {
       model: e.model,
       contents: e.contents,
       config: Object.assign(Object.assign({}, e.config), { tools: a })
     };
-    if (u.config.tools = a, e.config && e.config.tools && Eo(e.config.tools)) {
-      const c = (i = (o = e.config.httpOptions) === null || o === void 0 ? void 0 : o.headers) !== null && i !== void 0 ? i : {};
-      let d = Object.assign({}, c);
-      Object.keys(d).length === 0 && (d = this.apiClient.getDefaultHeaders()), So(d), u.config.httpOptions = Object.assign(Object.assign({}, e.config.httpOptions), { headers: d });
+    if (u.config.tools = a, e.config && e.config.tools && So(e.config.tools)) {
+      const d = (i = (o = e.config.httpOptions) === null || o === void 0 ? void 0 : o.headers) !== null && i !== void 0 ? i : {};
+      let c = Object.assign({}, d);
+      Object.keys(c).length === 0 && (c = this.apiClient.getDefaultHeaders()), Io(c), u.config.httpOptions = Object.assign(Object.assign({}, e.config.httpOptions), { headers: c });
     }
     return u;
   }
   async initAfcToolsMap(e) {
-    var t, o, i;
+    var n, o, i;
     const r = /* @__PURE__ */ new Map();
-    for (const a of (o = (t = e.config) === null || t === void 0 ? void 0 : t.tools) !== null && o !== void 0 ? o : [])
-      if (ae(a)) {
-        const u = a, c = await u.tool();
-        for (const d of (i = c.functionDeclarations) !== null && i !== void 0 ? i : []) {
-          if (!d.name)
+    for (const a of (o = (n = e.config) === null || n === void 0 ? void 0 : n.tools) !== null && o !== void 0 ? o : [])
+      if (ue(a)) {
+        const u = a, d = await u.tool();
+        for (const c of (i = d.functionDeclarations) !== null && i !== void 0 ? i : []) {
+          if (!c.name)
             throw new Error("Function declaration name is required.");
-          if (r.has(d.name))
-            throw new Error(`Duplicate tool declaration name: ${d.name}`);
-          r.set(d.name, u);
+          if (r.has(c.name))
+            throw new Error(`Duplicate tool declaration name: ${c.name}`);
+          r.set(c.name, u);
         }
       }
     return r;
   }
   async processAfcStream(e) {
-    var t, o, i;
-    const r = (i = (o = (t = e.config) === null || t === void 0 ? void 0 : t.automaticFunctionCalling) === null || o === void 0 ? void 0 : o.maximumRemoteCalls) !== null && i !== void 0 ? i : Ht;
+    var n, o, i;
+    const r = (i = (o = (n = e.config) === null || n === void 0 ? void 0 : n.automaticFunctionCalling) === null || o === void 0 ? void 0 : o.maximumRemoteCalls) !== null && i !== void 0 ? i : bn;
     let a = !1, u = 0;
-    const c = await this.initAfcToolsMap(e);
-    return function(d, f, m) {
-      return J(this, arguments, function* () {
-        for (var p, h, g, _, T, C; u < r; ) {
+    const d = await this.initAfcToolsMap(e);
+    return function(c, f, p) {
+      return $(this, arguments, function* () {
+        for (var h, m, g, T, y, E; u < r; ) {
           a && (u++, a = !1);
-          const y = yield w(d.processParamsMaybeAddMcpUsage(m)), R = yield w(d.generateContentStreamInternal(y)), M = [], D = [];
+          const C = yield M(c.processParamsMaybeAddMcpUsage(p)), R = yield M(c.generateContentStreamInternal(C)), P = [], D = [];
           try {
-            for (var S = !0, E = (h = void 0, O(R)), I; I = yield w(E.next()), p = I.done, !p; S = !0) {
-              _ = I.value, S = !1;
-              const A = _;
-              if (yield yield w(A), A.candidates && (!((T = A.candidates[0]) === null || T === void 0) && T.content)) {
+            for (var S = !0, I = (m = void 0, W(R)), _; _ = yield M(I.next()), h = _.done, !h; S = !0) {
+              T = _.value, S = !1;
+              const A = T;
+              if (yield yield M(A), A.candidates && (!((y = A.candidates[0]) === null || y === void 0) && y.content)) {
                 D.push(A.candidates[0].content);
-                for (const N of (C = A.candidates[0].content.parts) !== null && C !== void 0 ? C : [])
+                for (const N of (E = A.candidates[0].content.parts) !== null && E !== void 0 ? E : [])
                   if (u < r && N.functionCall) {
                     if (!N.functionCall.name)
                       throw new Error("Function call name was not returned by the model.");
                     if (f.has(N.functionCall.name)) {
-                      const k = yield w(f.get(N.functionCall.name).callTool([N.functionCall]));
-                      M.push(...k);
+                      const x = yield M(f.get(N.functionCall.name).callTool([N.functionCall]));
+                      P.push(...x);
                     } else
                       throw new Error(`Automatic function calling was requested, but not all the tools the model used implement the CallableTool interface. Available tools: ${f.keys()}, mising tool: ${N.functionCall.name}`);
                   }
               }
             }
           } catch (A) {
-            h = { error: A };
+            m = { error: A };
           } finally {
             try {
-              !S && !p && (g = E.return) && (yield w(g.call(E)));
+              !S && !h && (g = I.return) && (yield M(g.call(I)));
             } finally {
-              if (h) throw h.error;
+              if (m) throw m.error;
             }
           }
-          if (M.length > 0) {
+          if (P.length > 0) {
             a = !0;
-            const A = new fe();
+            const A = new pe();
             A.candidates = [
               {
                 content: {
                   role: "user",
-                  parts: M
+                  parts: P
                 }
               }
-            ], yield yield w(A);
+            ], yield yield M(A);
             const N = [];
             N.push(...D), N.push({
               role: "user",
-              parts: M
+              parts: P
             });
-            const k = b(m.contents).concat(N);
-            m.contents = k;
+            const x = J(p.contents).concat(N);
+            p.contents = x;
           } else
             break;
         }
       });
-    }(this, c, e);
+    }(this, d, e);
   }
   async generateContentInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Lt(this.apiClient, e);
-      return u = v("{model}:generateContent", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Gn(this.apiClient, e);
+      return u = v("{model}:generateContent", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Gt(f), p = new fe();
-        return Object.assign(p, m), p;
+        const p = Hn(f), h = new pe();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = Ut(this.apiClient, e);
-      return u = v("{model}:generateContent", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ln(this.apiClient, e);
+      return u = v("{model}:generateContent", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Ft(f), p = new fe();
-        return Object.assign(p, m), p;
+        const p = Fn(f), h = new pe();
+        return Object.assign(h, p), h;
       });
     }
   }
   async generateContentStreamInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Lt(this.apiClient, e);
-      return u = v("{model}:streamGenerateContent?alt=sse", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.requestStream({
+      const c = Gn(this.apiClient, e);
+      return u = v("{model}:streamGenerateContent?alt=sse", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.requestStream({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }), a.then(function(m) {
-        return J(this, arguments, function* () {
-          var p, h, g, _;
+      }), a.then(function(p) {
+        return $(this, arguments, function* () {
+          var h, m, g, T;
           try {
-            for (var T = !0, C = O(m), S; S = yield w(C.next()), p = S.done, !p; T = !0) {
-              _ = S.value, T = !1;
-              const E = _, I = Gt(yield w(E.json()), e);
-              I.sdkHttpResponse = {
-                headers: E.headers
+            for (var y = !0, E = W(p), S; S = yield M(E.next()), h = S.done, !h; y = !0) {
+              T = S.value, y = !1;
+              const I = T, _ = Hn(yield M(I.json()), e);
+              _.sdkHttpResponse = {
+                headers: I.headers
               };
-              const y = new fe();
-              Object.assign(y, I), yield yield w(y);
+              const C = new pe();
+              Object.assign(C, _), yield yield M(C);
             }
-          } catch (E) {
-            h = { error: E };
+          } catch (I) {
+            m = { error: I };
           } finally {
             try {
-              !T && !p && (g = C.return) && (yield w(g.call(C)));
+              !y && !h && (g = E.return) && (yield M(g.call(E)));
             } finally {
-              if (h) throw h.error;
+              if (m) throw m.error;
             }
           }
         });
       });
     } else {
-      const d = Ut(this.apiClient, e);
-      return u = v("{model}:streamGenerateContent?alt=sse", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.requestStream({
+      const c = Ln(this.apiClient, e);
+      return u = v("{model}:streamGenerateContent?alt=sse", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.requestStream({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }), a.then(function(m) {
-        return J(this, arguments, function* () {
-          var p, h, g, _;
+      }), a.then(function(p) {
+        return $(this, arguments, function* () {
+          var h, m, g, T;
           try {
-            for (var T = !0, C = O(m), S; S = yield w(C.next()), p = S.done, !p; T = !0) {
-              _ = S.value, T = !1;
-              const E = _, I = Ft(yield w(E.json()), e);
-              I.sdkHttpResponse = {
-                headers: E.headers
+            for (var y = !0, E = W(p), S; S = yield M(E.next()), h = S.done, !h; y = !0) {
+              T = S.value, y = !1;
+              const I = T, _ = Fn(yield M(I.json()), e);
+              _.sdkHttpResponse = {
+                headers: I.headers
               };
-              const y = new fe();
-              Object.assign(y, I), yield yield w(y);
+              const C = new pe();
+              Object.assign(C, _), yield yield M(C);
             }
-          } catch (E) {
-            h = { error: E };
+          } catch (I) {
+            m = { error: I };
           } finally {
             try {
-              !T && !p && (g = C.return) && (yield w(g.call(C)));
+              !y && !h && (g = E.return) && (yield M(g.call(E)));
             } finally {
-              if (h) throw h.error;
+              if (m) throw m.error;
             }
           }
         });
@@ -8709,43 +8747,43 @@ class Ru extends z {
    * ```
    */
   async embedContent(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Cl(this.apiClient, e);
-      return u = v("{model}:predict", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = vl(this.apiClient, e);
+      return u = v("{model}:predict", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Sl(f), p = new yt();
-        return Object.assign(p, m), p;
+        const p = Rl(f), h = new Tn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = _l(this.apiClient, e);
-      return u = v("{model}:batchEmbedContents", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Il(this.apiClient, e);
+      return u = v("{model}:batchEmbedContents", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = El(f), p = new yt();
-        return Object.assign(p, m), p;
+        const p = Al(f), h = new Tn();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -8753,43 +8791,43 @@ class Ru extends z {
    * Private method for generating images.
    */
   async generateImagesInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = kl(this.apiClient, e);
-      return u = v("{model}:predict", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Fl(this.apiClient, e);
+      return u = v("{model}:predict", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Ll(f), p = new Tt();
-        return Object.assign(p, m), p;
+        const p = Vl(f), h = new Cn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = Dl(this.apiClient, e);
-      return u = v("{model}:predict", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Gl(this.apiClient, e);
+      return u = v("{model}:predict", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Ul(f), p = new Tt();
-        return Object.assign(p, m), p;
+        const p = Hl(f), h = new Cn();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -8797,25 +8835,25 @@ class Ru extends z {
    * Private method for editing an image.
    */
   async editImageInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = hl(this.apiClient, e);
+      const u = Cl(this.apiClient, e);
       return r = v("{model}:predict", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => {
-        const d = gl(c), f = new Ci();
-        return Object.assign(f, d), f;
+      })), i.then((d) => {
+        const c = _l(d), f = new vi();
+        return Object.assign(f, c), f;
       });
     } else
       throw new Error("This method is only supported by the Vertex AI.");
@@ -8824,25 +8862,25 @@ class Ru extends z {
    * Private method for upscaling an image.
    */
   async upscaleImageInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = ka(this.apiClient, e);
+      const u = Fa(this.apiClient, e);
       return r = v("{model}:predict", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => {
-        const d = Ua(c), f = new Ei();
-        return Object.assign(f, d), f;
+      })), i.then((d) => {
+        const c = Ha(d), f = new Ai();
+        return Object.assign(f, c), f;
       });
     } else
       throw new Error("This method is only supported by the Vertex AI.");
@@ -8886,20 +8924,20 @@ class Ru extends z {
    * ```
    */
   async recontextImage(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = ma(this.apiClient, e);
+      const u = Ta(this.apiClient, e);
       return r = v("{model}:predict", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = ha(c), f = new Si();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = Ca(d), f = new Ri();
+        return Object.assign(f, c), f;
       });
     } else
       throw new Error("This method is only supported by the Vertex AI.");
@@ -8925,20 +8963,20 @@ class Ru extends z {
    * ```
    */
   async segmentImage(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = Ea(this.apiClient, e);
+      const u = Aa(this.apiClient, e);
       return r = v("{model}:predict", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = Sa(c), f = new Ii();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = Ra(d), f = new Pi();
+        return Object.assign(f, c), f;
       });
     } else
       throw new Error("This method is only supported by the Vertex AI.");
@@ -8952,68 +8990,68 @@ class Ru extends z {
    * ```
    */
   async get(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Zl(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = na(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ye(f));
+      }).then((f) => f.json()), a.then((f) => ze(f));
     } else {
-      const d = Ql(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = ta(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ke(f));
+      }).then((f) => f.json()), a.then((f) => Ye(f));
     }
   }
   async listInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = la(this.apiClient, e);
-      return u = v("{models_url}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = ca(this.apiClient, e);
+      return u = v("{models_url}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = ua(f), p = new _t();
-        return Object.assign(p, m), p;
+        const p = pa(f), h = new _n();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = ra(this.apiClient, e);
-      return u = v("{models_url}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = da(this.apiClient, e);
+      return u = v("{models_url}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = aa(f), p = new _t();
-        return Object.assign(p, m), p;
+        const p = fa(f), h = new _n();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -9035,28 +9073,28 @@ class Ru extends z {
    * ```
    */
   async update(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = xa(this.apiClient, e);
-      return u = v("{model}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = La(this.apiClient, e);
+      return u = v("{model}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "PATCH",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ye(f));
+      }).then((f) => f.json()), a.then((f) => ze(f));
     } else {
-      const d = Na(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ua(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "PATCH",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json()), a.then((f) => Ke(f));
+      }).then((f) => f.json()), a.then((f) => Ye(f));
     }
   }
   /**
@@ -9071,43 +9109,43 @@ class Ru extends z {
    * ```
    */
   async delete(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = cl(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = ml(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = pl(f), p = new Ct();
-        return Object.assign(p, m), p;
+        const p = yl(f), h = new En();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = dl(this.apiClient, e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = hl(this.apiClient, e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "DELETE",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = fl(f), p = new Ct();
-        return Object.assign(p, m), p;
+        const p = gl(f), h = new En();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -9128,43 +9166,43 @@ class Ru extends z {
    * ```
    */
   async countTokens(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = ll(this.apiClient, e);
-      return u = v("{model}:countTokens", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = cl(this.apiClient, e);
+      return u = v("{model}:countTokens", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = ul(f), p = new Et();
-        return Object.assign(p, m), p;
+        const p = pl(f), h = new Sn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = rl(this.apiClient, e);
-      return u = v("{model}:countTokens", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = dl(this.apiClient, e);
+      return u = v("{model}:countTokens", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = al(f), p = new Et();
-        return Object.assign(p, m), p;
+        const p = fl(f), h = new Sn();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -9187,25 +9225,25 @@ class Ru extends z {
    * ```
    */
   async computeTokens(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = jr(this.apiClient, e);
+      const u = ol(this.apiClient, e);
       return r = v("{model}:computeTokens", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => {
-        const d = el(c), f = new vi();
-        return Object.assign(f, d), f;
+      })), i.then((d) => {
+        const c = il(d), f = new wi();
+        return Object.assign(f, c), f;
       });
     } else
       throw new Error("This method is only supported by the Vertex AI.");
@@ -9214,33 +9252,33 @@ class Ru extends z {
    * Private method for generating videos.
    */
   async generateVideosInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = bl(this.apiClient, e);
-      return u = v("{model}:predictLongRunning", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = $l(this.apiClient, e);
+      return u = v("{model}:predictLongRunning", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       }).then((f) => f.json()), a.then((f) => {
-        const m = Hl(f), p = new Ae();
-        return Object.assign(p, m), p;
+        const p = Jl(f), h = new Pe();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = ql(this.apiClient, e);
-      return u = v("{model}:predictLongRunning", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ol(this.apiClient, e);
+      return u = v("{model}:predictLongRunning", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
       }).then((f) => f.json()), a.then((f) => {
-        const m = Vl(f), p = new Ae();
-        return Object.assign(p, m), p;
+        const p = Bl(f), h = new Pe();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -9250,7 +9288,7 @@ class Ru extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Pu extends z {
+class xu extends X {
   constructor(e) {
     super(), this.apiClient = e;
   }
@@ -9261,28 +9299,28 @@ class Pu extends z {
    * @return The updated Operation object, with the latest status or result.
    */
   async getVideosOperation(e) {
-    const t = e.operation, o = e.config;
-    if (t.name === void 0 || t.name === "")
+    const n = e.operation, o = e.config;
+    if (n.name === void 0 || n.name === "")
       throw new Error("Operation name is required.");
     if (this.apiClient.isVertexAI()) {
-      const i = t.name.split("/operations/")[0];
+      const i = n.name.split("/operations/")[0];
       let r;
       o && "httpOptions" in o && (r = o.httpOptions);
       const a = await this.fetchPredictVideosOperationInternal({
-        operationName: t.name,
+        operationName: n.name,
         resourceName: i,
         config: { httpOptions: r }
       });
-      return t._fromAPIResponse({
+      return n._fromAPIResponse({
         apiResponse: a,
         _isVertexAI: !0
       });
     } else {
       const i = await this.getVideosOperationInternal({
-        operationName: t.name,
+        operationName: n.name,
         config: o
       });
-      return t._fromAPIResponse({
+      return n._fromAPIResponse({
         apiResponse: i,
         _isVertexAI: !1
       });
@@ -9295,52 +9333,52 @@ class Pu extends z {
    * @return The updated Operation object, with the latest status or result.
    */
   async get(e) {
-    const t = e.operation, o = e.config;
-    if (t.name === void 0 || t.name === "")
+    const n = e.operation, o = e.config;
+    if (n.name === void 0 || n.name === "")
       throw new Error("Operation name is required.");
     if (this.apiClient.isVertexAI()) {
-      const i = t.name.split("/operations/")[0];
+      const i = n.name.split("/operations/")[0];
       let r;
       o && "httpOptions" in o && (r = o.httpOptions);
       const a = await this.fetchPredictVideosOperationInternal({
-        operationName: t.name,
+        operationName: n.name,
         resourceName: i,
         config: { httpOptions: r }
       });
-      return t._fromAPIResponse({
+      return n._fromAPIResponse({
         apiResponse: a,
         _isVertexAI: !0
       });
     } else {
       const i = await this.getVideosOperationInternal({
-        operationName: t.name,
+        operationName: n.name,
         config: o
       });
-      return t._fromAPIResponse({
+      return n._fromAPIResponse({
         apiResponse: i,
         _isVertexAI: !1
       });
     }
   }
   async getVideosOperationInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = mi(e);
-      return u = v("{operationName}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Ti(e);
+      return u = v("{operationName}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       }).then((f) => f.json()), a;
     } else {
-      const d = pi(e);
-      return u = v("{operationName}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = yi(e);
+      return u = v("{operationName}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
@@ -9348,18 +9386,18 @@ class Pu extends z {
     }
   }
   async fetchPredictVideosOperationInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = ri(e);
+      const u = di(e);
       return r = v("{resourceName}:fetchPredictOperation", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i;
+      }).then((d) => d.json()), i;
     } else
       throw new Error("This method is only supported by the Vertex AI.");
   }
@@ -9369,261 +9407,261 @@ class Pu extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function wu(n) {
-  const e = {}, t = s(n, ["data"]);
-  if (t != null && l(e, ["data"], t), s(n, ["displayName"]) !== void 0)
+function Du(t) {
+  const e = {}, n = s(t, ["data"]);
+  if (n != null && l(e, ["data"], n), s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const o = s(n, ["mimeType"]);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function Mu(n) {
-  const e = {}, t = s(n, ["parts"]);
-  if (t != null) {
-    let i = t;
-    Array.isArray(i) && (i = i.map((r) => Vu(r))), l(e, ["parts"], i);
+function ku(t) {
+  const e = {}, n = s(t, ["parts"]);
+  if (n != null) {
+    let i = n;
+    Array.isArray(i) && (i = i.map((r) => Bu(r))), l(e, ["parts"], i);
   }
-  const o = s(n, ["role"]);
+  const o = s(t, ["role"]);
   return o != null && l(e, ["role"], o), e;
 }
-function Nu(n, e, t) {
+function Uu(t, e, n) {
   const o = {}, i = s(e, ["expireTime"]);
-  t !== void 0 && i != null && l(t, ["expireTime"], i);
+  n !== void 0 && i != null && l(n, ["expireTime"], i);
   const r = s(e, [
     "newSessionExpireTime"
   ]);
-  t !== void 0 && r != null && l(t, ["newSessionExpireTime"], r);
+  n !== void 0 && r != null && l(n, ["newSessionExpireTime"], r);
   const a = s(e, ["uses"]);
-  t !== void 0 && a != null && l(t, ["uses"], a);
+  n !== void 0 && a != null && l(n, ["uses"], a);
   const u = s(e, [
     "liveConnectConstraints"
   ]);
-  t !== void 0 && u != null && l(t, ["bidiGenerateContentSetup"], Gu(n, u));
-  const c = s(e, [
+  n !== void 0 && u != null && l(n, ["bidiGenerateContentSetup"], qu(t, u));
+  const d = s(e, [
     "lockAdditionalFields"
   ]);
-  return t !== void 0 && c != null && l(t, ["fieldMask"], c), o;
+  return n !== void 0 && d != null && l(n, ["fieldMask"], d), o;
 }
-function xu(n, e) {
-  const t = {}, o = s(e, ["config"]);
-  return o != null && l(t, ["config"], Nu(n, o, t)), t;
+function Lu(t, e) {
+  const n = {}, o = s(e, ["config"]);
+  return o != null && l(n, ["config"], Uu(t, o, n)), n;
 }
-function Du(n) {
+function Gu(t) {
   const e = {};
-  if (s(n, ["displayName"]) !== void 0)
+  if (s(t, ["displayName"]) !== void 0)
     throw new Error("displayName parameter is not supported in Gemini API.");
-  const t = s(n, ["fileUri"]);
-  t != null && l(e, ["fileUri"], t);
-  const o = s(n, ["mimeType"]);
+  const n = s(t, ["fileUri"]);
+  n != null && l(e, ["fileUri"], n);
+  const o = s(t, ["mimeType"]);
   return o != null && l(e, ["mimeType"], o), e;
 }
-function ku(n) {
-  const e = {}, t = s(n, ["id"]);
-  t != null && l(e, ["id"], t);
-  const o = s(n, ["args"]);
+function Fu(t) {
+  const e = {}, n = s(t, ["id"]);
+  n != null && l(e, ["id"], n);
+  const o = s(t, ["args"]);
   o != null && l(e, ["args"], o);
-  const i = s(n, ["name"]);
-  if (i != null && l(e, ["name"], i), s(n, ["partialArgs"]) !== void 0)
+  const i = s(t, ["name"]);
+  if (i != null && l(e, ["name"], i), s(t, ["partialArgs"]) !== void 0)
     throw new Error("partialArgs parameter is not supported in Gemini API.");
-  if (s(n, ["willContinue"]) !== void 0)
+  if (s(t, ["willContinue"]) !== void 0)
     throw new Error("willContinue parameter is not supported in Gemini API.");
   return e;
 }
-function Uu(n) {
+function Hu(t) {
   const e = {};
-  if (s(n, ["authConfig"]) !== void 0)
+  if (s(t, ["authConfig"]) !== void 0)
     throw new Error("authConfig parameter is not supported in Gemini API.");
-  const t = s(n, ["enableWidget"]);
-  return t != null && l(e, ["enableWidget"], t), e;
+  const n = s(t, ["enableWidget"]);
+  return n != null && l(e, ["enableWidget"], n), e;
 }
-function Lu(n) {
+function Vu(t) {
   const e = {};
-  if (s(n, ["excludeDomains"]) !== void 0)
+  if (s(t, ["excludeDomains"]) !== void 0)
     throw new Error("excludeDomains parameter is not supported in Gemini API.");
-  if (s(n, ["blockingConfidence"]) !== void 0)
+  if (s(t, ["blockingConfidence"]) !== void 0)
     throw new Error("blockingConfidence parameter is not supported in Gemini API.");
-  const t = s(n, [
+  const n = s(t, [
     "timeRangeFilter"
   ]);
-  return t != null && l(e, ["timeRangeFilter"], t), e;
+  return n != null && l(e, ["timeRangeFilter"], n), e;
 }
-function Fu(n, e) {
-  const t = {}, o = s(n, [
+function bu(t, e) {
+  const n = {}, o = s(t, [
     "generationConfig"
   ]);
   e !== void 0 && o != null && l(e, ["setup", "generationConfig"], o);
-  const i = s(n, [
+  const i = s(t, [
     "responseModalities"
   ]);
   e !== void 0 && i != null && l(e, ["setup", "generationConfig", "responseModalities"], i);
-  const r = s(n, ["temperature"]);
+  const r = s(t, ["temperature"]);
   e !== void 0 && r != null && l(e, ["setup", "generationConfig", "temperature"], r);
-  const a = s(n, ["topP"]);
+  const a = s(t, ["topP"]);
   e !== void 0 && a != null && l(e, ["setup", "generationConfig", "topP"], a);
-  const u = s(n, ["topK"]);
+  const u = s(t, ["topK"]);
   e !== void 0 && u != null && l(e, ["setup", "generationConfig", "topK"], u);
-  const c = s(n, [
+  const d = s(t, [
     "maxOutputTokens"
   ]);
-  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], c);
-  const d = s(n, [
+  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "maxOutputTokens"], d);
+  const c = s(t, [
     "mediaResolution"
   ]);
-  e !== void 0 && d != null && l(e, ["setup", "generationConfig", "mediaResolution"], d);
-  const f = s(n, ["seed"]);
+  e !== void 0 && c != null && l(e, ["setup", "generationConfig", "mediaResolution"], c);
+  const f = s(t, ["seed"]);
   e !== void 0 && f != null && l(e, ["setup", "generationConfig", "seed"], f);
-  const m = s(n, ["speechConfig"]);
-  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "speechConfig"], dn(m));
-  const p = s(n, [
+  const p = s(t, ["speechConfig"]);
+  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "speechConfig"], dt(p));
+  const h = s(t, [
     "thinkingConfig"
   ]);
-  e !== void 0 && p != null && l(e, ["setup", "generationConfig", "thinkingConfig"], p);
-  const h = s(n, [
+  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "thinkingConfig"], h);
+  const m = s(t, [
     "enableAffectiveDialog"
   ]);
-  e !== void 0 && h != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], h);
-  const g = s(n, [
+  e !== void 0 && m != null && l(e, ["setup", "generationConfig", "enableAffectiveDialog"], m);
+  const g = s(t, [
     "systemInstruction"
   ]);
-  e !== void 0 && g != null && l(e, ["setup", "systemInstruction"], Mu(F(g)));
-  const _ = s(n, ["tools"]);
-  if (e !== void 0 && _ != null) {
-    let R = de(_);
-    Array.isArray(R) && (R = R.map((M) => qu(ue(M)))), l(e, ["setup", "tools"], R);
+  e !== void 0 && g != null && l(e, ["setup", "systemInstruction"], ku(F(g)));
+  const T = s(t, ["tools"]);
+  if (e !== void 0 && T != null) {
+    let R = ce(T);
+    Array.isArray(R) && (R = R.map((P) => Ou(de(P)))), l(e, ["setup", "tools"], R);
   }
-  const T = s(n, [
+  const y = s(t, [
     "sessionResumption"
   ]);
-  e !== void 0 && T != null && l(e, ["setup", "sessionResumption"], Hu(T));
-  const C = s(n, [
+  e !== void 0 && y != null && l(e, ["setup", "sessionResumption"], Ju(y));
+  const E = s(t, [
     "inputAudioTranscription"
   ]);
-  e !== void 0 && C != null && l(e, ["setup", "inputAudioTranscription"], C);
-  const S = s(n, [
+  e !== void 0 && E != null && l(e, ["setup", "inputAudioTranscription"], E);
+  const S = s(t, [
     "outputAudioTranscription"
   ]);
   e !== void 0 && S != null && l(e, ["setup", "outputAudioTranscription"], S);
-  const E = s(n, [
+  const I = s(t, [
     "realtimeInputConfig"
   ]);
-  e !== void 0 && E != null && l(e, ["setup", "realtimeInputConfig"], E);
-  const I = s(n, [
+  e !== void 0 && I != null && l(e, ["setup", "realtimeInputConfig"], I);
+  const _ = s(t, [
     "contextWindowCompression"
   ]);
-  e !== void 0 && I != null && l(e, ["setup", "contextWindowCompression"], I);
-  const y = s(n, ["proactivity"]);
-  if (e !== void 0 && y != null && l(e, ["setup", "proactivity"], y), s(n, ["explicitVadSignal"]) !== void 0)
+  e !== void 0 && _ != null && l(e, ["setup", "contextWindowCompression"], _);
+  const C = s(t, ["proactivity"]);
+  if (e !== void 0 && C != null && l(e, ["setup", "proactivity"], C), s(t, ["explicitVadSignal"]) !== void 0)
     throw new Error("explicitVadSignal parameter is not supported in Gemini API.");
-  return t;
+  return n;
 }
-function Gu(n, e) {
-  const t = {}, o = s(e, ["model"]);
-  o != null && l(t, ["setup", "model"], x(n, o));
+function qu(t, e) {
+  const n = {}, o = s(e, ["model"]);
+  o != null && l(n, ["setup", "model"], k(t, o));
   const i = s(e, ["config"]);
-  return i != null && l(t, ["config"], Fu(i, t)), t;
+  return i != null && l(n, ["config"], bu(i, n)), n;
 }
-function Vu(n) {
-  const e = {}, t = s(n, [
+function Bu(t) {
+  const e = {}, n = s(t, [
     "mediaResolution"
   ]);
-  t != null && l(e, ["mediaResolution"], t);
-  const o = s(n, [
+  n != null && l(e, ["mediaResolution"], n);
+  const o = s(t, [
     "codeExecutionResult"
   ]);
   o != null && l(e, ["codeExecutionResult"], o);
-  const i = s(n, [
+  const i = s(t, [
     "executableCode"
   ]);
   i != null && l(e, ["executableCode"], i);
-  const r = s(n, ["fileData"]);
-  r != null && l(e, ["fileData"], Du(r));
-  const a = s(n, ["functionCall"]);
-  a != null && l(e, ["functionCall"], ku(a));
-  const u = s(n, [
+  const r = s(t, ["fileData"]);
+  r != null && l(e, ["fileData"], Gu(r));
+  const a = s(t, ["functionCall"]);
+  a != null && l(e, ["functionCall"], Fu(a));
+  const u = s(t, [
     "functionResponse"
   ]);
   u != null && l(e, ["functionResponse"], u);
-  const c = s(n, ["inlineData"]);
-  c != null && l(e, ["inlineData"], wu(c));
-  const d = s(n, ["text"]);
-  d != null && l(e, ["text"], d);
-  const f = s(n, ["thought"]);
+  const d = s(t, ["inlineData"]);
+  d != null && l(e, ["inlineData"], Du(d));
+  const c = s(t, ["text"]);
+  c != null && l(e, ["text"], c);
+  const f = s(t, ["thought"]);
   f != null && l(e, ["thought"], f);
-  const m = s(n, [
+  const p = s(t, [
     "thoughtSignature"
   ]);
-  m != null && l(e, ["thoughtSignature"], m);
-  const p = s(n, [
+  p != null && l(e, ["thoughtSignature"], p);
+  const h = s(t, [
     "videoMetadata"
   ]);
-  return p != null && l(e, ["videoMetadata"], p), e;
+  return h != null && l(e, ["videoMetadata"], h), e;
 }
-function Hu(n) {
-  const e = {}, t = s(n, ["handle"]);
-  if (t != null && l(e, ["handle"], t), s(n, ["transparent"]) !== void 0)
+function Ju(t) {
+  const e = {}, n = s(t, ["handle"]);
+  if (n != null && l(e, ["handle"], n), s(t, ["transparent"]) !== void 0)
     throw new Error("transparent parameter is not supported in Gemini API.");
   return e;
 }
-function qu(n) {
+function Ou(t) {
   const e = {};
-  if (s(n, ["retrieval"]) !== void 0)
+  if (s(t, ["retrieval"]) !== void 0)
     throw new Error("retrieval parameter is not supported in Gemini API.");
-  const t = s(n, ["computerUse"]);
-  t != null && l(e, ["computerUse"], t);
-  const o = s(n, ["fileSearch"]);
+  const n = s(t, ["computerUse"]);
+  n != null && l(e, ["computerUse"], n);
+  const o = s(t, ["fileSearch"]);
   o != null && l(e, ["fileSearch"], o);
-  const i = s(n, [
+  const i = s(t, [
     "codeExecution"
   ]);
-  if (i != null && l(e, ["codeExecution"], i), s(n, ["enterpriseWebSearch"]) !== void 0)
+  if (i != null && l(e, ["codeExecution"], i), s(t, ["enterpriseWebSearch"]) !== void 0)
     throw new Error("enterpriseWebSearch parameter is not supported in Gemini API.");
-  const r = s(n, [
+  const r = s(t, [
     "functionDeclarations"
   ]);
   if (r != null) {
     let f = r;
-    Array.isArray(f) && (f = f.map((m) => m)), l(e, ["functionDeclarations"], f);
+    Array.isArray(f) && (f = f.map((p) => p)), l(e, ["functionDeclarations"], f);
   }
-  const a = s(n, ["googleMaps"]);
-  a != null && l(e, ["googleMaps"], Uu(a));
-  const u = s(n, ["googleSearch"]);
-  u != null && l(e, ["googleSearch"], Lu(u));
-  const c = s(n, [
+  const a = s(t, ["googleMaps"]);
+  a != null && l(e, ["googleMaps"], Hu(a));
+  const u = s(t, ["googleSearch"]);
+  u != null && l(e, ["googleSearch"], Vu(u));
+  const d = s(t, [
     "googleSearchRetrieval"
   ]);
-  c != null && l(e, ["googleSearchRetrieval"], c);
-  const d = s(n, ["urlContext"]);
-  return d != null && l(e, ["urlContext"], d), e;
+  d != null && l(e, ["googleSearchRetrieval"], d);
+  const c = s(t, ["urlContext"]);
+  return c != null && l(e, ["urlContext"], c), e;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function bu(n) {
+function $u(t) {
   const e = [];
-  for (const t in n)
-    if (Object.prototype.hasOwnProperty.call(n, t)) {
-      const o = n[t];
+  for (const n in t)
+    if (Object.prototype.hasOwnProperty.call(t, n)) {
+      const o = t[n];
       if (typeof o == "object" && o != null && Object.keys(o).length > 0) {
-        const i = Object.keys(o).map((r) => `${t}.${r}`);
+        const i = Object.keys(o).map((r) => `${n}.${r}`);
         e.push(...i);
       } else
-        e.push(t);
+        e.push(n);
     }
   return e.join(",");
 }
-function Bu(n, e) {
-  let t = null;
-  const o = n.bidiGenerateContentSetup;
+function Wu(t, e) {
+  let n = null;
+  const o = t.bidiGenerateContentSetup;
   if (typeof o == "object" && o !== null && "setup" in o) {
     const r = o.setup;
-    typeof r == "object" && r !== null ? (n.bidiGenerateContentSetup = r, t = r) : delete n.bidiGenerateContentSetup;
-  } else o !== void 0 && delete n.bidiGenerateContentSetup;
-  const i = n.fieldMask;
-  if (t) {
-    const r = bu(t);
+    typeof r == "object" && r !== null ? (t.bidiGenerateContentSetup = r, n = r) : delete t.bidiGenerateContentSetup;
+  } else o !== void 0 && delete t.bidiGenerateContentSetup;
+  const i = t.fieldMask;
+  if (n) {
+    const r = $u(n);
     if (Array.isArray(e == null ? void 0 : e.lockAdditionalFields) && (e == null ? void 0 : e.lockAdditionalFields.length) === 0)
-      r ? n.fieldMask = r : delete n.fieldMask;
+      r ? t.fieldMask = r : delete t.fieldMask;
     else if (e != null && e.lockAdditionalFields && e.lockAdditionalFields.length > 0 && i !== null && Array.isArray(i) && i.length > 0) {
       const a = [
         "temperature",
@@ -9635,16 +9673,16 @@ function Bu(n, e) {
         "speechConfig"
       ];
       let u = [];
-      i.length > 0 && (u = i.map((d) => a.includes(d) ? `generationConfig.${d}` : d));
-      const c = [];
-      r && c.push(r), u.length > 0 && c.push(...u), c.length > 0 ? n.fieldMask = c.join(",") : delete n.fieldMask;
+      i.length > 0 && (u = i.map((c) => a.includes(c) ? `generationConfig.${c}` : c));
+      const d = [];
+      r && d.push(r), u.length > 0 && d.push(...u), d.length > 0 ? t.fieldMask = d.join(",") : delete t.fieldMask;
     } else
-      delete n.fieldMask;
+      delete t.fieldMask;
   } else
-    i !== null && Array.isArray(i) && i.length > 0 ? n.fieldMask = i.join(",") : delete n.fieldMask;
-  return n;
+    i !== null && Array.isArray(i) && i.length > 0 ? t.fieldMask = i.join(",") : delete t.fieldMask;
+  return t;
 }
-class Ju extends z {
+class Ku extends X {
   constructor(e) {
     super(), this.apiClient = e;
   }
@@ -9732,22 +9770,22 @@ class Ju extends z {
    * ```
    */
   async create(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("The client.tokens.create method is only supported by the Gemini Developer API.");
     {
-      const u = xu(this.apiClient, e);
+      const u = Lu(this.apiClient, e);
       r = v("auth_tokens", u._url), a = u._query, delete u.config, delete u._url, delete u._query;
-      const c = Bu(u, e.config);
+      const d = Wu(u, e.config);
       return i = this.apiClient.request({
         path: r,
         queryParams: a,
-        body: JSON.stringify(c),
+        body: JSON.stringify(d),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((d) => d.json()), i.then((d) => d);
+      }).then((c) => c.json()), i.then((c) => c);
     }
   }
 }
@@ -9756,42 +9794,42 @@ class Ju extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Ou(n, e) {
-  const t = {}, o = s(n, ["force"]);
-  return e !== void 0 && o != null && l(e, ["_query", "force"], o), t;
+function Yu(t, e) {
+  const n = {}, o = s(t, ["force"]);
+  return e !== void 0 && o != null && l(e, ["_query", "force"], o), n;
 }
-function $u(n) {
-  const e = {}, t = s(n, ["name"]);
-  t != null && l(e, ["_url", "name"], t);
-  const o = s(n, ["config"]);
-  return o != null && Ou(o, e), e;
+function zu(t) {
+  const e = {}, n = s(t, ["name"]);
+  n != null && l(e, ["_url", "name"], n);
+  const o = s(t, ["config"]);
+  return o != null && Yu(o, e), e;
 }
-function Wu(n) {
-  const e = {}, t = s(n, ["name"]);
-  return t != null && l(e, ["_url", "name"], t), e;
+function Xu(t) {
+  const e = {}, n = s(t, ["name"]);
+  return n != null && l(e, ["_url", "name"], n), e;
 }
-function Ku(n, e) {
-  const t = {}, o = s(n, ["pageSize"]);
+function Qu(t, e) {
+  const n = {}, o = s(t, ["pageSize"]);
   e !== void 0 && o != null && l(e, ["_query", "pageSize"], o);
-  const i = s(n, ["pageToken"]);
-  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), t;
+  const i = s(t, ["pageToken"]);
+  return e !== void 0 && i != null && l(e, ["_query", "pageToken"], i), n;
 }
-function Yu(n) {
-  const e = {}, t = s(n, ["parent"]);
-  t != null && l(e, ["_url", "parent"], t);
-  const o = s(n, ["config"]);
-  return o != null && Ku(o, e), e;
+function Zu(t) {
+  const e = {}, n = s(t, ["parent"]);
+  n != null && l(e, ["_url", "parent"], n);
+  const o = s(t, ["config"]);
+  return o != null && Qu(o, e), e;
 }
-function zu(n) {
-  const e = {}, t = s(n, [
+function ju(t) {
+  const e = {}, n = s(t, [
     "sdkHttpResponse"
   ]);
-  t != null && l(e, ["sdkHttpResponse"], t);
-  const o = s(n, [
+  n != null && l(e, ["sdkHttpResponse"], n);
+  const o = s(t, [
     "nextPageToken"
   ]);
   o != null && l(e, ["nextPageToken"], o);
-  const i = s(n, ["documents"]);
+  const i = s(t, ["documents"]);
   if (i != null) {
     let r = i;
     Array.isArray(r) && (r = r.map((a) => a)), l(e, ["documents"], r);
@@ -9803,9 +9841,9 @@ function zu(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Xu extends z {
+class ed extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.list = async (t) => new te(Y.PAGED_ITEM_DOCUMENTS, (o) => this.listInternal({ parent: t.parent, config: o.config }), await this.listInternal(t), t);
+    super(), this.apiClient = e, this.list = async (n) => new oe(z.PAGED_ITEM_DOCUMENTS, (o) => this.listInternal({ parent: n.parent, config: o.config }), await this.listInternal(n), n);
   }
   /**
    * Gets a Document.
@@ -9814,20 +9852,20 @@ class Xu extends z {
    * @return Document.
    */
   async get(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Wu(e);
+      const u = Xu(e);
       return r = v("{name}", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => c);
+      }).then((d) => d.json()), i.then((d) => d);
     }
   }
   /**
@@ -9836,39 +9874,39 @@ class Xu extends z {
    * @param params - The parameters for deleting a document.
    */
   async delete(e) {
-    var t, o;
+    var n, o;
     let i = "", r = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const a = $u(e);
+      const a = zu(e);
       i = v("{name}", a._url), r = a._query, delete a._url, delete a._query, await this.apiClient.request({
         path: i,
         queryParams: r,
         body: JSON.stringify(a),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       });
     }
   }
   async listInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Yu(e);
+      const u = Zu(e);
       return r = v("{parent}/documents", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = zu(c), f = new Ai();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = ju(d), f = new Mi();
+        return Object.assign(f, c), f;
       });
     }
   }
@@ -9878,9 +9916,9 @@ class Xu extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Qu extends z {
-  constructor(e, t = new Xu(e)) {
-    super(), this.apiClient = e, this.documents = t, this.list = async (o = {}) => new te(Y.PAGED_ITEM_FILE_SEARCH_STORES, (i) => this.listInternal(i), await this.listInternal(o), o);
+class td extends X {
+  constructor(e, n = new ed(e)) {
+    super(), this.apiClient = e, this.documents = n, this.list = async (o = {}) => new oe(z.PAGED_ITEM_FILE_SEARCH_STORES, (i) => this.listInternal(i), await this.listInternal(o), o);
   }
   /**
    * Uploads a file asynchronously to a given File Search Store.
@@ -9930,20 +9968,20 @@ class Qu extends z {
    * @return FileSearchStore.
    */
   async create(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = ba(e);
+      const u = $a(e);
       return r = v("fileSearchStores", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => c);
+      }).then((d) => d.json()), i.then((d) => d);
     }
   }
   /**
@@ -9953,20 +9991,20 @@ class Qu extends z {
    * @return FileSearchStore.
    */
   async get(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Oa(e);
+      const u = Ya(e);
       return r = v("{name}", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => c);
+      }).then((d) => d.json()), i.then((d) => d);
     }
   }
   /**
@@ -9975,59 +10013,59 @@ class Qu extends z {
    * @param params - The parameters for deleting a File Search Store.
    */
   async delete(e) {
-    var t, o;
+    var n, o;
     let i = "", r = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const a = Ja(e);
+      const a = Ka(e);
       i = v("{name}", a._url), r = a._query, delete a._url, delete a._query, await this.apiClient.request({
         path: i,
         queryParams: r,
         body: JSON.stringify(a),
         httpMethod: "DELETE",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
       });
     }
   }
   async listInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Xa(e);
+      const u = eu(e);
       return r = v("fileSearchStores", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = Qa(c), f = new Ri();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = tu(d), f = new Ni();
+        return Object.assign(f, c), f;
       });
     }
   }
   async uploadToFileSearchStoreInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Za(e);
+      const u = nu(e);
       return r = v("upload/v1beta/{file_search_store_name}:uploadToFileSearchStore", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = ja(c), f = new Pi();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = ou(d), f = new xi();
+        return Object.assign(f, c), f;
       });
     }
   }
@@ -10040,22 +10078,22 @@ class Qu extends z {
    * @return ImportFileOperation.
    */
   async importFile(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Ka(e);
+      const u = Qa(e);
       return r = v("{file_search_store_name}:importFile", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json()), i.then((c) => {
-        const d = Wa(c), f = new sn();
-        return Object.assign(f, d), f;
+      }).then((d) => d.json()), i.then((d) => {
+        const c = Xa(d), f = new st();
+        return Object.assign(f, c), f;
       });
     }
   }
@@ -10065,124 +10103,124 @@ class Qu extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-let Io = function() {
-  const { crypto: n } = globalThis;
-  if (n != null && n.randomUUID)
-    return Io = n.randomUUID.bind(n), n.randomUUID();
-  const e = new Uint8Array(1), t = n ? () => n.getRandomValues(e)[0] : () => Math.random() * 255 & 255;
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (o) => (+o ^ t() & 15 >> +o / 4).toString(16));
+let vo = function() {
+  const { crypto: t } = globalThis;
+  if (t != null && t.randomUUID)
+    return vo = t.randomUUID.bind(t), t.randomUUID();
+  const e = new Uint8Array(1), n = t ? () => t.getRandomValues(e)[0] : () => Math.random() * 255 & 255;
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (o) => (+o ^ n() & 15 >> +o / 4).toString(16));
 };
-const Zu = () => Io();
+const nd = () => vo();
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Xe(n) {
-  return typeof n == "object" && n !== null && // Spec-compliant fetch implementations
-  ("name" in n && n.name === "AbortError" || // Expo fetch
-  "message" in n && String(n.message).includes("FetchRequestCanceledException"));
+function Qe(t) {
+  return typeof t == "object" && t !== null && // Spec-compliant fetch implementations
+  ("name" in t && t.name === "AbortError" || // Expo fetch
+  "message" in t && String(t.message).includes("FetchRequestCanceledException"));
 }
-const Qe = (n) => {
-  if (n instanceof Error)
-    return n;
-  if (typeof n == "object" && n !== null) {
+const Ze = (t) => {
+  if (t instanceof Error)
+    return t;
+  if (typeof t == "object" && t !== null) {
     try {
-      if (Object.prototype.toString.call(n) === "[object Error]") {
-        const e = new Error(n.message, n.cause ? { cause: n.cause } : {});
-        return n.stack && (e.stack = n.stack), n.cause && !e.cause && (e.cause = n.cause), n.name && (e.name = n.name), e;
+      if (Object.prototype.toString.call(t) === "[object Error]") {
+        const e = new Error(t.message, t.cause ? { cause: t.cause } : {});
+        return t.stack && (e.stack = t.stack), t.cause && !e.cause && (e.cause = t.cause), t.name && (e.name = t.name), e;
       }
     } catch {
     }
     try {
-      return new Error(JSON.stringify(n));
+      return new Error(JSON.stringify(t));
     } catch {
     }
   }
-  return new Error(n);
+  return new Error(t);
 };
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class B extends Error {
+class O extends Error {
 }
-class H extends B {
-  constructor(e, t, o, i) {
-    super(`${H.makeMessage(e, t, o)}`), this.status = e, this.headers = i, this.error = t;
+class b extends O {
+  constructor(e, n, o, i) {
+    super(`${b.makeMessage(e, n, o)}`), this.status = e, this.headers = i, this.error = n;
   }
-  static makeMessage(e, t, o) {
-    const i = t != null && t.message ? typeof t.message == "string" ? t.message : JSON.stringify(t.message) : t ? JSON.stringify(t) : o;
+  static makeMessage(e, n, o) {
+    const i = n != null && n.message ? typeof n.message == "string" ? n.message : JSON.stringify(n.message) : n ? JSON.stringify(n) : o;
     return e && i ? `${e} ${i}` : e ? `${e} status code (no body)` : i || "(no status code or body)";
   }
-  static generate(e, t, o, i) {
+  static generate(e, n, o, i) {
     if (!e || !i)
-      return new ke({ message: o, cause: Qe(t) });
-    const r = t;
-    return e === 400 ? new Ao(e, r, o, i) : e === 401 ? new Ro(e, r, o, i) : e === 403 ? new Po(e, r, o, i) : e === 404 ? new wo(e, r, o, i) : e === 409 ? new Mo(e, r, o, i) : e === 422 ? new No(e, r, o, i) : e === 429 ? new xo(e, r, o, i) : e >= 500 ? new Do(e, r, o, i) : new H(e, r, o, i);
+      return new Le({ message: o, cause: Ze(n) });
+    const r = n;
+    return e === 400 ? new Ro(e, r, o, i) : e === 401 ? new Po(e, r, o, i) : e === 403 ? new wo(e, r, o, i) : e === 404 ? new Mo(e, r, o, i) : e === 409 ? new No(e, r, o, i) : e === 422 ? new xo(e, r, o, i) : e === 429 ? new Do(e, r, o, i) : e >= 500 ? new ko(e, r, o, i) : new b(e, r, o, i);
   }
 }
-class Ze extends H {
+class je extends b {
   constructor({ message: e } = {}) {
     super(void 0, void 0, e || "Request was aborted.", void 0);
   }
 }
-class ke extends H {
-  constructor({ message: e, cause: t }) {
-    super(void 0, void 0, e || "Connection error.", void 0), t && (this.cause = t);
+class Le extends b {
+  constructor({ message: e, cause: n }) {
+    super(void 0, void 0, e || "Connection error.", void 0), n && (this.cause = n);
   }
 }
-class vo extends ke {
+class Ao extends Le {
   constructor({ message: e } = {}) {
     super({ message: e ?? "Request timed out." });
   }
 }
-class Ao extends H {
+class Ro extends b {
 }
-class Ro extends H {
+class Po extends b {
 }
-class Po extends H {
+class wo extends b {
 }
-class wo extends H {
+class Mo extends b {
 }
-class Mo extends H {
+class No extends b {
 }
-class No extends H {
+class xo extends b {
 }
-class xo extends H {
+class Do extends b {
 }
-class Do extends H {
+class ko extends b {
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const ju = /^[a-z][a-z0-9+.-]*:/i, ed = (n) => ju.test(n);
-let je = (n) => (je = Array.isArray, je(n));
-const nd = je;
-let td = nd;
-const Jt = td;
-function od(n) {
-  if (!n)
+const od = /^[a-z][a-z0-9+.-]*:/i, id = (t) => od.test(t);
+let et = (t) => (et = Array.isArray, et(t));
+const sd = et;
+let rd = sd;
+const On = rd;
+function ld(t) {
+  if (!t)
     return !0;
-  for (const e in n)
+  for (const e in t)
     return !1;
   return !0;
 }
-function id(n, e) {
-  return Object.prototype.hasOwnProperty.call(n, e);
+function ad(t, e) {
+  return Object.prototype.hasOwnProperty.call(t, e);
 }
-const sd = (n, e) => {
+const ud = (t, e) => {
   if (typeof e != "number" || !Number.isInteger(e))
-    throw new B(`${n} must be an integer`);
+    throw new O(`${t} must be an integer`);
   if (e < 0)
-    throw new B(`${n} must be a positive integer`);
+    throw new O(`${t} must be a positive integer`);
   return e;
-}, rd = (n) => {
+}, dd = (t) => {
   try {
-    return JSON.parse(n);
+    return JSON.parse(t);
   } catch {
     return;
   }
@@ -10192,37 +10230,37 @@ const sd = (n, e) => {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const ld = (n) => new Promise((e) => setTimeout(e, n));
+const cd = (t) => new Promise((e) => setTimeout(e, t));
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const ie = "0.0.1";
+const se = "0.0.1";
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function ad() {
+function fd() {
   return typeof Deno < "u" && Deno.build != null ? "deno" : typeof EdgeRuntime < "u" ? "edge" : Object.prototype.toString.call(typeof globalThis.process < "u" ? globalThis.process : 0) === "[object process]" ? "node" : "unknown";
 }
-const ud = () => {
-  var n, e, t, o, i;
-  const r = ad();
+const pd = () => {
+  var t, e, n, o, i;
+  const r = fd();
   if (r === "deno")
     return {
       "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": ie,
-      "X-Stainless-OS": $t(Deno.build.os),
-      "X-Stainless-Arch": Ot(Deno.build.arch),
+      "X-Stainless-Package-Version": se,
+      "X-Stainless-OS": Wn(Deno.build.os),
+      "X-Stainless-Arch": $n(Deno.build.arch),
       "X-Stainless-Runtime": "deno",
-      "X-Stainless-Runtime-Version": typeof Deno.version == "string" ? Deno.version : (e = (n = Deno.version) === null || n === void 0 ? void 0 : n.deno) !== null && e !== void 0 ? e : "unknown"
+      "X-Stainless-Runtime-Version": typeof Deno.version == "string" ? Deno.version : (e = (t = Deno.version) === null || t === void 0 ? void 0 : t.deno) !== null && e !== void 0 ? e : "unknown"
     };
   if (typeof EdgeRuntime < "u")
     return {
       "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": ie,
+      "X-Stainless-Package-Version": se,
       "X-Stainless-OS": "Unknown",
       "X-Stainless-Arch": `other:${EdgeRuntime}`,
       "X-Stainless-Runtime": "edge",
@@ -10231,33 +10269,33 @@ const ud = () => {
   if (r === "node")
     return {
       "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": ie,
-      "X-Stainless-OS": $t((t = globalThis.process.platform) !== null && t !== void 0 ? t : "unknown"),
-      "X-Stainless-Arch": Ot((o = globalThis.process.arch) !== null && o !== void 0 ? o : "unknown"),
+      "X-Stainless-Package-Version": se,
+      "X-Stainless-OS": Wn((n = globalThis.process.platform) !== null && n !== void 0 ? n : "unknown"),
+      "X-Stainless-Arch": $n((o = globalThis.process.arch) !== null && o !== void 0 ? o : "unknown"),
       "X-Stainless-Runtime": "node",
       "X-Stainless-Runtime-Version": (i = globalThis.process.version) !== null && i !== void 0 ? i : "unknown"
     };
-  const a = dd();
+  const a = hd();
   return a ? {
     "X-Stainless-Lang": "js",
-    "X-Stainless-Package-Version": ie,
+    "X-Stainless-Package-Version": se,
     "X-Stainless-OS": "Unknown",
     "X-Stainless-Arch": "unknown",
     "X-Stainless-Runtime": `browser:${a.browser}`,
     "X-Stainless-Runtime-Version": a.version
   } : {
     "X-Stainless-Lang": "js",
-    "X-Stainless-Package-Version": ie,
+    "X-Stainless-Package-Version": se,
     "X-Stainless-OS": "Unknown",
     "X-Stainless-Arch": "unknown",
     "X-Stainless-Runtime": "unknown",
     "X-Stainless-Runtime-Version": "unknown"
   };
 };
-function dd() {
+function hd() {
   if (typeof navigator > "u" || !navigator)
     return null;
-  const n = [
+  const t = [
     { key: "edge", pattern: /Edge(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
     { key: "ie", pattern: /MSIE(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
     { key: "ie", pattern: /Trident(?:.*rv\:(\d+)\.(\d+)(?:\.(\d+))?)?/ },
@@ -10265,8 +10303,8 @@ function dd() {
     { key: "firefox", pattern: /Firefox(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
     { key: "safari", pattern: /(?:Version\W+(\d+)\.(\d+)(?:\.(\d+))?)?(?:\W+Mobile\S*)?\W+Safari/ }
   ];
-  for (const { key: e, pattern: t } of n) {
-    const o = t.exec(navigator.userAgent);
+  for (const { key: e, pattern: n } of t) {
+    const o = n.exec(navigator.userAgent);
     if (o) {
       const i = o[1] || 0, r = o[2] || 0, a = o[3] || 0;
       return { browser: e, version: `${i}.${r}.${a}` };
@@ -10274,71 +10312,71 @@ function dd() {
   }
   return null;
 }
-const Ot = (n) => n === "x32" ? "x32" : n === "x86_64" || n === "x64" ? "x64" : n === "arm" ? "arm" : n === "aarch64" || n === "arm64" ? "arm64" : n ? `other:${n}` : "unknown", $t = (n) => (n = n.toLowerCase(), n.includes("ios") ? "iOS" : n === "android" ? "Android" : n === "darwin" ? "MacOS" : n === "win32" ? "Windows" : n === "freebsd" ? "FreeBSD" : n === "openbsd" ? "OpenBSD" : n === "linux" ? "Linux" : n ? `Other:${n}` : "Unknown");
-let ge;
-const cd = () => ge ?? (ge = ud());
+const $n = (t) => t === "x32" ? "x32" : t === "x86_64" || t === "x64" ? "x64" : t === "arm" ? "arm" : t === "aarch64" || t === "arm64" ? "arm64" : t ? `other:${t}` : "unknown", Wn = (t) => (t = t.toLowerCase(), t.includes("ios") ? "iOS" : t === "android" ? "Android" : t === "darwin" ? "MacOS" : t === "win32" ? "Windows" : t === "freebsd" ? "FreeBSD" : t === "openbsd" ? "OpenBSD" : t === "linux" ? "Linux" : t ? `Other:${t}` : "Unknown");
+let ye;
+const md = () => ye ?? (ye = pd());
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function fd() {
+function gd() {
   if (typeof fetch < "u")
     return fetch;
   throw new Error("`fetch` is not defined as a global; Either pass `fetch` to the client, `new GeminiNextGenAPIClient({ fetch })` or polyfill the global, `globalThis.fetch = fetch`");
 }
-function ko(...n) {
+function Uo(...t) {
   const e = globalThis.ReadableStream;
   if (typeof e > "u")
     throw new Error("`ReadableStream` is not defined as a global; You will need to polyfill it, `globalThis.ReadableStream = ReadableStream`");
-  return new e(...n);
+  return new e(...t);
 }
-function pd(n) {
-  let e = Symbol.asyncIterator in n ? n[Symbol.asyncIterator]() : n[Symbol.iterator]();
-  return ko({
+function yd(t) {
+  let e = Symbol.asyncIterator in t ? t[Symbol.asyncIterator]() : t[Symbol.iterator]();
+  return Uo({
     start() {
     },
-    async pull(t) {
+    async pull(n) {
       const { done: o, value: i } = await e.next();
-      o ? t.close() : t.enqueue(i);
+      o ? n.close() : n.enqueue(i);
     },
     async cancel() {
-      var t;
-      await ((t = e.return) === null || t === void 0 ? void 0 : t.call(e));
+      var n;
+      await ((n = e.return) === null || n === void 0 ? void 0 : n.call(e));
     }
   });
 }
-function Uo(n) {
-  if (n[Symbol.asyncIterator])
-    return n;
-  const e = n.getReader();
+function Lo(t) {
+  if (t[Symbol.asyncIterator])
+    return t;
+  const e = t.getReader();
   return {
     async next() {
       try {
-        const t = await e.read();
-        return t != null && t.done && e.releaseLock(), t;
-      } catch (t) {
-        throw e.releaseLock(), t;
+        const n = await e.read();
+        return n != null && n.done && e.releaseLock(), n;
+      } catch (n) {
+        throw e.releaseLock(), n;
       }
     },
     async return() {
-      const t = e.cancel();
-      return e.releaseLock(), await t, { done: !0, value: void 0 };
+      const n = e.cancel();
+      return e.releaseLock(), await n, { done: !0, value: void 0 };
     },
     [Symbol.asyncIterator]() {
       return this;
     }
   };
 }
-async function md(n) {
-  var e, t;
-  if (n === null || typeof n != "object")
+async function Td(t) {
+  var e, n;
+  if (t === null || typeof t != "object")
     return;
-  if (n[Symbol.asyncIterator]) {
-    await ((t = (e = n[Symbol.asyncIterator]()).return) === null || t === void 0 ? void 0 : t.call(e));
+  if (t[Symbol.asyncIterator]) {
+    await ((n = (e = t[Symbol.asyncIterator]()).return) === null || n === void 0 ? void 0 : n.call(e));
     return;
   }
-  const o = n.getReader(), i = o.cancel();
+  const o = t.getReader(), i = o.cancel();
   o.releaseLock(), await i;
 }
 /**
@@ -10346,7 +10384,7 @@ async function md(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const hd = ({ headers: n, body: e }) => ({
+const Cd = ({ headers: t, body: e }) => ({
   bodyHeaders: {
     "content-type": "application/json"
   },
@@ -10357,143 +10395,143 @@ const hd = ({ headers: n, body: e }) => ({
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Lo = () => {
-  var n;
+const Go = () => {
+  var t;
   if (typeof File > "u") {
-    const { process: e } = globalThis, t = typeof ((n = e == null ? void 0 : e.versions) === null || n === void 0 ? void 0 : n.node) == "string" && parseInt(e.versions.node.split(".")) < 20;
-    throw new Error("`File` is not defined as a global, which is required for file uploads." + (t ? " Update to Node 20 LTS or newer, or set `globalThis.File` to `import('node:buffer').File`." : ""));
+    const { process: e } = globalThis, n = typeof ((t = e == null ? void 0 : e.versions) === null || t === void 0 ? void 0 : t.node) == "string" && parseInt(e.versions.node.split(".")) < 20;
+    throw new Error("`File` is not defined as a global, which is required for file uploads." + (n ? " Update to Node 20 LTS or newer, or set `globalThis.File` to `import('node:buffer').File`." : ""));
   }
 };
-function Ge(n, e, t) {
-  return Lo(), new File(n, e ?? "unknown_file", t);
+function Ve(t, e, n) {
+  return Go(), new File(t, e ?? "unknown_file", n);
 }
-function gd(n) {
-  return (typeof n == "object" && n !== null && ("name" in n && n.name && String(n.name) || "url" in n && n.url && String(n.url) || "filename" in n && n.filename && String(n.filename) || "path" in n && n.path && String(n.path)) || "").split(/[\\/]/).pop() || void 0;
+function _d(t) {
+  return (typeof t == "object" && t !== null && ("name" in t && t.name && String(t.name) || "url" in t && t.url && String(t.url) || "filename" in t && t.filename && String(t.filename) || "path" in t && t.path && String(t.path)) || "").split(/[\\/]/).pop() || void 0;
 }
-const yd = (n) => n != null && typeof n == "object" && typeof n[Symbol.asyncIterator] == "function";
+const Ed = (t) => t != null && typeof t == "object" && typeof t[Symbol.asyncIterator] == "function";
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Fo = (n) => n != null && typeof n == "object" && typeof n.size == "number" && typeof n.type == "string" && typeof n.text == "function" && typeof n.slice == "function" && typeof n.arrayBuffer == "function", Td = (n) => n != null && typeof n == "object" && typeof n.name == "string" && typeof n.lastModified == "number" && Fo(n), _d = (n) => n != null && typeof n == "object" && typeof n.url == "string" && typeof n.blob == "function";
-async function Cd(n, e, t) {
-  if (Lo(), n = await n, Td(n))
-    return n instanceof File ? n : Ge([await n.arrayBuffer()], n.name);
-  if (_d(n)) {
-    const i = await n.blob();
-    return e || (e = new URL(n.url).pathname.split(/[\\/]/).pop()), Ge(await en(i), e, t);
+const Fo = (t) => t != null && typeof t == "object" && typeof t.size == "number" && typeof t.type == "string" && typeof t.text == "function" && typeof t.slice == "function" && typeof t.arrayBuffer == "function", Sd = (t) => t != null && typeof t == "object" && typeof t.name == "string" && typeof t.lastModified == "number" && Fo(t), Id = (t) => t != null && typeof t == "object" && typeof t.url == "string" && typeof t.blob == "function";
+async function vd(t, e, n) {
+  if (Go(), t = await t, Sd(t))
+    return t instanceof File ? t : Ve([await t.arrayBuffer()], t.name);
+  if (Id(t)) {
+    const i = await t.blob();
+    return e || (e = new URL(t.url).pathname.split(/[\\/]/).pop()), Ve(await tt(i), e, n);
   }
-  const o = await en(n);
-  if (e || (e = gd(n)), !(t != null && t.type)) {
+  const o = await tt(t);
+  if (e || (e = _d(t)), !(n != null && n.type)) {
     const i = o.find((r) => typeof r == "object" && "type" in r && r.type);
-    typeof i == "string" && (t = Object.assign(Object.assign({}, t), { type: i }));
+    typeof i == "string" && (n = Object.assign(Object.assign({}, n), { type: i }));
   }
-  return Ge(o, e, t);
+  return Ve(o, e, n);
 }
-async function en(n) {
-  var e, t, o, i, r;
+async function tt(t) {
+  var e, n, o, i, r;
   let a = [];
-  if (typeof n == "string" || ArrayBuffer.isView(n) || // includes Uint8Array, Buffer, etc.
-  n instanceof ArrayBuffer)
-    a.push(n);
-  else if (Fo(n))
-    a.push(n instanceof Blob ? n : await n.arrayBuffer());
-  else if (yd(n))
+  if (typeof t == "string" || ArrayBuffer.isView(t) || // includes Uint8Array, Buffer, etc.
+  t instanceof ArrayBuffer)
+    a.push(t);
+  else if (Fo(t))
+    a.push(t instanceof Blob ? t : await t.arrayBuffer());
+  else if (Ed(t))
     try {
-      for (var u = !0, c = O(n), d; d = await c.next(), e = d.done, !e; u = !0) {
-        i = d.value, u = !1;
+      for (var u = !0, d = W(t), c; c = await d.next(), e = c.done, !e; u = !0) {
+        i = c.value, u = !1;
         const f = i;
-        a.push(...await en(f));
+        a.push(...await tt(f));
       }
     } catch (f) {
-      t = { error: f };
+      n = { error: f };
     } finally {
       try {
-        !u && !e && (o = c.return) && await o.call(c);
+        !u && !e && (o = d.return) && await o.call(d);
       } finally {
-        if (t) throw t.error;
+        if (n) throw n.error;
       }
     }
   else {
-    const f = (r = n == null ? void 0 : n.constructor) === null || r === void 0 ? void 0 : r.name;
-    throw new Error(`Unexpected data type: ${typeof n}${f ? `; constructor: ${f}` : ""}${Ed(n)}`);
+    const f = (r = t == null ? void 0 : t.constructor) === null || r === void 0 ? void 0 : r.name;
+    throw new Error(`Unexpected data type: ${typeof t}${f ? `; constructor: ${f}` : ""}${Ad(t)}`);
   }
   return a;
 }
-function Ed(n) {
-  return typeof n != "object" || n === null ? "" : `; props: [${Object.getOwnPropertyNames(n).map((t) => `"${t}"`).join(", ")}]`;
+function Ad(t) {
+  return typeof t != "object" || t === null ? "" : `; props: [${Object.getOwnPropertyNames(t).map((n) => `"${n}"`).join(", ")}]`;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Go {
+class Ho {
   constructor(e) {
     this._client = e;
   }
 }
-Go._key = [];
+Ho._key = [];
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Vo(n) {
-  return n.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
+function Vo(t) {
+  return t.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
-const Wt = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null)), Sd = (n = Vo) => function(t, ...o) {
-  if (t.length === 1)
-    return t[0];
+const Kn = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null)), Rd = (t = Vo) => function(n, ...o) {
+  if (n.length === 1)
+    return n[0];
   let i = !1;
-  const r = [], a = t.reduce((f, m, p) => {
-    var h, g, _;
-    /[?#]/.test(m) && (i = !0);
-    const T = o[p];
-    let C = (i ? encodeURIComponent : n)("" + T);
-    return p !== o.length && (T == null || typeof T == "object" && // handle values from other realms
-    T.toString === ((_ = Object.getPrototypeOf((g = Object.getPrototypeOf((h = T.hasOwnProperty) !== null && h !== void 0 ? h : Wt)) !== null && g !== void 0 ? g : Wt)) === null || _ === void 0 ? void 0 : _.toString)) && (C = T + "", r.push({
-      start: f.length + m.length,
-      length: C.length,
-      error: `Value of type ${Object.prototype.toString.call(T).slice(8, -1)} is not a valid path parameter`
-    })), f + m + (p === o.length ? "" : C);
-  }, ""), u = a.split(/[?#]/, 1)[0], c = new RegExp("(?<=^|\\/)(?:\\.|%2e){1,2}(?=\\/|$)", "gi");
-  let d;
-  for (; (d = c.exec(u)) !== null; )
+  const r = [], a = n.reduce((f, p, h) => {
+    var m, g, T;
+    /[?#]/.test(p) && (i = !0);
+    const y = o[h];
+    let E = (i ? encodeURIComponent : t)("" + y);
+    return h !== o.length && (y == null || typeof y == "object" && // handle values from other realms
+    y.toString === ((T = Object.getPrototypeOf((g = Object.getPrototypeOf((m = y.hasOwnProperty) !== null && m !== void 0 ? m : Kn)) !== null && g !== void 0 ? g : Kn)) === null || T === void 0 ? void 0 : T.toString)) && (E = y + "", r.push({
+      start: f.length + p.length,
+      length: E.length,
+      error: `Value of type ${Object.prototype.toString.call(y).slice(8, -1)} is not a valid path parameter`
+    })), f + p + (h === o.length ? "" : E);
+  }, ""), u = a.split(/[?#]/, 1)[0], d = new RegExp("(?<=^|\\/)(?:\\.|%2e){1,2}(?=\\/|$)", "gi");
+  let c;
+  for (; (c = d.exec(u)) !== null; )
     r.push({
-      start: d.index,
-      length: d[0].length,
-      error: `Value "${d[0]}" can't be safely passed as a path parameter`
+      start: c.index,
+      length: c[0].length,
+      error: `Value "${c[0]}" can't be safely passed as a path parameter`
     });
-  if (r.sort((f, m) => f.start - m.start), r.length > 0) {
+  if (r.sort((f, p) => f.start - p.start), r.length > 0) {
     let f = 0;
-    const m = r.reduce((p, h) => {
-      const g = " ".repeat(h.start - f), _ = "^".repeat(h.length);
-      return f = h.start + h.length, p + g + _;
+    const p = r.reduce((h, m) => {
+      const g = " ".repeat(m.start - f), T = "^".repeat(m.length);
+      return f = m.start + m.length, h + g + T;
     }, "");
-    throw new B(`Path parameters result in path with invalid segments:
-${r.map((p) => p.error).join(`
+    throw new O(`Path parameters result in path with invalid segments:
+${r.map((h) => h.error).join(`
 `)}
 ${a}
-${m}`);
+${p}`);
   }
   return a;
-}, ye = /* @__PURE__ */ Sd(Vo);
+}, Te = /* @__PURE__ */ Rd(Vo);
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Ho extends Go {
-  create(e, t) {
+class bo extends Ho {
+  create(e, n) {
     var o;
-    const { api_version: i = this._client.apiVersion } = e, r = Pe(e, ["api_version"]);
+    const { api_version: i = this._client.apiVersion } = e, r = Me(e, ["api_version"]);
     if ("model" in r && "agent_config" in r)
-      throw new B("Invalid request: specified `model` and `agent_config`. If specifying `model`, use `generation_config`.");
+      throw new O("Invalid request: specified `model` and `agent_config`. If specifying `model`, use `generation_config`.");
     if ("agent" in r && "generation_config" in r)
-      throw new B("Invalid request: specified `agent` and `generation_config`. If specifying `agent`, use `agent_config`.");
-    return this._client.post(ye`/${i}/interactions`, Object.assign(Object.assign({ body: r }, t), { stream: (o = e.stream) !== null && o !== void 0 ? o : !1 }));
+      throw new O("Invalid request: specified `agent` and `generation_config`. If specifying `agent`, use `agent_config`.");
+    return this._client.post(Te`/${i}/interactions`, Object.assign(Object.assign({ body: r }, n), { stream: (o = e.stream) !== null && o !== void 0 ? o : !1 }));
   }
   /**
    * Deletes the interaction by id.
@@ -10505,9 +10543,9 @@ class Ho extends Go {
    * });
    * ```
    */
-  delete(e, t = {}, o) {
-    const { api_version: i = this._client.apiVersion } = t ?? {};
-    return this._client.delete(ye`/${i}/interactions/${e}`, o);
+  delete(e, n = {}, o) {
+    const { api_version: i = this._client.apiVersion } = n ?? {};
+    return this._client.delete(Te`/${i}/interactions/${e}`, o);
   }
   /**
    * Cancels an interaction by id. This only applies to background interactions that are still running.
@@ -10519,70 +10557,70 @@ class Ho extends Go {
    * });
    * ```
    */
-  cancel(e, t = {}, o) {
-    const { api_version: i = this._client.apiVersion } = t ?? {};
-    return this._client.post(ye`/${i}/interactions/${e}/cancel`, o);
+  cancel(e, n = {}, o) {
+    const { api_version: i = this._client.apiVersion } = n ?? {};
+    return this._client.post(Te`/${i}/interactions/${e}/cancel`, o);
   }
-  get(e, t = {}, o) {
+  get(e, n = {}, o) {
     var i;
-    const r = t ?? {}, { api_version: a = this._client.apiVersion } = r, u = Pe(r, ["api_version"]);
-    return this._client.get(ye`/${a}/interactions/${e}`, Object.assign(Object.assign({ query: u }, o), { stream: (i = t == null ? void 0 : t.stream) !== null && i !== void 0 ? i : !1 }));
+    const r = n ?? {}, { api_version: a = this._client.apiVersion } = r, u = Me(r, ["api_version"]);
+    return this._client.get(Te`/${a}/interactions/${e}`, Object.assign(Object.assign({ query: u }, o), { stream: (i = n == null ? void 0 : n.stream) !== null && i !== void 0 ? i : !1 }));
   }
 }
-Ho._key = Object.freeze(["interactions"]);
-class qo extends Ho {
+bo._key = Object.freeze(["interactions"]);
+class qo extends bo {
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function Id(n) {
+function Pd(t) {
   let e = 0;
-  for (const i of n)
+  for (const i of t)
     e += i.length;
-  const t = new Uint8Array(e);
+  const n = new Uint8Array(e);
   let o = 0;
-  for (const i of n)
-    t.set(i, o), o += i.length;
-  return t;
+  for (const i of t)
+    n.set(i, o), o += i.length;
+  return n;
 }
-let Te;
-function fn(n) {
+let Ce;
+function ft(t) {
   let e;
-  return (Te ?? (e = new globalThis.TextEncoder(), Te = e.encode.bind(e)))(n);
+  return (Ce ?? (e = new globalThis.TextEncoder(), Ce = e.encode.bind(e)))(t);
 }
 let _e;
-function Kt(n) {
+function Yn(t) {
   let e;
-  return (_e ?? (e = new globalThis.TextDecoder(), _e = e.decode.bind(e)))(n);
+  return (_e ?? (e = new globalThis.TextDecoder(), _e = e.decode.bind(e)))(t);
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class Ue {
+class Ge {
   constructor() {
     this.buffer = new Uint8Array(), this.carriageReturnIndex = null;
   }
   decode(e) {
     if (e == null)
       return [];
-    const t = e instanceof ArrayBuffer ? new Uint8Array(e) : typeof e == "string" ? fn(e) : e;
-    this.buffer = Id([this.buffer, t]);
+    const n = e instanceof ArrayBuffer ? new Uint8Array(e) : typeof e == "string" ? ft(e) : e;
+    this.buffer = Pd([this.buffer, n]);
     const o = [];
     let i;
-    for (; (i = vd(this.buffer, this.carriageReturnIndex)) != null; ) {
+    for (; (i = wd(this.buffer, this.carriageReturnIndex)) != null; ) {
       if (i.carriage && this.carriageReturnIndex == null) {
         this.carriageReturnIndex = i.index;
         continue;
       }
       if (this.carriageReturnIndex != null && (i.index !== this.carriageReturnIndex + 1 || i.carriage)) {
-        o.push(Kt(this.buffer.subarray(0, this.carriageReturnIndex - 1))), this.buffer = this.buffer.subarray(this.carriageReturnIndex), this.carriageReturnIndex = null;
+        o.push(Yn(this.buffer.subarray(0, this.carriageReturnIndex - 1))), this.buffer = this.buffer.subarray(this.carriageReturnIndex), this.carriageReturnIndex = null;
         continue;
       }
-      const r = this.carriageReturnIndex !== null ? i.preceding - 1 : i.preceding, a = Kt(this.buffer.subarray(0, r));
+      const r = this.carriageReturnIndex !== null ? i.preceding - 1 : i.preceding, a = Yn(this.buffer.subarray(0, r));
       o.push(a), this.buffer = this.buffer.subarray(i.index), this.carriageReturnIndex = null;
     }
     return o;
@@ -10592,23 +10630,23 @@ class Ue {
 `) : [];
   }
 }
-Ue.NEWLINE_CHARS = /* @__PURE__ */ new Set([`
+Ge.NEWLINE_CHARS = /* @__PURE__ */ new Set([`
 `, "\r"]);
-Ue.NEWLINE_REGEXP = /\r\n|[\n\r]/g;
-function vd(n, e) {
-  for (let i = e ?? 0; i < n.length; i++) {
-    if (n[i] === 10)
+Ge.NEWLINE_REGEXP = /\r\n|[\n\r]/g;
+function wd(t, e) {
+  for (let i = e ?? 0; i < t.length; i++) {
+    if (t[i] === 10)
       return { preceding: i, index: i + 1, carriage: !1 };
-    if (n[i] === 13)
+    if (t[i] === 13)
       return { preceding: i, index: i + 1, carriage: !0 };
   }
   return null;
 }
-function Ad(n) {
-  for (let o = 0; o < n.length - 1; o++) {
-    if (n[o] === 10 && n[o + 1] === 10 || n[o] === 13 && n[o + 1] === 13)
+function Md(t) {
+  for (let o = 0; o < t.length - 1; o++) {
+    if (t[o] === 10 && t[o + 1] === 10 || t[o] === 13 && t[o + 1] === 13)
       return o + 2;
-    if (n[o] === 13 && n[o + 1] === 10 && o + 3 < n.length && n[o + 2] === 13 && n[o + 3] === 10)
+    if (t[o] === 13 && t[o + 1] === 10 && o + 3 < t.length && t[o + 2] === 13 && t[o + 3] === 10)
       return o + 4;
   }
   return -1;
@@ -10618,171 +10656,171 @@ function Ad(n) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const we = {
+const Ne = {
   off: 0,
   error: 200,
   warn: 300,
   info: 400,
   debug: 500
-}, Yt = (n, e, t) => {
-  if (n) {
-    if (id(we, n))
-      return n;
-    V(t).warn(`${e} was set to ${JSON.stringify(n)}, expected one of ${JSON.stringify(Object.keys(we))}`);
+}, zn = (t, e, n) => {
+  if (t) {
+    if (ad(Ne, t))
+      return t;
+    V(n).warn(`${e} was set to ${JSON.stringify(t)}, expected one of ${JSON.stringify(Object.keys(Ne))}`);
   }
 };
 function me() {
 }
-function Ce(n, e, t) {
-  return !e || we[n] > we[t] ? me : e[n].bind(e);
+function Ee(t, e, n) {
+  return !e || Ne[t] > Ne[n] ? me : e[t].bind(e);
 }
-const Rd = {
+const Nd = {
   error: me,
   warn: me,
   info: me,
   debug: me
 };
-let zt = /* @__PURE__ */ new WeakMap();
-function V(n) {
+let Xn = /* @__PURE__ */ new WeakMap();
+function V(t) {
   var e;
-  const t = n.logger, o = (e = n.logLevel) !== null && e !== void 0 ? e : "off";
-  if (!t)
-    return Rd;
-  const i = zt.get(t);
+  const n = t.logger, o = (e = t.logLevel) !== null && e !== void 0 ? e : "off";
+  if (!n)
+    return Nd;
+  const i = Xn.get(n);
   if (i && i[0] === o)
     return i[1];
   const r = {
-    error: Ce("error", t, o),
-    warn: Ce("warn", t, o),
-    info: Ce("info", t, o),
-    debug: Ce("debug", t, o)
+    error: Ee("error", n, o),
+    warn: Ee("warn", n, o),
+    info: Ee("info", n, o),
+    debug: Ee("debug", n, o)
   };
-  return zt.set(t, [o, r]), r;
+  return Xn.set(n, [o, r]), r;
 }
-const j = (n) => (n.options && (n.options = Object.assign({}, n.options), delete n.options.headers), n.headers && (n.headers = Object.fromEntries((n.headers instanceof Headers ? [...n.headers] : Object.entries(n.headers)).map(([e, t]) => [
+const ee = (t) => (t.options && (t.options = Object.assign({}, t.options), delete t.options.headers), t.headers && (t.headers = Object.fromEntries((t.headers instanceof Headers ? [...t.headers] : Object.entries(t.headers)).map(([e, n]) => [
   e,
-  e.toLowerCase() === "x-goog-api-key" || e.toLowerCase() === "authorization" || e.toLowerCase() === "cookie" || e.toLowerCase() === "set-cookie" ? "***" : t
-]))), "retryOfRequestLogID" in n && (n.retryOfRequestLogID && (n.retryOf = n.retryOfRequestLogID), delete n.retryOfRequestLogID), n);
+  e.toLowerCase() === "x-goog-api-key" || e.toLowerCase() === "authorization" || e.toLowerCase() === "cookie" || e.toLowerCase() === "set-cookie" ? "***" : n
+]))), "retryOfRequestLogID" in t && (t.retryOfRequestLogID && (t.retryOf = t.retryOfRequestLogID), delete t.retryOfRequestLogID), t);
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class re {
-  constructor(e, t, o) {
-    this.iterator = e, this.controller = t, this.client = o;
+class le {
+  constructor(e, n, o) {
+    this.iterator = e, this.controller = n, this.client = o;
   }
-  static fromSSEResponse(e, t, o) {
+  static fromSSEResponse(e, n, o) {
     let i = !1;
     const r = o ? V(o) : console;
     function a() {
-      return J(this, arguments, function* () {
-        var c, d, f, m;
+      return $(this, arguments, function* () {
+        var d, c, f, p;
         if (i)
-          throw new B("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
+          throw new O("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
         i = !0;
-        let p = !1;
+        let h = !1;
         try {
           try {
-            for (var h = !0, g = O(Pd(e, t)), _; _ = yield w(g.next()), c = _.done, !c; h = !0) {
-              m = _.value, h = !1;
-              const T = m;
-              if (!p)
-                if (T.data.startsWith("[DONE]")) {
-                  p = !0;
+            for (var m = !0, g = W(xd(e, n)), T; T = yield M(g.next()), d = T.done, !d; m = !0) {
+              p = T.value, m = !1;
+              const y = p;
+              if (!h)
+                if (y.data.startsWith("[DONE]")) {
+                  h = !0;
                   continue;
                 } else
                   try {
-                    yield yield w(JSON.parse(T.data));
-                  } catch (C) {
-                    throw r.error("Could not parse message into JSON:", T.data), r.error("From chunk:", T.raw), C;
+                    yield yield M(JSON.parse(y.data));
+                  } catch (E) {
+                    throw r.error("Could not parse message into JSON:", y.data), r.error("From chunk:", y.raw), E;
                   }
             }
-          } catch (T) {
-            d = { error: T };
+          } catch (y) {
+            c = { error: y };
           } finally {
             try {
-              !h && !c && (f = g.return) && (yield w(f.call(g)));
+              !m && !d && (f = g.return) && (yield M(f.call(g)));
             } finally {
-              if (d) throw d.error;
+              if (c) throw c.error;
             }
           }
-          p = !0;
-        } catch (T) {
-          if (Xe(T))
-            return yield w(void 0);
-          throw T;
+          h = !0;
+        } catch (y) {
+          if (Qe(y))
+            return yield M(void 0);
+          throw y;
         } finally {
-          p || t.abort();
+          h || n.abort();
         }
       });
     }
-    return new re(a, t, o);
+    return new le(a, n, o);
   }
   /**
    * Generates a Stream from a newline-separated ReadableStream
    * where each item is a JSON value.
    */
-  static fromReadableStream(e, t, o) {
+  static fromReadableStream(e, n, o) {
     let i = !1;
     function r() {
-      return J(this, arguments, function* () {
-        var c, d, f, m;
-        const p = new Ue(), h = Uo(e);
+      return $(this, arguments, function* () {
+        var d, c, f, p;
+        const h = new Ge(), m = Lo(e);
         try {
-          for (var g = !0, _ = O(h), T; T = yield w(_.next()), c = T.done, !c; g = !0) {
-            m = T.value, g = !1;
-            const C = m;
-            for (const S of p.decode(C))
-              yield yield w(S);
+          for (var g = !0, T = W(m), y; y = yield M(T.next()), d = y.done, !d; g = !0) {
+            p = y.value, g = !1;
+            const E = p;
+            for (const S of h.decode(E))
+              yield yield M(S);
           }
-        } catch (C) {
-          d = { error: C };
+        } catch (E) {
+          c = { error: E };
         } finally {
           try {
-            !g && !c && (f = _.return) && (yield w(f.call(_)));
+            !g && !d && (f = T.return) && (yield M(f.call(T)));
           } finally {
-            if (d) throw d.error;
+            if (c) throw c.error;
           }
         }
-        for (const C of p.flush())
-          yield yield w(C);
+        for (const E of h.flush())
+          yield yield M(E);
       });
     }
     function a() {
-      return J(this, arguments, function* () {
-        var c, d, f, m;
+      return $(this, arguments, function* () {
+        var d, c, f, p;
         if (i)
-          throw new B("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
+          throw new O("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
         i = !0;
-        let p = !1;
+        let h = !1;
         try {
           try {
-            for (var h = !0, g = O(r()), _; _ = yield w(g.next()), c = _.done, !c; h = !0) {
-              m = _.value, h = !1;
-              const T = m;
-              p || T && (yield yield w(JSON.parse(T)));
+            for (var m = !0, g = W(r()), T; T = yield M(g.next()), d = T.done, !d; m = !0) {
+              p = T.value, m = !1;
+              const y = p;
+              h || y && (yield yield M(JSON.parse(y)));
             }
-          } catch (T) {
-            d = { error: T };
+          } catch (y) {
+            c = { error: y };
           } finally {
             try {
-              !h && !c && (f = g.return) && (yield w(f.call(g)));
+              !m && !d && (f = g.return) && (yield M(f.call(g)));
             } finally {
-              if (d) throw d.error;
+              if (c) throw c.error;
             }
           }
-          p = !0;
-        } catch (T) {
-          if (Xe(T))
-            return yield w(void 0);
-          throw T;
+          h = !0;
+        } catch (y) {
+          if (Qe(y))
+            return yield M(void 0);
+          throw y;
         } finally {
-          p || t.abort();
+          h || n.abort();
         }
       });
     }
-    return new re(a, t, o);
+    return new le(a, n, o);
   }
   [Symbol.asyncIterator]() {
     return this.iterator();
@@ -10792,18 +10830,18 @@ class re {
    * independently read from at different speeds.
    */
   tee() {
-    const e = [], t = [], o = this.iterator(), i = (r) => ({
+    const e = [], n = [], o = this.iterator(), i = (r) => ({
       next: () => {
         if (r.length === 0) {
           const a = o.next();
-          e.push(a), t.push(a);
+          e.push(a), n.push(a);
         }
         return r.shift();
       }
     });
     return [
-      new re(() => i(e), this.controller, this.client),
-      new re(() => i(t), this.controller, this.client)
+      new le(() => i(e), this.controller, this.client),
+      new le(() => i(n), this.controller, this.client)
     ];
   }
   /**
@@ -10813,17 +10851,17 @@ class re {
    */
   toReadableStream() {
     const e = this;
-    let t;
-    return ko({
+    let n;
+    return Uo({
       async start() {
-        t = e[Symbol.asyncIterator]();
+        n = e[Symbol.asyncIterator]();
       },
       async pull(o) {
         try {
-          const { value: i, done: r } = await t.next();
+          const { value: i, done: r } = await n.next();
           if (r)
             return o.close();
-          const a = fn(JSON.stringify(i) + `
+          const a = ft(JSON.stringify(i) + `
 `);
           o.enqueue(a);
         } catch (i) {
@@ -10832,71 +10870,71 @@ class re {
       },
       async cancel() {
         var o;
-        await ((o = t.return) === null || o === void 0 ? void 0 : o.call(t));
+        await ((o = n.return) === null || o === void 0 ? void 0 : o.call(n));
       }
     });
   }
 }
-function Pd(n, e) {
-  return J(this, arguments, function* () {
+function xd(t, e) {
+  return $(this, arguments, function* () {
     var o, i, r, a;
-    if (!n.body)
-      throw e.abort(), typeof globalThis.navigator < "u" && globalThis.navigator.product === "ReactNative" ? new B("The default react-native fetch implementation does not support streaming. Please use expo/fetch: https://docs.expo.dev/versions/latest/sdk/expo/#expofetch-api") : new B("Attempted to iterate over a response with no body");
-    const u = new Md(), c = new Ue(), d = Uo(n.body);
+    if (!t.body)
+      throw e.abort(), typeof globalThis.navigator < "u" && globalThis.navigator.product === "ReactNative" ? new O("The default react-native fetch implementation does not support streaming. Please use expo/fetch: https://docs.expo.dev/versions/latest/sdk/expo/#expofetch-api") : new O("Attempted to iterate over a response with no body");
+    const u = new kd(), d = new Ge(), c = Lo(t.body);
     try {
-      for (var f = !0, m = O(wd(d)), p; p = yield w(m.next()), o = p.done, !o; f = !0) {
-        a = p.value, f = !1;
-        const h = a;
-        for (const g of c.decode(h)) {
-          const _ = u.decode(g);
-          _ && (yield yield w(_));
+      for (var f = !0, p = W(Dd(c)), h; h = yield M(p.next()), o = h.done, !o; f = !0) {
+        a = h.value, f = !1;
+        const m = a;
+        for (const g of d.decode(m)) {
+          const T = u.decode(g);
+          T && (yield yield M(T));
         }
       }
-    } catch (h) {
-      i = { error: h };
+    } catch (m) {
+      i = { error: m };
     } finally {
       try {
-        !f && !o && (r = m.return) && (yield w(r.call(m)));
+        !f && !o && (r = p.return) && (yield M(r.call(p)));
       } finally {
         if (i) throw i.error;
       }
     }
-    for (const h of c.flush()) {
-      const g = u.decode(h);
-      g && (yield yield w(g));
+    for (const m of d.flush()) {
+      const g = u.decode(m);
+      g && (yield yield M(g));
     }
   });
 }
-function wd(n) {
-  return J(this, arguments, function* () {
-    var t, o, i, r;
+function Dd(t) {
+  return $(this, arguments, function* () {
+    var n, o, i, r;
     let a = new Uint8Array();
     try {
-      for (var u = !0, c = O(n), d; d = yield w(c.next()), t = d.done, !t; u = !0) {
-        r = d.value, u = !1;
+      for (var u = !0, d = W(t), c; c = yield M(d.next()), n = c.done, !n; u = !0) {
+        r = c.value, u = !1;
         const f = r;
         if (f == null)
           continue;
-        const m = f instanceof ArrayBuffer ? new Uint8Array(f) : typeof f == "string" ? fn(f) : f;
-        let p = new Uint8Array(a.length + m.length);
-        p.set(a), p.set(m, a.length), a = p;
-        let h;
-        for (; (h = Ad(a)) !== -1; )
-          yield yield w(a.slice(0, h)), a = a.slice(h);
+        const p = f instanceof ArrayBuffer ? new Uint8Array(f) : typeof f == "string" ? ft(f) : f;
+        let h = new Uint8Array(a.length + p.length);
+        h.set(a), h.set(p, a.length), a = h;
+        let m;
+        for (; (m = Md(a)) !== -1; )
+          yield yield M(a.slice(0, m)), a = a.slice(m);
       }
     } catch (f) {
       o = { error: f };
     } finally {
       try {
-        !u && !t && (i = c.return) && (yield w(i.call(c)));
+        !u && !n && (i = d.return) && (yield M(i.call(d)));
       } finally {
         if (o) throw o.error;
       }
     }
-    a.length > 0 && (yield yield w(a));
+    a.length > 0 && (yield yield M(a));
   });
 }
-class Md {
+class kd {
   constructor() {
     this.event = null, this.data = [], this.chunks = [];
   }
@@ -10914,35 +10952,35 @@ class Md {
     }
     if (this.chunks.push(e), e.startsWith(":"))
       return null;
-    let [t, o, i] = Nd(e, ":");
-    return i.startsWith(" ") && (i = i.substring(1)), t === "event" ? this.event = i : t === "data" && this.data.push(i), null;
+    let [n, o, i] = Ud(e, ":");
+    return i.startsWith(" ") && (i = i.substring(1)), n === "event" ? this.event = i : n === "data" && this.data.push(i), null;
   }
 }
-function Nd(n, e) {
-  const t = n.indexOf(e);
-  return t !== -1 ? [n.substring(0, t), e, n.substring(t + e.length)] : [n, "", ""];
+function Ud(t, e) {
+  const n = t.indexOf(e);
+  return n !== -1 ? [t.substring(0, n), e, t.substring(n + e.length)] : [t, "", ""];
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-async function xd(n, e) {
-  const { response: t, requestLogID: o, retryOfRequestLogID: i, startTime: r } = e, a = await (async () => {
+async function Ld(t, e) {
+  const { response: n, requestLogID: o, retryOfRequestLogID: i, startTime: r } = e, a = await (async () => {
     var u;
     if (e.options.stream)
-      return V(n).debug("response", t.status, t.url, t.headers, t.body), e.options.__streamClass ? e.options.__streamClass.fromSSEResponse(t, e.controller, n) : re.fromSSEResponse(t, e.controller, n);
-    if (t.status === 204)
+      return V(t).debug("response", n.status, n.url, n.headers, n.body), e.options.__streamClass ? e.options.__streamClass.fromSSEResponse(n, e.controller, t) : le.fromSSEResponse(n, e.controller, t);
+    if (n.status === 204)
       return null;
     if (e.options.__binaryResponse)
-      return t;
-    const c = t.headers.get("content-type"), d = (u = c == null ? void 0 : c.split(";")[0]) === null || u === void 0 ? void 0 : u.trim();
-    return (d == null ? void 0 : d.includes("application/json")) || (d == null ? void 0 : d.endsWith("+json")) ? await t.json() : await t.text();
+      return n;
+    const d = n.headers.get("content-type"), c = (u = d == null ? void 0 : d.split(";")[0]) === null || u === void 0 ? void 0 : u.trim();
+    return (c == null ? void 0 : c.includes("application/json")) || (c == null ? void 0 : c.endsWith("+json")) ? await n.json() : await n.text();
   })();
-  return V(n).debug(`[${o}] response parsed`, j({
+  return V(t).debug(`[${o}] response parsed`, ee({
     retryOfRequestLogID: i,
-    url: t.url,
-    status: t.status,
+    url: n.url,
+    status: n.status,
     body: a,
     durationMs: Date.now() - r
   })), a;
@@ -10952,14 +10990,14 @@ async function xd(n, e) {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class pn extends Promise {
-  constructor(e, t, o = xd) {
+class pt extends Promise {
+  constructor(e, n, o = Ld) {
     super((i) => {
       i(null);
-    }), this.responsePromise = t, this.parseResponse = o, this.client = e;
+    }), this.responsePromise = n, this.parseResponse = o, this.client = e;
   }
   _thenUnwrap(e) {
-    return new pn(this.client, this.responsePromise, async (t, o) => e(await this.parseResponse(t, o), o));
+    return new pt(this.client, this.responsePromise, async (n, o) => e(await this.parseResponse(n, o), o));
   }
   /**
    * Gets the raw `Response` instance instead of parsing the response
@@ -10986,14 +11024,14 @@ class pn extends Promise {
    * to your `tsconfig.json`.
    */
   async withResponse() {
-    const [e, t] = await Promise.all([this.parse(), this.asResponse()]);
-    return { data: e, response: t };
+    const [e, n] = await Promise.all([this.parse(), this.asResponse()]);
+    return { data: e, response: n };
   }
   parse() {
     return this.parsedPromise || (this.parsedPromise = this.responsePromise.then((e) => this.parseResponse(this.client, e))), this.parsedPromise;
   }
-  then(e, t) {
-    return this.parse().then(e, t);
+  then(e, n) {
+    return this.parse().then(e, n);
   }
   catch(e) {
     return this.parse().catch(e);
@@ -11007,59 +11045,59 @@ class pn extends Promise {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const bo = /* @__PURE__ */ Symbol("brand.privateNullableHeaders");
-function* Dd(n) {
-  if (!n)
+const Bo = /* @__PURE__ */ Symbol("brand.privateNullableHeaders");
+function* Gd(t) {
+  if (!t)
     return;
-  if (bo in n) {
-    const { values: o, nulls: i } = n;
+  if (Bo in t) {
+    const { values: o, nulls: i } = t;
     yield* o.entries();
     for (const r of i)
       yield [r, null];
     return;
   }
-  let e = !1, t;
-  n instanceof Headers ? t = n.entries() : Jt(n) ? t = n : (e = !0, t = Object.entries(n ?? {}));
-  for (let o of t) {
+  let e = !1, n;
+  t instanceof Headers ? n = t.entries() : On(t) ? n = t : (e = !0, n = Object.entries(t ?? {}));
+  for (let o of n) {
     const i = o[0];
     if (typeof i != "string")
       throw new TypeError("expected header name to be a string");
-    const r = Jt(o[1]) ? o[1] : [o[1]];
+    const r = On(o[1]) ? o[1] : [o[1]];
     let a = !1;
     for (const u of r)
       u !== void 0 && (e && !a && (a = !0, yield [i, null]), yield [i, u]);
   }
 }
-const pe = (n) => {
-  const e = new Headers(), t = /* @__PURE__ */ new Set();
-  for (const o of n) {
+const he = (t) => {
+  const e = new Headers(), n = /* @__PURE__ */ new Set();
+  for (const o of t) {
     const i = /* @__PURE__ */ new Set();
-    for (const [r, a] of Dd(o)) {
+    for (const [r, a] of Gd(o)) {
       const u = r.toLowerCase();
-      i.has(u) || (e.delete(r), i.add(u)), a === null ? (e.delete(r), t.add(u)) : (e.append(r, a), t.delete(u));
+      i.has(u) || (e.delete(r), i.add(u)), a === null ? (e.delete(r), n.add(u)) : (e.append(r, a), n.delete(u));
     }
   }
-  return { [bo]: !0, values: e, nulls: t };
+  return { [Bo]: !0, values: e, nulls: n };
 };
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Ve = (n) => {
-  var e, t, o, i, r, a;
+const be = (t) => {
+  var e, n, o, i, r, a;
   if (typeof globalThis.process < "u")
-    return (o = (t = (e = globalThis.process.env) === null || e === void 0 ? void 0 : e[n]) === null || t === void 0 ? void 0 : t.trim()) !== null && o !== void 0 ? o : void 0;
+    return (o = (n = (e = globalThis.process.env) === null || e === void 0 ? void 0 : e[t]) === null || n === void 0 ? void 0 : n.trim()) !== null && o !== void 0 ? o : void 0;
   if (typeof globalThis.Deno < "u")
-    return (a = (r = (i = globalThis.Deno.env) === null || i === void 0 ? void 0 : i.get) === null || r === void 0 ? void 0 : r.call(i, n)) === null || a === void 0 ? void 0 : a.trim();
+    return (a = (r = (i = globalThis.Deno.env) === null || i === void 0 ? void 0 : i.get) === null || r === void 0 ? void 0 : r.call(i, t)) === null || a === void 0 ? void 0 : a.trim();
 };
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-var Bo;
-class Le {
+var Jo;
+class Fe {
   /**
    * API Client for interfacing with the Gemini Next Gen API API.
    *
@@ -11074,14 +11112,14 @@ class Le {
    * @param {Record<string, string | undefined>} opts.defaultQuery - Default query parameters to include with every request to the API.
    */
   constructor(e) {
-    var t, o, i, r, a, u, c, { baseURL: d = Ve("GEMINI_NEXT_GEN_API_BASE_URL"), apiKey: f = (t = Ve("GEMINI_API_KEY")) !== null && t !== void 0 ? t : null, apiVersion: m = "v1beta" } = e, p = Pe(e, ["baseURL", "apiKey", "apiVersion"]);
-    const h = Object.assign(Object.assign({
+    var n, o, i, r, a, u, d, { baseURL: c = be("GEMINI_NEXT_GEN_API_BASE_URL"), apiKey: f = (n = be("GEMINI_API_KEY")) !== null && n !== void 0 ? n : null, apiVersion: p = "v1beta" } = e, h = Me(e, ["baseURL", "apiKey", "apiVersion"]);
+    const m = Object.assign(Object.assign({
       apiKey: f,
-      apiVersion: m
-    }, p), { baseURL: d || "https://generativelanguage.googleapis.com" });
-    this.baseURL = h.baseURL, this.timeout = (o = h.timeout) !== null && o !== void 0 ? o : Le.DEFAULT_TIMEOUT, this.logger = (i = h.logger) !== null && i !== void 0 ? i : console;
+      apiVersion: p
+    }, h), { baseURL: c || "https://generativelanguage.googleapis.com" });
+    this.baseURL = m.baseURL, this.timeout = (o = m.timeout) !== null && o !== void 0 ? o : Fe.DEFAULT_TIMEOUT, this.logger = (i = m.logger) !== null && i !== void 0 ? i : console;
     const g = "warn";
-    this.logLevel = g, this.logLevel = (a = (r = Yt(h.logLevel, "ClientOptions.logLevel", this)) !== null && r !== void 0 ? r : Yt(Ve("GEMINI_NEXT_GEN_API_LOG"), "process.env['GEMINI_NEXT_GEN_API_LOG']", this)) !== null && a !== void 0 ? a : g, this.fetchOptions = h.fetchOptions, this.maxRetries = (u = h.maxRetries) !== null && u !== void 0 ? u : 2, this.fetch = (c = h.fetch) !== null && c !== void 0 ? c : fd(), this.encoder = hd, this._options = h, this.apiKey = f, this.apiVersion = m, this.clientAdapter = h.clientAdapter;
+    this.logLevel = g, this.logLevel = (a = (r = zn(m.logLevel, "ClientOptions.logLevel", this)) !== null && r !== void 0 ? r : zn(be("GEMINI_NEXT_GEN_API_LOG"), "process.env['GEMINI_NEXT_GEN_API_LOG']", this)) !== null && a !== void 0 ? a : g, this.fetchOptions = m.fetchOptions, this.maxRetries = (u = m.maxRetries) !== null && u !== void 0 ? u : 2, this.fetch = (d = m.fetch) !== null && d !== void 0 ? d : gd(), this.encoder = Cd, this._options = m, this.apiKey = f, this.apiVersion = p, this.clientAdapter = m.clientAdapter;
   }
   /**
    * Create a new client instance re-using the same options given to the current client with optional overriding.
@@ -11098,43 +11136,43 @@ class Le {
   defaultQuery() {
     return this._options.defaultQuery;
   }
-  validateHeaders({ values: e, nulls: t }) {
-    if (!(e.has("authorization") || e.has("x-goog-api-key")) && !(this.apiKey && e.get("x-goog-api-key")) && !t.has("x-goog-api-key"))
+  validateHeaders({ values: e, nulls: n }) {
+    if (!(e.has("authorization") || e.has("x-goog-api-key")) && !(this.apiKey && e.get("x-goog-api-key")) && !n.has("x-goog-api-key"))
       throw new Error('Could not resolve authentication method. Expected the apiKey to be set. Or for the "x-goog-api-key" headers to be explicitly omitted');
   }
   async authHeaders(e) {
-    const t = pe([e.headers]);
-    if (!(t.values.has("authorization") || t.values.has("x-goog-api-key"))) {
+    const n = he([e.headers]);
+    if (!(n.values.has("authorization") || n.values.has("x-goog-api-key"))) {
       if (this.apiKey)
-        return pe([{ "x-goog-api-key": this.apiKey }]);
+        return he([{ "x-goog-api-key": this.apiKey }]);
       if (this.clientAdapter.isVertexAI())
-        return pe([await this.clientAdapter.getAuthHeaders()]);
+        return he([await this.clientAdapter.getAuthHeaders()]);
     }
   }
   /**
    * Basic re-implementation of `qs.stringify` for primitive types.
    */
   stringifyQuery(e) {
-    return Object.entries(e).filter(([t, o]) => typeof o < "u").map(([t, o]) => {
+    return Object.entries(e).filter(([n, o]) => typeof o < "u").map(([n, o]) => {
       if (typeof o == "string" || typeof o == "number" || typeof o == "boolean")
-        return `${encodeURIComponent(t)}=${encodeURIComponent(o)}`;
+        return `${encodeURIComponent(n)}=${encodeURIComponent(o)}`;
       if (o === null)
-        return `${encodeURIComponent(t)}=`;
-      throw new B(`Cannot stringify type ${typeof o}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`);
+        return `${encodeURIComponent(n)}=`;
+      throw new O(`Cannot stringify type ${typeof o}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`);
     }).join("&");
   }
   getUserAgent() {
-    return `${this.constructor.name}/JS ${ie}`;
+    return `${this.constructor.name}/JS ${se}`;
   }
   defaultIdempotencyKey() {
-    return `stainless-node-retry-${Zu()}`;
+    return `stainless-node-retry-${nd()}`;
   }
-  makeStatusError(e, t, o, i) {
-    return H.generate(e, t, o, i);
+  makeStatusError(e, n, o, i) {
+    return b.generate(e, n, o, i);
   }
-  buildURL(e, t, o) {
-    const i = !this.baseURLOverridden() && o || this.baseURL, r = ed(e) ? new URL(e) : new URL(i + (i.endsWith("/") && e.startsWith("/") ? e.slice(1) : e)), a = this.defaultQuery();
-    return od(a) || (t = Object.assign(Object.assign({}, a), t)), typeof t == "object" && t && !Array.isArray(t) && (r.search = this.stringifyQuery(t)), r.toString();
+  buildURL(e, n, o) {
+    const i = !this.baseURLOverridden() && o || this.baseURL, r = id(e) ? new URL(e) : new URL(i + (i.endsWith("/") && e.startsWith("/") ? e.slice(1) : e)), a = this.defaultQuery();
+    return ld(a) || (n = Object.assign(Object.assign({}, a), n)), typeof n == "object" && n && !Array.isArray(n) && (r.search = this.stringifyQuery(n)), r.toString();
   }
   /**
      * Used as a callback for mutating the given `FinalRequestOptions` object.
@@ -11142,8 +11180,8 @@ class Le {
      */
   async prepareOptions(e) {
     if (this.clientAdapter && this.clientAdapter.isVertexAI() && !e.path.startsWith(`/${this.apiVersion}/projects/`)) {
-      const t = e.path.slice(this.apiVersion.length + 1);
-      e.path = `/${this.apiVersion}/projects/${this.clientAdapter.getProject()}/locations/${this.clientAdapter.getLocation()}${t}`;
+      const n = e.path.slice(this.apiVersion.length + 1);
+      e.path = `/${this.apiVersion}/projects/${this.clientAdapter.getProject()}/locations/${this.clientAdapter.getLocation()}${n}`;
     }
   }
   /**
@@ -11152,151 +11190,151 @@ class Le {
    * This is useful for cases where you want to add certain headers based off of
    * the request properties, e.g. `method` or `url`.
    */
-  async prepareRequest(e, { url: t, options: o }) {
+  async prepareRequest(e, { url: n, options: o }) {
   }
-  get(e, t) {
-    return this.methodRequest("get", e, t);
+  get(e, n) {
+    return this.methodRequest("get", e, n);
   }
-  post(e, t) {
-    return this.methodRequest("post", e, t);
+  post(e, n) {
+    return this.methodRequest("post", e, n);
   }
-  patch(e, t) {
-    return this.methodRequest("patch", e, t);
+  patch(e, n) {
+    return this.methodRequest("patch", e, n);
   }
-  put(e, t) {
-    return this.methodRequest("put", e, t);
+  put(e, n) {
+    return this.methodRequest("put", e, n);
   }
-  delete(e, t) {
-    return this.methodRequest("delete", e, t);
+  delete(e, n) {
+    return this.methodRequest("delete", e, n);
   }
-  methodRequest(e, t, o) {
-    return this.request(Promise.resolve(o).then((i) => Object.assign({ method: e, path: t }, i)));
+  methodRequest(e, n, o) {
+    return this.request(Promise.resolve(o).then((i) => Object.assign({ method: e, path: n }, i)));
   }
-  request(e, t = null) {
-    return new pn(this, this.makeRequest(e, t, void 0));
+  request(e, n = null) {
+    return new pt(this, this.makeRequest(e, n, void 0));
   }
-  async makeRequest(e, t, o) {
+  async makeRequest(e, n, o) {
     var i, r, a;
-    const u = await e, c = (i = u.maxRetries) !== null && i !== void 0 ? i : this.maxRetries;
-    t == null && (t = c), await this.prepareOptions(u);
-    const { req: d, url: f, timeout: m } = await this.buildRequest(u, {
-      retryCount: c - t
+    const u = await e, d = (i = u.maxRetries) !== null && i !== void 0 ? i : this.maxRetries;
+    n == null && (n = d), await this.prepareOptions(u);
+    const { req: c, url: f, timeout: p } = await this.buildRequest(u, {
+      retryCount: d - n
     });
-    await this.prepareRequest(d, { url: f, options: u });
-    const p = "log_" + (Math.random() * (1 << 24) | 0).toString(16).padStart(6, "0"), h = o === void 0 ? "" : `, retryOf: ${o}`, g = Date.now();
-    if (V(this).debug(`[${p}] sending request`, j({
+    await this.prepareRequest(c, { url: f, options: u });
+    const h = "log_" + (Math.random() * (1 << 24) | 0).toString(16).padStart(6, "0"), m = o === void 0 ? "" : `, retryOf: ${o}`, g = Date.now();
+    if (V(this).debug(`[${h}] sending request`, ee({
       retryOfRequestLogID: o,
       method: u.method,
       url: f,
       options: u,
-      headers: d.headers
+      headers: c.headers
     })), !((r = u.signal) === null || r === void 0) && r.aborted)
-      throw new Ze();
-    const _ = new AbortController(), T = await this.fetchWithTimeout(f, d, m, _).catch(Qe), C = Date.now();
-    if (T instanceof globalThis.Error) {
-      const E = `retrying, ${t} attempts remaining`;
+      throw new je();
+    const T = new AbortController(), y = await this.fetchWithTimeout(f, c, p, T).catch(Ze), E = Date.now();
+    if (y instanceof globalThis.Error) {
+      const I = `retrying, ${n} attempts remaining`;
       if (!((a = u.signal) === null || a === void 0) && a.aborted)
-        throw new Ze();
-      const I = Xe(T) || /timed? ?out/i.test(String(T) + ("cause" in T ? String(T.cause) : ""));
-      if (t)
-        return V(this).info(`[${p}] connection ${I ? "timed out" : "failed"} - ${E}`), V(this).debug(`[${p}] connection ${I ? "timed out" : "failed"} (${E})`, j({
+        throw new je();
+      const _ = Qe(y) || /timed? ?out/i.test(String(y) + ("cause" in y ? String(y.cause) : ""));
+      if (n)
+        return V(this).info(`[${h}] connection ${_ ? "timed out" : "failed"} - ${I}`), V(this).debug(`[${h}] connection ${_ ? "timed out" : "failed"} (${I})`, ee({
           retryOfRequestLogID: o,
           url: f,
-          durationMs: C - g,
-          message: T.message
-        })), this.retryRequest(u, t, o ?? p);
-      throw V(this).info(`[${p}] connection ${I ? "timed out" : "failed"} - error; no more retries left`), V(this).debug(`[${p}] connection ${I ? "timed out" : "failed"} (error; no more retries left)`, j({
+          durationMs: E - g,
+          message: y.message
+        })), this.retryRequest(u, n, o ?? h);
+      throw V(this).info(`[${h}] connection ${_ ? "timed out" : "failed"} - error; no more retries left`), V(this).debug(`[${h}] connection ${_ ? "timed out" : "failed"} (error; no more retries left)`, ee({
         retryOfRequestLogID: o,
         url: f,
-        durationMs: C - g,
-        message: T.message
-      })), I ? new vo() : new ke({ cause: T });
+        durationMs: E - g,
+        message: y.message
+      })), _ ? new Ao() : new Le({ cause: y });
     }
-    const S = `[${p}${h}] ${d.method} ${f} ${T.ok ? "succeeded" : "failed"} with status ${T.status} in ${C - g}ms`;
-    if (!T.ok) {
-      const E = await this.shouldRetry(T);
-      if (t && E) {
-        const A = `retrying, ${t} attempts remaining`;
-        return await md(T.body), V(this).info(`${S} - ${A}`), V(this).debug(`[${p}] response error (${A})`, j({
+    const S = `[${h}${m}] ${c.method} ${f} ${y.ok ? "succeeded" : "failed"} with status ${y.status} in ${E - g}ms`;
+    if (!y.ok) {
+      const I = await this.shouldRetry(y);
+      if (n && I) {
+        const A = `retrying, ${n} attempts remaining`;
+        return await Td(y.body), V(this).info(`${S} - ${A}`), V(this).debug(`[${h}] response error (${A})`, ee({
           retryOfRequestLogID: o,
-          url: T.url,
-          status: T.status,
-          headers: T.headers,
-          durationMs: C - g
-        })), this.retryRequest(u, t, o ?? p, T.headers);
+          url: y.url,
+          status: y.status,
+          headers: y.headers,
+          durationMs: E - g
+        })), this.retryRequest(u, n, o ?? h, y.headers);
       }
-      const I = E ? "error; no more retries left" : "error; not retryable";
-      V(this).info(`${S} - ${I}`);
-      const y = await T.text().catch((A) => Qe(A).message), R = rd(y), M = R ? void 0 : y;
-      throw V(this).debug(`[${p}] response error (${I})`, j({
+      const _ = I ? "error; no more retries left" : "error; not retryable";
+      V(this).info(`${S} - ${_}`);
+      const C = await y.text().catch((A) => Ze(A).message), R = dd(C), P = R ? void 0 : C;
+      throw V(this).debug(`[${h}] response error (${_})`, ee({
         retryOfRequestLogID: o,
-        url: T.url,
-        status: T.status,
-        headers: T.headers,
-        message: M,
+        url: y.url,
+        status: y.status,
+        headers: y.headers,
+        message: P,
         durationMs: Date.now() - g
-      })), this.makeStatusError(T.status, R, M, T.headers);
+      })), this.makeStatusError(y.status, R, P, y.headers);
     }
-    return V(this).info(S), V(this).debug(`[${p}] response start`, j({
+    return V(this).info(S), V(this).debug(`[${h}] response start`, ee({
       retryOfRequestLogID: o,
-      url: T.url,
-      status: T.status,
-      headers: T.headers,
-      durationMs: C - g
-    })), { response: T, options: u, controller: _, requestLogID: p, retryOfRequestLogID: o, startTime: g };
+      url: y.url,
+      status: y.status,
+      headers: y.headers,
+      durationMs: E - g
+    })), { response: y, options: u, controller: T, requestLogID: h, retryOfRequestLogID: o, startTime: g };
   }
-  async fetchWithTimeout(e, t, o, i) {
-    const r = t || {}, { signal: a, method: u } = r, c = Pe(r, ["signal", "method"]);
+  async fetchWithTimeout(e, n, o, i) {
+    const r = n || {}, { signal: a, method: u } = r, d = Me(r, ["signal", "method"]);
     a && a.addEventListener("abort", () => i.abort());
-    const d = setTimeout(() => i.abort(), o), f = globalThis.ReadableStream && c.body instanceof globalThis.ReadableStream || typeof c.body == "object" && c.body !== null && Symbol.asyncIterator in c.body, m = Object.assign(Object.assign(Object.assign({ signal: i.signal }, f ? { duplex: "half" } : {}), { method: "GET" }), c);
-    u && (m.method = u.toUpperCase());
+    const c = setTimeout(() => i.abort(), o), f = globalThis.ReadableStream && d.body instanceof globalThis.ReadableStream || typeof d.body == "object" && d.body !== null && Symbol.asyncIterator in d.body, p = Object.assign(Object.assign(Object.assign({ signal: i.signal }, f ? { duplex: "half" } : {}), { method: "GET" }), d);
+    u && (p.method = u.toUpperCase());
     try {
-      return await this.fetch.call(void 0, e, m);
+      return await this.fetch.call(void 0, e, p);
     } finally {
-      clearTimeout(d);
+      clearTimeout(c);
     }
   }
   async shouldRetry(e) {
-    const t = e.headers.get("x-should-retry");
-    return t === "true" ? !0 : t === "false" ? !1 : e.status === 408 || e.status === 409 || e.status === 429 || e.status >= 500;
+    const n = e.headers.get("x-should-retry");
+    return n === "true" ? !0 : n === "false" ? !1 : e.status === 408 || e.status === 409 || e.status === 429 || e.status >= 500;
   }
-  async retryRequest(e, t, o, i) {
+  async retryRequest(e, n, o, i) {
     var r;
     let a;
     const u = i == null ? void 0 : i.get("retry-after-ms");
     if (u) {
-      const d = parseFloat(u);
-      Number.isNaN(d) || (a = d);
+      const c = parseFloat(u);
+      Number.isNaN(c) || (a = c);
     }
-    const c = i == null ? void 0 : i.get("retry-after");
-    if (c && !a) {
-      const d = parseFloat(c);
-      Number.isNaN(d) ? a = Date.parse(c) - Date.now() : a = d * 1e3;
+    const d = i == null ? void 0 : i.get("retry-after");
+    if (d && !a) {
+      const c = parseFloat(d);
+      Number.isNaN(c) ? a = Date.parse(d) - Date.now() : a = c * 1e3;
     }
     if (!(a && 0 <= a && a < 60 * 1e3)) {
-      const d = (r = e.maxRetries) !== null && r !== void 0 ? r : this.maxRetries;
-      a = this.calculateDefaultRetryTimeoutMillis(t, d);
+      const c = (r = e.maxRetries) !== null && r !== void 0 ? r : this.maxRetries;
+      a = this.calculateDefaultRetryTimeoutMillis(n, c);
     }
-    return await ld(a), this.makeRequest(e, t - 1, o);
+    return await cd(a), this.makeRequest(e, n - 1, o);
   }
-  calculateDefaultRetryTimeoutMillis(e, t) {
-    const r = t - e, a = Math.min(0.5 * Math.pow(2, r), 8), u = 1 - Math.random() * 0.25;
+  calculateDefaultRetryTimeoutMillis(e, n) {
+    const r = n - e, a = Math.min(0.5 * Math.pow(2, r), 8), u = 1 - Math.random() * 0.25;
     return a * u * 1e3;
   }
-  async buildRequest(e, { retryCount: t = 0 } = {}) {
+  async buildRequest(e, { retryCount: n = 0 } = {}) {
     var o, i, r;
-    const a = Object.assign({}, e), { method: u, path: c, query: d, defaultBaseURL: f } = a, m = this.buildURL(c, d, f);
-    "timeout" in a && sd("timeout", a.timeout), a.timeout = (o = a.timeout) !== null && o !== void 0 ? o : this.timeout;
-    const { bodyHeaders: p, body: h } = this.buildBody({ options: a }), g = await this.buildHeaders({ options: e, method: u, bodyHeaders: p, retryCount: t });
-    return { req: Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ method: u, headers: g }, a.signal && { signal: a.signal }), globalThis.ReadableStream && h instanceof globalThis.ReadableStream && { duplex: "half" }), h && { body: h }), (i = this.fetchOptions) !== null && i !== void 0 ? i : {}), (r = a.fetchOptions) !== null && r !== void 0 ? r : {}), url: m, timeout: a.timeout };
+    const a = Object.assign({}, e), { method: u, path: d, query: c, defaultBaseURL: f } = a, p = this.buildURL(d, c, f);
+    "timeout" in a && ud("timeout", a.timeout), a.timeout = (o = a.timeout) !== null && o !== void 0 ? o : this.timeout;
+    const { bodyHeaders: h, body: m } = this.buildBody({ options: a }), g = await this.buildHeaders({ options: e, method: u, bodyHeaders: h, retryCount: n });
+    return { req: Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ method: u, headers: g }, a.signal && { signal: a.signal }), globalThis.ReadableStream && m instanceof globalThis.ReadableStream && { duplex: "half" }), m && { body: m }), (i = this.fetchOptions) !== null && i !== void 0 ? i : {}), (r = a.fetchOptions) !== null && r !== void 0 ? r : {}), url: p, timeout: a.timeout };
   }
-  async buildHeaders({ options: e, method: t, bodyHeaders: o, retryCount: i }) {
+  async buildHeaders({ options: e, method: n, bodyHeaders: o, retryCount: i }) {
     let r = {};
-    this.idempotencyHeader && t !== "get" && (e.idempotencyKey || (e.idempotencyKey = this.defaultIdempotencyKey()), r[this.idempotencyHeader] = e.idempotencyKey);
+    this.idempotencyHeader && n !== "get" && (e.idempotencyKey || (e.idempotencyKey = this.defaultIdempotencyKey()), r[this.idempotencyHeader] = e.idempotencyKey);
     const a = await this.authHeaders(e);
-    let u = pe([
+    let u = he([
       r,
-      Object.assign(Object.assign({ Accept: "application/json", "User-Agent": this.getUserAgent(), "X-Stainless-Retry-Count": String(i) }, e.timeout ? { "X-Stainless-Timeout": String(Math.trunc(e.timeout / 1e3)) } : {}), cd()),
+      Object.assign(Object.assign({ Accept: "application/json", "User-Agent": this.getUserAgent(), "X-Stainless-Retry-Count": String(i) }, e.timeout ? { "X-Stainless-Timeout": String(Math.trunc(e.timeout / 1e3)) } : {}), md()),
       this._options.defaultHeaders,
       o,
       e.headers,
@@ -11304,10 +11342,10 @@ class Le {
     ]);
     return this.validateHeaders(u), u.values;
   }
-  buildBody({ options: { body: e, headers: t } }) {
+  buildBody({ options: { body: e, headers: n } }) {
     if (!e)
       return { bodyHeaders: void 0, body: void 0 };
-    const o = pe([t]);
+    const o = he([n]);
     return (
       // Pass raw type verbatim
       ArrayBuffer.isView(e) || e instanceof ArrayBuffer || e instanceof DataView || typeof e == "string" && // Preserve legacy string encoding behavior for now
@@ -11315,630 +11353,630 @@ class Le {
       globalThis.Blob && e instanceof globalThis.Blob || // `FormData` -> `multipart/form-data`
       e instanceof FormData || // `URLSearchParams` -> `application/x-www-form-urlencoded`
       e instanceof URLSearchParams || // Send chunked stream (each chunk has own `length`)
-      globalThis.ReadableStream && e instanceof globalThis.ReadableStream ? { bodyHeaders: void 0, body: e } : typeof e == "object" && (Symbol.asyncIterator in e || Symbol.iterator in e && "next" in e && typeof e.next == "function") ? { bodyHeaders: void 0, body: pd(e) } : this.encoder({ body: e, headers: o })
+      globalThis.ReadableStream && e instanceof globalThis.ReadableStream ? { bodyHeaders: void 0, body: e } : typeof e == "object" && (Symbol.asyncIterator in e || Symbol.iterator in e && "next" in e && typeof e.next == "function") ? { bodyHeaders: void 0, body: yd(e) } : this.encoder({ body: e, headers: o })
     );
   }
 }
-Le.DEFAULT_TIMEOUT = 6e4;
-class U extends Le {
+Fe.DEFAULT_TIMEOUT = 6e4;
+class L extends Fe {
   constructor() {
     super(...arguments), this.interactions = new qo(this);
   }
 }
-Bo = U;
-U.GeminiNextGenAPIClient = Bo;
-U.GeminiNextGenAPIClientError = B;
-U.APIError = H;
-U.APIConnectionError = ke;
-U.APIConnectionTimeoutError = vo;
-U.APIUserAbortError = Ze;
-U.NotFoundError = wo;
-U.ConflictError = Mo;
-U.RateLimitError = xo;
-U.BadRequestError = Ao;
-U.AuthenticationError = Ro;
-U.InternalServerError = Do;
-U.PermissionDeniedError = Po;
-U.UnprocessableEntityError = No;
-U.toFile = Cd;
-U.Interactions = qo;
+Jo = L;
+L.GeminiNextGenAPIClient = Jo;
+L.GeminiNextGenAPIClientError = O;
+L.APIError = b;
+L.APIConnectionError = Le;
+L.APIConnectionTimeoutError = Ao;
+L.APIUserAbortError = je;
+L.NotFoundError = Mo;
+L.ConflictError = No;
+L.RateLimitError = Do;
+L.BadRequestError = Ro;
+L.AuthenticationError = Po;
+L.InternalServerError = ko;
+L.PermissionDeniedError = wo;
+L.UnprocessableEntityError = xo;
+L.toFile = vd;
+L.Interactions = qo;
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-function kd(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  return o != null && l(t, ["_url", "name"], o), t;
+function Fd(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  return o != null && l(n, ["_url", "name"], o), n;
 }
-function Ud(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  return o != null && l(t, ["_url", "name"], o), t;
+function Hd(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  return o != null && l(n, ["_url", "name"], o), n;
 }
-function Ld(n, e) {
-  const t = {}, o = s(n, [
+function Vd(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  return o != null && l(t, ["sdkHttpResponse"], o), t;
+  return o != null && l(n, ["sdkHttpResponse"], o), n;
 }
-function Fd(n, e) {
-  const t = {}, o = s(n, [
+function bd(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  return o != null && l(t, ["sdkHttpResponse"], o), t;
+  return o != null && l(n, ["sdkHttpResponse"], o), n;
 }
-function Gd(n, e, t) {
+function qd(t, e, n) {
   const o = {};
-  if (s(n, ["validationDataset"]) !== void 0)
+  if (s(t, ["validationDataset"]) !== void 0)
     throw new Error("validationDataset parameter is not supported in Gemini API.");
-  const i = s(n, [
+  const i = s(t, [
     "tunedModelDisplayName"
   ]);
-  if (e !== void 0 && i != null && l(e, ["displayName"], i), s(n, ["description"]) !== void 0)
+  if (e !== void 0 && i != null && l(e, ["displayName"], i), s(t, ["description"]) !== void 0)
     throw new Error("description parameter is not supported in Gemini API.");
-  const r = s(n, ["epochCount"]);
+  const r = s(t, ["epochCount"]);
   e !== void 0 && r != null && l(e, ["tuningTask", "hyperparameters", "epochCount"], r);
-  const a = s(n, [
+  const a = s(t, [
     "learningRateMultiplier"
   ]);
-  if (a != null && l(o, ["tuningTask", "hyperparameters", "learningRateMultiplier"], a), s(n, ["exportLastCheckpointOnly"]) !== void 0)
+  if (a != null && l(o, ["tuningTask", "hyperparameters", "learningRateMultiplier"], a), s(t, ["exportLastCheckpointOnly"]) !== void 0)
     throw new Error("exportLastCheckpointOnly parameter is not supported in Gemini API.");
-  if (s(n, ["preTunedModelCheckpointId"]) !== void 0)
+  if (s(t, ["preTunedModelCheckpointId"]) !== void 0)
     throw new Error("preTunedModelCheckpointId parameter is not supported in Gemini API.");
-  if (s(n, ["adapterSize"]) !== void 0)
+  if (s(t, ["adapterSize"]) !== void 0)
     throw new Error("adapterSize parameter is not supported in Gemini API.");
-  if (s(n, ["tuningMode"]) !== void 0)
+  if (s(t, ["tuningMode"]) !== void 0)
     throw new Error("tuningMode parameter is not supported in Gemini API.");
-  if (s(n, ["customBaseModel"]) !== void 0)
+  if (s(t, ["customBaseModel"]) !== void 0)
     throw new Error("customBaseModel parameter is not supported in Gemini API.");
-  const u = s(n, ["batchSize"]);
+  const u = s(t, ["batchSize"]);
   e !== void 0 && u != null && l(e, ["tuningTask", "hyperparameters", "batchSize"], u);
-  const c = s(n, ["learningRate"]);
-  if (e !== void 0 && c != null && l(e, ["tuningTask", "hyperparameters", "learningRate"], c), s(n, ["labels"]) !== void 0)
+  const d = s(t, ["learningRate"]);
+  if (e !== void 0 && d != null && l(e, ["tuningTask", "hyperparameters", "learningRate"], d), s(t, ["labels"]) !== void 0)
     throw new Error("labels parameter is not supported in Gemini API.");
-  if (s(n, ["beta"]) !== void 0)
+  if (s(t, ["beta"]) !== void 0)
     throw new Error("beta parameter is not supported in Gemini API.");
-  if (s(n, ["baseTeacherModel"]) !== void 0)
+  if (s(t, ["baseTeacherModel"]) !== void 0)
     throw new Error("baseTeacherModel parameter is not supported in Gemini API.");
-  if (s(n, ["tunedTeacherModelSource"]) !== void 0)
+  if (s(t, ["tunedTeacherModelSource"]) !== void 0)
     throw new Error("tunedTeacherModelSource parameter is not supported in Gemini API.");
-  if (s(n, ["sftLossWeightMultiplier"]) !== void 0)
+  if (s(t, ["sftLossWeightMultiplier"]) !== void 0)
     throw new Error("sftLossWeightMultiplier parameter is not supported in Gemini API.");
-  if (s(n, ["outputUri"]) !== void 0)
+  if (s(t, ["outputUri"]) !== void 0)
     throw new Error("outputUri parameter is not supported in Gemini API.");
   return o;
 }
-function Vd(n, e, t) {
+function Bd(t, e, n) {
   const o = {};
-  let i = s(t, [
+  let i = s(n, [
     "config",
     "method"
   ]);
   if (i === void 0 && (i = "SUPERVISED_FINE_TUNING"), i === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, [
+    const C = s(t, [
       "validationDataset"
     ]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec"], He(y));
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec"], qe(C));
   } else if (i === "PREFERENCE_TUNING") {
-    const y = s(n, [
+    const C = s(t, [
       "validationDataset"
     ]);
-    e !== void 0 && y != null && l(e, ["preferenceOptimizationSpec"], He(y));
+    e !== void 0 && C != null && l(e, ["preferenceOptimizationSpec"], qe(C));
   } else if (i === "DISTILLATION") {
-    const y = s(n, [
+    const C = s(t, [
       "validationDataset"
     ]);
-    e !== void 0 && y != null && l(e, ["distillationSpec"], He(y));
+    e !== void 0 && C != null && l(e, ["distillationSpec"], qe(C));
   }
-  const r = s(n, [
+  const r = s(t, [
     "tunedModelDisplayName"
   ]);
   e !== void 0 && r != null && l(e, ["tunedModelDisplayName"], r);
-  const a = s(n, ["description"]);
+  const a = s(t, ["description"]);
   e !== void 0 && a != null && l(e, ["description"], a);
-  let u = s(t, [
+  let u = s(n, [
     "config",
     "method"
   ]);
   if (u === void 0 && (u = "SUPERVISED_FINE_TUNING"), u === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, ["epochCount"]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "hyperParameters", "epochCount"], y);
+    const C = s(t, ["epochCount"]);
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "hyperParameters", "epochCount"], C);
   } else if (u === "PREFERENCE_TUNING") {
-    const y = s(n, ["epochCount"]);
-    e !== void 0 && y != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "epochCount"], y);
+    const C = s(t, ["epochCount"]);
+    e !== void 0 && C != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "epochCount"], C);
   } else if (u === "DISTILLATION") {
-    const y = s(n, ["epochCount"]);
-    e !== void 0 && y != null && l(e, ["distillationSpec", "hyperParameters", "epochCount"], y);
+    const C = s(t, ["epochCount"]);
+    e !== void 0 && C != null && l(e, ["distillationSpec", "hyperParameters", "epochCount"], C);
   }
-  let c = s(t, [
+  let d = s(n, [
     "config",
     "method"
   ]);
-  if (c === void 0 && (c = "SUPERVISED_FINE_TUNING"), c === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, [
+  if (d === void 0 && (d = "SUPERVISED_FINE_TUNING"), d === "SUPERVISED_FINE_TUNING") {
+    const C = s(t, [
       "learningRateMultiplier"
     ]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "hyperParameters", "learningRateMultiplier"], y);
-  } else if (c === "PREFERENCE_TUNING") {
-    const y = s(n, [
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "hyperParameters", "learningRateMultiplier"], C);
+  } else if (d === "PREFERENCE_TUNING") {
+    const C = s(t, [
       "learningRateMultiplier"
     ]);
-    e !== void 0 && y != null && l(e, [
+    e !== void 0 && C != null && l(e, [
       "preferenceOptimizationSpec",
       "hyperParameters",
       "learningRateMultiplier"
-    ], y);
-  } else if (c === "DISTILLATION") {
-    const y = s(n, [
+    ], C);
+  } else if (d === "DISTILLATION") {
+    const C = s(t, [
       "learningRateMultiplier"
     ]);
-    e !== void 0 && y != null && l(e, ["distillationSpec", "hyperParameters", "learningRateMultiplier"], y);
+    e !== void 0 && C != null && l(e, ["distillationSpec", "hyperParameters", "learningRateMultiplier"], C);
   }
-  let d = s(t, ["config", "method"]);
-  if (d === void 0 && (d = "SUPERVISED_FINE_TUNING"), d === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, [
+  let c = s(n, ["config", "method"]);
+  if (c === void 0 && (c = "SUPERVISED_FINE_TUNING"), c === "SUPERVISED_FINE_TUNING") {
+    const C = s(t, [
       "exportLastCheckpointOnly"
     ]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "exportLastCheckpointOnly"], y);
-  } else if (d === "PREFERENCE_TUNING") {
-    const y = s(n, [
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "exportLastCheckpointOnly"], C);
+  } else if (c === "PREFERENCE_TUNING") {
+    const C = s(t, [
       "exportLastCheckpointOnly"
     ]);
-    e !== void 0 && y != null && l(e, ["preferenceOptimizationSpec", "exportLastCheckpointOnly"], y);
-  } else if (d === "DISTILLATION") {
-    const y = s(n, [
+    e !== void 0 && C != null && l(e, ["preferenceOptimizationSpec", "exportLastCheckpointOnly"], C);
+  } else if (c === "DISTILLATION") {
+    const C = s(t, [
       "exportLastCheckpointOnly"
     ]);
-    e !== void 0 && y != null && l(e, ["distillationSpec", "exportLastCheckpointOnly"], y);
+    e !== void 0 && C != null && l(e, ["distillationSpec", "exportLastCheckpointOnly"], C);
   }
-  let f = s(t, [
+  let f = s(n, [
     "config",
     "method"
   ]);
   if (f === void 0 && (f = "SUPERVISED_FINE_TUNING"), f === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, ["adapterSize"]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "hyperParameters", "adapterSize"], y);
+    const C = s(t, ["adapterSize"]);
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "hyperParameters", "adapterSize"], C);
   } else if (f === "PREFERENCE_TUNING") {
-    const y = s(n, ["adapterSize"]);
-    e !== void 0 && y != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "adapterSize"], y);
+    const C = s(t, ["adapterSize"]);
+    e !== void 0 && C != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "adapterSize"], C);
   } else if (f === "DISTILLATION") {
-    const y = s(n, ["adapterSize"]);
-    e !== void 0 && y != null && l(e, ["distillationSpec", "hyperParameters", "adapterSize"], y);
+    const C = s(t, ["adapterSize"]);
+    e !== void 0 && C != null && l(e, ["distillationSpec", "hyperParameters", "adapterSize"], C);
   }
-  let m = s(t, [
+  let p = s(n, [
+    "config",
+    "method"
+  ]);
+  if (p === void 0 && (p = "SUPERVISED_FINE_TUNING"), p === "SUPERVISED_FINE_TUNING") {
+    const C = s(t, ["tuningMode"]);
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "tuningMode"], C);
+  }
+  const h = s(t, [
+    "customBaseModel"
+  ]);
+  e !== void 0 && h != null && l(e, ["customBaseModel"], h);
+  let m = s(n, [
     "config",
     "method"
   ]);
   if (m === void 0 && (m = "SUPERVISED_FINE_TUNING"), m === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, ["tuningMode"]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "tuningMode"], y);
+    const C = s(t, ["batchSize"]);
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "hyperParameters", "batchSize"], C);
   }
-  const p = s(n, [
-    "customBaseModel"
-  ]);
-  e !== void 0 && p != null && l(e, ["customBaseModel"], p);
-  let h = s(t, [
-    "config",
-    "method"
-  ]);
-  if (h === void 0 && (h = "SUPERVISED_FINE_TUNING"), h === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, ["batchSize"]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "hyperParameters", "batchSize"], y);
-  }
-  let g = s(t, [
+  let g = s(n, [
     "config",
     "method"
   ]);
   if (g === void 0 && (g = "SUPERVISED_FINE_TUNING"), g === "SUPERVISED_FINE_TUNING") {
-    const y = s(n, [
+    const C = s(t, [
       "learningRate"
     ]);
-    e !== void 0 && y != null && l(e, ["supervisedTuningSpec", "hyperParameters", "learningRate"], y);
+    e !== void 0 && C != null && l(e, ["supervisedTuningSpec", "hyperParameters", "learningRate"], C);
   }
-  const _ = s(n, ["labels"]);
-  e !== void 0 && _ != null && l(e, ["labels"], _);
-  const T = s(n, ["beta"]);
-  e !== void 0 && T != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "beta"], T);
-  const C = s(n, [
+  const T = s(t, ["labels"]);
+  e !== void 0 && T != null && l(e, ["labels"], T);
+  const y = s(t, ["beta"]);
+  e !== void 0 && y != null && l(e, ["preferenceOptimizationSpec", "hyperParameters", "beta"], y);
+  const E = s(t, [
     "baseTeacherModel"
   ]);
-  e !== void 0 && C != null && l(e, ["distillationSpec", "baseTeacherModel"], C);
-  const S = s(n, [
+  e !== void 0 && E != null && l(e, ["distillationSpec", "baseTeacherModel"], E);
+  const S = s(t, [
     "tunedTeacherModelSource"
   ]);
   e !== void 0 && S != null && l(e, ["distillationSpec", "tunedTeacherModelSource"], S);
-  const E = s(n, [
+  const I = s(t, [
     "sftLossWeightMultiplier"
   ]);
-  e !== void 0 && E != null && l(e, ["distillationSpec", "hyperParameters", "sftLossWeightMultiplier"], E);
-  const I = s(n, ["outputUri"]);
-  return e !== void 0 && I != null && l(e, ["outputUri"], I), o;
+  e !== void 0 && I != null && l(e, ["distillationSpec", "hyperParameters", "sftLossWeightMultiplier"], I);
+  const _ = s(t, ["outputUri"]);
+  return e !== void 0 && _ != null && l(e, ["outputUri"], _), o;
 }
-function Hd(n, e) {
-  const t = {}, o = s(n, ["baseModel"]);
-  o != null && l(t, ["baseModel"], o);
-  const i = s(n, [
+function Jd(t, e) {
+  const n = {}, o = s(t, ["baseModel"]);
+  o != null && l(n, ["baseModel"], o);
+  const i = s(t, [
     "preTunedModel"
   ]);
-  i != null && l(t, ["preTunedModel"], i);
-  const r = s(n, [
+  i != null && l(n, ["preTunedModel"], i);
+  const r = s(t, [
     "trainingDataset"
   ]);
-  r != null && Xd(r);
-  const a = s(n, ["config"]);
-  return a != null && Gd(a, t), t;
+  r != null && ec(r);
+  const a = s(t, ["config"]);
+  return a != null && qd(a, n), n;
 }
-function qd(n, e) {
-  const t = {}, o = s(n, ["baseModel"]);
-  o != null && l(t, ["baseModel"], o);
-  const i = s(n, [
+function Od(t, e) {
+  const n = {}, o = s(t, ["baseModel"]);
+  o != null && l(n, ["baseModel"], o);
+  const i = s(t, [
     "preTunedModel"
   ]);
-  i != null && l(t, ["preTunedModel"], i);
-  const r = s(n, [
+  i != null && l(n, ["preTunedModel"], i);
+  const r = s(t, [
     "trainingDataset"
   ]);
-  r != null && Qd(r, t, e);
-  const a = s(n, ["config"]);
-  return a != null && Vd(a, t, e), t;
+  r != null && tc(r, n, e);
+  const a = s(t, ["config"]);
+  return a != null && Bd(a, n, e), n;
 }
-function bd(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  return o != null && l(t, ["_url", "name"], o), t;
+function $d(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  return o != null && l(n, ["_url", "name"], o), n;
 }
-function Bd(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  return o != null && l(t, ["_url", "name"], o), t;
+function Wd(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  return o != null && l(n, ["_url", "name"], o), n;
 }
-function Jd(n, e, t) {
-  const o = {}, i = s(n, ["pageSize"]);
+function Kd(t, e, n) {
+  const o = {}, i = s(t, ["pageSize"]);
   e !== void 0 && i != null && l(e, ["_query", "pageSize"], i);
-  const r = s(n, ["pageToken"]);
+  const r = s(t, ["pageToken"]);
   e !== void 0 && r != null && l(e, ["_query", "pageToken"], r);
-  const a = s(n, ["filter"]);
+  const a = s(t, ["filter"]);
   return e !== void 0 && a != null && l(e, ["_query", "filter"], a), o;
 }
-function Od(n, e, t) {
-  const o = {}, i = s(n, ["pageSize"]);
+function Yd(t, e, n) {
+  const o = {}, i = s(t, ["pageSize"]);
   e !== void 0 && i != null && l(e, ["_query", "pageSize"], i);
-  const r = s(n, ["pageToken"]);
+  const r = s(t, ["pageToken"]);
   e !== void 0 && r != null && l(e, ["_query", "pageToken"], r);
-  const a = s(n, ["filter"]);
+  const a = s(t, ["filter"]);
   return e !== void 0 && a != null && l(e, ["_query", "filter"], a), o;
 }
-function $d(n, e) {
-  const t = {}, o = s(n, ["config"]);
-  return o != null && Jd(o, t), t;
+function zd(t, e) {
+  const n = {}, o = s(t, ["config"]);
+  return o != null && Kd(o, n), n;
 }
-function Wd(n, e) {
-  const t = {}, o = s(n, ["config"]);
-  return o != null && Od(o, t), t;
+function Xd(t, e) {
+  const n = {}, o = s(t, ["config"]);
+  return o != null && Yd(o, n), n;
 }
-function Kd(n, e) {
-  const t = {}, o = s(n, [
+function Qd(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "nextPageToken"
   ]);
-  i != null && l(t, ["nextPageToken"], i);
-  const r = s(n, ["tunedModels"]);
+  i != null && l(n, ["nextPageToken"], i);
+  const r = s(t, ["tunedModels"]);
   if (r != null) {
     let a = r;
-    Array.isArray(a) && (a = a.map((u) => Jo(u))), l(t, ["tuningJobs"], a);
+    Array.isArray(a) && (a = a.map((u) => Oo(u))), l(n, ["tuningJobs"], a);
   }
-  return t;
+  return n;
 }
-function Yd(n, e) {
-  const t = {}, o = s(n, [
+function Zd(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, [
     "nextPageToken"
   ]);
-  i != null && l(t, ["nextPageToken"], i);
-  const r = s(n, ["tuningJobs"]);
+  i != null && l(n, ["nextPageToken"], i);
+  const r = s(t, ["tuningJobs"]);
   if (r != null) {
     let a = r;
-    Array.isArray(a) && (a = a.map((u) => nn(u))), l(t, ["tuningJobs"], a);
+    Array.isArray(a) && (a = a.map((u) => nt(u))), l(n, ["tuningJobs"], a);
   }
-  return t;
+  return n;
 }
-function zd(n, e) {
-  const t = {}, o = s(n, ["name"]);
-  o != null && l(t, ["model"], o);
-  const i = s(n, ["name"]);
-  return i != null && l(t, ["endpoint"], i), t;
+function jd(t, e) {
+  const n = {}, o = s(t, ["name"]);
+  o != null && l(n, ["model"], o);
+  const i = s(t, ["name"]);
+  return i != null && l(n, ["endpoint"], i), n;
 }
-function Xd(n, e) {
-  const t = {};
-  if (s(n, ["gcsUri"]) !== void 0)
+function ec(t, e) {
+  const n = {};
+  if (s(t, ["gcsUri"]) !== void 0)
     throw new Error("gcsUri parameter is not supported in Gemini API.");
-  if (s(n, ["vertexDatasetResource"]) !== void 0)
+  if (s(t, ["vertexDatasetResource"]) !== void 0)
     throw new Error("vertexDatasetResource parameter is not supported in Gemini API.");
-  const o = s(n, ["examples"]);
+  const o = s(t, ["examples"]);
   if (o != null) {
     let i = o;
-    Array.isArray(i) && (i = i.map((r) => r)), l(t, ["examples", "examples"], i);
+    Array.isArray(i) && (i = i.map((r) => r)), l(n, ["examples", "examples"], i);
   }
-  return t;
+  return n;
 }
-function Qd(n, e, t) {
+function tc(t, e, n) {
   const o = {};
-  let i = s(t, [
+  let i = s(n, [
     "config",
     "method"
   ]);
   if (i === void 0 && (i = "SUPERVISED_FINE_TUNING"), i === "SUPERVISED_FINE_TUNING") {
-    const a = s(n, ["gcsUri"]);
+    const a = s(t, ["gcsUri"]);
     e !== void 0 && a != null && l(e, ["supervisedTuningSpec", "trainingDatasetUri"], a);
   } else if (i === "PREFERENCE_TUNING") {
-    const a = s(n, ["gcsUri"]);
+    const a = s(t, ["gcsUri"]);
     e !== void 0 && a != null && l(e, ["preferenceOptimizationSpec", "trainingDatasetUri"], a);
   } else if (i === "DISTILLATION") {
-    const a = s(n, ["gcsUri"]);
+    const a = s(t, ["gcsUri"]);
     e !== void 0 && a != null && l(e, ["distillationSpec", "promptDatasetUri"], a);
   }
-  let r = s(t, [
+  let r = s(n, [
     "config",
     "method"
   ]);
   if (r === void 0 && (r = "SUPERVISED_FINE_TUNING"), r === "SUPERVISED_FINE_TUNING") {
-    const a = s(n, [
+    const a = s(t, [
       "vertexDatasetResource"
     ]);
     e !== void 0 && a != null && l(e, ["supervisedTuningSpec", "trainingDatasetUri"], a);
   } else if (r === "PREFERENCE_TUNING") {
-    const a = s(n, [
+    const a = s(t, [
       "vertexDatasetResource"
     ]);
     e !== void 0 && a != null && l(e, ["preferenceOptimizationSpec", "trainingDatasetUri"], a);
   } else if (r === "DISTILLATION") {
-    const a = s(n, [
+    const a = s(t, [
       "vertexDatasetResource"
     ]);
     e !== void 0 && a != null && l(e, ["distillationSpec", "promptDatasetUri"], a);
   }
-  if (s(n, ["examples"]) !== void 0)
+  if (s(t, ["examples"]) !== void 0)
     throw new Error("examples parameter is not supported in Vertex AI.");
   return o;
 }
-function Jo(n, e) {
-  const t = {}, o = s(n, [
+function Oo(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["name"]);
-  i != null && l(t, ["name"], i);
-  const r = s(n, ["state"]);
-  r != null && l(t, ["state"], io(r));
-  const a = s(n, ["createTime"]);
-  a != null && l(t, ["createTime"], a);
-  const u = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["name"]);
+  i != null && l(n, ["name"], i);
+  const r = s(t, ["state"]);
+  r != null && l(n, ["state"], so(r));
+  const a = s(t, ["createTime"]);
+  a != null && l(n, ["createTime"], a);
+  const u = s(t, [
     "tuningTask",
     "startTime"
   ]);
-  u != null && l(t, ["startTime"], u);
-  const c = s(n, [
+  u != null && l(n, ["startTime"], u);
+  const d = s(t, [
     "tuningTask",
     "completeTime"
   ]);
-  c != null && l(t, ["endTime"], c);
-  const d = s(n, ["updateTime"]);
-  d != null && l(t, ["updateTime"], d);
-  const f = s(n, ["description"]);
-  f != null && l(t, ["description"], f);
-  const m = s(n, ["baseModel"]);
-  m != null && l(t, ["baseModel"], m);
-  const p = s(n, ["_self"]);
-  return p != null && l(t, ["tunedModel"], zd(p)), t;
+  d != null && l(n, ["endTime"], d);
+  const c = s(t, ["updateTime"]);
+  c != null && l(n, ["updateTime"], c);
+  const f = s(t, ["description"]);
+  f != null && l(n, ["description"], f);
+  const p = s(t, ["baseModel"]);
+  p != null && l(n, ["baseModel"], p);
+  const h = s(t, ["_self"]);
+  return h != null && l(n, ["tunedModel"], jd(h)), n;
 }
-function nn(n, e) {
-  const t = {}, o = s(n, [
+function nt(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["name"]);
-  i != null && l(t, ["name"], i);
-  const r = s(n, ["state"]);
-  r != null && l(t, ["state"], io(r));
-  const a = s(n, ["createTime"]);
-  a != null && l(t, ["createTime"], a);
-  const u = s(n, ["startTime"]);
-  u != null && l(t, ["startTime"], u);
-  const c = s(n, ["endTime"]);
-  c != null && l(t, ["endTime"], c);
-  const d = s(n, ["updateTime"]);
-  d != null && l(t, ["updateTime"], d);
-  const f = s(n, ["error"]);
-  f != null && l(t, ["error"], f);
-  const m = s(n, ["description"]);
-  m != null && l(t, ["description"], m);
-  const p = s(n, ["baseModel"]);
-  p != null && l(t, ["baseModel"], p);
-  const h = s(n, ["tunedModel"]);
-  h != null && l(t, ["tunedModel"], h);
-  const g = s(n, [
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["name"]);
+  i != null && l(n, ["name"], i);
+  const r = s(t, ["state"]);
+  r != null && l(n, ["state"], so(r));
+  const a = s(t, ["createTime"]);
+  a != null && l(n, ["createTime"], a);
+  const u = s(t, ["startTime"]);
+  u != null && l(n, ["startTime"], u);
+  const d = s(t, ["endTime"]);
+  d != null && l(n, ["endTime"], d);
+  const c = s(t, ["updateTime"]);
+  c != null && l(n, ["updateTime"], c);
+  const f = s(t, ["error"]);
+  f != null && l(n, ["error"], f);
+  const p = s(t, ["description"]);
+  p != null && l(n, ["description"], p);
+  const h = s(t, ["baseModel"]);
+  h != null && l(n, ["baseModel"], h);
+  const m = s(t, ["tunedModel"]);
+  m != null && l(n, ["tunedModel"], m);
+  const g = s(t, [
     "preTunedModel"
   ]);
-  g != null && l(t, ["preTunedModel"], g);
-  const _ = s(n, [
+  g != null && l(n, ["preTunedModel"], g);
+  const T = s(t, [
     "supervisedTuningSpec"
   ]);
-  _ != null && l(t, ["supervisedTuningSpec"], _);
-  const T = s(n, [
+  T != null && l(n, ["supervisedTuningSpec"], T);
+  const y = s(t, [
     "preferenceOptimizationSpec"
   ]);
-  T != null && l(t, ["preferenceOptimizationSpec"], T);
-  const C = s(n, [
+  y != null && l(n, ["preferenceOptimizationSpec"], y);
+  const E = s(t, [
     "distillationSpec"
   ]);
-  C != null && l(t, ["distillationSpec"], C);
-  const S = s(n, [
+  E != null && l(n, ["distillationSpec"], E);
+  const S = s(t, [
     "tuningDataStats"
   ]);
-  S != null && l(t, ["tuningDataStats"], S);
-  const E = s(n, [
+  S != null && l(n, ["tuningDataStats"], S);
+  const I = s(t, [
     "encryptionSpec"
   ]);
-  E != null && l(t, ["encryptionSpec"], E);
-  const I = s(n, [
+  I != null && l(n, ["encryptionSpec"], I);
+  const _ = s(t, [
     "partnerModelTuningSpec"
   ]);
-  I != null && l(t, ["partnerModelTuningSpec"], I);
-  const y = s(n, [
+  _ != null && l(n, ["partnerModelTuningSpec"], _);
+  const C = s(t, [
     "customBaseModel"
   ]);
-  y != null && l(t, ["customBaseModel"], y);
-  const R = s(n, ["experiment"]);
-  R != null && l(t, ["experiment"], R);
-  const M = s(n, ["labels"]);
-  M != null && l(t, ["labels"], M);
-  const D = s(n, ["outputUri"]);
-  D != null && l(t, ["outputUri"], D);
-  const A = s(n, ["pipelineJob"]);
-  A != null && l(t, ["pipelineJob"], A);
-  const N = s(n, [
+  C != null && l(n, ["customBaseModel"], C);
+  const R = s(t, ["experiment"]);
+  R != null && l(n, ["experiment"], R);
+  const P = s(t, ["labels"]);
+  P != null && l(n, ["labels"], P);
+  const D = s(t, ["outputUri"]);
+  D != null && l(n, ["outputUri"], D);
+  const A = s(t, ["pipelineJob"]);
+  A != null && l(n, ["pipelineJob"], A);
+  const N = s(t, [
     "serviceAccount"
   ]);
-  N != null && l(t, ["serviceAccount"], N);
-  const k = s(n, [
+  N != null && l(n, ["serviceAccount"], N);
+  const x = s(t, [
     "tunedModelDisplayName"
   ]);
-  k != null && l(t, ["tunedModelDisplayName"], k);
-  const q = s(n, [
+  x != null && l(n, ["tunedModelDisplayName"], x);
+  const U = s(t, [
     "veoTuningSpec"
   ]);
-  return q != null && l(t, ["veoTuningSpec"], q), t;
+  return U != null && l(n, ["veoTuningSpec"], U), n;
 }
-function Zd(n, e) {
-  const t = {}, o = s(n, [
+function nc(t, e) {
+  const n = {}, o = s(t, [
     "sdkHttpResponse"
   ]);
-  o != null && l(t, ["sdkHttpResponse"], o);
-  const i = s(n, ["name"]);
-  i != null && l(t, ["name"], i);
-  const r = s(n, ["metadata"]);
-  r != null && l(t, ["metadata"], r);
-  const a = s(n, ["done"]);
-  a != null && l(t, ["done"], a);
-  const u = s(n, ["error"]);
-  return u != null && l(t, ["error"], u), t;
+  o != null && l(n, ["sdkHttpResponse"], o);
+  const i = s(t, ["name"]);
+  i != null && l(n, ["name"], i);
+  const r = s(t, ["metadata"]);
+  r != null && l(n, ["metadata"], r);
+  const a = s(t, ["done"]);
+  a != null && l(n, ["done"], a);
+  const u = s(t, ["error"]);
+  return u != null && l(n, ["error"], u), n;
 }
-function He(n, e) {
-  const t = {}, o = s(n, ["gcsUri"]);
-  o != null && l(t, ["validationDatasetUri"], o);
-  const i = s(n, [
+function qe(t, e) {
+  const n = {}, o = s(t, ["gcsUri"]);
+  o != null && l(n, ["validationDatasetUri"], o);
+  const i = s(t, [
     "vertexDatasetResource"
   ]);
-  return i != null && l(t, ["validationDatasetUri"], i), t;
+  return i != null && l(n, ["validationDatasetUri"], i), n;
 }
 /**
  * @license
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class jd extends z {
+class oc extends X {
   constructor(e) {
-    super(), this.apiClient = e, this.list = async (t = {}) => new te(Y.PAGED_ITEM_TUNING_JOBS, (o) => this.listInternal(o), await this.listInternal(t), t), this.get = async (t) => await this.getInternal(t), this.tune = async (t) => {
+    super(), this.apiClient = e, this.list = async (n = {}) => new oe(z.PAGED_ITEM_TUNING_JOBS, (o) => this.listInternal(o), await this.listInternal(n), n), this.get = async (n) => await this.getInternal(n), this.tune = async (n) => {
       var o;
       if (this.apiClient.isVertexAI())
-        if (t.baseModel.startsWith("projects/")) {
+        if (n.baseModel.startsWith("projects/")) {
           const i = {
-            tunedModelName: t.baseModel
+            tunedModelName: n.baseModel
           };
-          !((o = t.config) === null || o === void 0) && o.preTunedModelCheckpointId && (i.checkpointId = t.config.preTunedModelCheckpointId);
-          const r = Object.assign(Object.assign({}, t), { preTunedModel: i });
+          !((o = n.config) === null || o === void 0) && o.preTunedModelCheckpointId && (i.checkpointId = n.config.preTunedModelCheckpointId);
+          const r = Object.assign(Object.assign({}, n), { preTunedModel: i });
           return r.baseModel = void 0, await this.tuneInternal(r);
         } else {
-          const i = Object.assign({}, t);
+          const i = Object.assign({}, n);
           return await this.tuneInternal(i);
         }
       else {
-        const i = Object.assign({}, t), r = await this.tuneMldevInternal(i);
+        const i = Object.assign({}, n), r = await this.tuneMldevInternal(i);
         let a = "";
         return r.metadata !== void 0 && r.metadata.tunedModel !== void 0 ? a = r.metadata.tunedModel : r.name !== void 0 && r.name.includes("/operations/") && (a = r.name.split("/operations/")[0]), {
           name: a,
-          state: Be.JOB_STATE_QUEUED
+          state: Je.JOB_STATE_QUEUED
         };
       }
     };
   }
   async getInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Bd(e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Wd(e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
-      })), a.then((f) => nn(f));
+        }, h;
+      })), a.then((f) => nt(f));
     } else {
-      const d = bd(e);
-      return u = v("{name}", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = $d(e);
+      return u = v("{name}", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
-      })), a.then((f) => Jo(f));
+        }, h;
+      })), a.then((f) => Oo(f));
     }
   }
   async listInternal(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Wd(e);
-      return u = v("tuningJobs", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Xd(e);
+      return u = v("tuningJobs", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Yd(f), p = new St();
-        return Object.assign(p, m), p;
+        const p = Zd(f), h = new In();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = $d(e);
-      return u = v("tunedModels", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = zd(e);
+      return u = v("tunedModels", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "GET",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Kd(f), p = new St();
-        return Object.assign(p, m), p;
+        const p = Qd(f), h = new In();
+        return Object.assign(h, p), h;
       });
     }
   }
@@ -11954,87 +11992,87 @@ class jd extends z {
    * ```
    */
   async cancel(e) {
-    var t, o, i, r;
-    let a, u = "", c = {};
+    var n, o, i, r;
+    let a, u = "", d = {};
     if (this.apiClient.isVertexAI()) {
-      const d = Ud(e);
-      return u = v("{name}:cancel", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Hd(e);
+      return u = v("{name}:cancel", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Fd(f), p = new It();
-        return Object.assign(p, m), p;
+        const p = bd(f), h = new vn();
+        return Object.assign(h, p), h;
       });
     } else {
-      const d = kd(e);
-      return u = v("{name}:cancel", d._url), c = d._query, delete d._url, delete d._query, a = this.apiClient.request({
+      const c = Fd(e);
+      return u = v("{name}:cancel", c._url), d = c._query, delete c._url, delete c._query, a = this.apiClient.request({
         path: u,
-        queryParams: c,
-        body: JSON.stringify(d),
+        queryParams: d,
+        body: JSON.stringify(c),
         httpMethod: "POST",
         httpOptions: (i = e.config) === null || i === void 0 ? void 0 : i.httpOptions,
         abortSignal: (r = e.config) === null || r === void 0 ? void 0 : r.abortSignal
-      }).then((f) => f.json().then((m) => {
-        const p = m;
-        return p.sdkHttpResponse = {
+      }).then((f) => f.json().then((p) => {
+        const h = p;
+        return h.sdkHttpResponse = {
           headers: f.headers
-        }, p;
+        }, h;
       })), a.then((f) => {
-        const m = Ld(f), p = new It();
-        return Object.assign(p, m), p;
+        const p = Vd(f), h = new vn();
+        return Object.assign(h, p), h;
       });
     }
   }
   async tuneInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI()) {
-      const u = qd(e, e);
+      const u = Od(e, e);
       return r = v("tuningJobs", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => nn(c));
+      })), i.then((d) => nt(d));
     } else
       throw new Error("This method is only supported by the Vertex AI.");
   }
   async tuneMldevInternal(e) {
-    var t, o;
+    var n, o;
     let i, r = "", a = {};
     if (this.apiClient.isVertexAI())
       throw new Error("This method is only supported by the Gemini Developer API.");
     {
-      const u = Hd(e);
+      const u = Jd(e);
       return r = v("tunedModels", u._url), a = u._query, delete u._url, delete u._query, i = this.apiClient.request({
         path: r,
         queryParams: a,
         body: JSON.stringify(u),
         httpMethod: "POST",
-        httpOptions: (t = e.config) === null || t === void 0 ? void 0 : t.httpOptions,
+        httpOptions: (n = e.config) === null || n === void 0 ? void 0 : n.httpOptions,
         abortSignal: (o = e.config) === null || o === void 0 ? void 0 : o.abortSignal
-      }).then((c) => c.json().then((d) => {
-        const f = d;
+      }).then((d) => d.json().then((c) => {
+        const f = c;
         return f.sdkHttpResponse = {
-          headers: c.headers
+          headers: d.headers
         }, f;
-      })), i.then((c) => Zd(c));
+      })), i.then((d) => nc(d));
     }
   }
 }
@@ -12043,35 +12081,35 @@ class jd extends z {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class ec {
-  async download(e, t) {
+class ic {
+  async download(e, n) {
     throw new Error("Download to file is not supported in the browser, please use a browser compliant download like an <a> tag.");
   }
 }
-const nc = 1024 * 1024 * 8, tc = 3, oc = 1e3, ic = 2, Me = "x-goog-upload-status";
-async function sc(n, e, t) {
+const sc = 1024 * 1024 * 8, rc = 3, lc = 1e3, ac = 2, xe = "x-goog-upload-status";
+async function uc(t, e, n) {
   var o;
-  const i = await Oo(n, e, t), r = await (i == null ? void 0 : i.json());
-  if (((o = i == null ? void 0 : i.headers) === null || o === void 0 ? void 0 : o[Me]) !== "final")
+  const i = await $o(t, e, n), r = await (i == null ? void 0 : i.json());
+  if (((o = i == null ? void 0 : i.headers) === null || o === void 0 ? void 0 : o[xe]) !== "final")
     throw new Error("Failed to upload file: Upload status is not finalized.");
   return r.file;
 }
-async function rc(n, e, t) {
+async function dc(t, e, n) {
   var o;
-  const i = await Oo(n, e, t), r = await (i == null ? void 0 : i.json());
-  if (((o = i == null ? void 0 : i.headers) === null || o === void 0 ? void 0 : o[Me]) !== "final")
+  const i = await $o(t, e, n), r = await (i == null ? void 0 : i.json());
+  if (((o = i == null ? void 0 : i.headers) === null || o === void 0 ? void 0 : o[xe]) !== "final")
     throw new Error("Failed to upload file: Upload status is not finalized.");
-  const a = Zt(r), u = new rn();
+  const a = jn(r), u = new rt();
   return Object.assign(u, a), u;
 }
-async function Oo(n, e, t) {
+async function $o(t, e, n) {
   var o, i;
-  let r = 0, a = 0, u = new Oe(new Response()), c = "upload";
-  for (r = n.size; a < r; ) {
-    const d = Math.min(nc, r - a), f = n.slice(a, a + d);
-    a + d >= r && (c += ", finalize");
-    let m = 0, p = oc;
-    for (; m < tc && (u = await t.request({
+  let r = 0, a = 0, u = new $e(new Response()), d = "upload";
+  for (r = t.size; a < r; ) {
+    const c = Math.min(sc, r - a), f = t.slice(a, a + c);
+    a + c >= r && (d += ", finalize");
+    let p = 0, h = lc;
+    for (; p < rc && (u = await n.request({
       path: "",
       body: f,
       httpMethod: "POST",
@@ -12079,41 +12117,41 @@ async function Oo(n, e, t) {
         apiVersion: "",
         baseUrl: e,
         headers: {
-          "X-Goog-Upload-Command": c,
+          "X-Goog-Upload-Command": d,
           "X-Goog-Upload-Offset": String(a),
-          "Content-Length": String(d)
+          "Content-Length": String(c)
         }
       }
-    }), !(!((o = u == null ? void 0 : u.headers) === null || o === void 0) && o[Me])); )
-      m++, await ac(p), p = p * ic;
-    if (a += d, ((i = u == null ? void 0 : u.headers) === null || i === void 0 ? void 0 : i[Me]) !== "active")
+    }), !(!((o = u == null ? void 0 : u.headers) === null || o === void 0) && o[xe])); )
+      p++, await fc(h), h = h * ac;
+    if (a += c, ((i = u == null ? void 0 : u.headers) === null || i === void 0 ? void 0 : i[xe]) !== "active")
       break;
     if (r <= a)
       throw new Error("All content has been uploaded, but the upload status is not finalized.");
   }
   return u;
 }
-async function lc(n) {
-  return { size: n.size, type: n.type };
+async function cc(t) {
+  return { size: t.size, type: t.type };
 }
-function ac(n) {
-  return new Promise((e) => setTimeout(e, n));
+function fc(t) {
+  return new Promise((e) => setTimeout(e, t));
 }
-class uc {
-  async upload(e, t, o) {
+class pc {
+  async upload(e, n, o) {
     if (typeof e == "string")
       throw new Error("File path is not supported in browser uploader.");
-    return await sc(e, t, o);
+    return await uc(e, n, o);
   }
-  async uploadToFileSearchStore(e, t, o) {
+  async uploadToFileSearchStore(e, n, o) {
     if (typeof e == "string")
       throw new Error("File path is not supported in browser uploader.");
-    return await rc(e, t, o);
+    return await dc(e, n, o);
   }
   async stat(e) {
     if (typeof e == "string")
       throw new Error("File path is not supported in browser uploader.");
-    return await lc(e);
+    return await cc(e);
   }
 }
 /**
@@ -12121,14 +12159,14 @@ class uc {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-class dc {
-  create(e, t, o) {
-    return new cc(e, t, o);
+class hc {
+  create(e, n, o) {
+    return new mc(e, n, o);
   }
 }
-class cc {
-  constructor(e, t, o) {
-    this.url = e, this.headers = t, this.callbacks = o;
+class mc {
+  constructor(e, n, o) {
+    this.url = e, this.headers = n, this.callbacks = o;
   }
   connect() {
     this.ws = new WebSocket(this.url), this.ws.onopen = this.callbacks.onopen, this.ws.onerror = this.callbacks.onerror, this.ws.onclose = this.callbacks.onclose, this.ws.onmessage = this.callbacks.onmessage;
@@ -12149,19 +12187,19 @@ class cc {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const Xt = "x-goog-api-key";
-class fc {
+const Qn = "x-goog-api-key";
+class gc {
   constructor(e) {
     this.apiKey = e;
   }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async addAuthHeaders(e, t) {
-    if (e.get(Xt) === null) {
+  async addAuthHeaders(e, n) {
+    if (e.get(Qn) === null) {
       if (this.apiKey.startsWith("auth_tokens/"))
         throw new Error("Ephemeral tokens are only supported by the live API.");
       if (!this.apiKey)
         throw new Error("API key is missing. Please provide a valid API key.");
-      e.append(Xt, this.apiKey);
+      e.append(Qn, this.apiKey);
     }
   }
 }
@@ -12170,15 +12208,15 @@ class fc {
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-const pc = "gl-node/";
-class mc {
+const yc = "gl-node/";
+class Tc {
   get interactions() {
     if (this._interactions !== void 0)
       return this._interactions;
     console.warn("GoogleGenAI.interactions: Interactions usage is experimental and may change in future versions.");
     const e = this.httpOptions;
     e != null && e.extraBody && console.warn("GoogleGenAI.interactions: Client level httpOptions.extraBody is not supported by the interactions client and will be ignored.");
-    const t = new U({
+    const n = new L({
       baseURL: this.apiClient.getBaseUrl(),
       apiKey: this.apiKey,
       apiVersion: this.apiClient.getApiVersion(),
@@ -12186,16 +12224,16 @@ class mc {
       defaultHeaders: this.apiClient.getDefaultHeaders(),
       timeout: e == null ? void 0 : e.timeout
     });
-    return this._interactions = t.interactions, this._interactions;
+    return this._interactions = n.interactions, this._interactions;
   }
   constructor(e) {
-    var t;
+    var n;
     if (e.apiKey == null)
       throw new Error("An API Key must be set when running in a browser");
     if (e.project || e.location)
       throw new Error("Vertex AI project based authentication is not supported on browser runtimes. Please do not provide a project or location.");
-    this.vertexai = (t = e.vertexai) !== null && t !== void 0 ? t : !1, this.apiKey = e.apiKey;
-    const o = ii(
+    this.vertexai = (n = e.vertexai) !== null && n !== void 0 ? n : !1, this.apiKey = e.apiKey;
+    const o = ai(
       e.httpOptions,
       e.vertexai,
       /*vertexBaseUrlFromEnv*/
@@ -12204,20 +12242,20 @@ class mc {
       void 0
     );
     o && (e.httpOptions ? e.httpOptions.baseUrl = o : e.httpOptions = { baseUrl: o }), this.apiVersion = e.apiVersion, this.httpOptions = e.httpOptions;
-    const i = new fc(this.apiKey);
-    this.apiClient = new lu({
+    const i = new gc(this.apiKey);
+    this.apiClient = new cu({
       auth: i,
       apiVersion: this.apiVersion,
       apiKey: this.apiKey,
       vertexai: this.vertexai,
       httpOptions: this.httpOptions,
-      userAgentExtra: pc + "web",
-      uploader: new uc(),
-      downloader: new ec()
-    }), this.models = new Ru(this.apiClient), this.live = new Cu(this.apiClient, i, new dc()), this.batches = new Us(this.apiClient), this.chats = new hr(this.models, this.apiClient), this.caches = new fr(this.apiClient), this.files = new Pr(this.apiClient), this.operations = new Pu(this.apiClient), this.authTokens = new Ju(this.apiClient), this.tunings = new jd(this.apiClient), this.fileSearchStores = new Qu(this.apiClient);
+      userAgentExtra: yc + "web",
+      uploader: new pc(),
+      downloader: new ic()
+    }), this.models = new Nu(this.apiClient), this.live = new vu(this.apiClient, i, new hc()), this.batches = new Hs(this.apiClient), this.chats = new Cr(this.models, this.apiClient), this.caches = new gr(this.apiClient), this.files = new xr(this.apiClient), this.operations = new xu(this.apiClient), this.authTokens = new Ku(this.apiClient), this.tunings = new oc(this.apiClient), this.fileSearchStores = new td(this.apiClient);
   }
 }
-class qe {
+class Se {
   /**
    * Map internal message format to Gemini's message format
    */
@@ -12230,15 +12268,17 @@ class qe {
   /**
    * Convert internal ChatRequest to Gemini-specific format
    */
-  static toGeminiRequest(e) {
-    const i = {
-      contents: e.messages.filter((a) => a.role !== "system").map((a) => this.mapMessage(a))
-    };
-    e.system && (i.systemInstruction = {
-      parts: [{ text: e.system }]
-    });
-    const r = {};
-    return e.temperature !== void 0 && (r.temperature = e.temperature), e.maxTokens !== void 0 && (r.maxOutputTokens = e.maxTokens), e.topP !== void 0 && (r.topP = e.topP), e.stop !== void 0 && (r.stopSequences = e.stop), Object.keys(r).length > 0 && (i.generationConfig = r), i;
+  static toGeminiRequest(e, n, o) {
+    const a = {
+      contents: e.messages.filter((d) => d.role !== "system").map((d) => this.mapMessage(d)),
+      model: n
+    }, u = {};
+    return e.temperature !== void 0 && (u.temperature = e.temperature), e.maxTokens !== void 0 && (u.maxOutputTokens = e.maxTokens), e.topP !== void 0 && (u.topP = e.topP), e.stop !== void 0 && (u.stopSequences = e.stop), o && o.length > 0 && (u.tools = [{ functionDeclarations: o }]), e.system && (u.systemInstruction = e.system ? e.system : "You are an assistant with access to local file system tools. Always use the provided read_folder tool when a file path is mentioned"), u.thread_id = e.thread_id, u.branch_id = e.branch_id, u.httpOptions = {
+      extraBody: {
+        thread_id: e.thread_id,
+        branch_id: e.branch_id
+      }
+    }, Object.keys(u).length > 0 && (a.config = u), a;
   }
   /**
    * Map Gemini API error to a readable error string
@@ -12246,7 +12286,7 @@ class qe {
    */
   static mapError(e) {
     var o;
-    let t = "An error occurred with the Gemini API";
+    let n = "An error occurred with the Gemini API";
     try {
       if (e != null && e.message) {
         let i = e.message;
@@ -12262,20 +12302,20 @@ class qe {
           } catch {
             break;
           }
-        t = i;
+        n = i;
       }
     } catch (i) {
       console.error("[GeminiConverter] Failed to parse error:", i);
     }
-    return t;
+    return n;
   }
 }
-class hc {
-  constructor(e, t) {
-    P(this, "client");
-    P(this, "apiEndpoint");
-    P(this, "tokenCallback");
-    this.client = e, this.apiEndpoint = t;
+class Cc {
+  constructor(e, n) {
+    w(this, "client");
+    w(this, "apiEndpoint");
+    w(this, "tokenCallback");
+    this.client = e, this.apiEndpoint = n;
   }
   /**
    * Set the token callback for streaming mode
@@ -12286,72 +12326,125 @@ class hc {
   /**
    * Make a request to Gemini with function calling enabled
    */
-  async makeRequest(e, t, o, i, r) {
+  async makeRequest(e, n, o, i, r) {
     console.log("[GeminiToolHandler] makeRequest called", {
       model: e,
-      messagesCount: t.length,
+      messagesCount: n.length,
       toolsCount: o.length,
       threadContext: i,
       shouldStream: r
     });
-    const a = o.map((d) => ({
-      name: d.name,
-      description: d.description,
-      parameters: d.parameters
+    const a = o.map((c) => ({
+      name: c.name,
+      description: c.description,
+      parameters: c.parameters
     })), u = [{
       functionDeclarations: a
     }];
     console.log("[GeminiToolHandler] Converted tools to Gemini format", {
       functionDeclarationsCount: a.length,
-      functions: a.map((d) => d.name)
+      functions: a.map((c) => c.name)
     });
-    const c = {
+    const d = {
       model: e,
-      contents: t,
+      contents: n,
       tools: u
     };
-    return console.log("[GeminiToolHandler] Making API request", {
-      shouldStream: r,
-      hasTools: u.length > 0
-    }), r ? await this.makeStreamingRequest(c) : await this.makeNonStreamingRequest(c);
+    return console.log("[GeminiToolHandler] Request params prepared", {
+      hasTools: u.length > 0,
+      geminiToolsCount: u.length,
+      functionDeclarationsCount: a.length,
+      toolNames: a.map((c) => c.name),
+      shouldStream: r
+    }), r ? await this.makeStreamingRequest(d) : await this.makeNonStreamingRequest(d);
   }
   /**
    * Make a streaming request to Gemini
+   * Note: For tool calling, we accumulate the complete response
    */
   async makeStreamingRequest(e) {
-    var r, a, u, c;
-    console.log("[GeminiToolHandler] Starting streaming request");
-    const t = await this.client.models.generateContentStream(e);
-    let o = 0, i = null;
+    var a, u, d, c, f, p, h, m, g, T, y, E, S, I;
+    console.log("[GeminiToolHandler] Starting streaming request with tools", {
+      model: e.model,
+      contentsCount: (a = e.contents) == null ? void 0 : a.length,
+      toolsCount: (u = e.tools) == null ? void 0 : u.length
+    }), console.log("[GeminiToolHandler] Calling generateContentStream...");
+    const n = await this.client.models.generateContentStream(e);
+    console.log("[GeminiToolHandler] generateContentStream returned, starting iteration");
+    let o = 0, i = null, r = "";
     try {
-      for await (const d of t) {
-        o++, i = d, console.log("[GeminiToolHandler] Received streaming chunk", {
+      for await (const _ of n) {
+        if (o++, i = _, console.log("[GeminiToolHandler] Chunk received", {
           chunkCount: o,
-          hasText: !!d.text,
-          finishReason: (a = (r = d.candidates) == null ? void 0 : r[0]) == null ? void 0 : a.finishReason
-        });
-        const f = d.text;
-        f && this.tokenCallback && this.tokenCallback(f);
-        const m = (c = (u = d.candidates) == null ? void 0 : u[0]) == null ? void 0 : c.finishReason;
-        if (m) {
-          console.log("[GeminiToolHandler] Detected finish reason, breaking loop", { finishReason: m });
+          chunkKeys: Object.keys(_ || {}),
+          hasText: !!_.text,
+          textLength: ((d = _.text) == null ? void 0 : d.length) || 0,
+          hasCandidates: !!_.candidates,
+          candidatesCount: ((c = _.candidates) == null ? void 0 : c.length) || 0
+        }), (f = _.candidates) != null && f[0]) {
+          const P = _.candidates[0];
+          console.log("[GeminiToolHandler] Candidate details", {
+            chunkCount: o,
+            hasContent: !!P.content,
+            partsCount: ((h = (p = P.content) == null ? void 0 : p.parts) == null ? void 0 : h.length) || 0,
+            finishReason: P.finishReason
+          }), (m = P.content) != null && m.parts && P.content.parts.forEach((D, A) => {
+            var N, x;
+            console.log("[GeminiToolHandler] Part details", {
+              chunkCount: o,
+              partIndex: A,
+              partKeys: Object.keys(D || {}),
+              hasText: !!D.text,
+              hasFunctionCall: !!D.functionCall,
+              functionCallName: (N = D.functionCall) == null ? void 0 : N.name,
+              functionCallArgsType: typeof ((x = D.functionCall) == null ? void 0 : x.args)
+            });
+          });
+        }
+        const C = _.text;
+        C && this.tokenCallback && (r += C, this.tokenCallback(C), console.log("[GeminiToolHandler] Sent text to callback", {
+          chunkCount: o,
+          textLength: C.length,
+          accumulatedLength: r.length
+        }));
+        const R = (T = (g = _.candidates) == null ? void 0 : g[0]) == null ? void 0 : T.finishReason;
+        if (R) {
+          console.log("[GeminiToolHandler] Detected finish reason, breaking loop", {
+            chunkCount: o,
+            finishReason: R,
+            hasFunctionCall: !!((I = (S = (E = (y = _.candidates) == null ? void 0 : y[0]) == null ? void 0 : E.content) == null ? void 0 : S.parts) != null && I.some((P) => P.functionCall))
+          });
           break;
         }
       }
-    } catch (d) {
-      throw console.error("[GeminiToolHandler] Error during streaming", d), d;
+      console.log("[GeminiToolHandler] Stream iteration completed successfully", {
+        totalChunks: o
+      });
+    } catch (_) {
+      throw console.error("[GeminiToolHandler] Error during streaming", {
+        error: _,
+        errorMessage: _ instanceof Error ? _.message : String(_),
+        errorStack: _ instanceof Error ? _.stack : void 0,
+        chunkCount: o,
+        accumulatedTextLength: r.length
+      }), _;
     }
-    return console.log("[GeminiToolHandler] Stream completed", { chunkCount: o }), console.log("[GeminiToolHandler] Returning last chunk as result"), i;
+    return console.log("[GeminiToolHandler] Stream completed", {
+      chunkCount: o,
+      hasCompleteResponse: !!i,
+      accumulatedTextLength: r.length,
+      responseKeys: i ? Object.keys(i) : []
+    }), i;
   }
   /**
    * Make a non-streaming request to Gemini
    */
   async makeNonStreamingRequest(e) {
     console.log("[GeminiToolHandler] Starting non-streaming request");
-    const t = await this.client.models.generateContent(e);
+    const n = await this.client.models.generateContent(e);
     return console.log("[GeminiToolHandler] Non-streaming response received", {
-      hasResponse: !!t
-    }), t;
+      hasResponse: !!n
+    }), n;
   }
   /**
    * Extract tool uses (function calls) from Gemini's response
@@ -12359,31 +12452,44 @@ class hc {
   extractToolUses(e) {
     var r;
     console.log("[GeminiToolHandler] Extracting tool uses from response");
-    const t = [], o = e.candidates;
+    const n = [], o = e.candidates;
     if (!o || o.length === 0)
-      return console.log("[GeminiToolHandler] No candidates found in response"), t;
+      return console.log("[GeminiToolHandler] No candidates found in response"), n;
     const i = (r = o[0].content) == null ? void 0 : r.parts;
     if (!i)
-      return console.log("[GeminiToolHandler] No parts found in candidate content"), t;
+      return console.log("[GeminiToolHandler] No parts found in candidate content"), n;
     console.log("[GeminiToolHandler] Checking parts for function calls", {
       partsCount: i.length
     });
     for (const a of i)
       if (a.functionCall) {
         const u = a.functionCall;
-        console.log("[GeminiToolHandler] Found function call", {
-          name: u.name,
-          args: u.args
-        }), t.push({
-          id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          name: u.name,
-          input: u.args || {}
-        });
+        try {
+          let d = u.args || {};
+          typeof d == "string" && (console.log("[GeminiToolHandler] Function call args is string, attempting to parse", {
+            name: u.name,
+            argsPreview: d.substring(0, 100)
+          }), d = JSON.parse(d)), console.log("[GeminiToolHandler] Found function call", {
+            name: u.name,
+            argsType: typeof d,
+            argsKeys: typeof d == "object" ? Object.keys(d) : []
+          }), n.push({
+            id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: u.name,
+            input: d
+          });
+        } catch (d) {
+          console.error("[GeminiToolHandler] Error parsing function call arguments", {
+            name: u.name,
+            error: d instanceof Error ? d.message : String(d),
+            args: u.args
+          });
+        }
       }
     return console.log("[GeminiToolHandler] Extracted tool uses", {
-      count: t.length,
-      tools: t.map((a) => ({ id: a.id, name: a.name }))
-    }), t;
+      count: n.length,
+      tools: n.map((a) => ({ id: a.id, name: a.name }))
+    }), n;
   }
   /**
    * Extract text content from Gemini's response
@@ -12391,11 +12497,11 @@ class hc {
   extractTextContent(e) {
     console.log("[GeminiToolHandler] Extracting text content from response");
     try {
-      const t = e.text;
+      const n = e.text;
       return console.log("[GeminiToolHandler] Text content extracted", {
-        hasText: !!t,
-        textLength: (t == null ? void 0 : t.length) || 0
-      }), t || null;
+        hasText: !!n,
+        textLength: (n == null ? void 0 : n.length) || 0
+      }), n || null;
     } catch {
       return console.log("[GeminiToolHandler] No text content in response (this is normal for function calls)"), null;
     }
@@ -12403,13 +12509,13 @@ class hc {
   /**
    * Format tool results for Gemini's expected format
    */
-  formatToolResults(e, t) {
+  formatToolResults(e, n) {
     console.log("[GeminiToolHandler] Formatting tool results", {
       toolUsesCount: e.length,
-      resultsCount: t.length
+      resultsCount: n.length
     });
     const o = e.map((i, r) => {
-      const a = t[r];
+      const a = n[r];
       return console.log("[GeminiToolHandler] Formatting result for tool", {
         toolName: i.name,
         resultSuccess: a == null ? void 0 : a.success,
@@ -12432,22 +12538,22 @@ class hc {
   /**
    * Append the assistant's response and tool results to the conversation
    */
-  appendMessages(e, t, o) {
-    var c;
+  appendMessages(e, n, o) {
+    var d;
     console.log("[GeminiToolHandler] Appending messages", {
       currentMessagesCount: e.length,
       toolResultsCount: o.length
     });
-    const i = t.candidates;
+    const i = n.candidates;
     if (!i || i.length === 0)
       return console.warn("[GeminiToolHandler] No candidates in response, returning messages unchanged"), e;
     const r = {
       role: "model",
-      parts: ((c = i[0].content) == null ? void 0 : c.parts) || []
+      parts: ((d = i[0].content) == null ? void 0 : d.parts) || []
     };
     console.log("[GeminiToolHandler] Model response parts", {
       partsCount: r.parts.length,
-      partTypes: r.parts.map((d) => d.text ? "text" : d.functionCall ? "functionCall" : "unknown")
+      partTypes: r.parts.map((c) => c.text ? "text" : c.functionCall ? "functionCall" : "unknown")
     });
     const a = {
       role: "user",
@@ -12466,150 +12572,143 @@ class hc {
     }), u;
   }
 }
-class gc {
-  constructor(e, t, o, i = [], r) {
-    P(this, "client");
-    P(this, "defaultModel");
-    P(this, "apiEndpoint");
-    P(this, "tools");
-    P(this, "onToolUse");
-    P(this, "toolHandler");
-    this.client = new mc({
-      apiKey: t,
+class _c {
+  constructor(e, n, o, i = [], r) {
+    w(this, "client");
+    w(this, "defaultModel");
+    w(this, "apiEndpoint");
+    w(this, "tools");
+    w(this, "onToolUse");
+    w(this, "toolHandler");
+    this.client = new Tc({
+      apiKey: n,
       httpOptions: {
-        baseUrl: e
+        baseUrl: e,
+        headers: { Authorization: `Bearer ${n}` }
       }
-    }), this.defaultModel = o || "gemini-pro", this.apiEndpoint = e, this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new hc(this.client, this.apiEndpoint)), console.log(`GeminiChatProvider initialized url: ${e} with model ${this.defaultModel}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
+    }), this.defaultModel = o || "gemini-pro", this.apiEndpoint = e, this.tools = i, this.onToolUse = r, i.length > 0 && (this.toolHandler = new Cc(this.client, this.apiEndpoint)), console.log(`GeminiChatProvider initialized url: ${e} with model ${this.defaultModel}${i.length > 0 ? ` and ${i.length} tools` : ""}`);
   }
   /**
    * Send a chat request to Gemini
    * Automatically handles tools if configured in constructor
    */
-  async chat(e, t) {
-    var u, c, d, f, m, p, h, g, _, T;
-    const o = e;
+  async chat(e, n) {
+    var r, a, u, d, c, f, p, h;
     if (console.log("[GeminiChatProvider] v1.03 chat called", {
-      hasThreadId: !!o.thread_id,
-      thread_id: o.thread_id,
+      hasThreadId: !!e.thread_id,
+      thread_id: e.thread_id,
       streaming: e.streaming !== !1,
       hasTools: this.tools.length > 0
     }), this.tools.length > 0 && this.onToolUse) {
-      await this.chatWithTools(e, t);
+      await this.chatWithTools(e, n);
       return;
     }
-    let i = {};
-    if (o.thread_id) {
-      const C = W.setBranchIteration(e.branch_id, 0);
-      i = {
-        thread_id: o.thread_id,
-        branch_id: C
-      };
-    }
-    const r = e.model || this.defaultModel, a = qe.toGeminiRequest({ ...e, model: r });
+    const o = e.model || this.defaultModel, i = Se.toGeminiRequest(e, o, []);
     console.log("[GeminiChatProvider] Converted request", {
-      model: r,
-      hasSystemInstruction: !!a.systemInstruction,
-      contentsCount: a.contents.length,
-      threadContext: i,
+      model: o,
+      hasSystemInstruction: !!i.systemInstruction,
+      contentsCount: i.contents.length,
+      thread_id: i.thread_id,
       streaming: e.streaming !== !1
     });
     try {
-      if (e.streaming !== !1) {
+      if (e.streaming = !1, e.streaming !== !1) {
+        let m = "";
         console.log("[GeminiChatProvider] Using streaming mode");
-        const C = await this.client.models.generateContentStream({
-          model: r,
-          ...a
-        });
+        const g = await this.client.models.generateContentStream(i);
         console.log("[GeminiChatProvider] Stream started, processing chunks");
-        let S = 0, E = !1, I = null;
+        let T = 0, y = !1, E = null;
         try {
-          for await (const y of C) {
-            S++;
-            const R = (d = (c = (u = y.candidates) == null ? void 0 : u[0]) == null ? void 0 : c.content) == null ? void 0 : d.parts;
-            if (R)
-              for (const A of R)
-                A.inlineData && A.inlineData.mimeType && (I = {
-                  mimeType: A.inlineData.mimeType,
-                  data: A.inlineData.data || ""
-                }, console.log("[GeminiChatProvider] Detected inline data", {
-                  mimeType: I.mimeType,
-                  dataLength: I.data.length
-                }));
+          for await (const S of g) {
+            if (T++, S.text && (m += S.text), S && S.candidates && S.candidates[0]) {
+              const _ = S.candidates[0];
+              if ((r = _.content) != null && r.parts)
+                for (const C of _.content.parts) {
+                  if (C.text) {
+                    const R = C.text;
+                    R && n && n(R), console.log("Text:", C.text);
+                  }
+                  C.inlineData && C.inlineData.mimeType && (E = {
+                    mimeType: C.inlineData.mimeType,
+                    data: C.inlineData.data || ""
+                  }, console.log("[GeminiChatProvider] Detected inline data", {
+                    mimeType: E.mimeType,
+                    dataLength: E.data.length
+                  }));
+                }
+            }
             console.log("[GeminiChatProvider] Received chunk", {
-              chunkCount: S,
-              hasText: !!y.text,
-              hasInlineData: !!I,
-              finishReason: (m = (f = y.candidates) == null ? void 0 : f[0]) == null ? void 0 : m.finishReason
+              chunkCount: T,
+              hasText: !!S.text,
+              hasInlineData: !!E,
+              finishReason: (u = (a = S.candidates) == null ? void 0 : a[0]) == null ? void 0 : u.finishReason
             });
-            const M = y.text;
-            M && t && t(M);
-            const D = (h = (p = y.candidates) == null ? void 0 : p[0]) == null ? void 0 : h.finishReason;
-            if (D) {
-              console.log("[GeminiChatProvider] Detected finish reason, breaking loop", { finishReason: D }), E = !0;
+            const I = (c = (d = S.candidates) == null ? void 0 : d[0]) == null ? void 0 : c.finishReason;
+            if (I) {
+              console.log("[GeminiChatProvider] Detected finish reason, breaking loop", { finishReason: I }), y = !0;
               break;
             }
           }
-        } catch (y) {
-          throw console.error("[GeminiChatProvider] Error during streaming", y), y;
+        } catch (S) {
+          throw console.error("[GeminiChatProvider] Error during streaming", S), S;
         }
-        if (console.log("[GeminiChatProvider] Stream loop exited", { chunkCount: S, isDone: E, hasInlineData: !!I }), I && t) {
-          const y = `![](data:${I.mimeType};base64,${I.data})`;
-          console.log("[GeminiChatProvider] Appending inline data as markdown", {
-            mimeType: I.mimeType,
-            dataLength: I.data.length
-          });
-          const R = `
-
-${y}`;
-          t(R);
-        }
-        console.log("[GeminiChatProvider] Stream completed");
-      } else {
-        console.log("[GeminiChatProvider] Using non-streaming mode");
-        const C = await this.client.models.generateContent({
-          model: r,
-          ...a
-        }), S = C.text;
-        let E = null;
-        const I = (T = (_ = (g = C.candidates) == null ? void 0 : g[0]) == null ? void 0 : _.content) == null ? void 0 : T.parts;
-        if (I)
-          for (const y of I)
-            y.inlineData && y.inlineData.mimeType && (E = {
-              mimeType: y.inlineData.mimeType,
-              data: y.inlineData.data || ""
-            }, console.log("[GeminiChatProvider] Detected inline data in non-streaming response", {
-              mimeType: E.mimeType,
-              dataLength: E.data.length
-            }));
-        if (console.log("[GeminiChatProvider] Response received", {
-          textLength: (S == null ? void 0 : S.length) || 0,
-          hasText: !!S,
-          hasInlineData: !!E
-        }), S && t && t(S), E && t) {
-          const y = `![](data:${E.mimeType};base64,${E.data})`;
+        if (console.log("[GeminiChatProvider] Stream loop exited", { chunkCount: T, isDone: y, hasInlineData: !!E }), E && n) {
+          const S = `![](data:${E.mimeType};base64,${E.data})`;
           console.log("[GeminiChatProvider] Appending inline data as markdown", {
             mimeType: E.mimeType,
             dataLength: E.data.length
           });
-          const R = `
+          const I = `
 
-${y}`;
-          t(R);
+${S}`;
+          n(I);
+        }
+        console.log("[GeminiChatProvider] Stream completed");
+      } else {
+        console.log("[GeminiChatProvider] Using non-streaming mode");
+        const m = await this.client.models.generateContent(i), g = m.text;
+        let T = null;
+        const y = (h = (p = (f = m.candidates) == null ? void 0 : f[0]) == null ? void 0 : p.content) == null ? void 0 : h.parts;
+        if (y)
+          for (const E of y)
+            E.inlineData && E.inlineData.mimeType && (T = {
+              mimeType: E.inlineData.mimeType,
+              data: E.inlineData.data || ""
+            }, console.log("[GeminiChatProvider] Detected inline data in non-streaming response", {
+              mimeType: T.mimeType,
+              dataLength: T.data.length
+            }));
+        if (console.log("[GeminiChatProvider] Response received", {
+          textLength: (g == null ? void 0 : g.length) || 0,
+          hasText: !!g,
+          hasInlineData: !!T
+        }), g && n && n(g), T && n) {
+          const E = `![](data:${T.mimeType};base64,${T.data})`;
+          console.log("[GeminiChatProvider] Appending inline data as markdown", {
+            mimeType: T.mimeType,
+            dataLength: T.data.length
+          });
+          const S = `
+
+${E}`;
+          n(S);
         }
       }
-    } catch (C) {
-      console.error("[GeminiChatProvider] Error in Gemini API call:", C);
-      const S = qe.mapError(C);
-      throw console.log("[GeminiChatProvider] Decoded error message:", S), t && t(`
+    } catch (m) {
+      console.error("[GeminiChatProvider] Error in Gemini API call:", m);
+      const g = Se.mapError(m);
+      throw console.log("[GeminiChatProvider] Decoded error message:", g), n && n(`
 
-**Error:** ${S}`), C;
+**Error:** ${g}`), m;
     }
   }
   /**
    * Send a chat request with tools enabled
    * Private method called by chat() when tools are configured
+   * Implements streaming tool orchestration loop with multiple sequential tool calls
    */
-  async chatWithTools(e, t) {
+  async chatWithTools(e, n) {
+    var f, p, h, m, g, T, y, E, S;
     if (console.log("[GeminiChatProvider] chatWithTools called", {
       hasToolHandler: !!this.toolHandler,
       hasOnToolUse: !!this.onToolUse,
@@ -12620,52 +12719,279 @@ ${y}`;
       requestStreaming: e.streaming
     }), !this.toolHandler || !this.onToolUse)
       throw new Error("Tool handler not configured");
-    const o = e.model || this.defaultModel, i = qe.toGeminiRequest({ ...e, model: o }), r = this.convertToolsToGeminiFormat(this.tools);
-    await W.handleToolLoop(
-      this.toolHandler,
-      o,
-      i.contents,
-      r,
-      e,
-      this.onToolUse,
-      t,
-      e.streaming !== !1
-    );
+    const o = e.model || this.defaultModel, i = this.convertToolsToGeminiFormat(this.tools), r = Se.toGeminiRequest(e, o, i), a = e.streaming !== !1;
+    let u = r.contents, d = 0;
+    console.log("[GeminiChatProvider] Starting tool orchestration loop", {
+      initialMessagesCount: u.length,
+      toolsCount: i.length,
+      shouldStream: a,
+      threadId: e.thread_id,
+      branchId: e.branch_id
+    });
+    let c = e.branch_id || "";
+    for (; d < Z.MAX_TOOL_ITERATIONS; ) {
+      d++, c = Z.setBranchIteration(c, d), e.branch_id = c, console.log("[GeminiChatProvider] Tool loop iteration", {
+        iteration: d,
+        this_branch_id: c,
+        messagesCount: u.length
+      });
+      const I = Se.toGeminiRequest(e, o, i);
+      try {
+        if (a) {
+          console.log("[GeminiChatProvider] Making streaming request with tools:"), console.log("  Iteration:", d), console.log("  Tools count:", i.length), console.log("  Messages count:", u.length);
+          let _ = null, C = !1;
+          try {
+            console.log("Request being sent:", JSON.stringify(I, null, 2));
+            const A = await this.client.models.generateContentStream(I);
+            let N = 0;
+            console.log("[GeminiChatProvider] Started streaming, consuming chunks", { iteration: d });
+            try {
+              for await (const x of A) {
+                if (N++, (h = (p = (f = x.candidates) == null ? void 0 : f[0]) == null ? void 0 : p.content) != null && h.parts)
+                  for (const U of x.candidates[0].content.parts)
+                    console.log("Part type:", Object.keys(U)[0]), U.functionCall ? console.log("FUNCTION CALL:", U.functionCall) : U.text && console.log("TEXT:", U.text);
+                if (x && x.candidates && x.candidates.length > 0) {
+                  const U = x.text;
+                  U && n && (n(U), console.log("[GeminiChatProvider] Streamed text chunk", {
+                    iteration: d,
+                    chunkCount: N,
+                    textLength: U.length
+                  })), _ = x;
+                }
+              }
+            } catch (x) {
+              const U = x instanceof Error ? x.message : String(x);
+              if (U.includes("Incomplete JSON") || U.includes("invalid chunk"))
+                console.warn("[GeminiChatProvider] JSON streaming error, falling back to non-streaming", {
+                  iteration: d,
+                  errorMessage: U
+                }), C = !0;
+              else
+                throw x;
+            }
+          } catch (A) {
+            console.warn("[GeminiChatProvider] Stream error, will retry non-streaming", { iteration: d, error: A }), C = !0;
+          }
+          if (C) {
+            console.log("[GeminiChatProvider] Retrying with non-streaming mode", { iteration: d });
+            const A = await this.client.models.generateContent(I);
+            _ = A;
+            const N = this.toolHandler.extractTextContent(A);
+            N && n && n(N);
+          }
+          const R = this.toolHandler.extractToolUses(_);
+          if (console.log("[GeminiChatProvider] Extracted tool uses", {
+            iteration: d,
+            toolUsesCount: R.length,
+            usedFallback: C
+          }), R.length === 0) {
+            console.log("[GeminiChatProvider] No tool calls, ending loop", { iteration: d });
+            return;
+          }
+          u = this.appendMessage(u, {
+            role: "model",
+            parts: ((T = (g = (m = _.candidates) == null ? void 0 : m[0]) == null ? void 0 : g.content) == null ? void 0 : T.parts) || []
+          }), console.log("[GeminiChatProvider] Executing tools", {
+            iteration: d,
+            toolUsesCount: R.length
+          });
+          const P = await this.executeTools(R);
+          console.log("[GeminiChatProvider] Formatting tool results for Gemini", {
+            iteration: d,
+            toolUsesCount: R.length,
+            resultsCount: P.length
+          });
+          const D = this.toolHandler.formatToolResults(R, P);
+          console.log("[GeminiChatProvider] Tool results formatted", {
+            iteration: d,
+            formattedResultsCount: D.length
+          }), u = this.appendMessage(u, {
+            role: "user",
+            parts: D
+          }), console.log("[GeminiChatProvider] Tool results added to messages, continuing loop", {
+            iteration: d,
+            newMessagesCount: u.length
+          });
+        } else {
+          console.log("[GeminiChatProvider] Making non-streaming request with tools", {
+            iteration: d,
+            messagesCount: u.length
+          });
+          const _ = await this.client.models.generateContent(I);
+          console.log("[GeminiChatProvider] Non-streaming response received", {
+            iteration: d
+          });
+          const C = this.toolHandler.extractTextContent(_);
+          C && n && (n(C), console.log("[GeminiChatProvider] Sent text content", {
+            iteration: d,
+            textLength: C.length
+          }));
+          const R = this.toolHandler.extractToolUses(_);
+          if (console.log("[GeminiChatProvider] Extracted tool uses", {
+            iteration: d,
+            toolUsesCount: R.length
+          }), R.length === 0) {
+            console.log("[GeminiChatProvider] No tool calls in response, ending loop", {
+              iteration: d
+            });
+            return;
+          }
+          u = this.appendMessage(u, {
+            role: "model",
+            parts: ((S = (E = (y = _.candidates) == null ? void 0 : y[0]) == null ? void 0 : E.content) == null ? void 0 : S.parts) || []
+          }), console.log("[GeminiChatProvider] Executing tools", {
+            iteration: d,
+            toolUsesCount: R.length
+          });
+          const P = await this.executeTools(R);
+          console.log("[GeminiChatProvider] Formatting tool results for Gemini", {
+            iteration: d,
+            toolUsesCount: R.length,
+            resultsCount: P.length
+          });
+          const D = this.toolHandler.formatToolResults(R, P);
+          console.log("[GeminiChatProvider] Tool results formatted", {
+            iteration: d,
+            formattedResultsCount: D.length
+          }), u = this.appendMessage(u, {
+            role: "user",
+            parts: D
+          }), console.log("[GeminiChatProvider] Tool results added to messages, continuing loop", {
+            iteration: d,
+            newMessagesCount: u.length
+          });
+        }
+      } catch (_) {
+        throw console.error("[GeminiChatProvider] Error in tool loop iteration", {
+          iteration: d,
+          error: _
+        }), _;
+      }
+    }
+    throw console.error(
+      "[GeminiChatProvider] Tool loop exceeded maximum iterations: ",
+      Z.MAX_TOOL_ITERATIONS
+    ), new Error("Tool loop exceeded maximum iterations");
+  }
+  /**
+   * Execute a list of tool calls
+   */
+  async executeTools(e) {
+    const n = [];
+    console.log("[GeminiChatProvider] Starting tool execution batch", {
+      toolCount: e.length,
+      tools: e.map((o) => o.name)
+    });
+    for (let o = 0; o < e.length; o++) {
+      const i = e[o];
+      console.log("[GeminiChatProvider] Executing tool", {
+        toolIndex: o + 1,
+        totalTools: e.length,
+        toolId: i.id,
+        toolName: i.name,
+        inputKeys: Object.keys(i.input),
+        inputPreview: JSON.stringify(i.input).substring(0, 200)
+      });
+      try {
+        const r = Date.now(), a = await this.onToolUse(i), u = Date.now() - r;
+        n.push(a), console.log("[GeminiChatProvider] Tool execution completed", {
+          toolIndex: o + 1,
+          toolName: i.name,
+          duration: `${u}ms`,
+          success: a.success,
+          hasData: !!a.data,
+          dataPreview: a.data ? JSON.stringify(a.data).substring(0, 200) : void 0,
+          hasError: !!a.error,
+          errorMessage: a.error
+        });
+      } catch (r) {
+        console.error("[GeminiChatProvider] Tool execution failed", {
+          toolIndex: o + 1,
+          toolName: i.name,
+          error: r instanceof Error ? r.message : String(r),
+          errorStack: r instanceof Error ? r.stack : void 0
+        }), n.push({
+          success: !1,
+          error: `Tool execution error: ${r instanceof Error ? r.message : String(r)}`
+        });
+      }
+    }
+    return console.log("[GeminiChatProvider] Tool execution batch completed", {
+      totalTools: e.length,
+      successCount: n.filter((o) => o.success).length,
+      failureCount: n.filter((o) => !o.success).length
+    }), n;
+  }
+  /**
+   * Append a message to the conversation
+   */
+  appendMessage(e, n) {
+    return [...e, n];
   }
   /**
    * Convert ToolDefinition to Gemini's tool format
    */
   convertToolsToGeminiFormat(e) {
-    return e.map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.input_schema
-    }));
+    return e.map((n) => {
+      const o = this.convertSchemaTypes(n.input_schema);
+      return {
+        name: n.name,
+        description: n.description,
+        parametersJsonSchema: o
+      };
+    });
+  }
+  /**
+   * Recursively convert type strings to Type enum values
+   */
+  convertSchemaTypes(e) {
+    if (!e || typeof e != "object")
+      return e;
+    const n = Array.isArray(e) ? [] : {};
+    for (const o in e) {
+      const i = e[o];
+      o === "type" && typeof i == "string" ? n[o] = this.mapStringToSchemaType(i) : typeof i == "object" && i !== null ? n[o] = this.convertSchemaTypes(i) : n[o] = i;
+    }
+    return n;
+  }
+  /**
+   * Map string type names to Type enum values
+   */
+  mapStringToSchemaType(e) {
+    const n = {
+      object: q.OBJECT,
+      string: q.STRING,
+      number: q.NUMBER,
+      integer: q.INTEGER,
+      boolean: q.BOOLEAN,
+      array: q.ARRAY
+    }, o = e.toLowerCase();
+    return o in n ? n[o] : (console.warn(`[GeminiChatProvider] Unknown schema type: ${e}, using as-is`), e);
   }
 }
-var Ie = /* @__PURE__ */ ((n) => (n.OLLAMA = "ollama", n.OPENAI = "openai", n.CLAUDE = "claude", n.PERPLEXITY = "perplexity", n.GEMINI = "gemini", n))(Ie || {});
-class yc {
+var Ae = /* @__PURE__ */ ((t) => (t.OLLAMA = "ollama", t.OPENAI = "openai", t.CLAUDE = "claude", t.PERPLEXITY = "perplexity", t.GEMINI = "gemini", t))(Ae || {});
+class Ec {
   /**
    * Creates an appropriate chat provider based on the provider type
    */
-  static createProvider(e, t, o, i) {
+  static createProvider(e, n, o, i) {
     switch (e) {
       case "ollama":
-        if (!t.apiKey)
+        if (!n.apiKey)
           throw new Error("API key is required for Ollama provider");
-        return new Xo(t.url, t.apiKey, t.model, o || [], i);
+        return new Qo(n.url, n.apiKey, n.model, o || [], i);
       case "openai":
-        if (!t.apiKey)
+        if (!n.apiKey)
           throw new Error("API key is required for OpenAI provider");
-        return new Zo(t.url, t.apiKey, t.model, o || [], i);
+        return new ni(n.url, n.apiKey, n.model, o || [], i);
       case "claude":
-        if (!t.apiKey)
+        if (!n.apiKey)
           throw new Error("API key is required for Claude provider");
-        return new ei(t.url, t.apiKey, t.model, o || [], i);
+        return new ii(n.url, n.apiKey, n.model, o || [], i);
       case "gemini":
-        if (!t.apiKey)
+        if (!n.apiKey)
           throw new Error("API key is required for Gemini provider");
-        return new gc(t.url, t.apiKey, t.model, o || [], i);
+        return new _c(n.url, n.apiKey, n.model, o || [], i);
       case "perplexity":
         throw new Error("PerplexityChatProvider not implemented yet");
       default:
@@ -12673,7 +12999,7 @@ class yc {
     }
   }
 }
-class Tc {
+class Sc {
   // Very rough estimation - in production you'd use a proper tokenizer like tiktoken
   countPromptTokens(e) {
     return this.estimateTokens(JSON.stringify(e));
@@ -12685,7 +13011,7 @@ class Tc {
     return Math.ceil(e.split(/\s+/).length / 0.75);
   }
 }
-class _c {
+class Ic {
   countPromptTokens(e) {
     return this.estimateTokens(JSON.stringify(e));
   }
@@ -12696,7 +13022,7 @@ class _c {
     return Math.ceil(e.length / 4);
   }
 }
-class Cc {
+class vc {
   countPromptTokens(e) {
     return this.estimateTokens(JSON.stringify(e));
   }
@@ -12707,7 +13033,7 @@ class Cc {
     return Math.ceil(e.split(/\s+/).length / 0.7);
   }
 }
-class Ec {
+class Ac {
   countPromptTokens(e) {
     return this.estimateTokens(JSON.stringify(e));
   }
@@ -12718,29 +13044,29 @@ class Ec {
     return Math.ceil(e.length / 4);
   }
 }
-function Sc(n) {
-  switch (n.toLowerCase()) {
-    case Ie.OPENAI:
-      return new Tc();
-    case Ie.CLAUDE:
-      return new _c();
-    case Ie.OLLAMA:
-      return new Cc();
+function Rc(t) {
+  switch (t.toLowerCase()) {
+    case Ae.OPENAI:
+      return new Sc();
+    case Ae.CLAUDE:
+      return new Ic();
+    case Ae.OLLAMA:
+      return new vc();
     default:
-      return new Ec();
+      return new Ac();
   }
 }
-class Ic {
-  constructor(e, t, o, i, r) {
-    P(this, "accumulatedResponse", "");
-    P(this, "requestStartTime");
-    P(this, "firstTokenTime");
-    P(this, "tokenCounter");
-    P(this, "originalCallback");
-    P(this, "totalTokens", 0);
-    P(this, "tokensReceived", 0);
-    P(this, "isFirstToken", !0);
-    this.provider = e, this.model = t, this.prompt = o, this.onComplete = i, this.requestStartTime = Date.now(), this.originalCallback = r, this.tokenCounter = Sc(e);
+class Pc {
+  constructor(e, n, o, i, r) {
+    w(this, "accumulatedResponse", "");
+    w(this, "requestStartTime");
+    w(this, "firstTokenTime");
+    w(this, "tokenCounter");
+    w(this, "originalCallback");
+    w(this, "totalTokens", 0);
+    w(this, "tokensReceived", 0);
+    w(this, "isFirstToken", !0);
+    this.provider = e, this.model = n, this.prompt = o, this.onComplete = i, this.requestStartTime = Date.now(), this.originalCallback = r, this.tokenCounter = Rc(e);
   }
   /**
    * Handle each token as it arrives
@@ -12753,19 +13079,19 @@ class Ic {
    */
   complete(e) {
     var a, u;
-    const t = Date.now(), o = ((a = this.tokenCounter) == null ? void 0 : a.countPromptTokens(this.prompt)) ?? 0, i = ((u = this.tokenCounter) == null ? void 0 : u.estimateResponseTokens(this.accumulatedResponse)) ?? 0, r = {
+    const n = Date.now(), o = ((a = this.tokenCounter) == null ? void 0 : a.countPromptTokens(this.prompt)) ?? 0, i = ((u = this.tokenCounter) == null ? void 0 : u.estimateResponseTokens(this.accumulatedResponse)) ?? 0, r = {
       requestId: crypto.randomUUID(),
       provider: this.provider,
       model: this.model,
       requestTimestamp: this.requestStartTime,
       firstTokenTimestamp: this.firstTokenTime,
-      completionTimestamp: t,
-      totalDuration: t - this.requestStartTime,
+      completionTimestamp: n,
+      totalDuration: n - this.requestStartTime,
       timeToFirstToken: this.firstTokenTime ? this.firstTokenTime - this.requestStartTime : void 0,
       promptTokenCount: o,
       completionTokenCount: i,
       totalTokenCount: o + i,
-      tokensPerSecond: this.calculateTokensPerSecond(t),
+      tokensPerSecond: this.calculateTokensPerSecond(n),
       promptText: JSON.stringify(this.prompt),
       completeResponse: this.accumulatedResponse,
       success: !e,
@@ -12779,14 +13105,14 @@ class Ic {
   calculateTokensPerSecond(e) {
     if (!this.firstTokenTime || this.tokensReceived === 0)
       return;
-    const t = (e - this.firstTokenTime) / 1e3;
-    return t > 0 ? this.tokensReceived / t : void 0;
+    const n = (e - this.firstTokenTime) / 1e3;
+    return n > 0 ? this.tokensReceived / n : void 0;
   }
 }
 const ne = class ne {
   constructor(e) {
-    P(this, "config");
-    P(this, "auditLogs", []);
+    w(this, "config");
+    w(this, "auditLogs", []);
     this.config = {
       enabled: e.enabled ?? !0,
       logToConsole: e.logToConsole ?? !0,
@@ -12804,10 +13130,10 @@ const ne = class ne {
   /**
    * Create an accumulator for tracking a chat request
    */
-  createAccumulator(e, t, o, i) {
-    return new Ic(
+  createAccumulator(e, n, o, i) {
+    return new Pc(
       e,
-      t,
+      n,
       o,
       (r) => this.logChatAudit(r),
       i
@@ -12816,9 +13142,9 @@ const ne = class ne {
   /**
    * Create a wrapped token callback that accumulates tokens
    */
-  createWrappedCallback(e, t, o) {
+  createWrappedCallback(e, n, o) {
     const i = this.createAccumulator(
-      t,
+      n,
       e.model,
       e.messages,
       o
@@ -12834,8 +13160,8 @@ const ne = class ne {
   logChatAudit(e) {
     if (!this.config.enabled) return;
     this.auditLogs.push(e);
-    const t = this.applyPrivacyFilters(e);
-    this.config.logToConsole && console.log(`[AUDIT] Chat completed: ${t.provider}/${t.model} (${t.totalDuration}ms)`, t), this.config.logToServer && this.config.serverEndpoint && this.sendToServer(t, this.config.serverEndpoint);
+    const n = this.applyPrivacyFilters(e);
+    this.config.logToConsole && console.log(`[AUDIT] Chat completed: ${n.provider}/${n.model} (${n.totalDuration}ms)`, n), this.config.logToServer && this.config.serverEndpoint && this.sendToServer(n, this.config.serverEndpoint);
   }
   /**
    * Get all accumulated audit logs
@@ -12847,15 +13173,15 @@ const ne = class ne {
    * Apply privacy filters to the audit data
    */
   applyPrivacyFilters(e) {
-    const t = { ...e };
-    return this.config.includePromptText || (t.promptText = "[REDACTED]"), this.config.includeResponseText || (t.completeResponse = "[REDACTED]"), t;
+    const n = { ...e };
+    return this.config.includePromptText || (n.promptText = "[REDACTED]"), this.config.includeResponseText || (n.completeResponse = "[REDACTED]"), n;
   }
   /**
    * Send audit data to a server endpoint
    */
-  async sendToServer(e, t) {
+  async sendToServer(e, n) {
     try {
-      const o = await fetch(t, {
+      const o = await fetch(n, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -12868,20 +13194,20 @@ const ne = class ne {
     }
   }
 };
-P(ne, "instance");
-let tn = ne;
-class Mc {
+w(ne, "instance");
+let ot = ne;
+class kc {
   /**
    * Create a ChatService with the specified provider and configuration
    */
-  constructor(e, t, o = !0, i, r) {
-    P(this, "provider");
-    P(this, "providerType");
-    P(this, "config");
-    P(this, "auditService");
-    P(this, "tools");
-    P(this, "onToolUse");
-    this.providerType = e, this.config = t, this.tools = i, this.onToolUse = r, this.provider = this.initializeProvider(), this.auditService = tn.getInstance({
+  constructor(e, n, o = !0, i, r) {
+    w(this, "provider");
+    w(this, "providerType");
+    w(this, "config");
+    w(this, "auditService");
+    w(this, "tools");
+    w(this, "onToolUse");
+    this.providerType = e, this.config = n, this.tools = i, this.onToolUse = r, this.provider = this.initializeProvider(), this.auditService = ot.getInstance({
       enabled: o,
       logToConsole: !0,
       logToServer: !1
@@ -12891,16 +13217,16 @@ class Mc {
    * Initialize the appropriate provider based on provider type
    */
   initializeProvider() {
-    return yc.createProvider(this.providerType, this.config, this.tools, this.onToolUse);
+    return Ec.createProvider(this.providerType, this.config, this.tools, this.onToolUse);
   }
   /**
    * Send a chat request and handle streaming response
    */
-  async chat(e, t) {
+  async chat(e, n) {
     const { callback: o, complete: i } = this.auditService.createWrappedCallback(
       e,
       this.providerType,
-      t
+      n
     );
     try {
       await this.provider.chat(e, o), i();
@@ -12915,44 +13241,44 @@ class Mc {
     return this.auditService.getAuditLogs();
   }
 }
-class vc {
+class wc {
   static toOllamaRequest(e) {
     return {
       model: e.model,
-      messages: e.messages.map((t) => ({ role: t.role, content: t.content }))
+      messages: e.messages.map((n) => ({ role: n.role, content: n.content }))
     };
   }
 }
-class Nc {
-  constructor(e, t) {
-    P(this, "url");
-    P(this, "model");
-    P(this, "ollama");
-    this.url = e, this.model = t, this.ollama = new Qt({ host: e }), console.log("in constructor creating ollama client...");
+class Uc {
+  constructor(e, n) {
+    w(this, "url");
+    w(this, "model");
+    w(this, "ollama");
+    this.url = e, this.model = n, this.ollama = new Zn({ host: e }), console.log("in constructor creating ollama client...");
   }
-  async chat(e, t) {
-    vc.toOllamaRequest(e);
+  async chat(e, n) {
+    wc.toOllamaRequest(e);
     const o = await this.ollama.chat({ model: e.model, messages: e.messages, stream: !0 });
     for await (const i of o) {
       const r = i.message.content;
-      t && t(r);
+      n && n(r);
     }
   }
 }
 export {
-  tn as AuditService,
-  Nc as ChatApiService,
-  yc as ChatProviderFactory,
-  W as ChatProviderUtils,
-  Mc as ChatService,
-  ei as ClaudeChatProvider,
-  jo as ClaudeToolHandler,
-  gc as GeminiChatProvider,
-  hc as GeminiToolHandler,
-  Xo as OllamaChatProvider,
-  zo as OllamaToolHandler,
-  Zo as OpenAIChatProvider,
-  Qo as OpenAIToolHandler,
-  Ie as ProviderType,
-  Ic as TokenAccumulator
+  ot as AuditService,
+  Uc as ChatApiService,
+  Ec as ChatProviderFactory,
+  Z as ChatProviderUtils,
+  kc as ChatService,
+  ii as ClaudeChatProvider,
+  oi as ClaudeToolHandler,
+  _c as GeminiChatProvider,
+  Cc as GeminiToolHandler,
+  Qo as OllamaChatProvider,
+  Xo as OllamaToolHandler,
+  ni as OpenAIChatProvider,
+  Zo as OpenAIToolHandler,
+  Ae as ProviderType,
+  Pc as TokenAccumulator
 };

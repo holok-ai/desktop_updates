@@ -511,27 +511,30 @@ export type ToolUseEventPayload = {
 };
 
 export interface ChatAPI {
-  // Initialize/Create a chat service instance
+  // Initialize/Create a chat service instance for a thread
   createProvider: (
+    threadId: string,
     providerType: string,
     config: ProviderConfig,
+    workingDirectory?: string
   ) => Promise<{ success: boolean; error?: string }>;
 
-  // Send a chat message (with streaming support)
-  chat: (request: DesktopChatRequest) => Promise<{ success: boolean; error?: string }>;
+  // Send a chat message (with streaming support) for a specific thread
+  chat: (threadId: string, request: DesktopChatRequest) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
-  onToken: (callback: (token: string) => void) => void;
+  onToken: (callback: (data: { threadId: string; token: string }) => void) => void;
 
   // Stop listening to token events
   offToken: () => void;
 
   // Listen for tool use events (event-based)
-  onToolUse: (callback: (data: ToolUseEventPayload) => void) => () => void;
+  onToolUse: (callback: (data: ToolUseEventPayload & { threadId: string }) => void) => () => void;
 
   // Listen for tool status events (for UI feedback during long operations)
   onToolStatus: (
     callback: (status: {
+      threadId: string;
       toolName: string;
       state: 'in_progress' | 'complete';
       message?: string;
@@ -541,11 +544,14 @@ export interface ChatAPI {
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
 
-  // Get audit logs with detailed metrics
-  getAuditLogs: () => Promise<unknown[]>;
+  // Get audit logs with detailed metrics for a thread
+  getAuditLogs: (threadId: string) => Promise<unknown[]>;
 
-  // Cleanup/close the provider
-  close: () => Promise<{ success: boolean }>;
+  // Cleanup/close the provider for a thread
+  destroyProvider: (threadId: string) => Promise<{ success: boolean }>;
+
+  // Update allowed paths for tool execution
+  updateAllowedPaths: (allowedPaths: string[]) => Promise<{ success: boolean }>;
 }
 
 /**
@@ -697,16 +703,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Chat API Implementation
    */
   chat: {
-    // 1. Initialize/Create a chat service instance
-    createProvider: (providerType: string, config: ProviderConfig) =>
-      ipcRenderer.invoke('chat:createProvider', providerType, config),
+    // 1. Initialize/Create a chat service instance for a thread
+    createProvider: (
+      threadId: string,
+      providerType: string,
+      config: ProviderConfig,
+      workingDirectory?: string
+    ) =>
+      ipcRenderer.invoke('chat:createProvider', threadId, providerType, config, workingDirectory),
 
-    // 2. Send a chat message (with streaming support)
-    chat: (request: DesktopChatRequest) => ipcRenderer.invoke('chat:send', request),
+    // 2. Send a chat message (with streaming support) for a specific thread
+    chat: (threadId: string, request: DesktopChatRequest) =>
+      ipcRenderer.invoke('chat:send', threadId, request),
 
     // 3. Listen for streaming tokens (event-based)
-    onToken: (callback: (token: string) => void) => {
-      ipcRenderer.on('chat:token', (_, token: string) => callback(token));
+    onToken: (callback: (data: { threadId: string; token: string }) => void) => {
+      ipcRenderer.on('chat:token', (_event, data: { threadId: string; token: string }) =>
+        callback(data)
+      );
     },
 
     // 4. Stop listening to token events
@@ -717,15 +731,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 5. Get audit/performance metrics
     getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
 
-    // 5a. Get audit logs with detailed metrics
-    getAuditLogs: () => ipcRenderer.invoke('chat:getAuditLogs'),
+    // 5a. Get audit logs with detailed metrics for a thread
+    getAuditLogs: (threadId: string) => ipcRenderer.invoke('chat:getAuditLogs', threadId),
 
-    // 6. Cleanup/close the provider
-    close: () => ipcRenderer.invoke('chat:close'),
+    // 6. Cleanup/close the provider for a thread
+    destroyProvider: (threadId: string) => ipcRenderer.invoke('chat:destroyProvider', threadId),
+
+    // 7. Update allowed paths for tool execution
+    updateAllowedPaths: (allowedPaths: string[]) =>
+      ipcRenderer.invoke('chat:updateAllowedPaths', allowedPaths),
 
     // 7. Listen for tool use events
-    onToolUse: (callback: (data: ToolUseEventPayload) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, data: ToolUseEventPayload): void =>
+    onToolUse: (callback: (data: ToolUseEventPayload & { threadId: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: ToolUseEventPayload & { threadId: string }): void =>
         callback(data);
       ipcRenderer.on('chat:toolUse', subscription);
 
@@ -738,6 +756,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 11. Listen for tool status events (for UI feedback during long operations)
     onToolStatus: (
       callback: (status: {
+        threadId: string;
         toolName: string;
         state: 'in_progress' | 'complete';
         message?: string;
@@ -745,7 +764,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ): (() => void) => {
       const subscription = (
         _event: IpcRendererEvent,
-        status: { toolName: string; state: 'in_progress' | 'complete'; message?: string },
+        status: { threadId: string; toolName: string; state: 'in_progress' | 'complete'; message?: string },
       ): void => callback(status);
       ipcRenderer.on('chat:toolStatus', subscription);
 
