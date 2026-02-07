@@ -7,6 +7,19 @@
   import { toastStore } from '$lib/services/toast.service';
   import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
 
+  type SettingsCategory = 'general' | 'appearance' | 'updates' | 'tools' | 'connections' | 'diagnostics';
+
+  const categories: { id: SettingsCategory; label: string; icon: string }[] = [
+    { id: 'general', label: 'General', icon: 'pi-cog' },
+    { id: 'appearance', label: 'Appearance', icon: 'pi-palette' },
+    { id: 'updates', label: 'Updates', icon: 'pi-refresh' },
+    { id: 'tools', label: 'Tools', icon: 'pi-wrench' },
+    { id: 'connections', label: 'Connections', icon: 'pi-link' },
+    { id: 'diagnostics', label: 'Diagnostics', icon: 'pi-chart-bar' },
+  ];
+
+  let activeCategory: SettingsCategory = $state('general');
+
   let isLoading = true;
   let appVersion = '';
 
@@ -167,160 +180,197 @@
 </script>
 
 <div class="settings-page">
-  <div class="settings-scroll-area">
-    <div class="settings-content">
-      <div class="flex justify-between items-center mb-6">
-        <h1>Settings</h1>
-      </div>
+  <div class="settings-body">
+    <!-- Category sidebar -->
+    <nav class="settings-sidebar">
+      {#each categories as cat}
+        <button
+          class="sidebar-item"
+          class:active={activeCategory === cat.id}
+          onclick={() => (activeCategory = cat.id)}
+        >
+          <i class="pi {cat.icon} sidebar-icon"></i>
+          <span>{cat.label}</span>
+        </button>
+      {/each}
+    </nav>
 
-      {#if isLoading}
-        <div class="loading">Loading settings...</div>
-      {:else}
-        <section class="mb-6">
-          <h2 class="mb-2">Connection</h2>
-          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-            <div class="form-group">
-              <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
-              <input
-                id="moku-web-url"
-                type="url"
-                bind:value={settings.mokuWebUrl}
-                placeholder="https://moku.holokai.com"
-                class="w-full p-2 rounded border bg-transparent"
-                onpaste={handleMokuWebUrlPaste}
-              />
-              <small class="help-text">URL of the Moku web application</small>
-            </div>
+    <!-- Settings content panel -->
+    <div class="settings-panel">
+      <div class="settings-scroll-area">
+        <div class="settings-content">
+          {#if isLoading}
+            <div class="loading">Loading settings...</div>
+          {:else}
 
-            <div class="form-group">
-              <label for="moku-api-url" class="block text-sm font-medium mb-1">Moku API URL</label>
-              <input
-                id="moku-api-url"
-                type="url"
-                bind:value={settings.mokuApiUrl}
-                placeholder="https://api.moku.holokai.com"
-                class="w-full p-2 rounded border bg-transparent"
-              />
-              <small class="help-text">URL of the Moku API server</small>
-            </div>
+            <!-- General -->
+            {#if activeCategory === 'general'}
+              <h2 class="panel-title">General</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
+                <p class="text-sm" style="color: var(--text-secondary);">
+                  General application settings. Configure connections, appearance, and more using the categories on the left.
+                </p>
+                <div class="form-group">
+                  <span class="block text-sm font-medium mb-1">Application Version</span>
+                  <span class="text-sm">{appVersion}</span>
+                </div>
+              </div>
+            {/if}
 
-            <div class="form-group">
-              <label for="holo-api-url" class="block text-sm font-medium mb-1">Holo API URL</label>
-              <input
-                id="holo-api-url"
-                type="url"
-                bind:value={settings.holoApiUrl}
-                placeholder={DEFAULT_HOLO_API_URL}
-                class="w-full p-2 rounded border bg-transparent"
-              />
-              <small class="help-text">The base URL for the Holo API endpoint</small>
-              {#if holoApiUrlError}
-                <div class="error-text">{holoApiUrlError}</div>
-              {/if}
-            </div>
-          </div>
-        </section>
+            <!-- Appearance -->
+            {#if activeCategory === 'appearance'}
+              <h2 class="panel-title">Appearance</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
+                <div class="form-group">
+                  <span class="block text-sm font-medium mb-1">Theme</span>
+                  <div class="flex items-center gap-6">
+                    <label class="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="theme"
+                        value={APP_THEME_MODE.DARK}
+                        bind:group={settings.theme}
+                      />
+                      <span>Dark</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="theme"
+                        value={APP_THEME_MODE.LIGHT}
+                        bind:group={settings.theme}
+                      />
+                      <span>Light</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            {/if}
 
-        <section class="mb-6">
-          <h2 class="mb-2">Appearance</h2>
-          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-            <div class="form-group">
-              <span class="block text-sm font-medium mb-1">Theme</span>
-              <div class="flex items-center gap-6">
+            <!-- Updates -->
+            {#if activeCategory === 'updates'}
+              <h2 class="panel-title">Updates</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
+                <div class="text-sm">
+                  <span class="font-medium">Current Version:</span>
+                  {appVersion}
+                </div>
+                <div class="text-sm">
+                  <span class="font-medium">Update Available:</span>
+                  {#if settings.updateAvailable}
+                    Yes ({settings.latestVersion || 'unknown'})
+                  {:else}
+                    No
+                  {/if}
+                </div>
                 <label class="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={APP_THEME_MODE.DARK}
-                    bind:group={settings.theme}
-                  />
-                  <span>Dark</span>
-                </label>
-                <label class="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={APP_THEME_MODE.LIGHT}
-                    bind:group={settings.theme}
-                  />
-                  <span>Light</span>
+                  <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
+                  <span>Enable automatic updates</span>
                 </label>
               </div>
-            </div>
-          </div>
-        </section>
+            {/if}
 
-        <section class="mb-6">
-          <h2 class="mb-2">Allowed Directories</h2>
-          <div class="rounded-lg p-4 bg-[var(--surface-card)]">
-            <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
-          </div>
-        </section>
+            <!-- Tools -->
+            {#if activeCategory === 'tools'}
+              <h2 class="panel-title">Tools</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)]">
+                <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
+              </div>
+            {/if}
 
-        <section class="mb-6">
-          <h2 class="mb-2">Diagnostics</h2>
-          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="text-sm">Application log file</span>
-              <button
-                class="btn-primary"
-                onclick={() => {
-                  window.electronAPI.settings.openLogInVSCode();
-                }}
-              >
-                View Log
-              </button>
-            </div>
-          </div>
-        </section>
+            <!-- Connections -->
+            {#if activeCategory === 'connections'}
+              <h2 class="panel-title">Connections</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
+                <div class="form-group">
+                  <label for="moku-web-url" class="block text-sm font-medium mb-1">Moku Web URL</label>
+                  <input
+                    id="moku-web-url"
+                    type="url"
+                    bind:value={settings.mokuWebUrl}
+                    placeholder="https://moku.holokai.com"
+                    class="w-full p-2 rounded border bg-transparent"
+                    onpaste={handleMokuWebUrlPaste}
+                  />
+                  <small class="help-text">URL of the Moku web application</small>
+                </div>
 
-        <section class="mb-6">
-          <h2 class="mb-2">Updates</h2>
-          <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
-            <div class="text-sm">
-              <span class="font-medium">Current Version:</span>
-              {appVersion}
-            </div>
-            <div class="text-sm">
-              <span class="font-medium">Update Available:</span>
-              {#if settings.updateAvailable}
-                Yes ({settings.latestVersion || 'unknown'})
-              {:else}
-                No
-              {/if}
-            </div>
-            <label class="inline-flex items-center gap-2">
-              <input id="auto-update" type="checkbox" bind:checked={settings.autoUpdate} />
-              <span>Enable automatic updates</span>
-            </label>
+                <div class="form-group">
+                  <label for="moku-api-url" class="block text-sm font-medium mb-1">Moku API URL</label>
+                  <input
+                    id="moku-api-url"
+                    type="url"
+                    bind:value={settings.mokuApiUrl}
+                    placeholder="https://api.moku.holokai.com"
+                    class="w-full p-2 rounded border bg-transparent"
+                  />
+                  <small class="help-text">URL of the Moku API server</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="holo-api-url" class="block text-sm font-medium mb-1">Holo API URL</label>
+                  <input
+                    id="holo-api-url"
+                    type="url"
+                    bind:value={settings.holoApiUrl}
+                    placeholder={DEFAULT_HOLO_API_URL}
+                    class="w-full p-2 rounded border bg-transparent"
+                  />
+                  <small class="help-text">The base URL for the Holo API endpoint</small>
+                  {#if holoApiUrlError}
+                    <div class="error-text">{holoApiUrlError}</div>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Diagnostics -->
+            {#if activeCategory === 'diagnostics'}
+              <h2 class="panel-title">Diagnostics</h2>
+              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm">Application log file</span>
+                  <button
+                    class="btn-primary"
+                    onclick={() => {
+                      window.electronAPI.settings.openLogInVSCode();
+                    }}
+                  >
+                    View Log
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+          {/if}
+        </div>
+      </div>
+
+      <!-- Footer always visible -->
+      {#if !isLoading}
+        <div class="settings-footer">
+          <div class="settings-actions">
+            <button
+              onclick={saveSettings}
+              disabled={!hasChanges}
+              class="btn-primary"
+            >
+              <i class="pi pi-check"></i>
+              <span>Save</span>
+            </button>
+            <button
+              onclick={cancelSettings}
+              disabled={!hasChanges}
+              class="btn-secondary"
+            >
+              <i class="pi pi-times"></i>
+              <span>Cancel</span>
+            </button>
           </div>
-        </section>
+        </div>
       {/if}
     </div>
   </div>
-
-  {#if !isLoading}
-    <div class="settings-footer">
-      <div class="settings-actions">
-        <button
-          onclick={saveSettings}
-          disabled={!hasChanges}
-          class="btn-primary"
-        >
-          <i class="pi pi-check"></i>
-          <span>Save</span>
-        </button>
-        <button
-          onclick={cancelSettings}
-          disabled={!hasChanges}
-          class="btn-secondary"
-        >
-          <i class="pi pi-times"></i>
-          <span>Cancel</span>
-        </button>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -331,6 +381,63 @@
     overflow: hidden;
   }
 
+  .settings-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Sidebar navigation */
+  .settings-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 200px;
+    flex-shrink: 0;
+    padding: 1rem 0;
+    border-right: 1px solid var(--input-border);
+    background: var(--surface-sidebar, var(--surface-main));
+    overflow-y: auto;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .sidebar-item:hover {
+    background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+    color: var(--text-primary);
+  }
+
+  .sidebar-item.active {
+    background: var(--surface-active, rgba(59, 130, 246, 0.1));
+    color: var(--primary-color);
+    font-weight: 600;
+  }
+
+  .sidebar-icon {
+    font-size: 0.875rem;
+    width: 1.25rem;
+    text-align: center;
+  }
+
+  /* Right panel */
+  .settings-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
   .settings-scroll-area {
     flex: 1;
     overflow-y: auto;
@@ -338,16 +445,22 @@
   }
 
   .settings-content {
-    max-width: 800px;
-    margin-left: 30px;
+    max-width: 700px;
+    margin-left: 2rem;
     margin-right: 1.5rem;
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
   }
 
+  .panel-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+
   .settings-footer {
     flex-shrink: 0;
-    padding: 1rem 1.5rem 1rem 30px;
+    padding: 1rem 1.5rem 1rem 2rem;
     border-top: 1px solid var(--input-border);
     background: var(--surface-main);
     box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
@@ -358,7 +471,7 @@
   }
 
   .settings-actions {
-    max-width: 800px;
+    max-width: 700px;
     display: flex;
     align-items: center;
     gap: 0.75rem;
