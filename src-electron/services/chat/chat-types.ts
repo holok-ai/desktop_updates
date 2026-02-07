@@ -14,20 +14,5 @@ export interface DesktopChatMessage extends ChatMessage {
  */
 export interface DesktopChatRequest extends ChatRequest {
     messages: DesktopChatMessage[];
-    thread_id?: string;
-    branch_id?: string;
     working_directory?: string; // For file tools operations
 }
-
- /**
-   * Format thread_guid and branch_id into thread_id string
-   */
-  export function formatThreadId(thread_guid?: string, branch_id?: string): string | undefined {
-      if (!thread_guid) return undefined;
-
-      // Your specific formatting rules here
-      if (branch_id) {
-          return `${thread_guid},branch_id=${branch_id}`;
-      }
-      return thread_guid;
-  }

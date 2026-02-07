@@ -1088,6 +1088,12 @@ The phased migration approach ensures **minimal disruption** to existing functio
 - [ ] Integration: `multi-thread-tools.spec.ts` - Concurrent execution
 - [ ] E2E: `multi-thread-chat.spec.ts` - Full workflow
 
+# Shell Implementation 
+
+Command shell processing will require additional analysis and development to use virtual folders. Additionally, there are security issues with allowing access to a user's actual operating system. Command shell tool functions (such as windows_shell and unix_shell) should be given access to virtual folders and not physical ones. However, the mechanism to replace the physical devices and folders in the shell with virtual ones is not clear. Initially, we will let the command shell tool functions access the allowed folders. 
+
+One promising option is to use Go and the mvdan library which implements a mini Unix shell, command preprocessor, a virtual file system, an approved command list and custom logic for executing each supported command. Go can be compiled on Windows, MacOS and Unix.  mvdan/sh is a pure Go implementation of a POSIX shell parser and interpreter that enables complete shell functionality without external dependencies or system shell access. The library consists of three key components: syntax for parsing shell scripts into an AST, interp for executing parsed programs, and expand for handling variable and glob expansion. Custom commands are defined by providing an ExecHandler function to the interpreter, which intercepts command execution and allows you to implement built-in commands like ls, cat, grep, and sed in Go code. Virtual filesystem support is achieved through pluggable handlers (OpenHandler, ReadDirHandler, StatHandler) that intercept all file operations, allowing commands to operate on an in-memory filesystem with no access to the host system. This makes mvdan/sh ideal for sandboxed shell execution where security requires complete isolation from the real filesystem.
+
 ---
 
 **Document Version**: 1.0

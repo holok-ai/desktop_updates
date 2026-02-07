@@ -23,6 +23,8 @@
 
   // Streaming idle timeout in milliseconds (60 seconds)
   const STREAMING_IDLE_TIMEOUT_MS = 60000;
+  // Initial response timeout for slow models like Ollama (2 minutes)
+  const STREAMING_INITIAL_RESPONSE_TIMEOUT_MS = 120000;
 
   interface Props {
     thread?: Thread | null;
@@ -1383,6 +1385,7 @@
 
       const token = data.token;
       console.log('[ChatPane onToken] Received token:', token.substring(0, 50), '(length:', token.length, ')');
+      console.log('[ChatPane onToken] Before accumulation - responseText length:', responseText.length, 'content:', responseText.substring(0, 50));
 
       // First token received – clear the no-response timeout
       if (streamingNoResponseTimeout) {
@@ -1403,7 +1406,8 @@
       }, STREAMING_IDLE_TIMEOUT_MS);
       // Force reactivity by creating a new string reference
       responseText = responseText + token;
-      console.log('[ChatPane onToken] responseText now length:', responseText.length);
+      console.log('[ChatPane onToken] After accumulation - responseText length:', responseText.length, 'content:', responseText);
+      console.log('[ChatPane onToken] isStreaming:', isStreaming, 'showStreamingIndicator:', showStreamingIndicator);
 
       // If streaming to a branch, also update branch-specific streaming text
       if (streamingBranchIndex !== null) {
@@ -1800,20 +1804,20 @@
 
       setupTokenListener();
 
-      // Start a 10s watchdog: if streaming is still true and we've received no tokens,
+      // Start a watchdog: if streaming is still true and we've received no tokens,
       // stop streaming and surface an error to the user.
       if (streamingNoResponseTimeout) {
         clearTimeout(streamingNoResponseTimeout);
       }
       streamingNoResponseTimeout = setTimeout(() => {
         if (isStreaming && responseText.length === 0) {
-          console.error('[ChatPane] Streaming timeout: no response from model after 10s');
+          console.error('[ChatPane] Streaming timeout: no response from model after 2 minutes');
           window.electronAPI.chat.offToken();
           isStreaming = false;
           showStreamingIndicator = false;
           showToast('No response from model. Please try again.', 4000);
         }
-      }, 10_000);
+      }, STREAMING_INITIAL_RESPONSE_TIMEOUT_MS);
 
       // Initialize idle timer bookkeeping
       streamingLastTokenAt = Date.now();
@@ -2526,9 +2530,6 @@
         await new Promise(resolve => setTimeout(resolve, 200));
         console.log('[ChatPane] generateResponseForVariation - Ready to send request');
       }
-
-      // Format thread_id with branch_id: "threadId,branch_id=branchId"
-      // Note: threadData is not used - thread_id and branch_id are now separate properties in DesktopChatRequest
 
       const request: DesktopChatRequest = {
         messages: historyMessages,
