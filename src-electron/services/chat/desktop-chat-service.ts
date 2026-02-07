@@ -1,10 +1,15 @@
 import { ChatService } from '@holokai/chat-component';
-import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult, ChatRequest } from '@holokai/chat-component';
+import type {
+  ProviderConfig,
+  ToolDefinition,
+  ToolUse as ChatComponentToolUse,
+  ToolResult,
+} from '@holokai/chat-component';
 import type { DesktopChatRequest } from './chat-types.js';
 import type {
   ToolOrchestra,
   ToolUseCallback,
-  ToolExecutionContext
+  ToolExecutionContext,
 } from '../tool-calling/orchestrator-types.js';
 import type { ToolStatusCallback } from '../tool-calling/tool-types.js';
 import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
@@ -21,11 +26,7 @@ export class DesktopChatService {
   private model: string;
   private threadContext: ToolExecutionContext;
 
-  constructor(
-    providerType: string,
-    config: ProviderConfig,
-    workingDirectory?: string
-  ) {
+  constructor(providerType: string, config: ProviderConfig, workingDirectory?: string) {
     this.providerType = providerType;
     this.model = config.model;
 
@@ -41,7 +42,7 @@ export class DesktopChatService {
 
     log.info('[DesktopChatService] Initializing with provider:', providerType, {
       model: config.model,
-      urL: config.url, 
+      urL: config.url,
       workingDirectory: this.threadContext.workingDirectory,
     });
 
@@ -50,7 +51,7 @@ export class DesktopChatService {
     log.info('[DesktopChatService] Tool calling support:', {
       provider: providerType,
       model: config.model,
-      supported: canUseTools
+      supported: canUseTools,
     });
 
     // Get tool definitions and create callback adapter if tools are available AND supported
@@ -61,15 +62,14 @@ export class DesktopChatService {
             return await this.toolOrchestra.executeTool(
               toolUse.name,
               toolUse.input,
-              this.threadContext
+              this.threadContext,
             );
           }
         : undefined;
 
     if (canUseTools) {
       this.chatService = new ChatService(providerType, config, true, tools, onToolUse);
-    }
-    else {
+    } else {
       this.chatService = new ChatService(providerType, config, true, undefined, undefined);
     }
   }
@@ -81,23 +81,24 @@ export class DesktopChatService {
     request: DesktopChatRequest,
     onToken: (token: string) => void,
     onToolUse?: ToolUseCallback,
-    onToolStatus?: ToolStatusCallback
+    onToolStatus?: ToolStatusCallback,
   ): Promise<void> {
     // Extract desktop-specific properties
     const { working_directory } = request;
 
     log.info('[DesktopChatService] chat called', {
-      thread_id: request.thread_id,
-      branch_id: request.branch_id,
+      thread_id: (request as unknown as { thread_id: string }).thread_id,
+      branch_id: (request as unknown as { branch_id: string }).branch_id,
       messageCount: request.messages.length,
       working_directory: working_directory || this.threadContext.workingDirectory,
     });
 
     // Update thread context for this message
     if (working_directory) {
-      (request as any).workingDirectory = working_directory; 
+      (request as unknown as { workingDirectory: string }).workingDirectory = working_directory;
     }
-    (request as any).statusCallback = onToolStatus || undefined;
+    (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
+      onToolStatus || undefined;
 
     try {
       await this.chatService.chat(request, onToken);
