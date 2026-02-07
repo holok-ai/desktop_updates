@@ -25,9 +25,6 @@
 
   let promptTextarea: HTMLTextAreaElement | undefined = $state();
 
-  // Derived state for validation - require both model AND non-empty prompt
-  const canSubmit = $derived(selectedModel !== null && newThreadPrompt.trim().length > 0);
-
   // Auto-focus prompt input on mount
   onMount(() => {
     // Small delay to ensure DOM is ready after model chooser loads
@@ -38,16 +35,17 @@
 
   function handleSubmit(event: Event) {
     event.preventDefault();
-    if (canSubmit) {
-      dispatch('submit');
+    if (!selectedModel || !newThreadPrompt.trim()) {
+      return;
     }
+    dispatch('submit');
   }
 
   function handleKeyDown(event: KeyboardEvent) {
     // Enter (without Shift) submits the form
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (canSubmit) {
+      if (selectedModel && newThreadPrompt.trim()) {
         dispatch('submit');
       }
     }
@@ -98,14 +96,8 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="primary" disabled={!canSubmit} aria-disabled={!canSubmit}>
-          {#if !selectedModel}
-            Select a model
-          {:else if !newThreadPrompt.trim()}
-            Enter a message
-          {:else}
-            Send
-          {/if}
+        <button type="submit" class="btn-primary">
+          Send
         </button>
       </div>
     </form>
@@ -179,31 +171,6 @@
     gap: var(--content-padding);
     justify-content: flex-end;
     margin-top: 0.5rem;
-  }
-
-  .form-actions button {
-    min-width: 120px;
-    border-radius: var(--border-radius);
-    padding: 12px 24px;
-    font-weight: 600;
-    font-size: 15px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid transparent;
-  }
-
-  .form-actions .primary {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-  }
-
-  .form-actions .primary:hover:not(:disabled) {
-    background: var(--primary-600, #2563eb);
-  }
-
-  .form-actions .primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   @media (max-width: 560px) {

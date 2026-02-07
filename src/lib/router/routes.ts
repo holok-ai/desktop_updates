@@ -1,7 +1,9 @@
 // Route map for svelte-spa-router (hash-based routing)
 // Keep imports local to avoid circular deps
 import Home from '../../routes/+page.svelte';
+import Search from '../../routes/search/+page.svelte';
 import Threads from '../../routes/threads/+page.svelte';
+import NewThread from '../../routes/threads/new/+page.svelte';
 import Login from '../../routes/login/+page.svelte';
 import Settings from '../../routes/settings/+page.svelte';
 import Projects from '../../routes/projects/+page.svelte';
@@ -13,6 +15,8 @@ import NotFound from '../components/NotFound.svelte';
 /* eslint-disable @typescript-eslint/naming-convention */
 export const routes = {
   '/': Home,
+  '/search': Search,
+  '/threads/new': NewThread,
   '/threads': Threads,
   '/projects': Projects,
   '/login': Login,

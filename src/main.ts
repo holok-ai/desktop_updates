@@ -1,8 +1,6 @@
 import './app.css';
 import '$lib/styles/buttons.css';
 import '$lib/styles/animations.css';
-import 'primeng/resources/themes/lara-light-blue/theme.css';
-import 'primeng/resources/primeng.min.css';
 import 'primeicons/primeicons.css';
 import { mount } from 'svelte';
 import { applyTheme } from '$lib/services/theme.service';

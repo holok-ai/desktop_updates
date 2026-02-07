@@ -1,35 +1,16 @@
 <script lang="ts">
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '../../constants/route.constant';
-  import { authStore, currentUser } from '../../stores/auth.store';
-  import { toastStore } from '../../services/toast.service';
+  import UserAvatar from '../common/UserAvatar.svelte';
 
-  async function handleLogout() {
-    const userName = $currentUser?.name;
-    try {
-      await window.electronAPI.auth.logout();
-      authStore.logout();
-      window.electronAPI.log.info('[Header] User logged out');
-      if (userName) {
-        toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
-      }
-    } catch (error) {
-      window.electronAPI.log.error('[Header] Logout failed', error);
-      console.error('Logout failed:', error);
-    } finally {
-      push(ROUTE.LOGIN);
-    }
+  function handleLogoClick() {
+    push(ROUTE.HOME);
   }
 </script>
 
 <header>
-  <div class="logo">Holokai Desktop</div>
-  <div class="user-section">
-    {#if $currentUser}
-      <span>{$currentUser.name}</span>
-      <button class="btn-ghost logout-button" onclick={handleLogout}>Logout</button>
-    {/if}
-  </div>
+  <button class="logo" onclick={handleLogoClick}>Holokai</button>
+  <UserAvatar />
 </header>
 
 <style>
@@ -37,25 +18,33 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--content-padding) calc(var(--content-padding) * 1.6);
+    height: 56px;
+    padding: 0 24px;
     background: var(--surface-sidebar-primary);
     border-bottom: 1px solid var(--surface-border);
   }
 
   .logo {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
-    color: var(--text-active);
+    color: rgba(255, 255, 255, 0.85);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s ease;
+    outline: none;
   }
 
-  .user-section {
-    display: flex;
-    align-items: center;
-    gap: var(--content-padding);
-    color: var(--text-active);
+  .logo:hover {
+    color: rgba(255, 255, 255, 1);
   }
 
-  .logout-button {
-    color: var(--text-active);
+  .logo:focus {
+    outline: none;
+  }
+
+  .logo:focus:not(:focus-visible) {
+    outline: none;
   }
 </style>

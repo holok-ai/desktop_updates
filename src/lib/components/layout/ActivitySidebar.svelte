@@ -1,75 +1,50 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { authStore, currentUser, isAuthenticated } from '../../stores/auth.store';
+  import { isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
   import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import type { AppThemeMode } from '$lib/types/app.type';
   import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
-  import SidebarItem from '../common/SidebarItem.svelte';
   import { projectService } from '$lib/services/project.service';
   import { storageService } from '$lib/services/storage.service';
-  import { toastStore } from '../../services/toast.service';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
-  const logoWhite = new URL('../../../assets/images/logo-white.png', import.meta.url).href;
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
   let sidebarElement: HTMLElement | null = null;
   let allActivities: SidebarActivity[] = [
-    { id: 'home', label: 'Home', icon: 'pi pi-home', route: ROUTE.HOME },
-    { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
+    { id: 'new-thread', label: '+ New Thread', icon: 'pi pi-plus', route: ROUTE.NEW_THREAD },
+    { id: 'search', label: 'Search', icon: '', route: '/search' },
     { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
+    { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
   ];
 
   // Filter activities based on authentication
-  let activities = $derived(
-    $isAuthenticated
-      ? allActivities // Show all when authenticated
-      : allActivities.filter((a) => a.id === 'home') // Only Home when not authenticated
-  );
+  let activities = $derived(allActivities);
 
-  let selected = $state(allActivities[0].id);
+  let selected = $state('search');
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
-  let showProfileMenu = $state(false);
-  let profileSection: HTMLElement | null = null;
-
-  async function handleLogout() {
-    const userName = $currentUser?.name;
-    try {
-      await window.electronAPI.auth.logout();
-      authStore.logout();
-      window.electronAPI.log.info('[Sidebar] User logged out');
-      if (userName) {
-        toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
-      }
-    } catch (error) {
-      window.electronAPI.log.error('[Sidebar] Logout failed', error);
-      console.error('Logout failed:', error);
-    } finally {
-      push(ROUTE.LOGIN);
-    }
-  }
-
-  function handleLogin() {
-    showProfileMenu = false;
-    push(ROUTE.LOGIN);
-  }
 
   function syncSelectedWithLocation(path: string, qs?: string) {
     const normalized = typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME;
-    let next = 'home';
+    let next = 'search';
 
     // Check if we're viewing a project thread (threads route with projectId param)
     const params = new URLSearchParams(qs ?? '');
     const hasProjectId = params.has('projectId');
 
-    if (normalized.startsWith(ROUTE.THREADS)) {
+    if (normalized.startsWith('/search')) {
+      next = 'search';
+    } else if (normalized.startsWith(ROUTE.THREADS)) {
       // If viewing a thread from a project, keep Projects activity selected
       next = hasProjectId ? 'projects' : 'threads';
     } else if (normalized.startsWith(ROUTE.PROJECTS)) {
       next = 'projects';
+    } else if (normalized.startsWith(ROUTE.HOME)) {
+      // When on home page, default to search
+      next = 'search';
     }
     if (selected !== next) {
       selected = next;
@@ -145,7 +120,12 @@
 
   function handleNavigate(activity: SidebarActivity) {
     const proceed = () => {
-      selected = activity.id;
+      // For new thread, keep threads selected in sidebar
+      if (activity.id === 'new-thread') {
+        selected = 'threads';
+      } else {
+        selected = activity.id;
+      }
       dispatch('select', activity);
       if (activity.route) push(activity.route);
     };
@@ -175,190 +155,77 @@
   bind:this={sidebarElement}
   aria-label="Main sidebar"
 >
-  <div class="sidebar-header flex justify-center items-center h-20">
-    <img src={logoWhite} alt="Holokai Logo" class="sidebar-logo" />
-  </div>
-  <ul class="nav-icons" role="menu">
+  <ul class="nav-items" role="menu">
     {#each activities as activity}
-      <SidebarItem
-        isSelected={selected === activity.id}
-        item={activity}
-        isCollapsed={true}
-        hideCollapsedLabel={false}
-        on:click={() => void handleNavigate(activity)}
-      />
+      <li>
+        <button
+          class="nav-button"
+          class:new-thread={activity.id === 'new-thread'}
+          class:selected={selected === activity.id && activity.id !== 'new-thread'}
+          onclick={() => void handleNavigate(activity)}
+          aria-label={activity.label}
+        >
+          {activity.label}
+        </button>
+      </li>
     {/each}
   </ul>
-  <div
-    class="sidebar-footer mt-auto flex flex-col items-center justify-center relative"
-    bind:this={profileSection}
-    role="region"
-    aria-label="User profile"
-    onmouseenter={() => {
-      showProfileMenu = true;
-    }}
-    onmouseleave={() => (showProfileMenu = false)}
-  >
-    <button
-      class="profile-trigger"
-      tabindex="0"
-      aria-haspopup="true"
-      aria-expanded={showProfileMenu}
-      aria-label="Open profile menu"
-      onkeydown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          showProfileMenu = !showProfileMenu;
-        }
-        if (event.key === 'Escape') {
-          showProfileMenu = false;
-        }
-      }}
-    >
-      <i class="pi pi-user profile-trigger-icon"></i>
-    </button>
-    <span class="profile-name" aria-hidden="true">
-      {$isAuthenticated && $currentUser?.name ? $currentUser.name : 'User'}
-    </span>
-
-    {#if showProfileMenu}
-      <div
-        class="profile-menu-panel"
-        role="menu"
-        tabindex="-1"
-        onkeydown={(event) => {
-          if (event.key === 'Escape') {
-            event.stopPropagation();
-            showProfileMenu = false;
-          }
-        }}
-      >
-        <button
-          class="profile-menu-button"
-          role="menuitem"
-          onclick={() => {
-            showProfileMenu = false;
-            push(ROUTE.SETTINGS);
-          }}
-        >
-          <i class="pi pi-cog"></i>
-          <span>Settings</span>
-        </button>
-        {#if $isAuthenticated}
-          <button class="profile-menu-button" role="menuitem" onclick={handleLogout}>
-            <i class="pi pi-sign-out"></i>
-            <span>Logout</span>
-          </button>
-        {:else}
-          <button class="profile-menu-button" role="menuitem" onclick={handleLogin}>
-            <i class="pi pi-sign-in"></i>
-            <span>Login</span>
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
 </nav>
 
-<style lang="postcss">
+<style>
   .activity-sidebar {
-    width: 92px;
-    min-width: 92px;
-    max-width: 92px;
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
   }
 
-  .sidebar-logo {
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-  }
-
-  .profile-trigger {
-    display: flex;
-    width: 48px;
-    height: 48px;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: var(--text-active);
-    cursor: pointer;
-    transition:
-      background 0.2s ease,
-      transform 0.2s ease;
-  }
-
-  .profile-trigger:focus {
-    outline: none;
-    border: none;
-  }
-
-  .profile-trigger:hover {
-    background: var(--background-primary-hover);
-    border: none;
-  }
-
-  .profile-trigger-icon {
-    color: #fff;
-    font-size: 18px;
-  }
-
-  .profile-menu-panel {
-    position: absolute;
-    left: calc(100% + 2px);
-    bottom: 0;
+  .nav-items {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    background: rgba(20, 24, 40, 0.95);
-    border-radius: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 8px 18px rgba(0, 0, 0, 0.35),
-      0 0 0 1px rgba(255, 255, 255, 0.05);
-    min-width: 180px;
-    z-index: 20;
+    gap: 0.75rem;
+    flex: 1;
+    list-style: none;
+    padding: 0;
+    margin: 0;
   }
 
-  .sidebar-footer {
-    padding-right: 8px;
-  }
-
-  .profile-menu-button {
-    display: flex;
-    align-items: center;
-    gap: var(--inline-spacing);
+  .nav-button {
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 8px 16px;
     background: transparent;
-    border: none;
-    color: #fff;
-    border-radius: var(--border-radius);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  .profile-menu-button span {
-    color: #fff;
-  }
-
-  .profile-menu-button:focus {
+    transition: all 0.2s ease;
+    text-align: left;
     outline: none;
   }
 
-  .profile-menu-button:hover {
-    background: var(--background-primary-hover);
+  .nav-button:focus {
+    outline: none;
   }
 
-  .nav-icons {
-    @apply flex flex-col gap-4 mt-8;
-    flex: 1;
+  .nav-button:hover {
+    color: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.05);
   }
-  .profile-name {
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.8);
-    text-align: center;
-    line-height: 1.1;
+
+  .nav-button.selected {
+    color: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .nav-button.new-thread {
+    border-color: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-button.new-thread:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
   }
 </style>
