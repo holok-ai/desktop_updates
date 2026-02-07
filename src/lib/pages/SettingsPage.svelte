@@ -20,10 +20,10 @@
 
   let activeCategory: SettingsCategory = $state('general');
 
-  let isLoading = true;
-  let appVersion = '';
+  let isLoading = $state(true);
+  let appVersion = $state('');
 
-  let settings: AppSettings = {
+  let settings: AppSettings = $state({
     mokuWebUrl: '',
     mokuApiUrl: '',
     holoApiUrl: DEFAULT_HOLO_API_URL,
@@ -32,9 +32,9 @@
     autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
-  };
+  });
 
-  let savedSettings: AppSettings = { ...settings };
+  let savedSettings: AppSettings = $state({ ...settings });
 
   onMount(async () => {
     const [all, version] = await Promise.all([
@@ -62,7 +62,7 @@
     isLoading = false;
   });
 
-  let holoApiUrlError = '';
+  let holoApiUrlError = $state('');
 
   function normalizeBaseUrl(url: string): string {
     return url.replace(/\/+$/, '');
@@ -151,18 +151,22 @@
     }
   }
 
-  $: if (!isLoading) {
-    holoApiUrlError = settings.holoApiUrl ? validateHoloApiUrl(settings.holoApiUrl) : '';
-  }
+  $effect(() => {
+    if (!isLoading) {
+      holoApiUrlError = settings.holoApiUrl ? validateHoloApiUrl(settings.holoApiUrl) : '';
+    }
+  });
 
   // Immediate apply + persist theme
-  $: if (!isLoading) {
-    applyTheme(settings.theme);
-    persistTheme(settings.theme);
-    void window.electronAPI.settings.set('theme', settings.theme);
-  }
+  $effect(() => {
+    if (!isLoading) {
+      applyTheme(settings.theme);
+      persistTheme(settings.theme);
+      void window.electronAPI.settings.set('theme', settings.theme);
+    }
+  });
 
-  $: hasChanges =
+  let hasChanges = $derived(
     JSON.stringify({
       mokuWebUrl: settings.mokuWebUrl,
       mokuApiUrl: settings.mokuApiUrl,
@@ -176,7 +180,8 @@
       holoApiUrl: savedSettings.holoApiUrl,
       directoryWhitelist: savedSettings.directoryWhitelist,
       autoUpdate: savedSettings.autoUpdate,
-    });
+    })
+  );
 </script>
 
 <div class="settings-page">
