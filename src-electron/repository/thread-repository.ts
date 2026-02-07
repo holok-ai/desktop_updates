@@ -165,16 +165,11 @@ export class ThreadRepository {
     const filtered: MessageDTO[] = [];
 
     for (const dto of messageDTOs) {
-      // Only deduplicate user messages (tool continuations appear as user messages with tool results)
-      if (dto.role !== 'user') {
-        filtered.push(dto);
-        continue;
-      }
-
       const branchId = dto.options?.branch_id || dto.branchId || '1.0';
-      const key = `${dto.content}:${branchId}`;
+      // Create key from role, content, and branchId to catch all duplicates
+      const key = `${dto.role}:${dto.content}:${branchId}`;
 
-      // Check if we've seen this exact user message on this branch before
+      // Check if we've seen this exact message on this branch before
       if (seen.has(key)) {
         const existing = seen.get(key);
         if (!existing) continue;
@@ -191,7 +186,12 @@ export class ThreadRepository {
           }
           seen.set(key, dto);
         }
-        // else: Existing is earlier, skip current (it's a tool continuation)
+        // else: Existing is earlier, skip current (it's a duplicate)
+        log.info('[ThreadRepository] Skipping duplicate message:', {
+          role: dto.role,
+          branchId,
+          contentPreview: dto.content.substring(0, 50),
+        });
       } else {
         // First time seeing this message
         seen.set(key, dto);
@@ -480,6 +480,21 @@ export class ThreadRepository {
     };
 
     log.info('[ThreadRepository] Created message locally:', message.id, 'branchId:', branchId);
+
+    // Check for duplicates before adding to cache
+    const duplicate = thread.messages.find(
+      (m) => m.branchId === branchId && m.role === payload.role && m.content === payload.content,
+    );
+
+    if (duplicate) {
+      log.warn('[ThreadRepository] Duplicate message detected, skipping add:', {
+        existingId: duplicate.id,
+        newId: message.id,
+        branchId: branchId,
+        role: payload.role,
+      });
+      return duplicate;
+    }
 
     // Update local cache
     thread.messages.push(message);

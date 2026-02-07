@@ -7,9 +7,7 @@
   type AuthErrorPayload = { error?: string; description?: string; message?: string };
 
   let isLoading = false;
-  let isMockLoading = false;
   let isKeyLoading = false;
-  let provider: 'microsoft' | 'google' | 'oauth2' = 'microsoft';
   let toastMessage = '';
   let toastTimeout: number | null = null;
   let hasNavigatedHome = false;
@@ -68,25 +66,6 @@
       showToast(message);
     } finally {
       isLoading = false;
-    }
-  }
-
-  async function handleMockLogin() {
-    isMockLoading = true;
-    try {
-      const authState = await window.electronAPI.auth.mockLogin(provider);
-      authStore.setAuthState(authState);
-      window.electronAPI.log.info('Mock login successful', { provider });
-      if (authState.user?.name) {
-        toastStore.show(`${authState.user.name} successfully logged in.`, { variant: 'success' });
-      }
-      navigateHome();
-    } catch (error) {
-      const message = formatAuthError(error);
-      window.electronAPI.log.error('Mock login failed', error);
-      showToast(message);
-    } finally {
-      isMockLoading = false;
     }
   }
 
@@ -155,29 +134,6 @@
       {isLoading ? 'Redirecting...' : 'Login'}
     </button>
 
-    <div class="divider">
-      <span>or use mock login</span>
-    </div>
-
-    <div class="provider-select">
-      <label>
-        <input type="radio" bind:group={provider} value="microsoft" />
-        Microsoft
-      </label>
-      <label>
-        <input type="radio" bind:group={provider} value="google" />
-        Google
-      </label>
-      <label>
-        <input type="radio" bind:group={provider} value="oauth2" />
-        OAuth 2.0
-      </label>
-    </div>
-
-    <button onclick={handleMockLogin} disabled={isMockLoading} class="mock-button">
-      {isMockLoading ? 'Signing in...' : 'Sign In (Mock)'}
-    </button>
-
     <button onclick={handleKeyLogin} disabled={isKeyLoading} class="key-button">
       {isKeyLoading ? 'Signing in...' : 'Login With Key'}
     </button>
@@ -216,21 +172,6 @@
     color: var(--text-primary);
   }
 
-  .provider-select {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--inline-spacing) * 1.5);
-    margin: calc(var(--content-padding) * 1.6) 0;
-  }
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: var(--inline-spacing);
-    cursor: pointer;
-    color: var(--text-primary);
-  }
-
   button {
     width: 100%;
     font-size: 16px;
@@ -253,62 +194,25 @@
     border-color: var(--primary-600);
   }
 
-  .mock-button,
   .key-button {
     background: var(--surface-100);
     color: var(--text-primary);
     border: 1px solid var(--surface-border);
-    margin-top: var(--content-padding);
+    margin-top: calc(var(--inline-spacing) * 0.8);
     padding: var(--inline-spacing) calc(var(--content-padding) * 1.2);
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .mock-button:hover:not(:disabled),
   .key-button:hover:not(:disabled) {
     background: var(--surface-hover);
     border-color: var(--surface-border);
   }
 
-  .key-button {
-    margin-top: calc(var(--inline-spacing) * 0.8);
-  }
-
   button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-
-  .divider {
-    text-align: center;
-    margin: calc(var(--content-padding) * 1.2) 0;
-    position: relative;
-  }
-
-  .divider::before,
-  .divider::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 40%;
-    height: 1px;
-    background: var(--surface-border);
-  }
-
-  .divider::before {
-    left: 0;
-  }
-
-  .divider::after {
-    right: 0;
-  }
-
-  .divider span {
-    background: var(--surface-card);
-    padding: 0 var(--content-padding);
-    color: var(--text-secondary);
-    font-size: 14px;
   }
 
   .note {

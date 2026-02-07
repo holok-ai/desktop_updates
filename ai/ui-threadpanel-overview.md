@@ -12,9 +12,11 @@
 |----------|-------------|
 | **ui-threadpanel-layout.md** | Component tree and file structure |
 | **ui-threadpanel-components.md** | Header, tabs, status indicator, orchestrator |
-| **ui-threadpanel-chatview.md** | Chat view and message timeline |
-| **ui-threadpanel-execution-view.md** | Thread execution view |
-| **ui-threadpanel-promptview.md** | Prompt list view |
+| **ui-threadpanel.view.chat.md** | Chat view and message timeline |
+| **ui-threadpanel.view.execution.md** | Thread execution view |
+| **ui-threadpanel.view.prompt.md** | Prompt list view |
+| **ui-threadpanel.view.branching.md** | Branch visualization view |
+| **ui-threadpanel.view.file.md** | File browser and manager view |
 | **system-branching-id.md** | Branch ID system specification |
 | **thread-repository-design.md** | Thread repository and data sync design |
 | **system-thread-multiplexing.md** | Multi-branch streaming architecture |
@@ -44,7 +46,7 @@ The Thread Panel provides a flexible layout and supporting architecture with the
 |----------|-----------|
 | **Hybrid State Management** | Svelte stores for global state, component `$state` for local UI state |
 | **Service Singletons** | Services instantiated as singletons, interact with stores |
-| **4 Distinct Views** | Chat, Execution, Branching, Prompt - each with focused purpose |
+| **5 Distinct Views** | Chat, Execution, Branching, Prompt, File - each with focused purpose |
 | **Keyboard Toggle** | Cmd/Ctrl-Shift-T toggles between old/new during development |
 | **Main Orchestrator Pattern** | ThreadComponent coordinates views, doesn't contain view logic |
 
@@ -53,11 +55,12 @@ The Thread Panel provides a flexible layout and supporting architecture with the
 | View | Purpose | Document |
 |------|---------|----------|
 | **Chat** | Message display, streaming, branching | ui-threadpanel.view.chat.md |
-| **Execution** | Run thread with instructions, history | ui-threadpanel-execution-view.md |
-| **Branching** | SVG graph visualization of branches | See §3 below ui-threadpanel.view.branching.md|
+| **Execution** | Run thread with instructions, history | ui-threadpanel.view.execution.md |
+| **Branching** | SVG graph visualization of branches | ui-threadpanel.view.branching.md |
 | **Prompt** | Compact prompt list with expand/collapse | ui-threadpanel.view.prompt.md |
+| **File** | Project file browser and manager | ui-threadpanel.view.file.md |
 
-More than one views can be displayed at a time (in a ThreadComposition component). This allows the user to have the Chat view and the graphic branching view shown at the same time. One instance (initially) of a view may displayed, up to 6 total (initially).  
+More than one view can be displayed at a time through the layout system. This allows the user to have the Chat View and Branching View shown simultaneously, or any other combination. Only one instance of each view type can be displayed per layout.  
 
 ---
 
@@ -520,9 +523,9 @@ useNewThreadComponent.subscribe(value => {
 
 | Category | Lines |
 |----------|-------|
-| New code | ~5,000 |
+| New code | ~5,790 (includes File View) |
 | Reused code | ~1,500 |
-| **Total** | ~6,500 |
+| **Total** | ~7,290 |
 
 **Key Improvement:** Main orchestrator reduced from 3,437 to ~800 lines (77% reduction)
 

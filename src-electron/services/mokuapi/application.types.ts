@@ -63,6 +63,7 @@
     id: string;
     name: string;              // Display name: "Claude Opus 4.5"
     accessModel: string;       // ← MISSING in current interface! API identifier: "claude-opus-4-5-20251101"
+    metadata: string; 
   }
 
   export interface PromptReference {

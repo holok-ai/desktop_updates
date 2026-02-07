@@ -4,6 +4,7 @@
    * Displays overview of LLM models, recent projects, invitations, support, and metrics
    */
   import { onMount } from 'svelte';
+  import { location } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import { modelService } from '$lib/services/model.service';
   import type { MockInvitation } from '$lib/types/dashboard.type';
@@ -137,6 +138,24 @@
       availableApplications = [];
     }
   }
+
+  /**
+   * Refresh applications when navigating to this page
+   */
+  $effect(() => {
+    // Watch for route changes to this page (location === '/' or empty)
+    if ($location === '/' || $location === '') {
+      (async () => {
+        availableApplications = [];
+        recentProjects = [];
+        auditData = [];
+        mockInvitations = [];
+        await loadApplications();
+        await loadAuditData();
+        mockInvitations = generateMockInvitations();
+      })();
+    }
+  });
 
   /**
    * Initialize dashboard data

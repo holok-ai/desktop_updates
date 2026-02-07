@@ -30,8 +30,11 @@
 | ID | Requirement | Priority | Status | Source |
 |----|-------------|----------|--------|--------|
 | **FR-001** | Replace 3,437-line ChatPane.svelte with modular architecture (~800 line orchestrator) | HIGH | Planned | Implementation |
-| **FR-002** | Support 4 distinct thread views: Chat, Execution, Branching, Prompt | HIGH | Planned | Implementation |
+| **FR-002** | Support 5 distinct thread views: Chat, Execution, Branching, Prompt, File | HIGH | Planned | Implementation |
+| **FR-002a** | Multiple views can be displayed simultaneously within layout system | HIGH | Planned | Architecture Overview (1.3) |
+| **FR-002b** | Only one instance of each view type can be displayed per layout | HIGH | Planned | Architecture Overview (1.3) |
 | **FR-003** | Implement thread status indicator with connection/model feedback | MEDIUM | Planned | Implementation |
+| **FR-003a** | Display text, images, video, and audio content in views | HIGH | Planned | Architecture Overview (1) |
 | **FR-004** | Enable keyboard toggle between old and new implementations (Cmd/Ctrl-Shift-T) | HIGH | Planned | Implementation |
 | **FR-005** | Maintain full feature parity with existing ChatPane functionality | CRITICAL | Planned | Implementation |
 | **FR-006** | Support project breadcrumb navigation | MEDIUM | Planned | Implementation |
@@ -108,55 +111,66 @@
 | **FR-403** | Click branch/lane/closure → navigate to Thread Chat View at branch point | HIGH | Confirmed |
 | **FR-404** | "Expand All" and "Collapse All" controls | MEDIUM | Planned |
 
-### 1.6 Thread Status Indicator Requirements
+### 1.6 Thread Layout System Requirements
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| **FR-501** | Display 3 circles showing connection/model interaction state | HIGH | Planned |
-| **FR-502** | Thread-level status (not per-message) | HIGH | Confirmed |
-| **FR-503** | Circle 1 green when any prompt is being sent | HIGH | Confirmed |
-| **FR-504** | Circle 2 blue when any response is being received | HIGH | Confirmed |
-| **FR-505** | Circle 3 red on error | HIGH | Confirmed |
-| **FR-506** | Error state persists until next prompt is issued by user | HIGH | Confirmed |
-| **FR-507** | Support states: idle, connecting, sending, receiving, tool-executing, error | HIGH | Planned |
+| **FR-501** | Support flexible layout system allowing multiple views to be arranged | HIGH | Planned |
+| **FR-502** | Support side-by-side view arrangement (e.g., Chat View + Branching View) | HIGH | Planned |
+| **FR-503** | Enforce one-instance-per-view-type constraint (only one Chat View at a time) | HIGH | Planned |
+| **FR-504** | Remember user's view layout preferences across sessions | MEDIUM | Planned |
+| **FR-505** | Support dragging views to reorder or resize panes | MEDIUM | Planned |
+| **FR-506** | Support collapsing/hiding views to maximize active view | MEDIUM | Planned |
 
-### 1.7 Branch ID Requirements
-
-| ID | Requirement | Priority | Status |
-|----|-------------|----------|--------|
-| **FR-601** | All branch IDs **must** use 4-digit format: row.lane.message.tool_sequence | CRITICAL | Confirmed |
-| **FR-602** | Branch IDs **must** be unique within a thread | CRITICAL | Confirmed |
-| **FR-603** | Branch IDs **must** support numeric ordering (not lexicographic) | HIGH | Confirmed |
-| **FR-604** | Branch IDs **must** be stored in PostgreSQL ltree format | HIGH | Confirmed |
-| **FR-605** | System **must** support up to 9 lanes per branch point | MEDIUM | Confirmed |
-| **FR-606** | System **must** support unlimited messages per lane | MEDIUM | Confirmed |
-| **FR-607** | System **must** support unlimited tool iterations per message | MEDIUM | Confirmed |
-| **FR-608** | Branch IDs **must** be immutable once created | HIGH | Confirmed |
-| **FR-609** | Row numbering: 1-based (first message = row 1) | HIGH | Confirmed |
-| **FR-610** | Lane numbering: 0-based (0 = main, 1-9 = variations) | HIGH | Confirmed |
-| **FR-611** | Message numbering: 0-based (position within lane) | HIGH | Confirmed |
-| **FR-612** | Tool iteration numbering: 0-based (0 = no tools) | HIGH | Confirmed |
-
-### 1.8 Message Interface Requirements
+### 1.7 Thread Status Indicator Requirements
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| **FR-701** | `branchId` field must be 4-digit format (BREAKING CHANGE from 3-digit) | CRITICAL | Planned |
-| **FR-702** | `clientMessageId` must be required (BREAKING CHANGE from optional) | HIGH | Planned |
-| **FR-703** | `syncState` field must be added (NEW) | HIGH | Planned |
-| **FR-704** | `apiId` field should be added (NEW, optional) | MEDIUM | Planned |
+| **FR-601** | Display 3 circles showing connection/model interaction state | HIGH | Planned |
+| **FR-602** | Thread-level status (not per-message) | HIGH | Confirmed |
+| **FR-603** | Circle 1 green when any prompt is being sent | HIGH | Confirmed |
+| **FR-604** | Circle 2 blue when any response is being received | HIGH | Confirmed |
+| **FR-605** | Circle 3 red on error | HIGH | Confirmed |
+| **FR-606** | Error state persists until next prompt is issued by user | HIGH | Confirmed |
+| **FR-607** | Support states: idle, connecting, sending, receiving, tool-executing, error | HIGH | Planned |
 
-### 1.9 Message Synchronization Requirements
+### 1.8 Branch ID Requirements
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| **FR-801** | Fetch last 50 messages from API for partial sync | HIGH | Planned |
-| **FR-802** | Match local messages to API messages by clientMessageId | CRITICAL | Planned |
-| **FR-803** | Replace local message with API version when match found | CRITICAL | Planned |
-| **FR-804** | Preserve local-only messages that weren't matched | CRITICAL | Planned |
-| **FR-805** | Never delete local messages during sync | CRITICAL | Planned |
-| **FR-806** | Handle sync failures gracefully | HIGH | Planned |
-| **FR-807** | Support offline message creation | HIGH | Planned |
+| **FR-701** | All branch IDs **must** use 4-digit format: row.lane.message.tool_sequence | CRITICAL | Confirmed |
+| **FR-702** | Branch IDs **must** be unique within a thread | CRITICAL | Confirmed |
+| **FR-703** | Branch IDs **must** support numeric ordering (not lexicographic) | HIGH | Confirmed |
+| **FR-704** | Branch IDs **must** be stored in PostgreSQL ltree format | HIGH | Confirmed |
+| **FR-705** | System **must** support up to 9 lanes per branch point | MEDIUM | Confirmed |
+| **FR-706** | System **must** support unlimited messages per lane | MEDIUM | Confirmed |
+| **FR-707** | System **must** support unlimited tool iterations per message | MEDIUM | Confirmed |
+| **FR-708** | Branch IDs **must** be immutable once created | HIGH | Confirmed |
+| **FR-709** | Row numbering: 1-based (first message = row 1) | HIGH | Confirmed |
+| **FR-710** | Lane numbering: 0-based (0 = main, 1-9 = variations) | HIGH | Confirmed |
+| **FR-711** | Message numbering: 0-based (position within lane) | HIGH | Confirmed |
+| **FR-712** | Tool iteration numbering: 0-based (0 = no tools) | HIGH | Confirmed |
+
+### 1.9 Message Interface Requirements
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| **FR-801** | `branchId` field must be 4-digit format (BREAKING CHANGE from 3-digit) | CRITICAL | Planned |
+| **FR-802** | `clientMessageId` must be required (BREAKING CHANGE from optional) | HIGH | Planned |
+| **FR-803** | `syncState` field must be added (NEW) | HIGH | Planned |
+| **FR-804** | `apiId` field should be added (NEW, optional) | MEDIUM | Planned |
+
+### 1.10 Message Synchronization Requirements
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| **FR-901** | Fetch last 50 messages from API for partial sync | HIGH | Planned |
+| **FR-902** | Match local messages to API messages by clientMessageId | CRITICAL | Planned |
+| **FR-903** | Replace local message with API version when match found | CRITICAL | Planned |
+| **FR-904** | Preserve local-only messages that weren't matched | CRITICAL | Planned |
+| **FR-905** | Never delete local messages during sync | CRITICAL | Planned |
+| **FR-906** | Handle sync failures gracefully | HIGH | Planned |
+| **FR-907** | Support offline message creation | HIGH | Planned |
 
 ---
 
