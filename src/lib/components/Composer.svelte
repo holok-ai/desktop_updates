@@ -23,6 +23,17 @@
       text = initialText;
     }
   });
+
+  // Auto-grow textarea when text changes
+  $effect(() => {
+    // Track text changes to trigger effect
+    text;
+    if (textareaRef) {
+      textareaRef.style.height = 'auto';
+      textareaRef.style.height = textareaRef.scrollHeight + 'px';
+    }
+  });
+
   let selectedFiles = $state<File[]>([]);
   let fileInputRef: HTMLInputElement | undefined = $state();
   let textareaRef: HTMLTextAreaElement | undefined = $state();
@@ -210,81 +221,55 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<div
-  class="composer"
-  role="region"
-  aria-label="Message composer with file drop zone"
-  ondragenter={handleDragEnter}
-  ondragleave={handleDragLeave}
-  ondragover={handleDragOver}
-  ondrop={handleDrop}
-  class:dragging={isDragging}
->
-  <!-- Drag overlay -->
-  {#if isDragging}
-    <div class="drag-overlay" role="status" aria-live="polite">
-      <div class="drag-message">
-        <svg
-          class="w-12 h-12"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
-        </svg>
-        <p>Drop files here to attach</p>
-      </div>
-    </div>
-  {/if}
+<!-- Hidden file input -->
+<input
+  type="file"
+  bind:this={fileInputRef}
+  onchange={handleFileChange}
+  multiple
+  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/markdown,application/json,text/csv"
+  style="display: none;"
+  aria-label="Select files to attach"
+/>
 
-  <!-- Hidden file input -->
-  <input
-    type="file"
-    bind:this={fileInputRef}
-    onchange={handleFileChange}
-    multiple
-    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/markdown,application/json,text/csv"
-    style="display: none;"
-    aria-label="Select files to attach"
-  />
+  <div class="composer-container">
+    <div
+      class="composer-box"
+      role="region"
+      aria-label="Message input with file drop zone"
+      class:dragging={isDragging}
+      ondragenter={handleDragEnter}
+      ondragleave={handleDragLeave}
+      ondragover={handleDragOver}
+      ondrop={handleDrop}
+    >
+      {#if isDragging}
+        <div class="drag-overlay" role="status" aria-live="polite">
+          <div class="drag-message">
+            <svg
+              class="w-12 h-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <p>Drop files here to attach</p>
+          </div>
+        </div>
+      {/if}
 
-  <!-- Attachment previews -->
-  {#if selectedFiles.length > 0}
-    <div class="attachments-preview" role="list" aria-label="Selected attachments">
-      {#each selectedFiles as file, index}
-        <AttachmentPreview
-          attachment={{
-            id: `temp-${index}`,
-            filename: file.name,
-            mimeType: file.type,
-            size: file.size,
-            uploadedAt: Date.now(),
-            status: 'success',
-          }}
-          mode="preview"
-          onRemove={() => removeFile(index)}
-        />
-      {/each}
-    </div>
-  {/if}
-
-  {#if validationError}
-    <div role="alert" class="error-message" aria-live="assertive">{validationError}</div>
-  {/if}
-
-  <div class="input-container">
-    <div class="textarea-wrapper">
       <textarea
         bind:this={textareaRef}
         bind:value={text}
         placeholder={disabled ? "Select a branch to continue..." : "Enter a prompt ..."}
-        rows={3}
+        rows={2}
         disabled={isStreaming || disabled}
         aria-label="Message input. Press Enter to send, Shift+Enter for new line"
         data-testid="message-input"
@@ -303,49 +288,58 @@
         Press Enter to send message. Press Shift+Enter for new line. Press Ctrl+U or Cmd+U to attach
         files.
       </span>
-    </div>
 
-    <div class="side-controls">
-      <button
-        type="button"
-        class="attach-button"
-        onclick={handleFileSelect}
-        disabled={isStreaming || disabled}
-        aria-label="Attach file (Ctrl+U or Cmd+U)"
-        title="Attach file (Ctrl+U or Cmd+U)"
-      >
-        <svg
-          class="icon"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
+      <div class="composer-actions">
+        <button
+          type="button"
+          class="attach-icon-button"
+          onclick={handleFileSelect}
+          disabled={isStreaming || disabled}
+          aria-label="Attach file (Ctrl+U or Cmd+U)"
+          title="Attach file"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-          />
-        </svg>
-        <span class="button-text">Attach</span>
-      </button>
+          <i class="pi pi-plus"></i>
+        </button>
 
-      <button
-        class="btn-holokai send-button"
-        type="button"
-        onclick={send}
-        disabled={isStreaming || disabled}
-        aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-        aria-disabled={isStreaming || disabled}
-        class:sending={isStreaming}
-        data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
-      >
-        <i class="pi pi-arrow-up"></i>
-      </button>
+        <button
+          class="btn-holokai send-button"
+          type="button"
+          onclick={send}
+          disabled={isStreaming || disabled}
+          aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
+          aria-disabled={isStreaming || disabled}
+          class:sending={isStreaming}
+          data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+        >
+          <i class="pi pi-arrow-up"></i>
+        </button>
+      </div>
     </div>
+
+    {#if validationError}
+      <div role="alert" class="error-message" aria-live="assertive">{validationError}</div>
+    {/if}
+
+    <!-- Attachment previews outside the box -->
+    {#if selectedFiles.length > 0}
+      <div class="attachments-preview" role="list" aria-label="Selected attachments">
+        {#each selectedFiles as file, index}
+          <AttachmentPreview
+            attachment={{
+              id: `temp-${index}`,
+              filename: file.name,
+              mimeType: file.type,
+              size: file.size,
+              uploadedAt: Date.now(),
+              status: 'success',
+            }}
+            mode="preview"
+            onRemove={() => removeFile(index)}
+          />
+        {/each}
+      </div>
+    {/if}
   </div>
-</div>
 
 <style>
   /* Screen reader only class for accessibility */
@@ -361,18 +355,32 @@
     border-width: 0;
   }
 
-  .composer {
+  .composer-container {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--inline-spacing) * 1.5);
-    position: relative;
-    transition: all 0.2s ease;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    background: var(--surface-main, #fafafa);
   }
 
-  .composer.dragging {
-    border: 2px dashed var(--primary-color);
-    border-radius: var(--border-radius);
-    background-color: color-mix(in srgb, var(--primary-color) 8%, var(--surface-card));
+  .composer-box {
+    width: 90%;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+    transition: border-color 0.2s ease;
+  }
+
+  .composer-box.dragging {
+    border-color: var(--primary-color);
+    border-width: 2px;
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-card));
   }
 
   .drag-overlay {
@@ -387,7 +395,7 @@
     align-items: center;
     justify-content: center;
     z-index: 10;
-    border-radius: var(--border-radius);
+    border-radius: 12px;
     pointer-events: none;
   }
 
@@ -395,7 +403,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--content-padding);
+    gap: 0.75rem;
     color: var(--primary-color);
     font-weight: 500;
   }
@@ -406,77 +414,81 @@
   }
 
   .drag-message p {
-    font-size: 18px;
+    font-size: 16px;
     margin: 0;
-  }
-
-  .attachments-preview {
-    display: flex;
-    flex-direction: column;
-    gap: var(--inline-spacing);
-  }
-
-  .input-container {
-    display: flex;
-    gap: var(--inline-spacing);
-    align-items: flex-start;
-  }
-
-  .textarea-wrapper {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: stretch;
   }
 
   .composer-textarea {
     width: 100%;
-    padding: var(--inline-spacing);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--surface-border);
+    padding: 0.5rem;
+    background: var(--surface-card, #fff);
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
     font-family: inherit;
-    resize: vertical;
-    min-height: 64px;
-    line-height: 1.4;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    resize: none;
+    overflow: hidden;
+    min-height: 3em;
+  }
+
+  .composer-textarea:focus,
+  .composer-textarea:active,
+  .composer-textarea:hover,
+  .composer-textarea:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 
   .composer-textarea:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    pointer-events: none;
   }
 
-  .side-controls {
+  .composer-textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+  }
+
+  .composer-actions {
     display: flex;
-    flex-direction: column;
-    gap: var(--inline-spacing);
-    align-items: stretch;
-    flex-shrink: 0;
-    align-self: stretch;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.5rem;
   }
 
-  .attach-button {
+  .attach-icon-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: calc(var(--inline-spacing) * 0.5);
-    padding: 8px;
-    border-radius: var(--border-radius);
-    border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+    width: 32px;
+    height: 32px;
     background: transparent;
-    color: var(--primary-color);
-    font-weight: 500;
-    font-size: 0.875rem;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 6px;
     transition: all 0.2s;
-    white-space: nowrap;
-    min-width: fit-content;
+    font-size: 1.25rem;
+  }
+
+  .attach-icon-button:hover:not(:disabled) {
+    background: var(--surface-hover, #f0f0f0);
+    color: var(--text-primary);
+  }
+
+  .attach-icon-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .send-button {
-    width: 56px;
+    width: 40px;
     height: 40px;
     padding: 0 !important;
-    margin-top: auto;
   }
 
   .send-button i {
@@ -498,25 +510,24 @@
     }
   }
 
-  .attach-button:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary-color) 60%, transparent);
-    color: color-mix(in srgb, var(--primary-color) 90%, transparent);
-  }
-
-  .attach-button:disabled,
   .send-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .attach-button .icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
+  .error-message {
+    color: var(--error-color, #dc2626);
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background: var(--error-bg);
+    border-radius: 6px;
+    width: 90%;
   }
 
-  .attach-button .button-text {
-    line-height: 1;
+  .attachments-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 90%;
   }
 </style>

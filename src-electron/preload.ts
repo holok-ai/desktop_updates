@@ -371,9 +371,15 @@ export interface SettingsAPI {
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
 }
 
+
 /**
  * App Settings Interface
  */
+export interface ToolSetting {
+  title: string; 
+  id: string; 
+}
+
 export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
@@ -393,6 +399,10 @@ export interface AppSettings {
   autoUpdate?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
+  /* ToolOrchestrator data need to load the UI  */
+  config_windowsCommands: string; 
+  config_unixCommands: string; 
+  config_toolList: ToolSetting[]; 
 }
 
 /**

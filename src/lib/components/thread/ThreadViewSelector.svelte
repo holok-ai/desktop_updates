@@ -59,6 +59,7 @@
 <div
   class="view-selector"
   role="tablist"
+  tabindex="0"
   aria-label="Thread view selector"
   onmouseenter={() => (isHovered = true)}
   onmouseleave={() => (isHovered = false)}

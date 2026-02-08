@@ -618,6 +618,6 @@
     flex-shrink: 0;
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--surface-border, #e0e0e0);
-    background: var(--surface-card, #fff);
+    background: var(--surface-main, #fafafa);
   }
 </style>

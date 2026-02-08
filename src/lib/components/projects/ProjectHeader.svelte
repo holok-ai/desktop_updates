@@ -1,8 +1,15 @@
 <script lang="ts">
   import ProjectIcon from '$lib/components/common/ProjectIcon.svelte';
   import type { Project } from '$lib/types/project.type';
+  import { favorites } from '$lib/stores/favorite.store';
 
   let { project }: { project: Project } = $props();
+
+  const isFav = $derived($favorites.some((e) => e.id === project.id));
+
+  function toggleFavorite() {
+    favorites.toggleFavorite(project.id, 'project');
+  }
 </script>
 
 <div class="detail-header">
