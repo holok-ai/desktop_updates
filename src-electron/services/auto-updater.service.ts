@@ -22,9 +22,12 @@ class AutoUpdaterService {
       return;
     }
 
-    // Check if auto-updates are enabled in settings
-    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
-    if (!autoUpdateEnabled) {
+    // Check if auto-check for updates is enabled in settings
+    const autoCheckEnabled =
+      this.settingsService.getSetting('autoCheckUpdates') ??
+      this.settingsService.getSetting('autoUpdate') ??
+      true;
+    if (!autoCheckEnabled) {
       updaterLog.info('Auto-updater disabled in settings');
       return;
     }
@@ -40,8 +43,10 @@ class AutoUpdaterService {
     // (electron-updater is CJS + uses a loosely typed logger surface)
     (autoUpdater as unknown as { logger: unknown }).logger = log;
 
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = false;
+    // Auto-download only if autoInstallUpdates is enabled
+    const autoInstall = this.settingsService.getSetting('autoInstallUpdates') ?? false;
+    autoUpdater.autoDownload = autoInstall;
+    autoUpdater.autoInstallOnAppQuit = autoInstall;
 
     this.setupEventHandlers();
 
@@ -49,21 +54,52 @@ class AutoUpdaterService {
     updaterLog.info('Auto-updater initialized');
   }
 
+  /**
+   * Check for updates (automatic — respects autoCheckUpdates setting)
+   */
   checkForUpdates(): void {
     if (!app.isPackaged || !this.initialized) {
       return;
     }
 
-    // Check if auto-updates are enabled in settings
-    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
-    if (!autoUpdateEnabled) {
-      updaterLog.info('Skipping update check - auto-updates disabled in settings');
+    // Check if auto-check for updates is enabled in settings
+    const autoCheckEnabled =
+      this.settingsService.getSetting('autoCheckUpdates') ??
+      this.settingsService.getSetting('autoUpdate') ??
+      true;
+    if (!autoCheckEnabled) {
+      updaterLog.info('Skipping update check - auto-check disabled in settings');
       return;
     }
 
     updaterLog.info('Checking for updates...');
     autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
       updaterLog.error('checkForUpdatesAndNotify failed', error);
+    });
+  }
+
+  /**
+   * Check for updates (manual — always runs regardless of settings)
+   */
+  checkForUpdatesManual(): void {
+    if (!app.isPackaged) {
+      updaterLog.info('Skipping manual update check (development mode)');
+      return;
+    }
+
+    // Ensure updater is initialized for manual checks
+    if (!this.initialized) {
+      updaterLog.info('Initializing auto-updater for manual check');
+      (autoUpdater as unknown as { logger: unknown }).logger = log;
+      autoUpdater.autoDownload = false;
+      autoUpdater.autoInstallOnAppQuit = false;
+      this.setupEventHandlers();
+      this.initialized = true;
+    }
+
+    updaterLog.info('Manual update check triggered');
+    autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
+      updaterLog.error('Manual checkForUpdatesAndNotify failed', error);
     });
   }
 
@@ -131,7 +167,7 @@ class AutoUpdaterService {
           detailLines.push('GitHub reported "Bad credentials" (HTTP 401).');
         }
         detailLines.push(
-          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop repository.'
+          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop repository.',
         );
 
         dialog
@@ -172,7 +208,7 @@ class AutoUpdaterService {
         .then((result) => {
           if (result.response === 0) {
             updaterLog.info('User chose to restart and install update');
-            
+
             try {
               // On Windows, quitAndInstall will handle closing windows and quitting the app
               // Parameters: isSilent=false (show installer UI), isForceRunAfter=true (restart after install)
@@ -201,4 +237,3 @@ class AutoUpdaterService {
 }
 
 export const autoUpdaterService = new AutoUpdaterService();
-
