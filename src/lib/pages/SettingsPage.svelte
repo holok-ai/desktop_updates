@@ -11,11 +11,12 @@
   import {
     APP_THEME_MODE,
     STARTING_PAGE,
-    STARTING_PAGE_LABELS,
+    THEME_OPTIONS,
+    STARTING_PAGE_OPTIONS,
     THREAD_LAYOUT,
     THREAD_LAYOUT_OPTIONS,
     CHAT_LAYOUT,
-    CHAT_LAYOUT_LABELS,
+    CHAT_LAYOUT_OPTIONS,
     CHAT_FONT_SIZE_MIN,
     CHAT_FONT_SIZE_MAX,
     CHAT_FONT_SIZE_DEFAULT,
@@ -64,11 +65,14 @@
     theme: APP_THEME_MODE.LIGHT,
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
     showRecentList: true,
+    showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
     chatFontSize: CHAT_FONT_SIZE_DEFAULT,
     chatLayout: CHAT_LAYOUT.LEFT_RIGHT as ChatLayout,
     enabledTools: [],
     shellCommands: '',
+    windowsCommands: '',
+    unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     autoUpdate: true,
@@ -84,11 +88,14 @@
     theme: APP_THEME_MODE.LIGHT,
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
     showRecentList: true,
+    showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
     chatFontSize: CHAT_FONT_SIZE_DEFAULT,
     chatLayout: CHAT_LAYOUT.LEFT_RIGHT as ChatLayout,
     enabledTools: [],
     shellCommands: '',
+    windowsCommands: '',
+    unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     autoUpdate: true,
@@ -110,11 +117,14 @@
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
       showRecentList: all.showRecentList ?? true,
+      showFavoritesList: all.showFavoritesList ?? true,
       threadLayout: (all.threadLayout as ThreadLayout) || THREAD_LAYOUT.SINGLE_COL,
       chatFontSize: all.chatFontSize ?? CHAT_FONT_SIZE_DEFAULT,
       chatLayout: (all.chatLayout as ChatLayout) || CHAT_LAYOUT.LEFT_RIGHT,
       enabledTools: [...(all.enabledTools ?? [])],
       shellCommands: all.shellCommands ?? '',
+      windowsCommands: all.windowsCommands ?? '',
+      unixCommands: all.unixCommands ?? '',
       autoCheckUpdates: all.autoCheckUpdates ?? Boolean(all.autoUpdate ?? true),
       autoInstallUpdates: all.autoInstallUpdates ?? false,
       autoUpdate: Boolean(all.autoUpdate ?? true),
@@ -188,11 +198,14 @@
         directoryWhitelist: settings.directoryWhitelist,
         startingPage: settings.startingPage,
         showRecentList: settings.showRecentList,
+        showFavoritesList: settings.showFavoritesList,
         threadLayout: settings.threadLayout,
         chatFontSize: settings.chatFontSize,
         chatLayout: settings.chatLayout,
         enabledTools: settings.enabledTools,
         shellCommands: settings.shellCommands,
+        windowsCommands: settings.windowsCommands,
+        unixCommands: settings.unixCommands,
         autoCheckUpdates: settings.autoCheckUpdates,
         autoInstallUpdates: settings.autoInstallUpdates,
         autoUpdate: settings.autoCheckUpdates, // keep legacy field in sync
@@ -279,11 +292,14 @@
       directoryWhitelist: settings.directoryWhitelist,
       startingPage: settings.startingPage,
       showRecentList: settings.showRecentList,
+      showFavoritesList: settings.showFavoritesList,
       threadLayout: settings.threadLayout,
       chatFontSize: settings.chatFontSize,
       chatLayout: settings.chatLayout,
       enabledTools: settings.enabledTools,
       shellCommands: settings.shellCommands,
+      windowsCommands: settings.windowsCommands,
+      unixCommands: settings.unixCommands,
       autoCheckUpdates: settings.autoCheckUpdates,
       autoInstallUpdates: settings.autoInstallUpdates,
     }) !==
@@ -294,11 +310,14 @@
         directoryWhitelist: savedSettings.directoryWhitelist,
         startingPage: savedSettings.startingPage,
         showRecentList: savedSettings.showRecentList,
+        showFavoritesList: savedSettings.showFavoritesList,
         threadLayout: savedSettings.threadLayout,
         chatFontSize: savedSettings.chatFontSize,
         chatLayout: savedSettings.chatLayout,
         enabledTools: savedSettings.enabledTools,
         shellCommands: savedSettings.shellCommands,
+        windowsCommands: savedSettings.windowsCommands,
+        unixCommands: savedSettings.unixCommands,
         autoCheckUpdates: savedSettings.autoCheckUpdates,
         autoInstallUpdates: savedSettings.autoInstallUpdates,
       }),
@@ -328,278 +347,351 @@
           {#if isLoading}
             <div class="loading">Loading settings...</div>
           {:else}
-            <!-- General -->
+            <!-- ==================== General ==================== -->
             {#if activeCategory === 'general'}
               <h2 class="panel-title">General</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-                <p class="text-sm" style="color: var(--text-secondary);">
-                  General application settings. Configure connections, appearance, and more using
-                  the categories on the left.
-                </p>
-                <div class="form-group">
-                  <span class="block text-sm font-medium mb-1">Application Version</span>
-                  <span class="text-sm">{appVersion}</span>
+              <div class="category-card">
+                <!-- Application Info -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Application</div>
+                  <div class="subgroup-controls">
+                    <div class="info-row">
+                      <span class="info-key">Version</span>
+                      <span class="info-value">{appVersion}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             {/if}
 
-            <!-- Appearance -->
+            <!-- ==================== Appearance ==================== -->
             {#if activeCategory === 'appearance'}
               <h2 class="panel-title">Appearance</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-5">
-                <!-- Starting Page -->
-                <div class="form-group">
-                  <label for="starting-page" class="block text-sm font-medium mb-1"
-                    >Starting Page</label
-                  >
-                  <select
-                    id="starting-page"
-                    bind:value={settings.startingPage}
-                    class="w-full p-2 rounded border bg-transparent"
-                  >
-                    {#each [...STARTING_PAGE_LABELS] as [value, label]}
-                      <option {value}>{label}</option>
-                    {/each}
-                  </select>
+              <div class="category-card">
+                <!-- Startup Page -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Startup Page</div>
+                  <div class="subgroup-controls">
+                    <div class="card-grid card-grid-4">
+                      {#each STARTING_PAGE_OPTIONS as opt}
+                        <button
+                          class="option-card"
+                          class:active={settings.startingPage === opt.value}
+                          onclick={() => (settings.startingPage = opt.value as StartingPage)}
+                        >
+                          <span class="option-card-icon">{opt.icon}</span>
+                          <span class="option-card-label">{opt.label}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Show Recent List -->
-                <div class="form-group">
-                  <label class="inline-flex items-center gap-2">
-                    <input type="checkbox" bind:checked={settings.showRecentList} />
-                    <span class="text-sm font-medium">Show Recent List</span>
-                  </label>
+                <div class="subgroup-divider"></div>
+
+                <!-- Sidebar Options -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Sidebar Options</div>
+                  <div class="subgroup-controls">
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.showRecentList} />
+                      <span class="text-sm">Show recent list</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.showFavoritesList} />
+                      <span class="text-sm">Show favorites list</span>
+                    </label>
+                  </div>
                 </div>
+
+                <div class="subgroup-divider"></div>
 
                 <!-- Theme -->
-                <div class="form-group">
-                  <span class="block text-sm font-medium mb-1">Theme</span>
-                  <div class="flex items-center gap-6">
-                    <label class="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="theme"
-                        value={APP_THEME_MODE.DARK}
-                        bind:group={settings.theme}
-                      />
-                      <span>Dark</span>
-                    </label>
-                    <label class="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="theme"
-                        value={APP_THEME_MODE.LIGHT}
-                        bind:group={settings.theme}
-                      />
-                      <span>Light</span>
-                    </label>
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Theme</div>
+                  <div class="subgroup-controls">
+                    <div class="card-grid card-grid-2">
+                      {#each THEME_OPTIONS as opt}
+                        <button
+                          class="option-card"
+                          class:active={settings.theme === opt.value}
+                          onclick={() => (settings.theme = opt.value as AppThemeMode)}
+                        >
+                          <span class="option-card-icon">{opt.icon}</span>
+                          <span class="option-card-label">{opt.label}</span>
+                        </button>
+                      {/each}
+                    </div>
                   </div>
                 </div>
 
-                <!-- Thread Layout -->
-                <div class="form-group">
-                  <span class="block text-sm font-medium mb-2">Thread Layout</span>
-                  <div class="thread-layout-grid">
-                    {#each THREAD_LAYOUT_OPTIONS as opt}
-                      <button
-                        class="layout-option"
-                        class:active={settings.threadLayout === opt.value}
-                        onclick={() => (settings.threadLayout = opt.value as ThreadLayout)}
-                        title={opt.description}
-                      >
-                        <span class="layout-icon">{opt.icon}</span>
-                        <span class="layout-label">{opt.label}</span>
-                        <span class="layout-desc">{opt.description}</span>
-                      </button>
-                    {/each}
-                  </div>
-                </div>
+                <div class="subgroup-divider"></div>
 
-                <!-- Chat Text Font Size -->
-                <div class="form-group">
-                  <label for="chat-font-size" class="block text-sm font-medium mb-1">
-                    Chat Text: <strong>{settings.chatFontSize}pt</strong>
-                  </label>
-                  <div class="flex items-center gap-3">
-                    <span class="text-xs" style="color: var(--text-secondary)"
-                      >{CHAT_FONT_SIZE_MIN}</span
-                    >
-                    <input
-                      id="chat-font-size"
-                      type="range"
-                      min={CHAT_FONT_SIZE_MIN}
-                      max={CHAT_FONT_SIZE_MAX}
-                      bind:value={settings.chatFontSize}
-                      class="flex-1"
-                    />
-                    <span class="text-xs" style="color: var(--text-secondary)"
-                      >{CHAT_FONT_SIZE_MAX}</span
-                    >
-                  </div>
-                </div>
+                <!-- Thread Format -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Thread Format</div>
+                  <div class="subgroup-controls space-y-4">
+                    <!-- Thread View -->
+                    <div>
+                      <span class="control-label">Thread View</span>
+                      <div class="card-grid card-grid-5">
+                        {#each THREAD_LAYOUT_OPTIONS as opt}
+                          <button
+                            class="option-card"
+                            class:active={settings.threadLayout === opt.value}
+                            onclick={() => (settings.threadLayout = opt.value as ThreadLayout)}
+                            title={opt.description}
+                          >
+                            <span class="option-card-icon">{opt.icon}</span>
+                            <span class="option-card-label">{opt.label}</span>
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
 
-                <!-- Chat Layout -->
-                <div class="form-group">
-                  <span class="block text-sm font-medium mb-1">Chat Layout</span>
-                  <div class="flex flex-col gap-2">
-                    {#each [...CHAT_LAYOUT_LABELS] as [value, label]}
-                      <label class="inline-flex items-center gap-2">
+                    <!-- Chat Layout -->
+                    <div>
+                      <span class="control-label">Chat Layout</span>
+                      <div class="card-grid card-grid-3">
+                        {#each CHAT_LAYOUT_OPTIONS as opt}
+                          <button
+                            class="option-card"
+                            class:active={settings.chatLayout === opt.value}
+                            onclick={() => (settings.chatLayout = opt.value as ChatLayout)}
+                          >
+                            <span class="option-card-icon">{opt.icon}</span>
+                            <span class="option-card-label">{opt.label}</span>
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+
+                    <!-- Chat Text Size -->
+                    <div>
+                      <span class="control-label">Chat Text Size: <strong>{settings.chatFontSize}pt</strong></span>
+                      <div class="flex items-center gap-3 mt-1">
+                        <span class="text-xs" style="color: var(--text-secondary)">{CHAT_FONT_SIZE_MIN}</span>
                         <input
-                          type="radio"
-                          name="chatLayout"
-                          {value}
-                          checked={settings.chatLayout === value}
-                          onchange={() => (settings.chatLayout = value as ChatLayout)}
+                          type="range"
+                          min={CHAT_FONT_SIZE_MIN}
+                          max={CHAT_FONT_SIZE_MAX}
+                          bind:value={settings.chatFontSize}
+                          class="flex-1"
                         />
-                        <span class="text-sm">{label}</span>
-                      </label>
-                    {/each}
+                        <span class="text-xs" style="color: var(--text-secondary)">{CHAT_FONT_SIZE_MAX}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             {/if}
 
-            <!-- Updates -->
+            <!-- ==================== Updates ==================== -->
             {#if activeCategory === 'updates'}
               <h2 class="panel-title">Updates</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
-                <div class="text-sm">
-                  <span class="font-medium">Current Version:</span>
-                  {appVersion}
-                </div>
-                <div class="text-sm">
-                  <span class="font-medium">Update Available:</span>
-                  {#if settings.updateAvailable}
-                    Yes ({settings.latestVersion || 'unknown'})
-                  {:else}
-                    No
-                  {/if}
-                </div>
-                <label class="inline-flex items-center gap-2">
-                  <input type="checkbox" bind:checked={settings.autoCheckUpdates} />
-                  <span>Automatically check for updates?</span>
-                </label>
-                <label class="inline-flex items-center gap-2">
-                  <input type="checkbox" bind:checked={settings.autoInstallUpdates} />
-                  <span>Install updates when available?</span>
-                </label>
-                <div>
-                  <button
-                    class="btn-primary"
-                    onclick={handleCheckForUpdates}
-                    disabled={isCheckingUpdates}
-                  >
-                    {#if isCheckingUpdates}
-                      Checking...
-                    {:else}
-                      Check Now
-                    {/if}
-                  </button>
-                </div>
-              </div>
-            {/if}
-
-            <!-- Tools -->
-            {#if activeCategory === 'tools'}
-              <h2 class="panel-title">Tools</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-5">
-                <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
-
-                <!-- Tools list -->
-                <div class="form-group">
-                  <span class="block text-sm font-medium mb-2">Enabled Tools</span>
-                  <div class="tools-list">
-                    {#each availableTools as tool}
-                      <label class="inline-flex items-center gap-2 tool-item">
-                        <input
-                          type="checkbox"
-                          checked={settings.enabledTools.includes(tool.toolId)}
-                          onchange={() => toggleTool(tool.toolId)}
-                        />
-                        <span class="text-sm">{tool.toolTitle}</span>
-                      </label>
-                    {/each}
+              <div class="category-card">
+                <!-- Version Info -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Version Info</div>
+                  <div class="subgroup-controls">
+                    <div class="info-row">
+                      <span class="info-key">Current Version</span>
+                      <span class="info-value">{appVersion}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-key">Update Available</span>
+                      <span class="info-value">
+                        {#if settings.updateAvailable}
+                          Yes ({settings.latestVersion || 'unknown'})
+                        {:else}
+                          No
+                        {/if}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Commands -->
-                <div class="form-group">
-                  <label for="shell-commands" class="block text-sm font-medium mb-1">Commands</label
-                  >
-                  <input
-                    id="shell-commands"
-                    type="text"
-                    bind:value={settings.shellCommands}
-                    placeholder="ls, cat, grep, curl"
-                    class="w-full p-2 rounded border bg-transparent"
-                  />
+                <div class="subgroup-divider"></div>
+
+                <!-- Update Preferences -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Preferences</div>
+                  <div class="subgroup-controls">
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.autoCheckUpdates} />
+                      <span class="text-sm">Automatically check for updates</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.autoInstallUpdates} />
+                      <span class="text-sm">Install updates when available</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Manual Check -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Manual Check</div>
+                  <div class="subgroup-controls">
+                    <div>
+                      <button
+                        class="btn-primary"
+                        onclick={handleCheckForUpdates}
+                        disabled={isCheckingUpdates}
+                      >
+                        {#if isCheckingUpdates}
+                          Checking...
+                        {:else}
+                          Check Now
+                        {/if}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             {/if}
 
-            <!-- Connections -->
+            <!-- ==================== Tools ==================== -->
+            {#if activeCategory === 'tools'}
+              <h2 class="panel-title">Tools</h2>
+              <div class="category-card">
+                <!-- Allowed Directories -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Allowed Directories</div>
+                  <div class="subgroup-controls">
+                    <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Enabled Tools -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Enabled Tools</div>
+                  <div class="subgroup-controls">
+                    <div class="tools-list">
+                      {#each availableTools as tool}
+                        <label class="inline-flex items-center gap-2 tool-item">
+                          <input
+                            type="checkbox"
+                            checked={settings.enabledTools.includes(tool.toolId)}
+                            onchange={() => toggleTool(tool.toolId)}
+                          />
+                          <span class="text-sm">{tool.toolTitle}</span>
+                        </label>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Allowed Windows Commands -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Allowed Windows Commands</div>
+                  <div class="subgroup-controls">
+                    <input
+                      type="text"
+                      bind:value={settings.windowsCommands}
+                      placeholder="dir, type, findstr, curl"
+                      class="w-full p-2 rounded border bg-transparent text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Allowed Unix Commands -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Allowed Unix Commands</div>
+                  <div class="subgroup-controls">
+                    <input
+                      type="text"
+                      bind:value={settings.unixCommands}
+                      placeholder="ls, cat, grep, curl"
+                      class="w-full p-2 rounded border bg-transparent text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- ==================== Connections ==================== -->
             {#if activeCategory === 'connections'}
               <h2 class="panel-title">Connections</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-4">
-                <div class="form-group">
-                  <label for="moku-web-url" class="block text-sm font-medium mb-1"
-                    >Moku Web URL</label
-                  >
-                  <input
-                    id="moku-web-url"
-                    type="url"
-                    bind:value={settings.mokuWebUrl}
-                    placeholder="https://moku.holokai.com"
-                    class="w-full p-2 rounded border bg-transparent"
-                    onpaste={handleMokuWebUrlPaste}
-                  />
+              <div class="category-card">
+                <!-- Moku Web URL -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Moku Web URL</div>
+                  <div class="subgroup-controls">
+                    <input
+                      id="moku-web-url"
+                      type="url"
+                      bind:value={settings.mokuWebUrl}
+                      placeholder="https://moku.holokai.com"
+                      class="w-full p-2 rounded border bg-transparent text-sm"
+                      onpaste={handleMokuWebUrlPaste}
+                    />
+                  </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="moku-api-url" class="block text-sm font-medium mb-1"
-                    >Moku API URL</label
-                  >
-                  <input
-                    id="moku-api-url"
-                    type="url"
-                    bind:value={settings.mokuApiUrl}
-                    placeholder="https://api.moku.holokai.com"
-                    class="w-full p-2 rounded border bg-transparent"
-                  />
+                <div class="subgroup-divider"></div>
+
+                <!-- Moku API URL -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Moku API URL</div>
+                  <div class="subgroup-controls">
+                    <input
+                      id="moku-api-url"
+                      type="url"
+                      bind:value={settings.mokuApiUrl}
+                      placeholder="https://api.moku.holokai.com"
+                      class="w-full p-2 rounded border bg-transparent text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="holo-api-url" class="block text-sm font-medium mb-1"
-                    >Holo API URL</label
-                  >
-                  <input
-                    id="holo-api-url"
-                    type="url"
-                    bind:value={settings.holoApiUrl}
-                    placeholder={DEFAULT_HOLO_API_URL}
-                    class="w-full p-2 rounded border bg-transparent"
-                  />
-                  {#if holoApiUrlError}
-                    <div class="error-text">{holoApiUrlError}</div>
-                  {/if}
+                <div class="subgroup-divider"></div>
+
+                <!-- Holo API URL -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Holo API URL</div>
+                  <div class="subgroup-controls">
+                    <input
+                      id="holo-api-url"
+                      type="url"
+                      bind:value={settings.holoApiUrl}
+                      placeholder={DEFAULT_HOLO_API_URL}
+                      class="w-full p-2 rounded border bg-transparent text-sm"
+                    />
+                    {#if holoApiUrlError}
+                      <div class="error-text">{holoApiUrlError}</div>
+                    {/if}
+                  </div>
                 </div>
               </div>
             {/if}
 
-            <!-- Diagnostics -->
+            <!-- ==================== Diagnostics ==================== -->
             {#if activeCategory === 'diagnostics'}
               <h2 class="panel-title">Diagnostics</h2>
-              <div class="rounded-lg p-4 bg-[var(--surface-card)] space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Application log file</span>
-                  <button
-                    class="btn-primary"
-                    onclick={() => {
-                      window.electronAPI.settings.openLogInVSCode();
-                    }}
-                  >
-                    View Log
-                  </button>
+              <div class="category-card">
+                <!-- Application Log -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Application Log</div>
+                  <div class="subgroup-controls">
+                    <div>
+                      <button
+                        class="btn-primary"
+                        onclick={() => {
+                          window.electronAPI.settings.openLogInVSCode();
+                        }}
+                      >
+                        View Log
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             {/if}
@@ -640,7 +732,7 @@
     overflow: hidden;
   }
 
-  /* Sidebar navigation */
+  /* ── Sidebar navigation ── */
   .settings-sidebar {
     display: flex;
     flex-direction: column;
@@ -685,7 +777,7 @@
     text-align: center;
   }
 
-  /* Right panel */
+  /* ── Right panel ── */
   .settings-panel {
     display: flex;
     flex-direction: column;
@@ -700,7 +792,7 @@
   }
 
   .settings-content {
-    max-width: 700px;
+    max-width: 760px;
     margin-left: 2rem;
     margin-right: 1.5rem;
     padding-top: 1.5rem;
@@ -713,6 +805,128 @@
     margin-bottom: 1rem;
   }
 
+  /* ── Category card (wraps all subgroups) ── */
+  .category-card {
+    border-radius: 0.5rem;
+    padding: 0;
+    background: var(--surface-card);
+  }
+
+  /* ── Subgroup row: label on the left, controls on the right ── */
+  .subgroup-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 1.5rem;
+    padding: 1rem 1.25rem;
+    align-items: start;
+  }
+
+  .subgroup-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding-top: 0.25rem;
+    white-space: nowrap;
+  }
+
+  .subgroup-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .subgroup-divider {
+    height: 1px;
+    background: var(--input-border);
+    margin: 0 1.25rem;
+  }
+
+  /* ── Control label (nested inside subgroup-controls) ── */
+  .control-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.375rem;
+  }
+
+  /* ── Info rows (key-value pairs) ── */
+  .info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .info-key {
+    color: var(--text-secondary);
+    min-width: 100px;
+  }
+
+  .info-value {
+    font-weight: 500;
+  }
+
+  /* ── Compact card grid (for all option selectors) ── */
+  .card-grid {
+    display: grid;
+    gap: 0.375rem;
+  }
+
+  .card-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .card-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .card-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .card-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .option-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.5rem 0.375rem;
+    border: 2px solid var(--input-border);
+    border-radius: 0.375rem;
+    background: transparent;
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
+  }
+
+  .option-card:hover {
+    border-color: var(--primary-color);
+    background: var(--surface-hover, rgba(59, 130, 246, 0.05));
+  }
+
+  .option-card.active {
+    border-color: var(--primary-color);
+    background: var(--surface-active, rgba(59, 130, 246, 0.1));
+  }
+
+  .option-card-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .option-card-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  /* ── Footer ── */
   .settings-footer {
     flex-shrink: 0;
     padding: 1rem 1.5rem 1rem 2rem;
@@ -726,7 +940,7 @@
   }
 
   .settings-actions {
-    max-width: 700px;
+    max-width: 760px;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -743,54 +957,7 @@
     margin-top: 0.25rem;
   }
 
-  /* Thread layout grid */
-  .thread-layout-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.5rem;
-  }
-
-  .layout-option {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.75rem 0.5rem;
-    border: 2px solid var(--input-border);
-    border-radius: 0.5rem;
-    background: transparent;
-    cursor: pointer;
-    transition:
-      border-color 0.15s,
-      background 0.15s;
-  }
-
-  .layout-option:hover {
-    border-color: var(--primary-color);
-    background: var(--surface-hover, rgba(59, 130, 246, 0.05));
-  }
-
-  .layout-option.active {
-    border-color: var(--primary-color);
-    background: var(--surface-active, rgba(59, 130, 246, 0.1));
-  }
-
-  .layout-icon {
-    font-size: 1.25rem;
-  }
-
-  .layout-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .layout-desc {
-    font-size: 0.625rem;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  /* Tools list */
+  /* ── Tools list ── */
   .tools-list {
     display: flex;
     flex-direction: column;

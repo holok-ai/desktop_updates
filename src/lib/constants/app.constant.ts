@@ -47,6 +47,24 @@ export const CHAT_LAYOUT_LABELS = new Map<string, string>([
   ['right-left', 'Right / Left'],
 ]);
 
+export const THEME_OPTIONS = [
+  { value: 'light', icon: '☀️', label: 'Light' },
+  { value: 'dark', icon: '🌙', label: 'Dark' },
+] as const;
+
+export const STARTING_PAGE_OPTIONS = [
+  { value: 'create-chat', icon: '💬', label: 'New Chat' },
+  { value: 'threads', icon: '📋', label: 'Threads' },
+  { value: 'last-page', icon: '🕘', label: 'Last Page' },
+  { value: 'dashboard', icon: '📊', label: 'Dashboard' },
+] as const;
+
+export const CHAT_LAYOUT_OPTIONS = [
+  { value: 'left-left', icon: '⫷', label: 'Left / Left' },
+  { value: 'left-right', icon: '⬌', label: 'Left / Right' },
+  { value: 'right-left', icon: '⫸', label: 'Right / Left' },
+] as const;
+
 export const CHAT_FONT_SIZE_MIN = 7;
 export const CHAT_FONT_SIZE_MAX = 20;
 export const CHAT_FONT_SIZE_DEFAULT = 14;
