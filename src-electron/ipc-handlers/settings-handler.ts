@@ -180,28 +180,31 @@ export function registerSettingsHandlers(): void {
   /**
    * Open log file in default application
    */
-  ipcMain.handle('settings:openLogInVSCode', async (): Promise<{ success: boolean; error?: string }> => {
-    settingsLog.info('OpenLogInVSCode called');
-    try {
-      const logPath = path.join(app.getPath('userData'), 'logs', 'desktop.log');
-      
-      // Check if log file exists
-      const fs = await import('node:fs');
-      if (!fs.existsSync(logPath)) {
-        settingsLog.warn('Log file does not exist:', logPath);
-        return { success: false, error: 'Log file does not exist yet' };
-      }
+  ipcMain.handle(
+    'settings:openLogInVSCode',
+    async (): Promise<{ success: boolean; error?: string }> => {
+      settingsLog.info('OpenLogInVSCode called');
+      try {
+        const logPath = path.join(app.getPath('userData'), 'logs', 'main.log');
 
-      // Use shell.openPath to open with default application (works on all platforms)
-      await shell.openPath(logPath);
-      settingsLog.info('Log file opened successfully:', logPath);
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open log file';
-      settingsLog.error('OpenLogInVSCode failed', { error: message });
-      return { success: false, error: message };
-    }
-  });
+        // Check if log file exists
+        const fs = await import('node:fs');
+        if (!fs.existsSync(logPath)) {
+          settingsLog.warn('Log file does not exist:', logPath);
+          return { success: false, error: 'Log file does not exist yet' };
+        }
+
+        // Use shell.openPath to open with default application (works on all platforms)
+        await shell.openPath(logPath);
+        settingsLog.info('Log file opened successfully:', logPath);
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to open log file';
+        settingsLog.error('OpenLogInVSCode failed', { error: message });
+        return { success: false, error: message };
+      }
+    },
+  );
 
   settingsLog.info('Handlers registered');
 }

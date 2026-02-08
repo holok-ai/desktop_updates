@@ -27,6 +27,8 @@ class AutoUpdaterService {
   }
 
   initialize(): void {
+    updaterLog.info(`Initializing auto-updater (isPackaged: ${app.isPackaged})`);
+
     if (!app.isPackaged) {
       updaterLog.info('Skipping auto-updater initialization (development mode)');
       return;
@@ -47,11 +49,21 @@ class AutoUpdaterService {
     this.setupEventHandlers();
 
     this.initialized = true;
-    updaterLog.info('Auto-updater initialized');
+    updaterLog.info('Auto-updater initialized successfully');
   }
 
   checkForUpdates(): void {
-    if (!app.isPackaged || !this.initialized) {
+    updaterLog.info(
+      `checkForUpdates called (isPackaged: ${app.isPackaged}, initialized: ${this.initialized})`,
+    );
+
+    if (!app.isPackaged) {
+      updaterLog.info('Skipping update check - not packaged');
+      return;
+    }
+
+    if (!this.initialized) {
+      updaterLog.warn('Skipping update check - auto-updater not initialized');
       return;
     }
 
