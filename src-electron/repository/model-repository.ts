@@ -107,6 +107,8 @@ export class ModelRepository {
                 title: model.name,
                 accessName: model.accessModel,
                 provider: appDetail.providerName,
+                applicationName: appSummary.title, 
+                applicationSlug: appSummary.slug, 
                 slug: appDetail.urlSlug,
                 url: agentUrl
               };

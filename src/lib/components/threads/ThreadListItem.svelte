@@ -9,6 +9,7 @@
   }
 
   let { thread, projectId = null }: Props = $props();
+  let showMenu = $state(false);
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -39,37 +40,98 @@
       push(`${ROUTE.THREADS}?${params.toString()}`);
     }
   }
+
+  function handleMenuClick(event: MouseEvent) {
+    event.stopPropagation();
+    showMenu = !showMenu;
+  }
+
+  function handleRename(event: MouseEvent) {
+    event.stopPropagation();
+    showMenu = false;
+    // TODO: Implement rename
+    console.log('Rename thread:', thread.id);
+  }
+
+  function handleMove(event: MouseEvent) {
+    event.stopPropagation();
+    showMenu = false;
+    // TODO: Implement move
+    console.log('Move thread:', thread.id);
+  }
+
+  function handleDelete(event: MouseEvent) {
+    event.stopPropagation();
+    showMenu = false;
+    // TODO: Implement delete
+    console.log('Delete thread:', thread.id);
+  }
+
+  function handleClickOutside(event: MouseEvent) {
+    if (showMenu) {
+      showMenu = false;
+    }
+  }
 </script>
 
-<button class="thread-item" onclick={handleClick}>
-  <div class="thread-item-title">{thread.title || 'Untitled Thread'}</div>
-  <div class="thread-item-info">
-    <span class="thread-item-date">Last updated on {formatDateTime(thread.updatedAt)}</span>
-    <span class="thread-item-model">{thread.metadata?.modelTitle || ''}</span>
+<svelte:window onclick={handleClickOutside} />
+
+<div class="thread-item-container">
+  <button class="thread-item" onclick={handleClick}>
+    <div class="thread-item-title">{thread.title || 'Untitled Thread'}</div>
+    <div class="thread-item-info">
+      <span class="thread-item-date">Last updated on {formatDateTime(thread.updatedAt)}</span>
+      <span class="thread-item-model">{thread.metadata?.modelTitle || ''}</span>
+    </div>
+  </button>
+
+  <div class="menu-container">
+    <button class="menu-trigger" onclick={handleMenuClick} aria-label="Thread options">
+      <i class="pi pi-ellipsis-h"></i>
+    </button>
+
+    {#if showMenu}
+      <div class="context-menu" role="menu">
+        <button class="menu-item" role="menuitem" onclick={handleRename}>
+          <span>Rename</span>
+        </button>
+        <button class="menu-item" role="menuitem" onclick={handleMove}>
+          <span>Move</span>
+        </button>
+        <div class="menu-separator"></div>
+        <button class="menu-item menu-item-danger" role="menuitem" onclick={handleDelete}>
+          <span>Delete Thread</span>
+        </button>
+      </div>
+    {/if}
   </div>
-</button>
+</div>
 
 <style>
+  .thread-item-container {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  .thread-item-container:hover {
+    background: var(--surface-hover);
+  }
+
   .thread-item {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    padding: 0.5rem 0;
+    padding: 0.5rem 0.5rem 0.5rem 0;
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--surface-border);
     cursor: pointer;
-    transition: background 0.2s ease;
     text-align: left;
-    width: 100%;
-  }
-
-  .thread-item:hover {
-    background: var(--surface-hover);
+    flex: 1;
   }
 
   .thread-item:focus {
-    background: var(--surface-hover);
     outline: 2px solid var(--primary-color);
     outline-offset: -2px;
   }
@@ -86,6 +148,7 @@
     align-items: center;
     font-size: 0.8125rem;
     color: var(--text-secondary);
+    gap: 1rem;
   }
 
   .thread-item-date {
@@ -95,5 +158,45 @@
   .thread-item-model {
     flex-shrink: 0;
     font-style: italic;
+  }
+
+  .menu-container {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 0.5rem;
+  }
+
+  .menu-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    opacity: 0.5;
+  }
+
+  .thread-item-container:hover .menu-trigger {
+    opacity: 1;
+  }
+
+  .menu-trigger:hover {
+    background: var(--surface-hover);
+  }
+
+  .menu-trigger i {
+    font-size: 14px;
+  }
+
+  /* Thread-specific menu positioning */
+  .menu-container .context-menu {
+    top: calc(100% + 4px);
+    right: 0;
   }
 </style>

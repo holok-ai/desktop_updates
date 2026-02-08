@@ -74,7 +74,7 @@
 
     {#if showMenu}
       <div
-        class="profile-menu"
+        class="context-menu avatar-menu"
         role="menu"
         tabindex="0"
         onmouseenter={handleMouseEnter}
@@ -132,48 +132,11 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
-  .profile-menu {
-    position: absolute;
+  /* Avatar-specific menu positioning */
+  .avatar-menu {
     top: calc(100% + 4px);
     right: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    background: var(--surface-card, #ffffff);
-    border-radius: 0.75rem;
-    border: 1px solid var(--input-border);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
     min-width: 180px;
-    z-index: 1000;
-  }
-
-  :global(html.dark) .profile-menu {
-    background: #2a2a2a;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
-  }
-
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    font-size: 14px;
-  }
-
-  .menu-item:hover {
-    background: var(--surface-hover);
-  }
-
-  .menu-item i {
-    font-size: 16px;
   }
 
   .login-box {

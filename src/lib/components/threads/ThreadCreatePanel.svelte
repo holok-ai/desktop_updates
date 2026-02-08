@@ -102,7 +102,7 @@
           type="submit"
           class="btn-holokai send-button"
           aria-label="Send message"
-          data-tooltip="Enter to run prompt. Shift+Enter to insert a new line."
+          data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
         >
           <i class="pi pi-arrow-up"></i>
         </button>

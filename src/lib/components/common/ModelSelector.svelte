@@ -32,9 +32,9 @@
   // Sorted models by application then model name
   const sortedModels = $derived.by(() => {
     return [...availableModels].sort((a, b) => {
-      // First sort by provider/application
-      const providerCompare = a.provider.localeCompare(b.provider);
-      if (providerCompare !== 0) return providerCompare;
+      // First sort by application name
+      const appCompare = a.applicationName.localeCompare(b.applicationName);
+      if (appCompare !== 0) return appCompare;
       // Then sort by model title
       return a.title.localeCompare(b.title);
     });
@@ -50,8 +50,8 @@
         const firstModel = availableModels[0];
         selectedModelId = firstModel.accessName;
         // Dispatch initial selection
-        const appSlug = firstModel.provider.toLowerCase().replace(/\s+/g, '-');
-        const modelSlug = firstModel.accessName;
+        const appSlug = firstModel.applicationSlug;
+        const modelSlug = firstModel.slug;
         dispatch('select', {
           modelId: firstModel.accessName,
           modelDetails: firstModel,
@@ -85,8 +85,8 @@
       showDropdown = false;
 
       // Extract appSlug and modelSlug from the model details
-      const appSlug = modelDetails.provider.toLowerCase().replace(/\s+/g, '-');
-      const modelSlug = modelDetails.accessName;
+      const appSlug = modelDetails.applicationSlug;
+      const modelSlug = modelDetails.slug;
 
       dispatch('select', { modelId, modelDetails, appSlug, modelSlug });
     } catch (error) {
@@ -115,7 +115,7 @@
     if (selectedModelId) {
       const model = availableModels.find(m => m.accessName === selectedModelId);
       if (model) {
-        return `${model.title} (${model.provider})`;
+        return `${model.title} (${model.applicationName.toLowerCase()})`;
       }
       return selectedModelId;
     }
@@ -159,7 +159,7 @@
               aria-hidden="true"
               tabindex="-1"
             />
-            <span class="model-title">{model.title} ({model.provider})</span>
+            <span class="model-title">{model.title} ({model.applicationName.toLowerCase()})</span>
           </button>
         {/each}
       {/if}

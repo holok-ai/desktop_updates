@@ -414,6 +414,8 @@ export interface ModelDetails {
   title: string;
   accessName: string;
   provider: string;
+  applicationName: string,
+  applicationSlug: string; 
   slug: string;
   url: string;
 }

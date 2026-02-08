@@ -450,3 +450,111 @@ i, .pi {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* Tooltip positioned to the left (for buttons on right edge) */
+[data-tooltip-left]::before {
+  content: attr(data-tooltip-left);
+  bottom: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  transform: translateX(0) translateY(4px);
+  padding: 0.5rem 0.75rem;
+  background: var(--text-primary);
+  color: var(--surface-main);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip-left]::after {
+  content: '';
+  bottom: calc(100% + 2px);
+  right: 12px;
+  left: auto;
+  transform: translateX(0) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: var(--text-primary);
+  z-index: 10000;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip-left]:hover::before,
+[data-tooltip-left]:hover::after {
+  opacity: 1;
+  transform: translateX(0) translateY(0);
+}
+
+/* Context Menu / Dropdown Menu - Shared styles for avatar and thread menus */
+.context-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--surface-card, #ffffff);
+  border-radius: 0.75rem;
+  border: 1px solid var(--input-border);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  z-index: 1000;
+}
+
+:global(html.dark) .context-menu {
+  background: #2a2a2a;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.menu-item i {
+  font-size: 16px;
+}
+
+.menu-item-danger,
+.menu-item-danger span,
+.menu-item-danger:hover,
+.menu-item-danger:hover span,
+.menu-item-danger:active,
+.menu-item-danger:active span,
+.menu-item-danger:focus,
+.menu-item-danger:focus span {
+  color: var(--error-color) !important;
+}
+
+.menu-item-danger:hover {
+  background: var(--surface-hover);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--input-border);
+  margin: 0.5rem 0;
+}
