@@ -23,12 +23,19 @@
 
   import type { ChatLayout } from '$lib/types/app.type';
   import { CHAT_LAYOUT } from '$lib/constants/app.constant';
+  import type { Thread } from '../../../src-electron/preload';
 
   // ── State ──
   let threadId = $state<string | null>(null);
   let threadTitle = $state('');
   let activeView = $state<ThreadViewType>('chat');
   let chatLayout = $state<ChatLayout>(CHAT_LAYOUT.LEFT_RIGHT as ChatLayout);
+
+  /** Called by ThreadChatView when a brand-new thread is created */
+  function handleThreadCreated(newThread: Thread) {
+    threadId = newThread.id;
+    threadTitle = newThread.title || 'New Thread';
+  }
 
   // ── Parse query string ──
   $effect(() => {
@@ -62,7 +69,7 @@
 
   <div class="view-container">
     {#if activeView === 'chat'}
-      <ThreadChatView {threadId} {chatLayout} />
+      <ThreadChatView bind:threadId {chatLayout} onThreadCreated={handleThreadCreated} />
     {:else if activeView === 'prompt'}
       <ThreadPromptView />
     {:else if activeView === 'graphic'}
