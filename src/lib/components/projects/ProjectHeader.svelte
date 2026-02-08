@@ -1,15 +1,8 @@
 <script lang="ts">
   import ProjectIcon from '$lib/components/common/ProjectIcon.svelte';
   import type { Project } from '$lib/types/project.type';
-  import { favorites } from '$lib/stores/favorite.store';
 
   let { project }: { project: Project } = $props();
-
-  const isFav = $derived($favorites.some((e) => e.id === project.id));
-
-  function toggleFavorite() {
-    favorites.toggleFavorite(project.id, 'project');
-  }
 </script>
 
 <div class="detail-header">
@@ -28,16 +21,6 @@
       {/if}
     </div>
   </div>
-
-  <button
-    class="favorite-star"
-    class:is-favorited={isFav}
-    onclick={toggleFavorite}
-    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-    aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
-  >
-    <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
-  </button>
 </div>
 
 <style>
@@ -84,41 +67,9 @@
     overflow: hidden;
   }
 
-  .favorite-star {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    border-radius: 6px;
-    color: var(--text-secondary, #666);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
-    font-size: 18px;
-    align-self: center;
-  }
-
-  .favorite-star:hover {
-    background: var(--surface-hover, #f0f0f0);
-    color: #f59e0b;
-  }
-
-  .favorite-star.is-favorited {
-    color: #f59e0b;
-  }
-
-  .favorite-star.is-favorited:hover {
-    color: #d97706;
-  }
-
   /* Dark mode adjustments */
   :global(.dark-mode) .detail-header {
     background: var(--background-secondary);
     border-bottom-color: var(--border-color);
   }
 </style>
-
-

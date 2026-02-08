@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { querystring, push } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
@@ -8,6 +7,7 @@
   import { THREAD_STATUS } from '$lib/constants/status.constant';
   import ModelSelector from '$lib/components/common/ModelSelector.svelte';
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
+  import { favorites } from '$lib/stores/favorite.store';
   import type { ModelDetails } from '../../../src-electron/preload';
 
   let projectId = $state<string | null>(null);
@@ -19,6 +19,15 @@
   const project = $derived(
     projectId ? $projects.find(p => p.id === projectId) : null
   );
+
+  // Favorite status for this project
+  const isFav = $derived(projectId ? $favorites.some((e) => e.id === projectId) : false);
+
+  function toggleFavorite() {
+    if (projectId) {
+      favorites.toggleFavorite(projectId, 'project');
+    }
+  }
 
   // Get project threads
   const projectThreads = $derived(
@@ -168,7 +177,18 @@
     <div class="two-column-layout">
       <!-- Left Column -->
       <div class="left-column">
-        <h2>{project.title}</h2>
+        <div class="title-row">
+          <h2>{project.title}</h2>
+          <button
+            class="favorite-star"
+            class:is-favorited={isFav}
+            onclick={toggleFavorite}
+            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
+          </button>
+        </div>
         {#if project.description}
           <p class="project-description">{project.description}</p>
         {/if}
@@ -283,9 +303,45 @@
     gap: 1rem;
   }
 
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
   h2 {
-    margin: 0 0 1rem 0;
+    margin: 0;
     text-align: left;
+  }
+
+  .favorite-star {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: var(--text-secondary, #666);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .favorite-star:hover {
+    background: var(--surface-hover, #f0f0f0);
+    color: #f59e0b;
+  }
+
+  .favorite-star.is-favorited {
+    color: #f59e0b;
+  }
+
+  .favorite-star.is-favorited:hover {
+    color: #d97706;
   }
 
   .project-description {
