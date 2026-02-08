@@ -20,6 +20,7 @@ class AutoUpdaterService {
   private ghTokenWarningShown = false;
   private currentUpdateMetadata: UpdateMetadata | null = null;
   private updatingModal: BrowserWindow | null = null;
+  private downloadedUpdateVersion: string | null = null;
 
   constructor() {
     this.settingsService = new SettingsService();
@@ -28,12 +29,6 @@ class AutoUpdaterService {
   initialize(): void {
     if (!app.isPackaged) {
       updaterLog.info('Skipping auto-updater initialization (development mode)');
-      return;
-    }
-
-    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
-    if (!autoUpdateEnabled) {
-      updaterLog.info('Auto-updater disabled in settings');
       return;
     }
 
@@ -60,12 +55,7 @@ class AutoUpdaterService {
       return;
     }
 
-    const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
-    if (!autoUpdateEnabled) {
-      updaterLog.info('Skipping update check - auto-updates disabled in settings');
-      return;
-    }
-
+    // Always check for updates (mandatory updates should install even if auto-update is disabled)
     updaterLog.info('Checking for updates...');
     autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
       updaterLog.error('checkForUpdatesAndNotify failed', error);
@@ -85,6 +75,16 @@ class AutoUpdaterService {
     updaterLog.info(`Pending update found: ${pendingVersion}. Installing before shutdown...`);
 
     try {
+      // Check if update is actually downloaded before trying to install
+      if (!this.downloadedUpdateVersion || this.downloadedUpdateVersion !== pendingVersion) {
+        updaterLog.warn(
+          `Update ${pendingVersion} not downloaded yet. Clearing pending update and allowing quit.`,
+        );
+        this.settingsService.setSetting('pendingUpdateVersion', undefined);
+        this.downloadedUpdateVersion = null;
+        return false;
+      }
+
       const result = await dialog.showMessageBox({
         type: 'info',
         title: 'Installing Update',
@@ -96,12 +96,26 @@ class AutoUpdaterService {
 
       if (result.response === 0) {
         this.settingsService.setSetting('pendingUpdateVersion', undefined);
-        autoUpdater.quitAndInstall(false, true);
-        return true;
+        try {
+          autoUpdater.quitAndInstall(false, true);
+          updaterLog.info('quitAndInstall called successfully');
+          this.downloadedUpdateVersion = null; // Clear after calling quitAndInstall
+          // Give it a moment to start the install process
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          return true;
+        } catch (installError) {
+          updaterLog.error('Error calling quitAndInstall:', installError);
+          this.downloadedUpdateVersion = null; // Clear on error
+          // If quitAndInstall fails, allow normal quit
+          return false;
+        }
       }
       return false;
     } catch (error) {
       updaterLog.error('Error installing pending update:', error);
+      // Clear the pending update on error to prevent getting stuck
+      this.settingsService.setSetting('pendingUpdateVersion', undefined);
+      this.downloadedUpdateVersion = null;
       return false;
     }
   }
@@ -234,6 +248,9 @@ class AutoUpdaterService {
 
     autoUpdater.on('update-not-available', (info) => {
       updaterLog.info(`Update not available. Current version: ${info.version}`);
+      // Clear update available flag in settings
+      this.settingsService.setSetting('updateAvailable', false);
+      this.settingsService.setSetting('latestVersion', '');
     });
 
     autoUpdater.on('error', (error) => {
@@ -297,6 +314,7 @@ class AutoUpdaterService {
       const newVersion = info.version;
 
       updaterLog.info(`Update downloaded: ${newVersion}`);
+      this.downloadedUpdateVersion = newVersion;
 
       if (this.currentUpdateMetadata?.mandatory) {
         updaterLog.info('Mandatory update downloaded - installing automatically');
@@ -358,6 +376,10 @@ class AutoUpdaterService {
     const newVersion = info.version;
     updaterLog.info(`Update available: ${currentVersion} -> ${newVersion}`);
 
+    // Update settings to reflect that an update is available
+    this.settingsService.setSetting('updateAvailable', true);
+    this.settingsService.setSetting('latestVersion', newVersion);
+
     const metadata = await this.fetchUpdateMetadata(newVersion);
     this.currentUpdateMetadata = metadata || {
       version: newVersion,
@@ -372,6 +394,15 @@ class AutoUpdaterService {
         this.closeUpdatingModal();
       });
     } else {
+      // Optional update - only show prompt if auto-update is enabled
+      const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
+      if (!autoUpdateEnabled) {
+        updaterLog.info(
+          `Optional update available: ${newVersion}, but auto-updates are disabled. Skipping prompt.`,
+        );
+        return;
+      }
+
       updaterLog.info(`Optional update available: ${newVersion}`);
       if (this.downloadPromptShownForVersion !== newVersion) {
         this.downloadPromptShownForVersion = newVersion;
