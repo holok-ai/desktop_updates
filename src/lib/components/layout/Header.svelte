@@ -95,6 +95,75 @@
       return { items: [{ label: 'Projects', isLink: false }] };
     }
 
+    // Handle Project Members: Projects → Project Name → Members
+    if (path === ROUTE.PROJECT_MEMBERS) {
+      const projectId = params.get('projectId');
+      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+
+      if (project) {
+        return {
+          items: [
+            { label: 'Projects', isLink: true },
+            { label: truncate(project.title, 47), isLink: true },
+            { label: 'Members', isLink: false }
+          ]
+        };
+      }
+
+      return {
+        items: [
+          { label: 'Projects', isLink: true },
+          { label: 'Loading...', isLink: false }
+        ]
+      };
+    }
+
+    // Handle Project Files: Projects → Project Name → Files
+    if (path === ROUTE.PROJECT_FILES) {
+      const projectId = params.get('projectId');
+      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+
+      if (project) {
+        return {
+          items: [
+            { label: 'Projects', isLink: true },
+            { label: truncate(project.title, 47), isLink: true },
+            { label: 'Files', isLink: false }
+          ]
+        };
+      }
+
+      return {
+        items: [
+          { label: 'Projects', isLink: true },
+          { label: 'Loading...', isLink: false }
+        ]
+      };
+    }
+
+    // Handle Project Instructions: Projects → Project Name → Instructions
+    if (path === ROUTE.PROJECT_INSTRUCTIONS) {
+      const projectId = params.get('projectId');
+      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+
+      if (project) {
+        return {
+          items: [
+            { label: 'Projects', isLink: true },
+            { label: truncate(project.title, 47), isLink: true },
+            { label: 'Instructions', isLink: false }
+          ]
+        };
+      }
+
+      return {
+        items: [
+          { label: 'Projects', isLink: true },
+          { label: 'Loading...', isLink: false }
+        ]
+      };
+    }
+
     // Map other routes to single breadcrumb
     let label = null;
     if (path === ROUTE.NEW_THREAD) {
@@ -119,6 +188,21 @@
 
     // Handle PROJECT_THREAD breadcrumb navigation
     if (path === ROUTE.PROJECT_THREAD) {
+      if (index === 0 && firstItem === 'Projects') {
+        // Click on "Projects" → go to projects list
+        push(ROUTE.PROJECTS);
+      } else if (index === 1) {
+        // Click on project name → go to that project
+        const projectId = params.get('projectId');
+        if (projectId) {
+          push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+        }
+      }
+      return;
+    }
+
+    // Handle project sub-pages (Members, Files, Instructions) breadcrumb navigation
+    if (path === ROUTE.PROJECT_MEMBERS || path === ROUTE.PROJECT_FILES || path === ROUTE.PROJECT_INSTRUCTIONS) {
       if (index === 0 && firstItem === 'Projects') {
         // Click on "Projects" → go to projects list
         push(ROUTE.PROJECTS);

@@ -146,6 +146,21 @@
       isSubmitting = false;
     }
   }
+
+  function handleMembersClick() {
+    if (!projectId) return;
+    push(`${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}`);
+  }
+
+  function handleFilesClick() {
+    if (!projectId) return;
+    push(`${ROUTE.PROJECT_FILES}?projectId=${projectId}`);
+  }
+
+  function handleInstructionsClick() {
+    if (!projectId) return;
+    push(`${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}`);
+  }
 </script>
 
 {#if project}
@@ -203,7 +218,7 @@
 
       <!-- Right Column -->
       <div class="right-column">
-        <div class="info-card">
+        <button class="info-card clickable-card" onclick={handleMembersClick}>
           <h4>Members</h4>
           {#if memberCountsDisplay.length > 0}
             <div class="member-counts">
@@ -214,17 +229,17 @@
           {:else}
             <p class="coming-soon">No members yet</p>
           {/if}
-        </div>
+        </button>
 
-        <div class="info-card">
+        <button class="info-card clickable-card" onclick={handleFilesClick}>
           <h4>Files</h4>
           <p class="coming-soon">More coming...</p>
-        </div>
+        </button>
 
-        <div class="info-card">
+        <button class="info-card clickable-card" onclick={handleInstructionsClick}>
           <h4>Instructions</h4>
           <p class="coming-soon">More coming...</p>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -356,6 +371,20 @@
     border: 2px solid var(--control-border-card);
     border-radius: 8px;
     padding: 1.5rem;
+    text-align: left;
+    width: 100%;
+  }
+
+  .clickable-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .clickable-card:hover {
+    border-color: var(--primary-color);
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
   .info-card h4 {
