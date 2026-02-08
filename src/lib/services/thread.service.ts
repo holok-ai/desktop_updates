@@ -105,7 +105,11 @@ export class ThreadService extends BaseElectronService {
   }
 
   async getThread(id: string): Promise<Thread | null> {
-    return wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    const thread = await wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    if (thread) {
+      threads.addThread(thread);
+    }
+    return thread;
   }
 
   async getMessages(id: string): Promise<Message[]> {

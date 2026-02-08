@@ -30,7 +30,7 @@
       case 'right-left':
         return 'align-left';
       case 'left-left':
-        return 'align-left';
+        return 'align-left indent';
       case 'left-right':
       default:
         return 'align-right';
@@ -93,6 +93,10 @@
 
   .chat-response.align-right {
     align-self: flex-end;
+  }
+
+  .chat-response.indent {
+    margin-left: 2rem;
   }
 
   .response-bubble {

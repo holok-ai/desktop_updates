@@ -22,6 +22,7 @@
   }
 
   let { activeView = $bindable('chat'), onViewChange }: Props = $props();
+  let isHovered = $state(false);
 
   function selectView(view: ThreadViewType) {
     activeView = view;
@@ -55,21 +56,28 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<nav class="view-selector" role="tablist" aria-label="Thread view selector">
+<div
+  class="view-selector"
+  role="tablist"
+  aria-label="Thread view selector"
+  onmouseenter={() => (isHovered = true)}
+  onmouseleave={() => (isHovered = false)}
+>
   {#each VIEW_OPTIONS as opt}
-    <button
-      role="tab"
-      class="view-tab"
-      class:active={activeView === opt.type}
-      aria-selected={activeView === opt.type}
-      onclick={() => selectView(opt.type)}
-      title="{opt.label} view"
-    >
-      <i class="pi {opt.icon}"></i>
-      <span class="view-label">{opt.label}</span>
-    </button>
+    {#if isHovered || activeView === opt.type}
+      <button
+        role="tab"
+        class="view-tab"
+        class:active={activeView === opt.type}
+        aria-selected={activeView === opt.type}
+        onclick={() => selectView(opt.type)}
+        title="{opt.label} view"
+      >
+        <i class="pi {opt.icon}"></i>
+      </button>
+    {/if}
   {/each}
-</nav>
+</div>
 
 <style>
   .view-selector {
@@ -84,35 +92,31 @@
   .view-tab {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.5rem 0.75rem;
-    border: none;
-    background: transparent;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid transparent;
+    background: var(--surface-card, #fff);
     color: var(--text-secondary, #666);
     cursor: pointer;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    border-bottom: 2px solid transparent;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-    position: relative;
-    top: 1px;
+    border-radius: 4px;
+    transition: border-color 0.15s ease, color 0.15s ease;
   }
 
-  .view-tab:hover {
-    color: var(--text-primary, #111);
-    background: var(--surface-hover, #f0f0f0);
+  .view-tab:focus {
+    outline: none;
   }
 
   .view-tab.active {
-    color: var(--primary-color, #646cff);
-    border-bottom-color: var(--primary-color, #646cff);
+    border-color: var(--surface-border, #e0e0e0);
+    color: var(--text-primary, #111);
+  }
+
+  .view-tab:hover:not(.active) {
+    color: var(--text-primary, #111);
   }
 
   .view-tab i {
-    font-size: 0.875rem;
-  }
-
-  .view-label {
-    line-height: 1;
+    font-size: 1rem;
   }
 </style>

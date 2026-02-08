@@ -153,6 +153,7 @@
     {#each projectThreads as thread (thread.id)}
       <ThreadListItem
         {thread}
+        {projectId}
         isSelected={false}
         showActions={true}
         on:click={handleThreadClick}

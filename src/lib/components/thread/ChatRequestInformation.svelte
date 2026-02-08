@@ -12,14 +12,12 @@
 
   let { createdAt, modelId = null, userName = 'You' }: Props = $props();
 
-  type InfoMode = 'date' | 'model' | 'user';
-  const MODES: InfoMode[] = ['date', 'model', 'user'];
-
+  // Cycle through 3 display modes: date only, model+date, user+model+date
   let modeIndex = $state(0);
-  let currentMode = $derived(MODES[modeIndex]);
+  const MODE_COUNT = 3;
 
   function cycle() {
-    modeIndex = (modeIndex + 1) % MODES.length;
+    modeIndex = (modeIndex + 1) % MODE_COUNT;
   }
 
   function formatDate(ts: number): string {
@@ -33,34 +31,26 @@
   }
 
   let displayText = $derived.by(() => {
-    switch (currentMode) {
-      case 'date':
-        return formatDate(createdAt);
-      case 'model':
-        return modelId || 'Unknown model';
-      case 'user':
-        return userName;
-      default:
-        return '';
-    }
-  });
+    const dateStr = formatDate(createdAt);
+    const modelStr = modelId || 'Unknown model';
 
-  let displayIcon = $derived.by(() => {
-    switch (currentMode) {
-      case 'date':
-        return 'pi-clock';
-      case 'model':
-        return 'pi-microchip-ai';
-      case 'user':
-        return 'pi-user';
+    switch (modeIndex) {
+      case 0:
+        // Show only date-time
+        return dateStr;
+      case 1:
+        // Show model + date-time
+        return `${modelStr} ${dateStr}`;
+      case 2:
+        // Show user + model + date-time
+        return `${userName} ${modelStr} ${dateStr}`;
       default:
-        return 'pi-info-circle';
+        return dateStr;
     }
   });
 </script>
 
 <button class="info-badge" onclick={cycle} title="Click to cycle info">
-  <i class="pi {displayIcon}"></i>
   <span class="info-text">{displayText}</span>
 </button>
 
@@ -84,8 +74,8 @@
     background: color-mix(in srgb, var(--text-secondary, #666) 18%, transparent);
   }
 
-  .info-badge i {
-    font-size: 0.7rem;
+  .info-badge:focus {
+    outline: none;
   }
 
   .info-text {

@@ -62,8 +62,6 @@
     onRetry,
   }: Props = $props();
 
-  let hovered = $state(false);
-
   const requestCommands = $derived([
     {
       icon: 'pi-copy',
@@ -105,8 +103,6 @@
   class="chat-message"
   role="article"
   aria-label="Chat message"
-  onmouseenter={() => (hovered = true)}
-  onmouseleave={() => (hovered = false)}
 >
   <!-- Request -->
   <ChatRequest
@@ -122,7 +118,6 @@
   <ChatMessageCommands
     commands={requestCommands}
     gapHeight={commandGap}
-    visible={hovered}
   />
 
   <!-- Response (if available or streaming) -->
@@ -140,7 +135,6 @@
       <ChatMessageCommands
         commands={responseCommands}
         gapHeight={commandGap}
-        visible={hovered}
       />
     {/if}
   {/if}

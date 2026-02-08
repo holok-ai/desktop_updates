@@ -30,7 +30,6 @@
       case 'right-left':
         return 'align-right';
       case 'left-left':
-        return 'align-left indent';
       case 'left-right':
       default:
         return 'align-left';

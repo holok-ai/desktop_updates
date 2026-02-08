@@ -50,7 +50,7 @@
 
   function handleThreadClick(thread: Thread) {
     const proceed = () => {
-      push(`${ROUTE.THREADS}?threadId=${thread.id}`);
+      push(`${ROUTE.THREAD}?threadId=${thread.id}`);
     };
     if (requestNavigation(proceed)) {
       proceed();

@@ -8,6 +8,7 @@
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { storageService } from '$lib/services/storage.service';
+  import { threadService } from '$lib/services/thread.service';
   import {
     setUnsavedChanges,
     clearUnsavedChanges,
@@ -68,16 +69,17 @@
 
   async function handleSave() {
     if (!selectedModel || !newThreadPrompt.trim()) {
-      errorMessage = 'Please select a model and enter a prompt';
+      toastStore.show('Please select a model and enter a prompt', { variant: 'error' });
       return;
     }
 
     try {
-      // Create the thread
-      const result = await window.electronAPI.threads.create({
+      // Create the thread using thread service
+      const thread = await threadService.create({
         title: 'New Thread',
         description: '',
         status: THREAD_STATUS.ACTIVE,
+        currentBranchId: '1.0',
         metadata: {
           modelTitle: selectedModel.title,
           modelProvider: selectedModel.provider,
@@ -85,28 +87,23 @@
         },
       });
 
-      if (!result.success || !result.thread) {
-        throw new Error(result.error || 'Failed to create thread');
+      if (!thread || !thread.id) {
+        throw new Error('Failed to create thread');
       }
-
-      const threadId = result.thread.id;
-
-      // Send the initial message
-      await window.electronAPI.chat.sendMessage({
-        threadId,
-        branchId: '1.0',
-        content: newThreadPrompt,
-        modelId: selectedModel.id,
-      });
 
       // Clear unsaved changes
       clearUnsavedChanges('new-thread');
 
-      // Navigate to the new thread
-      push(`${ROUTE.THREADS}?threadId=${threadId}`);
+      // Navigate to the new thread page (ThreadPage with ThreadChatView)
+      const params = new URLSearchParams();
+      params.set('threadId', thread.id);
+      params.set('prompt', newThreadPrompt);
+      push(`${ROUTE.THREAD}?${params.toString()}`);
     } catch (error) {
       console.error('Failed to create thread:', error);
-      errorMessage = error instanceof Error ? error.message : 'Failed to create thread';
+      const message = error instanceof Error ? error.message : 'Failed to create thread';
+      toastStore.show(message, { variant: 'error' });
+      // Stay on the page - don't navigate
     }
   }
 

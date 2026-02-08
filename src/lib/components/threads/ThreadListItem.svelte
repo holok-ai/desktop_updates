@@ -2,6 +2,8 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../../src-electron/preload';
+  import { threadService } from '$lib/services/thread.service';
+  import { toastStore } from '$lib/services/toast.service';
 
   interface Props {
     thread: Thread;
@@ -28,16 +30,15 @@
 
   function handleClick() {
     const params = new URLSearchParams();
+    params.set('threadId', thread.id);
 
     if (projectId) {
       // Project thread context: use PROJECT_THREAD route
       params.set('projectId', projectId);
-      params.set('threadId', thread.id);
       push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
     } else {
-      // General thread context: use THREADS route
-      params.set('threadId', thread.id);
-      push(`${ROUTE.THREADS}?${params.toString()}`);
+      // General thread context: use THREAD route (new ThreadPage)
+      push(`${ROUTE.THREAD}?${params.toString()}`);
     }
   }
 
@@ -60,11 +61,22 @@
     console.log('Move thread:', thread.id);
   }
 
-  function handleDelete(event: MouseEvent) {
+  async function handleDelete(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
-    // TODO: Implement delete
-    console.log('Delete thread:', thread.id);
+
+    const threadTitle = thread.title || 'Untitled Thread';
+    const confirmed = confirm(`Are you sure you want to delete "${threadTitle}"?`);
+
+    if (!confirmed) return;
+
+    try {
+      await threadService.delete(thread.id);
+      toastStore.show('Thread deleted successfully', { variant: 'success' });
+    } catch (error) {
+      console.error('Failed to delete thread:', error);
+      toastStore.show('Failed to delete thread', { variant: 'error' });
+    }
   }
 
   function handleClickOutside(event: MouseEvent) {

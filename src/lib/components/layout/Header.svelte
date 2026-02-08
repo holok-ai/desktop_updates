@@ -48,8 +48,8 @@
       };
     }
 
-    // Handle Threads with thread selected
-    if (path === ROUTE.THREADS) {
+    // Handle Thread view (new ThreadPage route)
+    if (path === ROUTE.THREAD) {
       const threadId = params.get('threadId');
       if (threadId) {
         const thread = $threads.find(t => t.id === threadId);
@@ -61,7 +61,20 @@
             ]
           };
         }
+        // Thread not yet in store - show loading
+        return {
+          items: [
+            { label: 'Threads', isLink: true },
+            { label: 'Loading...', isLink: false }
+          ]
+        };
       }
+      // No threadId - new thread view
+      return { items: [{ label: 'New Thread', isLink: false }] };
+    }
+
+    // Handle Threads list
+    if (path === ROUTE.THREADS) {
       return { items: [{ label: 'Threads', isLink: false }] };
     }
 

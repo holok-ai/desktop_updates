@@ -10,11 +10,19 @@
     isStreaming?: boolean;
     threadId?: string | null;
     disabled?: boolean;
+    initialText?: string;
   }
 
-  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '' }: Props = $props();
 
   let text = $state('');
+
+  // Update text when initialText changes
+  $effect(() => {
+    if (initialText) {
+      text = initialText;
+    }
+  });
   let selectedFiles = $state<File[]>([]);
   let fileInputRef: HTMLInputElement | undefined = $state();
   let textareaRef: HTMLTextAreaElement | undefined = $state();
@@ -324,29 +332,16 @@
       </button>
 
       <button
-        class="composer-send"
+        class="btn-holokai send-button"
         type="button"
         onclick={send}
         disabled={isStreaming || disabled}
         aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
         aria-disabled={isStreaming || disabled}
         class:sending={isStreaming}
+        data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
       >
-        <svg
-          class="icon"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M13 7l5 5m0 0l-5 5m5-5H6"
-          />
-        </svg>
-        <span class="button-text text-white dark:text-black">Send</span>
+        <i class="pi pi-arrow-up"></i>
       </button>
     </div>
   </div>
@@ -477,33 +472,18 @@
     min-width: fit-content;
   }
 
-  .composer-send {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: calc(var(--inline-spacing) * 0.5);
-    padding: 8px;
-    border-radius: var(--border-radius);
-    background: var(--surface-sidebar-primary);
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.875rem;
-    transition: all 0.2s;
-    white-space: nowrap;
-    min-width: fit-content;
-  }
-
-  :global(html.dark) .composer-send {
-    background: #edece5;
-    color: #000;
-    border-color: #edece5;
-  }
-
-  .composer-send {
+  .send-button {
+    width: 56px;
+    height: 40px;
+    padding: 0 !important;
     margin-top: auto;
   }
 
-  .composer-send.sending {
+  .send-button i {
+    font-size: 18px;
+  }
+
+  .send-button.sending {
     opacity: 0.7;
     animation: pulse 1.5s ease-in-out infinite;
   }
@@ -524,31 +504,19 @@
     color: color-mix(in srgb, var(--primary-color) 90%, transparent);
   }
 
-  .composer-send:hover:not(:disabled) {
-    background: #0a1a2e;
-    border-color: #0a1a2e;
-  }
-
-  :global(html.dark) .composer-send:hover:not(:disabled) {
-    background: #fff;
-    border-color: #fff;
-  }
-
   .attach-button:disabled,
-  .composer-send:disabled {
+  .send-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .attach-button .icon,
-  .composer-send .icon {
+  .attach-button .icon {
     width: 16px;
     height: 16px;
     flex-shrink: 0;
   }
 
-  .attach-button .button-text,
-  .composer-send .button-text {
+  .attach-button .button-text {
     line-height: 1;
   }
 </style>

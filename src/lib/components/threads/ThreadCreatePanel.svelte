@@ -5,7 +5,7 @@
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
   const dispatch = createEventDispatcher<{
-    submit: void;
+    save: void;
     modelSelectionChange: { model: ModelDetails | null; isAuto: boolean };
   }>();
 
@@ -37,7 +37,7 @@
     if (!selectedModel || !newThreadPrompt.trim()) {
       return;
     }
-    dispatch('submit');
+    dispatch('save');
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -45,7 +45,7 @@
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       if (selectedModel && newThreadPrompt.trim()) {
-        dispatch('submit');
+        dispatch('save');
       }
     }
     // Shift+Enter allows newline (default behavior, no action needed)

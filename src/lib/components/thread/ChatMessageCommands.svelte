@@ -14,19 +14,21 @@
     commands: CommandDef[];
     /** Gap height in pixels between the message and the command bar */
     gapHeight?: number;
-    /** Whether the parent message is hovered */
-    visible?: boolean;
   }
 
-  let { commands = [], gapHeight = 4, visible = false }: Props = $props();
+  let { commands = [], gapHeight = 4 }: Props = $props();
+  let hovered = $state(false);
 </script>
 
 <div
   class="commands-row"
-  class:visible
+  class:visible={hovered}
   style="height: {gapHeight + 24}px; padding-top: {gapHeight}px;"
   role="toolbar"
   aria-label="Message commands"
+  tabindex="-1"
+  onmouseenter={() => (hovered = true)}
+  onmouseleave={() => (hovered = false)}
 >
   {#each commands as cmd}
     <button
@@ -47,12 +49,14 @@
     gap: 0.25rem;
     opacity: 0;
     transition: opacity 0.15s ease;
-    pointer-events: none;
     overflow: hidden;
   }
 
   .commands-row.visible {
     opacity: 1;
+  }
+
+  .commands-row .cmd-btn {
     pointer-events: auto;
   }
 

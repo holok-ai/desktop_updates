@@ -112,7 +112,7 @@
   });
 
   // Hidden file input ref for avatar image upload
-  let avatarFileInput: HTMLInputElement;
+  let avatarFileInput: HTMLInputElement | undefined = $state();
 
   function getAvatarBg(colorKey: string): string {
     return AVATAR_COLORS.find((c) => c.value === colorKey)?.bg ?? AVATAR_COLORS[0].bg;

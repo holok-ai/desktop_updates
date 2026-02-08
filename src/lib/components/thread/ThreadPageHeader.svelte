@@ -14,6 +14,7 @@
   let inputRef: HTMLInputElement | undefined = $state();
   let showTokens = $state(false);
   let showStatus = $state(false);
+  let hovered = $state(false);
 
   function startEditing() {
     editValue = title;
@@ -54,7 +55,12 @@
 </script>
 
 <header class="thread-page-header">
-  <div class="header-left">
+  <div
+    class="header-content"
+    onmouseenter={() => (hovered = true)}
+    onmouseleave={() => (hovered = false)}
+  >
+    <div class="header-left">
     {#if isEditing}
       <input
         bind:this={inputRef}
@@ -91,17 +97,21 @@
       <i class="pi pi-info-circle"></i>
     </button>
   </div>
+  </div>
 </header>
 
 <style>
   .thread-page-header {
+    border-bottom: 1px solid var(--surface-border, #e0e0e0);
+    background: var(--surface-card, #fff);
+    flex-shrink: 0;
+  }
+
+  .header-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--surface-border, #e0e0e0);
-    background: var(--surface-card, #fff);
-    flex-shrink: 0;
     min-height: 48px;
   }
 
@@ -139,6 +149,14 @@
     display: flex;
     gap: 0.25rem;
     flex-shrink: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+
+  .header-content:hover .header-commands {
+    opacity: 1;
+    visibility: visible;
   }
 
   .header-cmd {
