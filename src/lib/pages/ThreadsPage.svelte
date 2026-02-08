@@ -19,7 +19,7 @@
     registerDiscardCallback,
   } from '$lib/stores/navigation-guard.store';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
-  import ThreadBreadcrumb from '$lib/components/threads/ThreadBreadcrumb.svelte';
+  import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { selectedProjectStore } from '$lib/stores/selected-project.store';
@@ -86,29 +86,6 @@
     void replace(params.toString() ? `${ROUTE.THREADS}?${params.toString()}` : ROUTE.THREADS);
   }
 
-  function formatDate(date: Date | number): string {
-    const d = typeof date === 'number' ? new Date(date) : date;
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(d);
-  }
-
-  function formatDateTime(date: Date | number): string {
-    const d = typeof date === 'number' ? new Date(date) : date;
-    const dateStr = new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(d);
-    const timeStr = new Intl.DateTimeFormat(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(d);
-    return `${dateStr} ${timeStr}`;
-  }
 
   $effect(() => {
     if (!isAddThreadView) {
@@ -242,6 +219,8 @@
 
           const validation = canViewThread(fetchedThread, currentProjectId);
           if (validation.canView) {
+            // Add to store so breadcrumb can find it
+            threads.addThread(fetchedThread);
             await selectThread(fetchedThread);
             // If branchId is in URL, switch to that branch
             if (branchIdParam && fetchedThread.currentBranchId !== branchIdParam) {
@@ -642,8 +621,7 @@
     <!-- Threads List View -->
     <div class="threads-list-page">
       <div class="threads-list-header">
-        <h1>Threads</h1>
-        <button class="btn-primary" onclick={() => push(ROUTE.NEW_THREAD)}>
+        <button class="btn-holokai" onclick={() => push(ROUTE.NEW_THREAD)}>
           <i class="pi pi-plus"></i>
           <span>New Thread</span>
         </button>
@@ -654,7 +632,7 @@
           <i class="pi pi-comments" style="font-size: 3rem; opacity: 0.3;"></i>
           <h2>No threads yet</h2>
           <p>Create your first thread to get started</p>
-          <button class="btn-primary" onclick={() => push(ROUTE.NEW_THREAD)}>
+          <button class="btn-holokai" onclick={() => push(ROUTE.NEW_THREAD)}>
             <i class="pi pi-plus"></i>
             <span>Create Thread</span>
           </button>
@@ -662,26 +640,12 @@
       {:else}
         <div class="threads-list">
           {#each $threads.filter(t => !t.metadata?.projectId) as thread (thread.id)}
-            <button
-              class="thread-item"
-              onclick={() => {
-                push(`${ROUTE.THREADS}?threadId=${thread.id}`);
-              }}
-            >
-              <div class="thread-item-title">{thread.title || 'Untitled Thread'}</div>
-              <div class="thread-item-info">
-                <span class="thread-item-date">Last updated on {formatDateTime(thread.updatedAt)}</span>
-                <span class="thread-item-model">{thread.metadata?.modelTitle || ''}</span>
-              </div>
-            </button>
+            <ThreadListItem {thread} />
           {/each}
         </div>
       {/if}
     </div>
   {:else}
-    {#if selectedThread}
-      <ThreadBreadcrumb thread={selectedThread} {messages} />
-    {/if}
     <div class="threads-grid">
       <div class="w-full">
         <ChatPane
@@ -782,15 +746,8 @@
   .threads-list-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     margin-bottom: 2rem;
-  }
-
-  .threads-list-header h1 {
-    font-size: 1.5rem; /* 25% smaller than 2rem */
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
   }
 
   .empty-state {
@@ -823,59 +780,6 @@
     width: 100%;
   }
 
-  .thread-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem; /* Reduced from 0.5rem */
-    padding: 0.5rem 0; /* Reduced from 1rem */
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--surface-border);
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    outline: none;
-  }
-
-  .thread-item:last-child {
-    border-bottom: none;
-  }
-
-  .thread-item:hover {
-    background: var(--surface-hover);
-  }
-
-  .thread-item:focus {
-    background: var(--surface-hover);
-    outline: 2px solid var(--primary-color);
-    outline-offset: -2px;
-  }
-
-  .thread-item-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .thread-item-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.875rem;
-  }
-
-  .thread-item-date {
-    color: var(--text-secondary);
-  }
-
-  .thread-item-model {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-  }
-
   /* Override grid for chat view context */
   .threads-page > .threads-grid {
     display: flex;
@@ -894,10 +798,6 @@
       flex-direction: column;
       align-items: flex-start;
       gap: 1rem;
-    }
-
-    .threads-list-header h1 {
-      font-size: 1.5rem;
     }
 
     .threads-grid {

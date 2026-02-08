@@ -18,9 +18,7 @@
   }
 
   function handleClick() {
-    if (!$isAuthenticated) {
-      push(ROUTE.LOGIN);
-    }
+    push(ROUTE.SETTINGS);
   }
 
   function handleMouseEnter() {
@@ -70,7 +68,7 @@
     onmouseenter={handleMouseEnter}
     onmouseleave={handleMouseLeave}
   >
-    <button class="avatar-circle" aria-label="User profile">
+    <button class="avatar-circle" aria-label="User profile" onclick={handleClick}>
       {getInitials($currentUser.name)}
     </button>
 
@@ -123,12 +121,13 @@
     color: rgba(255, 255, 255, 0.85);
     font-weight: 600;
     font-size: 14px;
-    border: none;
+    border: 2px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .avatar-circle:hover {
+    border-color: var(--holokai-blue);
     transform: scale(1.05);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }

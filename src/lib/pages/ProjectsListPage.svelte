@@ -66,8 +66,7 @@
   {/if}
 
   <div class="projects-header">
-    <h1>Projects</h1>
-    <button class="btn-primary" onclick={handleCreateProject}>
+    <button class="btn-holokai" onclick={handleCreateProject}>
       <i class="pi pi-plus"></i>
       New Project
     </button>
@@ -83,7 +82,7 @@
       <i class="pi pi-folder-open"></i>
       <h2>No Projects Yet</h2>
       <p>Create your first project to get started organizing your work</p>
-      <button class="btn-primary" onclick={handleCreateProject}>
+      <button class="btn-holokai" onclick={handleCreateProject}>
         <i class="pi pi-plus"></i>
         Create Project
       </button>
@@ -123,35 +122,9 @@
 
   .projects-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     margin-bottom: 2rem;
-  }
-
-  .projects-header h1 {
-    font-size: 1.5rem; /* 25% smaller to match threads page */
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .btn-primary {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: var(--primary-color, #4f46e5);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .btn-primary:hover {
-    background: var(--primary-color-hover, #4338ca);
-    transform: translateY(-1px);
   }
 
   .loading {

@@ -392,6 +392,7 @@ export interface ApplicationSummary {
   title: string;
   models?: ModelDetails[];
   provider: string;
+  slug: string; 
   url: string;
 }
 

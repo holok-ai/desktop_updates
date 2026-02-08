@@ -20,17 +20,21 @@
 
 <div class="search-page">
   <div class="search-container">
-    <h1>Search</h1>
     <div class="search-input-wrapper">
-      <input
-        type="text"
-        bind:value={searchQuery}
-        onkeydown={handleKeydown}
-        placeholder="Search threads, projects, and more..."
-        class="search-input"
-      />
+      <div class="search-input-container">
+        <div class="search-icon">
+          <i class="pi pi-search"></i>
+        </div>
+        <input
+          type="text"
+          bind:value={searchQuery}
+          onkeydown={handleKeydown}
+          placeholder="Search threads, projects, and more..."
+          class="search-input"
+        />
+      </div>
       <button
-        class="btn-primary search-button"
+        class="btn-holokai search-button"
         onclick={handleSearch}
       >
         <i class="pi pi-search"></i>
@@ -64,17 +68,27 @@
     width: 100%;
   }
 
-  h1 {
-    font-size: 1.5rem; /* 25% smaller to match threads page */
-    font-weight: 700;
-    color: var(--text-primary);
+  .search-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     margin-bottom: 2rem;
   }
 
-  .search-input-wrapper {
+  .search-input-container {
     display: flex;
-    gap: 0.75rem;
-    margin-bottom: 2rem;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .search-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px;
+    background: var(--surface-main);
+    color: var(--text-primary);
+    font-size: 18px;
   }
 
   .search-input {
@@ -95,7 +109,7 @@
   }
 
   .search-button {
-    flex-shrink: 0;
+    align-self: flex-end;
   }
 
   .search-results {

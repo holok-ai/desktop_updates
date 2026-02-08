@@ -13,12 +13,17 @@
   --sidebar-secondary-width: 280px;
   --sidebar-secondary-collapsed: 48px;
 
+  /* Project page dimensions */
+  --project-right-column-max-width: 300px;
+
   /* Comment colors */
   --comment-blue: 59, 130, 246;
   --comment-green: 34, 197, 94;
 
   /* Holokai brand colors */
   --holokai-blue: #6b7eb8;
+  --holokai-blue-hover: #5a6ed4;
+  --holokai-light-text: rgba(255, 255, 255, 0.95);
 
   /* Holokai light theme variables */
   --holokai-sidebar-primary-light-color: #091320;
@@ -97,6 +102,10 @@ html:not(.dark) {
   --input-background: #ffffff;
   --input-border: rgba(0, 0, 0, 0.5);
   --input-focus-shadow: rgba(79, 70, 229, 0.1);
+
+  /* Control border colors */
+  --control-border: rgba(0, 0, 0, 0.25);
+  --control-border-card: rgba(0, 0, 0, 0.2);
 }
 
 /* Dark theme overrides */
@@ -143,6 +152,10 @@ html.dark,
   --input-border: rgba(255, 255, 255, 0.2);
   --input-focus-shadow: rgba(79, 70, 229, 0.2);
 
+  /* Control border colors */
+  --control-border: rgba(255, 255, 255, 0.25);
+  --control-border-card: rgba(255, 255, 255, 0.2);
+
   --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0 color-mix(in srgb, var(--surface-900) 40%, transparent);
 
   color-scheme: dark;
@@ -172,6 +185,13 @@ body {
 h1 {
   font-size: 2em;
   line-height: 1.1;
+}
+
+h2 {
+  font-size: 1.75em;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 button {
@@ -275,8 +295,10 @@ label {
 /* Button Styles - Reusable across all pages */
 button.btn-primary,
 button.btn-secondary,
+button.btn-holokai,
 .btn-primary,
 .btn-secondary,
+.btn-holokai,
 button:not([class]) {
   display: inline-flex !important;
   align-items: center !important;
@@ -336,6 +358,35 @@ button.btn-secondary:disabled,
   cursor: not-allowed !important;
 }
 
+/* Holokai blue button style */
+button.btn-holokai,
+.btn-holokai {
+  background: var(--holokai-blue) !important;
+  color: var(--holokai-light-text) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  flex-direction: row !important;
+  font-size: 0.74375rem !important; /* 15% smaller than 0.875rem */
+  min-width: fit-content !important;
+  white-space: nowrap !important;
+}
+
+button.btn-holokai span,
+.btn-holokai span {
+  color: var(--holokai-light-text) !important;
+}
+
+button.btn-holokai:hover:not(:disabled),
+.btn-holokai:hover:not(:disabled) {
+  background: var(--holokai-blue-hover) !important;
+}
+
+button.btn-holokai:disabled,
+.btn-holokai:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
 /* Button icon sizing */
 button.btn-primary i,
 button.btn-secondary i,
@@ -344,8 +395,58 @@ button.btn-secondary i,
   font-size: 0.875rem;
 }
 
+button.btn-holokai i,
+.btn-holokai i {
+  font-size: 0.74375rem; /* 15% smaller than 0.875rem */
+}
+
 i, .pi {
   display: flex !important;
   align-items: center;
   justify-content: center;
+}
+
+/* Tooltip Styles */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 0.5rem 0.75rem;
+  background: var(--text-primary);
+  color: var(--surface-main);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+[data-tooltip]::after {
+  content: '';
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: var(--text-primary);
+  z-index: 10000;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
