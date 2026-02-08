@@ -69,6 +69,35 @@ export const CHAT_FONT_SIZE_MIN = 7;
 export const CHAT_FONT_SIZE_MAX = 20;
 export const CHAT_FONT_SIZE_DEFAULT = 14;
 
+/* ── Avatar ── */
+
+export const AVATAR_TYPE = {
+  LETTERS: 'letters',
+  ICON: 'icon',
+  IMAGE: 'image',
+} as const;
+
+export const AVATAR_COLORS = [
+  { value: 'blue', bg: '#7c9cbf', label: 'Blue' },
+  { value: 'green', bg: '#7dab8e', label: 'Green' },
+  { value: 'red', bg: '#bf7c7c', label: 'Red' },
+  { value: 'purple', bg: '#9b8abf', label: 'Purple' },
+  { value: 'yellow', bg: '#c4b57a', label: 'Yellow' },
+  { value: 'orange', bg: '#c4a07a', label: 'Orange' },
+  { value: 'grey', bg: '#9e9e9e', label: 'Grey' },
+] as const;
+
+export const AVATAR_ICONS = [
+  { value: 'pi-user', label: 'Person' },
+  { value: 'pi-briefcase', label: 'Briefcase' },
+  { value: 'pi-building', label: 'Building' },
+  { value: 'pi-chart-line', label: 'Chart' },
+  { value: 'pi-cog', label: 'Gear' },
+  { value: 'pi-star', label: 'Star' },
+  { value: 'pi-bolt', label: 'Bolt' },
+  { value: 'pi-globe', label: 'Globe' },
+] as const;
+
 export const LOG_LEVEL = {
   ERROR: 'error',
   WARN: 'warn',

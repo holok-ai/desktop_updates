@@ -3,13 +3,19 @@
   import type {
     AppSettings,
     AppThemeMode,
+    AvatarType,
     StartingPage,
     ThreadLayout,
     ChatLayout,
     Tool,
+    UserAvatar,
   } from '$lib/types/app.type';
+  import { defaultUserAvatar } from '$lib/types/app.type';
   import {
     APP_THEME_MODE,
+    AVATAR_TYPE,
+    AVATAR_COLORS,
+    AVATAR_ICONS,
     STARTING_PAGE,
     THEME_OPTIONS,
     STARTING_PAGE_OPTIONS,
@@ -63,6 +69,7 @@
     holoApiUrl: DEFAULT_HOLO_API_URL,
     directoryWhitelist: [],
     theme: APP_THEME_MODE.LIGHT,
+    avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
     showRecentList: true,
     showFavoritesList: true,
@@ -86,6 +93,7 @@
     holoApiUrl: DEFAULT_HOLO_API_URL,
     directoryWhitelist: [],
     theme: APP_THEME_MODE.LIGHT,
+    avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
     showRecentList: true,
     showFavoritesList: true,
@@ -103,6 +111,28 @@
     latestVersion: '',
   });
 
+  // Hidden file input ref for avatar image upload
+  let avatarFileInput: HTMLInputElement;
+
+  function getAvatarBg(colorKey: string): string {
+    return AVATAR_COLORS.find((c) => c.value === colorKey)?.bg ?? AVATAR_COLORS[0].bg;
+  }
+
+  function handleAvatarImageUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toastStore.show('Please select a PNG or image file', { variant: 'error' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.IMAGE as AvatarType, imageData: reader.result as string };
+    };
+    reader.readAsDataURL(file);
+  }
+
   onMount(async () => {
     const [all, version] = await Promise.all([
       window.electronAPI.settings.getAll(),
@@ -115,6 +145,7 @@
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
       directoryWhitelist: [...(all.directoryWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
+      avatar: all.avatar ? { ...defaultUserAvatar, ...all.avatar } : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
       showRecentList: all.showRecentList ?? true,
       showFavoritesList: all.showFavoritesList ?? true,
@@ -135,6 +166,7 @@
       ...settings,
       directoryWhitelist: [...settings.directoryWhitelist],
       enabledTools: [...settings.enabledTools],
+      avatar: { ...settings.avatar },
     };
     appVersion = version;
 
@@ -196,6 +228,7 @@
         mokuApiUrl: settings.mokuApiUrl,
         holoApiUrl: settings.holoApiUrl,
         directoryWhitelist: settings.directoryWhitelist,
+        avatar: settings.avatar,
         startingPage: settings.startingPage,
         showRecentList: settings.showRecentList,
         showFavoritesList: settings.showFavoritesList,
@@ -217,6 +250,7 @@
         ...settings,
         directoryWhitelist: [...settings.directoryWhitelist],
         enabledTools: [...settings.enabledTools],
+        avatar: { ...settings.avatar },
       };
       toastStore.show('Settings were saved successfully.', { variant: 'success' });
     } catch (error: unknown) {
@@ -230,6 +264,7 @@
       ...savedSettings,
       directoryWhitelist: [...savedSettings.directoryWhitelist],
       enabledTools: [...savedSettings.enabledTools],
+      avatar: { ...savedSettings.avatar },
     };
     holoApiUrlError = '';
     applyTheme(settings.theme);
@@ -290,6 +325,7 @@
       mokuApiUrl: settings.mokuApiUrl,
       holoApiUrl: settings.holoApiUrl,
       directoryWhitelist: settings.directoryWhitelist,
+      avatar: settings.avatar,
       startingPage: settings.startingPage,
       showRecentList: settings.showRecentList,
       showFavoritesList: settings.showFavoritesList,
@@ -308,6 +344,7 @@
         mokuApiUrl: savedSettings.mokuApiUrl,
         holoApiUrl: savedSettings.holoApiUrl,
         directoryWhitelist: savedSettings.directoryWhitelist,
+        avatar: savedSettings.avatar,
         startingPage: savedSettings.startingPage,
         showRecentList: savedSettings.showRecentList,
         showFavoritesList: savedSettings.showFavoritesList,
@@ -359,6 +396,139 @@
                       <span class="info-key">Version</span>
                       <span class="info-value">{appVersion}</span>
                     </div>
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Avatar -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Avatar</div>
+                  <div class="subgroup-controls">
+                    <!-- Preview -->
+                    <div class="avatar-preview-row">
+                      <div
+                        class="avatar-preview"
+                        style:background-color={settings.avatar.type === 'image' ? 'transparent' : getAvatarBg(settings.avatar.bgColor)}
+                      >
+                        {#if settings.avatar.type === 'letters'}
+                          <span class="avatar-letters">{settings.avatar.letters || 'Me'}</span>
+                        {:else if settings.avatar.type === 'icon'}
+                          <i class="pi {settings.avatar.icon} avatar-icon-display"></i>
+                        {:else if settings.avatar.type === 'image' && settings.avatar.imageData}
+                          <img src={settings.avatar.imageData} alt="Avatar" class="avatar-img" />
+                        {:else}
+                          <span class="avatar-letters">Me</span>
+                        {/if}
+                      </div>
+                      <span class="text-xs" style="color: var(--text-secondary)">Preview</span>
+                    </div>
+
+                    <!-- Type selector -->
+                    <div>
+                      <span class="control-label">Type</span>
+                      <div class="card-grid card-grid-3">
+                        <button
+                          class="option-card"
+                          class:active={settings.avatar.type === 'letters'}
+                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.LETTERS as AvatarType })}
+                        >
+                          <span class="option-card-icon">Aa</span>
+                          <span class="option-card-label">Letters</span>
+                        </button>
+                        <button
+                          class="option-card"
+                          class:active={settings.avatar.type === 'icon'}
+                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.ICON as AvatarType })}
+                        >
+                          <i class="pi pi-user option-card-icon" style="font-size: 1rem"></i>
+                          <span class="option-card-label">Icon</span>
+                        </button>
+                        <button
+                          class="option-card"
+                          class:active={settings.avatar.type === 'image'}
+                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.IMAGE as AvatarType })}
+                        >
+                          <span class="option-card-icon">🖼</span>
+                          <span class="option-card-label">Image</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Letters input (when type === letters) -->
+                    {#if settings.avatar.type === 'letters'}
+                      <div>
+                        <span class="control-label">Initials (1-3 characters)</span>
+                        <input
+                          type="text"
+                          maxlength="3"
+                          value={settings.avatar.letters}
+                          oninput={(e) => {
+                            const val = (e.target as HTMLInputElement).value.slice(0, 3);
+                            settings.avatar = { ...settings.avatar, letters: val };
+                          }}
+                          placeholder="Me"
+                          class="avatar-letters-input"
+                        />
+                      </div>
+                    {/if}
+
+                    <!-- Icon picker (when type === icon) -->
+                    {#if settings.avatar.type === 'icon'}
+                      <div>
+                        <span class="control-label">Icon</span>
+                        <div class="avatar-icon-grid">
+                          {#each AVATAR_ICONS as ic}
+                            <button
+                              class="avatar-icon-option"
+                              class:active={settings.avatar.icon === ic.value}
+                              onclick={() => (settings.avatar = { ...settings.avatar, icon: ic.value })}
+                              title={ic.label}
+                            >
+                              <i class="pi {ic.value}"></i>
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+
+                    <!-- Background color (when type !== image) -->
+                    {#if settings.avatar.type !== 'image'}
+                      <div>
+                        <span class="control-label">Background Color</span>
+                        <div class="avatar-color-grid">
+                          {#each AVATAR_COLORS as color}
+                            <button
+                              class="avatar-color-swatch"
+                              class:active={settings.avatar.bgColor === color.value}
+                              style:background-color={color.bg}
+                              onclick={() => (settings.avatar = { ...settings.avatar, bgColor: color.value })}
+                              title={color.label}
+                            ></button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+
+                    <!-- Image upload (when type === image) -->
+                    {#if settings.avatar.type === 'image'}
+                      <div>
+                        <span class="control-label">Upload Image</span>
+                        <input
+                          bind:this={avatarFileInput}
+                          type="file"
+                          accept="image/png,image/jpeg,image/gif,image/webp"
+                          onchange={handleAvatarImageUpload}
+                          class="hidden"
+                        />
+                        <button
+                          class="btn-primary"
+                          onclick={() => avatarFileInput?.click()}
+                        >
+                          Choose File
+                        </button>
+                      </div>
+                    {/if}
                   </div>
                 </div>
               </div>
@@ -976,5 +1146,118 @@
 
   .tool-item:hover {
     background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+  }
+
+  /* ── Avatar editor ── */
+  .avatar-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .avatar-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .avatar-letters {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 1;
+    letter-spacing: 0.5px;
+  }
+
+  .avatar-icon-display {
+    font-size: 1.25rem;
+    color: #fff;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-letters-input {
+    width: 80px;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--input-border);
+    background: transparent;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .avatar-icon-grid {
+    display: flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+
+  .avatar-icon-option {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--input-border);
+    border-radius: 0.375rem;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
+  }
+
+  .avatar-icon-option:hover {
+    border-color: var(--primary-color);
+    background: var(--surface-hover, rgba(59, 130, 246, 0.05));
+  }
+
+  .avatar-icon-option.active {
+    border-color: var(--primary-color);
+    background: var(--surface-active, rgba(59, 130, 246, 0.1));
+  }
+
+  .avatar-color-grid {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .avatar-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+
+  .avatar-color-swatch:hover {
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  .avatar-color-swatch.active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  .hidden {
+    display: none;
   }
 </style>
