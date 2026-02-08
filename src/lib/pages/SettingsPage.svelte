@@ -34,7 +34,16 @@
     latestVersion: '',
   });
 
-  let savedSettings: AppSettings = $state({ ...settings });
+  let savedSettings: AppSettings = $state({
+    mokuWebUrl: '',
+    mokuApiUrl: '',
+    holoApiUrl: DEFAULT_HOLO_API_URL,
+    directoryWhitelist: [],
+    theme: APP_THEME_MODE.LIGHT,
+    autoUpdate: true,
+    updateAvailable: false,
+    latestVersion: '',
+  });
 
   onMount(async () => {
     const [all, version] = await Promise.all([

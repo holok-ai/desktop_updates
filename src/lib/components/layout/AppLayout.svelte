@@ -35,7 +35,7 @@
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
-    padding: 2rem;
+    padding: 1rem 2rem 2rem 2rem; /* Reduced top padding from 2rem to 1rem */
     background: var(--surface-main);
     transition: all 0.3s ease;
   }

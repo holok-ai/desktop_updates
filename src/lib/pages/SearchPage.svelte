@@ -60,12 +60,12 @@
   .search-container {
     max-width: 800px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 1rem 2rem 2rem 2rem; /* Reduced top padding from 2rem to 1rem */
     width: 100%;
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: 1.5rem; /* 25% smaller to match threads page */
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 2rem;

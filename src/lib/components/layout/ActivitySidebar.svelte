@@ -10,6 +10,8 @@
   import { projectService } from '$lib/services/project.service';
   import { storageService } from '$lib/services/storage.service';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
+  import { threads } from '$lib/stores/thread.store';
+  import type { Thread } from '../../../src-electron/preload';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -26,6 +28,42 @@
 
   let selected = $state('search');
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
+  let showRecentThreads = $state(false);
+  let recentHovered = $state(false);
+  let isCollapsed = $state(false);
+
+  // Get last 10 threads sorted by most recent
+  const recentThreads = $derived(
+    $threads
+      .filter(t => !t.metadata?.projectId)
+      .sort((a, b) => {
+        const aTime = typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
+        const bTime = typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 10)
+  );
+
+  function toggleRecentThreads() {
+    showRecentThreads = !showRecentThreads;
+  }
+
+  function handleThreadClick(thread: Thread) {
+    const proceed = () => {
+      push(`${ROUTE.THREADS}?threadId=${thread.id}`);
+    };
+    if (requestNavigation(proceed)) {
+      proceed();
+    }
+  }
+
+  function toggleCollapse() {
+    isCollapsed = !isCollapsed;
+    storageService.setSidebarCollapsed(isCollapsed);
+    if (isCollapsed) {
+      showRecentThreads = false;
+    }
+  }
 
   function syncSelectedWithLocation(path: string, qs?: string) {
     const normalized = typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME;
@@ -57,6 +95,9 @@
   onMount(() => {
     const stored = storageService.getThemeMode();
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
+
+    // Load collapsed state
+    isCollapsed = storageService.getSidebarCollapsed();
 
     void (async () => {
       try {
@@ -152,6 +193,7 @@
 
 <nav
   class="activity-sidebar flex flex-col bg-[var(--surface-sidebar-primary)] h-screen px-3 py-4"
+  class:collapsed={isCollapsed}
   bind:this={sidebarElement}
   aria-label="Main sidebar"
 >
@@ -164,25 +206,132 @@
           class:selected={selected === activity.id && activity.id !== 'new-thread'}
           onclick={() => void handleNavigate(activity)}
           aria-label={activity.label}
+          title={isCollapsed ? activity.label : ''}
         >
-          {activity.label}
+          {#if isCollapsed}
+            <i class="pi {activity.id === 'new-thread' ? 'pi-plus' : activity.id === 'search' ? 'pi-search' : activity.id === 'threads' ? 'pi-comments' : activity.id === 'projects' ? 'pi-folder' : ''}"></i>
+          {:else}
+            {activity.label}
+          {/if}
         </button>
       </li>
     {/each}
+
+    <!-- Recent Section - only show when not collapsed -->
+    {#if !isCollapsed}
+    <li class="recent-section">
+      <div
+        class="recent-header"
+        role="button"
+        tabindex="0"
+        onmouseenter={() => (recentHovered = true)}
+        onmouseleave={() => (recentHovered = false)}
+        onclick={toggleRecentThreads}
+        onkeydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleRecentThreads();
+          }
+        }}
+      >
+        <span class="recent-label">Recent</span>
+        {#if recentHovered}
+          <button
+            class="recent-toggle"
+            onclick={(e) => {
+              e.stopPropagation();
+              toggleRecentThreads();
+            }}
+          >
+            {showRecentThreads ? 'hide' : 'show'}
+          </button>
+        {/if}
+      </div>
+      <hr class="recent-divider" />
+
+      {#if showRecentThreads && recentThreads.length > 0}
+        <ul class="recent-threads">
+          {#each recentThreads as thread (thread.id)}
+            <li>
+              <button class="recent-thread-item" onclick={() => handleThreadClick(thread)}>
+                <span class="thread-title">{thread.title || 'Untitled'}</span>
+                <span class="thread-model">{thread.metadata?.modelTitle || ''}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </li>
+    {/if}
   </ul>
+
+  <!-- Collapse/Expand Tab Button -->
+  <button
+    class="collapse-tab"
+    onclick={toggleCollapse}
+    aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+  >
+    <i class="pi {isCollapsed ? 'pi-angle-right' : 'pi-angle-left'}"></i>
+  </button>
 </nav>
 
 <style>
   .activity-sidebar {
-    width: 160px;
-    min-width: 160px;
-    max-width: 160px;
+    width: 230px; /* 15% wider than 200px */
+    min-width: 230px;
+    max-width: 230px;
+    transition: width 0.3s ease;
+    position: relative;
+  }
+
+  .activity-sidebar.collapsed {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+  }
+
+  .collapse-tab {
+    position: absolute;
+    top: 20px;
+    right: -16px;
+    width: 24px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-sidebar-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    z-index: 10;
+    outline: none;
+  }
+
+  .collapse-tab:hover {
+    background: var(--surface-sidebar-primary);
+  }
+
+  .collapse-tab:focus {
+    outline: none;
+  }
+
+  .collapse-tab:hover i {
+    color: var(--holokai-blue);
+  }
+
+  .collapse-tab i {
+    font-size: 12px;
+    transition: color 0.2s ease;
   }
 
   .nav-items {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.1875rem; /* 75% smaller than 0.75rem */
     flex: 1;
     list-style: none;
     padding: 0;
@@ -191,7 +340,7 @@
 
   .nav-button {
     width: 100%;
-    padding: 8px 16px;
+    padding: 7.2px 16px; /* 10% shorter than 8px */
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -202,6 +351,18 @@
     transition: all 0.2s ease;
     text-align: left;
     outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .collapsed .nav-button {
+    padding: 10px;
+    justify-content: center;
+  }
+
+  .nav-button i {
+    font-size: 18px;
   }
 
   .nav-button:focus {
@@ -227,5 +388,107 @@
   .nav-button.new-thread:hover {
     border-color: rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Recent Section */
+  .recent-section {
+    margin-top: 0.5rem;
+  }
+
+  .recent-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px;
+    margin-bottom: 8px;
+  }
+
+  .recent-label {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .recent-toggle {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .recent-toggle:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--holokai-blue);
+  }
+
+  .recent-toggle:focus {
+    outline: none;
+    border-color: transparent;
+  }
+
+  .recent-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 0 0 8px 0;
+  }
+
+  .recent-threads {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .recent-thread-item {
+    width: 100%;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    outline: none;
+  }
+
+  .recent-thread-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .thread-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-model {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-thread-item:hover .thread-model {
+    color: rgba(255, 255, 255, 0.6);
   }
 </style>

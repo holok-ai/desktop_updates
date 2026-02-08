@@ -86,6 +86,30 @@
     void replace(params.toString() ? `${ROUTE.THREADS}?${params.toString()}` : ROUTE.THREADS);
   }
 
+  function formatDate(date: Date | number): string {
+    const d = typeof date === 'number' ? new Date(date) : date;
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(d);
+  }
+
+  function formatDateTime(date: Date | number): string {
+    const d = typeof date === 'number' ? new Date(date) : date;
+    const dateStr = new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(d);
+    const timeStr = new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+    return `${dateStr} ${timeStr}`;
+  }
+
   $effect(() => {
     if (!isAddThreadView) {
       clearUnsavedChanges('add-thread');
@@ -615,19 +639,45 @@
   {#if isLoading}
     <div class="loading">Loading threads...</div>
   {:else if isAddThreadView}
-    <ThreadCreatePanel
-      bind:formData
-      bind:selectedModel
-      bind:newThreadPrompt
-      {chooserInitial}
-      on:modelSelectionChange={(event) => {
-        const detail = (event as CustomEvent<{ model: ModelDetails | null; isAuto: boolean }>).detail;
-        if (!detail?.isAuto) {
-          modelSelectionTouched = true;
-        }
-      }}
-      on:submit={() => handleSave()}
-    />
+    <!-- Threads List View -->
+    <div class="threads-list-page">
+      <div class="threads-list-header">
+        <h1>Threads</h1>
+        <button class="btn-primary" onclick={() => push(ROUTE.NEW_THREAD)}>
+          <i class="pi pi-plus"></i>
+          <span>New Thread</span>
+        </button>
+      </div>
+
+      {#if $threads.length === 0}
+        <div class="empty-state">
+          <i class="pi pi-comments" style="font-size: 3rem; opacity: 0.3;"></i>
+          <h2>No threads yet</h2>
+          <p>Create your first thread to get started</p>
+          <button class="btn-primary" onclick={() => push(ROUTE.NEW_THREAD)}>
+            <i class="pi pi-plus"></i>
+            <span>Create Thread</span>
+          </button>
+        </div>
+      {:else}
+        <div class="threads-list">
+          {#each $threads.filter(t => !t.metadata?.projectId) as thread (thread.id)}
+            <button
+              class="thread-item"
+              onclick={() => {
+                push(`${ROUTE.THREADS}?threadId=${thread.id}`);
+              }}
+            >
+              <div class="thread-item-title">{thread.title || 'Untitled Thread'}</div>
+              <div class="thread-item-info">
+                <span class="thread-item-date">Last updated on {formatDateTime(thread.updatedAt)}</span>
+                <span class="thread-item-model">{thread.metadata?.modelTitle || ''}</span>
+              </div>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   {:else}
     {#if selectedThread}
       <ThreadBreadcrumb thread={selectedThread} {messages} />
@@ -715,5 +765,143 @@
 
   .error-close:hover {
     background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Threads List View Styles */
+  .threads-list-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 2rem 2rem 2rem; /* Reduced top padding from 2rem to 1rem */
+    overflow-y: auto;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .threads-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .threads-list-header h1 {
+    font-size: 1.5rem; /* 25% smaller than 2rem */
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .empty-state h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .empty-state p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0 0 1rem 0;
+  }
+
+  /* Threads List View */
+  .threads-list {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .thread-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem; /* Reduced from 0.5rem */
+    padding: 0.5rem 0; /* Reduced from 1rem */
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--surface-border);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    outline: none;
+  }
+
+  .thread-item:last-child {
+    border-bottom: none;
+  }
+
+  .thread-item:hover {
+    background: var(--surface-hover);
+  }
+
+  .thread-item:focus {
+    background: var(--surface-hover);
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+
+  .thread-item-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-item-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+  }
+
+  .thread-item-date {
+    color: var(--text-secondary);
+  }
+
+  .thread-item-model {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  /* Override grid for chat view context */
+  .threads-page > .threads-grid {
+    display: flex;
+    gap: var(--content-padding);
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .threads-list-page {
+      padding: 1rem;
+    }
+
+    .threads-list-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .threads-list-header h1 {
+      font-size: 1.5rem;
+    }
+
+    .threads-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

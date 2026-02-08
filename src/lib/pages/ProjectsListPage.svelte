@@ -7,10 +7,24 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
-  import ProjectIcon from '$lib/components/common/ProjectIcon.svelte';
 
   let isLoading = $state(true);
   let errorMessage = $state<string | null>(null);
+
+  function formatDateTime(date: Date | number): string {
+    const d = typeof date === 'number' ? new Date(date) : date;
+    const dateStr = new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(d);
+    const timeStr = new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+    return `${dateStr} ${timeStr}`;
+  }
 
   // Auth guard
   $effect(() => {
@@ -78,18 +92,17 @@
     <div class="projects-grid">
       {#each $projects as project (project.id)}
         <button class="project-card" onclick={() => handleProjectClick(project)}>
-          <div class="project-icon-wrapper">
-            <ProjectIcon
-              icon={typeof project.metadata?.icon === 'string' ? project.metadata.icon : undefined}
-              color={typeof project.metadata?.color === 'string' ? project.metadata.color : undefined}
-              size={48}
-              iconSize={24}
-            />
-          </div>
-          <div class="project-info">
+          <div class="project-card-header">
             <h3 class="project-title">{project.title}</h3>
-            {#if project.description}
-              <p class="project-description">{project.description}</p>
+            <span class="project-type-badge">{project.type}</span>
+          </div>
+          {#if project.description}
+            <p class="project-description">{project.description}</p>
+          {/if}
+          <div class="project-card-footer">
+            <span class="project-last-opened">Last opened on {formatDateTime(project.updatedAt)}</span>
+            {#if project.type === 'shared'}
+              <span class="project-owner">{project.createdBy}</span>
             {/if}
           </div>
         </button>
@@ -103,7 +116,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 2rem;
+    padding: 1rem 2rem 2rem 2rem; /* Reduced top padding from 2rem to 1rem */
     overflow-y: auto;
     background: var(--surface-main);
   }
@@ -116,7 +129,7 @@
   }
 
   .projects-header h1 {
-    font-size: 2rem;
+    font-size: 1.5rem; /* 25% smaller to match threads page */
     font-weight: 700;
     color: var(--text-primary);
     margin: 0;
@@ -194,40 +207,51 @@
 
   .project-card {
     display: flex;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
     padding: 1.5rem;
-    background: var(--surface-secondary, rgba(255, 255, 255, 0.05));
-    border: 1px solid var(--surface-border);
-    border-radius: 12px;
+    background: var(--surface-card);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
     width: 100%;
   }
 
+  :global(html.dark) .project-card {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
   .project-card:hover {
-    background: var(--surface-hover, rgba(255, 255, 255, 0.08));
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
   }
 
-  .project-icon-wrapper {
-    flex-shrink: 0;
-  }
-
-  .project-info {
-    flex: 1;
-    min-width: 0;
+  .project-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
   }
 
   .project-title {
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+  }
+
+  .project-type-badge {
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+    flex-shrink: 0;
   }
 
   .project-description {
@@ -239,6 +263,28 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .project-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .project-last-opened {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .project-owner {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .error-banner {
