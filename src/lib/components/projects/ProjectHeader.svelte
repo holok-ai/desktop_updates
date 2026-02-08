@@ -28,6 +28,16 @@
       {/if}
     </div>
   </div>
+
+  <button
+    class="favorite-star"
+    class:is-favorited={isFav}
+    onclick={toggleFavorite}
+    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+    aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+  >
+    <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
+  </button>
 </div>
 
 <style>
@@ -72,6 +82,36 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .favorite-star {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: var(--text-secondary, #666);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+    font-size: 18px;
+    align-self: center;
+  }
+
+  .favorite-star:hover {
+    background: var(--surface-hover, #f0f0f0);
+    color: #f59e0b;
+  }
+
+  .favorite-star.is-favorited {
+    color: #f59e0b;
+  }
+
+  .favorite-star.is-favorited:hover {
+    color: #d97706;
   }
 
   /* Dark mode adjustments */
