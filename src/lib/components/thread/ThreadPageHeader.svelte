@@ -1,5 +1,6 @@
 <script lang="ts">
   import { threadService } from '$lib/services/thread.service';
+  import { favorites } from '$lib/stores/favorite.store';
 
   interface Props {
     threadId: string | null;
@@ -15,6 +16,15 @@
   let showTokens = $state(false);
   let showStatus = $state(false);
   let hovered = $state(false);
+
+  // Favorite toggle for the current thread
+  const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
+
+  function toggleFavorite() {
+    if (threadId) {
+      favorites.toggleFavorite(threadId, 'thread');
+    }
+  }
 
   function startEditing() {
     editValue = title;
@@ -57,6 +67,7 @@
 <header class="thread-page-header">
   <div
     class="header-content"
+    role="group"
     onmouseenter={() => (hovered = true)}
     onmouseleave={() => (hovered = false)}
   >
@@ -78,6 +89,15 @@
   </div>
 
   <div class="header-commands">
+    <button
+      class="header-cmd favorite-star"
+      class:is-favorited={isFav}
+      onclick={toggleFavorite}
+      title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+      aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+    >
+      <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
+    </button>
     <button
       class="header-cmd"
       class:active={showTokens}
@@ -181,5 +201,23 @@
   .header-cmd.active {
     background: color-mix(in srgb, var(--primary-color, #646cff) 15%, transparent);
     color: var(--primary-color, #646cff);
+  }
+
+  .favorite-star.is-favorited {
+    color: #f59e0b;
+  }
+
+  /* Keep the favorited star always visible even when header-commands is hidden */
+  .header-content:not(:hover) .header-commands:has(.favorite-star.is-favorited) {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .header-cmd.favorite-star:hover {
+    color: #f59e0b;
+  }
+
+  .header-cmd.favorite-star.is-favorited:hover {
+    color: #d97706;
   }
 </style>

@@ -3,6 +3,7 @@
   import type { Thread } from '../../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import { projects } from '$lib/stores/project.store';
+  import { favorites } from '$lib/stores/favorite.store';
 
   const dispatch = createEventDispatcher();
 
@@ -23,6 +24,9 @@
   const hasWritePermissions = $derived(
     Array.isArray($projects) && $projects.some((p) => p.userRole === 'owner' || p.userRole === 'editor')
   );
+
+  // Check if this thread is a favorite
+  const isFav = $derived($favorites.some((e) => e.id === thread.id));
 
   let showMenu = $state(false);
   let menuElement = $state<HTMLDivElement | null>(null);
@@ -81,6 +85,12 @@
     }
   }
 
+  function handleToggleFavorite(e: MouseEvent) {
+    e.stopPropagation();
+    favorites.toggleFavorite(thread.id, 'thread');
+    showMenu = false;
+  }
+
   function formatDate(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
 
@@ -126,6 +136,14 @@
           </button>
           {#if showMenu}
             <div class="context-menu" class:upward={openUpward} role="menu" bind:this={menuElement}>
+              <button
+                class="menu-item"
+                role="menuitem"
+                onclick={handleToggleFavorite}
+              >
+                <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}" style="margin-right: 6px; font-size: 12px;"></i>
+                {isFav ? 'Remove favorite' : 'Make favorite'}
+              </button>
               <button
                 class="menu-item"
                 role="menuitem"

@@ -11,6 +11,8 @@
   import { storageService } from '$lib/services/storage.service';
   import { requestNavigation } from '$lib/stores/navigation-guard.store';
   import { threads } from '$lib/stores/thread.store';
+  import { projects } from '$lib/stores/project.store';
+  import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
   import type { Thread } from '../../../src-electron/preload';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
@@ -28,6 +30,8 @@
 
   let selected = $state('search');
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
+  let showFavorites = $state(false);
+  let favoritesHovered = $state(false);
   let showRecentThreads = $state(false);
   let recentHovered = $state(false);
   let isCollapsed = $state(false);
@@ -43,6 +47,41 @@
       })
       .slice(0, 10)
   );
+
+  // Derive favorite items for display, ordered by most recently added
+  const favoriteItems = $derived(
+    [...$favorites]
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .map((f) => {
+        if (f.type === 'thread') {
+          const thread = $threads.find((t) => t.id === f.id);
+          if (!thread) return null;
+          return { id: f.id, type: f.type as FavoriteType, label: thread.title || 'Untitled', sublabel: (thread.metadata?.modelTitle as string) || '' };
+        } else {
+          const project = $projects.find((p) => p.id === f.id);
+          if (!project) return null;
+          return { id: f.id, type: f.type as FavoriteType, label: project.title, sublabel: project.type };
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+  );
+
+  function toggleFavorites() {
+    showFavorites = !showFavorites;
+  }
+
+  function handleFavoriteClick(item: { id: string; type: FavoriteType }) {
+    const proceed = () => {
+      if (item.type === 'thread') {
+        push(`${ROUTE.THREAD}?threadId=${item.id}`);
+      } else {
+        push(`${ROUTE.PROJECTS}?projectId=${item.id}`);
+      }
+    };
+    if (requestNavigation(proceed)) {
+      proceed();
+    }
+  }
 
   function toggleRecentThreads() {
     showRecentThreads = !showRecentThreads;
@@ -61,6 +100,7 @@
     isCollapsed = !isCollapsed;
     storageService.setSidebarCollapsed(isCollapsed);
     if (isCollapsed) {
+      showFavorites = false;
       showRecentThreads = false;
     }
   }
@@ -216,6 +256,58 @@
         </button>
       </li>
     {/each}
+
+    <!-- Favorites Section - only show when not collapsed -->
+    {#if !isCollapsed}
+    <li class="favorites-section">
+      <div
+        class="recent-header"
+        role="button"
+        tabindex="0"
+        onmouseenter={() => (favoritesHovered = true)}
+        onmouseleave={() => (favoritesHovered = false)}
+        onclick={toggleFavorites}
+        onkeydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleFavorites();
+          }
+        }}
+      >
+        <span class="recent-label">Favorites</span>
+        {#if favoritesHovered}
+          <button
+            class="recent-toggle"
+            onclick={(e) => {
+              e.stopPropagation();
+              toggleFavorites();
+            }}
+          >
+            {showFavorites ? 'hide' : 'show'}
+          </button>
+        {/if}
+      </div>
+      <hr class="recent-divider" />
+
+      {#if showFavorites && favoriteItems.length > 0}
+        <ul class="recent-threads">
+          {#each favoriteItems as item (item.id)}
+            <li>
+              <button class="recent-thread-item" onclick={() => handleFavoriteClick(item)}>
+                <span class="thread-title">
+                  {#if item.type === 'project'}
+                    <i class="pi pi-folder" style="font-size: 10px; margin-right: 4px;"></i>
+                  {/if}
+                  {item.label}
+                </span>
+                <span class="thread-model">{item.sublabel}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </li>
+    {/if}
 
     <!-- Recent Section - only show when not collapsed -->
     {#if !isCollapsed}
@@ -388,6 +480,11 @@
   .nav-button.new-thread:hover {
     border-color: rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Favorites Section */
+  .favorites-section {
+    margin-top: 0.5rem;
   }
 
   /* Recent Section */

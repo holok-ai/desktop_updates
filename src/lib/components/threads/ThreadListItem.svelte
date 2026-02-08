@@ -4,6 +4,7 @@
   import type { Thread } from '../../../../src-electron/preload';
   import { threadService } from '$lib/services/thread.service';
   import { toastStore } from '$lib/services/toast.service';
+  import { favorites } from '$lib/stores/favorite.store';
 
   interface Props {
     thread: Thread;
@@ -12,6 +13,14 @@
 
   let { thread, projectId = null }: Props = $props();
   let showMenu = $state(false);
+
+  const isFav = $derived($favorites.some((e) => e.id === thread.id));
+
+  function handleToggleFavorite(event: MouseEvent) {
+    event.stopPropagation();
+    favorites.toggleFavorite(thread.id, 'thread');
+    showMenu = false;
+  }
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -104,6 +113,10 @@
 
     {#if showMenu}
       <div class="context-menu" role="menu">
+        <button class="menu-item" role="menuitem" onclick={handleToggleFavorite}>
+          <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}" style="margin-right: 6px; font-size: 12px;"></i>
+          <span>{isFav ? 'Remove favorite' : 'Make favorite'}</span>
+        </button>
         <button class="menu-item" role="menuitem" onclick={handleRename}>
           <span>Rename</span>
         </button>
