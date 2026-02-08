@@ -17,23 +17,25 @@
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
+  import { copyToInput } from '$lib/services/clipboard.service';
 
   // Streaming timeouts (match ChatPane)
   const STREAMING_IDLE_TIMEOUT_MS = 60000;
   const STREAMING_INITIAL_RESPONSE_TIMEOUT_MS = 120000;
 
   interface Props {
-    threadId: string | null;
+    thread: Thread | null;
+    messages: Message[];
+    availableModels: ModelDetails[];
     chatLayout: ChatLayout;
+    initialPrompt?: string | null;
     /** Called when a new thread is created so the parent can update its state */
     onThreadCreated?: (newThread: Thread) => void;
   }
 
-  let { threadId = $bindable(null), chatLayout, onThreadCreated }: Props = $props();
+  let { thread = null, messages = $bindable([]), availableModels = [], chatLayout, initialPrompt = null, onThreadCreated }: Props = $props();
 
   // ── State ──
-  let thread = $state<Thread | null>(null);
-  let messages = $state<Message[]>([]);
   let isStreaming = $state(false);
   let responseText = $state('');
   let error = $state('');
@@ -45,10 +47,8 @@
   let modelProvider = $state('');
   let modelUrl = $state('');
 
-  // Model selector (shown when no threadId — new-thread flow)
-  let availableModels = $state<ModelDetails[]>([]);
+  // Model selector (shown when no thread — new-thread flow)
   let selectedModelKey = $state('');
-  let loadingModels = $state(false);
 
   // Timeout handles
   let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -57,15 +57,21 @@
 
   // ── Derived ──
   let hasModel = $derived(Boolean(modelName && modelProvider));
-  let isNewThread = $derived(!threadId && !thread);
+  let isNewThread = $derived(!thread);
+  let threadId = $derived(thread?.id ?? null);
 
   // ── Lifecycle ──
-  onMount(async () => {
-    if (threadId) {
-      await loadThread();
-    } else {
-      // No thread yet — load models so user can pick one before sending
-      await loadAvailableModels();
+  onMount(() => {
+    // Auto-select first model if no thread (new thread flow)
+    if (!thread && availableModels.length > 0) {
+      const first = availableModels[0];
+      selectedModelKey = first.provider + '::' + first.id;
+      applySelectedModel();
+    }
+
+    // Extract model info if thread exists
+    if (thread?.metadata) {
+      extractModelInfo();
     }
   });
 
@@ -74,29 +80,16 @@
     window.electronAPI.chat.offToken();
   });
 
-  // Reload when threadId changes (e.g. from parent binding / querystring)
-  $effect(() => {
-    if (threadId) {
-      loadThread();
-    }
-  });
+  function extractModelInfo() {
+    if (!thread?.metadata) return;
 
-  // ── Model loading (for new-thread flow) ──
-  async function loadAvailableModels() {
-    loadingModels = true;
-    try {
-      const models = await window.electronAPI.models.listAll();
-      availableModels = models;
-      // Auto-select first model
-      if (models.length > 0) {
-        const first = models[0];
-        selectedModelKey = first.provider + '::' + first.id;
-        applySelectedModel();
-      }
-    } catch (e) {
-      console.warn('[ThreadChatView] Could not load models:', e);
-    } finally {
-      loadingModels = false;
+    modelName = (thread.metadata.modelId as string) || '';
+    modelProvider = (thread.metadata.modelProvider as string) || '';
+    modelUrl = (thread.metadata.modelUrl as string) || '';
+
+    // If we have modelId but no URL, resolve from models list
+    if (modelName && !modelUrl) {
+      resolveModelDetails();
     }
   }
 
@@ -118,50 +111,13 @@
     applySelectedModel();
   }
 
-  // ── Thread loading ──
-  async function loadThread() {
-    if (!threadId) return;
-
-    try {
-      const t = await threadService.getThread(threadId);
-      if (!t) {
-        error = 'Thread not found';
-        return;
-      }
-      thread = t;
-
-      // Extract model info from metadata
-      if (t.metadata) {
-        modelName = (t.metadata.modelId as string) || '';
-        modelProvider = (t.metadata.modelProvider as string) || '';
-        modelUrl = (t.metadata.modelUrl as string) || '';
-
-        // If we have modelId but no URL, resolve from models list
-        if (modelName && !modelUrl) {
-          try {
-            const allModels: ModelDetails[] = await window.electronAPI.models.listAll();
-            const detail = allModels.find((m) => m.accessName === modelName || m.id === modelName);
-            if (detail) {
-              modelName = detail.accessName;
-              modelProvider = detail.provider;
-              modelUrl = detail.url;
-            }
-          } catch (e) {
-            console.warn('[ThreadChatView] Could not resolve model details:', e);
-          }
-        }
-      }
-
-      // Load messages
-      const msgs = await threadService.getMessages(threadId);
-      messages = msgs;
-
-      // Scroll to bottom after loading
-      await tick();
-      scrollToBottom();
-    } catch (e) {
-      console.error('[ThreadChatView] Failed to load thread:', e);
-      error = e instanceof Error ? e.message : 'Failed to load thread';
+  // ── Model resolution ──
+  function resolveModelDetails() {
+    const detail = availableModels.find((m) => m.accessName === modelName || m.id === modelName);
+    if (detail) {
+      modelName = detail.accessName;
+      modelProvider = detail.provider;
+      modelUrl = detail.url;
     }
   }
 
@@ -187,8 +143,8 @@
         },
       });
 
-      thread = result.thread;
-      threadId = result.thread.id;
+      // Thread created - notify parent
+      onThreadCreated?.(result.thread);
 
       // Add the persisted user message to local list
       const userMsg: Message = {
@@ -196,13 +152,10 @@
         role: 'user',
         content: result.message.content,
         createdAt: result.message.createdAt,
-        branchId: thread.currentBranchId || '1.0',
+        branchId: result.thread.currentBranchId || '1.0',
         modelId: modelName,
       };
       messages = [userMsg];
-
-      // Notify parent (ThreadPage) so it can update the header title & threadId
-      onThreadCreated?.(result.thread);
 
       // Update URL to include threadId (use replace so back goes to previous page, not bare /thread)
       replace(`${ROUTE.THREAD}?threadId=${result.thread.id}`);
@@ -474,7 +427,7 @@
   {/if}
 
   <!-- Message list -->
-  <div class="messages-area" bind:this={messagesEl}>
+  <div class="messages-area" class:layout-left-right={chatLayout === 'left-right'} class:layout-right-left={chatLayout === 'right-left'} bind:this={messagesEl}>
     {#if messagePairs.length === 0 && !isStreaming}
       <div class="empty-state">
         <i class="pi pi-comments"></i>
@@ -489,9 +442,7 @@
         <!-- Model selector for new threads -->
         {#if isNewThread}
           <div class="model-selector">
-            {#if loadingModels}
-              <span class="loading-models">Loading models...</span>
-            {:else if availableModels.length === 0}
+            {#if availableModels.length === 0}
               <span class="no-models">No models available. Check your connections in Settings.</span>
             {:else}
               <label class="model-label" for="model-select">
@@ -524,6 +475,7 @@
         {chatLayout}
         responseContent={pair.response?.content || pair.streamingContent}
         isStreaming={pair.isStreamingResponse}
+        onCopyRequest={() => copyToInput(pair.request.content)}
       />
     {/each}
   </div>
@@ -533,8 +485,9 @@
     <Composer
       {sendMessage}
       {isStreaming}
-      threadId={thread?.id ?? null}
+      threadId={threadId}
       disabled={isNewThread && !hasModel}
+      initialText={initialPrompt ?? ''}
     />
   </div>
 </div>
@@ -589,6 +542,12 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  .messages-area.layout-left-right,
+  .messages-area.layout-right-left {
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .empty-state {
@@ -649,13 +608,9 @@
     outline-offset: 1px;
   }
 
-  .loading-models,
   .no-models {
     font-size: 0.8125rem;
     font-style: italic;
-  }
-
-  .no-models {
     color: var(--error-color, #dc2626);
   }
 

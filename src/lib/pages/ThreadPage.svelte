@@ -23,33 +23,92 @@
 
   import type { ChatLayout } from '$lib/types/app.type';
   import { CHAT_LAYOUT } from '$lib/constants/app.constant';
-  import type { Thread } from '../../../src-electron/preload';
+  import type { Thread, ModelDetails } from '../../../src-electron/preload';
+  import type { Message } from '$lib/types/thread.type';
+  import { threadService } from '$lib/services/thread.service';
 
   // ── State ──
   let threadId = $state<string | null>(null);
+  let thread = $state<Thread | null>(null);
   let threadTitle = $state('');
+  let messages = $state<Message[]>([]);
+  let availableModels = $state<ModelDetails[]>([]);
+  let initialPrompt = $state<string | null>(null);
   let activeView = $state<ThreadViewType>('chat');
   let chatLayout = $state<ChatLayout>(CHAT_LAYOUT.LEFT_RIGHT as ChatLayout);
+  let loading = $state(false);
+  let error = $state('');
 
   /** Called by ThreadChatView when a brand-new thread is created */
   function handleThreadCreated(newThread: Thread) {
     threadId = newThread.id;
+    thread = newThread;
     threadTitle = newThread.title || 'New Thread';
+    // Messages will be added as they're sent
   }
 
-  // ── Parse query string ──
+  /** Called by ThreadChatView when messages are updated */
+  function handleMessagesUpdate(updatedMessages: Message[]) {
+    messages = updatedMessages;
+  }
+
+  // ── Load thread and messages when threadId changes ──
+  async function loadThread(id: string) {
+    loading = true;
+    error = '';
+    try {
+      // Load thread metadata
+      const t = await threadService.getThread(id);
+      if (!t) {
+        error = 'Thread not found';
+        thread = null;
+        threadTitle = '';
+        messages = [];
+        return;
+      }
+      thread = t;
+      threadTitle = t.title || 'Untitled Thread';
+
+      // Load messages for this thread
+      const msgs = await threadService.getMessages(id);
+      messages = msgs;
+    } catch (e) {
+      console.error('[ThreadPage] Failed to load thread:', e);
+      error = e instanceof Error ? e.message : 'Failed to load thread';
+      thread = null;
+      threadTitle = '';
+      messages = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  // ── Parse query string and load thread ──
   $effect(() => {
     const qs = $querystring;
     if (qs) {
       const params = new URLSearchParams(qs);
       const id = params.get('threadId');
-      if (id) {
+      const prompt = params.get('prompt');
+
+      if (id && id !== threadId) {
         threadId = id;
+        void loadThread(id);
+      } else if (!id) {
+        // No threadId - reset to new thread state
+        threadId = null;
+        thread = null;
+        threadTitle = '';
+        messages = [];
+      }
+
+      if (prompt) {
+        initialPrompt = prompt;
       }
     }
   });
 
-  // ── Load settings on mount ──
+  // ── Load settings and models on mount ──
   onMount(async () => {
     try {
       const settings = await window.electronAPI.settings.getAll();
@@ -58,6 +117,13 @@
       }
     } catch (e) {
       console.warn('[ThreadPage] Could not load settings:', e);
+    }
+
+    // Load available models
+    try {
+      availableModels = await window.electronAPI.models.listAll();
+    } catch (e) {
+      console.warn('[ThreadPage] Could not load models:', e);
     }
   });
 </script>
@@ -68,10 +134,14 @@
   <ThreadViewSelector bind:activeView />
 
   <div class="view-container">
-    {#if activeView === 'chat'}
-      <ThreadChatView bind:threadId {chatLayout} onThreadCreated={handleThreadCreated} />
+    {#if loading}
+      <div class="loading-state">Loading thread...</div>
+    {:else if error}
+      <div class="error-state">{error}</div>
+    {:else if activeView === 'chat'}
+      <ThreadChatView {thread} bind:messages {availableModels} {chatLayout} {initialPrompt} onThreadCreated={handleThreadCreated} />
     {:else if activeView === 'prompt'}
-      <ThreadPromptView />
+      <ThreadPromptView {messages} {chatLayout} />
     {:else if activeView === 'graphic'}
       <ThreadGraphicView />
     {:else if activeView === 'execution'}
@@ -99,5 +169,19 @@
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+  }
+
+  .loading-state,
+  .error-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 2rem;
+    color: var(--text-secondary, #666);
+  }
+
+  .error-state {
+    color: var(--error-color, #dc2626);
   }
 </style>
