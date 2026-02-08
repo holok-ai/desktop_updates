@@ -223,19 +223,20 @@
 
       settings.holoApiUrl = normalizeBaseUrl(settings.holoApiUrl);
 
+      // Serialize settings to plain objects to avoid Svelte proxy cloning issues
       await window.electronAPI.settings.setMultiple({
         mokuWebUrl: settings.mokuWebUrl,
         mokuApiUrl: settings.mokuApiUrl,
         holoApiUrl: settings.holoApiUrl,
-        directoryWhitelist: settings.directoryWhitelist,
-        avatar: settings.avatar,
+        directoryWhitelist: [...settings.directoryWhitelist],
+        avatar: { ...settings.avatar },
         startingPage: settings.startingPage,
         showRecentList: settings.showRecentList,
         showFavoritesList: settings.showFavoritesList,
         threadLayout: settings.threadLayout,
         chatFontSize: settings.chatFontSize,
         chatLayout: settings.chatLayout,
-        enabledTools: settings.enabledTools,
+        enabledTools: [...settings.enabledTools],
         shellCommands: settings.shellCommands,
         windowsCommands: settings.windowsCommands,
         unixCommands: settings.unixCommands,
