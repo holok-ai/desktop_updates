@@ -160,13 +160,23 @@ export class SettingsService {
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
     if (value === undefined) {
-      // electron-store requires delete() to clear values, not setting to undefined
-      this.store.delete(key);
-      log.info(`[SettingsService] Setting deleted: ${key}`);
+      throw new Error(
+        `SettingsService.setSetting: value for key "${String(
+          key,
+        )}" is undefined. Use a dedicated clear method instead.`,
+      );
     } else {
       this.store.set(key, value);
       log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
     }
+  }
+
+  /**
+   * Clear a specific setting (delete from store)
+   */
+  public clearSetting<K extends keyof AppSettings>(key: K): void {
+    this.store.delete(key);
+    log.info(`[SettingsService] Setting deleted: ${String(key)}`);
   }
 
   /**

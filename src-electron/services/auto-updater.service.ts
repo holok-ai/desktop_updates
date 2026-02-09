@@ -95,13 +95,13 @@ class AutoUpdaterService {
         updaterLog.warn(
           `Update ${pendingVersion} not downloaded yet. Clearing pending update and allowing quit.`,
         );
-        this.settingsService.setSetting('pendingUpdateVersion', undefined);
+        this.settingsService.clearSetting('pendingUpdateVersion');
         this.downloadedUpdateVersion = null;
         return false;
       }
 
       // Clear the pending update flag immediately to prevent loops
-      this.settingsService.setSetting('pendingUpdateVersion', undefined);
+      this.settingsService.clearSetting('pendingUpdateVersion');
 
       // Install update automatically without showing dialog
       // The user already chose "Later" which means install on shutdown
@@ -127,7 +127,7 @@ class AutoUpdaterService {
     } catch (error) {
       updaterLog.error('Error installing pending update:', error);
       // Clear the pending update on error to prevent getting stuck
-      this.settingsService.setSetting('pendingUpdateVersion', undefined);
+      this.settingsService.clearSetting('pendingUpdateVersion');
       this.downloadedUpdateVersion = null;
       return false;
     }
