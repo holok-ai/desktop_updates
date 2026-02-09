@@ -284,8 +284,14 @@ class AutoUpdaterService {
         message.includes('HttpError: 401') ||
         message.includes('status":401');
 
+      const isCodeSignatureError =
+        message.includes('Code signature') ||
+        message.includes('code signature') ||
+        message.includes('signature validation');
+
       // Only show error dialog for actual authentication errors (401)
       // GH_TOKEN is NOT required for downloading from public repos - only for publishing
+      // Code signature errors are non-fatal for unsigned apps - log but don't block
       // Don't close modal for download errors during mandatory updates - let it retry
       if (isAuthError) {
         this.closeUpdatingModal();
@@ -308,6 +314,16 @@ class AutoUpdaterService {
           .catch((dialogError) => {
             updaterLog.error('Error showing warning dialog:', dialogError);
           });
+      } else if (isCodeSignatureError) {
+        // Code signature errors are expected for unsigned apps
+        // Log but don't block - the update can still proceed
+        updaterLog.warn(
+          'Code signature validation error (app not code signed - this is expected):',
+          message,
+        );
+        updaterLog.warn(
+          'Update will proceed despite signature error. For production, enable code signing in package.json.',
+        );
       } else {
         // For other errors (network, download issues), log but don't close modal
         // The modal should stay open during mandatory updates to show progress

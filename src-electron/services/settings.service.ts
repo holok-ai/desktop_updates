@@ -159,8 +159,16 @@ export class SettingsService {
    * Set a specific setting
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
-    this.store.set(key, value);
-    log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    if (value === undefined) {
+      // electron-store requires delete() to clear values, not setting to undefined
+      // @ts-expect-error - electron-store delete method exists but types may be incomplete
+      this.store.delete(key);
+      log.info(`[SettingsService] Setting deleted: ${key}`);
+    } else {
+      // @ts-expect-error - electron-store set method exists but types may be incomplete
+      this.store.set(key, value);
+      log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    }
   }
 
   /**
