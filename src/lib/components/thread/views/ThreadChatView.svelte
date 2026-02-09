@@ -11,8 +11,9 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { replace } from 'svelte-spa-router';
   import ChatMessage from '../ChatMessage.svelte';
+  import ChatBranch from '../ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadService, type DisplayItem } from '$lib/services/thread.service';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
@@ -33,19 +34,32 @@
     onThreadCreated?: (newThread: Thread) => void;
   }
 
-  let { thread = null, messages = $bindable([]), availableModels = [], chatLayout, initialPrompt = null, onThreadCreated }: Props = $props();
+  let {
+    thread = null,
+    messages = $bindable([]),
+    availableModels = [],
+    chatLayout,
+    initialPrompt = null,
+    onThreadCreated,
+  }: Props = $props();
 
   // ── State ──
   let isStreaming = $state(false);
   let responseText = $state('');
   let error = $state('');
   let chatServiceCreated = $state(false);
+  let chatServiceModelId = $state(''); // Track which model the service was created for
   let messagesEl: HTMLDivElement | undefined = $state();
+  let fontSize = $state(14); // Font size from settings
+  let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
 
   // Model info resolved from thread metadata or user selection
+  let modelId = $state(''); 
   let modelName = $state('');
   let modelProvider = $state('');
   let modelUrl = $state('');
+  let modelAccessName = $state('');
+  let applicationSlug = $state('');
 
   // Model selector (shown when no thread — new-thread flow)
   let selectedModelKey = $state('');
@@ -56,17 +70,47 @@
   let streamingLastTokenAt = 0;
 
   // ── Derived ──
-  let hasModel = $derived(Boolean(modelName && modelProvider));
+  //  let hasModel = $derived(Boolean(modelName && modelProvider));
   let isNewThread = $derived(!thread);
   let threadId = $derived(thread?.id ?? null);
 
+  // Get the branchId of the last displayed message
+  let lastMessageBranchId = $derived.by(() => {
+    if (displayItems.length === 0) return null;
+
+    // Check last item
+    const lastItem = displayItems[displayItems.length - 1];
+
+    if (lastItem.type === 'message') {
+      // Last item is a message - return its branchId
+      return lastItem.pair.request.branchId;
+    } else {
+      // Last item is a branch - return the branchId from the first lane
+      // (multi-model branches don't have lane 0, they start from lane 1)
+      const firstLane = lastItem.lanes[0];
+      if (firstLane && firstLane.messagePairs.length > 0) {
+        const lastPair = firstLane.messagePairs[firstLane.messagePairs.length - 1];
+        return lastPair.request.branchId;
+      }
+    }
+
+    return null;
+  });
+
   // ── Lifecycle ──
-  onMount(() => {
+  onMount(async () => {
+    // Load font size from settings
+    try {
+      const settings = await window.electronAPI.settings.getAll();
+      fontSize = settings.chatFontSize ?? 14;
+    } catch (err) {
+      console.error('[ThreadChatView] Failed to load font size setting:', err);
+    }
+
     // Auto-select first model if no thread (new thread flow)
     if (!thread && availableModels.length > 0) {
       const first = availableModels[0];
       selectedModelKey = first.provider + '::' + first.id;
-      applySelectedModel();
     }
 
     // Extract model info if thread exists
@@ -77,43 +121,17 @@
 
   onDestroy(() => {
     clearTimeouts();
-    window.electronAPI.chat.offToken();
+    unsubscribeStream?.();
   });
 
   function extractModelInfo() {
     if (!thread?.metadata) return;
 
-    modelName = (thread.metadata.modelId as string) || '';
+    modelId = (thread.metadata.modelId as string) || '';
     modelProvider = (thread.metadata.modelProvider as string) || '';
     modelUrl = (thread.metadata.modelUrl as string) || '';
 
-    // If we have modelId but no URL, resolve from models list
-    if (modelName && !modelUrl) {
-      resolveModelDetails();
-    }
-  }
-
-  /** Parse selectedModelKey and set modelName / modelProvider / modelUrl */
-  function applySelectedModel() {
-    if (!selectedModelKey) return;
-    const parts = selectedModelKey.split('::');
-    const provider = parts[0];
-    const id = parts.slice(1).join('::'); // handle ids with :: (unlikely)
-    const found = availableModels.find((m) => m.provider === provider && m.id === id);
-    if (found) {
-      modelName = found.accessName;
-      modelProvider = found.provider;
-      modelUrl = found.url;
-    }
-  }
-
-  function handleModelChange() {
-    applySelectedModel();
-  }
-
-  // ── Model resolution ──
-  function resolveModelDetails() {
-    const detail = availableModels.find((m) => m.accessName === modelName || m.id === modelName);
+    const detail = availableModels.find((m) => m.accessName === modelId || m.id === modelId);
     if (detail) {
       modelName = detail.accessName;
       modelProvider = detail.provider;
@@ -121,85 +139,67 @@
     }
   }
 
-  // ── Thread creation ──
-  /** Create a new thread with the first user prompt via addUserPrompt(null, ...) */
-  async function createThreadWithPrompt(userMessage: string): Promise<boolean> {
-    if (!hasModel) {
-      error = 'Please select a model before sending a prompt.';
-      return false;
-    }
-
-    try {
-      console.log('[ThreadChatView] Creating new thread with addUserPrompt(null, ...)');
-      const result = await window.electronAPI.thread.addUserPrompt(null, userMessage, {
-        title: userMessage.substring(0, 60) + (userMessage.length > 60 ? '...' : ''),
-        description: '',
-        model: modelName,
-        metadata: {
-          modelTitle: modelName,
-          modelProvider: modelProvider,
-          modelId: modelName,
-          modelUrl: modelUrl,
-        },
-      });
-
-      // Thread created - notify parent
-      onThreadCreated?.(result.thread);
-
-      // Add the persisted user message to local list
-      const userMsg: Message = {
-        id: result.message.id,
-        role: 'user',
-        content: result.message.content,
-        createdAt: result.message.createdAt,
-        branchId: result.thread.currentBranchId || '1.0',
-        modelId: modelName,
-      };
-      messages = [userMsg];
-
-      // Update URL to include threadId (use replace so back goes to previous page, not bare /thread)
-      replace(`${ROUTE.THREAD}?threadId=${result.thread.id}`);
-
-      console.log('[ThreadChatView] Thread created:', result.thread.id);
-      return true;
-    } catch (e) {
-      console.error('[ThreadChatView] Failed to create thread:', e);
-      error = e instanceof Error ? e.message : 'Failed to create thread';
-      return false;
-    }
-  }
-
   // ── Chat service initialisation ──
-  async function initializeChatService(): Promise<boolean> {
-    if (!thread?.id || !modelProvider || !modelName) {
-      error = 'Cannot initialise chat: missing thread or model info';
-      return false;
+  async function getChatService(
+    requestedModelId: string,
+  ): Promise<{ success: boolean; created: boolean }> {
+    if (!thread?.id) {
+      error = 'Cannot initialise chat: missing thread info';
+      return { success: false, created: false };
     }
 
+    // If service already created with the same model, no need to recreate
+    if (chatServiceCreated && chatServiceModelId === requestedModelId) {
+      return { success: true, created: false };
+    }
+
+    // Look up model details only if model has changed
+    const modelDetail = availableModels.find((m) => m.accessName === requestedModelId);
+    if (!modelDetail) {
+      error = `Cannot find model with accessName: ${requestedModelId}`;
+      return { success: false, created: false };
+    }
+
+
+    // Verify we have required model info
+    if (!modelDetail.provider) {
+      error = 'Cannot initialise chat: missing model info';
+      return { success: false, created: false };
+    }
+
+    // Create or recreate the provider
     const result = await window.electronAPI.chat.createProvider(
       thread.id,
-      modelProvider,
-      { url: modelUrl, model: modelName },
+      modelDetail.provider,
+      { url: modelDetail.url, model: modelDetail.accessName },
       (thread.metadata?.workingDirectory as string) || undefined,
     );
 
     if (!result.success) {
       error = result.error || 'Failed to create chat provider';
-      return false;
+      return { success: false, created: false };
     }
 
     chatServiceCreated = true;
-    return true;
+    chatServiceModelId = requestedModelId;
+
+    // Small delay to let provider settle
+    await new Promise((r) => setTimeout(r, 300));
+
+    return { success: true, created: true };
   }
 
   // ── Token listener (streaming) ──
-  function setupTokenListener() {
+  function setupTokenListener(branchId: string) {
+    if (!thread?.id) return;
+
     responseText = '';
-    window.electronAPI.chat.offToken();
 
-    window.electronAPI.chat.onToken((data: { threadId: string; token: string }) => {
-      if (data.threadId !== thread?.id) return;
+    // Unsubscribe from previous stream if any
+    unsubscribeStream?.();
 
+    // Subscribe to stream for this thread + branch
+    unsubscribeStream = threadService.subscribeToStream(thread.id, branchId, (token: string) => {
       // First token: clear no-response timeout
       if (streamingNoResponseTimeout) {
         clearTimeout(streamingNoResponseTimeout);
@@ -211,13 +211,12 @@
       if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
       streamingIdleTimeout = setTimeout(() => {
         if (isStreaming && Date.now() - streamingLastTokenAt >= STREAMING_IDLE_TIMEOUT_MS) {
-          console.error('[ThreadChatView] Idle timeout – no tokens for 60 s');
           finishStreamingWithError('No response from model. Please try again.');
         }
       }, STREAMING_IDLE_TIMEOUT_MS);
 
       // Accumulate (force new string ref for Svelte reactivity)
-      responseText = responseText + data.token;
+      responseText = responseText + token;
 
       // Keep streaming message in view
       scrollToBottom();
@@ -225,53 +224,193 @@
   }
 
   // ── Send message ──
-  async function sendMessage(userMessage: string) {
-    if (!userMessage.trim() || isStreaming) return;
+  async function sendMessage(
+    appSlug: string,
+    modelIds: string[],
+    text: string,
+    attachments?: Attachment[],
+  ) {
+    // Validation
+    if (!text.trim() || isStreaming) return;
 
     error = '';
 
-    // ─── New-thread flow: create thread first ───
-    if (!thread) {
-      const created = await createThreadWithPrompt(userMessage);
-      if (!created) return;
-      // thread, messages, and threadId are now set by createThreadWithPrompt
-      await tick();
-      scrollToBottom();
+    // Calculate next branchId for user (prompt) and assistant (response) messages
+    const branchId = await threadService.calculateNextBranchId(
+      thread!.id,
+      lastMessageBranchId || '0.0.0',
+    );
+
+    // Delegate to appropriate handler
+    const multipleModels = modelIds.length > 1;
+    if (multipleModels) {
+      await sendMessageBranch(modelIds, branchId, text);
     } else {
-      // ─── Existing thread: optimistic user message ───
+      // Add user message for single model flow
+      if (thread) {
+        const clientMessageId = crypto.randomUUID();
+        const userMsg: Message = {
+          id: clientMessageId,
+          clientMessageId,
+          role: 'user',
+          content: text,
+          createdAt: Date.now(),
+          branchId,
+          modelId: modelIds[0],
+        };
+        messages = [...messages, userMsg];
+        await tick();
+        scrollToBottom();
+
+        // Persist user message
+        await threadService.appendMessage(thread.id, {
+          role: 'user',
+          content: text,
+          clientMessageId,
+          branchId,
+          modelId: modelIds[0],
+        });
+      }
+      await sendMessageSingle(modelIds[0], branchId);
+    }
+  }
+
+  // ── Send message to multiple models (branches) ──
+  async function sendMessageBranch(modelIds: string[], branchId: string, text: string) {
+    if (!thread) return;
+
+    // Extract base row from branchId (e.g., "5.0.0" -> 5)
+    const baseRow = parseInt(branchId.split('.')[0]) || 0;
+
+    // Create lane branchIds for each model (start from lane 1, skip lane 0 which is main)
+    const modelBranches: Array<{ modelId: string; branchId: string; responseText: string }> =
+      modelIds.map((modelId, index) => ({
+        modelId,
+        branchId: `${baseRow}.${index + 1}.0`, // Lane 1, 2, 3, etc.
+        responseText: '',
+      }));
+
+    // Create user messages for each lane
+    const userMessages: Message[] = [];
+    for (const branch of modelBranches) {
       const clientMessageId = crypto.randomUUID();
       const userMsg: Message = {
         id: clientMessageId,
         clientMessageId,
         role: 'user',
-        content: userMessage,
+        content: text,
         createdAt: Date.now(),
-        branchId: thread.currentBranchId || '1.0',
+        branchId: branch.branchId,
+        modelId: branch.modelId,
       };
-      messages = [...messages, userMsg];
-      await tick();
-      scrollToBottom();
+      userMessages.push(userMsg);
 
       // Persist user message
       await threadService.appendMessage(thread.id, {
         role: 'user',
-        content: userMessage,
+        content: text,
         clientMessageId,
-        branchId: userMsg.branchId,
+        branchId: branch.branchId,
+        modelId: branch.modelId,
       });
     }
 
-    // Ensure chat provider is ready
-    if (!chatServiceCreated) {
-      const ok = await initializeChatService();
-      if (!ok) return;
-      // Small delay to let provider settle
-      await new Promise((r) => setTimeout(r, 200));
+    // Add all user messages at once for proper reactivity
+    messages = [...messages, ...userMessages];
+    await tick();
+    scrollToBottom();
+
+    // Set up streaming for all branches
+    isStreaming = true;
+
+    // Set up token listeners for each branch
+    const unsubscribers = modelBranches.map((branch) => {
+      return threadService.subscribeToStream(thread!.id, branch.branchId, (token: string) => {
+        // Find this branch and append token
+        const branchData = modelBranches.find((b) => b.branchId === branch.branchId);
+        if (branchData) {
+          branchData.responseText += token;
+        }
+      });
+    });
+
+    // Build history for the models
+    const historyMessages = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // Send to all models in parallel
+    const chatPromises = modelBranches.map(async (branch) => {
+      // Get model details
+      const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
+      if (!modelDetails) {
+        return { success: false, branchId: branch.branchId };
+      }
+
+      // Initialize chat service for this model
+      const serviceResult = await getChatService(branch.modelId);
+      if (!serviceResult.success) {
+        return { success: false, branchId: branch.branchId };
+      }
+
+      const request = {
+        messages: historyMessages,
+        streaming: true,
+        model: modelDetails.accessName,
+      };
+
+      try {
+        const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
+        return { ...result, branchId: branch.branchId, modelDetails };
+      } catch (error) {
+        return { success: false, branchId: branch.branchId };
+      }
+    });
+
+    // Wait for all chats to complete
+    const results = await Promise.all(chatPromises);
+
+    // Clean up streaming
+    unsubscribers.forEach((unsub) => unsub());
+    isStreaming = false;
+
+    // Add assistant messages for successful responses
+    for (const branch of modelBranches) {
+      if (branch.responseText && thread) {
+        const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
+
+        await window.electronAPI.thread.addAssistantResponse(
+          thread.id,
+          branch.responseText,
+          modelDetails?.accessName || branch.modelId,
+        );
+
+        const assistantMsg: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: branch.responseText,
+          createdAt: Date.now(),
+          branchId: branch.branchId,
+          modelId: branch.modelId,
+        };
+        messages = [...messages, assistantMsg];
+      }
     }
 
-    // Set up streaming
+    await tick();
+    scrollToBottom();
+  }
+
+  // ── Send message to single model ──
+  async function sendMessageSingle(modelId: string, branchId: string) {
+    // Ensure chat provider is ready (creates or recreates if model changed)
+    const result = await getChatService(modelId);
+    if (!result.success) return;
+
+    // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
-    setupTokenListener();
+    setupTokenListener(branchId);
 
     // Watchdog: no response at all
     streamingNoResponseTimeout = setTimeout(() => {
@@ -295,23 +434,18 @@
       content: m.content,
     }));
 
-    const branchId = thread!.currentBranchId || '1.0';
     const request = {
       messages: historyMessages,
       streaming: true,
       model: modelName,
-      thread_id: thread!.id,
-      branch_id: branchId,
     };
 
     try {
-      const result = (await window.electronAPI.chat.chat(thread!.id, request as any)) as {
-        success: boolean;
-        error?: string;
-      };
+      // Send chat message with the calculated branchId
+      const chatResult = await threadService.sendChatMessage(thread!.id, branchId, request);
 
-      if (!result.success) {
-        error = result.error || 'Chat failed';
+      if (!chatResult.success) {
+        error = chatResult.error || 'Chat failed';
         isStreaming = false;
         return;
       }
@@ -330,17 +464,20 @@
           modelId: modelName,
         };
         messages = [...messages, assistantMsg];
+
+        // Wait for displayItems to recalculate with new message
+        await tick();
       }
 
       // Clean up streaming state
       responseText = '';
       isStreaming = false;
-      window.electronAPI.chat.offToken();
+      unsubscribeStream?.();
+      unsubscribeStream = null;
 
       await tick();
       scrollToBottom();
     } catch (e) {
-      console.error('[ThreadChatView] Error during chat:', e);
       error = e instanceof Error ? e.message : 'Unknown error';
       isStreaming = false;
     } finally {
@@ -366,12 +503,19 @@
   }
 
   function finishStreamingWithError(msg: string) {
-    window.electronAPI.chat.offToken();
+    unsubscribeStream?.();
+    unsubscribeStream = null;
     isStreaming = false;
     error = msg;
     clearTimeouts();
   }
 
+  // ── Build display items using thread service ──
+  let displayItems = $derived.by(() => {
+    return threadService.buildDisplayItems(messages, isStreaming, responseText);
+  });
+
+  /* OLD CODE - COMMENTED OUT FOR TESTING
   // ── Build message pairs for rendering ──
   interface MessagePair {
     request: Message;
@@ -380,13 +524,64 @@
     streamingContent: string;
   }
 
-  let messagePairs = $derived.by(() => {
+  interface Lane {
+    id: string;
+    branchId: string;
+    messagePairs: MessagePair[];
+    modelName?: string;
+  }
+
+  interface MessageDisplay {
+    type: 'message';
+    pair: MessagePair;
+  }
+
+  interface BranchDisplay {
+    type: 'branch';
+    id: string;
+    position: number;
+    lanes: Lane[];
+  }
+
+  type DisplayItem = MessageDisplay | BranchDisplay;
+
+  /**
+   * Parse branchId to extract row number
+   * "1.0" → 1, "2.1.3" → 2
+   */
+  function getBranchRow(branchId: string): number {
+    const firstPart = branchId.split('.')[0];
+    return parseInt(firstPart) || 0;
+  }
+
+  /**
+   * Parse branchId to extract lane number
+   * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
+   */
+  function getBranchLane(branchId: string): number {
+    const parts = branchId.split('.');
+    return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+  }
+
+  /**
+   * Get lane key (first two parts of branchId)
+   * "1.0" → "1.0", "2.1.3" → "2.1"
+   */
+  function getLaneKey(branchId: string): string {
+    const parts = branchId.split('.');
+    return parts.slice(0, 2).join('.');
+  }
+
+  /**
+   * Build message pairs from a list of messages
+   */
+  function buildMessagePairs(msgs: Message[]): MessagePair[] {
     const pairs: MessagePair[] = [];
     let i = 0;
-    while (i < messages.length) {
-      const msg = messages[i];
+    while (i < msgs.length) {
+      const msg = msgs[i];
       if (msg.role === 'user') {
-        const next = i + 1 < messages.length ? messages[i + 1] : null;
+        const next = i + 1 < msgs.length ? msgs[i + 1] : null;
         if (next && next.role === 'assistant') {
           pairs.push({
             request: msg,
@@ -397,7 +592,7 @@
           i += 2;
         } else {
           // User message without response yet — might be streaming
-          const isLast = i === messages.length - 1;
+          const isLast = i === msgs.length - 1;
           pairs.push({
             request: msg,
             response: null,
@@ -412,7 +607,131 @@
       }
     }
     return pairs;
+  }
+
+  /**
+   * Build display items from messages - handles both regular messages and branches
+   *
+  let displayItems = $derived.by(() => {
+    if (messages.length === 0) return [];
+
+    // Sort messages by branchId first
+    const sortedMessages = [...messages].sort((a, b) => {
+      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
+      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
+
+      // Sort by row, then lane, then iteration
+      if (aRow !== bRow) return aRow - bRow;
+      if (aLane !== bLane) return aLane - bLane;
+      return aIter - bIter;
+    });
+
+    console.log('[ThreadChatView] Sorted messages:', sortedMessages.map(m => ({
+      branchId: m.branchId,
+      role: m.role,
+      content: m.content.substring(0, 30)
+    })));
+
+    // Group messages by row (first number in branchId)
+    const rowMap = new Map<number, Message[]>();
+
+    for (const msg of sortedMessages) {
+      const row = getBranchRow(msg.branchId);
+
+      if (!rowMap.has(row)) {
+        rowMap.set(row, []);
+      }
+
+      rowMap.get(row)!.push(msg);
+    }
+
+    // Build display items
+    const items: DisplayItem[] = [];
+    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
+
+    for (const row of sortedRows) {
+      const rowMessages = rowMap.get(row)!;
+
+      console.log(`[ThreadChatView] Processing row ${row}, messages:`, rowMessages.map(m => ({
+        branchId: m.branchId,
+        lane: getBranchLane(m.branchId),
+        role: m.role
+      })));
+
+      // Check if this row has branches (any message with lane != 0)
+      const hasBranches = rowMessages.some((msg) => getBranchLane(msg.branchId) !== 0);
+
+      console.log(`[ThreadChatView] Row ${row} hasBranches:`, hasBranches);
+
+      if (!hasBranches) {
+        // Single lane (main branch only) - display as regular message pairs
+        const pairs = buildMessagePairs(rowMessages);
+
+        for (const pair of pairs) {
+          items.push({
+            type: 'message',
+            pair,
+          });
+        }
+      } else {
+        // Multiple lanes - display as branch
+        // Group messages by lane key (first two parts: "1.0", "1.1", etc.)
+        const laneMap = new Map<string, Message[]>();
+
+        for (const msg of rowMessages) {
+          const laneKey = getLaneKey(msg.branchId);
+
+          if (!laneMap.has(laneKey)) {
+            laneMap.set(laneKey, []);
+          }
+
+          laneMap.get(laneKey)!.push(msg);
+        }
+
+        console.log(`[ThreadChatView] Row ${row} lane keys:`, Array.from(laneMap.keys()));
+
+        // Build lanes sorted by lane number
+        const laneKeys = Array.from(laneMap.keys()).sort((a, b) => {
+          const laneA = getBranchLane(a);
+          const laneB = getBranchLane(b);
+          return laneA - laneB;
+        });
+
+        const lanes: Lane[] = laneKeys.map((laneKey, index) => {
+          const msgs = laneMap.get(laneKey)!;
+          const pairs = buildMessagePairs(msgs);
+
+          // Try to extract model name from first message
+          const modelName = msgs[0]?.modelId || undefined;
+
+          console.log(`[ThreadChatView] Lane ${laneKey}:`, {
+            messageCount: msgs.length,
+            pairCount: pairs.length,
+            modelName
+          });
+
+          return {
+            id: `lane-${row}-${index}`,
+            branchId: laneKey,
+            messagePairs: pairs,
+            modelName,
+          };
+        });
+
+        console.log(`[ThreadChatView] Creating branch for row ${row} with ${lanes.length} lanes`);
+
+        items.push({
+          type: 'branch',
+          id: `branch-${row}`,
+          position: row,
+          lanes,
+        });
+      }
+    }
+
+    return items;
   });
+  END OLD CODE */
 </script>
 
 <div class="thread-chat-view">
@@ -427,8 +746,13 @@
   {/if}
 
   <!-- Message list -->
-  <div class="messages-area" class:layout-left-right={chatLayout === 'left-right'} class:layout-right-left={chatLayout === 'right-left'} bind:this={messagesEl}>
-    {#if messagePairs.length === 0 && !isStreaming}
+  <div
+    class="messages-area"
+    class:layout-left-right={chatLayout === 'left-right'}
+    class:layout-right-left={chatLayout === 'right-left'}
+    bind:this={messagesEl}
+  >
+    {#if displayItems.length === 0 && !isStreaming}
       <div class="empty-state">
         <i class="pi pi-comments"></i>
         <p>
@@ -443,7 +767,8 @@
         {#if isNewThread}
           <div class="model-selector">
             {#if availableModels.length === 0}
-              <span class="no-models">No models available. Check your connections in Settings.</span>
+              <span class="no-models">No models available. Check your connections in Settings.</span
+              >
             {:else}
               <label class="model-label" for="model-select">
                 <i class="pi pi-microchip-ai"></i>
@@ -467,16 +792,23 @@
       </div>
     {/if}
 
-    {#each messagePairs as pair (pair.request.id)}
-      <ChatMessage
-        requestContent={pair.request.content}
-        requestCreatedAt={pair.request.createdAt}
-        modelId={pair.request.modelId}
-        {chatLayout}
-        responseContent={pair.response?.content || pair.streamingContent}
-        isStreaming={pair.isStreamingResponse}
-        onCopyRequest={() => copyToInput(pair.request.content)}
-      />
+    {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
+      {#if item.type === 'message'}
+        <ChatMessage
+          requestContent={item.pair.request.content}
+          requestCreatedAt={item.pair.request.createdAt}
+          modelId={item.pair.request.modelId}
+          branchId={item.pair.request.branchId}
+          {chatLayout}
+          {fontSize}
+          responseContent={item.pair.response?.content || item.pair.streamingContent}
+          isStreaming={item.pair.isStreamingResponse}
+          onCopyRequest={() => copyToInput(item.pair.request.content)}
+        />
+      {:else if item.type === 'branch'}
+        {console.log('[ThreadChatView] Rendering ChatBranch:', { branchId: item.id, laneCount: item.lanes.length, lanes: item.lanes })}
+        <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
+      {/if}
     {/each}
   </div>
 
@@ -485,9 +817,11 @@
     <Composer
       {sendMessage}
       {isStreaming}
-      threadId={threadId}
-      disabled={isNewThread && !hasModel}
+      {threadId}
+      disabled={isNewThread}
       initialText={initialPrompt ?? ''}
+      {applicationSlug}
+      modelId={modelAccessName}
     />
   </div>
 </div>

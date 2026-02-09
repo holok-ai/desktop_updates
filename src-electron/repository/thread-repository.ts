@@ -226,7 +226,7 @@ export class ThreadRepository {
         const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
         log.info(
           '[ThreadRepository] Received',
-          JSON.stringify(messagesResponse.content, null, 2),
+          messagesResponse.content.length,
           'message DTOs from API for cached thread',
         );
 
@@ -1301,9 +1301,11 @@ export class ThreadRepository {
     log.info(
       '[ThreadRepository] Message branchId: ',
       branchId,
-      ',role: ',
+      ', role: ',
       dto.role,
-      ' metadata: ',
+      ', model: ',
+      dto.model ?? 'null',
+      ', metadata: ',
       dto.metadata,
     );
 

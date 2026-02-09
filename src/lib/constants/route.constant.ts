@@ -2,6 +2,7 @@ export const ROUTE = {
   HOME: '/',
   THREADS: '/threads',
   NEW_THREAD: '/threads/new',
+  THREADS_NEW_DONOTUSE: '/threads/new', // Deprecated: Use NEW_THREAD instead
   THREAD: '/thread',
   PROJECT_THREAD: '/project-thread',
   PROJECTS: '/projects',

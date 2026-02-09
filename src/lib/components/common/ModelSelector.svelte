@@ -7,12 +7,18 @@
     selectedModelId?: string | null;
     disabled?: boolean;
     label?: string;
+    dropdownDirection?: 'up' | 'down';
+    backgroundColor?: string;
+    allowMultipleSelections?: boolean;
   }
 
   let {
     selectedModelId = $bindable(null),
     disabled = false,
-    label = 'Model'
+    label = 'Model',
+    dropdownDirection = 'down',
+    backgroundColor = 'var(--surface-main)',
+    allowMultipleSelections = false
   }: Props = $props();
 
   const dispatch = createEventDispatcher<{
@@ -21,6 +27,7 @@
       modelDetails: ModelDetails;
       appSlug: string;
       modelSlug: string;
+      selectedModelIds: string[]; // All selected model IDs
     };
   }>();
 
@@ -28,6 +35,9 @@
   let availableModels: ModelDetails[] = $state([]);
   let loadingModels = $state(false);
   let containerRef: HTMLDivElement | undefined = $state();
+
+  // Always use array for storing selections
+  let selectedModelIds = $state<string[]>([]);
 
   // Sorted models by application then model name
   const sortedModels = $derived.by(() => {
@@ -46,8 +56,9 @@
     try {
       availableModels = await window.electronAPI.models.listAll();
       // Select first model by default if none selected
-      if (!selectedModelId && availableModels.length > 0) {
+      if (selectedModelIds.length === 0 && availableModels.length > 0) {
         const firstModel = availableModels[0];
+        selectedModelIds = [firstModel.accessName];
         selectedModelId = firstModel.accessName;
         // Dispatch initial selection
         const appSlug = firstModel.applicationSlug;
@@ -56,7 +67,8 @@
           modelId: firstModel.accessName,
           modelDetails: firstModel,
           appSlug,
-          modelSlug
+          modelSlug,
+          selectedModelIds: [...selectedModelIds] // Include array in initial selection
         });
       }
     } catch (error) {
@@ -69,6 +81,11 @@
   function handleToggleDropdown() {
     if (!showDropdown) {
       loadModels();
+      // Freeze display text to prevent popup movement
+      frozenDisplayText = displayText;
+    } else {
+      // Clear frozen text when closing
+      frozenDisplayText = '';
     }
     showDropdown = !showDropdown;
   }
@@ -81,14 +98,33 @@
         return;
       }
 
-      selectedModelId = modelId;
-      showDropdown = false;
+      if (allowMultipleSelections) {
+        // Toggle selection in array
+        if (selectedModelIds.includes(modelId)) {
+          selectedModelIds = selectedModelIds.filter(id => id !== modelId);
+        } else {
+          selectedModelIds = [...selectedModelIds, modelId];
+        }
+      } else {
+        // Single selection - replace array
+        selectedModelIds = [modelId];
+        showDropdown = false;
+      }
+
+      // Update bindable selectedModelId to first item (for backward compatibility)
+      selectedModelId = selectedModelIds[0] || null;
 
       // Extract appSlug and modelSlug from the model details
       const appSlug = modelDetails.applicationSlug;
       const modelSlug = modelDetails.slug;
 
-      dispatch('select', { modelId, modelDetails, appSlug, modelSlug });
+      dispatch('select', {
+        modelId,
+        modelDetails,
+        appSlug,
+        modelSlug,
+        selectedModelIds: [...selectedModelIds] // Pass all selected model IDs
+      });
     } catch (error) {
       console.error('[ModelSelector] Error selecting model:', error);
     }
@@ -98,6 +134,7 @@
     const target = event.target as HTMLElement;
     if (!target.closest('.model-selector-container') && showDropdown) {
       showDropdown = false;
+      frozenDisplayText = ''; // Clear frozen text when closing
     }
   }
 
@@ -111,15 +148,29 @@
     };
   });
 
+  // Store display text when dropdown opens to prevent movement
+  let frozenDisplayText = $state('');
+
   const displayText = $derived.by(() => {
-    if (selectedModelId) {
-      const model = availableModels.find(m => m.accessName === selectedModelId);
+    // If dropdown is open, use frozen text to prevent button width changes
+    if (showDropdown && frozenDisplayText) {
+      return frozenDisplayText;
+    }
+
+    if (selectedModelIds.length === 0) {
+      return 'Select model';
+    }
+
+    if (selectedModelIds.length === 1) {
+      const model = availableModels.find(m => m.accessName === selectedModelIds[0]);
       if (model) {
         return `${model.title} (${model.applicationName.toLowerCase()})`;
       }
-      return selectedModelId;
+      return selectedModelIds[0];
     }
-    return 'Select model';
+
+    // Multiple selections
+    return `${selectedModelIds.length} models selected`;
   });
 </script>
 
@@ -130,6 +181,7 @@
   <button
     id="model-selector"
     class="model-selector-button"
+    style="background: {backgroundColor};"
     onclick={handleToggleDropdown}
     disabled={disabled}
     aria-label="Select model"
@@ -140,7 +192,7 @@
   </button>
 
   {#if showDropdown}
-    <div class="model-selector-dropdown">
+    <div class="model-selector-dropdown" class:dropdown-up={dropdownDirection === 'up'} class:dropdown-down={dropdownDirection === 'down'}>
       {#if loadingModels}
         <div class="dropdown-item loading">Loading models...</div>
       {:else if availableModels.length === 0}
@@ -149,12 +201,12 @@
         {#each sortedModels as model (model.id)}
           <button
             class="dropdown-item"
-            class:selected={model.accessName === selectedModelId}
+            class:selected={selectedModelIds.includes(model.accessName)}
             onclick={() => handleSelectModel(model.accessName)}
           >
             <input
               type="checkbox"
-              checked={model.accessName === selectedModelId}
+              checked={selectedModelIds.includes(model.accessName)}
               readonly
               aria-hidden="true"
               tabindex="-1"
@@ -186,7 +238,6 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.25rem 0.5rem;
-    background: var(--surface-main);
     border: none;
     color: var(--text-primary);
     font-size: 0.875rem;
@@ -229,9 +280,7 @@
 
   .model-selector-dropdown {
     position: absolute;
-    top: 100%;
     left: 0;
-    margin-top: 0.25rem;
     background: var(--surface-main);
     border: 1px solid var(--input-border);
     border-radius: 6px;
@@ -240,6 +289,16 @@
     max-height: 300px;
     overflow-y: auto;
     width: max-content;
+  }
+
+  .dropdown-up {
+    bottom: 100%;
+    margin-bottom: 0.25rem;
+  }
+
+  .dropdown-down {
+    top: 100%;
+    margin-top: 0.25rem;
   }
 
   :global(html.dark) .model-selector-dropdown {

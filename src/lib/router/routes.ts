@@ -2,7 +2,7 @@
 // Keep imports local to avoid circular deps
 import Home from '../../routes/+page.svelte';
 import Search from '../../routes/search/+page.svelte';
-import Threads from '../../routes/threads/+page.svelte';
+import ThreadList from '../../routes/threads/+page.svelte';
 import NewThread from '../../routes/threads/new/+page.svelte';
 import ThreadPage from '../../routes/thread/+page.svelte';
 import ProjectThread from '../../routes/project-thread/+page.svelte';
@@ -22,7 +22,7 @@ export const routes = {
   '/': Home,
   '/search': Search,
   '/threads/new': NewThread,
-  '/threads': Threads,
+  '/threads': ThreadList,
   '/thread': ThreadPage,
   '/project-thread': ProjectThread,
   '/projects': Projects,

@@ -8,10 +8,12 @@
    *
    * No composer. No streaming. Follows chatLayout alignment.
    */
+  import { onMount } from 'svelte';
   import ChatRequest from '../ChatRequest.svelte';
   import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
+  import { threadService, type DisplayItem } from '$lib/services/thread.service';
 
   /** Response reveal levels */
   const REVEAL_HIDDEN = 0;
@@ -27,29 +29,22 @@
 
   let { messages = [], chatLayout }: Props = $props();
 
-  // ── Build message pairs ──
-  interface PromptPair {
-    request: Message;
-    response: Message | null;
-  }
+  // ── State ──
+  let fontSize = $state(14); // Font size from settings
 
-  let pairs = $derived.by(() => {
-    const result: PromptPair[] = [];
-    let i = 0;
-    while (i < messages.length) {
-      const msg = messages[i];
-      if (msg.role === 'user') {
-        const next = i + 1 < messages.length && messages[i + 1].role === 'assistant'
-          ? messages[i + 1]
-          : null;
-        result.push({ request: msg, response: next });
-        i += next ? 2 : 1;
-      } else {
-        // Skip orphan assistant messages
-        i += 1;
-      }
+  // Load font size from settings
+  onMount(async () => {
+    try {
+      const settings = await window.electronAPI.settings.getAll();
+      fontSize = settings.chatFontSize ?? 14;
+    } catch (err) {
+      console.error('[ThreadPromptView] Failed to load font size setting:', err);
     }
-    return result;
+  });
+
+  // ── Build display items using thread service ──
+  let displayItems = $derived.by(() => {
+    return threadService.buildDisplayItems(messages, false, '');
   });
 
   // ── Per-pair reveal level tracking ──
@@ -63,10 +58,22 @@
   /** Advance all pairs' reveal level by +1 (with wrap) */
   function cycleAllForward() {
     const updated: Record<string, number> = {};
-    for (const pair of pairs) {
-      if (pair.response) {
-        const current = getRevealLevel(pair.request.id);
-        updated[pair.request.id] = (current + 1) % REVEAL_LEVEL_COUNT;
+    for (const item of displayItems) {
+      if (item.type === 'message') {
+        if (item.pair.response) {
+          const current = getRevealLevel(item.pair.request.id);
+          updated[item.pair.request.id] = (current + 1) % REVEAL_LEVEL_COUNT;
+        }
+      } else {
+        // Handle branch - cycle all lanes
+        for (const lane of item.lanes) {
+          for (const pair of lane.messagePairs) {
+            if (pair.response) {
+              const current = getRevealLevel(pair.request.id);
+              updated[pair.request.id] = (current + 1) % REVEAL_LEVEL_COUNT;
+            }
+          }
+        }
       }
     }
     revealLevels = { ...revealLevels, ...updated };
@@ -75,10 +82,22 @@
   /** Retreat all pairs' reveal level by -1 (with wrap) */
   function cycleAllBackward() {
     const updated: Record<string, number> = {};
-    for (const pair of pairs) {
-      if (pair.response) {
-        const current = getRevealLevel(pair.request.id);
-        updated[pair.request.id] = (current - 1 + REVEAL_LEVEL_COUNT) % REVEAL_LEVEL_COUNT;
+    for (const item of displayItems) {
+      if (item.type === 'message') {
+        if (item.pair.response) {
+          const current = getRevealLevel(item.pair.request.id);
+          updated[item.pair.request.id] = (current - 1 + REVEAL_LEVEL_COUNT) % REVEAL_LEVEL_COUNT;
+        }
+      } else {
+        // Handle branch - cycle all lanes
+        for (const lane of item.lanes) {
+          for (const pair of lane.messagePairs) {
+            if (pair.response) {
+              const current = getRevealLevel(pair.request.id);
+              updated[pair.request.id] = (current - 1 + REVEAL_LEVEL_COUNT) % REVEAL_LEVEL_COUNT;
+            }
+          }
+        }
       }
     }
     revealLevels = { ...revealLevels, ...updated };
@@ -102,11 +121,58 @@
     return lines.slice(0, n).join('\n');
   }
 
+  /** Strip HTML and markdown formatting from text */
+  function stripFormatting(text: string): string {
+    let cleaned = text;
+
+    // Remove HTML tags
+    cleaned = cleaned.replace(/<[^>]*>/g, '');
+
+    // Remove markdown code blocks
+    cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
+
+    // Remove inline code
+    cleaned = cleaned.replace(/`[^`]+`/g, '');
+
+    // Remove markdown images
+    cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+    // Remove markdown links
+    cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+    // Remove markdown bold
+    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+    cleaned = cleaned.replace(/__([^_]+)__/g, '$1');
+
+    // Remove markdown italic
+    cleaned = cleaned.replace(/\*([^*]+)\*/g, '$1');
+    cleaned = cleaned.replace(/_([^_]+)_/g, '$1');
+
+    // Remove markdown headers
+    cleaned = cleaned.replace(/^#+\s+/gm, '');
+
+    // Remove list markers
+    cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, '');
+    cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, '');
+
+    // Remove blockquote markers
+    cleaned = cleaned.replace(/^>\s+/gm, '');
+
+    // Collapse multiple whitespace (including newlines) to single space
+    cleaned = cleaned.replace(/\s+/g, ' ');
+
+    // Trim leading/trailing whitespace
+    cleaned = cleaned.trim();
+
+    return cleaned;
+  }
+
   /** Get the visible response content based on reveal level */
   function getVisibleResponse(content: string, level: number): string {
     switch (level) {
       case REVEAL_ONE_LINE:
-        return firstNLines(content, 1);
+        const stripped = stripFormatting(content);
+        return stripped.substring(0, 100);
       case REVEAL_THREE_LINES:
         return firstNLines(content, 3);
       case REVEAL_FULL:
@@ -119,8 +185,8 @@
   /** Check if response content is truncated at given level */
   function isTruncated(content: string, level: number): boolean {
     if (level === REVEAL_FULL || level === REVEAL_HIDDEN) return false;
+    if (level === REVEAL_ONE_LINE) return content.length > 100;
     const lineCount = content.split('\n').length;
-    if (level === REVEAL_ONE_LINE) return lineCount > 1;
     if (level === REVEAL_THREE_LINES) return lineCount > 3;
     return false;
   }
@@ -152,14 +218,16 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="thread-prompt-view">
-  {#if pairs.length === 0}
+  {#if displayItems.length === 0}
     <div class="empty-state">
       <i class="pi pi-pencil"></i>
       <p>No prompts in this thread yet.</p>
     </div>
   {:else}
     <div class="prompt-list">
-      {#each pairs as pair (pair.request.id)}
+      {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
+        {#if item.type === 'message'}
+          {@const pair = item.pair}
         <div class="prompt-entry">
           <!-- User prompt -->
           <ChatRequest
@@ -167,6 +235,7 @@
             createdAt={pair.request.createdAt}
             modelId={pair.request.modelId}
             {chatLayout}
+            {fontSize}
           />
 
           <!-- Response preview (progressive reveal) -->
@@ -176,18 +245,73 @@
             {@const truncated = isTruncated(pair.response.content, level)}
 
             <div class="response-preview {responseAlignClass(chatLayout)}">
-              <div class="preview-bubble">
-                <div class="preview-text">
-                  <MarkdownRenderer content={visibleContent} enableCopy={false} />
-                </div>
+              <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
+                {#if level === REVEAL_ONE_LINE}
+                  <div class="preview-text plain-text" style="font-size: {fontSize}px">
+                    {visibleContent}
+                  </div>
+                {:else}
+                  <div class="preview-text">
+                    <MarkdownRenderer content={visibleContent} {fontSize} enableCopy={false} />
+                  </div>
+                {/if}
                 {#if truncated}
                   <div class="truncation-fade"></div>
                 {/if}
-                <span class="reveal-badge">{revealLabel(level)}</span>
+<!--                 <span class="reveal-badge">{revealLabel(level)}</span>  -->
               </div>
             </div>
           {/if}
         </div>
+        {:else}
+          <!-- Branch display - show all lanes -->
+          <div class="branch-entry">
+            <div class="branch-header">Branch with {item.lanes.length} lanes</div>
+            <div class="branch-lanes">
+              {#each item.lanes as lane (lane.id)}
+                <div class="branch-lane">
+                  <div class="lane-header">
+                    {#if lane.modelName}
+                      <span class="lane-model">{lane.modelName}</span>
+                    {/if}
+                  </div>
+                  {#each lane.messagePairs as pair (pair.request.id)}
+                    <div class="prompt-entry">
+                      <ChatRequest
+                        content={pair.request.content}
+                        createdAt={pair.request.createdAt}
+                        modelId={pair.request.modelId}
+                        {chatLayout}
+                        {fontSize}
+                      />
+                      {#if pair.response && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
+                        {@const level = getRevealLevel(pair.request.id)}
+                        {@const visibleContent = getVisibleResponse(pair.response.content, level)}
+                        {@const truncated = isTruncated(pair.response.content, level)}
+                        <div class="response-preview {responseAlignClass(chatLayout)}">
+                          <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
+                            {#if level === REVEAL_ONE_LINE}
+                              <div class="preview-text plain-text" style="font-size: {fontSize}px">
+                                {visibleContent}
+                              </div>
+                            {:else}
+                              <div class="preview-text markdown-text">
+                                <MarkdownRenderer content={visibleContent} {fontSize} enableCopy={false} />
+                              </div>
+                            {/if}
+                            {#if truncated}
+                              <div class="truncation-fade"></div>
+                            {/if}
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       {/each}
     </div>
 
@@ -277,14 +401,24 @@
     overflow: hidden;
   }
 
+  .preview-bubble.one-line {
+    overflow: visible;
+  }
+
   .align-right .preview-bubble {
     border-radius: 12px 12px 2px 12px;
   }
 
   .preview-text {
-    font-size: 0.9rem;
     line-height: 1.5;
     color: var(--text-primary, #111);
+  }
+
+  .preview-text.plain-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #000;
+    padding-top: 0.5rem;
   }
 
   /* Fade overlay when truncated */
@@ -330,5 +464,50 @@
     border: 1px solid var(--surface-border, #e0e0e0);
     border-radius: 3px;
     box-shadow: 0 1px 0 var(--surface-border, #e0e0e0);
+  }
+
+  /* Branch styles */
+  .branch-entry {
+    margin: 1rem 0;
+    border: 2px solid var(--surface-border, #e0e0e0);
+    border-radius: 8px;
+    background: var(--surface-main, #fff);
+  }
+
+  .branch-header {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary, #666);
+    border-bottom: 1px solid var(--surface-border, #e0e0e0);
+    background: var(--surface-card, #fafafa);
+  }
+
+  .branch-lanes {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+
+  .branch-lane {
+    flex: 1;
+    min-width: 300px;
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 6px;
+    background: var(--surface-main, #fff);
+    padding: 0.5rem;
+  }
+
+  .lane-header {
+    padding: 0.375rem 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666);
+    border-bottom: 1px solid var(--surface-border, #e0e0e0);
+  }
+
+  .lane-model {
+    font-weight: 500;
   }
 </style>
