@@ -97,32 +97,30 @@ class AutoUpdaterService {
         return false;
       }
 
-      const result = await dialog.showMessageBox({
-        type: 'info',
-        title: 'Installing Update',
-        message: 'Installing update before closing...',
-        detail: `Update to version ${pendingVersion} will be installed now.`,
-        buttons: ['OK'],
-        defaultId: 0,
-      });
+      // Clear the pending update flag immediately to prevent loops
+      this.settingsService.setSetting('pendingUpdateVersion', undefined);
 
-      if (result.response === 0) {
-        this.settingsService.setSetting('pendingUpdateVersion', undefined);
-        try {
-          autoUpdater.quitAndInstall(false, true);
-          updaterLog.info('quitAndInstall called successfully');
-          this.downloadedUpdateVersion = null; // Clear after calling quitAndInstall
-          // Give it a moment to start the install process
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          return true;
-        } catch (installError) {
-          updaterLog.error('Error calling quitAndInstall:', installError);
-          this.downloadedUpdateVersion = null; // Clear on error
-          // If quitAndInstall fails, allow normal quit
-          return false;
-        }
+      // Install update automatically without showing dialog
+      // The user already chose "Later" which means install on shutdown
+      updaterLog.info(`Installing update ${pendingVersion} before shutdown (automatic)...`);
+
+      try {
+        autoUpdater.quitAndInstall(false, true);
+        updaterLog.info('quitAndInstall called successfully');
+        this.downloadedUpdateVersion = null;
+
+        // Give it a moment to start the install process
+        // If quitAndInstall works, the app will quit immediately
+        // This timeout just prevents hanging if something goes wrong
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        return true;
+      } catch (installError) {
+        updaterLog.error('Error calling quitAndInstall:', installError);
+        this.downloadedUpdateVersion = null;
+        // If quitAndInstall fails, allow normal quit
+        return false;
       }
-      return false;
     } catch (error) {
       updaterLog.error('Error installing pending update:', error);
       // Clear the pending update on error to prevent getting stuck
@@ -322,64 +320,78 @@ class AutoUpdaterService {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-      const currentVersion = app.getVersion();
-      const newVersion = info.version;
+      void (async () => {
+        const currentVersion = app.getVersion();
+        const newVersion = info.version;
 
-      updaterLog.info(`Update downloaded: ${newVersion}`);
-      this.downloadedUpdateVersion = newVersion;
+        updaterLog.info(`Update downloaded: ${newVersion}`);
+        this.downloadedUpdateVersion = newVersion;
 
-      if (this.currentUpdateMetadata?.mandatory) {
-        updaterLog.info('Mandatory update downloaded - installing automatically');
-        this.closeUpdatingModal();
+        // Fetch metadata again to ensure we have the correct mandatory flag
+        // This is important because the metadata might not have been fetched earlier
+        // or might have been lost between events
+        const metadata = await this.fetchUpdateMetadata(newVersion);
+        const isMandatory = metadata?.mandatory ?? this.currentUpdateMetadata?.mandatory ?? false;
 
-        try {
-          autoUpdater.quitAndInstall(false, true);
-          updaterLog.info('quitAndInstall called successfully for mandatory update');
-        } catch (error) {
-          updaterLog.error('Error calling quitAndInstall:', error);
-          BrowserWindow.getAllWindows().forEach((window) => {
-            window.close();
-          });
-          setTimeout(() => {
-            app.quit();
-          }, 100);
-        }
-      } else {
-        dialog
-          .showMessageBox({
-            type: 'info',
-            title: 'Update Downloaded',
-            message: `Update to version ${newVersion} has been downloaded.`,
-            detail: `Current version: ${currentVersion}\nNew version: ${newVersion}\n\nRestart the application to install the update?`,
-            buttons: ['Restart', 'Later'],
-            defaultId: 0,
-            cancelId: 1,
-          })
-          .then((result) => {
-            if (result.response === 0) {
-              updaterLog.info('User chose to restart and install update');
+        updaterLog.info(
+          `Update downloaded metadata check: mandatory=${isMandatory}, version=${newVersion}`,
+        );
 
-              try {
-                autoUpdater.quitAndInstall(false, true);
-                updaterLog.info('quitAndInstall called successfully');
-              } catch (error) {
-                updaterLog.error('Error calling quitAndInstall:', error);
-                BrowserWindow.getAllWindows().forEach((window) => {
-                  window.close();
-                });
-                setTimeout(() => {
-                  app.quit();
-                }, 100);
+        if (isMandatory) {
+          updaterLog.info('Mandatory update downloaded - installing automatically');
+          this.closeUpdatingModal();
+
+          try {
+            autoUpdater.quitAndInstall(false, true);
+            updaterLog.info('quitAndInstall called successfully for mandatory update');
+          } catch (error) {
+            updaterLog.error('Error calling quitAndInstall:', error);
+            BrowserWindow.getAllWindows().forEach((window) => {
+              window.close();
+            });
+            setTimeout(() => {
+              app.quit();
+            }, 100);
+          }
+        } else {
+          dialog
+            .showMessageBox({
+              type: 'info',
+              title: 'Update Downloaded',
+              message: `Update to version ${newVersion} has been downloaded.`,
+              detail: `Current version: ${currentVersion}\nNew version: ${newVersion}\n\nRestart the application to install the update?`,
+              buttons: ['Restart', 'Later'],
+              defaultId: 0,
+              cancelId: 1,
+            })
+            .then((result) => {
+              if (result.response === 0) {
+                updaterLog.info('User chose to restart and install update');
+
+                try {
+                  autoUpdater.quitAndInstall(false, true);
+                  updaterLog.info('quitAndInstall called successfully');
+                } catch (error) {
+                  updaterLog.error('Error calling quitAndInstall:', error);
+                  BrowserWindow.getAllWindows().forEach((window) => {
+                    window.close();
+                  });
+                  setTimeout(() => {
+                    app.quit();
+                  }, 100);
+                }
+              } else {
+                updaterLog.info('User chose to install update later - scheduling for shutdown');
+                this.settingsService.setSetting('pendingUpdateVersion', newVersion);
               }
-            } else {
-              updaterLog.info('User chose to install update later - scheduling for shutdown');
-              this.settingsService.setSetting('pendingUpdateVersion', newVersion);
-            }
-          })
-          .catch((error) => {
-            updaterLog.error('Error showing update dialog:', error);
-          });
-      }
+            })
+            .catch((error) => {
+              updaterLog.error('Error showing update dialog:', error);
+            });
+        }
+      })().catch((error) => {
+        updaterLog.error('Error in update-downloaded handler:', error);
+      });
     });
   }
 

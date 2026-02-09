@@ -521,18 +521,27 @@ app.on('before-quit', (event) => {
   if (pendingVersion) {
     event.preventDefault();
 
+    // Set a timeout to prevent hanging forever if update installation fails
+    const timeout = setTimeout(() => {
+      appLog.warn('Update installation timeout - allowing quit to proceed');
+      app.quit();
+    }, 5000); // 5 second timeout
+
     // Handle pending update installation
     autoUpdaterService
       .checkForPendingUpdateOnShutdown()
       .then((updateInstalled) => {
-        // If update was not installed (user cancelled/closed dialog), allow quit to proceed
+        clearTimeout(timeout);
+        // If update was not installed (not downloaded or failed), allow quit to proceed
         if (!updateInstalled) {
-          appLog.info('Update installation cancelled, allowing quit to proceed');
+          appLog.info('Update installation failed or not available, allowing quit to proceed');
           app.quit();
         }
         // If update was installed, quitAndInstall() will handle the quit
+        // No need to call app.quit() here as quitAndInstall() does it
       })
       .catch((error) => {
+        clearTimeout(timeout);
         appLog.error('Error checking for pending update:', error);
         // On error, allow quit to proceed
         app.quit();
