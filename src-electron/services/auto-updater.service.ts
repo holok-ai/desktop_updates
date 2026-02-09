@@ -6,6 +6,9 @@ import { SettingsService } from './settings.service.js';
 const { autoUpdater } = pkg;
 const updaterLog = createScopedLogger('auto-updater');
 
+// Log immediately when module loads to verify logger is working
+updaterLog.info('Auto-updater service module loaded');
+
 interface UpdateMetadata {
   version: string;
   releaseDate?: string;
@@ -265,7 +268,6 @@ class AutoUpdaterService {
 
     autoUpdater.on('error', (error) => {
       updaterLog.error('Auto-updater error:', error);
-      this.closeUpdatingModal();
 
       let message: string;
       if (error instanceof Error) {
@@ -282,41 +284,41 @@ class AutoUpdaterService {
         message.includes('HttpError: 401') ||
         message.includes('status":401');
 
-      const ghTokenMissing = !process.env.GH_TOKEN;
+      // Only show error dialog for actual authentication errors (401)
+      // GH_TOKEN is NOT required for downloading from public repos - only for publishing
+      // Don't close modal for download errors during mandatory updates - let it retry
+      if (isAuthError) {
+        this.closeUpdatingModal();
 
-      if (isAuthError || ghTokenMissing) {
         if (this.ghTokenWarningShown) {
           return;
         }
         this.ghTokenWarningShown = true;
-
-        const detailLines: string[] = [];
-        if (ghTokenMissing) {
-          detailLines.push('Environment variable GH_TOKEN is not set.');
-        } else {
-          detailLines.push('GitHub reported "Bad credentials" (HTTP 401).');
-        }
-        detailLines.push(
-          'Auto-updates require a valid GitHub Personal Access Token (GH_TOKEN) with access to the holok-ai/desktop_updates repository.',
-        );
 
         dialog
           .showMessageBox({
             type: 'warning',
             title: 'Auto-Update Configuration Problem',
             message: 'The application could not check for updates.',
-            detail: detailLines.join('\n'),
+            detail:
+              'GitHub reported "Bad credentials" (HTTP 401).\n\nThis may indicate a problem with the update repository configuration. Please contact support if this persists.',
             buttons: ['OK'],
             defaultId: 0,
           })
           .catch((dialogError) => {
-            updaterLog.error('Error showing GH_TOKEN warning dialog:', dialogError);
+            updaterLog.error('Error showing warning dialog:', dialogError);
           });
+      } else {
+        // For other errors (network, download issues), log but don't close modal
+        // The modal should stay open during mandatory updates to show progress
+        updaterLog.warn('Non-fatal auto-updater error (keeping modal open):', message);
       }
     });
 
     autoUpdater.on('download-progress', (progress) => {
-      updaterLog.debug(`Download progress: ${progress.percent.toFixed(2)}%`);
+      const percent = progress.percent.toFixed(2);
+      updaterLog.info(`Download progress: ${percent}%`);
+      // Keep modal open during download - it will close when update is downloaded and installed
     });
 
     autoUpdater.on('update-downloaded', (info) => {
@@ -413,9 +415,13 @@ class AutoUpdaterService {
     if (this.currentUpdateMetadata.mandatory) {
       updaterLog.info(`Mandatory update detected: ${newVersion}`);
       this.showUpdatingModal(newVersion);
+
+      // Start download - keep modal open even if there are errors
+      // The error handler will only close it for fatal errors (auth issues)
       autoUpdater.downloadUpdate().catch((error: unknown) => {
         updaterLog.error('downloadUpdate failed', error);
-        this.closeUpdatingModal();
+        // Don't close modal here - let the error handler decide
+        // For mandatory updates, we want to keep trying
       });
     } else {
       // Optional update - only show prompt if auto-update is enabled

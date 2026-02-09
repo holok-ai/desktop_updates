@@ -32,6 +32,8 @@ const protocolLog = createScopedLogger('protocol');
 const appLog = createScopedLogger('app');
 
 appLog.info('Starting application');
+appLog.info(`App is packaged: ${app.isPackaged}`);
+appLog.info(`App version: ${app.getVersion()}`);
 
 /**
  * Main Electron Process
@@ -484,7 +486,9 @@ void app.whenReady().then(() => {
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 
+  appLog.info('Initializing auto-updater service...');
   autoUpdaterService.initialize();
+  appLog.info('Checking for updates...');
   autoUpdaterService.checkForUpdates();
 
   // Create the application menu

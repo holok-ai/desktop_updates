@@ -329,18 +329,39 @@ try {
       const tagName = `v${newVersion}`;
       const apiUrl = `https://api.github.com/repos/holok-ai/desktop_updates/releases/tags/${tagName}`;
 
-      // First, get the current release
-      const getResponse = await fetch(apiUrl, {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          Authorization: `token ${process.env.GH_TOKEN}`,
-        },
-      });
+      // Wait a moment for GitHub to fully create the release
+      console.log('   Waiting for release to be fully created...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Retry logic: try up to 3 times
+      let getResponse;
+      let retries = 3;
+      while (retries > 0) {
+        getResponse = await fetch(apiUrl, {
+          headers: {
+            Accept: 'application/vnd.github.v3+json',
+            Authorization: `token ${process.env.GH_TOKEN}`,
+          },
+        });
+
+        if (getResponse.ok) {
+          break;
+        }
+
+        retries--;
+        if (retries > 0) {
+          console.log(
+            `   Release not ready yet, retrying in 2 seconds... (${retries} attempts left)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
 
       if (!getResponse.ok) {
         console.warn(
           `⚠️  Warning: Could not fetch release (${getResponse.status}). You may need to manually add [MANDATORY] to the release notes.`,
         );
+        console.warn(`   Run: node scripts/mark-mandatory.js ${newVersion}`);
       } else {
         const release = await getResponse.json();
         const currentBody = release.body || '';
