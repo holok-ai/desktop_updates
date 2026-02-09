@@ -68,6 +68,7 @@
       }
       thread = t;
       threadTitle = t.title || 'Untitled Thread';
+      console.log('[ThreadPage] Thread loaded - modelId:', t.metadata?.modelId, 'modelAccessName:', t.metadata?.modelAccessName);
 
       // Load messages for this thread
       const msgs = await threadService.getMessages(id);

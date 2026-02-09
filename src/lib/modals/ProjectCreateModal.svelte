@@ -1,123 +1,60 @@
 <script lang="ts">
-  import BaseModal from './BaseModal.svelte';
   import { projectService } from '$lib/services/project.service';
-  import MokuColorGrid from '$lib/components/common/MokuColorGrid.svelte';
-  import MokuIconPicker from '$lib/components/common/MokuIconPicker.svelte';
   import {
     MOKU_COLOR_PALETTE,
     VALID_PROJECT_ICONS,
   } from '$lib/constants/project-validation';
-  import type { Project } from '$lib/types/project.type';
 
   let {
     show = $bindable(false),
-    project = $bindable<Project | null>(null),
-  }: { show: boolean; project: Project | null } = $props();
+  }: { show: boolean } = $props();
 
   let projectName = $state('');
   let projectDescription = $state('');
+  let projectType = $state<'personal' | 'shared'>('personal');
   let selectedColor = $state<(typeof MOKU_COLOR_PALETTE)[number]>(MOKU_COLOR_PALETTE[0]);
   let selectedIcon = $state<(typeof VALID_PROJECT_ICONS)[number]>(VALID_PROJECT_ICONS[0]);
   let isSubmitting = $state(false);
   let error = $state('');
 
-  const isEditMode = $derived(!!project);
-  const modalTitle = $derived(isEditMode ? 'Edit Project' : 'Create New Project');
-  const submitLabel = $derived(
-    isSubmitting
-      ? isEditMode
-        ? 'Saving...'
-        : 'Creating...'
-      : isEditMode
-        ? 'Save Changes'
-        : 'Create Project',
-  );
-
   let lastShownState = $state(false);
 
   $effect(() => {
-    // Only initialize when modal opens (transitions from false to true)
+    // Initialize when modal opens (transitions from false to true)
     if (show && !lastShownState) {
-      if (project) {
-        console.log('[ProjectFormModal] Initializing with project:', {
-          id: project.id,
-          title: project.title,
-          metadata: project.metadata,
-          metadataType: typeof project.metadata,
-          metadataKeys: project.metadata ? Object.keys(project.metadata) : [],
-        });
-        
-        projectName = project.title || "";
-        projectDescription = project.description || '';
-        
-        // Initialize color and icon from metadata
-        // Metadata is Record<string, unknown> so we need to check carefully
-        if (project.metadata && typeof project.metadata === 'object') {
-          const metadataColor = project.metadata['color'];
-          const metadataIcon = project.metadata['icon'];
-          
-          if (typeof metadataColor === 'string' && metadataColor) {
-            console.log('[ProjectFormModal] Setting color from metadata:', metadataColor);
-            selectedColor = metadataColor as (typeof MOKU_COLOR_PALETTE)[number];
-          } else {
-            console.log('[ProjectFormModal] Using default color, metadata.color:', metadataColor);
-            selectedColor = MOKU_COLOR_PALETTE[0];
-          }
-          
-          if (typeof metadataIcon === 'string' && metadataIcon) {
-            console.log('[ProjectFormModal] Setting icon from metadata:', metadataIcon);
-            selectedIcon = metadataIcon as (typeof VALID_PROJECT_ICONS)[number];
-          } else {
-            console.log('[ProjectFormModal] Using default icon, metadata.icon:', metadataIcon);
-            selectedIcon = VALID_PROJECT_ICONS[0];
-          }
-        } else {
-          console.log('[ProjectFormModal] No metadata object, using defaults');
-          selectedColor = MOKU_COLOR_PALETTE[0];
-          selectedIcon = VALID_PROJECT_ICONS[0];
-        }
-      } else {
-        projectName = '';
-        projectDescription = '';
-        selectedColor = MOKU_COLOR_PALETTE[0];
-        selectedIcon = VALID_PROJECT_ICONS[0];
-      }
+      projectName = '';
+      projectDescription = '';
+      projectType = 'personal';
+      selectedColor = MOKU_COLOR_PALETTE[0];
+      selectedIcon = VALID_PROJECT_ICONS[0];
+      error = '';
     }
     lastShownState = show;
   });
 
-  async function handleSubmit() {
-    if (!projectName.trim()) {
-      error = 'Project name is required';
-      return;
-    }
+  async function handleSubmit(e: Event) {
+    e.preventDefault();
+    if (!projectName.trim() || isSubmitting) return;
 
     isSubmitting = true;
     error = '';
 
     try {
-      if (isEditMode && project) {
-        await projectService.updateProject(project.id, {
-          title: projectName.trim(),
-          description: projectDescription.trim() || undefined,
-          metadata: {
-            color: selectedColor,
-            icon: selectedIcon,
-          },
-        });
-      } else {
-        // This modal is only for editing; project creation happens via ProjectFormPanel (inline create flow).
-        throw new Error('Cannot create projects from this modal');
-      }
+      await projectService.createProject({
+        title: projectName.trim(),
+        description: projectDescription.trim() || undefined,
+        type: projectType,
+        metadata: {
+          color: selectedColor,
+          icon: selectedIcon,
+        },
+      });
 
       projectName = '';
       projectDescription = '';
       show = false;
     } catch (err) {
-      error =
-        err instanceof Error
-          ? err.message
-          : `Failed to ${isEditMode ? 'update' : 'create'} project`;
+      error = err instanceof Error ? err.message : 'Failed to create project';
     } finally {
       isSubmitting = false;
     }
@@ -129,91 +66,260 @@
     error = '';
     show = false;
   }
-</script>
 
-<BaseModal
-  bind:show
-  title={modalTitle}
-  {error}
-  {isSubmitting}
-  {submitLabel}
-  submitDisabled={!projectName.trim()}
-  oncancel={handleCancel}
-  onsubmit={handleSubmit}
->
-  {#snippet content()}
-    <form
-      onsubmit={(e) => {
-        e.preventDefault();
-        handleSubmit();
-      }}
-    >
-      <div class="form-group">
-        <label for="project-name">Project Name *</label>
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          id="project-name"
-          type="text"
-          bind:value={projectName}
-          placeholder="Enter project name"
-          disabled={isSubmitting}
-          autofocus
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="project-description">Description (optional)</label>
-        <textarea
-          id="project-description"
-          bind:value={projectDescription}
-          placeholder="Enter project description"
-          rows="3"
-          disabled={isSubmitting}
-        ></textarea>
-      </div>
-
-      <!-- Appearance Section -->
-      <div class="form-group">
-        <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Appearance</label>
-        <div class="appearance-section">
-          <!-- Color Selector -->
-          <div class="appearance-field">
-            <span class="field-subtitle">Color</span>
-            <MokuColorGrid bind:value={selectedColor} disabled={isSubmitting} />
-          </div>
-
-          <!-- Icon Selector -->
-          <div class="appearance-field">
-            <span class="field-subtitle">Icon</span>
-            <MokuIconPicker bind:value={selectedIcon} disabled={isSubmitting} />
-          </div>
-        </div>
-      </div>
-
-      {#if isEditMode && project}
-        <div class="form-group">
-          <span class="field-label">Project Type</span>
-          <div class="read-only-field">
-            <span class={project.type === 'shared' ? 'type-badge shared' : 'type-badge personal'}>
-              {project.type === 'shared' ? 'Shared' : 'Personal'}
-            </span>
-          </div>
-          <div class="field-hint">Project type cannot be changed after creation.</div>
-        </div>
-      {/if}
-    </form>
-  {/snippet}
-</BaseModal>
-
-<style>
-  /* Component-specific styles only - modal infrastructure handled by BaseModal */
-
-  .form-group {
-    margin-bottom: 16px;
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && !isSubmitting) {
+      handleCancel();
+    }
   }
 
-  label {
+  function focus(node: HTMLInputElement) {
+    node.focus();
+  }
+</script>
+
+<svelte:window onkeydown={handleKeydown} />
+
+{#if show}
+  <div
+    class="dialog-overlay"
+    onclick={handleCancel}
+    onkeydown={(e) => e.key === 'Escape' && handleCancel()}
+    role="button"
+    tabindex="-1"
+    aria-label="Close modal"
+  >
+    <div
+      class="dialog"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-labelledby="create-project-dialog-title"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="dialog-header">
+        <h2 id="create-project-dialog-title">New Project</h2>
+        <button
+          class="close-button"
+          onclick={handleCancel}
+          aria-label="Close dialog"
+          type="button"
+          disabled={isSubmitting}
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+
+      <form class="dialog-content" onsubmit={handleSubmit}>
+        {#if error}
+          <div class="error-banner" role="alert">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{error}</span>
+          </div>
+        {/if}
+
+        <div class="form-group">
+          <label for="project-name">Name *</label>
+          <input
+            id="project-name"
+            type="text"
+            bind:value={projectName}
+            placeholder="New project name"
+            disabled={isSubmitting}
+            use:focus
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="project-description">Description</label>
+          <textarea
+            id="project-description"
+            bind:value={projectDescription}
+            placeholder="Purpose or description"
+            rows="3"
+            disabled={isSubmitting}
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <!-- svelte-ignore a11y_label_has_associated_control -->
+          <label>Type</label>
+          <div class="project-type-selector">
+            <button
+              type="button"
+              class="type-button"
+              class:selected={projectType === 'personal'}
+              onclick={() => projectType = 'personal'}
+              disabled={isSubmitting}
+            >
+              <i class="pi pi-user"></i>
+              <div class="type-info">
+                <div class="type-title">Personal</div>
+                <div class="type-desc">Only visible to you</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              class="type-button"
+              class:selected={projectType === 'shared'}
+              onclick={() => projectType = 'shared'}
+              disabled={isSubmitting}
+            >
+              <i class="pi pi-users"></i>
+              <div class="type-info">
+                <div class="type-title">Shared</div>
+                <div class="type-desc">Collaborate with team members</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <!-- svelte-ignore a11y_label_has_associated_control -->
+          <label>Appearance</label>
+          <div class="appearance-section">
+            <div class="appearance-field">
+              <span class="field-subtitle">Color</span>
+              <select
+                bind:value={selectedColor}
+                disabled={isSubmitting}
+                class="color-dropdown"
+                style="background-color: {selectedColor}; color: white;"
+              >
+                {#each MOKU_COLOR_PALETTE as color}
+                  <option value={color} style="background-color: {color}; color: white;">
+                    {color}
+                  </option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="appearance-field">
+              <span class="field-subtitle">Icon</span>
+              <select
+                bind:value={selectedIcon}
+                disabled={isSubmitting}
+                class="icon-dropdown"
+              >
+                {#each VALID_PROJECT_ICONS as icon}
+                  <option value={icon}>
+                    {icon}
+                  </option>
+                {/each}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isSubmitting}>
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary" disabled={!projectName.trim() || isSubmitting}>
+            {isSubmitting ? 'Creating...' : 'Create Project'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+
+  .dialog {
+    background: var(--surface-main);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 715px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  }
+
+  .dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--surface-main);
+    z-index: 1;
+  }
+
+  .dialog-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .close-button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    font-size: 16px;
+  }
+
+  .close-button i {
+    font-size: 16px;
+  }
+
+  .close-button:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .close-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .dialog-content {
+    padding: 24px;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  .error-banner i {
+    font-size: 16px;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
     display: block;
     margin-bottom: 8px;
     font-size: 14px;
@@ -250,55 +356,70 @@
     font-family: inherit;
   }
 
-  .field-label {
-    display: block;
-    margin-bottom: 8px;
+  .project-type-selector {
+    display: flex;
+    gap: 12px;
+  }
+
+  .type-button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface-overlay);
+    border: 2px solid var(--surface-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+
+  .type-button:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    background: var(--surface-hover);
+  }
+
+  .type-button.selected {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  }
+
+  .type-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .type-button i {
+    font-size: 24px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+
+  .type-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .type-title {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-primary);
   }
 
-  .read-only-field {
-    padding: 10px 12px;
-    background: var(--surface-overlay);
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-  }
-
-  .type-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .type-badge.personal {
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    color: #3b82f6;
-  }
-
-  .type-badge.shared {
-    background: rgba(168, 85, 247, 0.1);
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    color: #a855f7;
-  }
-
-  .field-hint {
-    margin-top: 6px;
+  .type-desc {
     font-size: 12px;
     color: var(--text-secondary);
-    font-style: italic;
   }
 
   .appearance-section {
     display: flex;
-    flex-direction: column;
-    gap: 20px;
+    gap: 12px;
   }
 
   .appearance-field {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -308,5 +429,77 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--text-secondary);
+  }
+
+  .color-dropdown,
+  .icon-dropdown {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .icon-dropdown {
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+    text-transform: capitalize;
+  }
+
+  .color-dropdown:focus,
+  .icon-dropdown:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+
+  .color-dropdown:disabled,
+  .icon-dropdown:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  .dialog-actions button {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  .btn-primary {
+    background: #3b82f6;
+    border: none;
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

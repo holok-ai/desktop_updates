@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ThreadsPage from '$lib/pages/ThreadsPage.svelte';
+  import ThreadsPage from '$lib/pages/ThreadListPage.svelte';
 </script>
 
 <ThreadsPage />

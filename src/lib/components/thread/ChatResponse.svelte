@@ -15,6 +15,8 @@
     tools?: Array<{ name: string; status: string }>;
     /** File outputs from the response */
     files?: string[];
+    /** Font size in pixels from settings */
+    fontSize?: number;
   }
 
   let {
@@ -23,6 +25,7 @@
     isStreaming = false,
     tools = [],
     files = [],
+    fontSize = 14,
   }: Props = $props();
 
   let alignClass = $derived.by(() => {
@@ -41,8 +44,8 @@
 <div class="chat-response {alignClass}">
   <div class="response-bubble">
     {#if content}
-      <div class="response-text">
-        <MarkdownRenderer {content} enableCopy={true} />
+      <div class="response-text" style="font-size: {fontSize}px">
+        <MarkdownRenderer {content} {fontSize} enableCopy={true} />
       </div>
     {/if}
 
@@ -115,7 +118,6 @@
   }
 
   .response-text {
-    font-size: 0.9rem;
     line-height: 1.5;
     color: var(--text-primary, #111);
   }

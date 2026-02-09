@@ -552,7 +552,7 @@ export interface ChatAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
-  onToken: (callback: (data: { threadId: string; token: string }) => void) => void;
+  onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void) => () => void;
 
   // Stop listening to token events
   offToken: () => void;
@@ -746,10 +746,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:send', threadId, request),
 
     // 3. Listen for streaming tokens (event-based)
-    onToken: (callback: (data: { threadId: string; token: string }) => void) => {
-      ipcRenderer.on('chat:token', (_event, data: { threadId: string; token: string }) =>
-        callback(data),
-      );
+    onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: { threadId: string; branchId: string; token: string }): void =>
+        callback(data);
+      ipcRenderer.on('chat:token', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.off('chat:token', subscription);
+      };
     },
 
     // 4. Stop listening to token events

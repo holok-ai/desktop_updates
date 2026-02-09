@@ -59,9 +59,11 @@
   interface Props {
     content: string;
     enableCopy?: boolean;
+    /** Font size in pixels from settings - caps maximum size for all elements */
+    fontSize?: number;
   }
 
-  let { content, enableCopy = true }: Props = $props();
+  let { content, enableCopy = true, fontSize = 14 }: Props = $props();
   let renderedHtml = $state('');
   let containerEl: HTMLDivElement;
 
@@ -389,20 +391,19 @@
   in the renderMarkdown() function before rendering. This prevents XSS attacks
   while allowing necessary HTML formatting for markdown content.
 -->
-<div class="markdown-content" bind:this={containerEl}>
+<div class="markdown-content" bind:this={containerEl} style="--max-font-size: {fontSize}px">
   {@html renderedHtml}
 </div>
 
 <style>
   .markdown-content {
     line-height: 1.6;
-    font-size: 0.95rem;
     word-wrap: break-word;
   }
 
-  /* Headers */
+  /* Headers - capped at max-font-size setting */
   .markdown-content :global(h1) {
-    font-size: 1.8rem;
+    font-size: min(1.8rem, var(--max-font-size));
     font-weight: 700;
     margin: 1.5rem 0 1rem;
     border-bottom: 2px solid var(--border-sidebar, #ddd);
@@ -410,7 +411,7 @@
   }
 
   .markdown-content :global(h2) {
-    font-size: 1.5rem;
+    font-size: min(1.5rem, var(--max-font-size));
     font-weight: 600;
     margin: 1.25rem 0 0.75rem;
     border-bottom: 1px solid var(--border-sidebar, #eee);
@@ -418,20 +419,20 @@
   }
 
   .markdown-content :global(h3) {
-    font-size: 1.3rem;
+    font-size: min(1.3rem, var(--max-font-size));
     font-weight: 600;
     margin: 1rem 0 0.5rem;
   }
 
   .markdown-content :global(h4) {
-    font-size: 1.1rem;
+    font-size: min(1.1rem, var(--max-font-size));
     font-weight: 600;
     margin: 0.75rem 0 0.5rem;
   }
 
   .markdown-content :global(h5),
   .markdown-content :global(h6) {
-    font-size: 1rem;
+    font-size: min(1rem, var(--max-font-size));
     font-weight: 600;
     margin: 0.5rem 0 0.25rem;
   }

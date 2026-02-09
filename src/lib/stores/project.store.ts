@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type { Project } from '../types/project.type.js';
 import type { GUID } from '../types/app.type.js';
+import { projectService } from '../services/project.service.js';
 
 interface ProjectStore {
   subscribe: (run: (value: Project[]) => void) => () => void;
@@ -8,6 +9,7 @@ interface ProjectStore {
   addProject: (project: Project) => void;
   updateProject: (updatedProject: Project) => void;
   deleteProject: (projectId: GUID) => void;
+  loadProject: (projectId: GUID) => Promise<Project | null>;
 }
 
 function createProjectStore(): ProjectStore {
@@ -34,6 +36,28 @@ function createProjectStore(): ProjectStore {
     },
     deleteProject: (projectId: GUID): void => {
       update((projects) => projects.filter((p) => p.id !== projectId));
+    },
+    loadProject: async (projectId: GUID): Promise<Project | null> => {
+      // Fetch full project with members and files from backend
+      const project = await projectService.getProjectById(projectId);
+
+      if (project) {
+        // Update store with the full project details
+        update((projects) => {
+          const index = projects.findIndex((p) => p.id === projectId);
+          if (index >= 0) {
+            // Replace existing project
+            const updated = [...projects];
+            updated[index] = project;
+            return updated;
+          } else {
+            // Add new project to store
+            return [...projects, project];
+          }
+        });
+      }
+
+      return project;
     },
   };
 }

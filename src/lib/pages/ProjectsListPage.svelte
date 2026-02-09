@@ -7,9 +7,11 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
+  import ProjectCreateModal from '$lib/modals/ProjectCreateModal.svelte';
 
   let isLoading = $state(true);
   let errorMessage = $state<string | null>(null);
+  let showCreateModal = $state(false);
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -50,7 +52,7 @@
   }
 
   function handleCreateProject() {
-    push(`${ROUTE.PROJECTS}?create=true`);
+    showCreateModal = true;
   }
 </script>
 
@@ -109,6 +111,8 @@
     </div>
   {/if}
 </div>
+
+<ProjectCreateModal bind:show={showCreateModal} />
 
 <style>
   .projects-page {

@@ -34,8 +34,14 @@
     /** Chat alignment layout */
     chatLayout: ChatLayout;
 
+    /** Font size in pixels from settings */
+    fontSize?: number;
+
     /** Gap between messages and command bars */
     commandGap?: number;
+
+    /** Branch ID for this message */
+    branchId?: string;
 
     /** Callback when copy is clicked on request */
     onCopyRequest?: () => void;
@@ -56,7 +62,9 @@
     tools = [],
     files = [],
     chatLayout,
+    fontSize = 14,
     commandGap = 4,
+    branchId,
     onCopyRequest,
     onCopyResponse,
     onRetry,
@@ -112,6 +120,8 @@
     {userName}
     {chatLayout}
     {attachments}
+    {fontSize}
+    {branchId}
   />
 
   <!-- Request commands (hover-reveal) -->
@@ -128,6 +138,7 @@
       {isStreaming}
       {tools}
       {files}
+      {fontSize}
     />
 
     <!-- Response commands (hover-reveal) -->

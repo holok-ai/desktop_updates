@@ -5,6 +5,8 @@
   import { threadService } from '$lib/services/thread.service';
   import { toastStore } from '$lib/services/toast.service';
   import { favorites } from '$lib/stores/favorite.store';
+  import ThreadRenameModal from '$lib/modals/ThreadRenameModal.svelte';
+  import ThreadDeleteModal from '$lib/modals/ThreadDeleteModal.svelte';
 
   interface Props {
     thread: Thread;
@@ -13,6 +15,8 @@
 
   let { thread, projectId = null }: Props = $props();
   let showMenu = $state(false);
+  let showRenameModal = $state(false);
+  let showDeleteModal = $state(false);
 
   const isFav = $derived($favorites.some((e) => e.id === thread.id));
 
@@ -59,8 +63,36 @@
   function handleRename(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
-    // TODO: Implement rename
-    console.log('Rename thread:', thread.id);
+    showRenameModal = true;
+  }
+
+  async function handleRenameConfirmed(event: CustomEvent<{ threadId: string; newTitle: string }>) {
+    const { threadId, newTitle } = event.detail;
+
+    try {
+      const result = await threadService.rename(threadId, newTitle);
+
+      if (result.success) {
+        toastStore.show('Thread renamed', { variant: 'success' });
+        showRenameModal = false;
+      } else {
+        // Handle validation errors
+        let errorMsg = result.error || 'Failed to rename thread';
+        if (result.code === 'TITLE_EMPTY') {
+          errorMsg = 'Thread title cannot be empty';
+        } else if (result.code === 'TITLE_TOO_LONG') {
+          errorMsg = 'Thread title is too long (max 100 characters)';
+        }
+        toastStore.show(errorMsg, { variant: 'error' });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename thread';
+      toastStore.show(errorMessage, { variant: 'error' });
+    }
+  }
+
+  function handleRenameCancel() {
+    showRenameModal = false;
   }
 
   function handleMove(event: MouseEvent) {
@@ -70,22 +102,26 @@
     console.log('Move thread:', thread.id);
   }
 
-  async function handleDelete(event: MouseEvent) {
+  function handleDelete(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
+    showDeleteModal = true;
+  }
 
-    const threadTitle = thread.title || 'Untitled Thread';
-    const confirmed = confirm(`Are you sure you want to delete "${threadTitle}"?`);
-
-    if (!confirmed) return;
-
+  async function handleDeleteConfirmed() {
     try {
       await threadService.delete(thread.id);
       toastStore.show('Thread deleted successfully', { variant: 'success' });
+      showDeleteModal = false;
     } catch (error) {
       console.error('Failed to delete thread:', error);
       toastStore.show('Failed to delete thread', { variant: 'error' });
+      showDeleteModal = false;
     }
+  }
+
+  function handleDeleteCancel() {
+    showDeleteModal = false;
   }
 
   function handleClickOutside(event: MouseEvent) {
@@ -114,8 +150,7 @@
     {#if showMenu}
       <div class="context-menu" role="menu">
         <button class="menu-item" role="menuitem" onclick={handleToggleFavorite}>
-          <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}" style="margin-right: 6px; font-size: 12px;"></i>
-          <span>{isFav ? 'Remove favorite' : 'Make favorite'}</span>
+          <span>{isFav ? 'Remove Favorite' : 'Make Favorite'}</span>
         </button>
         <button class="menu-item" role="menuitem" onclick={handleRename}>
           <span>Rename</span>
@@ -131,6 +166,24 @@
     {/if}
   </div>
 </div>
+
+{#if showRenameModal}
+  <ThreadRenameModal
+    threadId={thread.id}
+    currentTitle={thread.title || 'Untitled Thread'}
+    on:confirm={handleRenameConfirmed}
+    on:cancel={handleRenameCancel}
+  />
+{/if}
+
+{#if showDeleteModal}
+  <ThreadDeleteModal
+    threadId={thread.id}
+    threadTitle={thread.title || 'Untitled Thread'}
+    on:confirm={handleDeleteConfirmed}
+    on:cancel={handleDeleteCancel}
+  />
+{/if}
 
 <style>
   .thread-item-container {

@@ -14,6 +14,10 @@
     chatLayout: ChatLayout;
     /** Attachment filenames (display only for now) */
     attachments?: string[];
+    /** Font size in pixels from settings */
+    fontSize?: number;
+    /** Current branch ID for this request */
+    branchId?: string;
   }
 
   let {
@@ -23,6 +27,8 @@
     userName = 'You',
     chatLayout,
     attachments = [],
+    fontSize = 14,
+    branchId,
   }: Props = $props();
 
   let alignClass = $derived.by(() => {
@@ -39,7 +45,7 @@
 
 <div class="chat-request {alignClass}">
   <div class="request-bubble">
-    <div class="prompt-text">{content}</div>
+    <div class="prompt-text" style="font-size: {fontSize}px">{content}</div>
 
     {#if attachments.length > 0}
       <div class="attachments" role="list" aria-label="Attachments">
@@ -91,7 +97,6 @@
   }
 
   .prompt-text {
-    font-size: 0.9rem;
     line-height: 1.5;
     color: var(--text-primary, #111);
     white-space: pre-wrap;

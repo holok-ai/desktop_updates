@@ -42,11 +42,11 @@
 
   // Count members by role
   const memberCounts = $derived.by(() => {
-    if (!project?.members) return { owner: 0, editor: 0, readonly: 0 };
+    if (!project?.members) return { owner: 0, editor: 0, viewer: 0 };
 
-    const counts = { owner: 0, editor: 0, readonly: 0 };
+    const counts = { owner: 0, editor: 0, viewer: 0 };
     project.members.forEach((member: any) => {
-      const role = member.memberRole?.toLowerCase() || 'readonly';
+      const role = member.memberRole?.toLowerCase() || 'viewer';
       if (role in counts) {
         counts[role as keyof typeof counts]++;
       }
@@ -58,23 +58,35 @@
   const memberCountsDisplay = $derived.by(() => {
     const lines: string[] = [];
     if (memberCounts.owner > 0) {
-      lines.push(`${memberCounts.owner} ${memberCounts.owner === 1 ? 'administrator' : 'administrators'}`);
+      lines.push(`${memberCounts.owner} ${memberCounts.owner === 1 ? 'owner' : 'owners'}`);
     }
     if (memberCounts.editor > 0) {
       lines.push(`${memberCounts.editor} ${memberCounts.editor === 1 ? 'editor' : 'editors'}`);
     }
-    if (memberCounts.readonly > 0) {
-      lines.push(`${memberCounts.readonly} ${memberCounts.readonly === 1 ? 'viewer' : 'viewers'}`);
+    if (memberCounts.viewer > 0) {
+      lines.push(`${memberCounts.viewer} ${memberCounts.viewer === 1 ? 'viewer' : 'viewers'}`);
     }
     return lines;
   });
 
-  // Extract projectId from query string
+  // File and folder counts (initialized to 0 until files feature is implemented)
+  const fileCounts = $derived.by(() => {
+    return {
+      folders: 0,
+      files: 0,
+    };
+  });
+
+  // Extract projectId from query string and load full project
   $effect(() => {
     const params = new URLSearchParams($querystring);
     const id = params.get('projectId');
-    if (id) {
+    if (id && id !== projectId) {
       projectId = id;
+      // Load full project with members and files
+      projects.loadProject(id).catch((error) => {
+        console.error('Failed to load project:', error);
+      });
     }
   });
 
@@ -193,14 +205,6 @@
           <p class="project-description">{project.description}</p>
         {/if}
 
-        <div class="model-selector-wrapper">
-          <ModelSelector
-            bind:selectedModelId
-            label=""
-            on:select={handleModelSelect}
-          />
-        </div>
-
         <textarea
           class="prompt-input"
           bind:value={prompt}
@@ -209,6 +213,12 @@
         ></textarea>
 
         <div class="submit-wrapper">
+          <ModelSelector
+            bind:selectedModelId
+            label=""
+            allowMultipleSelections={false}
+            on:select={handleModelSelect}
+          />
           <button
             class="btn-holokai submit-button"
             onclick={handleSubmit}
@@ -253,7 +263,17 @@
 
         <button class="info-card clickable-card" onclick={handleFilesClick}>
           <h4>Files</h4>
-          <p class="coming-soon">More coming...</p>
+          {#if fileCounts.folders > 0 || fileCounts.files > 0}
+            <div class="file-counts">
+              <div class="file-count-line">{fileCounts.folders} {fileCounts.folders === 1 ? 'folder' : 'folders'}</div>
+              <div class="file-count-line">{fileCounts.files} {fileCounts.files === 1 ? 'file' : 'files'}</div>
+            </div>
+          {:else}
+            <div class="file-counts">
+              <div class="file-count-line">No folders</div>
+              <div class="file-count-line">No files</div>
+            </div>
+          {/if}
         </button>
 
         <button class="info-card clickable-card" onclick={handleInstructionsClick}>
@@ -276,7 +296,7 @@
     flex-direction: column;
     height: 100%;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 2rem 1.2rem;
     background: var(--surface-main);
   }
 
@@ -301,6 +321,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    margin-top: 5.5rem;
   }
 
   .title-row {
@@ -322,13 +343,25 @@
     width: 36px;
     height: 36px;
     border: none;
+    outline: none;
     background: transparent;
     border-radius: 6px;
     color: var(--text-secondary, #666);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s, color 0.15s, opacity 0.15s;
     flex-shrink: 0;
     font-size: 18px;
+    opacity: 0;
+  }
+
+  .favorite-star:focus,
+  .favorite-star:active {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .title-row:hover .favorite-star {
+    opacity: 1;
   }
 
   .favorite-star:hover {
@@ -338,6 +371,7 @@
 
   .favorite-star.is-favorited {
     color: #f59e0b;
+    opacity: 1;
   }
 
   .favorite-star.is-favorited:hover {
@@ -350,10 +384,6 @@
     line-height: 1.5;
     margin: 0 0 1.5rem 0;
     text-align: left;
-  }
-
-  .model-selector-wrapper {
-    margin-bottom: 1rem;
   }
 
   .prompt-input {
@@ -384,7 +414,9 @@
 
   .submit-wrapper {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
     margin-bottom: 2rem;
   }
 
@@ -464,6 +496,18 @@
   }
 
   .member-count-line {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .file-counts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .file-count-line {
     color: var(--text-primary);
     font-size: 0.875rem;
     line-height: 1.5;

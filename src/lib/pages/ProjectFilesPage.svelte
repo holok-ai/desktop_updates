@@ -35,10 +35,6 @@
 </script>
 
 <div class="project-files-page">
-  <header class="page-header">
-    <h1>Project Files</h1>
-  </header>
-
   <div class="page-content">
     {#if loading}
       <div class="loading-state">Loading files...</div>
@@ -59,19 +55,6 @@
     flex-direction: column;
     height: 100%;
     background: var(--surface-main, #fafafa);
-  }
-
-  .page-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--surface-border, #e0e0e0);
-    background: var(--surface-card, #fff);
-  }
-
-  .page-header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
   }
 
   .page-content {

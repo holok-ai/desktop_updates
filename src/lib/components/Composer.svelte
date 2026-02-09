@@ -1,21 +1,36 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import AttachmentPreview from './AttachmentPreview.svelte';
+  import ModelSelector from './common/ModelSelector.svelte';
   import type { Attachment } from '../../../src-shared/types/attachment.types';
+  import type { ModelDetails } from '../../../src-electron/preload';
   import { copyToInputStore, clearCopyToInput } from '$lib/services/clipboard.service';
 
   // Props from ChatPane slot
   interface Props {
-    sendMessage?: (text: string, attachments?: Attachment[]) => Promise<void>;
+    sendMessage?: (appSlug: string, modelIds: string[], text: string, attachments?: Attachment[]) => Promise<void>;
     isStreaming?: boolean;
     threadId?: string | null;
     disabled?: boolean;
     initialText?: string;
+    applicationSlug?: string;
+    modelId?: string;
   }
 
-  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '' }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '', applicationSlug, modelId }: Props = $props();
 
   let text = $state('');
+  let selectedApplicationSlug = $state('');
+  let selectedModelId = $state('');
+  let selectedModelIds = $state<string[]>([]); // Track all selected models
+
+  // Update local state when props change
+  $effect(() => {
+    if (applicationSlug) selectedApplicationSlug = applicationSlug;
+  });
+
+  $effect(() => {
+    if (modelId) selectedModelId = modelId;
+  });
 
   // Update text when initialText changes
   $effect(() => {
@@ -171,7 +186,7 @@
     }
 
     let payload = text.trim();
-    if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming) {
+    if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming || !selectedApplicationSlug || !selectedModelId) {
       return;
     }
 
@@ -207,7 +222,7 @@
       }
     }
 
-    await sendMessage(payload, []);
+    await sendMessage(selectedApplicationSlug, selectedModelIds.length > 0 ? selectedModelIds : [selectedModelId], payload, []);
   }
 
   // Keyboard shortcut: Cmd/Ctrl + U to attach file
@@ -216,6 +231,19 @@
       e.preventDefault();
       handleFileSelect();
     }
+  }
+
+  function handleModelSelect(e: CustomEvent<{
+    modelId: string;
+    modelDetails: ModelDetails;
+    appSlug: string;
+    modelSlug: string;
+    selectedModelIds: string[];
+  }>) {
+    selectedModelId = e.detail.modelId;
+    selectedModelIds = e.detail.selectedModelIds;
+    selectedApplicationSlug = e.detail.appSlug;
+    console.log('[Composer] Model selected - appSlug:', e.detail.appSlug, 'modelIds:', e.detail.selectedModelIds);
   }
 </script>
 
@@ -301,18 +329,31 @@
           <i class="pi pi-plus"></i>
         </button>
 
-        <button
-          class="btn-holokai send-button"
-          type="button"
-          onclick={send}
-          disabled={isStreaming || disabled}
-          aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-          aria-disabled={isStreaming || disabled}
-          class:sending={isStreaming}
-          data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
-        >
-          <i class="pi pi-arrow-up"></i>
-        </button>
+        <div class="model-and-send">
+          <div class="model-selector-wrapper">
+            <ModelSelector
+              bind:selectedModelId
+              label=""
+              dropdownDirection="up"
+              backgroundColor="var(--surface-card)"
+              allowMultipleSelections={true}
+              on:select={handleModelSelect}
+            />
+          </div>
+
+          <button
+            class="btn-holokai send-button"
+            type="button"
+            onclick={send}
+            disabled={isStreaming || disabled}
+            aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
+            aria-disabled={isStreaming || disabled}
+            class:sending={isStreaming}
+            data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+          >
+            <i class="pi pi-arrow-up"></i>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -320,22 +361,21 @@
       <div role="alert" class="error-message" aria-live="assertive">{validationError}</div>
     {/if}
 
-    <!-- Attachment previews outside the box -->
+    <!-- Attachment badges outside the box -->
     {#if selectedFiles.length > 0}
-      <div class="attachments-preview" role="list" aria-label="Selected attachments">
+      <div class="attachments-badges" role="list" aria-label="Selected attachments">
         {#each selectedFiles as file, index}
-          <AttachmentPreview
-            attachment={{
-              id: `temp-${index}`,
-              filename: file.name,
-              mimeType: file.type,
-              size: file.size,
-              uploadedAt: Date.now(),
-              status: 'success',
-            }}
-            mode="preview"
-            onRemove={() => removeFile(index)}
-          />
+          <div class="attachment-badge" role="listitem">
+            <span class="badge-filename">{file.name}</span>
+            <button
+              class="badge-remove"
+              onclick={() => removeFile(index)}
+              aria-label="Remove {file.name}"
+              type="button"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
         {/each}
       </div>
     {/if}
@@ -359,7 +399,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.375rem;
     width: 100%;
     background: var(--surface-main, #fafafa);
   }
@@ -369,10 +409,10 @@
     background: var(--surface-card, #fff);
     border: 1px solid var(--surface-border, #e0e0e0);
     border-radius: 12px;
-    padding: 1rem;
+    padding: 0.5rem 1rem 1rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.25rem;
     position: relative;
     transition: border-color 0.2s ease;
   }
@@ -457,7 +497,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 0.5rem;
+  }
+
+  .model-and-send {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .model-selector-wrapper {
+    display: flex;
+    align-items: center;
   }
 
   .attach-icon-button {
@@ -524,10 +574,54 @@
     width: 90%;
   }
 
-  .attachments-preview {
+  .attachments-badges {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.5rem;
     width: 90%;
+  }
+
+  .attachment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--surface-hover, #f0f0f0);
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    max-width: 200px;
+  }
+
+  .badge-filename {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .badge-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .badge-remove:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+
+  .badge-remove i {
+    font-size: 10px;
   }
 </style>

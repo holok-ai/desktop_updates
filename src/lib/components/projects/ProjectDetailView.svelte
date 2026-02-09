@@ -11,8 +11,8 @@
   import ProjectMembersTab from '$lib/components/projects/detail-tabs/ProjectMembersTab.svelte';
   import ProjectFilesTab from '$lib/components/projects/detail-tabs/ProjectFilesTab.svelte';
   import ProjectSettingsTab from '$lib/components/projects/detail-tabs/ProjectSettingsTab.svelte';
-  import ThreadRenameModal from '$lib/components/common/ThreadRenameModal.svelte';
-  import ThreadDeleteModal from '$lib/components/common/ThreadDeleteModal.svelte';
+  import ThreadRenameModal from '$lib/modals/ThreadRenameModal.svelte';
+  import ThreadDeleteModal from '$lib/modals/ThreadDeleteModal.svelte';
 
   // Selected project from store
   const project = $derived($selectedProjectStore);

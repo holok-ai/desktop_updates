@@ -51,18 +51,6 @@
 </script>
 
 <div class="project-instructions-page">
-  <header class="page-header">
-    <h1>Project Instructions</h1>
-    <div class="header-actions">
-      {#if isEditing}
-        <button class="btn-secondary" onclick={() => (isEditing = false)}>Cancel</button>
-        <button class="btn-primary" onclick={saveInstructions}>Save</button>
-      {:else}
-        <button class="btn-primary" onclick={() => (isEditing = true)}>Edit</button>
-      {/if}
-    </div>
-  </header>
-
   <div class="page-content">
     {#if loading}
       <div class="loading-state">Loading instructions...</div>
@@ -96,27 +84,6 @@
     flex-direction: column;
     height: 100%;
     background: var(--surface-main, #fafafa);
-  }
-
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--surface-border, #e0e0e0);
-    background: var(--surface-card, #fff);
-  }
-
-  .page-header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 0.5rem;
   }
 
   .page-content {

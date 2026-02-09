@@ -77,14 +77,6 @@
 <CreatePageLayout>
   {#snippet form()}
     <form class="add-thread-form" onsubmit={handleSubmit} aria-label="Create New Thread">
-      <div class="form-group model-selector-group">
-        <ModelSelector
-          bind:selectedModelId
-          label=""
-          on:select={handleModelSelectorSelect}
-        />
-      </div>
-
       <div class="form-group prompt-group">
         <textarea
           bind:this={promptTextarea}
@@ -98,14 +90,23 @@
       </div>
 
       <div class="form-actions">
-        <button
-          type="submit"
-          class="btn-holokai send-button"
-          aria-label="Send message"
-          data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
-        >
-          <i class="pi pi-arrow-up"></i>
-        </button>
+        <div class="model-and-send">
+          <ModelSelector
+            bind:selectedModelId
+            label=""
+            allowMultipleSelections={false}
+            on:select={handleModelSelectorSelect}
+          />
+
+          <button
+            type="submit"
+            class="btn-holokai send-button"
+            aria-label="Send message"
+            data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+          >
+            <i class="pi pi-arrow-up"></i>
+          </button>
+        </div>
       </div>
     </form>
   {/snippet}
@@ -152,6 +153,12 @@
     gap: var(--content-padding);
     justify-content: flex-end;
     margin-top: 0.5rem;
+  }
+
+  .model-and-send {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .send-button {

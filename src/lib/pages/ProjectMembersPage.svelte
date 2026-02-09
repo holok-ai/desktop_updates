@@ -144,9 +144,33 @@
     }
   }
 
-  function handleBackToProject() {
-    if (projectId) {
-      push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+  async function handleAddSingleMember(userId: string, role: 'viewer' | 'editor'): Promise<void> {
+    if (!project) {
+      return;
+    }
+
+    console.log(`[ProjectMembersPage] Adding member ${userId} as ${role}`);
+
+    try {
+      const results = await projectService.addMembers(project.id, [userId], role);
+
+      if (results[0]?.success) {
+        console.log(`[ProjectMembersPage] Successfully added member as ${role}`);
+
+        // Clear search
+        searchTerm = '';
+        searchResults = [];
+        showDropdown = false;
+
+        // Reload project to update members list
+        if (projectId) {
+          await loadProject(projectId);
+        }
+      } else {
+        console.error('[ProjectMembersPage] Failed to add member:', results[0]);
+      }
+    } catch (error) {
+      console.error('[ProjectMembersPage] Failed to add member:', error);
     }
   }
 </script>
@@ -154,15 +178,6 @@
 <svelte:window onclick={handleClickOutside} />
 
 <div class="project-members-page">
-  <header class="page-header">
-    <div class="header-content">
-      <button class="back-button" onclick={handleBackToProject} aria-label="Back to project">
-        <i class="pi pi-arrow-left"></i>
-      </button>
-      <h1>Project Members</h1>
-    </div>
-  </header>
-
   <div class="page-content">
     {#if loading}
       <div class="loading-state">Loading members...</div>
@@ -191,9 +206,6 @@
                   <div class="member-name">{member.userName}</div>
                   <div class="member-email">{member.email}</div>
                 </div>
-                <div class="member-role">
-                  <span class="role-badge role-{member.memberRole.toLowerCase()}">{member.memberRole}</span>
-                </div>
                 {#if member.memberRole.toLowerCase() !== 'owner'}
                   <button
                     class="delete-member-btn"
@@ -204,19 +216,17 @@
                     <i class="pi pi-trash"></i>
                   </button>
                 {/if}
+                <div class="member-role">
+                  <span class="role-badge role-{member.memberRole.toLowerCase()}">{member.memberRole}</span>
+                </div>
               </div>
             {/each}
           </div>
 
           {#if project.type === 'shared'}
             <div class="add-member-section">
-              <div class="label-and-buttons">
-                <label for="user-search" class="find-user-label">Find user(s):</label>
-                <div class="button-column">
-                  <button class="add-button add-viewer" onclick={() => handleAddMembers('viewer')} disabled={selectedUsers.size === 0}>Add Viewer</button>
-                  <button class="add-button add-editor" onclick={() => handleAddMembers('editor')} disabled={selectedUsers.size === 0}>Add Editor</button>
-                </div>
-              </div>
+              <label for="user-search" class="find-user-label">Find user(s):</label>
+
               <div class="search-container">
                 <input
                   id="user-search"
@@ -246,16 +256,25 @@
                     {:else}
                       {#each searchResults as user (user.id)}
                         <div class="dropdown-item-wrapper">
-                          <label class="dropdown-item">
-                            <input
-                              type="checkbox"
-                              checked={selectedUsers.has(user.id)}
-                              onchange={(e) => handleUserCheckboxChange(user, (e.target as HTMLInputElement).checked)}
-                            />
+                          <div class="dropdown-item">
                             <div class="user-info">
                               <span class="user-display">{user.displayName} - {user.email}</span>
                             </div>
-                          </label>
+                            <div class="user-actions">
+                              <button
+                                class="add-button add-viewer"
+                                onclick={() => handleAddSingleMember(user.id, 'viewer')}
+                              >
+                                Add Viewer
+                              </button>
+                              <button
+                                class="add-button add-editor"
+                                onclick={() => handleAddSingleMember(user.id, 'editor')}
+                              >
+                                Add Editor
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       {/each}
                     {/if}
@@ -276,44 +295,6 @@
     flex-direction: column;
     height: 100%;
     background: var(--surface-main, #fafafa);
-  }
-
-  .page-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--surface-border, #e0e0e0);
-    background: var(--surface-card, #fff);
-  }
-
-  .header-content {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .back-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
-  }
-
-  .back-button:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
-  }
-
-  .page-header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
   }
 
   .page-content {
@@ -455,18 +436,18 @@
   }
 
   .role-badge.role-owner {
-    background: #fef2f2;
-    color: #dc2626;
+    background: #dbeafe;
+    color: var(--text-primary);
   }
 
   .role-badge.role-editor {
-    background: #fffbeb;
-    color: #d97706;
+    background: #d1f4e0;
+    color: var(--text-primary);
   }
 
   .role-badge.role-viewer {
     background: #eff6ff;
-    color: #2563eb;
+    color: var(--text-primary);
   }
 
   .empty-state {
@@ -499,43 +480,36 @@
   }
 
   .add-member-section {
-    display: grid;
-    grid-template-columns: auto 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
     margin-top: 24px;
     padding-top: 24px;
     border-top: 1px solid var(--surface-border);
-    align-items: start;
-  }
-
-  .label-and-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .button-column {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: flex-start;
   }
 
   .find-user-label {
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
-    white-space: nowrap;
   }
 
   .search-container {
     position: relative;
-    flex: 1;
+    width: 100%;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
   }
 
   .search-input {
     width: 100%;
     padding: 10px 14px;
-    border: 1px solid var(--surface-border);
+    border: 1px solid var(--input-border, #d1d5db);
     border-radius: 6px;
     background: var(--surface-card);
     color: var(--text-primary);
@@ -577,31 +551,32 @@
   .dropdown-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    cursor: pointer;
-    transition: background 0.2s;
   }
 
-  .dropdown-item:hover {
-    background: var(--surface-hover);
+  .dropdown-item .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-actions {
+    display: flex;
+    gap: 8px;
   }
 
   .add-button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background: var(--surface-card);
     color: var(--text-primary);
     border: 1px solid var(--surface-border);
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
-    min-width: max-content;
   }
 
   .add-button:hover:not(:disabled) {
@@ -616,25 +591,7 @@
 
   .dropdown-item.loading,
   .dropdown-item.empty {
-    cursor: default;
     color: var(--text-secondary);
-  }
-
-  .dropdown-item.loading:hover,
-  .dropdown-item.empty:hover {
-    background: transparent;
-  }
-
-  .dropdown-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-  }
-
-  .dropdown-item .user-info {
-    flex: 1;
-    min-width: 0;
   }
 
   .dropdown-item .user-display {
