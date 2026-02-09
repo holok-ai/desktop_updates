@@ -176,7 +176,6 @@
           ]
         }
       ],
-      "identity": null,
       "gatekeeperAssess": false,
       "hardenedRuntime": false
     },
