@@ -82,15 +82,9 @@ try {
   tagExistsRemotely = false;
 }
 
-// If tag doesn't exist yet, enforce version bump
-if (!tagExistsRemotely && newVersion === currentVersion) {
-  console.error(`❌ Error: Version ${newVersion} is already the current version`);
-  console.error(
-    'If you want to publish for another platform, run the release first on one platform,',
-  );
-  console.error('so that tag and release are created, then rerun the same version elsewhere.');
-  process.exit(1);
-}
+// Note: If tag doesn't exist yet but package.json already has newVersion,
+// we still allow the release to proceed. This covers cases where the version
+// was bumped manually or by a previous failed attempt.
 
 // Check if git is clean
 try {
@@ -117,7 +111,7 @@ if (isMandatory) {
 }
 
 try {
-  // Step 1: Prepare tag (only if tag doesn't exist remotely)
+  // Step 1: Prepare release (only if tag doesn't exist remotely)
   if (!tagExistsRemotely) {
     console.log('📝 Step 1: Preparing release...');
     console.log('   (Version will be updated after successful build)\n');
@@ -158,7 +152,7 @@ try {
     console.log('🏷️  Step 2: Tag will be created after successful build\n');
   }
 
-  // Step 3/4/5: Build first (before updating version)
+  // Step 3/4/5: Build first (before updating/committing version)
   const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 3';
   console.log(`🔨 ${buildStepNumber}: Building application...`);
 
