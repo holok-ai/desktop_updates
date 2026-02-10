@@ -51,7 +51,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: path.join(__dirname, '../src/assets/logo/logo-no-text.png'),
+    icon: path.join(__dirname, '../../src/assets/images/logo-blue.png'),
     webPreferences: {
       // Preload script with context bridge for secure IPC
       preload: path.join(__dirname, 'preload.js'),
