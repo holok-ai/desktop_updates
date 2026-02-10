@@ -172,13 +172,13 @@
         await projectService.updateProject(project.id, input);
         clearUnsavedChanges(guardKey);
         dispatch('updated', { projectId: project.id });
-        push(`${ROUTE.PROJECTS}?projectId=${project.id}`);
+        push(`${ROUTE.PROJECTS_VIEW}?projectId=${project.id}`);
       } else {
         // Create new project
         const newProject = await projectService.createProject(input);
         clearUnsavedChanges(guardKey);
         dispatch('created', { projectId: newProject.id });
-        push(`${ROUTE.PROJECTS}?projectId=${newProject.id}`);
+        push(`${ROUTE.PROJECTS_VIEW}?projectId=${newProject.id}`);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} project. Please try again.`;
@@ -192,7 +192,7 @@
     dispatch('cancelled');
 
     if (isEditMode && project) {
-      push(`${ROUTE.PROJECTS}?projectId=${project.id}`);
+      push(`${ROUTE.PROJECTS_VIEW}?projectId=${project.id}`);
     } else {
       push(ROUTE.PROJECTS);
     }

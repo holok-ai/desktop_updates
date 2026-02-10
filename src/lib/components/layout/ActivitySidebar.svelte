@@ -75,7 +75,7 @@
       if (item.type === 'thread') {
         push(`${ROUTE.THREAD}?threadId=${item.id}`);
       } else {
-        push(`${ROUTE.PROJECTS}?projectId=${item.id}`);
+        push(`${ROUTE.PROJECTS_VIEW}?projectId=${item.id}`);
       }
     };
     if (requestNavigation(proceed)) {

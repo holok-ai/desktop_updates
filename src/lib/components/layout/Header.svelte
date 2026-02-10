@@ -78,8 +78,13 @@
       return { items: [{ label: 'Threads', isLink: false }] };
     }
 
-    // Handle Projects with project selected
+    // Handle Projects list page
     if (path === ROUTE.PROJECTS) {
+      return { items: [{ label: 'Projects', isLink: false }] };
+    }
+
+    // Handle Project detail view
+    if (path === ROUTE.PROJECTS_VIEW) {
       const projectId = params.get('projectId');
       if (projectId) {
         const project = $projects.find(p => p.id === projectId);
@@ -186,6 +191,15 @@
 
     const firstItem = breadcrumbData.items[0].label;
 
+    // Handle PROJECTS_VIEW breadcrumb navigation
+    if (path === ROUTE.PROJECTS_VIEW) {
+      if (index === 0 && firstItem === 'Projects') {
+        // Click on "Projects" → go to projects list
+        push(ROUTE.PROJECTS);
+      }
+      return;
+    }
+
     // Handle PROJECT_THREAD breadcrumb navigation
     if (path === ROUTE.PROJECT_THREAD) {
       if (index === 0 && firstItem === 'Projects') {
@@ -195,7 +209,7 @@
         // Click on project name → go to that project
         const projectId = params.get('projectId');
         if (projectId) {
-          push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+          push(`${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`);
         }
       }
       return;
@@ -210,7 +224,7 @@
         // Click on project name → go to that project
         const projectId = params.get('projectId');
         if (projectId) {
-          push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+          push(`${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`);
         }
       }
       return;

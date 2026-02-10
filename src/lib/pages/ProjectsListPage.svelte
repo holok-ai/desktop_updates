@@ -48,7 +48,7 @@
   });
 
   function handleProjectClick(project: Project) {
-    push(`${ROUTE.PROJECTS}?projectId=${encodeURIComponent(project.id)}`);
+    push(`${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`);
   }
 
   function handleCreateProject() {

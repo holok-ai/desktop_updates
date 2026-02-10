@@ -1,35 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import type { Thread, ModelDetails } from '../../../src-electron/preload';
+  import type { ModelDetails } from '../../../src-electron/preload';
   import ThreadCreatePanel from '$lib/components/threads/ThreadCreatePanel.svelte';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
-  import { storageService } from '$lib/services/storage.service';
   import { threadService } from '$lib/services/thread.service';
-  import {
-    setUnsavedChanges,
-    clearUnsavedChanges,
-    registerDiscardCallback,
-  } from '$lib/stores/navigation-guard.store';
-
-  let formData: Thread = $state({
-    id: '',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    title: '',
-    description: '',
-    status: THREAD_STATUS.ACTIVE,
-    currentBranchId: '1.0',
-    messages: []
-  });
 
   let selectedModel: ModelDetails | null = $state(null);
-  let chooserInitial: string | null = $state(null);
   let newThreadPrompt = $state('');
-  let modelSelectionTouched = $state(false);
   let errorMessage = $state<string | null>(null);
 
   // Auth guard: redirect to login if not authenticated
@@ -40,31 +20,8 @@
     }
   });
 
-  // Track unsaved changes
-  $effect(() => {
-    const dirty = newThreadPrompt.trim().length > 0 || modelSelectionTouched;
-    setUnsavedChanges('new-thread', dirty);
-  });
-
-  // Register cleanup callback
-  onMount(() => {
-    // Clear any selected thread
-    storageService.removeLastThreadId();
-
-    registerDiscardCallback('new-thread', () => {
-      newThreadPrompt = '';
-      selectedModel = null;
-      modelSelectionTouched = false;
-    });
-
-    return () => {
-      clearUnsavedChanges('new-thread');
-    };
-  });
-
   function handleModelSelect(event: CustomEvent<ModelDetails>) {
     selectedModel = event.detail;
-    modelSelectionTouched = true;
   }
 
   async function handleSave() {
@@ -76,7 +33,7 @@
     try {
       // Create the thread using thread service
       const thread = await threadService.create({
-        title: 'New Thread',
+       title: newThreadPrompt.substring(0, 50) + (newThreadPrompt.length > 50 ? '...' : ''),
         description: '',
         status: THREAD_STATUS.ACTIVE,
         currentBranchId: '1.0',
@@ -91,9 +48,6 @@
         throw new Error('Failed to create thread');
       }
 
-      // Clear unsaved changes
-      clearUnsavedChanges('new-thread');
-
       // Navigate to the new thread page (ThreadPage with ThreadChatView)
       const params = new URLSearchParams();
       params.set('threadId', thread.id);
@@ -105,11 +59,6 @@
       toastStore.show(message, { variant: 'error' });
       // Stay on the page - don't navigate
     }
-  }
-
-  function handleCancel() {
-    clearUnsavedChanges('new-thread');
-    push(ROUTE.THREADS);
   }
 </script>
 
@@ -125,13 +74,10 @@
   {/if}
 
   <ThreadCreatePanel
-    bind:formData
     bind:selectedModel
     bind:newThreadPrompt
-    bind:chooserInitial
     on:modelSelect={handleModelSelect}
     on:save={handleSave}
-    on:cancel={handleCancel}
   />
 </div>
 

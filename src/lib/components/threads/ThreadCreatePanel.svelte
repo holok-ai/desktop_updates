@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import ModelSelector from '$lib/components/common/ModelSelector.svelte';
-  import type { Thread, ModelDetails } from '../../../../src-electron/preload';
+  import type { ModelDetails } from '../../../../src-electron/preload';
   import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
   const dispatch = createEventDispatcher<{
@@ -10,13 +10,11 @@
   }>();
 
   interface Props {
-    formData: Thread;
     selectedModel: ModelDetails | null;
     newThreadPrompt: string;
   }
 
   let {
-    formData = $bindable(),
     selectedModel = $bindable(),
     newThreadPrompt = $bindable(),
   }: Props = $props();
@@ -57,19 +55,9 @@
     appSlug: string;
     modelSlug: string;
   }>) {
-    const { modelDetails, appSlug, modelSlug } = e.detail;
+    const { modelDetails } = e.detail;
     selectedModel = modelDetails;
     selectedModelId = modelDetails.accessName;
-    formData.metadata = {
-      ...(formData.metadata ?? {}),
-      modelId: modelDetails.id,
-      modelTitle: modelDetails.title,
-      modelAccessName: modelDetails.accessName,
-      provider: modelDetails.provider,
-      url: modelDetails.url,
-      appSlug,
-      modelSlug,
-    };
     dispatch('modelSelectionChange', { model: modelDetails, isAuto: false });
   }
 </script>
