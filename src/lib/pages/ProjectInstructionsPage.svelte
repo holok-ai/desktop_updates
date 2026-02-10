@@ -142,12 +142,14 @@ Describe what this project is about and what threads should focus on.
   }
 
   // ── Model selection handler ──
-  function handleModelSelect(e: CustomEvent<{
-    modelId: string;
-    modelDetails: ModelDetails;
-    appSlug: string;
-    modelSlug: string;
-  }>) {
+  function handleModelSelect(
+    e: CustomEvent<{
+      modelId: string;
+      modelDetails: ModelDetails;
+      appSlug: string;
+      modelSlug: string;
+    }>,
+  ) {
     selectedModelId = e.detail.modelId;
   }
 
@@ -180,7 +182,6 @@ Describe what this project is about and what threads should focus on.
           modelAccessName: modelDetails.accessName,
           isTestThread: true,
         },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       const threadId = testThread.id;
@@ -227,7 +228,6 @@ Describe what this project is about and what threads should focus on.
         chatPayload.system = instructions.trim();
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chatResult = await window.electronAPI.chat.chat(threadId, chatPayload as any);
 
       if (!chatResult.success) {
@@ -286,10 +286,12 @@ Describe what this project is about and what threads should focus on.
               <button class="btn-holokai" onclick={insertTemplate}>
                 <i class="pi pi-file-edit"></i> Insert Template
               </button>
-              <button class="btn-holokai" onclick={cancelEdit} disabled={saving}>
-                Cancel
-              </button>
-              <button class="btn-holokai" onclick={saveInstructions} disabled={saving || !hasUnsavedChanges}>
+              <button class="btn-holokai" onclick={cancelEdit} disabled={saving}> Cancel </button>
+              <button
+                class="btn-holokai"
+                onclick={saveInstructions}
+                disabled={saving || !hasUnsavedChanges}
+              >
                 {#if saving}
                   <i class="pi pi-spin pi-spinner"></i> Saving...
                 {:else}
@@ -307,8 +309,8 @@ Describe what this project is about and what threads should focus on.
         {#if showInstructionsPanel}
           <div class="instructions-panel">
             <p class="section-description">
-              Instructions are sent as system context to chat threads in this project.
-              They guide AI responses with project-specific knowledge and behavioral rules.
+              Instructions are sent as system context to chat threads in this project. They guide AI
+              responses with project-specific knowledge and behavioral rules.
             </p>
 
             <!-- Error banner (non-blocking) -->
@@ -344,8 +346,8 @@ Describe what this project is about and what threads should focus on.
                       <h3>No instructions yet</h3>
                       <p>
                         Click Edit to add instructions that will guide AI responses in this project.
-                        You can describe your project context, set behavioral rules, and specify
-                        how the AI should handle ambiguous or incomplete information.
+                        You can describe your project context, set behavioral rules, and specify how
+                        the AI should handle ambiguous or incomplete information.
                       </p>
                     </div>
                   {/if}
@@ -403,9 +405,7 @@ Describe what this project is about and what threads should focus on.
                   </button>
 
                   {#if testResponseText || testError}
-                    <button class="btn-secondary" onclick={clearTestResult}>
-                      Clear
-                    </button>
+                    <button class="btn-secondary" onclick={clearTestResult}> Clear </button>
                   {/if}
 
                   {#if testThreadId && testComplete}
@@ -698,5 +698,4 @@ Describe what this project is about and what threads should focus on.
   .test-response-body {
     padding: 1rem;
   }
-
 </style>

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { querystring } from 'svelte-spa-router';
 
   let projectId = $state<string | null>(null);

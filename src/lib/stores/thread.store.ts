@@ -10,7 +10,7 @@ interface ThreadStore {
 }
 
 function createThreadStore(): ThreadStore {
-  const { subscribe, set, update } = writable<Thread[]>([]);
+  const { subscribe, set: _set, update } = writable<Thread[]>([]);
 
   return {
     subscribe,
@@ -20,10 +20,10 @@ function createThreadStore(): ThreadStore {
         const threadMap = new Map<string, Thread>();
 
         // Add existing threads first
-        currentThreads.forEach(t => threadMap.set(t.id, t));
+        currentThreads.forEach((t) => threadMap.set(t.id, t));
 
         // Update/add new threads (overwrites existing with same id)
-        newThreads.forEach(t => threadMap.set(t.id, t));
+        newThreads.forEach((t) => threadMap.set(t.id, t));
 
         // Convert back to array and sort
         const merged = Array.from(threadMap.values());
@@ -39,12 +39,13 @@ function createThreadStore(): ThreadStore {
     addThread: (thread: Thread): void => {
       update((threads) => {
         // Check if thread already exists to avoid duplicates
-        const existingIndex = threads.findIndex(t => t.id === thread.id);
+        const existingIndex = threads.findIndex((t) => t.id === thread.id);
         let updated: Thread[];
 
         if (existingIndex >= 0) {
           // Update existing thread
           updated = [...threads];
+          // eslint-disable-next-line security/detect-object-injection
           updated[existingIndex] = thread;
         } else {
           // Add new thread

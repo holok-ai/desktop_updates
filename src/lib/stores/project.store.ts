@@ -41,13 +41,14 @@ function createProjectStore(): ProjectStore {
       // Fetch full project with members and files from backend
       const project = await projectService.getProjectById(projectId);
 
-      if (project) {
+      if (project !== null) {
         // Update store with the full project details
         update((projects) => {
           const index = projects.findIndex((p) => p.id === projectId);
           if (index >= 0) {
             // Replace existing project
             const updated = [...projects];
+            // eslint-disable-next-line security/detect-object-injection
             updated[index] = project;
             return updated;
           } else {

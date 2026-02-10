@@ -1,13 +1,8 @@
 <script lang="ts">
   import { projectService } from '$lib/services/project.service';
-  import {
-    MOKU_COLOR_PALETTE,
-    VALID_PROJECT_ICONS,
-  } from '$lib/constants/project-validation';
+  import { MOKU_COLOR_PALETTE, VALID_PROJECT_ICONS } from '$lib/constants/project-validation';
 
-  let {
-    show = $bindable(false),
-  }: { show: boolean } = $props();
+  let { show = $bindable(false) }: { show: boolean } = $props();
 
   let projectName = $state('');
   let projectDescription = $state('');
@@ -150,7 +145,7 @@
               type="button"
               class="type-button"
               class:selected={projectType === 'personal'}
-              onclick={() => projectType = 'personal'}
+              onclick={() => (projectType = 'personal')}
               disabled={isSubmitting}
             >
               <i class="pi pi-user"></i>
@@ -163,7 +158,7 @@
               type="button"
               class="type-button"
               class:selected={projectType === 'shared'}
-              onclick={() => projectType = 'shared'}
+              onclick={() => (projectType = 'shared')}
               disabled={isSubmitting}
             >
               <i class="pi pi-users"></i>
@@ -189,7 +184,7 @@
               >
                 {#each MOKU_COLOR_PALETTE as color}
                   <option value={color} style="background-color: {color}; color: white;">
-                    {color}
+                    ●
                   </option>
                 {/each}
               </select>
@@ -197,14 +192,10 @@
 
             <div class="appearance-field">
               <span class="field-subtitle">Icon</span>
-              <select
-                bind:value={selectedIcon}
-                disabled={isSubmitting}
-                class="icon-dropdown"
-              >
+              <select bind:value={selectedIcon} disabled={isSubmitting} class="icon-dropdown">
                 {#each VALID_PROJECT_ICONS as icon}
                   <option value={icon}>
-                    {icon}
+                    {icon.replace('-', ' ')}
                   </option>
                 {/each}
               </select>
@@ -213,7 +204,12 @@
         </div>
 
         <div class="dialog-actions">
-          <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isSubmitting}>
+          <button
+            type="button"
+            class="btn-secondary"
+            onclick={handleCancel}
+            disabled={isSubmitting}
+          >
             Cancel
           </button>
           <button type="submit" class="btn-primary" disabled={!projectName.trim() || isSubmitting}>
@@ -388,6 +384,16 @@
     background: var(--surface-overlay);
     color: var(--text-primary);
     text-transform: capitalize;
+  }
+
+  .icon-dropdown option {
+    color: black;
+    background: white;
+  }
+
+  :global(html.dark) .icon-dropdown option {
+    color: white;
+    background: var(--surface-overlay);
   }
 
   .color-dropdown:focus,

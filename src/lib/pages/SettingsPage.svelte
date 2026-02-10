@@ -8,7 +8,6 @@
     ThreadLayout,
     ChatLayout,
     Tool,
-    UserAvatar,
   } from '$lib/types/app.type';
   import { defaultUserAvatar } from '$lib/types/app.type';
   import {
@@ -128,7 +127,11 @@
     }
     const reader = new FileReader();
     reader.onload = () => {
-      settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.IMAGE as AvatarType, imageData: reader.result as string };
+      settings.avatar = {
+        ...settings.avatar,
+        type: AVATAR_TYPE.IMAGE as AvatarType,
+        imageData: reader.result as string,
+      };
     };
     reader.readAsDataURL(file);
   }
@@ -410,7 +413,9 @@
                     <div class="avatar-preview-row">
                       <div
                         class="avatar-preview"
-                        style:background-color={settings.avatar.type === 'image' ? 'transparent' : getAvatarBg(settings.avatar.bgColor)}
+                        style:background-color={settings.avatar.type === 'image'
+                          ? 'transparent'
+                          : getAvatarBg(settings.avatar.bgColor)}
                       >
                         {#if settings.avatar.type === 'letters'}
                           <span class="avatar-letters">{settings.avatar.letters || 'Me'}</span>
@@ -432,7 +437,11 @@
                         <button
                           class="option-card"
                           class:active={settings.avatar.type === 'letters'}
-                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.LETTERS as AvatarType })}
+                          onclick={() =>
+                            (settings.avatar = {
+                              ...settings.avatar,
+                              type: AVATAR_TYPE.LETTERS as AvatarType,
+                            })}
                         >
                           <span class="option-card-icon">Aa</span>
                           <span class="option-card-label">Letters</span>
@@ -440,7 +449,11 @@
                         <button
                           class="option-card"
                           class:active={settings.avatar.type === 'icon'}
-                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.ICON as AvatarType })}
+                          onclick={() =>
+                            (settings.avatar = {
+                              ...settings.avatar,
+                              type: AVATAR_TYPE.ICON as AvatarType,
+                            })}
                         >
                           <i class="pi pi-user option-card-icon" style="font-size: 1rem"></i>
                           <span class="option-card-label">Icon</span>
@@ -448,7 +461,11 @@
                         <button
                           class="option-card"
                           class:active={settings.avatar.type === 'image'}
-                          onclick={() => (settings.avatar = { ...settings.avatar, type: AVATAR_TYPE.IMAGE as AvatarType })}
+                          onclick={() =>
+                            (settings.avatar = {
+                              ...settings.avatar,
+                              type: AVATAR_TYPE.IMAGE as AvatarType,
+                            })}
                         >
                           <span class="option-card-icon">🖼</span>
                           <span class="option-card-label">Image</span>
@@ -483,7 +500,8 @@
                             <button
                               class="avatar-icon-option"
                               class:active={settings.avatar.icon === ic.value}
-                              onclick={() => (settings.avatar = { ...settings.avatar, icon: ic.value })}
+                              onclick={() =>
+                                (settings.avatar = { ...settings.avatar, icon: ic.value })}
                               title={ic.label}
                             >
                               <i class="pi {ic.value}"></i>
@@ -503,7 +521,8 @@
                               class="avatar-color-swatch"
                               class:active={settings.avatar.bgColor === color.value}
                               style:background-color={color.bg}
-                              onclick={() => (settings.avatar = { ...settings.avatar, bgColor: color.value })}
+                              onclick={() =>
+                                (settings.avatar = { ...settings.avatar, bgColor: color.value })}
                               title={color.label}
                             ></button>
                           {/each}
@@ -522,10 +541,7 @@
                           onchange={handleAvatarImageUpload}
                           class="hidden"
                         />
-                        <button
-                          class="btn-primary"
-                          onclick={() => avatarFileInput?.click()}
-                        >
+                        <button class="btn-primary" onclick={() => avatarFileInput?.click()}>
                           Choose File
                         </button>
                       </div>
@@ -639,9 +655,13 @@
 
                     <!-- Chat Text Size -->
                     <div>
-                      <span class="control-label">Chat Text Size: <strong>{settings.chatFontSize}pt</strong></span>
+                      <span class="control-label"
+                        >Chat Text Size: <strong>{settings.chatFontSize}pt</strong></span
+                      >
                       <div class="flex items-center gap-3 mt-1">
-                        <span class="text-xs" style="color: var(--text-secondary)">{CHAT_FONT_SIZE_MIN}</span>
+                        <span class="text-xs" style="color: var(--text-secondary)"
+                          >{CHAT_FONT_SIZE_MIN}</span
+                        >
                         <input
                           type="range"
                           min={CHAT_FONT_SIZE_MIN}
@@ -649,7 +669,9 @@
                           bind:value={settings.chatFontSize}
                           class="flex-1"
                         />
-                        <span class="text-xs" style="color: var(--text-secondary)">{CHAT_FONT_SIZE_MAX}</span>
+                        <span class="text-xs" style="color: var(--text-secondary)"
+                          >{CHAT_FONT_SIZE_MAX}</span
+                        >
                       </div>
                     </div>
                   </div>

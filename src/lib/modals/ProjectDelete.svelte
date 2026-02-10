@@ -16,9 +16,7 @@
 
   let isDeleting = $state(false);
 
-  const projectTitle = $derived(
-    project ? project.title || 'Untitled Project' : 'Untitled Project',
-  );
+  const projectTitle = $derived(project ? project.title || 'Untitled Project' : 'Untitled Project');
 
   async function handleConfirm() {
     if (!project || isDeleting) return;

@@ -13,7 +13,7 @@
   import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
-  import { threadService, type DisplayItem } from '$lib/services/thread.service';
+  import { threadService } from '$lib/services/thread.service';
 
   /** Response reveal levels */
   const REVEAL_HIDDEN = 0;
@@ -170,9 +170,10 @@
   /** Get the visible response content based on reveal level */
   function getVisibleResponse(content: string, level: number): string {
     switch (level) {
-      case REVEAL_ONE_LINE:
+      case REVEAL_ONE_LINE: {
         const stripped = stripFormatting(content);
         return stripped.substring(0, 100);
+      }
       case REVEAL_THREE_LINES:
         return firstNLines(content, 3);
       case REVEAL_FULL:
@@ -205,12 +206,16 @@
   }
 
   /** Reveal level label for the indicator badge */
-  function revealLabel(level: number): string {
+  function _revealLabel(level: number): string {
     switch (level) {
-      case REVEAL_ONE_LINE: return '1 line';
-      case REVEAL_THREE_LINES: return '3 lines';
-      case REVEAL_FULL: return 'full';
-      default: return '';
+      case REVEAL_ONE_LINE:
+        return '1 line';
+      case REVEAL_THREE_LINES:
+        return '3 lines';
+      case REVEAL_FULL:
+        return 'full';
+      default:
+        return '';
     }
   }
 </script>
@@ -228,41 +233,41 @@
       {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
         {#if item.type === 'message'}
           {@const pair = item.pair}
-        <div class="prompt-entry">
-          <!-- User prompt -->
-          <ChatRequest
-            content={pair.request.content}
-            createdAt={pair.request.createdAt}
-            modelId={pair.request.modelId}
-            {chatLayout}
-            {fontSize}
-          />
+          <div class="prompt-entry">
+            <!-- User prompt -->
+            <ChatRequest
+              content={pair.request.content}
+              createdAt={pair.request.createdAt}
+              modelId={pair.request.modelId}
+              {chatLayout}
+              {fontSize}
+            />
 
-          <!-- Response preview (progressive reveal) -->
-          {#if pair.response && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
-            {@const level = getRevealLevel(pair.request.id)}
-            {@const visibleContent = getVisibleResponse(pair.response.content, level)}
-            {@const truncated = isTruncated(pair.response.content, level)}
+            <!-- Response preview (progressive reveal) -->
+            {#if pair.response && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
+              {@const level = getRevealLevel(pair.request.id)}
+              {@const visibleContent = getVisibleResponse(pair.response.content, level)}
+              {@const truncated = isTruncated(pair.response.content, level)}
 
-            <div class="response-preview {responseAlignClass(chatLayout)}">
-              <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
-                {#if level === REVEAL_ONE_LINE}
-                  <div class="preview-text plain-text" style="font-size: {fontSize}px">
-                    {visibleContent}
-                  </div>
-                {:else}
-                  <div class="preview-text">
-                    <MarkdownRenderer content={visibleContent} {fontSize} enableCopy={false} />
-                  </div>
-                {/if}
-                {#if truncated}
-                  <div class="truncation-fade"></div>
-                {/if}
-<!--                 <span class="reveal-badge">{revealLabel(level)}</span>  -->
+              <div class="response-preview {responseAlignClass(chatLayout)}">
+                <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
+                  {#if level === REVEAL_ONE_LINE}
+                    <div class="preview-text plain-text" style="font-size: {fontSize}px">
+                      {visibleContent}
+                    </div>
+                  {:else}
+                    <div class="preview-text">
+                      <MarkdownRenderer content={visibleContent} {fontSize} enableCopy={false} />
+                    </div>
+                  {/if}
+                  {#if truncated}
+                    <div class="truncation-fade"></div>
+                  {/if}
+                  <!--                 <span class="reveal-badge">{revealLabel(level)}</span>  -->
+                </div>
               </div>
-            </div>
-          {/if}
-        </div>
+            {/if}
+          </div>
         {:else}
           <!-- Branch display - show all lanes -->
           <div class="branch-entry">
@@ -296,7 +301,11 @@
                               </div>
                             {:else}
                               <div class="preview-text markdown-text">
-                                <MarkdownRenderer content={visibleContent} {fontSize} enableCopy={false} />
+                                <MarkdownRenderer
+                                  content={visibleContent}
+                                  {fontSize}
+                                  enableCopy={false}
+                                />
                               </div>
                             {/if}
                             {#if truncated}
@@ -317,8 +326,7 @@
 
     <!-- Keyboard hint at bottom -->
     <div class="keyboard-hint">
-      <kbd>Ctrl</kbd> + <kbd>&darr;</kbd> reveal response
-      &nbsp;&middot;&nbsp;
+      <kbd>Ctrl</kbd> + <kbd>&darr;</kbd> reveal response &nbsp;&middot;&nbsp;
       <kbd>Ctrl</kbd> + <kbd>&uarr;</kbd> hide response
     </div>
   {/if}
@@ -418,7 +426,8 @@
     white-space: pre-wrap;
     word-break: break-word;
     color: #000;
-    padding-top: 0.5rem;
+    padding-top: 0.1rem;
+    line-height: 1.2;
   }
 
   /* Fade overlay when truncated */

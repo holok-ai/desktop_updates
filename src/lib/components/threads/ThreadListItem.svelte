@@ -124,7 +124,7 @@
     showDeleteModal = false;
   }
 
-  function handleClickOutside(event: MouseEvent) {
+  function handleClickOutside(_event: MouseEvent) {
     if (showMenu) {
       showMenu = false;
     }

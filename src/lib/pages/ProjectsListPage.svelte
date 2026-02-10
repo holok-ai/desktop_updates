@@ -7,11 +7,19 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
+  import { favorites } from '$lib/stores/favorite.store';
   import ProjectCreateModal from '$lib/modals/ProjectCreateModal.svelte';
+  import ProjectRename from '$lib/modals/ProjectRename.svelte';
+  import ProjectDelete from '$lib/modals/ProjectDelete.svelte';
 
   let isLoading = $state(true);
   let errorMessage = $state<string | null>(null);
   let showCreateModal = $state(false);
+  let showRenameModal = $state(false);
+  let showDeleteModal = $state(false);
+  let projectToRename = $state<Project | null>(null);
+  let projectToDelete = $state<Project | null>(null);
+  let openMenuProjectId = $state<string | null>(null);
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -54,7 +62,70 @@
   function handleCreateProject() {
     showCreateModal = true;
   }
+
+  function toggleMenu(projectId: string, e: MouseEvent) {
+    e.stopPropagation();
+    openMenuProjectId = openMenuProjectId === projectId ? null : projectId;
+  }
+
+  function closeMenu() {
+    openMenuProjectId = null;
+  }
+
+  function isFavorited(projectId: string): boolean {
+    return $favorites.some((e) => e.id === projectId);
+  }
+
+  function handleMakeFavorite(project: Project, e: MouseEvent) {
+    e.stopPropagation();
+    favorites.toggleFavorite(project.id, 'project');
+    closeMenu();
+  }
+
+  function handleRename(project: Project, e: MouseEvent) {
+    e.stopPropagation();
+    projectToRename = project;
+    showRenameModal = true;
+    closeMenu();
+  }
+
+  async function handleRenameConfirmed(
+    event: CustomEvent<{ projectId: string; newTitle: string }>,
+  ) {
+    const { projectId, newTitle } = event.detail;
+
+    try {
+      await projectService.updateProject(projectId as any, { title: newTitle });
+      toastStore.show('Project renamed', { variant: 'success' });
+      showRenameModal = false;
+      projectToRename = null;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename project';
+      toastStore.show(errorMessage, { variant: 'error' });
+    }
+  }
+
+  function handleRenameCancel() {
+    showRenameModal = false;
+    projectToRename = null;
+  }
+
+  function handleDelete(project: Project, e: MouseEvent) {
+    e.stopPropagation();
+    projectToDelete = project;
+    showDeleteModal = true;
+    closeMenu();
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.project-menu-container')) {
+      closeMenu();
+    }
+  }
 </script>
+
+<svelte:window onclick={handleClickOutside} />
 
 <div class="projects-page">
   {#if errorMessage}
@@ -92,27 +163,70 @@
   {:else}
     <div class="projects-grid">
       {#each $projects as project (project.id)}
-        <button class="project-card" onclick={() => handleProjectClick(project)}>
+        <div
+          class="project-card"
+          onclick={() => handleProjectClick(project)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleProjectClick(project);
+            }
+          }}
+          role="button"
+          tabindex="0"
+          aria-label="Open project {project.title}"
+        >
           <div class="project-card-header">
             <h3 class="project-title">{project.title}</h3>
-            <span class="project-type-badge">{project.type}</span>
+            <div class="project-menu-container">
+              <button
+                class="project-menu-button"
+                onclick={(e) => toggleMenu(project.id, e)}
+                aria-label="Project menu"
+              >
+                ⋯
+              </button>
+              {#if openMenuProjectId === project.id}
+                <div class="project-menu-dropdown">
+                  <button class="menu-item" onclick={(e) => handleMakeFavorite(project, e)}>
+                    {isFavorited(project.id) ? 'Remove Favorite' : 'Make Favorite'}
+                  </button>
+                  <button class="menu-item" onclick={(e) => handleRename(project, e)}>
+                    Rename
+                  </button>
+                  <hr class="menu-divider" />
+                  <button class="menu-item delete" onclick={(e) => handleDelete(project, e)}>
+                    Delete Project
+                  </button>
+                </div>
+              {/if}
+            </div>
           </div>
           {#if project.description}
             <p class="project-description">{project.description}</p>
           {/if}
           <div class="project-card-footer">
-            <span class="project-last-opened">Last opened on {formatDateTime(project.updatedAt)}</span>
-            {#if project.type === 'shared'}
-              <span class="project-owner">{project.createdBy}</span>
-            {/if}
+            <span class="project-last-opened">Opened {formatDateTime(project.updatedAt)}</span>
+            <span class="project-type-badge">{project.type}</span>
           </div>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}
 </div>
 
 <ProjectCreateModal bind:show={showCreateModal} />
+
+{#if showRenameModal && projectToRename}
+  <ProjectRename
+    projectId={projectToRename.id}
+    currentTitle={projectToRename.title}
+    on:confirm={handleRenameConfirmed}
+    on:cancel={handleRenameCancel}
+  />
+{/if}
+
+<ProjectDelete bind:show={showDeleteModal} bind:project={projectToDelete} />
 
 <style>
   .projects-page {
@@ -186,7 +300,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    padding: 1.5rem;
+    padding: 1.1rem 1.5rem 1.5rem 1.5rem;
     background: var(--surface-card);
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: 8px;
@@ -194,6 +308,7 @@
     transition: all 0.2s ease;
     text-align: left;
     width: 100%;
+    position: relative;
   }
 
   :global(html.dark) .project-card {
@@ -224,11 +339,85 @@
   }
 
   .project-type-badge {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-style: italic;
     color: var(--text-secondary);
     text-transform: capitalize;
     flex-shrink: 0;
+  }
+
+  .project-menu-button {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .project-menu-button:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .project-menu-container {
+    position: relative;
+  }
+
+  .project-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    right: 0;
+    background: #ffffff;
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    padding: 0.25rem 0;
+  }
+
+  :global(html.dark) .project-menu-dropdown {
+    background: #2a2a2a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .menu-item {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    display: block;
+  }
+
+  .menu-item:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+  }
+
+  .menu-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .menu-item.delete {
+    color: var(--action-delete-color, #ef4444);
+  }
+
+  .menu-divider {
+    margin: 0.25rem 0;
+    border: none;
+    border-top: 1px solid var(--input-border);
+    opacity: 0.5;
   }
 
   .project-description {
@@ -255,13 +444,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .project-owner {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   .error-banner {

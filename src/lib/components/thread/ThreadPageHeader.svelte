@@ -68,55 +68,55 @@
   <div
     class="header-content"
     role="group"
-    onmouseenter={() => (hovered = true)}
-    onmouseleave={() => (hovered = false)}
+    onmouseenter={() => (_hovered = true)}
+    onmouseleave={() => (_hovered = false)}
   >
     <div class="header-left">
-    {#if isEditing}
-      <input
-        bind:this={inputRef}
-        bind:value={editValue}
-        class="title-input"
-        onblur={commitEdit}
-        onkeydown={handleKeydown}
-        aria-label="Edit thread title"
-      />
-    {:else}
-      <h1 class="thread-title" ondblclick={startEditing} title="Double-click to edit">
-        {title || 'Untitled Thread'}
-      </h1>
-    {/if}
-  </div>
+      {#if isEditing}
+        <input
+          bind:this={inputRef}
+          bind:value={editValue}
+          class="title-input"
+          onblur={commitEdit}
+          onkeydown={handleKeydown}
+          aria-label="Edit thread title"
+        />
+      {:else}
+        <h1 class="thread-title" ondblclick={startEditing} title="Double-click to edit">
+          {title || 'Untitled Thread'}
+        </h1>
+      {/if}
+    </div>
 
-  <div class="header-commands">
-    <button
-      class="header-cmd favorite-star"
-      class:is-favorited={isFav}
-      onclick={toggleFavorite}
-      title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-      aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
-    >
-      <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
-    </button>
-    <button
-      class="header-cmd"
-      class:active={showTokens}
-      onclick={() => (showTokens = !showTokens)}
-      title="Show token count"
-      aria-label="Toggle token count"
-    >
-      <i class="pi pi-hashtag"></i>
-    </button>
-    <button
-      class="header-cmd"
-      class:active={showStatus}
-      onclick={() => (showStatus = !showStatus)}
-      title="Show status"
-      aria-label="Toggle status"
-    >
-      <i class="pi pi-info-circle"></i>
-    </button>
-  </div>
+    <div class="header-commands">
+      <button
+        class="header-cmd favorite-star"
+        class:is-favorited={isFav}
+        onclick={toggleFavorite}
+        title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
+      </button>
+      <button
+        class="header-cmd"
+        class:active={showTokens}
+        onclick={() => (showTokens = !showTokens)}
+        title="Show token count"
+        aria-label="Toggle token count"
+      >
+        <i class="pi pi-hashtag"></i>
+      </button>
+      <button
+        class="header-cmd"
+        class:active={showStatus}
+        onclick={() => (showStatus = !showStatus)}
+        title="Show status"
+        aria-label="Toggle status"
+      >
+        <i class="pi pi-info-circle"></i>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -171,7 +171,9 @@
     flex-shrink: 0;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
+    transition:
+      opacity 0.15s ease,
+      visibility 0.15s ease;
   }
 
   .header-content:hover .header-commands {
@@ -190,7 +192,9 @@
     border-radius: 4px;
     color: var(--text-secondary, #666);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
   }
 
   .header-cmd:hover {

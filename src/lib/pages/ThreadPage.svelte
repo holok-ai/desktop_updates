@@ -48,7 +48,7 @@
   }
 
   /** Called by ThreadChatView when messages are updated */
-  function handleMessagesUpdate(updatedMessages: Message[]) {
+  function _handleMessagesUpdate(updatedMessages: Message[]) {
     messages = updatedMessages;
   }
 
@@ -68,7 +68,12 @@
       }
       thread = t;
       threadTitle = t.title || 'Untitled Thread';
-      console.log('[ThreadPage] Thread loaded - modelId:', t.metadata?.modelId, 'modelAccessName:', t.metadata?.modelAccessName);
+      console.log(
+        '[ThreadPage] Thread loaded - modelId:',
+        t.metadata?.modelId,
+        'modelAccessName:',
+        t.metadata?.modelAccessName,
+      );
 
       // Load messages for this thread
       const msgs = await threadService.getMessages(id);
@@ -140,11 +145,18 @@
     {:else if error}
       <div class="error-state">{error}</div>
     {:else if activeView === 'chat'}
-      <ThreadChatView {thread} bind:messages {availableModels} {chatLayout} {initialPrompt} onThreadCreated={handleThreadCreated} />
+      <ThreadChatView
+        {thread}
+        bind:messages
+        {availableModels}
+        {chatLayout}
+        {initialPrompt}
+        onThreadCreated={handleThreadCreated}
+      />
     {:else if activeView === 'prompt'}
       <ThreadPromptView {messages} {chatLayout} />
     {:else if activeView === 'graphic'}
-      <ThreadGraphicView />
+      <ThreadGraphicView {messages} />
     {:else if activeView === 'execution'}
       <ThreadExecutionView />
     {:else if activeView === 'file'}
