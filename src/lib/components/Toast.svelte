@@ -58,23 +58,23 @@
   }
 
   .toast.success {
-    background: var(--green-500);
-    color: var(--surface-0);
+    background: var(--success-color);
+    color: white;
   }
 
   .toast.info {
-    background: var(--primary-500);
-    color: var(--surface-0);
+    background: var(--info-color);
+    color: white;
   }
 
   .toast.warning {
-    background: var(--yellow-500);
+    background: var(--warning-color);
     color: var(--surface-900);
   }
 
   .toast.error {
     background: var(--error-color);
-    color: var(--surface-0);
+    color: white;
   }
 
   .toast.top {

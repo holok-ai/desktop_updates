@@ -77,6 +77,16 @@
     };
   });
 
+  // Instructions status
+  const instructionsStatus = $derived.by(() => {
+    const instructions = project?.metadata?.instructions;
+    if (instructions && typeof instructions === 'string' && instructions.trim().length > 0) {
+      const byteLength = new TextEncoder().encode(instructions).length;
+      return `Instructions created. (${byteLength} characters)`;
+    }
+    return 'No instructions defined.';
+  });
+
   // Extract projectId from query string and load full project
   $effect(() => {
     const params = new URLSearchParams($querystring);
@@ -249,7 +259,7 @@
 
         <button class="info-card clickable-card" onclick={handleInstructionsClick}>
           <h4>Instructions</h4>
-          <p class="coming-soon">More coming...</p>
+          <p class="instructions-status">{instructionsStatus}</p>
         </button>
       </div>
     </div>
@@ -481,6 +491,13 @@
   .file-count-line {
     color: var(--text-primary);
     font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .instructions-status {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    margin: 0;
     line-height: 1.5;
   }
 

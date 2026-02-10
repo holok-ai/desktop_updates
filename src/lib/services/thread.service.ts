@@ -259,7 +259,7 @@ export class ThreadService extends BaseElectronService {
     }
 
     // Create thread metadata
-    const metadata: Record<string, any> = {
+    const metadata: Record<string, unknown> = {
       modelTitle: modelDetails.title,
       modelProvider: modelDetails.provider,
       modelId: modelDetails.id,
@@ -670,7 +670,9 @@ export class ThreadService extends BaseElectronService {
    * Returns an array of items that can be either single messages or branches with multiple lanes
    */
   buildDisplayItems(messages: Message[], isStreaming: boolean = false, responseText: string = ''): DisplayItem[] {
-    if (messages.length === 0) return [];
+    if (messages.length === 0) {
+      return [];
+    }
 
     // Sort messages by branchId first
     const sortedMessages = [...messages].sort((a, b) => {
@@ -678,8 +680,12 @@ export class ThreadService extends BaseElectronService {
       const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
 
       // Sort by row, then lane, then iteration
-      if (aRow !== bRow) return aRow - bRow;
-      if (aLane !== bLane) return aLane - bLane;
+      if (aRow !== bRow) {
+        return aRow - bRow;
+      }
+      if (aLane !== bLane) {
+        return aLane - bLane;
+      }
       return aIter - bIter;
     });
 
@@ -693,7 +699,10 @@ export class ThreadService extends BaseElectronService {
         rowMap.set(row, []);
       }
 
-      rowMap.get(row)!.push(msg);
+      const rowArray = rowMap.get(row);
+      if (rowArray) {
+        rowArray.push(msg);
+      }
     }
 
     // Build display items
@@ -701,12 +710,15 @@ export class ThreadService extends BaseElectronService {
     const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
 
     for (const row of sortedRows) {
-      const rowMessages = rowMap.get(row)!;
+      const rowMessages = rowMap.get(row);
+      if (!rowMessages) {
+        continue;
+      }
 
       // Check if this row has branches (any message with lane != 0)
-      const hasBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
+      const rowHasBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
 
-      if (!hasBranches) {
+      if (!rowHasBranches) {
         // Single lane (main branch only) - display as regular message pairs
         const pairs = this.buildMessagePairs(rowMessages, isStreaming, responseText);
 
@@ -727,7 +739,10 @@ export class ThreadService extends BaseElectronService {
             laneMap.set(laneKey, []);
           }
 
-          laneMap.get(laneKey)!.push(msg);
+          const laneArray = laneMap.get(laneKey);
+          if (laneArray) {
+            laneArray.push(msg);
+          }
         }
 
         // Build lanes sorted by lane number
@@ -738,11 +753,20 @@ export class ThreadService extends BaseElectronService {
         });
 
         const lanes: Lane[] = laneKeys.map((laneKey, index) => {
-          const msgs = laneMap.get(laneKey)!;
+          const msgs = laneMap.get(laneKey);
+          if (!msgs) {
+            return {
+              id: `lane-${row}-${index}`,
+              branchId: laneKey,
+              messagePairs: [],
+              modelName: undefined,
+            };
+          }
+
           const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
 
           // Try to extract model name from first message
-          const modelName = msgs[0]?.modelId || undefined;
+          const modelName = msgs[0]?.modelId ?? undefined;
 
           return {
             id: `lane-${row}-${index}`,
@@ -769,8 +793,8 @@ export class ThreadService extends BaseElectronService {
    * "1.0" → 1, "2.1.3" → 2
    */
   private getBranchRow(branchId: string): number {
-    const firstPart = branchId.split('.')[0];
-    return parseInt(firstPart) || 0;
+    const [firstPart] = branchId.split('.');
+    return parseInt(firstPart) ?? 0;
   }
 
   /**
@@ -778,8 +802,8 @@ export class ThreadService extends BaseElectronService {
    * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
    */
   private getBranchLane(branchId: string): number {
-    const parts = branchId.split('.');
-    return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+    const [, secondPart] = branchId.split('.');
+    return secondPart ? (parseInt(secondPart) ?? 0) : 0;
   }
 
   /**
@@ -811,12 +835,12 @@ export class ThreadService extends BaseElectronService {
           i += 2;
         } else {
           // User message without response yet — might be streaming
-          const isLast = i === msgs.length - 1;
+          const isLastMessage = i === msgs.length - 1;
           pairs.push({
             request: msg,
             response: null,
-            isStreamingResponse: isLast && isStreaming,
-            streamingContent: isLast && isStreaming ? responseText : '',
+            isStreamingResponse: isLastMessage && isStreaming,
+            streamingContent: isLastMessage && isStreaming ? responseText : '',
           });
           i += 1;
         }
