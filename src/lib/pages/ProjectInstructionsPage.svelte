@@ -261,7 +261,7 @@ Describe what this project is about and what threads should focus on.
   }
 </script>
 
-<div class="project-instructions-page">
+<div class="page-container">
   <div class="page-content">
     {#if loading}
       <div class="loading-state">
@@ -447,33 +447,6 @@ Describe what this project is about and what threads should focus on.
 </div>
 
 <style>
-  .project-instructions-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--surface-main, #fafafa);
-  }
-
-  .page-content {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-  }
-
-  .loading-state,
-  .error-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 2rem;
-    color: var(--text-secondary);
-  }
-
-  .error-state {
-    color: var(--error-color, #dc2626);
-  }
-
   .instructions-section {
     max-width: 900px;
     margin: 0 auto;
@@ -539,19 +512,6 @@ Describe what this project is about and what threads should focus on.
     padding: 8px 16px !important;
   }
 
-  /* Error banner */
-  .error-banner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    background: color-mix(in srgb, var(--error-color, #dc2626) 10%, var(--surface-card));
-    border: 1px solid var(--error-color, #dc2626);
-    border-radius: 6px;
-    color: var(--error-color, #dc2626);
-    font-size: 13px;
-  }
-
   /* Instructions editor */
   .instructions-editor {
     display: flex;
@@ -610,38 +570,6 @@ Describe what this project is about and what threads should focus on.
     border: 1px solid var(--surface-border);
     border-radius: 8px;
     min-height: 200px;
-  }
-
-  /* Empty state */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 250px;
-    color: var(--text-secondary);
-    text-align: center;
-    padding: 40px 20px;
-  }
-
-  .empty-state i {
-    font-size: 48px;
-    opacity: 0.3;
-    margin-bottom: 16px;
-  }
-
-  .empty-state h3 {
-    font-size: 18px;
-    font-weight: 600;
-    margin: 0 0 8px 0;
-    color: var(--text-primary);
-  }
-
-  .empty-state p {
-    font-size: 14px;
-    margin: 0;
-    max-width: 480px;
-    line-height: 1.6;
   }
 
   /* Test section */
@@ -771,17 +699,4 @@ Describe what this project is about and what threads should focus on.
     padding: 1rem;
   }
 
-  /* Spinner animation */
-  .pi-spin {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
 </style>

@@ -130,18 +130,44 @@
 
     isSubmitting = true;
     try {
-      const threadId = await threadService.createThreadWithPrompt(
-        projectId,
+      // Get model details
+      const models = await window.electronAPI.models.listAll();
+      const modelDetails = models.find(m => m.accessName === selectedModelId);
+
+      if (!modelDetails) {
+        throw new Error('Model not found');
+      }
+
+      console.log('[Project] Creating thread with model:', {
         selectedModelId,
-        prompt,
-        THREAD_STATUS.ACTIVE
-      );
+        modelTitle: modelDetails.title,
+        modelId: modelDetails.id,
+        modelAccessName: modelDetails.accessName
+      });
 
-      // Clear prompt
+      // Create thread with metadata
+      const thread = await threadService.create({
+        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+        description: '',
+        status: THREAD_STATUS.ACTIVE,
+        metadata: {
+          projectId,
+          modelTitle: modelDetails.title,
+          modelProvider: modelDetails.provider,
+          modelId: modelDetails.id,
+          modelAccessName: modelDetails.accessName,
+        },
+      });
+
+      // Navigate to thread with prompt (ThreadChatView will auto-submit)
+      const params = new URLSearchParams();
+      params.set('threadId', thread.id);
+      params.set('prompt', prompt);
+      params.set('projectId', projectId);
+      push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
+
+      // Clear prompt after navigation
       prompt = '';
-
-      // Navigate to thread
-      push(`${ROUTE.THREADS}?threadId=${threadId}&projectId=${projectId}`);
     } catch (error) {
       console.error('Failed to create thread:', error);
     } finally {
@@ -302,7 +328,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    margin-top: 5.5rem;
+    margin-top: 3.7rem;
   }
 
   .title-row {

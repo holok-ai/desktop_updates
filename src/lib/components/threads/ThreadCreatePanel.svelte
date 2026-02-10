@@ -2,7 +2,6 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import ModelSelector from '$lib/components/common/ModelSelector.svelte';
   import type { ModelDetails } from '../../../../src-electron/preload';
-  import CreatePageLayout from '$lib/components/common/CreatePageLayout.svelte';
 
   const dispatch = createEventDispatcher<{
     save: void;
@@ -62,43 +61,39 @@
   }
 </script>
 
-<CreatePageLayout>
-  {#snippet form()}
-    <form class="add-thread-form" onsubmit={handleSubmit} aria-label="Create New Thread">
-      <div class="form-group prompt-group">
-        <textarea
-          bind:this={promptTextarea}
-          id="thread-prompt"
-          bind:value={newThreadPrompt}
-          placeholder="Type your message here..."
-          rows="6"
-          onkeydown={handleKeyDown}
-          aria-label="Message input"
-        ></textarea>
-      </div>
+<form class="add-thread-form" onsubmit={handleSubmit} aria-label="Create New Thread">
+  <div class="form-group prompt-group">
+    <textarea
+      bind:this={promptTextarea}
+      id="thread-prompt"
+      bind:value={newThreadPrompt}
+      placeholder="Type your message here..."
+      rows="6"
+      onkeydown={handleKeyDown}
+      aria-label="Message input"
+    ></textarea>
+  </div>
 
-      <div class="form-actions">
-        <div class="model-and-send">
-          <ModelSelector
-            bind:selectedModelId
-            label=""
-            allowMultipleSelections={false}
-            on:select={handleModelSelectorSelect}
-          />
+  <div class="form-actions">
+    <div class="model-and-send">
+      <ModelSelector
+        bind:selectedModelId
+        label=""
+        allowMultipleSelections={false}
+        on:select={handleModelSelectorSelect}
+      />
 
-          <button
-            type="submit"
-            class="btn-holokai send-button"
-            aria-label="Send message"
-            data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
-          >
-            <i class="pi pi-arrow-up"></i>
-          </button>
-        </div>
-      </div>
-    </form>
-  {/snippet}
-</CreatePageLayout>
+      <button
+        type="submit"
+        class="btn-holokai send-button"
+        aria-label="Send message"
+        data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+      >
+        <i class="pi pi-arrow-up"></i>
+      </button>
+    </div>
+  </div>
+</form>
 
 <style>
   .add-thread-form {

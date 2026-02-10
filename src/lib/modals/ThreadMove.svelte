@@ -1,12 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import BaseModal from './BaseModal.svelte';
   import { threadService } from '$lib/services/thread.service';
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
   import { toastStore } from '$lib/services/toast.service';
   import { formatCopyError } from '$lib/constants/thread-copy-errors';
-  import type { Thread } from '../../../../src-electron/preload';
+  import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type';
 
   let {
@@ -157,10 +156,6 @@
         : null;
       const destinationName = targetProject ? targetProject.title : 'My Thread List';
 
-      console.log({
-        newThread
-      })
-
       dispatch('copied', {
         threadId: newThread.id, // Return the NEW thread ID
         projectId: targetProjectId,
@@ -182,6 +177,7 @@
   }
 
   function handleCancel() {
+    if (isProcessing) return;
     const currentProjectId = thread?.metadata?.projectId as GUID | undefined;
     selectedProjectId = currentProjectId ?? null;
     error = '';
@@ -191,90 +187,170 @@
     duplicateInfo = null;
     show = false;
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && !isProcessing) {
+      handleCancel();
+    }
+  }
 </script>
 
-{#if thread}
-  <BaseModal
-    bind:show
-    title={modalTitle}
-    {error}
-    isSubmitting={isProcessing}
-    {submitLabel}
-    oncancel={handleCancel}
-    onsubmit={handleConfirm}
+<svelte:window onkeydown={handleKeydown} />
+
+{#if show && thread}
+  <div
+    class="dialog-overlay"
+    onclick={handleCancel}
+    onkeydown={(e) => e.key === 'Escape' && handleCancel()}
+    role="button"
+    tabindex="-1"
+    aria-label="Close modal"
   >
-    {#snippet content()}
-      {#if showDuplicateWarning && duplicateInfo}
-        <div class="warning-box">
-          <div class="warning-icon">⚠️</div>
-          <h3>Duplicate Copy Detected</h3>
-          <p>
-            This thread was previously copied to this destination on
-            <strong>{formatDate(duplicateInfo.previousCopyDate)}</strong>.
-          </p>
-          <p>Would you like to create another copy?</p>
-        </div>
-      {:else if showLargeFileConfirmation && largeFileInfo}
-        <div class="warning-box">
-          <div class="warning-icon">📦</div>
-          <h3>Large File Transfer</h3>
-          <p>
-            This thread contains <strong>{largeFileInfo.fileCount}</strong> file(s) totaling
-            <strong>{formatBytes(largeFileInfo.totalSize)}</strong>.
-          </p>
-          {#if largeFileInfo.estimatedTransferTime}
-            <p>
-              Estimated transfer time: <strong
-                >{Math.ceil(largeFileInfo.estimatedTransferTime / 60)} minutes</strong
-              >
-            </p>
-          {/if}
-          <p>Do you want to proceed with the transfer?</p>
-        </div>
-      {:else}
-        <p class="info-text">
-          {actionVerb}
-          <strong>{thread.title || 'Untitled Thread'}</strong>
-        </p>
+    <div
+      class="dialog"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-labelledby="copy-dialog-title"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="dialog-header">
+        <h2 id="copy-dialog-title">{modalTitle}</h2>
+        <button
+          class="close-button"
+          onclick={handleCancel}
+          disabled={isProcessing}
+          aria-label="Close"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
 
-        <div class="form-group">
-          <label for="project-select">Destination</label>
-          <select
-            id="project-select"
-            bind:value={selectedProjectId}
-            disabled={isProcessing}
-            class="project-select"
-          >
-            <option value="">My Thread List</option>
-            {#each writableProjects as project}
-              <option value={project.id}>
-                {project.title}
-              </option>
-            {/each}
-          </select>
-        </div>
-
-        {#if !hasWritePermissions}
-          <div class="info-box warning">
-            <p>
-              You don't have write permissions to any projects. You can only copy to the My Thread List.
-            </p>
+      <div class="dialog-content">
+        {#if error}
+          <div class="error-banner">
+            <i class="pi pi-exclamation-triangle"></i>
+            {error}
           </div>
         {/if}
 
-        <div class="info-box">
-          <p>
-            This will duplicate the thread. Changes to one will not
-            affect the other.
+        {#if showDuplicateWarning && duplicateInfo}
+          <div class="warning-box">
+            <div class="warning-icon">⚠️</div>
+            <h3>Duplicate Copy Detected</h3>
+            <p>
+              This thread was previously copied to this destination on
+              <strong>{formatDate(duplicateInfo.previousCopyDate)}</strong>.
+            </p>
+            <p>Would you like to create another copy?</p>
+          </div>
+        {:else if showLargeFileConfirmation && largeFileInfo}
+          <div class="warning-box">
+            <div class="warning-icon">📦</div>
+            <h3>Large File Transfer</h3>
+            <p>
+              This thread contains <strong>{largeFileInfo.fileCount}</strong> file(s) totaling
+              <strong>{formatBytes(largeFileInfo.totalSize)}</strong>.
+            </p>
+            {#if largeFileInfo.estimatedTransferTime}
+              <p>
+                Estimated transfer time: <strong
+                  >{Math.ceil(largeFileInfo.estimatedTransferTime / 60)} minutes</strong
+                >
+              </p>
+            {/if}
+            <p>Do you want to proceed with the transfer?</p>
+          </div>
+        {:else}
+          <p class="info-text">
+            {actionVerb}
+            <strong>{thread.title || 'Untitled Thread'}</strong>
           </p>
+
+          <div class="form-group">
+            <label for="project-select">Destination</label>
+            <select
+              id="project-select"
+              bind:value={selectedProjectId}
+              disabled={isProcessing}
+              class="project-select"
+            >
+              <option value="">My Thread List</option>
+              {#each writableProjects as project}
+                <option value={project.id}>
+                  {project.title}
+                </option>
+              {/each}
+            </select>
+          </div>
+
+          {#if !hasWritePermissions}
+            <div class="info-box warning">
+              <p>
+                You don't have write permissions to any projects. You can only copy to the My
+                Thread List.
+              </p>
+            </div>
+          {/if}
+
+          <div class="info-box">
+            <p>This will duplicate the thread. Changes to one will not affect the other.</p>
+          </div>
+        {/if}
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isProcessing}>
+            Cancel
+          </button>
+          <button type="button" class="btn-primary" onclick={handleConfirm} disabled={isProcessing}>
+            {#if isProcessing}
+              <i class="pi pi-spin pi-spinner"></i>
+            {/if}
+            {submitLabel}
+          </button>
         </div>
-      {/if}
-    {/snippet}
-  </BaseModal>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
-  /* Component-specific styles only - modal infrastructure handled by BaseModal */
+  /* Override: wider dialog with flex column layout */
+  .dialog {
+    max-width: 540px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Override: space-between layout */
+  .dialog-header {
+    justify-content: space-between;
+  }
+
+  .close-button i {
+    font-size: 20px;
+  }
+
+  /* Override: flex scroll area */
+  .dialog-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--error-bg);
+    border: 1px solid var(--error-color);
+    border-radius: 6px;
+    color: var(--error-color);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
 
   h3 {
     margin: 0 0 12px 0;
@@ -291,10 +367,6 @@
 
   .info-text strong {
     color: var(--primary-color);
-  }
-
-  .form-group {
-    margin-bottom: 16px;
   }
 
   label {
@@ -386,10 +458,22 @@
     color: var(--warning-color);
   }
 
+  /* Override: this component's warning-icon is different from global (uses --warning-color, not #ef4444) */
   .warning-icon {
     font-size: 32px;
     color: var(--warning-color);
     text-align: center;
     margin-bottom: 12px;
+  }
+
+  /* Override: margin-top and inline-flex buttons */
+  .dialog-actions {
+    margin-top: 24px;
+  }
+
+  .dialog-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 </style>

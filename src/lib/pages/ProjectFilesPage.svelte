@@ -34,7 +34,7 @@
   }
 </script>
 
-<div class="project-files-page">
+<div class="page-container">
   <div class="page-content">
     {#if loading}
       <div class="loading-state">Loading files...</div>
@@ -50,32 +50,6 @@
 </div>
 
 <style>
-  .project-files-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--surface-main, #fafafa);
-  }
-
-  .page-content {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-  }
-
-  .loading-state,
-  .error-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    color: var(--text-secondary);
-  }
-
-  .error-state {
-    color: var(--error-color, #dc2626);
-  }
-
   .files-list {
     max-width: 1200px;
     margin: 0 auto;

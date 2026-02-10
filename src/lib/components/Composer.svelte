@@ -32,10 +32,32 @@
     if (modelId) selectedModelId = modelId;
   });
 
+  // Track if we've auto-submitted the initial text
+  let hasAutoSubmitted = $state(false);
+
   // Update text when initialText changes
   $effect(() => {
     if (initialText) {
       text = initialText;
+    }
+  });
+
+  // Auto-submit when initialText is provided (for new threads)
+  $effect(() => {
+    if (
+      initialText &&
+      !hasAutoSubmitted &&
+      !disabled &&
+      !isStreaming &&
+      selectedApplicationSlug &&
+      selectedModelId &&
+      sendMessage
+    ) {
+      hasAutoSubmitted = true;
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
+        void send();
+      }, 100);
     }
   });
 

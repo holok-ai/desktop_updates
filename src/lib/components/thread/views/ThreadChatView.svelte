@@ -85,12 +85,16 @@
       // Last item is a message - return its branchId
       return lastItem.pair.request.branchId;
     } else {
-      // Last item is a branch - return the branchId from the first lane
-      // (multi-model branches don't have lane 0, they start from lane 1)
+      // Last item is a branch - extract the row number and return row.0.0
+      // so that calculateNextBranchId will increment to the next row
       const firstLane = lastItem.lanes[0];
       if (firstLane && firstLane.messagePairs.length > 0) {
         const lastPair = firstLane.messagePairs[firstLane.messagePairs.length - 1];
-        return lastPair.request.branchId;
+        const branchId = lastPair.request.branchId;
+        // Extract row number (e.g., "2.1.0" -> "2")
+        const row = branchId.split('.')[0];
+        // Return row.0.0 so next message will be at row+1.0.0
+        return `${row}.0.0`;
       }
     }
 
@@ -131,11 +135,25 @@
     modelProvider = (thread.metadata.modelProvider as string) || '';
     modelUrl = (thread.metadata.modelUrl as string) || '';
 
+    console.log('[ThreadChatView] extractModelInfo - thread metadata:', {
+      modelId,
+      modelAccessName: thread.metadata.modelAccessName,
+      availableModelsCount: availableModels.length
+    });
+
     const detail = availableModels.find((m) => m.accessName === modelId || m.id === modelId);
     if (detail) {
       modelName = detail.accessName;
       modelProvider = detail.provider;
       modelUrl = detail.url;
+      modelAccessName = detail.accessName;
+      applicationSlug = detail.provider;
+      console.log('[ThreadChatView] extractModelInfo - found model:', {
+        modelAccessName,
+        applicationSlug
+      });
+    } else {
+      console.log('[ThreadChatView] extractModelInfo - model NOT found in availableModels');
     }
   }
 
@@ -249,6 +267,7 @@
       // Add user message for single model flow
       if (thread) {
         const clientMessageId = crypto.randomUUID();
+        console.log('[ThreadChatView] sendMessage - creating message with modelId:', modelIds[0], 'from modelIds:', modelIds);
         const userMsg: Message = {
           id: clientMessageId,
           clientMessageId,
@@ -290,13 +309,16 @@
         responseText: '',
       }));
 
-    // Create user messages for each lane
+    // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
+    const assistantMessages: Message[] = [];
+
     for (const branch of modelBranches) {
-      const clientMessageId = crypto.randomUUID();
+      // Create user message
+      const userClientMessageId = crypto.randomUUID();
       const userMsg: Message = {
-        id: clientMessageId,
-        clientMessageId,
+        id: userClientMessageId,
+        clientMessageId: userClientMessageId,
         role: 'user',
         content: text,
         createdAt: Date.now(),
@@ -305,18 +327,31 @@
       };
       userMessages.push(userMsg);
 
+      // Create placeholder assistant message
+      const assistantClientMessageId = crypto.randomUUID();
+      const assistantMsg: Message = {
+        id: assistantClientMessageId,
+        clientMessageId: assistantClientMessageId,
+        role: 'assistant',
+        content: '',
+        createdAt: Date.now(),
+        branchId: branch.branchId,
+        modelId: branch.modelId,
+      };
+      assistantMessages.push(assistantMsg);
+
       // Persist user message
       await threadService.appendMessage(thread.id, {
         role: 'user',
         content: text,
-        clientMessageId,
+        clientMessageId: userClientMessageId,
         branchId: branch.branchId,
         modelId: branch.modelId,
       });
     }
 
-    // Add all user messages at once for proper reactivity
-    messages = [...messages, ...userMessages];
+    // Add all user and placeholder assistant messages at once for proper reactivity
+    messages = [...messages, ...userMessages, ...assistantMessages];
     await tick();
     scrollToBottom();
 
@@ -330,7 +365,24 @@
         const branchData = modelBranches.find((b) => b.branchId === branch.branchId);
         if (branchData) {
           branchData.responseText += token;
+
+          // Update the corresponding assistant message in the messages array
+          const assistantMsgIndex = messages.findIndex(
+            (m) => m.role === 'assistant' && m.branchId === branch.branchId
+          );
+          if (assistantMsgIndex !== -1) {
+            // Create new array with updated message for Svelte reactivity
+            const updatedMessages = [...messages];
+            updatedMessages[assistantMsgIndex] = {
+              ...updatedMessages[assistantMsgIndex],
+              content: branchData.responseText,
+            };
+            messages = updatedMessages;
+          }
         }
+
+        // Keep streaming messages in view
+        scrollToBottom();
       });
     });
 
@@ -375,26 +427,17 @@
     unsubscribers.forEach((unsub) => unsub());
     isStreaming = false;
 
-    // Add assistant messages for successful responses
+    // Persist assistant responses for successful results
     for (const branch of modelBranches) {
       if (branch.responseText && thread) {
         const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
 
+        // Persist the assistant response
         await window.electronAPI.thread.addAssistantResponse(
           thread.id,
           branch.responseText,
           modelDetails?.accessName || branch.modelId,
         );
-
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: branch.responseText,
-          createdAt: Date.now(),
-          branchId: branch.branchId,
-          modelId: branch.modelId,
-        };
-        messages = [...messages, assistantMsg];
       }
     }
 

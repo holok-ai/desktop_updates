@@ -177,7 +177,7 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<div class="project-members-page">
+<div class="page-container">
   <div class="page-content">
     {#if loading}
       <div class="loading-state">Loading members...</div>
@@ -290,32 +290,6 @@
 </div>
 
 <style>
-  .project-members-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--surface-main, #fafafa);
-  }
-
-  .page-content {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-  }
-
-  .loading-state,
-  .error-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    color: var(--text-secondary);
-  }
-
-  .error-state {
-    color: var(--error-color, #dc2626);
-  }
-
   .members-section {
     max-width: 800px;
     margin: 0 auto;
@@ -450,35 +424,6 @@
     color: var(--text-primary);
   }
 
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    color: var(--text-secondary);
-    text-align: center;
-    padding: 40px;
-  }
-
-  .empty-state i {
-    font-size: 48px;
-    opacity: 0.3;
-    margin-bottom: 16px;
-  }
-
-  .empty-state h3 {
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0 0 8px 0;
-    color: var(--text-primary);
-  }
-
-  .empty-state p {
-    font-size: 14px;
-    margin: 0;
-  }
-
   .add-member-section {
     display: flex;
     flex-direction: column;
@@ -602,16 +547,4 @@
     white-space: nowrap;
   }
 
-  .pi-spin {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
 </style>

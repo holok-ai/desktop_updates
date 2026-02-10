@@ -39,6 +39,25 @@
   // Always use array for storing selections
   let selectedModelIds = $state<string[]>([]);
 
+  // Sync internal selectedModelIds with bound selectedModelId prop and dispatch select event
+  $effect(() => {
+    if (selectedModelId && !selectedModelIds.includes(selectedModelId) && availableModels.length > 0) {
+      selectedModelIds = [selectedModelId];
+
+      // Find model details and dispatch select event so parent gets full model info
+      const modelDetails = availableModels.find(m => m.accessName === selectedModelId);
+      if (modelDetails) {
+        dispatch('select', {
+          modelId: selectedModelId,
+          modelDetails,
+          appSlug: modelDetails.applicationSlug,
+          modelSlug: modelDetails.slug,
+          selectedModelIds: [selectedModelId]
+        });
+      }
+    }
+  });
+
   // Sorted models by application then model name
   const sortedModels = $derived.by(() => {
     return [...availableModels].sort((a, b) => {
@@ -55,8 +74,8 @@
     loadingModels = true;
     try {
       availableModels = await window.electronAPI.models.listAll();
-      // Select first model by default if none selected
-      if (selectedModelIds.length === 0 && availableModels.length > 0) {
+      // Select first model by default ONLY if none selected AND no modelId bound from parent
+      if (selectedModelIds.length === 0 && !selectedModelId && availableModels.length > 0) {
         const firstModel = availableModels[0];
         selectedModelIds = [firstModel.accessName];
         selectedModelId = firstModel.accessName;
@@ -179,6 +198,7 @@
     <label for="model-selector" class="model-selector-label">{label}</label>
   {/if}
   <button
+    type="button"
     id="model-selector"
     class="model-selector-button"
     style="background: {backgroundColor};"
@@ -200,6 +220,7 @@
       {:else}
         {#each sortedModels as model (model.id)}
           <button
+            type="button"
             class="dropdown-item"
             class:selected={selectedModelIds.includes(model.accessName)}
             onclick={() => handleSelectModel(model.accessName)}
