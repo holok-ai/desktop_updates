@@ -230,10 +230,21 @@ try {
 
   // Only commit/tag AFTER successful publish (version already set before build)
   if (!tagExistsRemotely) {
-    console.log('📦 Step 5: Committing version change...');
-    execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
-    execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
-    console.log('✅ Committed\n');
+    console.log('📦 Step 5: Committing version change (if needed)...');
+
+    // Check if package.json has any unstaged changes before committing
+    const versionStatus = execSync('git status --porcelain package.json', {
+      cwd: rootDir,
+      encoding: 'utf8',
+    }).trim();
+
+    if (versionStatus) {
+      execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
+      execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Version commit created\n');
+    } else {
+      console.log('ℹ️  No version changes to commit (package.json already up to date)\n');
+    }
 
     // Create tag if it doesn't exist locally
     let tagExistsLocally = false;
