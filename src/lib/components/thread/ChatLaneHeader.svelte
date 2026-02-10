@@ -15,7 +15,7 @@
   }
 
   let {
-    laneId = '',
+    laneId: _laneId = '',
     laneIndex = 0,
     modelName = '',
     onSelect

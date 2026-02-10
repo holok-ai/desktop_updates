@@ -12,7 +12,7 @@
 
   let {
     laneCount = 0,
-    branchId = ''
+    branchId: _branchId = ''
   }: Props = $props();
 </script>
 

@@ -28,7 +28,7 @@
     chatLayout,
     attachments = [],
     fontSize = 14,
-    branchId,
+    branchId: _branchId,
   }: Props = $props();
 
   let alignClass = $derived.by(() => {

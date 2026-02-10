@@ -15,7 +15,7 @@
   let inputRef: HTMLInputElement | undefined = $state();
   let showTokens = $state(false);
   let showStatus = $state(false);
-  let hovered = $state(false);
+  let _hovered = $state(false);
 
   // Favorite toggle for the current thread
   const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
