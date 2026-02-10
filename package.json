@@ -153,8 +153,7 @@
         "provider": "github",
         "owner": "holok-ai",
         "repo": "desktop_updates",
-        "private": false,
-        "releaseType": "release"
+        "private": false
       }
     ],
     "win": {
