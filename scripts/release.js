@@ -61,30 +61,34 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if tag exists (for multi-platform builds)
+// Check if tag exists on origin (for multi-platform builds)
 const tagName = `v${newVersion}`;
 const desktopUpdatesRepo = 'holok-ai/desktop_updates';
 let tagExistsRemotely = false;
 
-// Treat existing local tag as 'remote' for multi-platform builds
 try {
-  execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, {
+  const result = execSync(`git ls-remote --tags origin ${tagName}`, {
     cwd: rootDir,
     stdio: 'pipe',
+    encoding: 'utf8',
   });
-  tagExistsRemotely = true;
-  console.log(`ℹ️  Tag ${tagName} already exists locally (multi-platform build).`);
-  console.log('   Skipping version update and tag creation.\n');
+  if (result.trim()) {
+    tagExistsRemotely = true;
+    console.log(`ℹ️  Tag ${tagName} already exists on origin (multi-platform build).`);
+    console.log('   Skipping version update and tag creation.\n');
+  }
 } catch {
-  // Tag doesn't exist locally yet
+  // Tag doesn't exist on origin or command failed
   tagExistsRemotely = false;
 }
 
 // If tag doesn't exist yet, enforce version bump
 if (!tagExistsRemotely && newVersion === currentVersion) {
   console.error(`❌ Error: Version ${newVersion} is already the current version`);
-  console.error('If you want to publish for another platform, run git pull to get existing tags.');
-  console.error('Then rerun the release command with the same version.');
+  console.error(
+    'If you want to publish for another platform, run the release first on one platform,',
+  );
+  console.error('so that tag and release are created, then rerun the same version elsewhere.');
   process.exit(1);
 }
 
@@ -121,10 +125,9 @@ try {
     console.log('📝 Step 1: Skipping version update (tag already exists)\n');
   }
 
-  // Step 2: Prepare tag (only if tag exists remotely, fetch it)
+  // Step 2: Prepare tag (only if tag exists remotely, fetch it locally if needed)
   if (tagExistsRemotely) {
-    console.log(`🏷️  Step 2: Fetching tag from desktop_updates...`);
-    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
+    console.log(`🏷️  Step 2: Ensuring tag ${tagName} exists locally...`);
 
     // Check if tag exists locally
     let tagExistsLocally = false;
@@ -137,24 +140,15 @@ try {
 
     if (!tagExistsLocally) {
       try {
-        let updatesRemoteExists = false;
-        try {
-          execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
-          updatesRemoteExists = true;
-        } catch {
-          execSync(`git remote add updates ${desktopUpdatesUrl}`, {
-            cwd: rootDir,
-            stdio: 'pipe',
-          });
-        }
-
-        execSync(`git fetch updates tag ${tagName}`, {
+        console.log('📥 Fetching tags from origin...');
+        // Fetch all tags so electron-builder can detect the version
+        execSync('git fetch origin --tags', {
           cwd: rootDir,
           stdio: 'inherit',
         });
-        console.log('✅ Tag fetched\n');
+        console.log('✅ Tags fetched\n');
       } catch (error) {
-        console.warn(`⚠️  Warning: Could not fetch tag from desktop_updates: ${error.message}`);
+        console.warn(`⚠️  Warning: Could not fetch tags from origin: ${error.message}`);
         console.warn('   You may need to create the tag manually.\n');
       }
     } else {
