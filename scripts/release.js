@@ -61,42 +61,30 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if tag exists remotely in desktop_updates repo (for multi-platform builds)
+// Check if tag exists (for multi-platform builds)
 const tagName = `v${newVersion}`;
-const desktopUpdatesRepo = 'holok-ai/desktop_updates';
-const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
 let tagExistsRemotely = false;
 
-// Check if tag exists in desktop-updates repo using git ls-remote
+// Treat existing local tag as 'remote' for multi-platform builds
 try {
-  const result = execSync(`git ls-remote --tags ${desktopUpdatesUrl} ${tagName}`, {
+  execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, {
     cwd: rootDir,
     stdio: 'pipe',
-    encoding: 'utf8',
   });
-  if (result.trim()) {
-    tagExistsRemotely = true;
-    console.log(`ℹ️  Found tag ${tagName} in desktop_updates repository`);
-  }
+  tagExistsRemotely = true;
+  console.log(`ℹ️  Tag ${tagName} already exists locally (multi-platform build).`);
+  console.log('   Skipping version update and tag creation.\n');
 } catch {
-  // Tag doesn't exist remotely or git command failed
+  // Tag doesn't exist locally yet
+  tagExistsRemotely = false;
 }
 
-// If tag exists remotely, skip version check (this is a second platform build)
-if (tagExistsRemotely) {
-  // Tag exists remotely, this is a second platform build
-  console.log(`ℹ️  Tag ${tagName} already exists on remote.`);
-  console.log('   This appears to be a multi-platform build.');
-  console.log('   Skipping version update and tag creation.\n');
-} else {
-  // Check if version changed (only if tag doesn't exist)
-  if (newVersion === currentVersion) {
-    console.error(`❌ Error: Version ${newVersion} is already the current version`);
-    console.error(
-      'If you want to publish for another platform, make sure the tag exists on remote first.',
-    );
-    process.exit(1);
-  }
+// If tag doesn't exist yet, enforce version bump
+if (!tagExistsRemotely && newVersion === currentVersion) {
+  console.error(`❌ Error: Version ${newVersion} is already the current version`);
+  console.error('If you want to publish for another platform, run git pull to get existing tags.');
+  console.error('Then rerun the release command with the same version.');
+  process.exit(1);
 }
 
 // Check if git is clean
