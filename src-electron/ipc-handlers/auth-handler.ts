@@ -13,6 +13,9 @@ const authLog = createScopedLogger('auth');
 let authService: AuthService;
 let onAuthSuccessCallback: (() => Promise<void>) | null = null;
 
+// Track processed OAuth codes to prevent duplicate processing
+const processedCodes = new Set<string>();
+
 /**
  * OAuth Callback Handler
  * Processes OAuth callback URLs received via deep links (holokai://home?code=...).
@@ -65,6 +68,23 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
       }
       return;
     }
+
+    // Check if this code has already been processed (prevents duplicate processing on Windows)
+    if (processedCodes.has(code)) {
+      authLog.warn('[AUTH] Code already processed, ignoring duplicate callback');
+      authLog.warn('[AUTH] This typically happens on Windows where multiple protocol handlers fire');
+      return;
+    }
+
+    // Mark this code as processed
+    processedCodes.add(code);
+    authLog.info('[AUTH] Code marked as processed');
+
+    // Clean up old codes after 5 minutes to prevent memory leak
+    setTimeout(() => {
+      processedCodes.delete(code);
+      authLog.info('[AUTH] Cleaned up processed code from tracking set');
+    }, 5 * 60 * 1000);
 
     authLog.info('Valid OAuth callback received, exchanging code for tokens');
     authLog.info('Calling authService.processOAuthCallback...');
