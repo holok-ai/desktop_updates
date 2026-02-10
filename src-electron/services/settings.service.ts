@@ -27,8 +27,28 @@ export interface AppSettings {
   // Directory Whitelist - trusted directories for file system access
   directoryWhitelist: string[];
 
-  // Other settings can be added here
+  // Appearance
   theme?: 'light' | 'dark';
+  startingPage?: 'create-chat' | 'threads' | 'last-page' | 'dashboard';
+  showRecentList?: boolean;
+  threadLayout?:
+    | 'single-col'
+    | 'vertical-split'
+    | 'col-left-split'
+    | 'col-right-split'
+    | 'quad-split';
+  chatFontSize?: number;
+  chatLayout?: 'left-left' | 'left-right' | 'right-left';
+
+  // Tools
+  enabledTools?: string[];
+  shellCommands?: string;
+
+  // Updates
+  autoCheckUpdates?: boolean;
+  autoInstallUpdates?: boolean;
+
+  /** @deprecated Use autoCheckUpdates instead */
   autoUpdate?: boolean;
 
   updateAvailable?: boolean;
@@ -57,7 +77,21 @@ const DEFAULT_SETTINGS: AppSettings = {
   // mokuWebUrl: 'https://moku.holokai.com',
   // mokuApiUrl: 'https://moku.holokai.com/api',
 
+  // Appearance
   theme: 'light',
+  startingPage: 'create-chat',
+  showRecentList: true,
+  threadLayout: 'single-col',
+  chatFontSize: 14,
+  chatLayout: 'left-right',
+
+  // Tools
+  enabledTools: [],
+  shellCommands: '',
+
+  // Updates
+  autoCheckUpdates: true,
+  autoInstallUpdates: false,
   autoUpdate: true,
   updateAvailable: false,
   latestVersion: '',
@@ -99,6 +133,48 @@ export class SettingsService {
           type: 'string',
           enum: ['light', 'dark'],
           default: DEFAULT_SETTINGS.theme,
+        },
+        startingPage: {
+          type: 'string',
+          enum: ['create-chat', 'threads', 'last-page', 'dashboard'],
+          default: DEFAULT_SETTINGS.startingPage,
+        },
+        showRecentList: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.showRecentList,
+        },
+        threadLayout: {
+          type: 'string',
+          enum: ['single-col', 'vertical-split', 'col-left-split', 'col-right-split', 'quad-split'],
+          default: DEFAULT_SETTINGS.threadLayout,
+        },
+        chatFontSize: {
+          type: 'number',
+          minimum: 7,
+          maximum: 20,
+          default: DEFAULT_SETTINGS.chatFontSize,
+        },
+        chatLayout: {
+          type: 'string',
+          enum: ['left-left', 'left-right', 'right-left'],
+          default: DEFAULT_SETTINGS.chatLayout,
+        },
+        enabledTools: {
+          type: 'array',
+          items: { type: 'string' },
+          default: DEFAULT_SETTINGS.enabledTools,
+        },
+        shellCommands: {
+          type: 'string',
+          default: DEFAULT_SETTINGS.shellCommands,
+        },
+        autoCheckUpdates: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.autoCheckUpdates,
+        },
+        autoInstallUpdates: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.autoInstallUpdates,
         },
         autoUpdate: {
           type: 'boolean',

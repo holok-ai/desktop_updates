@@ -4,21 +4,21 @@
  */
 
 /**
- * Moku 12-color palette for project UI
+ * Moku 12-color palette for project UI (subtle tones)
  */
 export const MOKU_COLOR_PALETTE = [
-  '#3B82F6', // Blue
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#F59E0B', // Amber
-  '#10B981', // Emerald
-  '#14B8A6', // Teal
-  '#6366F1', // Indigo
-  '#EF4444', // Red
-  '#84CC16', // Lime
-  '#F97316', // Orange
-  '#06B6D4', // Cyan
-  '#A855F7', // Violet
+  '#7BA3E0', // Blue (softer)
+  '#A78BDB', // Purple (softer)
+  '#E893B8', // Pink (softer)
+  '#E8B567', // Amber (softer)
+  '#6BC9A3', // Emerald (softer)
+  '#66C7BC', // Teal (softer)
+  '#8B8FDB', // Indigo (softer)
+  '#E88484', // Red (softer)
+  '#A3D66E', // Lime (softer)
+  '#E89B68', // Orange (softer)
+  '#61C7DB', // Cyan (softer)
+  '#BB82E0', // Violet (softer)
 ] as const;
 
 /**

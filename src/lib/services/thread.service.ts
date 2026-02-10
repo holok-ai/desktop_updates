@@ -7,6 +7,9 @@ import { BaseElectronService } from './base-electron.service';
 import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 
 export class ThreadService extends BaseElectronService {
+  // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
+  private streamCallbacks = new Map<string, Set<(token: string) => void>>();
+
   private constructor() {
     super();
   }
@@ -33,6 +36,163 @@ export class ThreadService extends BaseElectronService {
       threads.deleteThread(threadId);
     });
     this.registerCleanup(unsubDeleted);
+
+    // Listen for streaming token events
+    const unsubTokens = window.electronAPI.chat.onToken((data: {
+      threadId: string;
+      branchId: string;
+      token: string;
+    }) => {
+      if (!data.branchId) {
+        console.error('[ThreadService] Token event missing branchId - this is an error!', data);
+        return;
+      }
+
+      const key = this.buildStreamKey(data.threadId, data.branchId);
+      const callbacks = this.streamCallbacks.get(key);
+
+      if (callbacks) {
+        callbacks.forEach(callback => callback(data.token));
+      } else {
+        console.warn('[ThreadService] No subscribers for stream:', key);
+      }
+    });
+    this.registerCleanup(unsubTokens);
+  }
+
+  /**
+   * Subscribe to streaming tokens for a specific thread + branch
+   * branchId format: "1.0", "1.1", "2.1.3", etc. - uniquely identifies message stream
+   * @returns Unsubscribe function
+   */
+  subscribeToStream(
+    threadId: string,
+    branchId: string,
+    callback: (token: string) => void
+  ): () => void {
+    if (!threadId || !branchId) {
+      throw new Error('[ThreadService] threadId and branchId are required for stream subscription');
+    }
+
+    const key = this.buildStreamKey(threadId, branchId);
+
+    if (!this.streamCallbacks.has(key)) {
+      this.streamCallbacks.set(key, new Set());
+    }
+    this.streamCallbacks.get(key)!.add(callback);
+
+    console.log('[ThreadService] Subscribed to stream:', key);
+
+    // Return unsubscribe function
+    return () => {
+      const callbacks = this.streamCallbacks.get(key);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.streamCallbacks.delete(key);
+          console.log('[ThreadService] Unsubscribed from stream:', key);
+        }
+      }
+    };
+  }
+
+  /**
+   * Send chat message to specific thread + branch
+   */
+  /**
+   * Calculate the next branchId based on a given branchId or the last message in thread
+   * @param threadId - The thread ID
+   * @param lastMessageBranchId - Optional branchId to base calculation on. If blank, uses last main lane message
+   * @returns The calculated next branchId
+   */
+  async calculateNextBranchId(threadId: string, lastMessageBranchId?: string): Promise<string> {
+    try {
+      let baseBranchId: string;
+
+      if (lastMessageBranchId && lastMessageBranchId.trim()) {
+        // Use provided branchId
+        baseBranchId = lastMessageBranchId;
+      } else {
+        // Find last message in main lane (lane 0)
+        const messages = await this.getMessages(threadId);
+
+        if (messages.length === 0) {
+          // First message in thread
+          console.log('[ThreadService] First message in thread, using branchId: 1.0.0');
+          return '1.0.0';
+        }
+
+        // Find last message in main lane (where second part is 0)
+        const mainLaneMessages = messages.filter(m => {
+          const parts = (m.branchId || '').split('.');
+          const lane = parseInt(parts[1]) || 0;
+          return lane === 0;
+        });
+
+        if (mainLaneMessages.length > 0) {
+          baseBranchId = mainLaneMessages[mainLaneMessages.length - 1].branchId || '0.0.0';
+        } else {
+          // No main lane messages, use last message
+          baseBranchId = messages[messages.length - 1].branchId || '0.0.0';
+        }
+      }
+
+      // Parse the branchId (format: "row.lane.iteration")
+      const parts = baseBranchId.split('.');
+      const row = parseInt(parts[0]) || 0;
+      const lane = parseInt(parts[1]) || 0;
+      const iteration = parseInt(parts[2]) || 0;
+
+      let nextBranchId: string;
+
+      if (lane === 0) {
+        // Main lane (no branch) - increment row, reset iteration to 0
+        nextBranchId = `${row + 1}.0.0`;
+      } else {
+        // Branch lane - increment iteration, keep row and lane
+        nextBranchId = `${row}.${lane}.${iteration + 1}`;
+      }
+
+      console.log('[ThreadService] Calculated next branchId:', {
+        baseBranchId,
+        nextBranchId,
+        rule: lane === 0 ? 'main lane: increment row' : 'branch lane: increment iteration'
+      });
+
+      return nextBranchId;
+    } catch (error) {
+      console.error('[ThreadService] Failed to calculate next branchId, using default: 1.0.0', error);
+      return '1.0.0';
+    }
+  }
+
+  async sendChatMessage(
+    threadId: string,
+    branchId: string,
+    request: Record<string, unknown>
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!threadId || !branchId) {
+      throw new Error('[ThreadService] threadId and branchId are required for chat message');
+    }
+
+    const payload = {
+      ...request,
+      thread_id: threadId,
+      branch_id: branchId,
+    };
+
+    return await wrapElectronCall(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => window.electronAPI.chat.chat(threadId, payload as any),
+      'Failed to send chat message'
+    );
+  }
+
+  /**
+   * Build stream key from threadId and branchId
+   */
+  private buildStreamKey(threadId: string, branchId: string): string {
+    return `${threadId}:${branchId}`;
   }
 
   async getAll(options?: {
@@ -73,6 +233,70 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
+  /**
+   * Create a thread with an initial prompt message
+   * @param projectId - Project ID to associate the thread with (optional)
+   * @param modelAccessName - Model access name to use
+   * @param prompt - Initial message content
+   * @param status - Thread status (defaults to ACTIVE)
+   * @returns Thread ID
+   */
+  async createThreadWithPrompt(
+    projectId: string | null,
+    modelAccessName: string,
+    prompt: string,
+    status: string = 'active'
+  ): Promise<string> {
+    // Get model details
+    const models = await wrapElectronCall(
+      () => window.electronAPI.models.listAll(),
+      'Failed to get models'
+    );
+    const modelDetails = models.find(m => m.accessName === modelAccessName);
+
+    if (!modelDetails) {
+      throw new Error('Model not found');
+    }
+
+    // Create thread metadata
+    const metadata: Record<string, unknown> = {
+      modelTitle: modelDetails.title,
+      modelProvider: modelDetails.provider,
+      modelId: modelDetails.id,
+      modelAccessName: modelDetails.accessName,
+    };
+
+    if (projectId) {
+      metadata.projectId = projectId;
+    }
+
+    // Create thread
+    const thread = await wrapElectronCall(
+      () => window.electronAPI.thread.create({
+        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+        description: '',
+        status,
+        metadata,
+      }),
+      'Failed to create thread'
+    );
+
+    const threadId = thread.id;
+
+    // Send initial message
+    await wrapElectronCall(
+      () => window.electronAPI.chat.sendMessage({
+        threadId,
+        branchId: '1.0',
+        content: prompt,
+        modelId: modelDetails.id,
+      }),
+      'Failed to send initial message'
+    );
+
+    return threadId;
+  }
+
   async update(id: string, updates: Partial<Thread>): Promise<Thread> {
     return wrapElectronCall(
       () => window.electronAPI.thread.update(id, updates),
@@ -105,7 +329,11 @@ export class ThreadService extends BaseElectronService {
   }
 
   async getThread(id: string): Promise<Thread | null> {
-    return wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    const thread = await wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    if (thread) {
+      threads.addThread(thread);
+    }
+    return thread;
   }
 
   async getMessages(id: string): Promise<Message[]> {
@@ -436,6 +664,222 @@ export class ThreadService extends BaseElectronService {
 
     return { success: true, message, newBranchId };
   }
+
+  /**
+   * Build display items from messages - handles both regular messages and branches
+   * Returns an array of items that can be either single messages or branches with multiple lanes
+   */
+  buildDisplayItems(messages: Message[], isStreaming: boolean = false, responseText: string = ''): DisplayItem[] {
+    if (messages.length === 0) {
+      return [];
+    }
+
+    // Sort messages by branchId first
+    const sortedMessages = [...messages].sort((a, b) => {
+      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
+      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
+
+      // Sort by row, then lane, then iteration
+      if (aRow !== bRow) {
+        return aRow - bRow;
+      }
+      if (aLane !== bLane) {
+        return aLane - bLane;
+      }
+      return aIter - bIter;
+    });
+
+    // Group messages by row (first number in branchId)
+    const rowMap = new Map<number, Message[]>();
+
+    for (const msg of sortedMessages) {
+      const row = this.getBranchRow(msg.branchId);
+
+      if (!rowMap.has(row)) {
+        rowMap.set(row, []);
+      }
+
+      const rowArray = rowMap.get(row);
+      if (rowArray) {
+        rowArray.push(msg);
+      }
+    }
+
+    // Build display items
+    const items: DisplayItem[] = [];
+    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
+
+    for (const row of sortedRows) {
+      const rowMessages = rowMap.get(row);
+      if (!rowMessages) {
+        continue;
+      }
+
+      // Check if this row has branches (any message with lane != 0)
+      const rowHasBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
+
+      if (!rowHasBranches) {
+        // Single lane (main branch only) - display as regular message pairs
+        const pairs = this.buildMessagePairs(rowMessages, isStreaming, responseText);
+
+        for (const pair of pairs) {
+          items.push({
+            type: 'message',
+            pair,
+          });
+        }
+      } else {
+        // Multiple lanes - display as branch
+        const laneMap = new Map<string, Message[]>();
+
+        for (const msg of rowMessages) {
+          const laneKey = this.getLaneKey(msg.branchId);
+
+          if (!laneMap.has(laneKey)) {
+            laneMap.set(laneKey, []);
+          }
+
+          const laneArray = laneMap.get(laneKey);
+          if (laneArray) {
+            laneArray.push(msg);
+          }
+        }
+
+        // Build lanes sorted by lane number
+        const laneKeys = Array.from(laneMap.keys()).sort((a, b) => {
+          const laneA = this.getBranchLane(a);
+          const laneB = this.getBranchLane(b);
+          return laneA - laneB;
+        });
+
+        const lanes: Lane[] = laneKeys.map((laneKey, index) => {
+          const msgs = laneMap.get(laneKey);
+          if (!msgs) {
+            return {
+              id: `lane-${row}-${index}`,
+              branchId: laneKey,
+              messagePairs: [],
+              modelName: undefined,
+            };
+          }
+
+          const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
+
+          // Try to extract model name from first message
+          const modelName = msgs[0]?.modelId ?? undefined;
+
+          return {
+            id: `lane-${row}-${index}`,
+            branchId: laneKey,
+            messagePairs: pairs,
+            modelName,
+          };
+        });
+
+        items.push({
+          type: 'branch',
+          id: `branch-${row}`,
+          position: row,
+          lanes,
+        });
+      }
+    }
+
+    return items;
+  }
+
+  /**
+   * Parse branchId to extract row number
+   * "1.0" → 1, "2.1.3" → 2
+   */
+  private getBranchRow(branchId: string): number {
+    const [firstPart] = branchId.split('.');
+    return parseInt(firstPart) ?? 0;
+  }
+
+  /**
+   * Parse branchId to extract lane number
+   * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
+   */
+  private getBranchLane(branchId: string): number {
+    const [, secondPart] = branchId.split('.');
+    return secondPart ? (parseInt(secondPart) ?? 0) : 0;
+  }
+
+  /**
+   * Get lane key (first two parts of branchId)
+   * "1.0" → "1.0", "2.1.3" → "2.1"
+   */
+  private getLaneKey(branchId: string): string {
+    const parts = branchId.split('.');
+    return parts.slice(0, 2).join('.');
+  }
+
+  /**
+   * Build message pairs from a list of messages
+   */
+  private buildMessagePairs(msgs: Message[], isStreaming: boolean, responseText: string): MessagePair[] {
+    const pairs: MessagePair[] = [];
+    let i = 0;
+    while (i < msgs.length) {
+      const msg = msgs[i];
+      if (msg.role === 'user') {
+        const next = i + 1 < msgs.length ? msgs[i + 1] : null;
+        if (next && next.role === 'assistant') {
+          pairs.push({
+            request: msg,
+            response: next,
+            isStreamingResponse: false,
+            streamingContent: '',
+          });
+          i += 2;
+        } else {
+          // User message without response yet — might be streaming
+          const isLastMessage = i === msgs.length - 1;
+          pairs.push({
+            request: msg,
+            response: null,
+            isStreamingResponse: isLastMessage && isStreaming,
+            streamingContent: isLastMessage && isStreaming ? responseText : '',
+          });
+          i += 1;
+        }
+      } else {
+        // Orphan assistant message (shouldn't happen normally)
+        i += 1;
+      }
+    }
+    return pairs;
+  }
 }
+
+// Export types for use in components
+export interface MessagePair {
+  request: Message;
+  response: Message | null;
+  isStreamingResponse: boolean;
+  streamingContent: string;
+}
+
+export interface Lane {
+  id: string;
+  branchId: string;
+  messagePairs: MessagePair[];
+  modelName?: string;
+}
+
+export interface MessageDisplay {
+  type: 'message';
+  pair: MessagePair;
+}
+
+export interface BranchDisplay {
+  type: 'branch';
+  id: string;
+  position: number;
+  lanes: Lane[];
+}
+
+export type DisplayItem = MessageDisplay | BranchDisplay;
 
 export const threadService = ThreadService.getInstance();

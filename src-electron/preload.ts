@@ -364,22 +364,45 @@ export interface SettingsAPI {
   removeWhitelistPath: (path: string) => Promise<void>;
   selectFolder: () => Promise<string | null>;
 
+  // Updates
+  checkForUpdates: () => Promise<{ success: boolean; error?: string }>;
+
   // Diagnostics
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
 }
 
+
 /**
  * App Settings Interface
  */
+export interface ToolSetting {
+  title: string; 
+  id: string; 
+}
+
 export interface AppSettings {
   mokuWebUrl: string;
   mokuApiUrl: string;
   holoApiUrl: string;
   directoryWhitelist?: string[];
   theme?: AppThemeMode;
+  startingPage?: string;
+  showRecentList?: boolean;
+  threadLayout?: string;
+  chatFontSize?: number;
+  chatLayout?: string;
+  enabledTools?: string[];
+  shellCommands?: string;
+  autoCheckUpdates?: boolean;
+  autoInstallUpdates?: boolean;
+  /** @deprecated Use autoCheckUpdates instead */
   autoUpdate?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
+  /* ToolOrchestrator data need to load the UI  */
+  config_windowsCommands: string; 
+  config_unixCommands: string; 
+  config_toolList: ToolSetting[]; 
 }
 
 /**
@@ -392,6 +415,7 @@ export interface ApplicationSummary {
   title: string;
   models?: ModelDetails[];
   provider: string;
+  slug: string; 
   url: string;
 }
 
@@ -400,6 +424,8 @@ export interface ModelDetails {
   title: string;
   accessName: string;
   provider: string;
+  applicationName: string,
+  applicationSlug: string; 
   slug: string;
   url: string;
 }
@@ -516,14 +542,17 @@ export interface ChatAPI {
     threadId: string,
     providerType: string,
     config: ProviderConfig,
-    workingDirectory?: string
+    workingDirectory?: string,
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Send a chat message (with streaming support) for a specific thread
-  chat: (threadId: string, request: DesktopChatRequest) => Promise<{ success: boolean; error?: string }>;
+  chat: (
+    threadId: string,
+    request: DesktopChatRequest,
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
-  onToken: (callback: (data: { threadId: string; token: string }) => void) => void;
+  onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void) => () => void;
 
   // Stop listening to token events
   offToken: () => void;
@@ -708,7 +737,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       threadId: string,
       providerType: string,
       config: ProviderConfig,
-      workingDirectory?: string
+      workingDirectory?: string,
     ) =>
       ipcRenderer.invoke('chat:createProvider', threadId, providerType, config, workingDirectory),
 
@@ -717,10 +746,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:send', threadId, request),
 
     // 3. Listen for streaming tokens (event-based)
-    onToken: (callback: (data: { threadId: string; token: string }) => void) => {
-      ipcRenderer.on('chat:token', (_event, data: { threadId: string; token: string }) =>
-        callback(data)
-      );
+    onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, data: { threadId: string; branchId: string; token: string }): void =>
+        callback(data);
+      ipcRenderer.on('chat:token', subscription);
+
+      // Return cleanup function
+      return (): void => {
+        ipcRenderer.off('chat:token', subscription);
+      };
     },
 
     // 4. Stop listening to token events
@@ -742,9 +776,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:updateAllowedPaths', allowedPaths),
 
     // 7. Listen for tool use events
-    onToolUse: (callback: (data: ToolUseEventPayload & { threadId: string }) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, data: ToolUseEventPayload & { threadId: string }): void =>
-        callback(data);
+    onToolUse: (
+      callback: (data: ToolUseEventPayload & { threadId: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: ToolUseEventPayload & { threadId: string },
+      ): void => callback(data);
       ipcRenderer.on('chat:toolUse', subscription);
 
       // Return cleanup function
@@ -764,7 +802,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ): (() => void) => {
       const subscription = (
         _event: IpcRendererEvent,
-        status: { threadId: string; toolName: string; state: 'in_progress' | 'complete'; message?: string },
+        status: {
+          threadId: string;
+          toolName: string;
+          state: 'in_progress' | 'complete';
+          message?: string;
+        },
       ): void => callback(status);
       ipcRenderer.on('chat:toolStatus', subscription);
 
@@ -803,6 +846,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
+
+    checkForUpdates: () => ipcRenderer.invoke('settings:checkForUpdates'),
 
     openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
   } as SettingsAPI,

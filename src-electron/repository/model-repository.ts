@@ -85,16 +85,13 @@ export class ModelRepository {
       for (const app of applications) {
         try {
           const appDetail = await mokuService.getApplicationDetail(app.id);
-//          const agentDetail = await mokuService.getAgentDetail(app.id); 
           const agentUrl: string  = holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug; 
-//              String agentUrl = holoUrlService.getBaseUrl() + "/api/custom/" +
-//                                app.getProvider().getType().toString().toLowerCase() + "/" +
-//                                app.getUrlSlug();
           var appSummary: ApplicationSummary = {
             id: appDetail.id,
+            slug: app.urlSlug, 
             title: appDetail.name, 
             provider: appDetail.providerName,
-            url: agentUrl , //(appDetail.providerName === 'openai') ? holoApiUrl + "/api/openai" : agentUrl,
+            url: agentUrl , 
             models: []
           };
           console.log("App summary: ", appDetail.name, appDetail.providerName, appSummary.url); 
@@ -104,18 +101,16 @@ export class ModelRepository {
           // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
             for (const model of appDetail.models) {
-              // const modelUrl: string = (appDetail.providerName === 'openai') 
-              //             ? holoApiUrl + "/api/openai" + this.getEndpoint(model)
-              //             : agentUrl ;  //holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug + this.getEndpoint(model); 
-              // console.log("App details - url, model: ", modelUrl, model); 
-
+ 
               const modelDetails: ModelDetails = {
                 id: model.id,
                 title: model.name,
                 accessName: model.accessModel,
                 provider: appDetail.providerName,
+                applicationName: appSummary.title, 
+                applicationSlug: appSummary.slug, 
                 slug: appDetail.urlSlug,
-                url: agentUrl // modelUrl
+                url: agentUrl
               };
               this.models.push(modelDetails);
               appSummary.models?.push(modelDetails);

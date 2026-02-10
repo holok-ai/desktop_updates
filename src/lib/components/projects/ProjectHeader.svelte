@@ -73,5 +73,3 @@
     border-bottom-color: var(--border-color);
   }
 </style>
-
-

@@ -1,8 +1,5 @@
 @import './lib/styles/highlight.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -16,9 +13,17 @@
   --sidebar-secondary-width: 280px;
   --sidebar-secondary-collapsed: 48px;
 
+  /* Project page dimensions */
+  --project-right-column-max-width: 300px;
+
   /* Comment colors */
   --comment-blue: 59, 130, 246;
   --comment-green: 34, 197, 94;
+
+  /* Holokai brand colors */
+  --holokai-blue: #6b7eb8;
+  --holokai-blue-hover: #5a6ed4;
+  --holokai-light-text: rgba(255, 255, 255, 0.95);
 
   /* Holokai light theme variables */
   --holokai-sidebar-primary-light-color: #091320;
@@ -70,32 +75,40 @@ html:not(.dark) {
   --background-primary-active: var(--holokai-sidebar-item-active-light-color);
   --background-primary-hover: var(--holokai-sidebar-item-hover-light-color);
 
-  --text-primary: var(--text-color);
-  --text-secondary: var(--text-color-secondary);
+  --text-primary: rgba(0, 0, 0, 0.87);
+  --text-secondary: rgba(0, 0, 0, 0.6);
   --text-active: var(--primary-color-text);
   --text-on-primary: #ffffff;
 
   /* Action button colors */
-  --action-edit-color: var(--blue-600);
-  --action-delete-color: var(--red-700);
+  --action-edit-color: #2563eb;
+  --action-delete-color: #b91c1c;
 
   /* Badge colors */
-  --badge-active-bg: var(--primary-500);
+  --badge-active-bg: #4f46e5;
   --badge-active-text: #ffffff;
-  --badge-inactive-bg: var(--gray-400);
-  --badge-inactive-text: var(--gray-900);
+  --badge-inactive-bg: #9ca3af;
+  --badge-inactive-text: #111827;
 
-  --primary-color: var(--primary-500);
+  --primary-color: #64748b;
   /* Used by shared button styles (btn-primary hover state) */
-  --primary-color-hover: color-mix(in srgb, var(--primary-color) 88%, black);
-  --error-color: var(--red-500);
-  --error-bg: color-mix(in srgb, var(--red-100) 35%, transparent);
+  --primary-color-hover: #475569;
+  --error-color: #ef4444;
+  --error-bg: rgba(254, 226, 226, 0.35);
+  --success-color: #22c55e;
+  --warning-color: #eab308;
+  --info-color: #3b82f6;
   --modal-overlay: var(--maskbg);
 
   --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0 color-mix(in srgb, var(--surface-900) 15%, transparent);
 
-  --input-background: var(--surface-0);
-  --input-border: var(--surface-border);
+  --input-background: #ffffff;
+  --input-border: rgba(0, 0, 0, 0.5);
+  --input-focus-shadow: rgba(79, 70, 229, 0.1);
+
+  /* Control border colors */
+  --control-border: rgba(0, 0, 0, 0.25);
+  --control-border-card: rgba(0, 0, 0, 0.2);
 }
 
 /* Dark theme overrides */
@@ -117,29 +130,37 @@ html.dark,
   --background-primary-active: var(--holokai-sidebar-item-active-dark-color);
   --background-primary-hover: var(--holokai-sidebar-item-hover-dark-color);
 
-  --text-primary: var(--surface-0);
-  --text-secondary: var(--surface-200);
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.7);
   --text-on-primary: #ffffff;
 
   /* Action button colors */
-  --action-edit-color: var(--blue-500);
-  --action-delete-color: var(--red-400);
+  --action-edit-color: #3b82f6;
+  --action-delete-color: #f87171;
 
   /* Badge colors */
-  --badge-active-bg: var(--primary-500);
+  --badge-active-bg: #4f46e5;
   --badge-active-text: #ffffff;
-  --badge-inactive-bg: var(--gray-600);
-  --badge-inactive-text: var(--gray-100);
+  --badge-inactive-bg: #4b5563;
+  --badge-inactive-text: #f3f4f6;
 
-  --primary-color: var(--primary-500);
+  --primary-color: #4f46e5;
   /* Used by shared button styles (btn-primary hover state) */
-  --primary-color-hover: color-mix(in srgb, var(--primary-color) 88%, black);
-  --error-color: var(--red-400);
-  --error-bg: color-mix(in srgb, var(--red-400) 20%, transparent);
+  --primary-color-hover: #4338ca;
+  --error-color: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.2);
+  --success-color: #10b981;
+  --warning-color: #fbbf24;
+  --info-color: #60a5fa;
   --modal-overlay: color-mix(in srgb, var(--surface-900) 70%, transparent);
 
-  --input-background: var(--surface-700);
-  --input-border: var(--surface-600);
+  --input-background: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(255, 255, 255, 0.2);
+  --input-focus-shadow: rgba(79, 70, 229, 0.2);
+
+  /* Control border colors */
+  --control-border: rgba(255, 255, 255, 0.25);
+  --control-border-card: rgba(255, 255, 255, 0.2);
 
   --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0 color-mix(in srgb, var(--surface-900) 40%, transparent);
 
@@ -152,6 +173,16 @@ html.dark,
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* Remove default focus outline, keep focus-visible for keyboard navigation */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 body {
@@ -170,6 +201,13 @@ body {
 h1 {
   font-size: 2em;
   line-height: 1.1;
+}
+
+h2 {
+  font-size: 1.75em;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 button {
@@ -209,16 +247,591 @@ p {
   color: var(--text-primary);
 }
 
+/* Form Controls - Base Styles */
 input,
 textarea,
 select {
   background: var(--input-background);
   border: 1px solid var(--input-border);
   color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+textarea {
+  width: 100%;
+}
+
+/* Radio and Checkbox Styles */
+input[type="radio"],
+input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+input[type="radio"]:checked,
+input[type="checkbox"]:checked {
+  accent-color: var(--primary-color);
+}
+
+/* Label Styles */
+label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+/* Button Styles - Reusable across all pages */
+button.btn-primary,
+button.btn-secondary,
+button.btn-holokai,
+.btn-primary,
+.btn-secondary,
+.btn-holokai,
+button:not([class]) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.375rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-family: inherit !important;
+  white-space: nowrap !important;
+}
+
+button.btn-primary,
+.btn-primary,
+button:not([class]) {
+  background: var(--primary-color) !important;
+  color: white !important;
+  border: none !important;
+}
+
+button.btn-primary:hover:not(:disabled),
+.btn-primary:hover:not(:disabled),
+button:not([class]):hover:not(:disabled) {
+  background: var(--primary-color-hover) !important;
+}
+
+button.btn-primary:disabled,
+.btn-primary:disabled,
+button:not([class]):disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+button.btn-secondary,
+.btn-secondary {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--input-border) !important;
+}
+
+:global(html.dark) button.btn-secondary,
+:global(html.dark) .btn-secondary {
+  background: transparent !important;
+}
+
+button.btn-secondary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-hover) !important;
+}
+
+button.btn-secondary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Holokai blue button style */
+button.btn-holokai,
+.btn-holokai {
+  background: var(--holokai-blue) !important;
+  color: var(--holokai-light-text) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  flex-direction: row !important;
+  font-size: 0.74375rem !important; /* 15% smaller than 0.875rem */
+  min-width: fit-content !important;
+  white-space: nowrap !important;
+}
+
+button.btn-holokai span,
+.btn-holokai span {
+  color: var(--holokai-light-text) !important;
+}
+
+button.btn-holokai:hover:not(:disabled),
+.btn-holokai:hover:not(:disabled) {
+  background: var(--holokai-blue-hover) !important;
+}
+
+button.btn-holokai:disabled,
+.btn-holokai:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Button icon sizing */
+button.btn-primary i,
+button.btn-secondary i,
+.btn-primary i,
+.btn-secondary i {
+  font-size: 0.875rem;
+}
+
+button.btn-holokai i,
+.btn-holokai i {
+  font-size: 0.74375rem; /* 15% smaller than 0.875rem */
 }
 
 i, .pi {
   display: flex !important;
   align-items: center;
   justify-content: center;
+}
+
+/* Tooltip Styles */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 0.5rem 0.75rem;
+  background: var(--text-primary);
+  color: var(--surface-main);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+[data-tooltip]::after {
+  content: '';
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: var(--text-primary);
+  z-index: 10000;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Tooltip positioned to the left (for buttons on right edge) */
+[data-tooltip-left]::before {
+  content: attr(data-tooltip-left);
+  bottom: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  transform: translateX(0) translateY(4px);
+  padding: 0.5rem 0.75rem;
+  background: var(--text-primary);
+  color: var(--surface-main);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip-left]::after {
+  content: '';
+  bottom: calc(100% + 2px);
+  right: 12px;
+  left: auto;
+  transform: translateX(0) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: var(--text-primary);
+  z-index: 10000;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-tooltip-left]:hover::before,
+[data-tooltip-left]:hover::after {
+  opacity: 1;
+  transform: translateX(0) translateY(0);
+}
+
+/* Context Menu / Dropdown Menu - Shared styles for avatar and thread menus */
+.context-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--surface-card, #ffffff);
+  border-radius: 0.75rem;
+  border: 1px solid var(--input-border);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  z-index: 1000;
+}
+
+:global(html.dark) .context-menu {
+  background: #2a2a2a;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.menu-item i {
+  font-size: 16px;
+}
+
+.menu-item-danger,
+.menu-item-danger span,
+.menu-item-danger:hover,
+.menu-item-danger:hover span,
+.menu-item-danger:active,
+.menu-item-danger:active span,
+.menu-item-danger:focus,
+.menu-item-danger:focus span {
+  color: var(--error-color) !important;
+}
+
+.menu-item-danger:hover {
+  background: var(--surface-hover);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--input-border);
+  margin: 0.5rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Shared Layout Utilities
+   ═══════════════════════════════════════════════════════════ */
+
+/* Full-height page container (used by all page components) */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-main, #fafafa);
+}
+
+/* Scrollable page content area with standard padding */
+.page-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+/* Page section header: title on left, actions on right */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Shared State Indicators
+   ═══════════════════════════════════════════════════════════ */
+
+/* Centered loading state with optional spinner icon */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+/* Centered error state */
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2rem;
+  color: var(--error-color, #dc2626);
+}
+
+/* Inline error banner (non-blocking, within a page) */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--error-bg, rgba(239, 68, 68, 0.1));
+  border: 1px solid var(--error-color, #ef4444);
+  border-radius: 6px;
+  color: var(--error-color, #ef4444);
+  font-size: 13px;
+}
+
+.error-banner i {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* Empty state placeholder (centered icon + heading + description) */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-state i {
+  font-size: 48px;
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+  max-width: 480px;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Shared Spinner Animation
+   ═══════════════════════════════════════════════════════════ */
+
+.pi-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Shared Modal / Dialog Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* Full-screen overlay behind modals */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+/* Modal card */
+.dialog {
+  background: var(--surface-main);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Modal header row */
+.dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Modal body */
+.dialog-content {
+  padding: 24px;
+}
+
+/* Modal footer actions row */
+.dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.dialog-actions button {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Modal close button (X icon) */
+.close-button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.close-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.close-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Danger button (destructive actions in modals) */
+.btn-danger {
+  background: #ef4444;
+  border: none;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Warning icon used in delete/danger modals */
+.warning-icon {
+  font-size: 24px;
+  color: #ef4444;
+}
+
+/* Warning text blocks in modals */
+.warning-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.warning-text strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.warning-subtext {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+/* Form group used in modals */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
