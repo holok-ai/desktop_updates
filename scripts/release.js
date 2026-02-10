@@ -63,6 +63,7 @@ if (!semverRegex.test(newVersion)) {
 
 // Check if tag exists (for multi-platform builds)
 const tagName = `v${newVersion}`;
+const desktopUpdatesRepo = 'holok-ai/desktop_updates';
 let tagExistsRemotely = false;
 
 // Treat existing local tag as 'remote' for multi-platform builds
