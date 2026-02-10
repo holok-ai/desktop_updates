@@ -7,6 +7,7 @@
   "scripts": {
     "prepare": "husky",
     "postinstall": "node scripts/install-chat-service.js",
+    "prepare:icons": "node scripts/prepare-icons.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -14,7 +15,9 @@
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:watch\" -n \"VITE,ELECTRON\" -c \"blue,green\"",
     "electron:watch": "concurrently \"npm run build:electron\" \"nodemon --watch dist-electron --delay 1000ms --exec electron .\" -n \"TSC,APP\" -c \"yellow,magenta\"",
     "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'module'}))\"",
+    "prebuild:prod": "npm run prepare:icons",
     "build:prod": "npm run build && npm run build:electron",
+    "prepackage": "npm run prepare:icons",
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
     "package:win": "npm run build:prod && electron-builder --win --x64",
@@ -73,7 +76,7 @@
     "pdf2json": "^4.0.2",
     "playwright": "^1.58.1",
     "primeicons": "^7.0.0",
-    "primeng": "^21.1.1",
+    "primeng": "^17.18.11",
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
@@ -126,6 +129,7 @@
     "retire": "^5.1.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "secretlint": "^11.2.5",
+    "sharp": "^0.34.5",
     "snyk": "^1.1300.2",
     "svelte": "^5.43.0",
     "svelte-check": "^4.3.3",
@@ -140,6 +144,7 @@
   "build": {
     "appId": "com.holokai.desktop.svelte",
     "productName": "Holokai Desktop",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
@@ -162,9 +167,12 @@
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis"
     },
     "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
       "target": [
         {
           "target": "zip",
@@ -183,7 +191,9 @@
       ]
     },
     "linux": {
-      "target": "AppImage"
+      "icon": "build/icon.png",
+      "target": "AppImage",
+      "category": "Utility"
     }
   },
   "lint-staged": {
