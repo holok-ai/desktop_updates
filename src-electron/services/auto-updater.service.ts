@@ -46,7 +46,11 @@ class AutoUpdaterService {
 
     (autoUpdater as unknown as { logger: unknown }).logger = log;
 
-    autoUpdater.autoDownload = true;
+    // Do NOT auto-download updates by default.
+    // We control download behavior manually:
+    // - Mandatory updates: always download.
+    // - Optional updates: only download when autoUpdate is enabled and user chooses \"Update Now\".
+    autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
 
     this.setupEventHandlers();
