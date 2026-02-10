@@ -1,6 +1,5 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { isAuthenticated } from '../../stores/auth.store';
   import { ROUTE } from '../../constants/route.constant';
   import { push, location, querystring } from 'svelte-spa-router';
   import { writable } from 'svelte/store';

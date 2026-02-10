@@ -233,6 +233,70 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
+  /**
+   * Create a thread with an initial prompt message
+   * @param projectId - Project ID to associate the thread with (optional)
+   * @param modelAccessName - Model access name to use
+   * @param prompt - Initial message content
+   * @param status - Thread status (defaults to ACTIVE)
+   * @returns Thread ID
+   */
+  async createThreadWithPrompt(
+    projectId: string | null,
+    modelAccessName: string,
+    prompt: string,
+    status: string = 'active'
+  ): Promise<string> {
+    // Get model details
+    const models = await wrapElectronCall(
+      () => window.electronAPI.models.listAll(),
+      'Failed to get models'
+    );
+    const modelDetails = models.find(m => m.accessName === modelAccessName);
+
+    if (!modelDetails) {
+      throw new Error('Model not found');
+    }
+
+    // Create thread metadata
+    const metadata: Record<string, any> = {
+      modelTitle: modelDetails.title,
+      modelProvider: modelDetails.provider,
+      modelId: modelDetails.id,
+      modelAccessName: modelDetails.accessName,
+    };
+
+    if (projectId) {
+      metadata.projectId = projectId;
+    }
+
+    // Create thread
+    const thread = await wrapElectronCall(
+      () => window.electronAPI.thread.create({
+        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+        description: '',
+        status,
+        metadata,
+      }),
+      'Failed to create thread'
+    );
+
+    const threadId = thread.id;
+
+    // Send initial message
+    await wrapElectronCall(
+      () => window.electronAPI.chat.sendMessage({
+        threadId,
+        branchId: '1.0',
+        content: prompt,
+        modelId: modelDetails.id,
+      }),
+      'Failed to send initial message'
+    );
+
+    return threadId;
+  }
+
   async update(id: string, updates: Partial<Thread>): Promise<Thread> {
     return wrapElectronCall(
       () => window.electronAPI.thread.update(id, updates),

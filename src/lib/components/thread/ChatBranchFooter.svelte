@@ -9,7 +9,7 @@
   }
 
   let {
-    onSelectLane
+    onSelectLane: _onSelectLane
   }: Props = $props();
 </script>
 

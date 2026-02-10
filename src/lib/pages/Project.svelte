@@ -120,41 +120,12 @@
 
     isSubmitting = true;
     try {
-      // Get model details
-      const models = await window.electronAPI.models.listAll();
-      const modelDetails = models.find(m => m.accessName === selectedModelId);
-
-      if (!modelDetails) {
-        throw new Error('Model not found');
-      }
-
-      // Create thread
-      const result = await window.electronAPI.threads.create({
-        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        description: '',
-        status: THREAD_STATUS.ACTIVE,
-        metadata: {
-          projectId,
-          modelTitle: modelDetails.title,
-          modelProvider: modelDetails.provider,
-          modelId: modelDetails.id,
-          modelAccessName: modelDetails.accessName,
-        },
-      });
-
-      if (!result.success || !result.thread) {
-        throw new Error(result.error || 'Failed to create thread');
-      }
-
-      const threadId = result.thread.id;
-
-      // Send initial message
-      await window.electronAPI.chat.sendMessage({
-        threadId,
-        branchId: '1.0',
-        content: prompt,
-        modelId: modelDetails.id,
-      });
+      const threadId = await threadService.createThreadWithPrompt(
+        projectId,
+        selectedModelId,
+        prompt,
+        THREAD_STATUS.ACTIVE
+      );
 
       // Clear prompt
       prompt = '';

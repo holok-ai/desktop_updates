@@ -1,5 +1,5 @@
 import { ChatService } from '@holokai/chat-component';
-import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult, ChatRequest } from '@holokai/chat-component';
+import type { ProviderConfig, ToolDefinition, ToolUse as ChatComponentToolUse, ToolResult } from '@holokai/chat-component';
 import type { DesktopChatRequest } from './chat-types.js';
 import type {
   ToolOrchestra,
@@ -95,8 +95,10 @@ export class DesktopChatService {
 
     // Update thread context for this message
     if (working_directory) {
-      (request as any).workingDirectory = working_directory; 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      (request as any).workingDirectory = working_directory;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
     (request as any).statusCallback = onToolStatus || undefined;
 
     try {
