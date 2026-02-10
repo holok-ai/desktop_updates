@@ -26,6 +26,7 @@ export interface Message {
   id: UUID;
   title: string;
   role: MessageRole;
+  userId: string; 
   content: string;
   createdAt: number;
   metadata?: MessageMetadata;
@@ -220,15 +221,12 @@ export class ThreadRepository {
         'cached messages',
       );
 
-      // Always refresh messages from API to avoid stale state after external updates (e.g. Moku chat)
-      // This ensures that getMessages() sees newly created messages even if the thread is cached.
-      // However, if API returns empty but cache has messages, use cached messages (local-only messages not yet synced)
       const cachedMessagesCount = cachedThread.messages.length;
       try {
         const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
         log.info(
           '[ThreadRepository] Received',
-          JSON.stringify(messagesResponse.content, null, 2),
+          messagesResponse.content.length,
           'message DTOs from API for cached thread',
         );
 
@@ -472,6 +470,7 @@ export class ThreadRepository {
       role: payload.role,
       content: payload.content,
       createdAt: now,
+      userId: '', 
       metadata: payload.metadata as MessageMetadata | undefined,
       clientMessageId: payload.clientMessageId,
       deletedAt: null,
@@ -1302,15 +1301,18 @@ export class ThreadRepository {
     log.info(
       '[ThreadRepository] Message branchId: ',
       branchId,
-      ',role: ',
+      ', role: ',
       dto.role,
-      ' metadata: ',
+      ', model: ',
+      dto.model ?? 'null',
+      ', metadata: ',
       dto.metadata,
     );
 
     return {
       id: dto.id,
       title: threadTitle,
+      userId: dto.createdUserId || '', 
       role: dto.role as MessageRole,
       content: dto.content,
       createdAt: this.parseApiTimeMs(dto.createdAt),

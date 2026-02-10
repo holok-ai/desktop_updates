@@ -59,6 +59,9 @@ class AutoUpdaterService {
     updaterLog.info('Auto-updater initialized successfully');
   }
 
+  /**
+   * Check for updates (automatic — respects autoCheckUpdates setting)
+   */
   checkForUpdates(): void {
     updaterLog.info(
       `checkForUpdates called (isPackaged: ${app.isPackaged}, initialized: ${this.initialized})`,

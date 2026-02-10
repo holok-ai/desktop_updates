@@ -67,7 +67,7 @@
 <div class="whitelist-section">
   <div class="mb-4">
     <h3 class="text-base font-semibold mb-1">Allow Access To Directories</h3>
-    <p class="text-xs text-gray-500">
+    <p class="help-text">
       Select directories where the Desktop application can read and write folders and files.
     </p>
   </div>
@@ -83,42 +83,40 @@
       />
       <button
         onclick={addPath}
-        class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
+        class="btn-primary"
       >
-        <i class="pi pi-plus text-xs"></i>
-        <span class="text-white">Add</span>
+        <i class="pi pi-plus"></i>
+        <span>Add</span>
       </button>
       <button
         onclick={selectFolder}
-        class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm inline-flex items-center gap-1"
+        class="btn-primary"
       >
-        <i class="pi pi-folder text-xs"></i>
-        <span class="text-white">Browse...</span>
+        <i class="pi pi-folder"></i>
+        <span>Browse...</span>
       </button>
     </div>
 
     {#if errorMessage}
-      <div class="mt-2 text-xs text-red-500">{errorMessage}</div>
+      <div class="error-message">{errorMessage}</div>
     {/if}
   </div>
 
   {#if paths.length === 0}
-    <div class="text-sm text-gray-500 p-4 rounded border border-dashed">
+    <div class="empty-state">
       No allowed directories. Use Add or Browse above to enter or select directories.
     </div>
   {:else}
     <ul class="space-y-2">
       {#each paths as path}
-        <li
-          class="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[var(--input-border)] bg-[var(--surface-card)]"
-        >
-          <span class="text-sm font-mono flex-1 truncate" title={path}>{path}</span>
+        <li class="path-item">
+          <span class="path-text" title={path}>{path}</span>
           <button
             onclick={() => removePath(path)}
-            class="remove-btn flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-sm bg-gray-100 dark:bg-gray-200 hover:bg-gray-200 dark:hover:bg-gray-300"
+            class="btn-secondary remove-btn"
           >
-            <i class="pi pi-trash text-red-500"></i>
-            <span class="text-black">Remove</span>
+            <i class="pi pi-trash"></i>
+            <span>Remove</span>
           </button>
         </li>
       {/each}
@@ -127,11 +125,52 @@
 </div>
 
 <style>
-  .remove-btn i {
+  .help-text {
     font-size: 0.75rem;
-    width: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  .error-message {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--error-color);
+  }
+
+  .empty-state {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    border: 1px dashed var(--input-border);
+  }
+
+  .path-item {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--input-border);
+    background: var(--input-background);
+  }
+
+  .path-text {
+    font-size: 0.875rem;
+    font-family: monospace;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+  }
+
+  .remove-btn {
+    flex-shrink: 0;
+  }
+
+  .remove-btn i {
+    font-size: 0.75rem;
+    color: var(--error-color);
   }
 </style>

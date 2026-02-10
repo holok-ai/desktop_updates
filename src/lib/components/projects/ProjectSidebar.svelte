@@ -87,7 +87,7 @@
   // AC-9: Handle project item click - navigate to project detail
   function handleProjectClick(event: CustomEvent<{ id: string }>): void {
     const projectId = event.detail.id;
-    push(`${ROUTE.PROJECTS}?projectId=${projectId}`);
+    push(`${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`);
   }
 
   // Permission check state (only loading indicator needed)

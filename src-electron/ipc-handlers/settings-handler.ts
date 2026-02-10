@@ -1,5 +1,6 @@
 import { ipcMain, dialog, app, shell } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
+import { autoUpdaterService } from '../services/auto-updater.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 import path from 'node:path';
@@ -38,7 +39,15 @@ export function registerSettingsHandlers(): void {
           holoApiUrl: DEFAULT_HOLO_API_URL,
           directoryWhitelist: [],
           theme: 'light',
-          logLevel: 'info',
+          startingPage: 'create-chat',
+          showRecentList: true,
+          threadLayout: 'single-col',
+          chatFontSize: 14,
+          chatLayout: 'left-right',
+          enabledTools: [],
+          shellCommands: '',
+          autoCheckUpdates: true,
+          autoInstallUpdates: false,
         }) as AppSettings,
       getSetting: (_key: keyof AppSettings) => undefined,
       setSetting: (_k: keyof AppSettings, _v: AppSettings[keyof AppSettings]) => {},
@@ -178,6 +187,24 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
+   * Manually trigger an update check
+   */
+  ipcMain.handle(
+    'settings:checkForUpdates',
+    (_event): Promise<{ success: boolean; error?: string }> => {
+      settingsLog.info('CheckForUpdates called (manual)');
+      try {
+        autoUpdaterService.checkForUpdatesManual();
+        return Promise.resolve({ success: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to check for updates';
+        settingsLog.error('CheckForUpdates failed', { error: message });
+        return Promise.resolve({ success: false, error: message });
+      }
+    },
+  );
+
+  /**
    * Open log file in default application
    */
   ipcMain.handle(
@@ -236,6 +263,7 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:addWhitelistPath');
   ipcMain.removeHandler('settings:removeWhitelistPath');
   ipcMain.removeHandler('settings:selectFolder');
+  ipcMain.removeHandler('settings:checkForUpdates');
   ipcMain.removeHandler('settings:openLogInVSCode');
 
   settingsLog.info('Handlers unregistered');

@@ -3,6 +3,7 @@
   import type { Thread } from '../../../../src-electron/preload';
   import { ROUTE } from '$lib/constants/route.constant';
   import { projects } from '$lib/stores/project.store';
+  import { favorites } from '$lib/stores/favorite.store';
 
   const dispatch = createEventDispatcher();
 
@@ -24,9 +25,45 @@
     Array.isArray($projects) && $projects.some((p) => p.userRole === 'owner' || p.userRole === 'editor')
   );
 
+  // Check if this thread is a favorite
+  const isFav = $derived($favorites.some((e) => e.id === thread.id));
+
+  let showMenu = $state(false);
+  let menuElement = $state<HTMLDivElement | null>(null);
+  let openUpward = $state(false);
+
   function handleClick() {
     dispatch('click', { id: thread.id, label: thread.title, route: ROUTE.THREADS });
   }
+
+  function toggleMenu(e: MouseEvent) {
+    e.stopPropagation();
+    showMenu = !showMenu;
+
+    if (!showMenu) {
+      // Check if menu would overflow at bottom
+      const button = e.currentTarget as HTMLElement;
+      const rect = button.getBoundingClientRect();
+      const menuHeight = 120; // Approximate height of 3 menu items
+      const spaceBelow = window.innerHeight - rect.bottom;
+      openUpward = spaceBelow < menuHeight;
+    }
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    if (menuElement && !menuElement.contains(e.target as Node)) {
+      showMenu = false;
+    }
+  }
+
+  $effect(() => {
+    if (showMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  });
 
   function handleDelete(e: MouseEvent) {
     e.stopPropagation();
@@ -46,6 +83,12 @@
     } else {
       dispatch('copyToProject', { thread });
     }
+  }
+
+  function handleToggleFavorite(e: MouseEvent) {
+    e.stopPropagation();
+    favorites.toggleFavorite(thread.id, 'thread');
+    showMenu = false;
   }
 
   function formatDate(date: Date | number): string {
@@ -85,23 +128,47 @@
       {#if showActions}
         <div class="thread-actions">
           <button
-            class="action-button copy"
-            title={isProjectThread ? "Copy to Personal" : "Copy to Project"}
-            onclick={handleCopy}
-            disabled={!isProjectThread && !hasWritePermissions}
+            class="action-button menu-trigger"
+            title="More actions"
+            onclick={toggleMenu}
           >
-            <i class="pi pi-copy"></i>
+            ⋯
           </button>
-          <button
-            class="action-button edit"
-            title="Edit"
-            onclick={handleRename}
-          >
-            <i class="pi pi-pencil"></i>
-          </button>
-          <button class="action-button delete" title="Delete" onclick={handleDelete}>
-            <i class="pi pi-trash"></i>
-          </button>
+          {#if showMenu}
+            <div class="context-menu" class:upward={openUpward} role="menu" bind:this={menuElement}>
+              <button
+                class="menu-item"
+                role="menuitem"
+                onclick={handleToggleFavorite}
+              >
+                <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}" style="margin-right: 6px; font-size: 12px;"></i>
+                {isFav ? 'Remove favorite' : 'Make favorite'}
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                onclick={handleRename}
+              >
+                Rename
+              </button>
+              <button
+                class="menu-item"
+                role="menuitem"
+                onclick={handleCopy}
+                disabled={!isProjectThread && !hasWritePermissions}
+              >
+                Change project
+              </button>
+              <hr class="menu-divider" />
+              <button
+                class="menu-item delete"
+                role="menuitem"
+                onclick={handleDelete}
+              >
+                Delete
+              </button>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -174,6 +241,7 @@
     gap: 0.5rem;
     opacity: 0.7;
     flex-shrink: 0;
+    position: relative;
   }
 
   .thread-item:hover .thread-actions,
@@ -204,19 +272,65 @@
     cursor: not-allowed;
   }
 
-  .action-button.copy {
+  .action-button.menu-trigger {
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .context-menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    right: 0;
+    background: #ffffff;
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    padding: 0.25rem 0;
+  }
+
+  :global(html.dark) .context-menu {
+    background: #2a2a2a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .context-menu.upward {
+    top: auto;
+    bottom: calc(100% + 2px);
+  }
+
+  .menu-divider {
+    margin: 0.25rem 0;
+    border: none;
+    border-top: 1px solid var(--input-border);
+    opacity: 0.5;
+  }
+
+  .menu-item {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: none;
     color: var(--text-primary);
-  }
-
-  .action-button.edit {
-    color: var(--action-edit-color);
-  }
-
-  .action-button.delete {
-    color: var(--action-delete-color);
-  }
-
-  .action-button i {
     font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    display: block;
+  }
+
+  .menu-item:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+  }
+
+  .menu-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .menu-item.delete {
+    color: var(--action-delete-color, #ef4444);
   }
 </style>

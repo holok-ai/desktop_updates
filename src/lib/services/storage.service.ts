@@ -15,6 +15,7 @@ class StorageService {
     SIDEBAR_ACTIVITY: SIDEBAR_STORAGE_KEY,
     ACTIVITY_LIST_WIDTH: 'activityListWidth',
     ACTIVITY_LIST_COLLAPSED: 'activityListCollapsed',
+    SIDEBAR_COLLAPSED: 'sidebarCollapsed',
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
     SHOW_COMMENTS: 'showComments',
   } as const;
@@ -194,6 +195,30 @@ class StorageService {
    */
   setActivityListCollapsed(collapsed: boolean): boolean {
     return this.set(this.KEYS.ACTIVITY_LIST_COLLAPSED, collapsed);
+  }
+
+  /**
+   * Get the collapsed state for main sidebar
+   */
+  getSidebarCollapsed(): boolean {
+    return this.get(this.KEYS.SIDEBAR_COLLAPSED, false, {
+      coerce: (raw) => {
+        if (raw === 'true') {
+          return true;
+        }
+        if (raw === 'false') {
+          return false;
+        }
+        return null;
+      },
+    });
+  }
+
+  /**
+   * Set the collapsed state for main sidebar
+   */
+  setSidebarCollapsed(collapsed: boolean): boolean {
+    return this.set(this.KEYS.SIDEBAR_COLLAPSED, collapsed);
   }
 }
 

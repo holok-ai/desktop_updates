@@ -79,7 +79,12 @@ export function registerChatHandlers(auth?: AuthService): void {
         // Store in map
         chatServices.set(threadId, chatService);
 
-        log.info('[IPC] DesktopChatService created for thread:', threadId);
+        log.info('[IPC] DesktopChatService created for thread:', {
+          threadId,
+          provider: providerType,
+          model: config.model,
+          url: newConfig.url || 'default'
+        });
         return { success: true };
       } catch (error) {
         log.error('[IPC] Error creating chat provider:', error);
@@ -109,11 +114,16 @@ export function registerChatHandlers(auth?: AuthService): void {
       }
 
       try {
+        // Extract branchId from request - required for stream routing
+        const branchId = request.branch_id;
+        if (!branchId) {
+          throw new Error('branch_id is required in chat request');
+        }
+
         await chatService.chat(
           request,
           (token: string) => {
-            log.info('[IPC] Sending token to renderer:', { threadId, tokenLength: token.length, tokenPreview: token.substring(0, 30) });
-            event.sender.send('chat:token', { threadId, token });
+            event.sender.send('chat:token', { threadId, branchId, token });
           },
           (toolName, input, notification) => {
             event.sender.send('chat:toolUse', {
