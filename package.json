@@ -1,6 +1,6 @@
 {
   "name": "holokai-desktop",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
