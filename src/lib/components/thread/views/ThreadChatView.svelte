@@ -9,12 +9,10 @@
    * thread on first prompt via `thread.addUserPrompt(null, ...)`.
    */
   import { onMount, onDestroy, tick } from 'svelte';
-  import { replace } from 'svelte-spa-router';
   import ChatMessage from '../ChatMessage.svelte';
   import ChatBranch from '../ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService, type DisplayItem } from '$lib/services/thread.service';
-  import { ROUTE } from '$lib/constants/route.constant';
+  import { threadService } from '$lib/services/thread.service';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
@@ -31,7 +29,7 @@
     chatLayout: ChatLayout;
     initialPrompt?: string | null;
     /** Called when a new thread is created so the parent can update its state */
-    onThreadCreated?: (newThread: Thread) => void;
+    _onThreadCreated?: (newThread: Thread) => void;
   }
 
   let {
@@ -40,7 +38,7 @@
     availableModels = [],
     chatLayout,
     initialPrompt = null,
-    onThreadCreated,
+    _onThreadCreated,
   }: Props = $props();
 
   // ── State ──
@@ -56,13 +54,26 @@
   // Model info resolved from thread metadata or user selection
   let modelId = $state(''); 
   let modelName = $state('');
-  let modelProvider = $state('');
-  let modelUrl = $state('');
+  let _modelProvider = $state('');
+  let _modelUrl = $state('');
   let modelAccessName = $state('');
   let applicationSlug = $state('');
 
   // Model selector (shown when no thread — new-thread flow)
   let selectedModelKey = $state('');
+
+  function handleModelChange() {
+    if (!selectedModelKey) return;
+    const [provider, id] = selectedModelKey.split('::');
+    const detail = availableModels.find((m) => m.provider === provider && m.id === id);
+    if (detail) {
+      modelName = detail.accessName;
+      _modelProvider = detail.provider;
+      _modelUrl = detail.url;
+      modelAccessName = detail.accessName;
+      applicationSlug = detail.provider;
+    }
+  }
 
   // Timeout handles
   let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -132,8 +143,8 @@
     if (!thread?.metadata) return;
 
     modelId = (thread.metadata.modelId as string) || '';
-    modelProvider = (thread.metadata.modelProvider as string) || '';
-    modelUrl = (thread.metadata.modelUrl as string) || '';
+    _modelProvider = (thread.metadata.modelProvider as string) || '';
+    _modelUrl = (thread.metadata.modelUrl as string) || '';
 
     console.log('[ThreadChatView] extractModelInfo - thread metadata:', {
       modelId,
@@ -144,8 +155,8 @@
     const detail = availableModels.find((m) => m.accessName === modelId || m.id === modelId);
     if (detail) {
       modelName = detail.accessName;
-      modelProvider = detail.provider;
-      modelUrl = detail.url;
+      _modelProvider = detail.provider;
+      _modelUrl = detail.url;
       modelAccessName = detail.accessName;
       applicationSlug = detail.provider;
       console.log('[ThreadChatView] extractModelInfo - found model:', {
@@ -243,10 +254,10 @@
 
   // ── Send message ──
   async function sendMessage(
-    appSlug: string,
+    _appSlug: string,
     modelIds: string[],
     text: string,
-    attachments?: Attachment[],
+    _attachments?: unknown[],
   ) {
     // Validation
     if (!text.trim() || isStreaming) return;
@@ -415,13 +426,13 @@
       try {
         const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
         return { ...result, branchId: branch.branchId, modelDetails };
-      } catch (error) {
+      } catch (_error) {
         return { success: false, branchId: branch.branchId };
       }
     });
 
     // Wait for all chats to complete
-    const results = await Promise.all(chatPromises);
+    await Promise.all(chatPromises);
 
     // Clean up streaming
     unsubscribers.forEach((unsub) => unsub());
@@ -558,223 +569,7 @@
     return threadService.buildDisplayItems(messages, isStreaming, responseText);
   });
 
-  /* OLD CODE - COMMENTED OUT FOR TESTING
-  // ── Build message pairs for rendering ──
-  interface MessagePair {
-    request: Message;
-    response: Message | null;
-    isStreamingResponse: boolean;
-    streamingContent: string;
-  }
-
-  interface Lane {
-    id: string;
-    branchId: string;
-    messagePairs: MessagePair[];
-    modelName?: string;
-  }
-
-  interface MessageDisplay {
-    type: 'message';
-    pair: MessagePair;
-  }
-
-  interface BranchDisplay {
-    type: 'branch';
-    id: string;
-    position: number;
-    lanes: Lane[];
-  }
-
-  type DisplayItem = MessageDisplay | BranchDisplay;
-
-  /**
-   * Parse branchId to extract row number
-   * "1.0" → 1, "2.1.3" → 2
-   */
-  function getBranchRow(branchId: string): number {
-    const firstPart = branchId.split('.')[0];
-    return parseInt(firstPart) || 0;
-  }
-
-  /**
-   * Parse branchId to extract lane number
-   * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
-   */
-  function getBranchLane(branchId: string): number {
-    const parts = branchId.split('.');
-    return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
-  }
-
-  /**
-   * Get lane key (first two parts of branchId)
-   * "1.0" → "1.0", "2.1.3" → "2.1"
-   */
-  function getLaneKey(branchId: string): string {
-    const parts = branchId.split('.');
-    return parts.slice(0, 2).join('.');
-  }
-
-  /**
-   * Build message pairs from a list of messages
-   */
-  function buildMessagePairs(msgs: Message[]): MessagePair[] {
-    const pairs: MessagePair[] = [];
-    let i = 0;
-    while (i < msgs.length) {
-      const msg = msgs[i];
-      if (msg.role === 'user') {
-        const next = i + 1 < msgs.length ? msgs[i + 1] : null;
-        if (next && next.role === 'assistant') {
-          pairs.push({
-            request: msg,
-            response: next,
-            isStreamingResponse: false,
-            streamingContent: '',
-          });
-          i += 2;
-        } else {
-          // User message without response yet — might be streaming
-          const isLast = i === msgs.length - 1;
-          pairs.push({
-            request: msg,
-            response: null,
-            isStreamingResponse: isLast && isStreaming,
-            streamingContent: isLast && isStreaming ? responseText : '',
-          });
-          i += 1;
-        }
-      } else {
-        // Orphan assistant message (shouldn't happen normally)
-        i += 1;
-      }
-    }
-    return pairs;
-  }
-
-  /**
-   * Build display items from messages - handles both regular messages and branches
-   *
-  let displayItems = $derived.by(() => {
-    if (messages.length === 0) return [];
-
-    // Sort messages by branchId first
-    const sortedMessages = [...messages].sort((a, b) => {
-      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
-      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
-
-      // Sort by row, then lane, then iteration
-      if (aRow !== bRow) return aRow - bRow;
-      if (aLane !== bLane) return aLane - bLane;
-      return aIter - bIter;
-    });
-
-    console.log('[ThreadChatView] Sorted messages:', sortedMessages.map(m => ({
-      branchId: m.branchId,
-      role: m.role,
-      content: m.content.substring(0, 30)
-    })));
-
-    // Group messages by row (first number in branchId)
-    const rowMap = new Map<number, Message[]>();
-
-    for (const msg of sortedMessages) {
-      const row = getBranchRow(msg.branchId);
-
-      if (!rowMap.has(row)) {
-        rowMap.set(row, []);
-      }
-
-      rowMap.get(row)!.push(msg);
-    }
-
-    // Build display items
-    const items: DisplayItem[] = [];
-    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
-
-    for (const row of sortedRows) {
-      const rowMessages = rowMap.get(row)!;
-
-      console.log(`[ThreadChatView] Processing row ${row}, messages:`, rowMessages.map(m => ({
-        branchId: m.branchId,
-        lane: getBranchLane(m.branchId),
-        role: m.role
-      })));
-
-      // Check if this row has branches (any message with lane != 0)
-      const hasBranches = rowMessages.some((msg) => getBranchLane(msg.branchId) !== 0);
-
-      console.log(`[ThreadChatView] Row ${row} hasBranches:`, hasBranches);
-
-      if (!hasBranches) {
-        // Single lane (main branch only) - display as regular message pairs
-        const pairs = buildMessagePairs(rowMessages);
-
-        for (const pair of pairs) {
-          items.push({
-            type: 'message',
-            pair,
-          });
-        }
-      } else {
-        // Multiple lanes - display as branch
-        // Group messages by lane key (first two parts: "1.0", "1.1", etc.)
-        const laneMap = new Map<string, Message[]>();
-
-        for (const msg of rowMessages) {
-          const laneKey = getLaneKey(msg.branchId);
-
-          if (!laneMap.has(laneKey)) {
-            laneMap.set(laneKey, []);
-          }
-
-          laneMap.get(laneKey)!.push(msg);
-        }
-
-        console.log(`[ThreadChatView] Row ${row} lane keys:`, Array.from(laneMap.keys()));
-
-        // Build lanes sorted by lane number
-        const laneKeys = Array.from(laneMap.keys()).sort((a, b) => {
-          const laneA = getBranchLane(a);
-          const laneB = getBranchLane(b);
-          return laneA - laneB;
-        });
-
-        const lanes: Lane[] = laneKeys.map((laneKey, index) => {
-          const msgs = laneMap.get(laneKey)!;
-          const pairs = buildMessagePairs(msgs);
-
-          // Try to extract model name from first message
-          const modelName = msgs[0]?.modelId || undefined;
-
-          console.log(`[ThreadChatView] Lane ${laneKey}:`, {
-            messageCount: msgs.length,
-            pairCount: pairs.length,
-            modelName
-          });
-
-          return {
-            id: `lane-${row}-${index}`,
-            branchId: laneKey,
-            messagePairs: pairs,
-            modelName,
-          };
-        });
-
-        console.log(`[ThreadChatView] Creating branch for row ${row} with ${lanes.length} lanes`);
-
-        items.push({
-          type: 'branch',
-          id: `branch-${row}`,
-          position: row,
-          lanes,
-        });
-      }
-    }
-
-    return items;
-  });
-  END OLD CODE */
+  /* Display items built from thread service */
 </script>
 
 <div class="thread-chat-view">
@@ -849,7 +644,6 @@
           onCopyRequest={() => copyToInput(item.pair.request.content)}
         />
       {:else if item.type === 'branch'}
-        {console.log('[ThreadChatView] Rendering ChatBranch:', { branchId: item.id, laneCount: item.lanes.length, lanes: item.lanes })}
         <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
       {/if}
     {/each}

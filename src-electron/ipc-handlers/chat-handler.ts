@@ -115,10 +115,14 @@ export function registerChatHandlers(auth?: AuthService): void {
 
       try {
         // Extract branchId from request - required for stream routing
-        const branchId = request.branch_id;
+        // Accept both snake_case (branch_id) and camelCase (branchId) from frontend
+        const branchId =
+          request.branch_id ?? (request as unknown as { branchId?: string }).branchId;
         if (!branchId) {
           throw new Error('branch_id is required in chat request');
         }
+        // Ensure request has branch_id for downstream services (DesktopChatService, holokai-chat-service)
+        (request as unknown as Record<string, unknown>).branch_id = branchId;
 
         await chatService.chat(
           request,

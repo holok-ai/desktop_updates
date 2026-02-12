@@ -38,25 +38,23 @@ export class ThreadService extends BaseElectronService {
     this.registerCleanup(unsubDeleted);
 
     // Listen for streaming token events
-    const unsubTokens = window.electronAPI.chat.onToken((data: {
-      threadId: string;
-      branchId: string;
-      token: string;
-    }) => {
-      if (!data.branchId) {
-        console.error('[ThreadService] Token event missing branchId - this is an error!', data);
-        return;
-      }
+    const unsubTokens = window.electronAPI.chat.onToken(
+      (data: { threadId: string; branchId: string; token: string }) => {
+        if (!data.branchId) {
+          console.error('[ThreadService] Token event missing branchId - this is an error!', data);
+          return;
+        }
 
-      const key = this.buildStreamKey(data.threadId, data.branchId);
-      const callbacks = this.streamCallbacks.get(key);
+        const key = this.buildStreamKey(data.threadId, data.branchId);
+        const callbacks = this.streamCallbacks.get(key);
 
-      if (callbacks) {
-        callbacks.forEach(callback => callback(data.token));
-      } else {
-        console.warn('[ThreadService] No subscribers for stream:', key);
-      }
-    });
+        if (callbacks) {
+          callbacks.forEach((callback) => callback(data.token));
+        } else {
+          console.warn('[ThreadService] No subscribers for stream:', key);
+        }
+      },
+    );
     this.registerCleanup(unsubTokens);
   }
 
@@ -68,7 +66,7 @@ export class ThreadService extends BaseElectronService {
   subscribeToStream(
     threadId: string,
     branchId: string,
-    callback: (token: string) => void
+    callback: (token: string) => void,
   ): () => void {
     if (!threadId || !branchId) {
       throw new Error('[ThreadService] threadId and branchId are required for stream subscription');
@@ -79,9 +77,8 @@ export class ThreadService extends BaseElectronService {
     if (!this.streamCallbacks.has(key)) {
       this.streamCallbacks.set(key, new Set());
     }
-    this.streamCallbacks.get(key)!.add(callback);
-
-    console.log('[ThreadService] Subscribed to stream:', key);
+    const callbackSet = this.streamCallbacks.get(key);
+    callbackSet?.add(callback);
 
     // Return unsubscribe function
     return () => {
@@ -90,7 +87,6 @@ export class ThreadService extends BaseElectronService {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.streamCallbacks.delete(key);
-          console.log('[ThreadService] Unsubscribed from stream:', key);
         }
       }
     };
@@ -109,7 +105,7 @@ export class ThreadService extends BaseElectronService {
     try {
       let baseBranchId: string;
 
-      if (lastMessageBranchId && lastMessageBranchId.trim()) {
+      if (lastMessageBranchId?.trim()) {
         // Use provided branchId
         baseBranchId = lastMessageBranchId;
       } else {
@@ -118,12 +114,11 @@ export class ThreadService extends BaseElectronService {
 
         if (messages.length === 0) {
           // First message in thread
-          console.log('[ThreadService] First message in thread, using branchId: 1.0.0');
           return '1.0.0';
         }
 
         // Find last message in main lane (where second part is 0)
-        const mainLaneMessages = messages.filter(m => {
+        const mainLaneMessages = messages.filter((m) => {
           const parts = (m.branchId || '').split('.');
           const lane = parseInt(parts[1]) || 0;
           return lane === 0;
@@ -153,15 +148,9 @@ export class ThreadService extends BaseElectronService {
         nextBranchId = `${row}.${lane}.${iteration + 1}`;
       }
 
-      console.log('[ThreadService] Calculated next branchId:', {
-        baseBranchId,
-        nextBranchId,
-        rule: lane === 0 ? 'main lane: increment row' : 'branch lane: increment iteration'
-      });
-
       return nextBranchId;
-    } catch (error) {
-      console.error('[ThreadService] Failed to calculate next branchId, using default: 1.0.0', error);
+    } catch (err) {
+      console.error('[ThreadService] Failed to calculate next branchId, using default: 1.0.0', err);
       return '1.0.0';
     }
   }
@@ -169,22 +158,22 @@ export class ThreadService extends BaseElectronService {
   async sendChatMessage(
     threadId: string,
     branchId: string,
-    request: Record<string, unknown>
+    request: Record<string, unknown>,
   ): Promise<{ success: boolean; error?: string }> {
     if (!threadId || !branchId) {
       throw new Error('[ThreadService] threadId and branchId are required for chat message');
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...request,
-      thread_id: threadId,
-      branch_id: branchId,
+      threadId,
+      branchId,
     };
 
-    return await wrapElectronCall(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return wrapElectronCall(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       () => window.electronAPI.chat.chat(threadId, payload as any),
-      'Failed to send chat message'
+      'Failed to send chat message',
     );
   }
 
@@ -245,14 +234,14 @@ export class ThreadService extends BaseElectronService {
     projectId: string | null,
     modelAccessName: string,
     prompt: string,
-    status: string = 'active'
+    status: string = 'active',
   ): Promise<string> {
     // Get model details
     const models = await wrapElectronCall(
       () => window.electronAPI.models.listAll(),
-      'Failed to get models'
+      'Failed to get models',
     );
-    const modelDetails = models.find(m => m.accessName === modelAccessName);
+    const modelDetails = models.find((m) => m.accessName === modelAccessName);
 
     if (!modelDetails) {
       throw new Error('Model not found');
@@ -272,27 +261,31 @@ export class ThreadService extends BaseElectronService {
 
     // Create thread
     const thread = await wrapElectronCall(
-      () => window.electronAPI.thread.create({
-        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        description: '',
-        status,
-        metadata,
-      }),
-      'Failed to create thread'
+      () =>
+        window.electronAPI.thread.create({
+          title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+          description: '',
+          status,
+          metadata,
+        }),
+      'Failed to create thread',
     );
 
     const threadId = thread.id;
 
     // Send initial message
+    /* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call */
     await wrapElectronCall(
-      () => window.electronAPI.chat.sendMessage({
-        threadId,
-        branchId: '1.0',
-        content: prompt,
-        modelId: modelDetails.id,
-      }),
-      'Failed to send initial message'
+      () =>
+        window.electronAPI.chat.sendMessage({
+          threadId,
+          branchId: '1.0',
+          content: prompt,
+          modelId: modelDetails.id,
+        }),
+      'Failed to send initial message',
     );
+    /* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call */
 
     return threadId;
   }
@@ -329,7 +322,10 @@ export class ThreadService extends BaseElectronService {
   }
 
   async getThread(id: string): Promise<Thread | null> {
-    const thread = await wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    const thread = await wrapElectronCall(
+      () => window.electronAPI.thread.getById(id),
+      'Failed to get thread',
+    );
     if (thread) {
       threads.addThread(thread);
     }
@@ -581,15 +577,17 @@ export class ThreadService extends BaseElectronService {
     branchId: string,
   ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
     return wrapElectronCall(async () => {
-      const result = await window.electronAPI.thread.switchBranch(threadId, branchId);
+      const result: { success: boolean; thread?: Thread; error?: string } =
+        await window.electronAPI.thread.switchBranch(threadId, branchId);
       if (result.success && result.thread) {
-        return { success: true, thread: result.thread };
+        return { success: true as const, thread: result.thread };
       }
       if (!result.success) {
-        const errorMessage: string = typeof result.error === 'string' ? result.error : 'Failed to switch branch';
-        return { success: false, error: errorMessage };
+        const errorMessage: string =
+          typeof result.error === 'string' ? result.error : 'Failed to switch branch';
+        return { success: false as const, error: errorMessage };
       }
-      return { success: false, error: 'Failed to switch branch' };
+      return { success: false as const, error: 'Failed to switch branch' };
     }, 'Failed to switch branch');
   }
 
@@ -625,20 +623,19 @@ export class ThreadService extends BaseElectronService {
     modelId?: string,
     currentMessages?: Message[],
   ): Promise<
-    | { success: true; message: Message; newBranchId: string }
-    | { success: false; error: string }
+    { success: true; message: Message; newBranchId: string } | { success: false; error: string }
   > {
     // Generate next branchId hierarchically from the original message's branchId
     // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
     // Use provided messages if available (for multiple variations), otherwise fetch from backend
-    const messages = currentMessages ?? await this.getMessages(thread.id);
+    const messages = currentMessages ?? (await this.getMessages(thread.id));
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
     const content = variationContent ?? originalMessage.content;
     // Use provided modelId or fall back to original message's modelId
     const finalModelId = modelId ?? originalMessage.modelId;
-    
+
     // Create variation message with new branchId
     const res = await this.appendMessage(thread.id, {
       role: 'user',
@@ -669,7 +666,11 @@ export class ThreadService extends BaseElectronService {
    * Build display items from messages - handles both regular messages and branches
    * Returns an array of items that can be either single messages or branches with multiple lanes
    */
-  buildDisplayItems(messages: Message[], isStreaming: boolean = false, responseText: string = ''): DisplayItem[] {
+  buildDisplayItems(
+    messages: Message[],
+    isStreaming: boolean = false,
+    responseText: string = '',
+  ): DisplayItem[] {
     if (messages.length === 0) {
       return [];
     }
@@ -716,9 +717,10 @@ export class ThreadService extends BaseElectronService {
       }
 
       // Check if this row has branches (any message with lane != 0)
-      const rowHasBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const isMultilane = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
 
-      if (!rowHasBranches) {
+      if (!isMultilane) {
         // Single lane (main branch only) - display as regular message pairs
         const pairs = this.buildMessagePairs(rowMessages, isStreaming, responseText);
 
@@ -818,14 +820,19 @@ export class ThreadService extends BaseElectronService {
   /**
    * Build message pairs from a list of messages
    */
-  private buildMessagePairs(msgs: Message[], isStreaming: boolean, responseText: string): MessagePair[] {
+  private buildMessagePairs(
+    msgs: Message[],
+    isStreaming: boolean,
+    responseText: string,
+  ): MessagePair[] {
     const pairs: MessagePair[] = [];
     let i = 0;
     while (i < msgs.length) {
+      // eslint-disable-next-line security/detect-object-injection
       const msg = msgs[i];
       if (msg.role === 'user') {
         const next = i + 1 < msgs.length ? msgs[i + 1] : null;
-        if (next && next.role === 'assistant') {
+        if (next?.role === 'assistant') {
           pairs.push({
             request: msg,
             response: next,
@@ -835,12 +842,13 @@ export class ThreadService extends BaseElectronService {
           i += 2;
         } else {
           // User message without response yet — might be streaming
-          const isLastMessage = i === msgs.length - 1;
+          // eslint-disable-next-line @typescript-eslint/naming-convention
+          const isLastInList = i === msgs.length - 1;
           pairs.push({
             request: msg,
             response: null,
-            isStreamingResponse: isLastMessage && isStreaming,
-            streamingContent: isLastMessage && isStreaming ? responseText : '',
+            isStreamingResponse: isLastInList && isStreaming,
+            streamingContent: isLastInList && isStreaming ? responseText : '',
           });
           i += 1;
         }

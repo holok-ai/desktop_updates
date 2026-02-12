@@ -13,7 +13,7 @@ import { ensureValidToken, refreshTokenViaElectron } from '../helpers/token-help
 
 /**
  * Test credentials with long-lived apiKey (expires 2036)
- * The accessToken is intentionally expired to test token refresh flow.
+ * The accessToken has a 24h window; once expired, the apiKey handles refresh automatically.
  *
  * Security Note:
  * - Only work in test environment
@@ -23,7 +23,7 @@ import { ensureValidToken, refreshTokenViaElectron } from '../helpers/token-help
  */
 export const TEST_TOKENS = {
   accessToken:
-    'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJrb25nLnBoYW1AbmtrLmNvbS52biIsIm9yZ2FuaXphdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiYXBwU2x1Z3MiOlsiMDRkZGJjNjMiLCIyMGE1NzhkYSIsIjMwMTViY2ZmIiwiNDc4ZjJjYTciLCI4ZGI5ZDkwOCIsImEyMzY1ZTdlIiwiYThmMGVkZmIiLCJkNmQyMTBmMSIsImRjNzQzZTg0IiwiZTNiN2Q5OWIiXSwic3ViIjoiMTk0NTFmNzUtZDlmNi00ZGEyLWIxN2ItYWYzYjY0OWU2ZmU4IiwiaXNzIjoibW9rdS1hcGkiLCJpYXQiOjE3NjkzNDgzMzcsImV4cCI6MTc2OTQzNDczN30.BrTOuoXYM69qzTXSQUh84uwXIAOiqfoXaCs-HWDR2YE_IFrPxVOeQAeayinGUAXu',
+    'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJrb25nLnBoYW1AbmtrLmNvbS52biIsIm9yZ2FuaXphdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiYXBwU2x1Z3MiOlsiMDRkZGJjNjMiLCIzMDE1YmNmZiIsIjQ3OGYyY2E3IiwiOGRiOWQ5MDgiLCJhMjM2NWU3ZSIsImE4ZjBlZGZiIiwiZDZkMjEwZjEiLCJkYzc0M2U4NCIsImUzYjdkOTliIl0sInN1YiI6IjE5NDUxZjc1LWQ5ZjYtNGRhMi1iMTdiLWFmM2I2NDllNmZlOCIsImlzcyI6Im1va3UtYXBpIiwiaWF0IjoxNzcwODk0MDUyLCJleHAiOjE3NzA5ODA0NTJ9.kga1Be5KYfjRkaO_Z5k4RQNVGJrbiXx5wMtgOY34Jov516v-8xzQSidQr-yIHNHj',
   apiKey:
     'eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOiJrb25nLnBoYW1AbmtrLmNvbS52biIsIm9yZ2FuaXphdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwic3ViIjoiMTk0NTFmNzUtZDlmNi00ZGEyLWIxN2ItYWYzYjY0OWU2ZmU4IiwiaXNzIjoibW9rdS1hcGkiLCJpYXQiOjE3NjkyNDM1NjcsImV4cCI6MjA4NDc3NjM2N30.ZhksfPL5K59H96ZVYmUwKyOb9abvVwh6V9XXv1uijRiMPVGs3pktfdO_yzESDXtO',
   user: {
@@ -32,7 +32,7 @@ export const TEST_TOKENS = {
     name: 'Kong Pham',
     organizationId: '00000000-0000-0000-0000-000000000001',
   },
-  expiresAt: 1769434737000, // Expired - will trigger refresh on first use
+  expiresAt: 1770980452000, // exp from JWT - will trigger refresh via apiKey when expired
 };
 
 /**
