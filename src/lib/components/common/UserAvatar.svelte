@@ -58,34 +58,43 @@
     showMenu = false;
     push(ROUTE.SETTINGS);
   }
+
+  function handleLogin() {
+    showMenu = false;
+    push(ROUTE.LOGIN);
+  }
 </script>
 
-{#if $isAuthenticated && $currentUser}
-  <div
-    class="avatar-container"
-    role="region"
-    aria-label="User profile"
-    onmouseenter={handleMouseEnter}
-    onmouseleave={handleMouseLeave}
-  >
-    <button class="avatar-circle" aria-label="User profile" onclick={handleClick}>
+<div
+  class="avatar-container"
+  role="region"
+  aria-label="User profile"
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
+>
+  <button class="avatar-circle" aria-label="User profile" onclick={handleClick}>
+    {#if $isAuthenticated && $currentUser}
       {getInitials($currentUser.name)}
-    </button>
+    {:else}
+      <i class="pi pi-user"></i>
+    {/if}
+  </button>
 
-    {#if showMenu}
-      <div
-        class="context-menu avatar-menu"
-        role="menu"
-        tabindex="0"
-        onmouseenter={handleMouseEnter}
-        onmouseleave={handleMouseLeave}
-        onkeydown={(event) => {
-          if (event.key === 'Escape') {
-            event.stopPropagation();
-            showMenu = false;
-          }
-        }}
-      >
+  {#if showMenu}
+    <div
+      class="context-menu avatar-menu"
+      role="menu"
+      tabindex="0"
+      onmouseenter={handleMouseEnter}
+      onmouseleave={handleMouseLeave}
+      onkeydown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          showMenu = false;
+        }
+      }}
+    >
+      {#if $isAuthenticated && $currentUser}
         <button class="menu-item" role="menuitem" onclick={handleSettings}>
           <i class="pi pi-cog"></i>
           <span>Settings</span>
@@ -94,14 +103,19 @@
           <i class="pi pi-sign-out"></i>
           <span>Logout</span>
         </button>
-      </div>
-    {/if}
-  </div>
-{:else}
-  <button class="login-box" onclick={handleClick}>
-    Login
-  </button>
-{/if}
+      {:else}
+        <button class="menu-item" role="menuitem" onclick={handleLogin}>
+          <i class="pi pi-sign-in"></i>
+          <span>Login</span>
+        </button>
+        <button class="menu-item" role="menuitem" onclick={handleSettings}>
+          <i class="pi pi-cog"></i>
+          <span>Settings</span>
+        </button>
+      {/if}
+    </div>
+  {/if}
+</div>
 
 <style>
   .avatar-container {
@@ -137,25 +151,5 @@
     top: calc(100% + 4px);
     right: 0;
     min-width: 180px;
-  }
-
-  .login-box {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 16px;
-    background: transparent;
-    color: var(--text-active);
-    font-weight: 500;
-    font-size: 14px;
-    border: 1px solid var(--surface-border);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .login-box:hover {
-    background: var(--surface-hover, rgba(255, 255, 255, 0.05));
-    border-color: var(--text-active);
   }
 </style>

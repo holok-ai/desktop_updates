@@ -1,8 +1,8 @@
 import { ChatAuditData as ChatAuditData_2 } from '.';
 import { ChatCompletion } from 'openai/resources/chat/completions';
 import { ChatResponse } from 'ollama/browser';
-import { default as default_2 } from '@anthropic-ai/sdk';
-import { default as default_3 } from 'openai';
+import { default as default_2 } from 'openai';
+import { default as default_3 } from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { Ollama } from 'ollama/browser';
 
@@ -116,7 +116,7 @@ export declare class ChatProviderFactory {
     /**
      * Creates an appropriate chat provider based on the provider type
      */
-    static createProvider(providerType: ProviderType, config: ProviderConfig, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>): IChatProvider;
+    static createProvider(providerType: ProviderType, config: ProviderConfig): IChatProvider;
 }
 
 /**
@@ -126,7 +126,7 @@ export declare class ChatProviderUtils {
     /**
      * Maximum number of tool calling iterations to prevent infinite loops
      */
-    static readonly MAX_TOOL_ITERATIONS = 25;
+    static readonly MAX_TOOL_ITERATIONS = 10;
     /**
      * Sets the iteration value in a branch ID string
      * Format: row.lane.chat (3 parts) or row.lane.chat.iteration (4 parts)
@@ -185,11 +185,12 @@ export declare class ChatService {
     /**
      * Create a ChatService with the specified provider and configuration
      */
-    constructor(providerType: string, config: ProviderConfig, enableAudit?: boolean, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    constructor(providerType: string, config: ProviderConfig, enableAudit?: boolean);
     /**
      * Initialize the appropriate provider based on provider type
      */
     private initializeProvider;
+    setTools(tools: ToolDefinition[], onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Send a chat request and handle streaming response
      */
@@ -206,7 +207,8 @@ export declare class ClaudeChatProvider implements IChatProvider {
     private tools;
     private onToolUse?;
     private toolHandler?;
-    constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
+    setTools(tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Send a chat request to Claude
      * Automatically handles tools if configured in constructor
@@ -236,7 +238,7 @@ declare interface ClaudeResponse {
 export declare class ClaudeToolHandler implements ProviderToolHandler<ClaudeResponse> {
     private client;
     private onTokenReceived?;
-    constructor(client: default_2);
+    constructor(client: default_3);
     /**
      * Set the token callback for streaming responses
      * This is called before each tool loop iteration to update the callback
@@ -273,7 +275,8 @@ export declare class GeminiChatProvider implements IChatProvider {
     private tools;
     private onToolUse?;
     private toolHandler?;
-    constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Send a chat request to Gemini
      * Automatically handles tools if configured in constructor
@@ -345,6 +348,13 @@ export declare class GeminiToolHandler implements ProviderToolHandler<any> {
  */
 export declare interface IChatProvider {
     /**
+     * Provide list of tools and callback for providers that support tool calling
+     * Optonal call for clients that have access to O/S functions
+     * @param tools An array of supported tool funtions
+     * @param onToolExecute Callback function to handle functon call
+     */
+    setTools(tools: ToolDefinition[], onToolExecute: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    /**
      * Sends a chat request to the provider and handles streaming response
      * @param request The chat request containing messages, model, and all options
      * @param onTokenReceived Callback function to handle streamed tokens
@@ -358,7 +368,8 @@ export declare class OllamaChatProvider implements IChatProvider {
     private tools;
     private onToolUse?;
     private toolHandler?;
-    constructor(apiEndpoint: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Send a chat request to Ollama
      * Automatically handles tools if configured in constructor
@@ -411,18 +422,19 @@ export declare class OllamaToolHandler implements ProviderToolHandler<ChatRespon
 }
 
 export declare class OpenAIChatProvider implements IChatProvider {
-    private client;
-    private defaultModel;
+    protected client: default_2;
+    protected defaultModel: string;
     private tools;
     private onToolUse?;
     private toolHandler?;
     private endpointType;
-    constructor(baseURL: string, apiKey: string, defaultModel: string, tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>);
+    constructor(baseURL: string, apiKey: string, defaultModel: string);
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Determines the appropriate endpoint type based on the model name
      * @param modelName - The OpenAI model name
      * @returns The endpoint type (CHAT or RESPONSE)
-     **/
+     */
     private getEndpointType;
     /**
      * Send a chat request to OpenAI
@@ -447,7 +459,7 @@ export declare class OpenAIChatProvider implements IChatProvider {
 export declare class OpenAIToolHandler implements ProviderToolHandler<ChatCompletion> {
     private client;
     private onTokenReceived?;
-    constructor(client: default_3);
+    constructor(client: default_2);
     /**
      * Set the token callback for streaming responses
      */
@@ -530,7 +542,7 @@ export declare interface ProviderToolHandler<TResponse = unknown> {
 export declare enum ProviderType {
     OLLAMA = "ollama",
     OPENAI = "openai",
-    CLAUDE = "claude",
+    ANTHROPIC = "anthropic",
     PERPLEXITY = "perplexity",
     GEMINI = "gemini",
     COPILOT = "copilot"

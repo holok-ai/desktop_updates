@@ -3,11 +3,12 @@
   import { push } from 'svelte-spa-router';
   import { authStore } from '../../lib/stores/auth.store';
   import { toastStore } from '../../lib/services/toast.service';
+  import { ROUTE } from '../../lib/constants/route.constant';
+  import { STARTING_PAGE } from '../../lib/constants/app.constant';
 
   type AuthErrorPayload = { error?: string; description?: string; message?: string };
 
   let isLoading = false;
-  let isKeyLoading = false;
   let toastMessage = '';
   let toastTimeout: number | null = null;
   let hasNavigatedHome = false;
@@ -46,13 +47,44 @@
     };
   });
 
-  function navigateHome(): void {
+  async function navigateHome(): Promise<void> {
     if (hasNavigatedHome) {
       return;
     }
 
     hasNavigatedHome = true;
-    push('/');
+
+    // Get the startup page setting
+    try {
+      const settings = await window.electronAPI.settings.getAll();
+      const startingPage = settings.startingPage || STARTING_PAGE.CREATE_CHAT;
+
+      // Map startup page setting to route
+      let targetRoute = ROUTE.HOME;
+      switch (startingPage) {
+        case STARTING_PAGE.CREATE_CHAT:
+          targetRoute = ROUTE.NEW_THREAD;
+          break;
+        case STARTING_PAGE.THREADS:
+          targetRoute = ROUTE.THREADS;
+          break;
+        case STARTING_PAGE.DASHBOARD:
+          targetRoute = ROUTE.HOME;
+          break;
+        case STARTING_PAGE.LAST_PAGE:
+          // TODO: Implement last page tracking
+          targetRoute = ROUTE.HOME;
+          break;
+        default:
+          targetRoute = ROUTE.HOME;
+      }
+
+      push(targetRoute);
+    } catch (error) {
+      window.electronAPI.log.error('[Login] Failed to get startup page setting', error);
+      // Fallback to home page
+      push(ROUTE.HOME);
+    }
   }
 
   async function handleLogin() {
@@ -66,33 +98,6 @@
       showToast(message);
     } finally {
       isLoading = false;
-    }
-  }
-
-  async function handleKeyLogin() {
-    isKeyLoading = true;
-    try {
-      // Re-fetch auth state from backend (useful if test tokens were loaded but UI missed the update)
-      const authState = await window.electronAPI.auth.getAuthState();
-
-      if (authState.isAuthenticated) {
-        authStore.setAuthState(authState);
-        window.electronAPI.log.info('Key login successful');
-
-        if (authState.user?.name) {
-          const message = `${authState.user.name} logged in.`;
-          toastStore.show(message, { variant: 'success' });
-        }
-        navigateHome();
-      } else {
-        throw new Error('No authentication found. For test mode, set PLAYWRIGHT_TEST_TOKENS environment variable.');
-      }
-    } catch (error) {
-      const message = formatAuthError(error);
-      window.electronAPI.log.error('Key login failed', error);
-      showToast(message);
-    } finally {
-      isKeyLoading = false;
     }
   }
 
@@ -127,18 +132,18 @@
 
 <div class="login-container">
   <div class="login-card">
-    <h1>Holokai Desktop</h1>
-    <p>Sign in to continue</p>
+    <div class="banner">
+      <h1>Holokai</h1>
+    </div>
+
+    <p class="info-text">
+      You will need a Holokai account to use Desktop. Press the login button to provide your
+      credentials on the Moku web site. Your access from Moku will be used by Desktop.
+    </p>
 
     <button onclick={handleLogin} disabled={isLoading} class="login-primary">
       {isLoading ? 'Redirecting...' : 'Login'}
     </button>
-
-    <button onclick={handleKeyLogin} disabled={isKeyLoading} class="key-button">
-      {isKeyLoading ? 'Signing in...' : 'Login With Key'}
-    </button>
-
-    <p class="note">Mock login and key login are for testing purposes only</p>
   </div>
 </div>
 
@@ -157,69 +162,67 @@
   }
 
   .login-card {
-    background: var(--surface-card);
+    background: color-mix(in srgb, var(--surface-card) 95%, white);
     color: var(--text-primary);
-    padding: calc(var(--content-padding) * 2.4);
+    padding: 3rem;
     border-radius: calc(var(--border-radius) * 2);
-    box-shadow: 0 calc(var(--content-padding) * 2) calc(var(--content-padding) * 4)
-      color-mix(in srgb, var(--surface-900) 18%, transparent);
-    max-width: 400px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    max-width: 500px;
     width: 100%;
   }
 
-  h1 {
-    margin-bottom: 0.5rem;
+  :global(html.dark) .login-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .banner {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .banner h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin: 0;
+  }
+
+  .info-text {
     color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    text-align: center;
   }
 
   button {
-    width: 100%;
     font-size: 16px;
     font-weight: 600;
   }
 
   .login-primary {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-    border: 1px solid var(--primary-color);
-    margin-bottom: calc(var(--content-padding) * 1.2);
-    padding: var(--inline-spacing) calc(var(--content-padding) * 1.2);
+    background: var(--holokai-blue);
+    color: white;
+    border: 1px solid var(--holokai-blue);
+    padding: 14px 32px;
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.2s;
+    width: 50%;
+    margin: 0 auto;
+    display: block;
   }
 
   .login-primary:hover:not(:disabled) {
-    background: var(--primary-600);
-    border-color: var(--primary-600);
-  }
-
-  .key-button {
-    background: var(--surface-100);
-    color: var(--text-primary);
-    border: 1px solid var(--surface-border);
-    margin-top: calc(var(--inline-spacing) * 0.8);
-    padding: var(--inline-spacing) calc(var(--content-padding) * 1.2);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .key-button:hover:not(:disabled) {
-    background: var(--surface-hover);
-    border-color: var(--surface-border);
+    background: color-mix(in srgb, var(--holokai-blue) 85%, black);
+    border-color: color-mix(in srgb, var(--holokai-blue) 85%, black);
   }
 
   button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-
-  .note {
-    margin-top: var(--content-padding);
-    font-size: 14px;
-    color: var(--text-secondary);
-    text-align: center;
   }
 
   .toast {

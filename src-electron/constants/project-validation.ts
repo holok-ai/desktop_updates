@@ -130,10 +130,11 @@ export function getPermissionsForRole(role: ProjectRole): ProjectPermission[] {
 }
 
 /**
- * Check if a color is in the Moku palette
+ * Check if a color is valid (any non-empty string)
+ * Relaxed validation - no longer requires color to be in the Moku palette
  */
 export function isValidMokuColor(color: string): boolean {
-  return MOKU_COLOR_PALETTE.includes(color as (typeof MOKU_COLOR_PALETTE)[number]);
+  return typeof color === 'string' && color.trim().length > 0;
 }
 
 /**

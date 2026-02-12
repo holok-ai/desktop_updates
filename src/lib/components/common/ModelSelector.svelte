@@ -18,7 +18,7 @@
     label = 'Model',
     dropdownDirection = 'down',
     backgroundColor = 'var(--surface-main)',
-    allowMultipleSelections = false
+    allowMultipleSelections = false,
   }: Props = $props();
 
   const dispatch = createEventDispatcher<{
@@ -41,18 +41,22 @@
 
   // Sync internal selectedModelIds with bound selectedModelId prop and dispatch select event
   $effect(() => {
-    if (selectedModelId && !selectedModelIds.includes(selectedModelId) && availableModels.length > 0) {
+    if (
+      selectedModelId &&
+      !selectedModelIds.includes(selectedModelId) &&
+      availableModels.length > 0
+    ) {
       selectedModelIds = [selectedModelId];
 
       // Find model details and dispatch select event so parent gets full model info
-      const modelDetails = availableModels.find(m => m.accessName === selectedModelId);
+      const modelDetails = availableModels.find((m) => m.accessName === selectedModelId);
       if (modelDetails) {
         dispatch('select', {
           modelId: selectedModelId,
           modelDetails,
           appSlug: modelDetails.applicationSlug,
           modelSlug: modelDetails.slug,
-          selectedModelIds: [selectedModelId]
+          selectedModelIds: [selectedModelId],
         });
       }
     }
@@ -87,7 +91,7 @@
           modelDetails: firstModel,
           appSlug,
           modelSlug,
-          selectedModelIds: [...selectedModelIds] // Include array in initial selection
+          selectedModelIds: [...selectedModelIds], // Include array in initial selection
         });
       }
     } catch (error) {
@@ -120,13 +124,17 @@
       if (allowMultipleSelections) {
         // Toggle selection in array
         if (selectedModelIds.includes(modelId)) {
-          selectedModelIds = selectedModelIds.filter(id => id !== modelId);
+          selectedModelIds = selectedModelIds.filter((id) => id !== modelId);
         } else {
           selectedModelIds = [...selectedModelIds, modelId];
         }
       } else {
-        // Single selection - replace array
-        selectedModelIds = [modelId];
+        // Single selection - toggle if clicking same model, otherwise replace
+        if (selectedModelIds.includes(modelId)) {
+          selectedModelIds = [];
+        } else {
+          selectedModelIds = [modelId];
+        }
         showDropdown = false;
       }
 
@@ -142,7 +150,7 @@
         modelDetails,
         appSlug,
         modelSlug,
-        selectedModelIds: [...selectedModelIds] // Pass all selected model IDs
+        selectedModelIds: [...selectedModelIds], // Pass all selected model IDs
       });
     } catch (error) {
       console.error('[ModelSelector] Error selecting model:', error);
@@ -181,7 +189,7 @@
     }
 
     if (selectedModelIds.length === 1) {
-      const model = availableModels.find(m => m.accessName === selectedModelIds[0]);
+      const model = availableModels.find((m) => m.accessName === selectedModelIds[0]);
       if (model) {
         return `${model.title} (${model.applicationName.toLowerCase()})`;
       }
@@ -203,7 +211,7 @@
     class="model-selector-button"
     style="background: {backgroundColor};"
     onclick={handleToggleDropdown}
-    disabled={disabled}
+    {disabled}
     aria-label="Select model"
     title="Select model"
   >
@@ -212,7 +220,11 @@
   </button>
 
   {#if showDropdown}
-    <div class="model-selector-dropdown" class:dropdown-up={dropdownDirection === 'up'} class:dropdown-down={dropdownDirection === 'down'}>
+    <div
+      class="model-selector-dropdown"
+      class:dropdown-up={dropdownDirection === 'up'}
+      class:dropdown-down={dropdownDirection === 'down'}
+    >
       {#if loadingModels}
         <div class="dropdown-item loading">Loading models...</div>
       {:else if availableModels.length === 0}
@@ -356,7 +368,7 @@
     color: var(--text-secondary);
   }
 
-  .dropdown-item input[type="checkbox"] {
+  .dropdown-item input[type='checkbox'] {
     width: 16px;
     height: 16px;
     cursor: pointer;
