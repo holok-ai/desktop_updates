@@ -173,7 +173,10 @@ export class ProjectRepository {
     // Validate metadata if provided
     if (metadata) {
       if (metadata.color && !isValidMokuColor(metadata.color as string)) {
-        throw new ValidationError('Invalid color. Must be from Moku palette', 'metadata.color');
+        throw new ValidationError(
+          'Invalid color. Color must be a non-empty string',
+          'metadata.color',
+        );
       }
 
       if (metadata.icon && !isValidProjectIcon(metadata.icon as string)) {
@@ -259,7 +262,10 @@ export class ProjectRepository {
     // Validate metadata if provided
     if (updates.metadata) {
       if (updates.metadata.color && !isValidMokuColor(updates.metadata.color as string)) {
-        throw new ValidationError('Invalid color. Must be from Moku palette', 'metadata.color');
+        throw new ValidationError(
+          'Invalid color. Color must be a non-empty string',
+          'metadata.color',
+        );
       }
 
       if (updates.metadata.icon && !isValidProjectIcon(updates.metadata.icon as string)) {
@@ -380,7 +386,7 @@ export class ProjectRepository {
   private mapDetailDTOToProject(dto: ProjectDetailDTO, members: MemberDTO[] = []): Project {
     const memberCount = members.length;
     // Map API members to frontend format (userName, email, memberRole)
-    const mappedMembers = members.map(m => ({
+    const mappedMembers = members.map((m) => ({
       id: m.id,
       userId: m.userId,
       userName: m.userName,
