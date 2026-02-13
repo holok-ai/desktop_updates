@@ -542,7 +542,7 @@ export declare interface ProviderToolHandler<TResponse = unknown> {
 export declare enum ProviderType {
     OLLAMA = "ollama",
     OPENAI = "openai",
-    ANTHROPIC = "anthropic",
+    CLAUDE = "claude",
     PERPLEXITY = "perplexity",
     GEMINI = "gemini",
     COPILOT = "copilot"

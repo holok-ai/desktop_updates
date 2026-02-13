@@ -38,6 +38,7 @@
   let chatLayout = $state<ChatLayout>(CHAT_LAYOUT.LEFT_RIGHT as ChatLayout);
   let loading = $state(false);
   let error = $state('');
+  let agentId = $state<string | null>(null);
 
   /** Called by ThreadChatView when a brand-new thread is created */
   function handleThreadCreated(newThread: Thread) {
@@ -68,11 +69,17 @@
       }
       thread = t;
       threadTitle = t.title || 'Untitled Thread';
+
+      // Extract agentId from thread metadata
+      agentId = (t.metadata?.agentId as string) || null;
+
       console.log(
         '[ThreadPage] Thread loaded - modelId:',
         t.metadata?.modelId,
         'modelAccessName:',
         t.metadata?.modelAccessName,
+        'agentId:',
+        agentId,
       );
 
       // Load messages for this thread
@@ -151,6 +158,7 @@
         {availableModels}
         {chatLayout}
         {initialPrompt}
+        {agentId}
         onThreadCreated={handleThreadCreated}
       />
     {:else if activeView === 'prompt'}

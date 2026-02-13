@@ -412,6 +412,7 @@ export interface AppSettings {
  */
 export interface ApplicationSummary {
   id: string;
+  description: string; 
   title: string;
   models?: ModelDetails[];
   provider: string;
