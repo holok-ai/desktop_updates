@@ -30,9 +30,9 @@
     }
   });
 
-  // Navigate to new thread page
+  // Navigate to application thread page
   function handleNewThread() {
-    push(ROUTE.NEW_THREAD);
+    push(ROUTE.APPLICATION_NEWTHREAD);
   }
 
   // Filter to show only personal threads (no projectId)
