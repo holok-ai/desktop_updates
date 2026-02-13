@@ -5,6 +5,7 @@ import type { Message } from '$lib/types/thread.type.js';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
 import { BaseElectronService } from './base-electron.service';
 import { getNextVariationBranchId } from '$lib/utils/branch-utils';
+import { formatResponseContent } from '$lib/utils/response-formatter';
 
 export class ThreadService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
@@ -819,6 +820,7 @@ export class ThreadService extends BaseElectronService {
 
   /**
    * Build message pairs from a list of messages
+   * Formats response content based on the provider for each message
    */
   private buildMessagePairs(
     msgs: Message[],
@@ -832,10 +834,31 @@ export class ThreadService extends BaseElectronService {
       const msg = msgs[i];
       if (msg.role === 'user') {
         const next = i + 1 < msgs.length ? msgs[i + 1] : null;
-        if (next?.role === 'assistant') {
+        if (next && next.role === 'assistant') {
+          // Get provider from message metadata
+          const provider = (next.metadata?.provider as string) || '';
+          const modelId = next.modelId || msg.modelId || '';
+
+          console.log('[ThreadService] Formatting response:', {
+            provider,
+            modelId,
+            contentType: typeof next.content,
+            contentPreview: typeof next.content === 'string' ? next.content.substring(0, 100) : next.content
+          });
+
+          // Format the response content based on provider and model ID
+          const formattedContent = formatResponseContent(next.content, provider, modelId);
+
+          console.log('[ThreadService] Formatted content preview:', formattedContent.substring(0, 100));
+
+          const formattedResponse = {
+            ...next,
+            content: formattedContent,
+          };
+
           pairs.push({
             request: msg,
-            response: next,
+            response: formattedResponse,
             isStreamingResponse: false,
             streamingContent: '',
           });

@@ -56,7 +56,7 @@ vi.mock('../../../src-electron/services/chat/factories/ChatProviderFactory', () 
     },
     ProviderType: {
       OLLAMA: 'ollama',
-      ANTHROPIC: 'anthropic',
+      ANTHROPIC: 'claude',
       OPENAI: 'openai',
     },
   };

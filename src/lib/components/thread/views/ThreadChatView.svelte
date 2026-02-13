@@ -28,6 +28,7 @@
     availableModels: ModelDetails[];
     chatLayout: ChatLayout;
     initialPrompt?: string | null;
+    agentId?: string | null;
     /** Called when a new thread is created so the parent can update its state */
     _onThreadCreated?: (newThread: Thread) => void;
   }
@@ -38,7 +39,8 @@
     availableModels = [],
     chatLayout,
     initialPrompt = null,
-    _onThreadCreated,
+    agentId = null,
+    onThreadCreated,
   }: Props = $props();
 
   // ── State ──

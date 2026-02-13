@@ -4,6 +4,7 @@ import Home from '../../routes/+page.svelte';
 import Search from '../../routes/search/+page.svelte';
 import ThreadList from '../../routes/threads/+page.svelte';
 import NewThread from '../../routes/threads/new/+page.svelte';
+import ApplicationThread from '../pages/ApplicationThread.svelte';
 import ThreadPage from '../../routes/threads/view/+page.svelte';
 import ProjectThread from '../../routes/project/thread/+page.svelte';
 import Login from '../../routes/login/+page.svelte';
@@ -23,6 +24,7 @@ export const routes = {
   '/': Home,
   '/search': Search,
   '/threads/new': NewThread,
+  '/threads/applications': ApplicationThread,
   '/threads': ThreadList,
   '/threads/view': ThreadPage,
   '/project/thread': ProjectThread,

@@ -2,6 +2,7 @@ export const ROUTE = {
   HOME: '/',
   THREADS: '/threads',
   NEW_THREAD: '/threads/new',
+  APPLICATION_NEWTHREAD: '/threads/applications',
   THREAD: '/threads/view',
   PROJECT_THREAD: '/project/thread',
   PROJECTS: '/projects',

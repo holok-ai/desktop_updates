@@ -1,6 +1,7 @@
  export interface ApplicationSummary {
       id: string;
       name: string;
+      description: string; 
       urlSlug: string;
       providerName: string;
       modelNames: Set<string>;
@@ -27,6 +28,7 @@
     // Identity
     id: string;
     name: string;
+    description: string; 
     urlSlug: string;
 
     // Provider

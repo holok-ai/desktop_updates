@@ -92,6 +92,7 @@ export class ModelRepository {
           const agentUrl: string = holoApiUrl + '/api/custom/' + mappedProvider + '/' + app.urlSlug;
           var appSummary: ApplicationSummary = {
             id: appDetail.id,
+            description: appDetail.description, 
             slug: app.urlSlug,
             title: appDetail.name,
             provider: appDetail.providerName,
