@@ -32,7 +32,7 @@
 
   // Navigate to application thread page
   function handleNewThread() {
-    push(ROUTE.APPLICATION_NEWTHREAD);
+    push(ROUTE.NEW_THREAD);
   }
 
   // Filter to show only personal threads (no projectId)

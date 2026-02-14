@@ -60,7 +60,7 @@
       const startingPage = settings.startingPage || STARTING_PAGE.CREATE_CHAT;
 
       // Map startup page setting to route
-      let targetRoute = ROUTE.HOME;
+      let targetRoute : string = ROUTE.HOME;
       switch (startingPage) {
         case STARTING_PAGE.CREATE_CHAT:
           targetRoute = ROUTE.NEW_THREAD;

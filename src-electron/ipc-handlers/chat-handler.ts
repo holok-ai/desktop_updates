@@ -54,14 +54,23 @@ export function registerChatHandlers(auth?: AuthService): void {
 
       try {
         // Inject access token from auth service if available
+        log.info('[IPC] Token injection check:', {
+          provider: providerType,
+          hasAuthService: !!authService,
+        });
+
         if (authService) {
           try {
             const accessToken = await authService.getAccessToken();
+            const tokenPreview = accessToken ? `${accessToken.slice(0, 10)}...` : '(empty)';
             config.apiKey = accessToken;
-            log.info('[IPC] Access token injected into chat provider config');
+            log.info('[IPC] Access token injected into chat provider config:', tokenPreview);
           } catch (error) {
-            log.warn('[IPC] Could not get access token, using provided apiKey:', error);
+            log.error('[IPC] Could not get access token:', error);
+            log.warn('[IPC] Using provided apiKey (if any)');
           }
+        } else {
+          log.warn('[IPC] No auth service available for token injection');
         }
 
         // Create DesktopChatService for this thread
@@ -70,6 +79,14 @@ export function registerChatHandlers(auth?: AuthService): void {
           apiKey: config.apiKey ?? '',
           model: config.model,
         };
+
+        log.info('[IPC] Creating DesktopChatService with config:', {
+          provider: providerType,
+          url: newConfig.url,
+          model: newConfig.model,
+          hasApiKey: !!newConfig.apiKey,
+          apiKeyLength: newConfig.apiKey?.length || 0,
+        });
         const chatService = new DesktopChatService(
           providerType,
           newConfig,

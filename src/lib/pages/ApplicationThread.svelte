@@ -89,8 +89,7 @@
   {/if}
 
   <div class="page-header">
-    <h1>Start a chat</h1>
-    <p class="subtitle"></p>
+    <h2>Let's chat</h2>
   </div>
 
   <div class="applications-container">

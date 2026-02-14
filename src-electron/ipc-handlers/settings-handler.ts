@@ -3,6 +3,7 @@ import { SettingsService, type AppSettings } from '../services/settings.service.
 import { autoUpdaterService } from '../services/auto-updater.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
+import { ToolOrchestrator } from '../services/tool-calling/orchestrator.js';
 import path from 'node:path';
 
 /**
@@ -48,6 +49,10 @@ export function registerSettingsHandlers(): void {
           shellCommands: '',
           autoCheckUpdates: true,
           autoInstallUpdates: false,
+          config_windowsCommands: '',
+          config_unixCommands: '',
+          config_toolList: [],
+          static_toolList: [],
         }) as AppSettings,
       getSetting: (_key: keyof AppSettings) => undefined,
       setSetting: (_k: keyof AppSettings, _v: AppSettings[keyof AppSettings]) => {},
@@ -69,7 +74,21 @@ export function registerSettingsHandlers(): void {
    */
   ipcMain.handle('settings:getAll', (): Promise<AppSettings> => {
     settingsLog.info('GetAll called');
-    return Promise.resolve(settingsService.getAllSettings());
+    const settings = settingsService.getAllSettings();
+
+    // Add tool definitions from orchestrator
+    try {
+      const orchestrator = ToolOrchestrator.getInstance();
+      const toolDefinitions = orchestrator.getToolDefinitions();
+      return Promise.resolve({
+        ...settings,
+        static_toolList: toolDefinitions,
+      });
+    } catch (error) {
+      settingsLog.error('Failed to get tool definitions from orchestrator:', error);
+      // Return settings without static_toolList if orchestrator fails
+      return Promise.resolve(settings);
+    }
   });
 
   /**

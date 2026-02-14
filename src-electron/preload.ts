@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
+import type { ToolDefinition } from './services/tool-calling/tool-types.js'; 
+
 import type { ProviderConfig } from '@holokai/chat-component';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
@@ -375,10 +377,6 @@ export interface SettingsAPI {
 /**
  * App Settings Interface
  */
-export interface ToolSetting {
-  title: string; 
-  id: string; 
-}
 
 export interface AppSettings {
   mokuWebUrl: string;
@@ -400,9 +398,9 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
   /* ToolOrchestrator data need to load the UI  */
-  config_windowsCommands: string; 
-  config_unixCommands: string; 
-  config_toolList: ToolSetting[]; 
+  config_windowsCommands: string;
+  config_unixCommands: string;
+  static_toolList?: ToolDefinition[];
 }
 
 /**

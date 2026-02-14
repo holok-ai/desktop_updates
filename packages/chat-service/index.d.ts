@@ -279,7 +279,6 @@ export declare class GeminiChatProvider implements IChatProvider {
     setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
     /**
      * Send a chat request to Gemini
-     * Automatically handles tools if configured in constructor
      */
     chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
     /**
@@ -362,6 +361,23 @@ export declare interface IChatProvider {
     chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
 }
 
+/**
+ * Interface for OpenAI endpoint-specific handlers
+ * Abstracts differences between Chat Completions and Responses APIs
+ */
+declare interface IProviderEndpointHandler {
+    /**
+     * Handle streaming chat request
+     * @returns ChatCompletion for Chat Completions API, void for Responses API
+     */
+    chatStreaming(request: any, model: string, onTokenReceived?: (token: string) => void): Promise<ChatCompletion | void>;
+    /**
+     * Handle non-streaming chat request
+     * @returns ChatCompletion for Chat Completions API, void for Responses API
+     */
+    chatNonStreaming(request: any, model: string, onTokenReceived?: (token: string) => void): Promise<ChatCompletion | void>;
+}
+
 export declare class OllamaChatProvider implements IChatProvider {
     private ollama;
     private defaultModel;
@@ -427,6 +443,7 @@ export declare class OpenAIChatProvider implements IChatProvider {
     private tools;
     private onToolUse?;
     private toolHandler?;
+    private chatHandler?;
     private endpointType;
     constructor(baseURL: string, apiKey: string, defaultModel: string);
     setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
@@ -454,12 +471,13 @@ export declare class OpenAIChatProvider implements IChatProvider {
 
 /**
  * OpenAI-specific implementation of the tool handler strategy
- * Note: OpenAI tool handling currently uses non-streaming mode
+ * Delegates streaming logic to the endpoint-specific handler
  */
 export declare class OpenAIToolHandler implements ProviderToolHandler<ChatCompletion> {
     private client;
+    private chatHandler;
     private onTokenReceived?;
-    constructor(client: default_2);
+    constructor(client: default_2, chatHandler: IProviderEndpointHandler);
     /**
      * Set the token callback for streaming responses
      */

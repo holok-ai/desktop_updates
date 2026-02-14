@@ -78,11 +78,13 @@ export interface Thread {
 }
 
 export class ThreadRepository {
+  private readonly MAX_FILE_SIZE = 10 * 1024 * 1024; 
+
   // API-first architecture - no longer loading from local disk
   // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
-
+  
   private parseApiTimeMs(value: unknown): number {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
     if (value instanceof Date) return value.getTime();
@@ -434,7 +436,7 @@ export class ThreadRepository {
 
     // Content size check
     const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
-    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+    if (contentBytes > this.MAX_FILE_SIZE) throw new Error('MESSAGE_TOO_LARGE');
 
     // Get thread from cache or fetch it
     let thread = this.threadsById.get(threadId);
@@ -544,7 +546,7 @@ export class ThreadRepository {
 
     // Content size check
     const contentBytes = Buffer.byteLength(payload.content ?? '', 'utf8');
-    if (contentBytes > 8 * 1024) throw new Error('MESSAGE_TOO_LARGE');
+    if (contentBytes > this.MAX_FILE_SIZE) throw new Error('MESSAGE_TOO_LARGE');
 
     // Get thread from cache or fetch it
     let thread = this.threadsById.get(threadId);

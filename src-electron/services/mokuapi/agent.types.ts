@@ -1,3 +1,5 @@
+import { ModelReference } from "./application.types.js";
+
 export interface AgentListItem {
       id: string;                      // UUID
       name: string;                    // Application name
@@ -5,6 +7,7 @@ export interface AgentListItem {
       urlSlug: string;                 // URL slug for the application
       provider: string;                // Provider name (e.g., "OpenAI", "Anthropic")
       model: string;                   // API model identifier (e.g., "gpt-4", "claude-3-opus-20240229")
+      models: ModelReference[];
       systemPromptName: string | null; // System prompt name
       teamName: string | null;         // Team name
       active: boolean;                 // Whether the agent is active
