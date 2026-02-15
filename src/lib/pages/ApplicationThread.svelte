@@ -179,16 +179,10 @@
     border-bottom: 1px solid var(--surface-border);
   }
 
-  .page-header h1 {
+  .page-header h2 {
     font-size: 1.75rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 0.5rem 0;
-  }
-
-  .subtitle {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
     margin: 0;
   }
 

@@ -7,7 +7,8 @@
    */
   import ChatRequest from './ChatRequest.svelte';
   import ChatResponse from './ChatResponse.svelte';
-  import ChatMessageCommands from './ChatMessageCommands.svelte';
+  import ChatRequestCommands from './ChatRequestCommands.svelte';
+  import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
 
   interface Props {
@@ -125,9 +126,10 @@
   />
 
   <!-- Request commands (hover-reveal) -->
-  <ChatMessageCommands
+  <ChatRequestCommands
     commands={requestCommands}
     gapHeight={commandGap}
+    {chatLayout}
   />
 
   <!-- Response (if available or streaming) -->
@@ -143,9 +145,10 @@
 
     <!-- Response commands (hover-reveal) -->
     {#if responseContent && !isStreaming}
-      <ChatMessageCommands
+      <ChatResponseCommands
         commands={responseCommands}
         gapHeight={commandGap}
+        {chatLayout}
       />
     {/if}
   {/if}

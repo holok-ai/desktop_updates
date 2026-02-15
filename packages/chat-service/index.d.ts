@@ -182,6 +182,7 @@ export declare class ChatService {
     private auditService;
     private tools?;
     private onToolUse?;
+    private onFileReceived?;
     /**
      * Create a ChatService with the specified provider and configuration
      */
@@ -190,7 +191,7 @@ export declare class ChatService {
      * Initialize the appropriate provider based on provider type
      */
     private initializeProvider;
-    setTools(tools: ToolDefinition[], onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools: ToolDefinition[], onToolUse: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Send a chat request and handle streaming response
      */
@@ -208,7 +209,7 @@ export declare class ClaudeChatProvider implements IChatProvider {
     private onToolUse?;
     private toolHandler?;
     constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
-    setTools(tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools?: ToolDefinition[], onToolUse?: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Send a chat request to Claude
      * Automatically handles tools if configured in constructor
@@ -274,9 +275,10 @@ export declare class GeminiChatProvider implements IChatProvider {
     private apiEndpoint;
     private tools;
     private onToolUse?;
+    private onFileReceived?;
     private toolHandler?;
     constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
-    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Send a chat request to Gemini
      */
@@ -351,8 +353,9 @@ export declare interface IChatProvider {
      * Optonal call for clients that have access to O/S functions
      * @param tools An array of supported tool funtions
      * @param onToolExecute Callback function to handle functon call
+     * @param onFileReceived Optional callback to handle file content from responses (e.g., images, PDFs)
      */
-    setTools(tools: ToolDefinition[], onToolExecute: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools: ToolDefinition[], onToolExecute: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Sends a chat request to the provider and handles streaming response
      * @param request The chat request containing messages, model, and all options
@@ -385,7 +388,7 @@ export declare class OllamaChatProvider implements IChatProvider {
     private onToolUse?;
     private toolHandler?;
     constructor(apiEndpoint: string, apiKey: string, defaultModel: string);
-    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Send a chat request to Ollama
      * Automatically handles tools if configured in constructor
@@ -446,7 +449,7 @@ export declare class OpenAIChatProvider implements IChatProvider {
     private chatHandler?;
     private endpointType;
     constructor(baseURL: string, apiKey: string, defaultModel: string);
-    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>): void;
+    setTools(tools: ToolDefinition[] | undefined, onToolUse: (toolUse: ToolUse) => Promise<ToolResult>, onFileReceived?: (threadId: string, fileId: string, mimeType: string, contents: string, displayName: string) => void): void;
     /**
      * Determines the appropriate endpoint type based on the model name
      * @param modelName - The OpenAI model name

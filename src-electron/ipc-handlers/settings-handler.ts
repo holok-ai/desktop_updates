@@ -213,7 +213,7 @@ export function registerSettingsHandlers(): void {
     (_event): Promise<{ success: boolean; error?: string }> => {
       settingsLog.info('CheckForUpdates called (manual)');
       try {
-        autoUpdaterService.checkForUpdatesManual();
+        autoUpdaterService.checkForUpdates();
         return Promise.resolve({ success: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to check for updates';

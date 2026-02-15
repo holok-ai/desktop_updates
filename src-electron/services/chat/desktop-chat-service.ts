@@ -13,6 +13,7 @@ import type {
 } from '../tool-calling/orchestrator-types.js';
 import type { ToolStatusCallback } from '../tool-calling/tool-types.js';
 import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
+import { fileStorageService } from '../file-storage.service.js';
 import log from 'electron-log';
 
 /**
@@ -67,11 +68,51 @@ export class DesktopChatService {
           }
         : undefined;
 
+    // Create file received callback to handle files from chat responses (e.g., Gemini generated images)
+    const onFileReceived = async (
+      threadId: string,
+      fileId: string,
+      mimeType: string,
+      contents: string,
+      displayName: string,
+    ): Promise<void> => {
+      try {
+        log.info('[DesktopChatService] onFileReceived called', {
+          threadId,
+          fileId,
+          mimeType,
+          displayName,
+          contentLength: contents.length,
+        });
+
+        // Convert base64 contents to Buffer
+        const buffer = Buffer.from(contents, 'base64');
+
+        // Save file using file storage service
+        await fileStorageService.saveFile(threadId, buffer, displayName, mimeType);
+
+        log.info('[DesktopChatService] File saved successfully', {
+          threadId,
+          fileId,
+          displayName,
+          size: buffer.length,
+        });
+      } catch (error) {
+        log.error('[DesktopChatService] Failed to save received file', {
+          threadId,
+          fileId,
+          displayName,
+          error,
+        });
+      }
+    };
+
     if (canUseTools && onToolUse !== undefined) {
       this.chatService = new ChatService(providerType, config, true);
-      this.chatService.setTools(tools, onToolUse);
+      this.chatService.setTools(tools, onToolUse, onFileReceived);
     } else {
       this.chatService = new ChatService(providerType, config, true);
+      this.chatService.setTools([], async () => ({ success: false }), onFileReceived);
     }
   }
 
