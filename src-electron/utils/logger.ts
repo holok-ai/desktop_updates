@@ -13,10 +13,11 @@ import fs from 'node:fs';
  * - Context metadata
  */
 
-// Configure log paths
-log.transports.file.fileName = 'desktop.log';
+// Configure log paths - use main.log to match electron-log default
+// This ensures all main process logs (including auto-updater) go to the same file
+log.transports.file.fileName = 'main.log';
 log.transports.file.resolvePathFn = () => {
-  return path.join(app.getPath('userData'), 'logs', 'desktop.log');
+  return path.join(app.getPath('userData'), 'logs', 'main.log');
 };
 
 // Set log levels based on environment

@@ -231,7 +231,7 @@ export function registerSettingsHandlers(): void {
     async (): Promise<{ success: boolean; error?: string }> => {
       settingsLog.info('OpenLogInVSCode called');
       try {
-        const logPath = path.join(app.getPath('userData'), 'logs', 'desktop.log');
+        const logPath = path.join(app.getPath('userData'), 'logs', 'main.log');
 
         // Check if log file exists
         const fs = await import('node:fs');

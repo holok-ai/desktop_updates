@@ -32,6 +32,8 @@ const protocolLog = createScopedLogger('protocol');
 const appLog = createScopedLogger('app');
 
 appLog.info('Starting application');
+appLog.info(`App is packaged: ${app.isPackaged}`);
+appLog.info(`App version: ${app.getVersion()}`);
 
 /**
  * Main Electron Process
@@ -484,7 +486,9 @@ void app.whenReady().then(() => {
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 
+  appLog.info('Initializing auto-updater service...');
   autoUpdaterService.initialize();
+  appLog.info('Checking for updates...');
   autoUpdaterService.checkForUpdates();
 
   // Create the application menu
@@ -513,14 +517,39 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on('before-quit', (_event) => {
+app.on('before-quit', (event) => {
   appLog.info('Application exiting');
 
-  // On Windows, allow quit during update installation
-  // Check if this is an update-related quit
-  if (process.platform === 'win32') {
-    // Don't prevent default quit behavior during updates
-    // This allows the installer to replace the executable
+  // Check for pending updates before quitting
+  const pendingVersion = autoUpdaterService.getPendingUpdateVersion();
+  if (pendingVersion) {
+    event.preventDefault();
+
+    // Set a timeout to prevent hanging forever if update installation fails
+    const timeout = setTimeout(() => {
+      appLog.warn('Update installation timeout - allowing quit to proceed');
+      app.quit();
+    }, 5000); // 5 second timeout
+
+    // Handle pending update installation
+    autoUpdaterService
+      .checkForPendingUpdateOnShutdown()
+      .then((updateInstalled) => {
+        clearTimeout(timeout);
+        // If update was not installed (not downloaded or failed), allow quit to proceed
+        if (!updateInstalled) {
+          appLog.info('Update installation failed or not available, allowing quit to proceed');
+          app.quit();
+        }
+        // If update was installed, quitAndInstall() will handle the quit
+        // No need to call app.quit() here as quitAndInstall() does it
+      })
+      .catch((error) => {
+        clearTimeout(timeout);
+        appLog.error('Error checking for pending update:', error);
+        // On error, allow quit to proceed
+        app.quit();
+      });
   }
 });
 
