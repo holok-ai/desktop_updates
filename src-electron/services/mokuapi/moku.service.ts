@@ -14,12 +14,12 @@ import type { ApplicationSummary, ApplicationDetail } from './application.types.
 import type { PagedResponse } from './paging.types.js';
 import type { AgentListItem, AgentChatConfig } from './agent.types.js';
 import type {
-    ProjectDTO,
-    ProjectDetailDTO,
-    ProjectCreateRequest,
-    ProjectUpdateRequest,
-    ProjectFilters,
-    ProjectUpdatesResponse,
+  ProjectDTO,
+  ProjectDetailDTO,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
+  ProjectFilters,
+  ProjectUpdatesResponse,
 } from './project.types.js';
 import { projectApiService } from './project-api.service.js';
 
@@ -39,7 +39,6 @@ export interface TokenRefreshResponse {
 }
 
 export class MokuService {
-
   /**
    * Get Moku API URL from settings
    */
@@ -97,7 +96,9 @@ export class MokuService {
   ): Promise<{ accessToken: string; expires_in: number }> {
     const mokuApiUrl = this.getMokuApiUrl();
 
-    const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+    const refreshUrl = `${mokuApiUrl}/api/auth/token/refresh`;
+    log.info(`Calling refresh endpoint at: ${refreshUrl}`);
+    const response = await fetch(refreshUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -364,7 +365,10 @@ export class MokuService {
    * Update an existing project
    * Requires owner role
    */
-  public async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailDTO> {
+  public async updateProject(
+    projectId: string,
+    request: ProjectUpdateRequest,
+  ): Promise<ProjectDetailDTO> {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
@@ -394,7 +398,10 @@ export class MokuService {
    * Get project updates since a specific timestamp
    * Returns counts of updated threads, members, and workflows
    */
-  public async getProjectUpdates(projectId: string, since: string): Promise<ProjectUpdatesResponse> {
+  public async getProjectUpdates(
+    projectId: string,
+    since: string,
+  ): Promise<ProjectUpdatesResponse> {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {

@@ -18,7 +18,7 @@
   const dispatch = createEventDispatcher();
   let sidebarElement: HTMLElement | null = null;
   let allActivities: SidebarActivity[] = [
-    { id: 'new-thread', label: '+ New Thread', icon: 'pi pi-plus', route: ROUTE.NEW_THREAD },
+    { id: 'new-thread', label: '+ New Thread', icon: 'pi pi-plus', route: ROUTE.APPLICATION_NEWTHREAD },
     { id: 'search', label: 'Search', icon: '', route: '/search' },
     { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },

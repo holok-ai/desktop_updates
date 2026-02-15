@@ -70,55 +70,62 @@ export class ModelRepository {
     this.isRefreshing = true;
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
-        const settingsService = getSettingsService();
-        const holoApiUrl: string = settingsService.getHoloApiUrl();
+      const settingsService = getSettingsService();
+      const holoApiUrl: string = settingsService.getHoloApiUrl();
 
       // Get all application summaries
       const applications = await mokuService.getAllApplications();
       log.info(`[ModelRepository] Found ${applications.length} applications`);
 
       // Clear existing models
-      this.apps.length = 0; 
+      this.apps.length = 0;
       this.models.length = 0;
 
       // Fetch application details for each application and extract models
       for (const app of applications) {
         try {
           const appDetail = await mokuService.getApplicationDetail(app.id);
-          const agentUrl: string  = holoApiUrl + "/api/custom/" + app.providerName + "/" + app.urlSlug; 
+          log.info(
+            `[ModelRepository] Received provider name from Moku API: "${appDetail.providerName}" for application: ${appDetail.name}`,
+          );
+          const mappedProvider = app.providerName === 'anthropic' ? 'claude' : app.providerName;
+          const agentUrl: string = holoApiUrl + '/api/custom/' + mappedProvider + '/' + app.urlSlug;
           var appSummary: ApplicationSummary = {
             id: appDetail.id,
-            slug: app.urlSlug, 
-            title: appDetail.name, 
+            description: appDetail.description, 
+            slug: app.urlSlug,
+            title: appDetail.name,
             provider: appDetail.providerName,
-            url: agentUrl , 
-            models: []
+            url: agentUrl,
+            models: [],
           };
-          console.log("App summary: ", appDetail.name, appDetail.providerName, appSummary.url); 
+          console.log('App summary: ', appDetail.name, appDetail.providerName, appSummary.url);
 
           appSummary.models = [];
 
           // Extract models from application detail
           if (appDetail.models && appDetail.models.length > 0) {
             for (const model of appDetail.models) {
- 
               const modelDetails: ModelDetails = {
                 id: model.id,
                 title: model.name,
                 accessName: model.accessModel,
                 provider: appDetail.providerName,
-                applicationName: appSummary.title, 
-                applicationSlug: appSummary.slug, 
+                applicationName: appSummary.title,
+                applicationSlug: appSummary.slug,
                 slug: appDetail.urlSlug,
-                url: agentUrl
+                url: agentUrl,
               };
               this.models.push(modelDetails);
               appSummary.models?.push(modelDetails);
             }
           }
-          this.apps.push(appSummary); 
+          this.apps.push(appSummary);
         } catch (error) {
-          log.error(`[ModelRepository] Failed to fetch details for application ${app.name}:`, error);
+          log.error(
+            `[ModelRepository] Failed to fetch details for application ${app.name}:`,
+            error,
+          );
           // Continue with other applications
         }
       }
@@ -144,7 +151,9 @@ export class ModelRepository {
       this.models.length = 0;
       this.models.push(...uniqueModels);
 
-      log.info(`[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications (removed ${duplicatesCount} duplicates)`);
+      log.info(
+        `[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications (removed ${duplicatesCount} duplicates)`,
+      );
     } catch (error) {
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
       // Don't throw - allow application to continue even if model refresh fails
@@ -153,10 +162,9 @@ export class ModelRepository {
     }
   }
 
- private  getEndpoint(modelReference: ModelReference): string {
+  private getEndpoint(modelReference: ModelReference): string {
     try {
-      if (!modelReference || ! modelReference.metadata) 
-        return ''; 
+      if (!modelReference || !modelReference.metadata) return '';
 
       // Extract endpoint value using regex
       const match = modelReference.metadata.match(/endpoint[=:]([^,}]+)/);
@@ -194,9 +202,9 @@ export class ModelRepository {
     if (this.apps.length > 0) {
       log.info(`[ModelRepository] Returning ${this.apps.length} cached applications`);
       // Return deep copy to prevent modifications to cached data
-      return this.apps.map(app => ({
+      return this.apps.map((app) => ({
         ...app,
-        models: app.models ? [...app.models] : []
+        models: app.models ? [...app.models] : [],
       }));
     }
 
@@ -205,9 +213,9 @@ export class ModelRepository {
     await this.refreshModels();
 
     // Return deep copy to prevent modifications to cached data
-    return this.apps.map(app => ({
+    return this.apps.map((app) => ({
       ...app,
-      models: app.models ? [...app.models] : []
+      models: app.models ? [...app.models] : [],
     }));
   }
 }

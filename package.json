@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "prepare": "husky",
-    "postinstall": "node scripts/install-chat-service.js",
     "prepare:icons": "node scripts/prepare-icons.js",
     "dev": "vite",
     "build": "vite build",
+    "build:desk" : "npm run build && npm run build:electron",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:watch\" -n \"VITE,ELECTRON\" -c \"blue,green\"",
@@ -60,6 +60,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "@holokai/chat-component": "file:packages/chat-service",
     "@perplexity-ai/perplexity_ai": "^0.16.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",

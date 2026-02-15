@@ -67,10 +67,11 @@ export class DesktopChatService {
           }
         : undefined;
 
-    if (canUseTools) {
-      this.chatService = new ChatService(providerType, config, true, tools, onToolUse);
+    if (canUseTools && onToolUse !== undefined) {
+      this.chatService = new ChatService(providerType, config, true);
+      this.chatService.setTools(tools, onToolUse);
     } else {
-      this.chatService = new ChatService(providerType, config, true, undefined, undefined);
+      this.chatService = new ChatService(providerType, config, true);
     }
   }
 
