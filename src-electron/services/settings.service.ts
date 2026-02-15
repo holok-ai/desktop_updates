@@ -53,6 +53,7 @@ export interface AppSettings {
 
   updateAvailable?: boolean;
   latestVersion?: string;
+  pendingUpdateVersion?: string;
 }
 
 /**
@@ -234,8 +235,24 @@ export class SettingsService {
    * Set a specific setting
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
-    this.store.set(key, value);
-    log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    if (value === undefined) {
+      throw new Error(
+        `SettingsService.setSetting: value for key "${String(
+          key,
+        )}" is undefined. Use a dedicated clear method instead.`,
+      );
+    } else {
+      this.store.set(key, value);
+      log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    }
+  }
+
+  /**
+   * Clear a specific setting (delete from store)
+   */
+  public clearSetting<K extends keyof AppSettings>(key: K): void {
+    this.store.delete(key);
+    log.info(`[SettingsService] Setting deleted: ${String(key)}`);
   }
 
   /**

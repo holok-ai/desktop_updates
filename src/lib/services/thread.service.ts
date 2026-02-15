@@ -110,7 +110,7 @@ export class ThreadService extends BaseElectronService {
     try {
       let baseBranchId: string;
 
-      if (lastMessageBranchId && lastMessageBranchId.trim()) {
+      if (lastMessageBranchId?.trim()) {
         // Use provided branchId
         baseBranchId = lastMessageBranchId;
       } else {
@@ -182,7 +182,7 @@ export class ThreadService extends BaseElectronService {
       branch_id: branchId,
     };
 
-    return await wrapElectronCall(
+    return wrapElectronCall(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       () => window.electronAPI.chat.chat(threadId, payload as any),
       'Failed to send chat message'

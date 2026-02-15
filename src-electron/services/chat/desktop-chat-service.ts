@@ -88,19 +88,18 @@ export class DesktopChatService {
     const { working_directory } = request;
 
     log.info('[DesktopChatService] chat called', {
-      thread_id: request.thread_id,
-      branch_id: request.branch_id,
+      thread_id: (request as unknown as { thread_id: string }).thread_id,
+      branch_id: (request as unknown as { branch_id: string }).branch_id,
       messageCount: request.messages.length,
       working_directory: working_directory || this.threadContext.workingDirectory,
     });
 
     // Update thread context for this message
     if (working_directory) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-      (request as any).workingDirectory = working_directory;
+      (request as unknown as { workingDirectory: string }).workingDirectory = working_directory;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-    (request as any).statusCallback = onToolStatus || undefined;
+    (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
+      onToolStatus || undefined;
 
     try {
       await this.chatService.chat(request, onToken);
