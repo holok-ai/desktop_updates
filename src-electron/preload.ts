@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
+import type { ToolDefinition } from './services/tool-calling/tool-types.js'; 
+
 import type { ProviderConfig } from '@holokai/chat-component';
 import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
@@ -42,13 +44,6 @@ export interface ThreadAPI {
 
   // Create a new thread (optionally within a project context)
   create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
-
-  // Create a new thread with initial prompt atomically
-  // This is the ONLY method that should create threads with initialPrompt set in metadata
-  createWithInitialPrompt: (payload: {
-    prompt: string;
-    metadata: Record<string, unknown>;
-  }) => Promise<Thread>;
 
   // Update an existing thread
   update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
@@ -159,17 +154,7 @@ export interface ThreadAPI {
     model?: string,
   ) => Promise<{ id: string; role: string; content: string; createdAt: number }>;
 
-  // Save prompt and multiple responses in a single operation
-  savePromptAndResponses: (
-    threadId: string | null,
-    prompt: string,
-    responses: { text: string; model?: string }[],
-    opts?: { title?: string; description?: string },
-  ) => Promise<{
-    thread: Thread;
-    promptMessage: { id: string; role: string; content: string; createdAt: number };
-    responseMessages: { id: string; role: string; content: string; createdAt: number }[];
-  }>;
+
 
   // Append a message with idempotency support
   appendMessage: (
@@ -198,15 +183,6 @@ export interface ThreadAPI {
     { success: true; message: Message; thread: Thread } | { success: false; error: string }
   >;
 
-  // Update message metadata (e.g., for comments)
-  updateMessageMetadata: (
-    threadId: string,
-    messageId: string,
-    metadataUpdates: Record<string, unknown>,
-  ) => Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  >;
-
   // Get message versions
   getMessageVersions: (
     threadId: string,
@@ -215,12 +191,6 @@ export interface ThreadAPI {
     | { success: true; versions: Array<{ content: string; editedAt: number }> }
     | { success: false; error: string }
   >;
-
-  // Delete messages after a specific message
-  deleteMessagesAfter: (
-    threadId: string,
-    messageId: string,
-  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
 
   // Switch active branch
   switchBranch: (
@@ -375,10 +345,6 @@ export interface SettingsAPI {
 /**
  * App Settings Interface
  */
-export interface ToolSetting {
-  title: string; 
-  id: string; 
-}
 
 export interface AppSettings {
   mokuWebUrl: string;
@@ -400,9 +366,9 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
   /* ToolOrchestrator data need to load the UI  */
-  config_windowsCommands: string; 
-  config_unixCommands: string; 
-  config_toolList: ToolSetting[]; 
+  config_windowsCommands: string;
+  config_unixCommands: string;
+  static_toolList?: ToolDefinition[];
 }
 
 /**
@@ -429,6 +395,8 @@ export interface ModelDetails {
   applicationSlug: string; 
   slug: string;
   url: string;
+  isPublic: boolean;               // Model visibility flag (defaults to true)
+  intendedUse?: string;            // Optional description of intended use case}
 }
 
 /**
@@ -437,6 +405,7 @@ export interface ModelDetails {
 export interface ModelsAPI {
   listAll: () => Promise<ModelDetails[]>;
   listAllApplications: () => Promise<ApplicationSummary[]>;
+  getModelsForApplication: (applicationId: string) => Promise<ModelDetails[]>;
 }
 
 /**
@@ -859,6 +828,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   models: {
     listAll: () => ipcRenderer.invoke('models:listAll'),
     listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
+    getModelsForApplication: (applicationId: string) => ipcRenderer.invoke('models:getModelsForApplication', applicationId),
   } as ModelsAPI,
 
   /**
@@ -872,9 +842,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) =>
       ipcRenderer.invoke('thread:create', thread),
-
-    createWithInitialPrompt: (payload: { prompt: string; metadata: Record<string, unknown> }) =>
-      ipcRenderer.invoke('thread:createWithInitialPrompt', payload),
 
     update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
@@ -981,13 +948,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addAssistantResponse: (threadId: string, response: string, model?: string) =>
       ipcRenderer.invoke('thread:addAssistantResponse', threadId, response, model),
 
-    savePromptAndResponses: (
-      threadId: string | null,
-      prompt: string,
-      responses: { text: string; model?: string }[],
-      opts?: { title?: string; description?: string },
-    ) => ipcRenderer.invoke('thread:savePromptAndResponses', threadId, prompt, responses, opts),
-
     appendMessage: (
       threadId: string,
       payload: {
@@ -1001,17 +961,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateMessage: (threadId: string, messageId: string, newContent: string) =>
       ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
 
-    updateMessageMetadata: (
-      threadId: string,
-      messageId: string,
-      metadataUpdates: Record<string, unknown>,
-    ) => ipcRenderer.invoke('thread:updateMessageMetadata', threadId, messageId, metadataUpdates),
 
     getMessageVersions: (threadId: string, messageId: string) =>
       ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
-
-    deleteMessagesAfter: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
 
     switchBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:switchBranch', threadId, branchId),

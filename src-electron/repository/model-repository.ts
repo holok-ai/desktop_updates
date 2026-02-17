@@ -5,7 +5,7 @@ import type { ApplicationSummary, ModelDetails } from '../preload.js';
 import { ModelReference } from '../services/mokuapi/application.types.js';
 
 export class ModelRepository {
-  private readonly apps: ApplicationSummary[] = [];
+  private readonly agents: ApplicationSummary[] = [];
   private readonly models: ModelDetails[] = [];
   private holoApiUrl: string = '';
   private isRefreshing: boolean = false;
@@ -15,44 +15,26 @@ export class ModelRepository {
   }
 
   /**
-   * Get Holo API URL from agent chat configuration
-   * Fetches the first agent and extracts the URL from its chat config
+   * Get Holo API URL from settings
    */
   public async getHoloApiUrl(): Promise<string> {
-    // Return cached URL if available
     if (this.holoApiUrl) {
       return this.holoApiUrl;
     }
 
     try {
-      log.info('[ModelRepository] Fetching Holo API URL from agent details');
-
-      // Get all agents
-      const agents = await mokuService.getAllAgents();
-
-      if (agents.length === 0) {
-        log.warn('[ModelRepository] No agents found, falling back to settings');
+        log.info('[ModelRepository] Fetching Holo API URL from settings');
         const settingsService = getSettingsService();
-        return settingsService.getMokuApiUrl();
-      }
+        this.holoApiUrl = settingsService.getHoloApiUrl(); 
 
-      // Get details for the first agent
-      const firstAgent = agents[0];
-      log.info(`[ModelRepository] Fetching details for agent: ${firstAgent.name}`);
+        return this.holoApiUrl ;
 
-      const agentDetail = await mokuService.getAgentDetail(firstAgent.id);
-
-      // Extract and cache the Holo API URL from the agent chat config
-      this.holoApiUrl = agentDetail.url;
-      log.info(`[ModelRepository] Holo API URL set to: ${this.holoApiUrl}`);
-
-      return this.holoApiUrl;
     } catch (error) {
       log.error('[ModelRepository] Failed to fetch Holo API URL from agent details:', error);
 
       // Fall back to settings service
       const settingsService = getSettingsService();
-      return settingsService.getMokuApiUrl();
+      return settingsService.getHoloApiUrl();
     }
   }
 
@@ -70,65 +52,51 @@ export class ModelRepository {
     this.isRefreshing = true;
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
-      const settingsService = getSettingsService();
-      const holoApiUrl: string = settingsService.getHoloApiUrl();
-
-      // Get all application summaries
-      const applications = await mokuService.getAllApplications();
-      log.info(`[ModelRepository] Found ${applications.length} applications`);
+      const holoApiUrl: string = await this.getHoloApiUrl(); 
 
       // Clear existing models
-      this.apps.length = 0;
+      this.agents.length = 0;
       this.models.length = 0;
 
-      // Fetch application details for each application and extract models
-      for (const app of applications) {
-        try {
-          const appDetail = await mokuService.getApplicationDetail(app.id);
-          log.info(
-            `[ModelRepository] Received provider name from Moku API: "${appDetail.providerName}" for application: ${appDetail.name}`,
-          );
-          const mappedProvider = app.providerName === 'anthropic' ? 'claude' : app.providerName;
-          const agentUrl: string = holoApiUrl + '/api/custom/' + mappedProvider + '/' + app.urlSlug;
+      const agents = await mokuService.getAllAgents();
+      log.info(`[ModelRepository] Read  ${agents.length} agents from Moku`);
+
+      for (const thisAgent of agents) {
+          const mappedProvider = thisAgent.provider === 'anthropic' ? 'claude' : thisAgent.provider;
+          const agentUrl: string = holoApiUrl + '/api/custom/' + mappedProvider + '/' + thisAgent.urlSlug;
+
           var appSummary: ApplicationSummary = {
-            id: appDetail.id,
-            description: appDetail.description, 
-            slug: app.urlSlug,
-            title: appDetail.name,
-            provider: appDetail.providerName,
+            id: thisAgent.id,
+            description: thisAgent.description, 
+            slug: thisAgent.urlSlug,
+            title: thisAgent.name,
+            provider: thisAgent.provider,
             url: agentUrl,
-            models: [],
+            models: []
           };
-          console.log('App summary: ', appDetail.name, appDetail.providerName, appSummary.url);
 
-          appSummary.models = [];
-
-          // Extract models from application detail
-          if (appDetail.models && appDetail.models.length > 0) {
-            for (const model of appDetail.models) {
+          if (thisAgent.models && thisAgent.models.length > 0) {
+            for (const model of thisAgent.models) {
               const modelDetails: ModelDetails = {
                 id: model.id,
                 title: model.name,
                 accessName: model.accessModel,
-                provider: appDetail.providerName,
+                provider: thisAgent.provider,
                 applicationName: appSummary.title,
                 applicationSlug: appSummary.slug,
-                slug: appDetail.urlSlug,
+                slug: thisAgent.urlSlug,
                 url: agentUrl,
+                isPublic: model.isPublic, 
+                intendedUse: model.intendedUse
               };
               this.models.push(modelDetails);
               appSummary.models?.push(modelDetails);
             }
           }
-          this.apps.push(appSummary);
-        } catch (error) {
-          log.error(
-            `[ModelRepository] Failed to fetch details for application ${app.name}:`,
-            error,
-          );
-          // Continue with other applications
-        }
+          this.agents.push(appSummary);
+          console.log('AGENT: ', appSummary.title, thisAgent.provider, agentUrl, ' models: ', thisAgent.models?.length);
       }
+
 
       // Deduplicate models by provider + accessName combination
       const seenModels = new Map<string, boolean>();
@@ -152,7 +120,7 @@ export class ModelRepository {
       this.models.push(...uniqueModels);
 
       log.info(
-        `[ModelRepository] Successfully loaded ${this.models.length} models from ${applications.length} applications (removed ${duplicatesCount} duplicates)`,
+        `[ModelRepository] Successfully loaded ${this.models.length} models from ${this.agents.length} applications (removed ${duplicatesCount} duplicates)`,
       );
     } catch (error) {
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
@@ -162,26 +130,6 @@ export class ModelRepository {
     }
   }
 
-  private getEndpoint(modelReference: ModelReference): string {
-    try {
-      if (!modelReference || !modelReference.metadata) return '';
-
-      // Extract endpoint value using regex
-      const match = modelReference.metadata.match(/endpoint[=:]([^,}]+)/);
-      if (match) {
-        let endpoint = match[1].trim().replace(/["']/g, ''); // Remove quotes
-
-        if (endpoint && !endpoint.startsWith('/')) {
-          endpoint = '/' + endpoint;
-        }
-        return endpoint;
-      }
-      return '';
-    } catch (error) {
-      console.error('Failed to parse metadata:', error);
-      return '';
-    }
-  }
 
   public async listAll(): Promise<ModelDetails[]> {
     // Return cached models if already loaded
@@ -199,10 +147,10 @@ export class ModelRepository {
 
   public async listAllApplications(): Promise<ApplicationSummary[]> {
     // Return cached applications if already loaded
-    if (this.apps.length > 0) {
-      log.info(`[ModelRepository] Returning ${this.apps.length} cached applications`);
+    if (this.agents.length > 0) {
+      log.info(`[ModelRepository] Returning ${this.agents.length} cached applications`);
       // Return deep copy to prevent modifications to cached data
-      return this.apps.map((app) => ({
+      return this.agents.map((app) => ({
         ...app,
         models: app.models ? [...app.models] : [],
       }));
@@ -213,10 +161,34 @@ export class ModelRepository {
     await this.refreshModels();
 
     // Return deep copy to prevent modifications to cached data
-    return this.apps.map((app) => ({
+    return this.agents.map((app) => ({
       ...app,
       models: app.models ? [...app.models] : [],
     }));
+  }
+
+  /**
+   * Get models for a specific application by application ID
+   */
+  public async getModelsForApplication(applicationId: string): Promise<ModelDetails[]> {
+    // Ensure cache is populated
+    if (this.agents.length === 0) {
+      log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
+      await this.refreshModels();
+    }
+
+    // Find application by ID or slug
+    const app = this.agents.find((a) => a.id === applicationId || a.slug === applicationId);
+
+    if (!app) {
+      log.warn(`[ModelRepository] Application not found: ${applicationId}`);
+      return [];
+    }
+
+    log.info(`[ModelRepository] Returning ${app.models?.length || 0} models for application ${app.title}`);
+
+    // Return deep copy to prevent modifications to cached data
+    return app.models ? [...app.models] : [];
   }
 }
 

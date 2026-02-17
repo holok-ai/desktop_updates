@@ -12,9 +12,10 @@
       createdAt: number;
       modelId?: string | null;
     };
-    response: {
+    responses: Array<{
+      id: string;
       content: string;
-    } | null;
+    }>;
     isStreamingResponse: boolean;
     streamingContent: string;
   }
@@ -74,7 +75,8 @@
         requestContent={pair.request.content}
         requestCreatedAt={pair.request.createdAt}
         modelId={pair.request.modelId}
-        responseContent={pair.response?.content || pair.streamingContent}
+        responses={pair.responses}
+        streamingContent={pair.streamingContent}
         isStreaming={pair.isStreamingResponse}
         {chatLayout}
         {fontSize}

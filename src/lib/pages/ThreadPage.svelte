@@ -15,7 +15,7 @@
   import ThreadPageFooter from '$lib/components/thread/ThreadPageFooter.svelte';
 
   // Views
-  import ThreadChatView from '$lib/components/thread/views/ThreadChatView.svelte';
+  import ThreadChatView from '$lib/components/thread/chat-view/ThreadChatView.svelte';
   import ThreadPromptView from '$lib/components/thread/views/ThreadPromptView.svelte';
   import ThreadGraphicView from '$lib/components/thread/views/ThreadGraphicView.svelte';
   import ThreadExecutionView from '$lib/components/thread/views/ThreadExecutionView.svelte';
@@ -33,7 +33,6 @@
   let threadTitle = $state('');
   let messages = $state<Message[]>([]);
   let availableModels = $state<ModelDetails[]>([]);
-  let initialPrompt = $state<string | null>(null);
   let activeView = $state<ThreadViewType>('chat');
   let chatLayout = $state<ChatLayout>(CHAT_LAYOUT.LEFT_RIGHT as ChatLayout);
   let loading = $state(false);
@@ -102,7 +101,6 @@
     if (qs) {
       const params = new URLSearchParams(qs);
       const id = params.get('threadId');
-      const prompt = params.get('prompt');
 
       if (id && id !== threadId) {
         threadId = id;
@@ -115,9 +113,6 @@
         messages = [];
       }
 
-      if (prompt) {
-        initialPrompt = prompt;
-      }
     }
   });
 
@@ -157,7 +152,6 @@
         bind:messages
         {availableModels}
         {chatLayout}
-        {initialPrompt}
         {agentId}
         onThreadCreated={handleThreadCreated}
       />

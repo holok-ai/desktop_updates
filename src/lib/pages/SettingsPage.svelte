@@ -9,6 +9,7 @@
     ChatLayout,
     Tool,
   } from '$lib/types/app.type';
+  import type { ToolDefinition } from '../../../src-electron/preload';
   import { defaultUserAvatar } from '$lib/types/app.type';
   import {
     APP_THEME_MODE,
@@ -54,13 +55,8 @@
   let appVersion = $state('');
   let isCheckingUpdates = $state(false);
 
-  // Placeholder tools list — connect to real data source later
-  let availableTools: Tool[] = $state([
-    { toolId: 'web-search', toolTitle: 'Web Search' },
-    { toolId: 'file-reader', toolTitle: 'File Reader' },
-    { toolId: 'code-interpreter', toolTitle: 'Code Interpreter' },
-    { toolId: 'image-gen', toolTitle: 'Image Generation' },
-  ]);
+  // Tools list from ToolOrchestrator
+  let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
 
   let settings: AppSettings = $state({
     mokuWebUrl: '',
@@ -172,6 +168,14 @@
       avatar: { ...settings.avatar },
     };
     appVersion = version;
+
+    // Populate available tools from static_toolList
+    if (all.static_toolList && all.static_toolList.length > 0) {
+      availableTools = all.static_toolList.map((tool) => ({
+        toolId: tool.name,
+        toolTitle: tool.name,
+      }));
+    }
 
     applyTheme(settings.theme);
     isLoading = false;

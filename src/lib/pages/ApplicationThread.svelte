@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import type { ApplicationSummary, ModelDetails } from '../../../src-electron/preload';
+  import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { threadService } from '$lib/services/thread.service';
@@ -38,21 +38,20 @@
   }
 
   async function handleApplicationSelect(app: ApplicationSummary) {
-    // Use the first model from the application if available
     const firstModel = app.models?.[0];
-
     if (!firstModel) {
       toastStore.show('No models available for this application', { variant: 'error' });
       return;
     }
 
     try {
-      // Create a thread with the selected application's first model
+      // create a thread
       const thread = await threadService.create({
         title: `New ${app.title} Chat`,
         description: '',
         status: THREAD_STATUS.ACTIVE,
         currentBranchId: '1.0',
+        messages: [], 
         metadata: {
           modelTitle: firstModel.title,
           modelProvider: firstModel.provider,
@@ -89,8 +88,7 @@
   {/if}
 
   <div class="page-header">
-    <h1>Start a chat</h1>
-    <p class="subtitle"></p>
+    <h2>Let's chat</h2>
   </div>
 
   <div class="applications-container">
@@ -180,16 +178,10 @@
     border-bottom: 1px solid var(--surface-border);
   }
 
-  .page-header h1 {
+  .page-header h2 {
     font-size: 1.75rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 0.5rem 0;
-  }
-
-  .subtitle {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
     margin: 0;
   }
 

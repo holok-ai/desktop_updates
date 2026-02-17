@@ -22,9 +22,11 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
+  attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
   /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
   branchId: string;
   modelId?: string | null;
+  isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
 }
 
 export interface Thread {

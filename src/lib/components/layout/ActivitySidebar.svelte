@@ -12,14 +12,14 @@
   import { threads } from '$lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';
   import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
-  import type { Thread } from '../../../src-electron/preload';
+  import type { Thread } from '../../../../src-electron/preload';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
   let sidebarElement: HTMLElement | null = null;
   let allActivities: SidebarActivity[] = [
-    { id: 'new-thread', label: '+ New Thread', icon: 'pi pi-plus', route: ROUTE.APPLICATION_NEWTHREAD },
-    { id: 'search', label: 'Search', icon: '', route: '/search' },
+    { id: 'new-thread', label: '+ New Thread', icon: 'pi pi-plus', route: ROUTE.NEW_THREAD },
+    { id: 'search', label: 'Search', icon: '', route: ROUTE.SEARCH },
     { id: 'projects', label: 'Projects', icon: 'pi pi-folder', route: ROUTE.PROJECTS },
     { id: 'threads', label: 'Threads', icon: 'pi pi-comments', route: ROUTE.THREADS },
   ];

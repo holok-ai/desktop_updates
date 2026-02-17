@@ -14,6 +14,16 @@ import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js
  * Settings are stored in the user's app data folder and encrypted.
  */
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required: string[];
+  };
+}
+
 export interface AppSettings {
   // Moku Web URL - where the SSO login page is hosted
   mokuWebUrl: string;
@@ -54,6 +64,9 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
   pendingUpdateVersion?: string;
+
+  // Static tool list from ToolOrchestrator (added at runtime)
+  static_toolList?: ToolDefinition[];
 }
 
 /**

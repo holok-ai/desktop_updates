@@ -852,10 +852,11 @@ export class ThreadCopyService implements IThreadCopyService {
       await threadRepository.appendMessage(newThread.id, {
         role: message.role,
         content: message.content,
-        metadata: message.metadata,
+        metadata: message.rawData,
         clientMessageId: message.clientMessageId,
         branchId: message.branchId,
         modelId: message.modelId,
+        provider: ''
       });
     }
 

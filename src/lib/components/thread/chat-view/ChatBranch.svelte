@@ -13,9 +13,10 @@
       createdAt: number;
       modelId?: string | null;
     };
-    response: {
+    responses: Array<{
+      id: string;
       content: string;
-    } | null;
+    }>;
     isStreamingResponse: boolean;
     streamingContent: string;
   }

@@ -2,9 +2,11 @@
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import type { ModelDetails } from '../../../../src-electron/preload';
+  import { modelService } from '$lib/services/model.service';
 
   interface Props {
     selectedModelId?: string | null;
+    agentId?: string | null;
     disabled?: boolean;
     label?: string;
     dropdownDirection?: 'up' | 'down';
@@ -14,6 +16,7 @@
 
   let {
     selectedModelId = $bindable(null),
+    agentId = null,
     disabled = false,
     label = 'Model',
     dropdownDirection = 'down',
@@ -77,7 +80,17 @@
     if (availableModels.length > 0) return;
     loadingModels = true;
     try {
-      availableModels = await window.electronAPI.models.listAll();
+      // If agentId is provided, fetch models for that specific application
+      if (agentId) {
+        console.log('[ModelSelector] Loading models for agentId:', agentId);
+        availableModels = await modelService.getModelsForApplication(agentId);
+      } else {
+        console.log('[ModelSelector] Loading all models');
+        availableModels = await window.electronAPI.models.listAll();
+      }
+
+      console.log('[ModelSelector] Loaded models:', availableModels.length);
+
       // Select first model by default ONLY if none selected AND no modelId bound from parent
       if (selectedModelIds.length === 0 && !selectedModelId && availableModels.length > 0) {
         const firstModel = availableModels[0];
@@ -236,6 +249,7 @@
             class="dropdown-item"
             class:selected={selectedModelIds.includes(model.accessName)}
             onclick={() => handleSelectModel(model.accessName)}
+            title={model.intendedUse || ''}
           >
             <input
               type="checkbox"

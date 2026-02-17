@@ -115,14 +115,6 @@ export class MokuService {
     return { accessToken, expires_in };
   }
 
-  /** Simulate refreshing model list from Moku (no-op in-memory) */
-  public async refreshFromMoku(): Promise<void> {
-    // In a real implementation this would call Moku API using auth tokens.
-    // For the in-memory service we keep the seeded list; method provided for parity.
-
-    void 0;
-  }
-
   public async getAllAgents(): Promise<AgentListItem[]> {
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();

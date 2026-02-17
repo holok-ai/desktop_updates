@@ -1,8 +1,10 @@
 <script lang="ts">
   /**
-   * ChatMessageCommands — hover-reveal command icons.
-   * Positioned between request and response (or after response) with a configurable gap.
+   * ChatResponseCommands — hover-reveal command icons for responses.
+   * Positioned after response with a configurable gap.
+   * Aligns right when chatLayout is 'left-right'.
    */
+  import type { ChatLayout } from '$lib/types/app.type';
 
   interface CommandDef {
     icon: string;
@@ -14,18 +16,24 @@
     commands: CommandDef[];
     /** Gap height in pixels between the message and the command bar */
     gapHeight?: number;
+    /** Chat layout to determine alignment */
+    chatLayout?: ChatLayout;
   }
 
-  let { commands = [], gapHeight = 4 }: Props = $props();
+  let { commands = [], gapHeight = 4, chatLayout = 'left-right' }: Props = $props();
   let hovered = $state(false);
+
+  // Determine if commands should be right-aligned
+  const shouldAlignRight = $derived(chatLayout === 'left-right');
 </script>
 
 <div
   class="commands-row"
   class:visible={hovered}
+  class:align-right={shouldAlignRight}
   style="height: {gapHeight + 24}px; padding-top: {gapHeight}px;"
   role="toolbar"
-  aria-label="Message commands"
+  aria-label="Response commands"
   tabindex="-1"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => (hovered = false)}
@@ -50,6 +58,10 @@
     opacity: 0;
     transition: opacity 0.15s ease;
     overflow: hidden;
+  }
+
+  .commands-row.align-right {
+    justify-content: flex-end;
   }
 
   .commands-row.visible {

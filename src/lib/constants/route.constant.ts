@@ -1,8 +1,7 @@
 export const ROUTE = {
   HOME: '/',
   THREADS: '/threads',
-  NEW_THREAD: '/threads/new',
-  APPLICATION_NEWTHREAD: '/threads/applications',
+  NEW_THREAD: '/threads/applications',
   THREAD: '/threads/view',
   PROJECT_THREAD: '/project/thread',
   PROJECTS: '/projects',
@@ -10,6 +9,7 @@ export const ROUTE = {
   PROJECT_MEMBERS: '/project/members',
   PROJECT_FILES: '/project/files',
   PROJECT_INSTRUCTIONS: '/project/instructions',
+  SEARCH:  '/search', 
   SETTINGS: '/settings',
   LOGIN: '/login',
 } as const;
