@@ -88,12 +88,12 @@ export class DesktopChatService {
         // Convert base64 contents to Buffer
         const buffer = Buffer.from(contents, 'base64');
 
-        // Save file using file storage service
-        await fileStorageService.saveFile(threadId, buffer, displayName, mimeType);
+        // Save file using file storage service - pass fileId from chat-service to ensure consistency
+        const attachment = await fileStorageService.saveFile(threadId, buffer, displayName, mimeType, fileId);
 
         log.info('[DesktopChatService] File saved successfully', {
           threadId,
-          fileId,
+          fileId: attachment.id,
           displayName,
           size: buffer.length,
         });

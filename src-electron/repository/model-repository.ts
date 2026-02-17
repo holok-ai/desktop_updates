@@ -94,7 +94,6 @@ export class ModelRepository {
             }
           }
           this.agents.push(appSummary);
-          console.log('AGENT: ', appSummary.title, thisAgent.provider, agentUrl, ' models: ', thisAgent.models?.length);
       }
 
 
@@ -184,8 +183,6 @@ export class ModelRepository {
       log.warn(`[ModelRepository] Application not found: ${applicationId}`);
       return [];
     }
-
-    log.info(`[ModelRepository] Returning ${app.models?.length || 0} models for application ${app.title}`);
 
     // Return deep copy to prevent modifications to cached data
     return app.models ? [...app.models] : [];

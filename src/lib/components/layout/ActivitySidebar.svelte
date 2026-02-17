@@ -13,6 +13,7 @@
   import { projects } from '$lib/stores/project.store';
   import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
   import type { Thread } from '../../../../src-electron/preload';
+  import { threadService } from '$lib/services/thread.service';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -82,7 +83,15 @@
     }
   }
 
-  function toggleRecentThreads() {
+  async function toggleRecentThreads() {
+    // If we're about to show recent threads and the thread list is empty, load threads first
+    if (!showRecentThreads && $threads.length === 0) {
+      try {
+        await threadService.getAll({ updateStore: true });
+      } catch (error) {
+        console.error('[ActivitySidebar] Failed to load threads:', error);
+      }
+    }
     showRecentThreads = !showRecentThreads;
   }
 
@@ -317,11 +326,11 @@
         tabindex="0"
         onmouseenter={() => (recentHovered = true)}
         onmouseleave={() => (recentHovered = false)}
-        onclick={toggleRecentThreads}
+        onclick={() => void toggleRecentThreads()}
         onkeydown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            toggleRecentThreads();
+            void toggleRecentThreads();
           }
         }}
       >
@@ -331,7 +340,7 @@
             class="recent-toggle"
             onclick={(e) => {
               e.stopPropagation();
-              toggleRecentThreads();
+              void toggleRecentThreads();
             }}
           >
             {showRecentThreads ? 'hide' : 'show'}

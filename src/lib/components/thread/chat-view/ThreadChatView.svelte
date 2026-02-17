@@ -13,6 +13,9 @@
   import type { Attachment } from '$shared/types/attachment.types';
   import { copyToInput } from '$lib/services/clipboard.service';
 
+  // Debug flag - set to true to show debug activity box
+  const SHOW_DEBUG_ACTIVITY = false;
+
   // Streaming timeouts (match ChatPane)
   const STREAMING_IDLE_TIMEOUT_MS = 60000;
   const STREAMING_INITIAL_RESPONSE_TIMEOUT_MS = 120000;
@@ -43,6 +46,7 @@
   let fontSize = $state(14); // Font size from settings
   let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
   let composerText = $state(''); // Text for composer (bindable for guard errors)
+  let debugActivity = $state(''); // Debug activity log
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -122,21 +126,19 @@
 
     modelId = (thread.metadata.modelId as string) || '';
 
-    console.log('[ThreadChatView] extractModelInfo - thread metadata:', {
-      modelId,
-      modelAccessName: thread.metadata.modelAccessName,
-      availableModelsCount: availableModels.length
-    });
-
     const detail = availableModels.find((m) => m.accessName === modelId || m.id === modelId);
     if (detail) {
       modelName = detail.accessName;
       modelAccessName = detail.accessName;
       applicationSlug = detail.applicationSlug;
-      console.log('[ThreadChatView] extractModelInfo - found model:', {
-        modelAccessName,
-        applicationSlug
-      });
+
+    console.log('[ThreadChatView] extractModelInfo - found model:', {
+      modelId,
+      modelAccessName,
+      applicationSlug, 
+      availableModelsCount: availableModels.length
+    });
+
     } else {
       console.log('[ThreadChatView] extractModelInfo - model NOT found in availableModels');
     }
@@ -171,8 +173,9 @@
     }
 
     // Create or recreate the provider
-    const result = await window.electronAPI.chat.createProvider(
+    const result = await window.electronAPI.chat.createServiceForThread(
       thread.id,
+      modelDetail.accessName, 
       modelDetail.provider,
       { url: modelDetail.url, model: modelDetail.accessName },
       (thread.metadata?.workingDirectory as string) || undefined,
@@ -192,21 +195,43 @@
     return { success: true, created: true };
   }
 
+  // ── Helper: Add to debug log ──
+  function addDebugLog(message: string) {
+    if (!SHOW_DEBUG_ACTIVITY) return;
+    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    debugActivity = `[${timestamp}] ${message}\n${debugActivity}`;
+    // Keep only last 50 lines
+    const lines = debugActivity.split('\n');
+    if (lines.length > 50) {
+      debugActivity = lines.slice(0, 50).join('\n');
+    }
+  }
+
   // ── Token listener (streaming) ──
   function setupTokenListener(branchId: string) {
     if (!thread?.id) return;
 
     responseText = '';
+    addDebugLog(`[ThreadChatView] setupTokenListener for branchId: ${branchId}`);
 
     // Unsubscribe from previous stream if any
     unsubscribeStream?.();
 
     // Subscribe to stream for this thread + branch
     unsubscribeStream = threadService.subscribeToStream(thread.id, branchId, (token: string) => {
+      addDebugLog(`[ThreadChatView] Received token (length: ${token.length}): "${token.substring(0, 20)}..."`);
+      console.log('[ThreadChatView] Received streaming token:', {
+        branchId,
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 50),
+        fullToken: token  // Show complete token
+      });
+
       // First token: clear no-response timeout
       if (streamingNoResponseTimeout) {
         clearTimeout(streamingNoResponseTimeout);
         streamingNoResponseTimeout = null;
+        addDebugLog('[ThreadChatView] First token received - cleared no-response timeout');
       }
 
       // Track last token time and restart idle timeout
@@ -220,10 +245,13 @@
 
       // Accumulate (force new string ref for Svelte reactivity)
       responseText = responseText + token;
+      addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
 
       // Keep streaming message in view
       scrollToBottom();
     });
+
+    addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${thread.id}`);
   }
 
   // ── Send message ──
@@ -233,23 +261,22 @@
     text: string,
     _attachments?: Attachment[],
   ) {
+
     // Validation
     if (!text.trim() || isStreaming) return;
+    const threadId: string = thread?.id || ''; 
 
     error = '';
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
-    const branchId = await threadService.calculateNextBranchId(
-      thread!.id,
-      lastMessageBranchId || '0.0.0',
-    );
+    const branchId = await threadService.calculateNextBranchId(threadId, lastMessageBranchId || '0.0.0' );
 
     // Delegate to appropriate handler
     const multipleModels = modelIds.length > 1;
     if (multipleModels) {
       await sendMessageBranch(modelIds, branchId, text);
     } else {
-      await sendMessageSingle(modelIds[0], branchId, text);
+      await sendMessageSingle(threadId, branchId, modelIds[0],  text);
     }
   }
 
@@ -277,6 +304,7 @@
       const userClientMessageId = crypto.randomUUID();
       const userMsg: Message = {
         id: userClientMessageId,
+        thread_id: thread.id || '', 
         clientMessageId: userClientMessageId,
         role: 'user',
         content: text,
@@ -407,38 +435,15 @@
   }
 
   // ── Send message to single model ──
-  async function sendMessageSingle(modelId: string, branchId: string, promptText: string) {
+  async function sendMessageSingle(threadId: string, branchId: string,  modelId: string, promptText: string) {
 
-          // Add user message for single model flow
-      if (thread) {
-        const clientMessageId = crypto.randomUUID();
-        console.log('[ThreadChatView] sendMessage - creating message with modelId:', modelId); 
-        const userMsg: Message = {
-          id: clientMessageId,
-          clientMessageId,
-          role: 'user',
-          content: promptText,
-          createdAt: Date.now(),
-          branchId,
-          modelId: modelId,
-        };
-        messages = [...messages, userMsg];
+        // add new prompt as "local" message - let thread-repository replace it once it shows up in llm_requests
+      const [success, newMessage]: [boolean, Message] = await threadService.appendPrompt(threadId, branchId, promptText, modelId, messages); 
+      if (!success || !newMessage) return; 
+
+      messages = [...messages,  newMessage]; 
         await tick();
         scrollToBottom();
-
-        // Persist user message
-        await threadService.appendMessage(thread.id, {
-          role: 'user',
-          content: promptText,
-          clientMessageId,
-          branchId,
-          modelName: modelId,
-        });
-      }
-
-    // Ensure chat provider is ready (creates or recreates if model changed)
-    const result = await getChatService(modelId);
-    if (!result.success) return;
 
     // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
@@ -460,25 +465,12 @@
       }
     }, STREAMING_IDLE_TIMEOUT_MS);
 
-    // Build history for the model
-    const historyMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const request = {
-      messages: historyMessages,
-      streaming: true,
-      model: modelName,
-    };
 
     try {
-      // Send chat message with the calculated branchId
-      const chatResult = await threadService.sendChatMessage(thread!.id, branchId, request);
-      console.log('[ThreadChatView] Chat result:', chatResult);
 
-      if (!chatResult.success) {
-        const errorMessage = chatResult.error || 'Chat failed';
+      const chatSuccess : boolean = await threadService.submitPromptToChat(threadId, branchId, modelId, messages); 
+      if (!chatSuccess) {
+        const errorMessage =  'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
         handleGuardError(errorMessage, branchId);
         isStreaming = false;
@@ -487,11 +479,17 @@
 
       // Streaming complete — persist assistant response
       if (thread && responseText) {
+        console.log('[ThreadChatView] Streaming complete. Final responseText:', {
+          length: responseText.length,
+          content: responseText
+        });
+        addDebugLog(`[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars)`);
         await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelName);
 
         // Append assistant message to local list
         const assistantMsg: Message = {
           id: crypto.randomUUID(),
+          thread_id: threadId, 
           role: 'assistant',
           content: responseText,
           createdAt: Date.now(),
@@ -563,6 +561,7 @@
       // Add a system message to the thread
       const guardMessage: Message = {
         id: crypto.randomUUID(),
+        thread_id: thread?.id || '', 
         role: 'system',
         content: `**⚠️ Message Blocked**\n\n${errorMessage}\n\n*Your message was not sent to the model. It has been restored to the input field for editing.*`,
         createdAt: Date.now(),
@@ -855,6 +854,28 @@
       {agentId}
       modelId={modelAccessName}
     />
+
+    <!-- Debug Activity Box -->
+    {#if SHOW_DEBUG_ACTIVITY}
+      <div class="debug-area">
+        <div class="debug-header">
+          <span class="debug-title">🔍 Debug Activity</span>
+          <button
+            class="debug-clear"
+            onclick={() => (debugActivity = '')}
+            aria-label="Clear debug log"
+          >
+            Clear
+          </button>
+        </div>
+        <textarea
+          class="debug-log"
+          readonly
+          value={debugActivity}
+          placeholder="Debug activity will appear here..."
+        ></textarea>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -985,5 +1006,68 @@
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--surface-border, #e0e0e0);
     background: var(--surface-main, #fafafa);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .debug-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  .debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .debug-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .debug-clear {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: var(--surface-hover, #f0f0f0);
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .debug-clear:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+
+  .debug-log {
+    width: 100%;
+    height: 150px;
+    padding: 0.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 4px;
+    resize: vertical;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .debug-log::placeholder {
+    color: #6a6a6a;
   }
 </style>

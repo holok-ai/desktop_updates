@@ -283,6 +283,7 @@ export declare class GeminiChatProvider implements IChatProvider {
      * Send a chat request to Gemini
      */
     chat(request: ChatRequest, onTokenReceived?: (token: string) => void): Promise<void>;
+    private supportsTools;
     /**
      * Send a chat request with tools enabled
      * Private method called by chat() when tools are configured

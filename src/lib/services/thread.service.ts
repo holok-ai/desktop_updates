@@ -452,6 +452,142 @@ export class ThreadService extends BaseElectronService {
         };
   }
 
+
+  /**
+   * Append a user prompt to a thread
+   *
+   * Creates a local 'user'  message and append it to the specified thread and branch.
+   *
+   * @param threadId - The ID of the thread to append to
+   * @param branchId - The branch ID where the message should be added
+   * @param prompt - The prompt text content
+   * @param modelId - model ID to associate with the prompt
+   * @param messages - Current messages array (for context/reference)
+   * @returns A tuple of [success: boolean, message: Message] where success indicates if the append operation succeeded,
+   *          and message is either the successfully created message or the local message object on failure
+   *
+   */
+
+  async appendPrompt(
+    threadId: string,
+    branchId: string,
+    prompt: string,
+    modelId: string,
+    messages: Message[],
+  ): Promise<[boolean, Message]> {
+
+    // make sure we have a chat service
+  const result = await window.electronAPI.chat.createServiceForThread(
+      threadId,
+      modelId, 
+      '',
+      { url: '' , model: '' },
+      '',
+    );
+
+    const clientMessageId = crypto.randomUUID();
+    const newPromptMessage: Message = {
+      id: clientMessageId,
+      thread_id: threadId,
+      clientMessageId,
+      role: 'user',
+      content: prompt,
+      createdAt: Date.now(),
+      branchId,
+      modelId: modelId,
+    };
+
+    // Build wire payload with snake_case field mappings
+    const wirePayload: Record<string, unknown> = {
+      role: newPromptMessage.role,
+      content: newPromptMessage.content,
+      metadata: modelId ? { modelId } : {},
+      client_message_id: clientMessageId,
+      branch_id: branchId,
+    };
+
+    try {
+      const res = await wrapElectronCall(
+        () => window.electronAPI.thread.appendMessage(threadId, wirePayload),
+        'Failed to append message',
+      ) as any;
+
+      // Check if append was successful
+      if (!res.success || !res.message) {
+        return [false, newPromptMessage];
+      }    
+
+      return [true, newPromptMessage];
+    } catch (error) {
+      // Return failure with the local message
+      console.error('[ThreadService.appendPrompt] Exception:', error);
+      return [false, newPromptMessage];
+    }
+  }
+
+ /**
+   * Append a user prompt to a thread
+   *
+   * Creates a local 'user'  message and append it to the specified thread and branch.
+   *
+   * @param threadId - The ID of the thread to append to
+   * @param branchId - The branch ID where the message should be added
+   * @param prompt - The prompt text content
+   * @param modelId - model ID to associate with the prompt
+   * @param messages - Current messages array (for context/reference)
+   * @returns A tuple of [success: boolean, message: Message] where success indicates if the append operation succeeded,
+   *          and message is either the successfully created message or the local message object on failure
+   *
+   */
+
+  async submitPromptToChat(
+    threadId: string,
+    branchId: string,
+    modelId: string,
+    messages: Message[],
+  ): Promise<boolean> {
+
+    try { 
+    // make sure we have a chat service
+  const result = await window.electronAPI.chat.createServiceForThread(
+      threadId,
+      modelId, 
+      '',
+      { url: '' , model: '' },
+      '',
+    );
+
+      // Build history for the model (include the new prompt)
+      const historyMessages = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const request = {
+        messages: historyMessages,
+        streaming: true,
+        model: modelId,
+      };
+
+      // Send chat message with the calculated branchId
+      const chatResult = await this.sendChatMessage(threadId, branchId, request);
+      console.log('[ThreadService.appendPrompt] sendChatMessage result:', chatResult);
+
+      if (!chatResult.success) {
+        const errorMessage = chatResult.error || 'Chat failed';
+        console.error('[ThreadService.appendPrompt] Error check (result validation):', errorMessage);
+        return false;
+      }
+
+      return true ;
+    } catch (error) {
+      // Return failure with the local message
+      console.error('[ThreadService.appendPrompt] Exception:', error);
+      return false;
+    }
+  }
+
+
   async updateMessage(
     threadId: string,
     messageId: string,
@@ -567,6 +703,7 @@ export class ThreadService extends BaseElectronService {
 
     const message: Message = {
       id: res.message.id,
+      thread_id: thread.id || '', 
       role: 'user',
       content: content,
       createdAt: res.message.createdAt,

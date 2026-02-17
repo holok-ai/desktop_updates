@@ -7,28 +7,39 @@ import svelteParser from 'svelte-eslint-parser';
 import globals from 'globals';
 
 export default [
-  // Global ignores
+  // Global ignores - lint only src/ and src-electron/ folders
   {
     ignores: [
+      // Ignore all common directories except src/ and src-electron/
       'node_modules/**',
       'dist/**',
       'dist-electron/**',
       'build/**',
+      'release/**',
+      'out/**',
       '.svelte-kit/**',
       'coverage/**',
       '.nyc_output/**',
-      '*.config.js',
-      '*.config.ts',
-      'vite.config.ts.timestamp-*',
       '.cache/**',
       'logs/**',
-      '.eslintrc.*.js',
-      'eslint-plugin-holokai/**',
-      'scripts/**',
-      'analyze-eslint.cjs',
       'playwright-report/**',
       'test-results/**',
+
+      // Ignore other source directories
       'packages/**',
+      'src-shared/**',
+      'scripts/**',
+      'tests/**',
+      'e2e/**',
+      'eslint-plugin-holokai/**',
+
+      // Ignore config files at root
+      '*.config.js',
+      '*.config.ts',
+      '*.config.mjs',
+      'vite.config.ts.timestamp-*',
+      '.eslintrc.*.js',
+      'analyze-eslint.cjs',
     ],
   },
 

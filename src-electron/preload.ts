@@ -508,8 +508,9 @@ export type ToolUseEventPayload = {
 
 export interface ChatAPI {
   // Initialize/Create a chat service instance for a thread
-  createProvider: (
+  createServiceForThread: (
     threadId: string,
+    modelAccessName: string,
     providerType: string,
     config: ProviderConfig,
     workingDirectory?: string,
@@ -703,13 +704,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   chat: {
     // 1. Initialize/Create a chat service instance for a thread
-    createProvider: (
+    createServiceForThread: (
       threadId: string,
+      modelAccessName: string,
       providerType: string,
       config: ProviderConfig,
       workingDirectory?: string,
     ) =>
-      ipcRenderer.invoke('chat:createProvider', threadId, providerType, config, workingDirectory),
+      ipcRenderer.invoke('chat:createServiceForThread', threadId, modelAccessName, providerType, config, workingDirectory),
 
     // 2. Send a chat message (with streaming support) for a specific thread
     chat: (threadId: string, request: DesktopChatRequest) =>
