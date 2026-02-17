@@ -28,30 +28,51 @@ export interface DesktopThreadDTO extends ThreadDTO {
 }
 
 /**
+ * LLM execution status for messages
+ */
+export type LLMStatus = 'success' | 'error' | 'timeout' | 'partial' | 'rate_limited' | 'invalid_request';
+
+/**
  * Message DTO from Moku API
  */
-export interface MessageDTO {
-  id: string;
-  threadId: string;
-  branchId?: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1") - may be in options.branch_id
-  isClosed?: boolean;
-  model?: string;
-  provider?: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  attachments?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
-  options?: {
-    branch_id?: string; // branch_id may be in options
-    stream?: boolean;
-    max_tokens?: number;
-    [key: string]: unknown;
-  };
-  requestId?: string; // Legacy field
-  createdUserId: string;
-  createdAt: string; // ISO-8601 timestamp
-  updatedAt: string; // ISO-8601 timestamp
-}
+ export interface MessageDTO {
+      id: string;                    // UUID as string
+      threadId: string;              // UUID as string
+      branchId: string | null;
+      model: string | null;
+      provider: string | null;
+      role: string | null;
+      content: any;                  // JSONB content array from API
+      rawData: any;                  // JSONB from llm_responses
+      status: LLMStatus | null;      // LLM execution status
+      options: any;                  // JSONB from llm_requests
+      createdUserId: string | null;
+      createdAt: string;             // ISO 8601 date string
+      updatedAt: string;             // ISO 8601 date string
+  }
+
+// export interface MessageDTO {
+//   id: string;
+//   threadId: string;
+//   branchId?: string; // Hierarchical branch ID (e.g., "1.0", "1.1", "1.1.1") - may be in options.branch_id
+//   isClosed?: boolean;
+//   model?: string;
+//   provider?: string;
+//   role: 'user' | 'assistant' | 'system';
+//   content: string;
+//   attachments?: Record<string, unknown>;
+//   metadata?: Record<string, unknown>;
+//   options?: {
+//     branch_id?: string; // branch_id may be in options
+//     stream?: boolean;
+//     max_tokens?: number;
+//     [key: string]: unknown;
+//   };
+//   requestId?: string; // Legacy field
+//   createdUserId: string;
+//   createdAt: string; // ISO-8601 timestamp
+//   updatedAt: string; // ISO-8601 timestamp
+// }
 
 /**
  * Request body for creating a new thread

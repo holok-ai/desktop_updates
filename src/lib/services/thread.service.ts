@@ -80,9 +80,9 @@ export class ThreadService extends BaseElectronService {
     if (!this.streamCallbacks.has(key)) {
       this.streamCallbacks.set(key, new Set());
     }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.streamCallbacks.get(key)!.add(callback);
 
-    console.log('[ThreadService] Subscribed to stream:', key);
 
     // Return unsubscribe function
     return () => {
@@ -91,7 +91,6 @@ export class ThreadService extends BaseElectronService {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.streamCallbacks.delete(key);
-          console.log('[ThreadService] Unsubscribed from stream:', key);
         }
       }
     };
@@ -119,7 +118,6 @@ export class ThreadService extends BaseElectronService {
 
         if (messages.length === 0) {
           // First message in thread
-          console.log('[ThreadService] First message in thread, using branchId: 1.0.0');
           return '1.0.0';
         }
 
@@ -154,12 +152,6 @@ export class ThreadService extends BaseElectronService {
         nextBranchId = `${row}.${lane}.${iteration + 1}`;
       }
 
-      console.log('[ThreadService] Calculated next branchId:', {
-        baseBranchId,
-        nextBranchId,
-        rule: lane === 0 ? 'main lane: increment row' : 'branch lane: increment iteration'
-      });
-
       return nextBranchId;
     } catch (error) {
       console.error('[ThreadService] Failed to calculate next branchId, using default: 1.0.0', error);
@@ -178,7 +170,9 @@ export class ThreadService extends BaseElectronService {
 
     const payload = {
       ...request,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       thread_id: threadId,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       branch_id: branchId,
     };
 
@@ -246,7 +240,7 @@ export class ThreadService extends BaseElectronService {
     projectId: string | null,
     modelAccessName: string,
     prompt: string,
-    status: string = 'active'
+    status: 'active' | 'archived' | 'deleted' = 'active'
   ): Promise<string> {
     // Get model details
     const models = await wrapElectronCall(
@@ -425,61 +419,37 @@ export class ThreadService extends BaseElectronService {
       metadata?: Record<string, unknown>;
       clientMessageId?: string;
       branchId?: string;
+      modelName?: string;
     },
   ): Promise<
-    | {
-        success: true;
-        message: { id: string; role: string; content: string; createdAt: number };
-        thread: Thread;
-      }
+    | { success: true; message: { id: string; role: string; content: string; createdAt: number }; thread: Thread }
     | { success: false; status: number; error: string; threadId?: string }
   > {
-    type AppendWire = {
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-      metadata?: Record<string, unknown>;
-    } & Record<string, unknown>;
-    const wirePayload: AppendWire = {
+    // Build wire payload with snake_case field mappings
+    const wirePayload: Record<string, unknown> = {
       role: payload.role,
       content: payload.content,
       metadata: payload.metadata,
     };
-    if (typeof payload.clientMessageId === 'string' && payload.clientMessageId.length > 0) {
-      (wirePayload as Record<string, unknown>).client_message_id = payload.clientMessageId;
-    }
 
-    if (typeof payload.branchId === 'string' && payload.branchId.length > 0) {
-      (wirePayload as Record<string, unknown>).branch_id = payload.branchId;
-    }
+    if (payload.clientMessageId) wirePayload.client_message_id = payload.clientMessageId;
+    if (payload.branchId) wirePayload.branch_id = payload.branchId;
+    if (payload.modelName) wirePayload.model_name = payload.modelName;
 
-    const res: unknown = await wrapElectronCall(
+    const res = await wrapElectronCall(
       () => window.electronAPI.thread.appendMessage(threadId, wirePayload),
-      'Failed to append message to thread',
-    );
+      'Failed to append message',
+    ) as any;
 
-    if (
-      typeof res === 'object' &&
-      res !== null &&
-      (res as { success?: boolean }).success === true
-    ) {
-      return res as {
-        success: true;
-        message: { id: string; role: string; content: string; createdAt: number };
-        thread: Thread;
-      };
-    }
-    const failure = res as { status: number; error: string } & Record<string, unknown>;
-    let threadIdCamel: string | undefined;
-    const maybeThreadId = (failure as Record<string, unknown>).thread_id;
-    if (typeof maybeThreadId === 'string') {
-      threadIdCamel = maybeThreadId;
-    }
-    return {
-      success: false,
-      status: failure.status,
-      error: failure.error,
-      threadId: threadIdCamel,
-    };
+    // Return success or normalize error response
+    return res.success
+      ? res
+      : {
+          success: false,
+          status: res.status,
+          error: res.error,
+          threadId: res.thread_id,
+        };
   }
 
   async updateMessage(
@@ -498,54 +468,6 @@ export class ThreadService extends BaseElectronService {
       | { success: false; error: string };
   }
 
-  async updateMessageMetadata(
-    threadId: string,
-    messageId: string,
-    metadataUpdates: Record<string, unknown>,
-  ): Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  > {
-    const res: unknown = await wrapElectronCall(
-      () => window.electronAPI.thread.updateMessageMetadata(threadId, messageId, metadataUpdates),
-      'Failed to update message metadata',
-    );
-    return res as
-      | { success: true; message: Message; thread: Thread }
-      | { success: false; error: string };
-  }
-
-  /**
-   * Update or delete comment on a message
-   * @param commentContent - The comment text, or null/empty to delete
-   */
-  async updateMessageComment(
-    threadId: string,
-    messageId: string,
-    commentContent: string | null,
-  ): Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  > {
-    if (!commentContent || commentContent.trim() === '') {
-      // Delete comment by setting it to undefined
-      return this.updateMessageMetadata(threadId, messageId, { comment: undefined });
-    }
-
-    // Get current message to check if comment already exists
-    const messages = await this.getMessages(threadId);
-    const currentMessage = messages.find((m) => m.id === messageId);
-    const existingComment = currentMessage?.metadata?.comment as
-      | { content: string; createdAt: number; editedAt?: number }
-      | undefined;
-
-    const now = Date.now();
-    const comment = {
-      content: commentContent.trim(),
-      createdAt: existingComment?.createdAt ?? now,
-      editedAt: now,
-    };
-
-    return this.updateMessageMetadata(threadId, messageId, { comment });
-  }
 
   async getMessageVersions(
     threadId: string,
@@ -563,17 +485,7 @@ export class ThreadService extends BaseElectronService {
       | { success: false; error: string };
   }
 
-  async deleteMessagesAfter(
-    threadId: string,
-    messageId: string,
-  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
-    const res: unknown = await wrapElectronCall(
-      () => window.electronAPI.thread.deleteMessagesAfter(threadId, messageId),
-      'Failed to delete messages',
-    );
-    return res as { success: true; thread: Thread } | { success: false; error: string };
-  }
-
+ 
   /**
    * Switch the active branch for a thread
    */
@@ -675,8 +587,15 @@ export class ThreadService extends BaseElectronService {
       return [];
     }
 
+    // Filter out hidden messages (e.g., guard-blocked messages)
+    const visibleMessages = messages.filter(m => !m.isHidden);
+
+    if (visibleMessages.length === 0) {
+      return [];
+    }
+
     // Sort messages by branchId first
-    const sortedMessages = [...messages].sort((a, b) => {
+    const sortedMessages = [...visibleMessages].sort((a, b) => {
       const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
       const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
 
@@ -826,60 +745,86 @@ export class ThreadService extends BaseElectronService {
     while (i < msgs.length) {
       const msg = msgs[i];
       if (msg.role === 'user') {
-        const next = i + 1 < msgs.length ? msgs[i + 1] : null;
-        if (next && next.role === 'assistant') {
-          // Get provider from message metadata
-          const provider = (next.metadata?.provider as string) || '';
-          const modelId = next.modelId || msg.modelId || '';
+        // Collect all consecutive assistant messages following this user message
+        const responses: Message[] = [];
+        let j = i + 1;
 
-          console.log('[ThreadService] Formatting response:', {
-            provider,
-            modelId,
-            contentType: typeof next.content,
-            contentPreview: typeof next.content === 'string' ? next.content.substring(0, 100) : next.content
-          });
+        while (j < msgs.length && (msgs[j].role === 'assistant' || msgs[j].role === 'system')) {
+          const assistantMsg = msgs[j];
+          const provider = (assistantMsg.metadata?.provider as string) || '';
+          const modelId = assistantMsg.modelId || msg.modelId || '';
 
           // Format the response content based on provider and model ID
-          const formattedContent = formatResponseContent(next.content, provider, modelId);
+          let formattedContent = formatResponseContent(assistantMsg.content, provider, modelId);
 
-          console.log('[ThreadService] Formatted content preview:', formattedContent.substring(0, 100));
+          // Inject image tags for attachments
+          if (assistantMsg.attachments && assistantMsg.attachments.length > 0) {
+            formattedContent = this.injectImageTags(formattedContent, assistantMsg.attachments);
+          }
+
 
           const formattedResponse = {
-            ...next,
+            ...assistantMsg,
             content: formattedContent,
           };
 
-          pairs.push({
-            request: msg,
-            response: formattedResponse,
-            isStreamingResponse: false,
-            streamingContent: '',
-          });
-          i += 2;
-        } else {
-          // User message without response yet — might be streaming
-          const isLastMessage = i === msgs.length - 1;
-          pairs.push({
-            request: msg,
-            response: null,
-            isStreamingResponse: isLastMessage && isStreaming,
-            streamingContent: isLastMessage && isStreaming ? responseText : '',
-          });
-          i += 1;
+          responses.push(formattedResponse);
+          j++;
         }
+
+        // Check if this is the last message and we're streaming
+        const isLastMessage = i === msgs.length - 1;
+        const isStreamingNow = isLastMessage && isStreaming && responses.length === 0;
+
+        pairs.push({
+          request: msg,
+          responses: responses,
+          isStreamingResponse: isStreamingNow,
+          streamingContent: isStreamingNow ? responseText : '',
+        });
+
+        // Skip past the user message and all collected responses
+        i = j;
       } else {
-        // Orphan assistant message (shouldn't happen normally)
+        // Orphan assistant/system message (no user request before it)
+        // Skip it for now - we only display request-response pairs
+        console.warn('[ThreadService] Skipping orphan assistant/system message at index:', i);
         i += 1;
       }
     }
     return pairs;
+  }
+
+  /**
+   * Inject markdown image tags for attachments into content
+   */
+  private injectImageTags(content: string, attachments: Array<{ mimeType: string; data?: string; filename: string }>): string {
+    let result = content;
+
+    // Add images at the end of the content
+    for (const attachment of attachments) {
+      // Only process image attachments
+      if (!attachment.mimeType.startsWith('image/')) {
+        continue;
+      }
+
+      // If we have base64 data, inject inline image
+      if (attachment.data) {
+        const imageTag = `\n\n![${attachment.filename}](data:${attachment.mimeType};base64,${attachment.data})`;
+        result += imageTag;
+      } else {
+        console.warn('[ThreadService] Attachment missing data:', attachment.filename);
+      }
+    }
+
+    return result;
   }
 }
 
 // Export types for use in components
 export interface MessagePair {
   request: Message;
-  response: Message | null;
+  responses: Message[]; // Changed from single response to array of responses
   isStreamingResponse: boolean;
   streamingContent: string;
 }

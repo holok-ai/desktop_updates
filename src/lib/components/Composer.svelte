@@ -13,10 +13,11 @@
     disabled?: boolean;
     initialText?: string;
     applicationSlug?: string;
+    agentId?: string | null;
     modelId?: string;
   }
 
-  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '', applicationSlug, modelId }: Props = $props();
+  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '', applicationSlug, agentId, modelId }: Props = $props();
 
   let text = $state('');
   let selectedApplicationSlug = $state('');
@@ -355,6 +356,7 @@
           <div class="model-selector-wrapper">
             <ModelSelector
               bind:selectedModelId
+              {agentId}
               label=""
               dropdownDirection="up"
               backgroundColor="var(--surface-card)"

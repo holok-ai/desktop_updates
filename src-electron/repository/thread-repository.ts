@@ -1,6 +1,6 @@
 /* eslint-disable security/detect-object-injection */
 import log from 'electron-log';
-import type { MessageMetadata } from '../../src-shared/types/attachment.types.js';
+import type { MessageMetadata, Attachment } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
 import { titleGeneratorService } from '../services/title-generator.service.js';
 import { threadApiService } from '../services/mokuapi/thread-api.service.js';
@@ -24,20 +24,23 @@ export type BranchType = 'prompt-variation' | 'model-variation' | null;
 
 export interface Message {
   id: UUID;
+  threadId: string;
+  branchId: string;
+  provider: string;
+  modelId: string;
   title: string;
   role: MessageRole;
-  userId: string; 
+  userId: string;
   content: string;
   createdAt: number;
-  metadata?: MessageMetadata;
+  rawData?: any;
+  attachments?: Attachment[];
   clientMessageId?: string;
   deletedAt?: number | null;
   editedAt?: number;
   versions?: MessageVersion[];
   isEdited?: boolean;
-  /** Branch ID for the message (immutable, hierarchical like 1.0, 1.1, 1.1.1) */
-  branchId: string;
-  modelId?: string | null;
+  isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
 }
 
 /**
@@ -240,6 +243,8 @@ export class ThreadRepository {
           cachedThread.messages = dedupedMessages.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
+          // Process guard messages and mark them as hidden
+          this.processGuardMessages(cachedThread.messages);
           this.threadsById.set(threadId, cachedThread);
           log.info(
             '[ThreadRepository] Refreshed',
@@ -300,6 +305,9 @@ export class ThreadRepository {
       const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
       thread.messages = dedupedMessages.map((dto) => this.mapDTOToMessage(dto, thread.title));
+
+      // Process guard messages and mark them as hidden
+      this.processGuardMessages(thread.messages);
 
       // Update cache
       this.threadsById.set(thread.id, thread);
@@ -402,6 +410,7 @@ export class ThreadRepository {
       role,
       content,
       branchId: this.normalizeBranchId(thread.currentBranchId),
+      provider: ''
     });
   }
 
@@ -418,6 +427,7 @@ export class ThreadRepository {
       clientMessageId?: string;
       branchId?: string;
       modelId?: string | null;
+      provider?: string | null; 
     },
   ): Promise<Message> {
     // Check local idempotency cache first
@@ -468,16 +478,18 @@ export class ThreadRepository {
     const branchId = this.normalizeBranchId(rawBranchId);
     const message: Message = {
       id: crypto.randomUUID(), // Generate local ID
+      threadId: threadId, 
       title: thread.title,
       role: payload.role,
       content: payload.content,
       createdAt: now,
-      userId: '', 
-      metadata: payload.metadata as MessageMetadata | undefined,
+      userId: '',
+      rawData: payload.metadata as any | undefined,
       clientMessageId: payload.clientMessageId,
       deletedAt: null,
       branchId: branchId,
-      modelId: payload.modelId ?? null,
+      modelId: payload.modelId ?? '',
+      provider: payload.provider || ''
     };
 
     log.info('[ThreadRepository] Created message locally:', message.id, 'branchId:', branchId);
@@ -528,6 +540,7 @@ export class ThreadRepository {
       clientMessageId?: string;
       branchId?: string; // Use thread's currentBranchId if not provided
       modelId?: string | null;
+      provider: string | null;
     },
   ): Promise<Message> {
     // Check local idempotency cache first
@@ -561,50 +574,33 @@ export class ThreadRepository {
     return this.appendMessageLocal(threadId, payload);
   }
 
-  /**
-   * Duplicate an existing message within the same thread by message id.
-   * Preserves exact content and metadata. Only user prompts may be duplicated.
-   */
-  public async duplicateMessage(threadId: string, messageId: string): Promise<Message> {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    const original = thread.messages.find((m) => m.id === messageId);
-    if (!original) throw new Error(`Message not found: ${messageId}`);
-    if (original.role !== 'user') throw new Error('CAN_ONLY_DUPLICATE_USER_PROMPTS');
-    // Use appendMessage to preserve idempotency and size checks
-    return this.appendMessage(threadId, {
-      role: 'user',
-      content: original.content,
-      metadata: original.metadata,
-    });
-  }
 
-  public async addUserPrompt(
-    threadId: string | null | undefined,
-    prompt: string,
-    opts: ThreadMetadata = {},
-  ): Promise<{ thread: Thread; message: Message }> {
-    let tid = threadId;
-    if (!tid) {
-      const th = await this.createThread(opts);
-      tid = th.id;
-    }
+  // public async addUserPrompt(
+  //   threadId: string | null | undefined,
+  //   prompt: string,
+  //   opts: ThreadMetadata = {},
+  // ): Promise<{ thread: Thread; message: Message }> {
+  //   let tid = threadId;
+  //   if (!tid) {
+  //     const th = await this.createThread(opts);
+  //     tid = th.id;
+  //   }
 
-    // Get thread to use its current branchId
-    const thread = this.threadsById.get(tid);
-    if (!thread) throw new Error(`Thread not found: ${tid}`);
+  //   // Get thread to use its current branchId
+  //   const thread = this.threadsById.get(tid);
+  //   if (!thread) throw new Error(`Thread not found: ${tid}`);
 
-    // Use appendMessage directly
-    const message = await this.appendMessage(tid, {
-      role: 'user',
-      content: prompt,
-      branchId: this.normalizeBranchId(thread.currentBranchId),
-    });
+  //   // Use appendMessage directly
+  //   const message = await this.appendMessage(tid, {
+  //     role: 'user',
+  //     content: prompt,
+  //     branchId: this.normalizeBranchId(thread.currentBranchId),
+  //   });
 
-    const updatedThread = await this.loadThread(tid);
-    if (!updatedThread) throw new Error(`Thread disappeared after creation: ${tid}`);
-    return { thread: updatedThread, message };
-  }
+  //   const updatedThread = await this.loadThread(tid);
+  //   if (!updatedThread) throw new Error(`Thread disappeared after creation: ${tid}`);
+  //   return { thread: updatedThread, message };
+  // }
 
   public async addAssistantResponse(
     threadId: string,
@@ -869,22 +865,22 @@ export class ThreadRepository {
       .map((t) => this.cloneThread(t));
   }
 
-  public async savePromptAndResponses(
-    threadId: string | null | undefined,
-    prompt: string,
-    responses: { text: string; model?: string }[],
-    opts: { title?: string; description?: string } = {},
-  ): Promise<{ thread: Thread; promptMessage: Message; responseMessages: Message[] }> {
-    const { thread, message: promptMessage } = await this.addUserPrompt(threadId, prompt, opts);
-    const responseMessages: Message[] = [];
-    for (const r of responses) {
-      const resp = await this.addAssistantResponse(thread.id, r.text, r.model);
-      responseMessages.push(resp);
-    }
-    const t = await this.loadThread(thread.id);
-    if (!t) throw new Error(`Thread not found after save: ${thread.id}`);
-    return { thread: t, promptMessage, responseMessages };
-  }
+  // public async savePromptAndResponses(
+  //   threadId: string | null | undefined,
+  //   prompt: string,
+  //   responses: { text: string; model?: string }[],
+  //   opts: { title?: string; description?: string } = {},
+  // ): Promise<{ thread: Thread; promptMessage: Message; responseMessages: Message[] }> {
+  //   const { thread, message: promptMessage } = await this.addUserPrompt(threadId, prompt, opts);
+  //   const responseMessages: Message[] = [];
+  //   for (const r of responses) {
+  //     const resp = await this.addAssistantResponse(thread.id, r.text, r.model);
+  //     responseMessages.push(resp);
+  //   }
+  //   const t = await this.loadThread(thread.id);
+  //   if (!t) throw new Error(`Thread not found after save: ${thread.id}`);
+  //   return { thread: t, promptMessage, responseMessages };
+  // }
 
   public replaceMessages(threadId: string, messages: Message[]): Thread {
     const thread = this.threadsById.get(threadId);
@@ -996,39 +992,7 @@ export class ThreadRepository {
     };
   }
 
-  /**
-   * Update message metadata (e.g., for adding/editing comments)
-   */
-  public updateMessageMetadata(
-    threadId: string,
-    messageId: string,
-    metadataUpdates: Partial<MessageMetadata>,
-  ): Message {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-
-    const message = thread.messages.find((m) => m.id === messageId);
-    if (!message) throw new Error(`Message not found: ${messageId}`);
-
-    // Merge metadata updates
-    if (!message.metadata) {
-      message.metadata = {};
-    }
-    message.metadata = {
-      ...message.metadata,
-      ...metadataUpdates,
-    };
-
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    // Note: No longer saving to disk - API-first architecture
-
-    return {
-      ...message,
-      metadata: message.metadata ? { ...message.metadata } : undefined,
-    };
-  }
-
+  
   public getMessageVersions(threadId: string, messageId: string): MessageVersion[] {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
@@ -1039,39 +1003,6 @@ export class ThreadRepository {
     return message.versions ? [...message.versions] : [];
   }
 
-  public markSubsequentMessagesAsOldPrompt(threadId: string, messageId: string): void {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-
-    const messageIndex = thread.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) throw new Error(`Message not found: ${messageId}`);
-
-    // Mark all subsequent messages as based on old prompt version
-    const subsequentMessages = thread.messages.slice(messageIndex + 1);
-    for (const msg of subsequentMessages) {
-      if (!msg.metadata) msg.metadata = {};
-      msg.metadata.basedOnOldPrompt = true;
-      msg.metadata.originalPromptId = messageId;
-    }
-
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    // Note: No longer saving to disk - API-first architecture
-  }
-
-  public deleteMessagesAfter(threadId: string, messageId: string): void {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-
-    const messageIndex = thread.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) throw new Error(`Message not found: ${messageId}`);
-
-    // Remove all messages after the specified message
-    thread.messages = thread.messages.slice(0, messageIndex + 1);
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    // Note: No longer saving to disk - API-first architecture
-  }
 
   /**
    * Get a single message by ID within a thread.
@@ -1300,6 +1231,12 @@ export class ThreadRepository {
       branchId = this.normalizeBranchId(branchId);
     }
 
+    // Log rawData type and preview for debugging
+    const rawDataType = typeof dto.rawData; 
+    const metadataPreview = rawDataType === 'string'
+      ? (dto.rawData as unknown as string).substring(0, 100) + '...'
+      : dto.rawData;
+
     log.info(
       '[ThreadRepository] Message branchId: ',
       branchId,
@@ -1307,23 +1244,325 @@ export class ThreadRepository {
       dto.role,
       ', model: ',
       dto.model ?? 'null',
+      ', metadata type: ',
+      rawDataType,
       ', metadata: ',
-      dto.metadata,
+      metadataPreview,
     );
 
-    return {
+    const message: Message = {
       id: dto.id,
+      threadId: dto.threadId,
       title: threadTitle,
-      userId: dto.createdUserId || '', 
+      userId: dto.createdUserId || '',
       role: dto.role as MessageRole,
       content: dto.content,
       createdAt: this.parseApiTimeMs(dto.createdAt),
-      metadata: dto.metadata as MessageMetadata | undefined,
+      rawData: dto.rawData as MessageMetadata | undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId,
-      modelId: dto.model ?? null,
+      modelId: dto.model || '',
+      provider: dto.provider || ''
     };
+
+    // If assistant message has no content but has rawData, set content to "empty"
+    if (message.role === 'assistant' &&
+        (!message.content || message.content.trim() === '') &&
+        message.rawData &&
+        Object.keys(message.rawData).length > 0) {
+      log.info('[ThreadRepository] Assistant message has empty content but has rawData, setting content to "empty":', message.id);
+      message.content = 'empty';
+    }
+
+    // Extract attachments from rawData if present
+    log.info('[ThreadRepository] mapDTOToMessage - checking for attachments', {
+      messageId: message.id,
+      role: message.role,
+      hasRawData: !!message.rawData,
+      provider: message.provider,
+    });
+
+    if (message.role === 'assistant' && message.rawData) {
+      log.info('[ThreadRepository] Extracting attachments for assistant message:', message.id);
+      message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
+      log.info('[ThreadRepository] Extraction result:', {
+        attachmentsCount: message.attachments?.length || 0,
+      });
+    } else {
+      log.info('[ThreadRepository] Skipping attachment extraction:', {
+        reason: message.role !== 'assistant' ? 'not assistant' : 'no rawData',
+      });
+    }
+
+    return message;
+  }
+
+  /**
+   * Process guard messages and mark them as hidden
+   * Guard responses have content.response = { passed: boolean, errors: Array<{title, text}> }
+   */
+  private processGuardMessages(messages: Message[]): void {
+    log.info('[ThreadRepository] Processing guard messages, total messages:', messages.length);
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+
+      // Check if this is an assistant or system message with guard structure
+      if (message.role === 'assistant' || message.role === 'system') {
+        try {
+          // Parse content if it's a string (might be JSON)
+          let content = message.content;
+          if (typeof content === 'string') {
+            try {
+              content = JSON.parse(content);
+            } catch {
+              // Not JSON, skip
+              continue;
+            }
+          }
+
+          // Check for guard response structure
+          const hasResponse = content && typeof content === 'object' && 'response' in content;
+          if (hasResponse) {
+            const guardContent = content as any;
+            let response = guardContent.response;
+
+            // The response field might be a JSON string, parse it
+            if (typeof response === 'string') {
+              try {
+                response = JSON.parse(response);
+              } catch {
+                // Not valid JSON, skip
+                continue;
+              }
+            }
+
+            // Now check if it has the guard structure (passed field is required, errors is optional)
+            if (
+              response &&
+              typeof response === 'object' &&
+              'passed' in response
+            ) {
+              const passed = response.passed;
+              log.info('[ThreadRepository] Found guard message:', {
+                messageId: message.id,
+                role: message.role,
+                passed: passed,
+                errorCount: response.errors?.length || 0,
+                errors: response.errors,
+              });
+
+              // Always mark the guard response as hidden
+              message.isHidden = true;
+              log.info('[ThreadRepository] Marked guard response as hidden:', message.id);
+
+              // Always mark the guard request (previous message) as hidden
+              if (i > 0 && messages[i - 1].role === 'user') {
+                messages[i - 1].isHidden = true;
+                log.info('[ThreadRepository] Marked guard request as hidden:', messages[i - 1].id);
+              }
+
+              // Commented out: Hide the actual message that triggered the guard
+              // if (!passed && i > 1) {
+              //   // The message before the guard request is the actual user message that triggered the guard
+              //   messages[i - 2].isHidden = true;
+              //   log.info('[ThreadRepository] Guard failed - marked triggering message as hidden:', messages[i - 2].id);
+              // }
+            }
+          }
+
+          // Check for error response structure (type:"error", status:400)
+          if (
+            content &&
+            typeof content === 'object' &&
+            'type' in content &&
+            (content as any).type === 'error' &&
+            'status' in content &&
+            (content as any).status === 400 &&
+            'requestId' in content &&
+            'seq' in content &&
+            'error' in content
+          ) {
+            const errorContent = content as any;
+            log.info('[ThreadRepository] Found error response (status 400):', {
+              messageId: message.id,
+              requestId: errorContent.requestId,
+              error: errorContent.error,
+            });
+
+            // Mark this error response as hidden
+            message.isHidden = true;
+            log.info('[ThreadRepository] Marked error response as hidden:', message.id);
+          }
+        } catch (error) {
+          log.error('[ThreadRepository] Error processing guard message:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract image attachments from response rawData based on provider
+   */
+  private extractAttachmentsFromRawData(rawData: any, provider: string): Attachment[] | undefined {
+    log.info('[ThreadRepository] extractAttachmentsFromRawData called', {
+      hasRawData: !!rawData,
+      provider,
+      rawDataType: typeof rawData,
+      rawDataKeys: rawData ? Object.keys(rawData).slice(0, 20) : [],
+    });
+
+    // Log first 500 chars of rawData for debugging
+    if (rawData) {
+      try {
+        const preview = JSON.stringify(rawData).substring(0, 500);
+        log.info('[ThreadRepository] rawData preview:', preview);
+      } catch (e) {
+        log.warn('[ThreadRepository] Could not stringify rawData');
+      }
+    }
+
+    if (!rawData) {
+      log.info('[ThreadRepository] No rawData, skipping attachment extraction');
+      return undefined;
+    }
+
+    const normalizedProvider = (provider || '').toLowerCase();
+    log.info('[ThreadRepository] Normalized provider:', normalizedProvider);
+
+    switch (normalizedProvider) {
+      case 'gemini':
+        log.info('[ThreadRepository] Calling extractGeminiAttachments');
+        return this.extractGeminiAttachments(rawData);
+      case 'claude':
+      case 'anthropic':
+        log.info('[ThreadRepository] Claude/Anthropic provider - not yet implemented');
+        return undefined;
+      case 'openai':
+        log.info('[ThreadRepository] OpenAI provider - not yet implemented');
+        return undefined;
+      case 'ollama':
+        log.info('[ThreadRepository] Ollama provider - not yet implemented');
+        return undefined;
+      default:
+        log.warn('[ThreadRepository] Unknown provider for attachment extraction:', normalizedProvider);
+        return undefined;
+    }
+  }
+
+  /**
+   * Extract image attachments from Gemini response rawData
+   */
+  private extractGeminiAttachments(rawData: any): Attachment[] | undefined {
+    try {
+      log.info('[ThreadRepository] extractGeminiAttachments - checking rawData structure', {
+        hasMessage: !!rawData?.message,
+        hasUsageMetadata: !!rawData?.message?.usageMetadata,
+        hasCandidatesTokensDetails: !!rawData?.message?.usageMetadata?.candidatesTokensDetails,
+        candidatesTokensDetailsLength: rawData?.message?.usageMetadata?.candidatesTokensDetails?.length,
+      });
+
+      // Log the modality value - FIXED: it's candidatesTokensDetails (plural Tokens)
+      const modality = rawData?.message?.usageMetadata?.candidatesTokensDetails?.[0]?.modality;
+      log.info('[ThreadRepository] Gemini modality check:', {
+        modality,
+        isImage: modality === 'IMAGE',
+      });
+
+      // Check if response contains image data
+      const hasImage = modality === 'IMAGE';
+
+      if (!hasImage) {
+        log.info('[ThreadRepository] No image detected in Gemini response (modality !== "IMAGE")');
+        return undefined;
+      }
+
+      log.info('[ThreadRepository] Image detected! Extracting inline data...');
+
+      // Get all parts from the response
+      const parts = rawData?.message?.candidates?.[0]?.content?.parts;
+
+      log.info('[ThreadRepository] Checking candidates structure', {
+        hasCandidates: !!rawData?.message?.candidates,
+        candidatesLength: rawData?.message?.candidates?.length,
+        hasFirstCandidate: !!rawData?.message?.candidates?.[0],
+        hasContent: !!rawData?.message?.candidates?.[0]?.content,
+        hasParts: !!parts,
+        partsLength: parts?.length,
+        partsTypes: parts?.map((p: any, i: number) => ({ index: i, hasText: !!p.text, hasInlineData: !!p.inlineData })),
+      });
+
+      if (!parts || parts.length === 0) {
+        log.warn('[ThreadRepository] No parts found in candidates');
+        return undefined;
+      }
+
+      // FIXED: Find the part with inlineData (image can be in any part, not just first)
+      const imagePart = parts.find((part: any) => part.inlineData);
+
+      log.info('[ThreadRepository] InlineData search:', {
+        foundImagePart: !!imagePart,
+        hasMimeType: !!imagePart?.inlineData?.mimeType,
+        mimeType: imagePart?.inlineData?.mimeType,
+        hasData: !!imagePart?.inlineData?.data,
+        dataLength: imagePart?.inlineData?.data?.length,
+      });
+
+      if (!imagePart?.inlineData || !imagePart.inlineData.mimeType || !imagePart.inlineData.data) {
+        log.warn('[ThreadRepository] Gemini image found but inlineData is incomplete', {
+          imagePart,
+        });
+        return undefined;
+      }
+
+      const inlineData = imagePart.inlineData;
+
+      // Calculate size from base64 data
+      const base64Data = inlineData.data;
+      const sizeInBytes = Math.ceil((base64Data.length * 3) / 4);
+
+      const attachment: Attachment = {
+        id: crypto.randomUUID(),
+        filename: `gemini-image-${Date.now()}.${this.getExtensionFromMimeType(inlineData.mimeType)}`,
+        mimeType: inlineData.mimeType,
+        size: sizeInBytes,
+        uploadedAt: Date.now(),
+        status: 'success',
+        data: base64Data, // Store base64 data for inline display
+      };
+
+      // Clear the inlineData from rawData to save space (data is now in attachment)
+      delete imagePart.inlineData.data;
+      log.info('[ThreadRepository] Cleared inlineData from rawData to save space');
+
+      log.info('[ThreadRepository] ✅ Successfully extracted Gemini image attachment:', {
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        dataLength: base64Data.length,
+        filename: attachment.filename,
+      });
+
+      return [attachment];
+    } catch (error) {
+      log.error('[ThreadRepository] ❌ Failed to extract Gemini attachments:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get file extension from MIME type
+   */
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeMap: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/svg+xml': '.svg',
+      'application/pdf': '.pdf',
+    };
+    return mimeMap[mimeType] || '';
   }
 
   private cloneThread(thread: Thread): Thread {

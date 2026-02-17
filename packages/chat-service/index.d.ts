@@ -455,7 +455,7 @@ export declare class OpenAIChatProvider implements IChatProvider {
      * @param modelName - The OpenAI model name
      * @returns The endpoint type (CHAT or RESPONSE)
      */
-    private getEndpointType;
+    protected getEndpointType(modelName: string): OpenAIEndpointType;
     /**
      * Send a chat request to OpenAI
      * Automatically handles tools if configured in constructor
@@ -470,6 +470,11 @@ export declare class OpenAIChatProvider implements IChatProvider {
      * Convert ToolDefinition to OpenAI's tools format (new API)
      */
     private convertToolsToOpenAIFormat;
+}
+
+declare enum OpenAIEndpointType {
+    CHAT = "CHAT",
+    RESPONSE = "RESPONSE"
 }
 
 /**

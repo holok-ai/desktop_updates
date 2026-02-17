@@ -86,6 +86,8 @@ export class ModelRepository {
                 applicationSlug: appSummary.slug,
                 slug: thisAgent.urlSlug,
                 url: agentUrl,
+                isPublic: model.isPublic, 
+                intendedUse: model.intendedUse
               };
               this.models.push(modelDetails);
               appSummary.models?.push(modelDetails);
@@ -128,26 +130,6 @@ export class ModelRepository {
     }
   }
 
-  private getEndpoint(modelReference: ModelReference): string {
-    try {
-      if (!modelReference || !modelReference.metadata) return '';
-
-      // Extract endpoint value using regex
-      const match = modelReference.metadata.match(/endpoint[=:]([^,}]+)/);
-      if (match) {
-        let endpoint = match[1].trim().replace(/["']/g, ''); // Remove quotes
-
-        if (endpoint && !endpoint.startsWith('/')) {
-          endpoint = '/' + endpoint;
-        }
-        return endpoint;
-      }
-      return '';
-    } catch (error) {
-      console.error('Failed to parse metadata:', error);
-      return '';
-    }
-  }
 
   public async listAll(): Promise<ModelDetails[]> {
     // Return cached models if already loaded
@@ -183,6 +165,30 @@ export class ModelRepository {
       ...app,
       models: app.models ? [...app.models] : [],
     }));
+  }
+
+  /**
+   * Get models for a specific application by application ID
+   */
+  public async getModelsForApplication(applicationId: string): Promise<ModelDetails[]> {
+    // Ensure cache is populated
+    if (this.agents.length === 0) {
+      log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
+      await this.refreshModels();
+    }
+
+    // Find application by ID or slug
+    const app = this.agents.find((a) => a.id === applicationId || a.slug === applicationId);
+
+    if (!app) {
+      log.warn(`[ModelRepository] Application not found: ${applicationId}`);
+      return [];
+    }
+
+    log.info(`[ModelRepository] Returning ${app.models?.length || 0} models for application ${app.title}`);
+
+    // Return deep copy to prevent modifications to cached data
+    return app.models ? [...app.models] : [];
   }
 }
 

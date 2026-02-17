@@ -1,23 +1,16 @@
 <script lang="ts">
   /**
-   * ThreadChatView — main chat view with message list, streaming, and IPC.
-   *
-   * Follows the existing ChatPane streaming pattern:
-   *   createProvider() → setupTokenListener (onToken) → chat() → accumulate → addAssistantResponse()
-   *
-   * When no threadId is provided, shows a model selector and creates a new
-   * thread on first prompt via `thread.addUserPrompt(null, ...)`.
+   * ThreadChatView — Interactive chat view for user interaction with models 
    */
   import { onMount, onDestroy, tick } from 'svelte';
-  import { replace } from 'svelte-spa-router';
-  import ChatMessage from '../ChatMessage.svelte';
-  import ChatBranch from '../ChatBranch.svelte';
+  import ChatMessage from './ChatMessage.svelte';
+  import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService, type DisplayItem } from '$lib/services/thread.service';
-  import { ROUTE } from '$lib/constants/route.constant';
+  import { threadService } from '$lib/services/thread.service';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { Attachment } from '$shared/types/attachment.types';
   import { copyToInput } from '$lib/services/clipboard.service';
 
   // Streaming timeouts (match ChatPane)
@@ -29,10 +22,7 @@
     messages: Message[];
     availableModels: ModelDetails[];
     chatLayout: ChatLayout;
-    initialPrompt?: string | null;
     agentId?: string | null;
-    /** Called when a new thread is created so the parent can update its state */
-    onThreadCreated?: (newThread: Thread) => void;
   }
 
   let {
@@ -40,9 +30,7 @@
     messages = $bindable([]),
     availableModels = [],
     chatLayout,
-    initialPrompt = null,
     agentId = null,
-    onThreadCreated,
   }: Props = $props();
 
   // ── State ──
@@ -54,12 +42,11 @@
   let messagesEl: HTMLDivElement | undefined = $state();
   let fontSize = $state(14); // Font size from settings
   let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
+  let composerText = $state(''); // Text for composer (bindable for guard errors)
 
   // Model info resolved from thread metadata or user selection
-  let modelId = $state(''); 
+  let modelId = $state('');
   let modelName = $state('');
-  let modelProvider = $state('');
-  let modelUrl = $state('');
   let modelAccessName = $state('');
   let applicationSlug = $state('');
 
@@ -134,8 +121,6 @@
     if (!thread?.metadata) return;
 
     modelId = (thread.metadata.modelId as string) || '';
-    modelProvider = (thread.metadata.modelProvider as string) || '';
-    modelUrl = (thread.metadata.modelUrl as string) || '';
 
     console.log('[ThreadChatView] extractModelInfo - thread metadata:', {
       modelId,
@@ -146,10 +131,8 @@
     const detail = availableModels.find((m) => m.accessName === modelId || m.id === modelId);
     if (detail) {
       modelName = detail.accessName;
-      modelProvider = detail.provider;
-      modelUrl = detail.url;
       modelAccessName = detail.accessName;
-      applicationSlug = detail.provider;
+      applicationSlug = detail.applicationSlug;
       console.log('[ThreadChatView] extractModelInfo - found model:', {
         modelAccessName,
         applicationSlug
@@ -248,7 +231,7 @@
     appSlug: string,
     modelIds: string[],
     text: string,
-    attachments?: Attachment[],
+    _attachments?: Attachment[],
   ) {
     // Validation
     if (!text.trim() || isStreaming) return;
@@ -266,33 +249,7 @@
     if (multipleModels) {
       await sendMessageBranch(modelIds, branchId, text);
     } else {
-      // Add user message for single model flow
-      if (thread) {
-        const clientMessageId = crypto.randomUUID();
-        console.log('[ThreadChatView] sendMessage - creating message with modelId:', modelIds[0], 'from modelIds:', modelIds);
-        const userMsg: Message = {
-          id: clientMessageId,
-          clientMessageId,
-          role: 'user',
-          content: text,
-          createdAt: Date.now(),
-          branchId,
-          modelId: modelIds[0],
-        };
-        messages = [...messages, userMsg];
-        await tick();
-        scrollToBottom();
-
-        // Persist user message
-        await threadService.appendMessage(thread.id, {
-          role: 'user',
-          content: text,
-          clientMessageId,
-          branchId,
-          modelId: modelIds[0],
-        });
-      }
-      await sendMessageSingle(modelIds[0], branchId);
+      await sendMessageSingle(modelIds[0], branchId, text);
     }
   }
 
@@ -348,7 +305,7 @@
         content: text,
         clientMessageId: userClientMessageId,
         branchId: branch.branchId,
-        modelId: branch.modelId,
+        modelName: branch.modelId,
       });
     }
 
@@ -418,12 +375,14 @@
         const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
         return { ...result, branchId: branch.branchId, modelDetails };
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log('[ThreadChatView] Catch block 1 (multi-model):', errorMessage);
         return { success: false, branchId: branch.branchId };
       }
     });
 
     // Wait for all chats to complete
-    const results = await Promise.all(chatPromises);
+    const _results = await Promise.all(chatPromises);
 
     // Clean up streaming
     unsubscribers.forEach((unsub) => unsub());
@@ -448,7 +407,35 @@
   }
 
   // ── Send message to single model ──
-  async function sendMessageSingle(modelId: string, branchId: string) {
+  async function sendMessageSingle(modelId: string, branchId: string, promptText: string) {
+
+          // Add user message for single model flow
+      if (thread) {
+        const clientMessageId = crypto.randomUUID();
+        console.log('[ThreadChatView] sendMessage - creating message with modelId:', modelId); 
+        const userMsg: Message = {
+          id: clientMessageId,
+          clientMessageId,
+          role: 'user',
+          content: promptText,
+          createdAt: Date.now(),
+          branchId,
+          modelId: modelId,
+        };
+        messages = [...messages, userMsg];
+        await tick();
+        scrollToBottom();
+
+        // Persist user message
+        await threadService.appendMessage(thread.id, {
+          role: 'user',
+          content: promptText,
+          clientMessageId,
+          branchId,
+          modelName: modelId,
+        });
+      }
+
     // Ensure chat provider is ready (creates or recreates if model changed)
     const result = await getChatService(modelId);
     if (!result.success) return;
@@ -488,9 +475,12 @@
     try {
       // Send chat message with the calculated branchId
       const chatResult = await threadService.sendChatMessage(thread!.id, branchId, request);
+      console.log('[ThreadChatView] Chat result:', chatResult);
 
       if (!chatResult.success) {
-        error = chatResult.error || 'Chat failed';
+        const errorMessage = chatResult.error || 'Chat failed';
+        console.log('[ThreadChatView] Error check (result validation):', errorMessage);
+        handleGuardError(errorMessage, branchId);
         isStreaming = false;
         return;
       }
@@ -523,7 +513,9 @@
       await tick();
       scrollToBottom();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Unknown error';
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
+      handleGuardError(errorMessage, branchId);
       isStreaming = false;
     } finally {
       clearTimeouts();
@@ -531,6 +523,59 @@
   }
 
   // ── Helpers ──
+  function handleGuardError(errorMessage: string, branchId: string) {
+    // Check if this is a guard/PII error
+    const isGuardError = errorMessage.includes('personally identifiable') ||
+                         errorMessage.includes('PII') ||
+                         errorMessage.includes('inappropriate') ||
+                         errorMessage.includes('not allowed') ||
+                         errorMessage.includes('guard') ||
+                         errorMessage.includes('blocked') ||
+                         errorMessage.includes('ResponseError') ||
+                         errorMessage.includes('detected:') ||
+                         errorMessage.includes('Physical address') ||
+                         errorMessage.includes('Social Security Number') ||
+                         errorMessage.includes('credit card') ||
+                         errorMessage.includes('Potential');
+
+    if (isGuardError) {
+      error = `🛡️ Message blocked by security guard: ${errorMessage}`;
+
+      // Find the request message that triggered the guard
+      const requestMessage = messages.find(
+        m => m.branchId === branchId && m.role === 'user'
+      );
+
+      if (requestMessage) {
+        // Save the original prompt text
+        const originalPrompt = requestMessage.content;
+
+        // Replace the request message content with redacted text
+        requestMessage.content = '--> Redacted <--';
+        messages = [...messages]; // Trigger reactivity
+
+        // Put the original text back in the composer for editing
+        composerText = originalPrompt;
+
+        console.log('[ThreadChatView] Redacted blocked message and restored to composer');
+      }
+
+      // Add a system message to the thread
+      const guardMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: `**⚠️ Message Blocked**\n\n${errorMessage}\n\n*Your message was not sent to the model. It has been restored to the input field for editing.*`,
+        createdAt: Date.now(),
+        branchId,
+      };
+      messages = [...messages, guardMessage];
+
+      console.log('[ThreadChatView] Guard blocked message:', errorMessage);
+    } else {
+      error = errorMessage;
+    }
+  }
+
   function scrollToBottom() {
     if (!messagesEl) return;
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'auto' });
@@ -591,77 +636,18 @@
   type DisplayItem = MessageDisplay | BranchDisplay;
 
   /**
-   * Parse branchId to extract row number
-   * "1.0" → 1, "2.1.3" → 2
-   */
-  function getBranchRow(branchId: string): number {
-    const firstPart = branchId.split('.')[0];
-    return parseInt(firstPart) || 0;
-  }
-
-  /**
-   * Parse branchId to extract lane number
-   * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
-   */
-  function getBranchLane(branchId: string): number {
-    const parts = branchId.split('.');
-    return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
-  }
-
-  /**
-   * Get lane key (first two parts of branchId)
-   * "1.0" → "1.0", "2.1.3" → "2.1"
-   */
-  function getLaneKey(branchId: string): string {
-    const parts = branchId.split('.');
-    return parts.slice(0, 2).join('.');
-  }
-
-  /**
-   * Build message pairs from a list of messages
-   */
-  function buildMessagePairs(msgs: Message[]): MessagePair[] {
-    const pairs: MessagePair[] = [];
-    let i = 0;
-    while (i < msgs.length) {
-      const msg = msgs[i];
-      if (msg.role === 'user') {
-        const next = i + 1 < msgs.length ? msgs[i + 1] : null;
-        if (next && next.role === 'assistant') {
-          pairs.push({
-            request: msg,
-            response: next,
-            isStreamingResponse: false,
-            streamingContent: '',
-          });
-          i += 2;
-        } else {
-          // User message without response yet — might be streaming
-          const isLast = i === msgs.length - 1;
-          pairs.push({
-            request: msg,
-            response: null,
-            isStreamingResponse: isLast && isStreaming,
-            streamingContent: isLast && isStreaming ? responseText : '',
-          });
-          i += 1;
-        }
-      } else {
-        // Orphan assistant message (shouldn't happen normally)
-        i += 1;
-      }
-    }
-    return pairs;
-  }
-
-  /**
    * Build display items from messages - handles both regular messages and branches
    *
   let displayItems = $derived.by(() => {
     if (messages.length === 0) return [];
 
+    // Filter out hidden messages (e.g., guard-blocked messages)
+    const visibleMessages = messages.filter(m => !m.isHidden);
+
+    if (visibleMessages.length === 0) return [];
+
     // Sort messages by branchId first
-    const sortedMessages = [...messages].sort((a, b) => {
+    const sortedMessages = [...visibleMessages].sort((a, b) => {
       const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
       const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
 
@@ -823,7 +809,6 @@
                 id="model-select"
                 class="model-dropdown"
                 bind:value={selectedModelKey}
-                onchange={handleModelChange}
               >
                 {#each availableModels as m}
                   <option value="{m.provider}::{m.id}">
@@ -846,8 +831,9 @@
           branchId={item.pair.request.branchId}
           {chatLayout}
           {fontSize}
-          responseContent={item.pair.response?.content || item.pair.streamingContent}
+          responses={item.pair.responses}
           isStreaming={item.pair.isStreamingResponse}
+          streamingContent={item.pair.streamingContent}
           onCopyRequest={() => copyToInput(item.pair.request.content)}
         />
       {:else if item.type === 'branch'}
@@ -864,8 +850,9 @@
       {isStreaming}
       {threadId}
       disabled={isNewThread}
-      initialText={initialPrompt ?? ''}
+      initialText={composerText}
       {applicationSlug}
+      {agentId}
       modelId={modelAccessName}
     />
   </div>

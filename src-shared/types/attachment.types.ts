@@ -35,6 +35,9 @@ export interface Attachment {
   /** Error message if upload failed */
   error?: string;
 
+  /** Base64 encoded data (for inline images from API responses) */
+  data?: string;
+
   /** Local file path (main process only, not serialized to renderer) */
   localPath?: string;
 

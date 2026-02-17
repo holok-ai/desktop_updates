@@ -10,6 +10,7 @@
   import ChatRequestCommands from './ChatRequestCommands.svelte';
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { Message } from '$lib/types/thread.type';
 
   interface Props {
     /** User prompt text */
@@ -23,8 +24,10 @@
     /** Attachment filenames */
     attachments?: string[];
 
-    /** Assistant response text */
-    responseContent?: string;
+    /** Assistant responses (array to support multiple consecutive responses) */
+    responses?: Message[];
+    /** Streaming content for active streaming response */
+    streamingContent?: string;
     /** Whether the response is still streaming */
     isStreaming?: boolean;
     /** Tool usage details */
@@ -58,7 +61,8 @@
     modelId = null,
     userName = 'You',
     attachments = [],
-    responseContent = '',
+    responses = [],
+    streamingContent = '',
     isStreaming = false,
     tools = [],
     files = [],
@@ -89,12 +93,17 @@
     },
   ]);
 
+  // Concatenate all response content for copying
+  const allResponseContent = $derived(
+    responses.map(r => r.content).join('\n\n---\n\n')
+  );
+
   const responseCommands = $derived([
     {
       icon: 'pi-copy',
       label: 'Copy response',
       action: () => {
-        navigator.clipboard.writeText(responseContent);
+        navigator.clipboard.writeText(allResponseContent);
         onCopyResponse?.();
       },
     },
@@ -132,25 +141,37 @@
     {chatLayout}
   />
 
-  <!-- Response (if available or streaming) -->
-  {#if responseContent || isStreaming}
+  <!-- Render all responses -->
+  {#each responses as response (response.id)}
     <ChatResponse
-      content={responseContent}
+      content={response.content}
       {chatLayout}
-      {isStreaming}
+      isStreaming={false}
       {tools}
       {files}
       {fontSize}
     />
+  {/each}
 
-    <!-- Response commands (hover-reveal) -->
-    {#if responseContent && !isStreaming}
-      <ChatResponseCommands
-        commands={responseCommands}
-        gapHeight={commandGap}
-        {chatLayout}
-      />
-    {/if}
+  <!-- Render streaming response if applicable -->
+  {#if isStreaming && streamingContent}
+    <ChatResponse
+      content={streamingContent}
+      {chatLayout}
+      isStreaming={true}
+      {tools}
+      {files}
+      {fontSize}
+    />
+  {/if}
+
+  <!-- Response commands (hover-reveal) - shown if there are any responses -->
+  {#if responses.length > 0 && !isStreaming}
+    <ChatResponseCommands
+      commands={responseCommands}
+      gapHeight={commandGap}
+      {chatLayout}
+    />
   {/if}
 </div>
 

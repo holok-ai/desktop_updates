@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import { THREAD_STATUS } from '$lib/constants/status.constant';
-  import type { ApplicationSummary, ModelDetails } from '../../../src-electron/preload';
+  import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { threadService } from '$lib/services/thread.service';
@@ -38,21 +38,20 @@
   }
 
   async function handleApplicationSelect(app: ApplicationSummary) {
-    // Use the first model from the application if available
     const firstModel = app.models?.[0];
-
     if (!firstModel) {
       toastStore.show('No models available for this application', { variant: 'error' });
       return;
     }
 
     try {
-      // Create a thread with the selected application's first model
+      // create a thread
       const thread = await threadService.create({
         title: `New ${app.title} Chat`,
         description: '',
         status: THREAD_STATUS.ACTIVE,
         currentBranchId: '1.0',
+        messages: [], 
         metadata: {
           modelTitle: firstModel.title,
           modelProvider: firstModel.provider,
