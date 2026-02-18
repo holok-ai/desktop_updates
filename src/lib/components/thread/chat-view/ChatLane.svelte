@@ -33,6 +33,8 @@
     fontSize?: number;
     /** Optional model name for this lane */
     modelName?: string;
+    /** Optional model intended use for tooltip */
+    modelIntendedUse?: string;
     /** Whether this lane is expanded */
     isExpanded?: boolean;
     /** Whether this lane is collapsed (another lane is expanded) */
@@ -56,17 +58,23 @@
     chatLayout,
     fontSize = 14,
     modelName = '',
+    modelIntendedUse = '',
     isExpanded = false,
     isCollapsed = false,
     onToggleExpand,
     onSelectLane,
     onCopyRequest,
     onCopyResponse,
-    onRetry
+    onRetry,
   }: Props = $props();
 
   $effect(() => {
-    console.log('[ChatLane] Rendered with:', { laneId, laneIndex, pairCount: messagePairs.length, modelName });
+    console.log('[ChatLane] Rendered with:', {
+      laneId,
+      laneIndex,
+      pairCount: messagePairs.length,
+      modelName,
+    });
   });
 </script>
 
@@ -75,8 +83,9 @@
     {laneId}
     {laneIndex}
     {modelName}
+    {modelIntendedUse}
     {isExpanded}
-    onToggleExpand={onToggleExpand}
+    {onToggleExpand}
     onSelect={onSelectLane}
   />
 

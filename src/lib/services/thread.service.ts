@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import type { Thread } from '../../../src-electron/preload.js';
+import type { Thread, CreateThreadRequest, ModelDetails } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
@@ -221,9 +221,48 @@ export class ThreadService extends BaseElectronService {
     return this.getAll({ projectId, updateStore: true });
   }
 
-  async create(data: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>): Promise<Thread> {
+  async create(
+    title: string,
+    projectId: string | null,
+    agentId: string,
+    applicationSlug: string,
+    initialModel?: string,
+  ): Promise<Thread> {
+    // Build metadata object with agent and model information
+    const metadata: Record<string, unknown> = {
+      agentId,
+      applicationSlug,
+    };
+
+    if (initialModel) {
+      metadata.initalModel = initialModel;
+
+      // Look up model title for display in thread list
+      try {
+        const models = await window.electronAPI.models.listAll();
+        const modelDetails = models.find(
+          (m) => m.id === initialModel || m.accessName === initialModel,
+        );
+        if (modelDetails) {
+          metadata.modelTitle = modelDetails.title;
+          metadata.modelProvider = modelDetails.provider;
+        }
+      } catch (error) {
+        console.warn('[ThreadService] Could not load model details for metadata:', error);
+      }
+    }
+
+    const request: CreateThreadRequest = {
+      title,
+      projectId,
+      agentId,
+      applicationSlug,
+      initalModel: initialModel ?? undefined,
+      metadata,
+    };
+
     return wrapElectronCall(
-      () => window.electronAPI.thread.create(data),
+      () => window.electronAPI.thread.create(request),
       'Failed to create thread',
     );
   }
@@ -360,67 +399,6 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
-  async copyThread(
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { allowDuplicate?: boolean },
-  ): Promise<Thread> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.copyThread(threadId, targetProjectId, options),
-      'Failed to copy thread',
-    );
-  }
-
-  async checkLargeFiles(threadId: string): Promise<{
-    needsConfirmation: boolean;
-    totalSize: number;
-    fileCount: number;
-    estimatedTransferTime?: number;
-    largeFiles?: Array<{ filename: string; size: number }>;
-  }> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.checkLargeFiles(threadId),
-      'Failed to check large files',
-    );
-  }
-
-  async checkDuplicate(
-    threadId: string,
-    targetProjectId: string | null,
-  ): Promise<{
-    isDuplicate: boolean;
-    previousCopyDate?: number;
-    previousThreadId?: string;
-  }> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.checkDuplicate(threadId, targetProjectId),
-      'Failed to check duplicate',
-    );
-  }
-
-  async cancelCopy(operationId: string): Promise<void> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.cancelCopy(operationId),
-      'Failed to cancel copy operation',
-    );
-  }
-
-  async getCopyProgress(operationId: string): Promise<{
-    operationId: string;
-    phase: string;
-    filesTotal: number;
-    filesCompleted: number;
-    bytesTotal: number;
-    bytesTransferred: number;
-    currentFile?: string;
-    estimatedTimeRemaining?: number;
-  } | null> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.getCopyProgress(operationId),
-      'Failed to get copy progress',
-    );
-  }
-
   async appendMessage(
     threadId: string,
     payload: {
@@ -514,6 +492,7 @@ export class ThreadService extends BaseElectronService {
     // make sure we have a chat service
     const _result = await window.electronAPI.chat.createServiceForThread(
       threadId,
+      branchId,
       modelId,
       '',
       { url: '', model: '' },
@@ -600,6 +579,7 @@ export class ThreadService extends BaseElectronService {
       // make sure we have a chat service
       const _result = await window.electronAPI.chat.createServiceForThread(
         threadId,
+        branchId,
         modelId,
         '',
         { url: '', model: '' },
@@ -653,43 +633,6 @@ export class ThreadService extends BaseElectronService {
     return res as
       | { success: true; message: Message; thread: Thread }
       | { success: false; error: string };
-  }
-
-  async getMessageVersions(
-    threadId: string,
-    messageId: string,
-  ): Promise<
-    | { success: true; versions: Array<{ content: string; editedAt: number }> }
-    | { success: false; error: string }
-  > {
-    const res: unknown = await wrapElectronCall(
-      () => window.electronAPI.thread.getMessageVersions(threadId, messageId),
-      'Failed to get message versions',
-    );
-    return res as
-      | { success: true; versions: Array<{ content: string; editedAt: number }> }
-      | { success: false; error: string };
-  }
-
-  /**
-   * Switch the active branch for a thread
-   */
-  async switchBranch(
-    threadId: string,
-    branchId: string,
-  ): Promise<{ success: true; thread: Thread } | { success: false; error: string }> {
-    return wrapElectronCall(async () => {
-      const result = await window.electronAPI.thread.switchBranch(threadId, branchId);
-      if (result.success && result.thread) {
-        return { success: true, thread: result.thread };
-      }
-      if (!result.success) {
-        const errorMessage: string =
-          typeof result.error === 'string' ? result.error : 'Failed to switch branch';
-        return { success: false, error: errorMessage };
-      }
-      return { success: false, error: 'Failed to switch branch' };
-    }, 'Failed to switch branch');
   }
 
   /**
@@ -772,6 +715,7 @@ export class ThreadService extends BaseElectronService {
     messages: Message[],
     isStreaming: boolean = false,
     responseText: string = '',
+    availableModels: ModelDetails[] = [],
   ): DisplayItem[] {
     if (messages.length === 0) {
       return [];
@@ -870,19 +814,34 @@ export class ThreadService extends BaseElectronService {
               branchId: laneKey,
               messagePairs: [],
               modelName: undefined,
+              modelIntendedUse: undefined,
             };
           }
 
           const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
 
-          // Try to extract model name from first message
-          const modelName = msgs[0]?.modelId ?? undefined;
+          // Try to extract model name and intended use from first message
+          const modelId = msgs[0]?.modelId ?? undefined;
+          let modelName = modelId;
+          let modelIntendedUse: string | undefined;
+
+          // Look up model details if available
+          if (modelId && availableModels.length > 0) {
+            const modelDetails = availableModels.find(
+              (m) => m.id === modelId || m.accessName === modelId,
+            );
+            if (modelDetails) {
+              modelName = modelDetails.title || modelDetails.accessName;
+              modelIntendedUse = modelDetails.intendedUse;
+            }
+          }
 
           return {
             id: `lane-${row}-${index}`,
             branchId: laneKey,
             messagePairs: pairs,
             modelName,
+            modelIntendedUse,
           };
         });
 
@@ -1033,6 +992,7 @@ export interface Lane {
   branchId: string;
   messagePairs: MessagePair[];
   modelName?: string;
+  modelIntendedUse?: string;
 }
 
 export interface MessageDisplay {

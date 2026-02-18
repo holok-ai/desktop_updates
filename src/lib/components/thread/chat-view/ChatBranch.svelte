@@ -26,6 +26,7 @@
     branchId: string;
     messagePairs: MessagePair[];
     modelName?: string;
+    modelIntendedUse?: string;
   }
 
   interface Props {
@@ -41,13 +42,7 @@
     onSelectLane?: (laneIndex: number) => void;
   }
 
-  let {
-    branchId,
-    lanes = [],
-    chatLayout,
-    fontSize = 14,
-    onSelectLane
-  }: Props = $props();
+  let { branchId, lanes = [], chatLayout, fontSize = 14, onSelectLane }: Props = $props();
 
   // Track which lane is expanded (-1 means none)
   let expandedLaneIndex = $state<number>(-1);
@@ -67,10 +62,7 @@
 </script>
 
 <div class="chat-branch">
-  <ChatBranchHeader
-    {branchId}
-    laneCount={lanes.length}
-  />
+  <ChatBranchHeader {branchId} laneCount={lanes.length} />
 
   <div class="branch-lanes">
     {#each lanes as lane, index (lane.id)}
@@ -81,6 +73,7 @@
         {chatLayout}
         {fontSize}
         modelName={lane.modelName}
+        modelIntendedUse={lane.modelIntendedUse}
         isExpanded={expandedLaneIndex === index}
         isCollapsed={expandedLaneIndex !== -1 && expandedLaneIndex !== index}
         onToggleExpand={() => handleToggleExpand(index)}
@@ -89,9 +82,7 @@
     {/each}
   </div>
 
-  <ChatBranchFooter
-    onSelectLane={handleSelectLane}
-  />
+  <ChatBranchFooter onSelectLane={handleSelectLane} />
 </div>
 
 <style>

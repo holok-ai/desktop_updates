@@ -1,3 +1,5 @@
+import type { ThreadMetadata } from '../../types/thread.types.js';
+
 /**
  * Thread and Message API Type Definitions
  * These types match the Moku API backend DTOs for thread operations
@@ -9,6 +11,7 @@
 export interface ThreadDTO {
   id: string;
   title: string;
+  description: string;
   type: 'personal' | 'project';
   ownerId: string;
   projectId: string | null;
@@ -16,6 +19,7 @@ export interface ThreadDTO {
   status: 'active' | 'archived' | 'deleted';
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
+  deletedAt: string; // ISO-8601 timestamp
   metadata?: Record<string, unknown>; // Custom metadata including model configuration
 }
 
@@ -85,7 +89,11 @@ export interface MessageDTO {
  */
 export interface CreateThreadRequest {
   title: string;
-  projectId?: string | null;
+  projectId: string | null;
+  agentId: string;
+  applicationSlug: string;
+  initialProvider?: string;
+  initalModel?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -94,9 +102,9 @@ export interface CreateThreadRequest {
  */
 export interface UpdateThreadRequest {
   title?: string;
-  status?: 'active' | 'archived' | 'deleted';
+  status?: string; //'active' | 'archived' | 'deleted';
   projectId?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: ThreadMetadata;
 }
 
 /**

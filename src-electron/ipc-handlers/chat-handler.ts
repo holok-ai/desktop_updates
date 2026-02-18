@@ -16,9 +16,17 @@ import log from 'electron-log';
  * Future ticket (#361) will replace this with StreamManager architecture.
  */
 
-// Map of chat services per thread (interim solution)
+// Map of chat services per thread+branch (interim solution)
+// Key format: "${threadId}:${branchId}"
 const chatServices: Map<string, DesktopChatService> = new Map();
 let authService: AuthService | null = null;
+
+/**
+ * Build service key from threadId and branchId
+ */
+function buildServiceKey(threadId: string, branchId: string): string {
+  return `${threadId}:${branchId}`;
+}
 
 /**
  * Register all chat IPC handlers
@@ -35,13 +43,14 @@ export function registerChatHandlers(auth?: AuthService): void {
   ToolOrchestrator.getInstance(allowedPaths);
 
   /**
-   * Create Chat Provider - Initialize ChatService for a thread
+   * Create Chat Provider - Initialize ChatService for a thread+branch
    */
   ipcMain.handle(
     'chat:createServiceForThread',
     async (
       _event,
       threadId: string,
+      branchId: string,
       modelAccessName: string,
       providerType: string,
       config: ProviderConfig,
@@ -87,7 +96,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           }
         }
 
-        // Create DesktopChatService for this thread
+        // Create DesktopChatService for this thread+branch
         const newConfig: ProviderConfig = {
           url: (config as { url?: string }).url ?? '',
           apiKey: config.apiKey ?? '',
@@ -96,8 +105,10 @@ export function registerChatHandlers(auth?: AuthService): void {
 
         const chatService = new DesktopChatService(providerType, newConfig, workingDirectory);
 
-        // Store in map
-        chatServices.set(threadId, chatService);
+        // Store in map with composite key (threadId:branchId)
+        const serviceKey = buildServiceKey(threadId, branchId);
+        chatServices.set(serviceKey, chatService);
+        log.info('[IPC] Chat service created and stored with key:', serviceKey);
 
         return { success: true };
       } catch (error) {
@@ -109,7 +120,7 @@ export function registerChatHandlers(auth?: AuthService): void {
   );
 
   /**
-   * Send Chat Message - Send message for a specific thread
+   * Send Chat Message - Send message for a specific thread+branch
    */
   ipcMain.handle(
     'chat:send',
@@ -118,22 +129,26 @@ export function registerChatHandlers(auth?: AuthService): void {
       threadId: string,
       request: DesktopChatRequest,
     ): Promise<{ success: boolean; error?: string }> => {
-      log.info('[IPC] chat:send called for thread:', threadId);
+      // Extract branchId from request - required for service lookup and stream routing
+      const branchId = request.branch_id;
+      if (!branchId) {
+        const errorMessage = 'branch_id is required in chat request';
+        log.error('[IPC]', errorMessage);
+        throw new Error(errorMessage);
+      }
 
-      const chatService = chatServices.get(threadId);
+      log.info('[IPC] chat:send called for thread:', threadId, 'branch:', branchId);
+
+      // Build service key using threadId and branchId
+      const serviceKey = buildServiceKey(threadId, branchId);
+      const chatService = chatServices.get(serviceKey);
       if (!chatService) {
-        const errorMessage = `Chat service not initialized for thread: ${threadId}`;
+        const errorMessage = `Chat service not initialized for thread: ${threadId}, branch: ${branchId} (key: ${serviceKey})`;
         log.error('[IPC]', errorMessage);
         throw new Error(errorMessage);
       }
 
       try {
-        // Extract branchId from request - required for stream routing
-        const branchId = request.branch_id;
-        if (!branchId) {
-          throw new Error('branch_id is required in chat request');
-        }
-
         await chatService.chat(
           request,
           (token: string) => {
@@ -162,14 +177,15 @@ export function registerChatHandlers(auth?: AuthService): void {
   );
 
   /**
-   * Get Audit Logs - Retrieve chat audit logs from thread service
+   * Get Audit Logs - Retrieve chat audit logs from thread+branch service
    */
-  ipcMain.handle('chat:getAuditLogs', (_event, threadId: string) => {
-    log.info('[IPC] chat:getAuditLogs called for thread:', threadId);
+  ipcMain.handle('chat:getAuditLogs', (_event, threadId: string, branchId: string) => {
+    log.info('[IPC] chat:getAuditLogs called for thread:', threadId, 'branch:', branchId);
 
-    const chatService = chatServices.get(threadId);
+    const serviceKey = buildServiceKey(threadId, branchId);
+    const chatService = chatServices.get(serviceKey);
     if (!chatService) {
-      const errorMessage = `Chat service not initialized for thread: ${threadId}`;
+      const errorMessage = `Chat service not initialized for thread: ${threadId}, branch: ${branchId}`;
       log.error('[IPC]', errorMessage);
       throw new Error(errorMessage);
     }
@@ -186,10 +202,25 @@ export function registerChatHandlers(auth?: AuthService): void {
 
   /**
    * Destroy Chat Service - Clean up when thread is closed
+   * Destroys all services (all models) for the given thread
    */
   ipcMain.handle('chat:destroyProvider', (_event, threadId: string): { success: boolean } => {
     log.info('[IPC] chat:destroyProvider called for thread:', threadId);
-    chatServices.delete(threadId);
+
+    // Delete all services for this thread (all models)
+    const keysToDelete: string[] = [];
+    for (const key of chatServices.keys()) {
+      if (key.startsWith(`${threadId}:`)) {
+        keysToDelete.push(key);
+      }
+    }
+
+    keysToDelete.forEach((key) => {
+      chatServices.delete(key);
+      log.info('[IPC] Deleted chat service:', key);
+    });
+
+    log.info('[IPC] Destroyed', keysToDelete.length, 'service(s) for thread:', threadId);
     return { success: true };
   });
 

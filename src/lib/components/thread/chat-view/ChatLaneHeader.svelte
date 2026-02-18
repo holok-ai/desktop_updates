@@ -10,6 +10,8 @@
     laneIndex?: number;
     /** Optional model name used in this lane */
     modelName?: string;
+    /** Optional model intended use for tooltip */
+    modelIntendedUse?: string;
     /** Whether this lane is expanded */
     isExpanded?: boolean;
     /** Callback to toggle expand/collapse */
@@ -22,9 +24,10 @@
     laneId: _laneId = '',
     laneIndex = 0,
     modelName = '',
+    modelIntendedUse = '',
     isExpanded = false,
     onToggleExpand,
-    onSelect
+    onSelect,
   }: Props = $props();
 </script>
 
@@ -37,11 +40,11 @@
     onkeydown={() => {}}
     role="button"
     tabindex={onToggleExpand ? 0 : undefined}
-    title={isExpanded ? "Click to collapse" : "Click to expand"}
+    title={isExpanded ? 'Click to collapse' : 'Click to expand'}
   >
     <span class="lane-number">Lane {laneIndex + 1}</span>
     {#if modelName}
-      <span class="lane-model">{modelName}</span>
+      <span class="lane-model" title={modelIntendedUse || ''}>{modelName}</span>
     {/if}
     {#if onToggleExpand}
       <i class="pi pi-{isExpanded ? 'compress' : 'arrows-h'} expand-icon"></i>

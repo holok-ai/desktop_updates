@@ -40,8 +40,6 @@
   let isStreaming = $state(false);
   let responseText = $state('');
   let error = $state('');
-  let chatServiceCreated = $state(false);
-  let chatServiceModelId = $state(''); // Track which model the service was created for
   let messagesEl: HTMLDivElement | undefined = $state();
   let fontSize = $state(14); // Font size from settings
   let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
@@ -146,18 +144,14 @@
   // ── Chat service initialisation ──
   async function getChatService(
     requestedModelId: string,
+    branchId: string,
   ): Promise<{ success: boolean; created: boolean }> {
     if (!thread?.id) {
       error = 'Cannot initialise chat: missing thread info';
       return { success: false, created: false };
     }
 
-    // If service already created with the same model, no need to recreate
-    if (chatServiceCreated && chatServiceModelId === requestedModelId) {
-      return { success: true, created: false };
-    }
-
-    // Look up model details only if model has changed
+    // Look up model details
     const modelDetail = availableModels.find((m) => m.accessName === requestedModelId);
     if (!modelDetail) {
       error = `Cannot find model with accessName: ${requestedModelId}`;
@@ -170,9 +164,10 @@
       return { success: false, created: false };
     }
 
-    // Create or recreate the provider
+    // Create the provider for this branch
     const result = await window.electronAPI.chat.createServiceForThread(
       thread.id,
+      branchId,
       modelDetail.accessName,
       modelDetail.provider,
       { url: modelDetail.url, model: modelDetail.accessName },
@@ -183,9 +178,6 @@
       error = result.error || 'Failed to create chat provider';
       return { success: false, created: false };
     }
-
-    chatServiceCreated = true;
-    chatServiceModelId = requestedModelId;
 
     // Small delay to let provider settle
     await new Promise((r) => setTimeout(r, 300));
@@ -291,6 +283,8 @@
   ) {
     if (!thread) return;
 
+    addDebugLog(`[sendMessageBranch] Starting with ${modelIds.length} models`);
+
     // Extract base row from branchId (e.g., "5.0.0" -> 5)
     const baseRow = parseInt(branchId.split('.')[0]) || 0;
 
@@ -301,6 +295,10 @@
         branchId: `${baseRow}.${index + 1}.0`, // Lane 1, 2, 3, etc.
         responseText: '',
       }));
+
+    addDebugLog(
+      `[sendMessageBranch] Created branches: ${modelBranches.map((b) => b.branchId).join(', ')}`,
+    );
 
     // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
@@ -350,12 +348,20 @@
     await tick();
     scrollToBottom();
 
+    addDebugLog(
+      `[sendMessageBranch] Added ${userMessages.length} user and ${assistantMessages.length} assistant messages`,
+    );
+
     // Set up streaming for all branches
     isStreaming = true;
 
     // Set up token listeners for each branch
     const unsubscribers = modelBranches.map((branch) => {
+      addDebugLog(`[sendMessageBranch] Setting up subscription for ${branch.branchId}`);
       return threadService.subscribeToStream(thread!.id, branch.branchId, (token: string) => {
+        addDebugLog(
+          `[sendMessageBranch] Token received for ${branch.branchId} (${token.length} chars)`,
+        );
         // Find this branch and append token
         const branchData = modelBranches.find((b) => b.branchId === branch.branchId);
         if (branchData) {
@@ -387,19 +393,25 @@
       content: m.content,
     }));
 
+    addDebugLog(`[sendMessageBranch] Sending to ${modelBranches.length} models in parallel`);
+
     // Send to all models in parallel
     const chatPromises = modelBranches.map(async (branch) => {
+      addDebugLog(`[sendMessageBranch] Starting chat for ${branch.branchId}`);
       // Get model details
       const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
       if (!modelDetails) {
         return { success: false, branchId: branch.branchId };
       }
 
-      // Initialize chat service for this model
-      const serviceResult = await getChatService(branch.modelId);
+      // Initialize chat service for this branch
+      addDebugLog(`[sendMessageBranch] Initializing service for ${branch.branchId}`);
+      const serviceResult = await getChatService(branch.modelId, branch.branchId);
       if (!serviceResult.success) {
+        addDebugLog(`[sendMessageBranch] Service init FAILED for ${branch.branchId}`);
         return { success: false, branchId: branch.branchId };
       }
+      addDebugLog(`[sendMessageBranch] Service initialized for ${branch.branchId}`);
 
       const request = {
         messages: historyMessages,
@@ -408,17 +420,23 @@
       };
 
       try {
+        addDebugLog(`[sendMessageBranch] Sending message for ${branch.branchId}`);
         const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
+        addDebugLog(
+          `[sendMessageBranch] Chat result for ${branch.branchId}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
+        );
         return { ...result, branchId: branch.branchId, modelDetails };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log('[ThreadChatView] Catch block 1 (multi-model):', errorMessage);
+        addDebugLog(`[sendMessageBranch] ERROR for ${branch.branchId}: ${errorMessage}`);
         return { success: false, branchId: branch.branchId };
       }
     });
 
     // Wait for all chats to complete
     const _results = await Promise.all(chatPromises);
+
+    addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
     // Clean up streaming
     unsubscribers.forEach((unsub) => unsub());
@@ -429,14 +447,21 @@
       if (branch.responseText && thread) {
         const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
 
+        addDebugLog(
+          `[sendMessageBranch] Persisting response for ${branch.branchId} (${branch.responseText.length} chars)`,
+        );
         // Persist the assistant response
         await window.electronAPI.thread.addAssistantResponse(
           thread.id,
           branch.responseText,
           modelDetails?.accessName || branch.modelId,
         );
+      } else if (!branch.responseText) {
+        addDebugLog(`[sendMessageBranch] WARNING: No response text for ${branch.branchId}`);
       }
     }
+
+    addDebugLog(`[sendMessageBranch] Complete`);
 
     await tick();
     scrollToBottom();
@@ -623,7 +648,7 @@
 
   // ── Build display items using thread service ──
   let displayItems = $derived.by(() => {
-    return threadService.buildDisplayItems(messages, isStreaming, responseText);
+    return threadService.buildDisplayItems(messages, isStreaming, responseText, availableModels);
   });
 
   /* OLD CODE - COMMENTED OUT FOR TESTING
@@ -640,6 +665,7 @@
     branchId: string;
     messagePairs: MessagePair[];
     modelName?: string;
+    modelIntendedUse?: string;
   }
 
   interface MessageDisplay {

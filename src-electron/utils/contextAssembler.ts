@@ -1,4 +1,4 @@
-import type { Message } from '../repository/thread-repository.js';
+import type { Message } from '../types/thread.types.js';
 import type { ThreadRepository } from '../repository/thread-repository.js';
 
 /**
@@ -37,15 +37,15 @@ export function assembleContext(
   // For branchId "1.1.1", include messages with "1.0", "1.1", "1.1.1"
   const branchParts = targetBranchId.split('.');
   const relevantBranchIds = new Set<string>();
-  
+
   // Build all parent branch IDs
   for (let i = 1; i <= branchParts.length; i++) {
     relevantBranchIds.add(branchParts.slice(0, i).join('.'));
   }
 
   // Filter and sort messages by their branch hierarchy
-  const relevantMessages = loadedThread.messages.filter((m: Message) => 
-    relevantBranchIds.has(m.branchId)
+  const relevantMessages = loadedThread.messages.filter((m: Message) =>
+    relevantBranchIds.has(m.branchId),
   );
 
   // Sort by creation time to maintain conversation order
@@ -92,7 +92,7 @@ export function getNextBranchId(
     nextIndex++;
     if (nextIndex > 99) {
       throw new Error('Maximum branch variations reached (max: 99)');
-  }
+    }
   }
 
   return `${currentBranchId}.${nextIndex}`;
