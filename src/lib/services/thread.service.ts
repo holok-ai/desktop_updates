@@ -773,14 +773,14 @@ export class ThreadService extends BaseElectronService {
         }
 
         // Check if this is the last message and we're streaming
-        const isLastMessage = i === msgs.length - 1;
-        const isStreamingNow = isLastMessage && isStreaming && responses.length === 0;
+        const lastMessage = i === msgs.length - 1;
+        const streamingNow = lastMessage && isStreaming && responses.length === 0;
 
         pairs.push({
           request: msg,
           responses: responses,
-          isStreamingResponse: isStreamingNow,
-          streamingContent: isStreamingNow ? responseText : '',
+          isStreamingResponse: streamingNow,
+          streamingContent: streamingNow ? responseText : '',
         });
 
         // Skip past the user message and all collected responses

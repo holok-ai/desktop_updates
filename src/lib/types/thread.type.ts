@@ -14,6 +14,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;
+  userId?: string;
   status?: MessageStatus;
   retryCount?: number;
   error?: string;

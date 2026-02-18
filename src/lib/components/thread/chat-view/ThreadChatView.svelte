@@ -469,7 +469,7 @@
     const request = {
       messages: historyMessages,
       streaming: true,
-      model: modelName,
+      model: modelId,
     };
 
     try {
@@ -487,7 +487,7 @@
 
       // Streaming complete — persist assistant response
       if (thread && responseText) {
-        await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelName);
+        await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelId);
 
         // Append assistant message to local list
         const assistantMsg: Message = {
@@ -496,7 +496,7 @@
           content: responseText,
           createdAt: Date.now(),
           branchId,
-          modelId: modelName,
+          modelId: modelId,
         };
         messages = [...messages, assistantMsg];
 
@@ -602,7 +602,17 @@
 
   // ── Build display items using thread service ──
   let displayItems = $derived.by(() => {
-    return threadService.buildDisplayItems(messages, isStreaming, responseText);
+    const items = threadService.buildDisplayItems(messages, isStreaming, responseText);
+    console.log('[ThreadChatView] displayItems built:', {
+      messagesCount: messages.length,
+      messages: messages.map(m => ({ id: m.id, role: m.role, branchId: m.branchId, content: m.content?.substring(0, 30) })),
+      itemsCount: items.length,
+      items: items.map(i => ({
+        type: i.type,
+        ...(i.type === 'message' ? { requestContent: i.pair.request.content?.substring(0, 30), responsesCount: i.pair.responses.length } : { laneCount: i.lanes.length })
+      }))
+    });
+    return items;
   });
 
   /* OLD CODE - COMMENTED OUT FOR TESTING
@@ -829,6 +839,7 @@
           requestCreatedAt={item.pair.request.createdAt}
           modelId={item.pair.request.modelId}
           branchId={item.pair.request.branchId}
+          userName={item.pair.request.userId || 'You'}
           {chatLayout}
           {fontSize}
           responses={item.pair.responses}
@@ -841,6 +852,17 @@
         <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
       {/if}
     {/each}
+
+    <!-- Loading indicator while waiting for first streaming token -->
+    {#if isStreaming && responseText === ''}
+      <div class="waiting-indicator">
+        <div class="waiting-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    {/if}
   </div>
 
   <!-- Composer at the bottom -->
@@ -985,5 +1007,51 @@
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--surface-border, #e0e0e0);
     background: var(--surface-main, #fafafa);
+  }
+
+  /* Waiting indicator for first streaming token */
+  .waiting-indicator {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin: 0.5rem 0;
+  }
+
+  .waiting-dots {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .waiting-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary-color, #646cff);
+    opacity: 0.6;
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+
+  .waiting-dots .dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .waiting-dots .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .waiting-dots .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes pulse-dot {
+    0%, 60%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    30% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
   }
 </style>
