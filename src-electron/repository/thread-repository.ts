@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-object-injection */
 import log from 'electron-log';
-import type { MessageMetadata, Attachment } from '../../src-shared/types/attachment.types.js';
+import { Message, ThreadMetadata, Thread, JsonValue } from '../types/thread.types.js';
+import type { Attachment } from '../../src-shared/types/attachment.types.js';
 import { fileStorageService } from '../services/file-storage.service.js';
 import { titleGeneratorService } from '../services/title-generator.service.js';
 import { threadApiService } from '../services/mokuapi/thread-api.service.js';
@@ -11,74 +12,7 @@ import type {
   CreateThreadRequest,
   UpdateThreadRequest,
 } from '../services/mokuapi/thread.types.js';
-
-export type MessageRole = 'user' | 'assistant' | 'system';
-export type UUID = string;
-
-export interface MessageVersion {
-  content: string;
-  editedAt: number;
-}
-
-export type BranchType = 'prompt-variation' | 'model-variation' | null;
-
-export interface Message {
-  id: UUID;
-  threadId: string;
-  branchId: string;
-  provider: string;
-  modelId: string;
-  title: string;
-  role: MessageRole;
-  userId: string;
-  content: string;
-  createdAt: number;
-  rawData?: MessageMetadata;
-  attachments?: Attachment[];
-  clientMessageId?: string;
-  deletedAt?: number | null;
-  editedAt?: number;
-  versions?: MessageVersion[];
-  isEdited?: boolean;
-  isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
-}
-
-/**
- * Title history entry for tracking rename operations
- */
-export interface TitleHistoryEntry {
-  /** The new title after this rename */
-  title: string;
-  /** Timestamp when the rename occurred (epoch ms) */
-  timestamp: number;
-  /** The previous title before this rename */
-  previousTitle: string;
-  /** Optional: User ID who performed the rename */
-  userId?: string;
-}
-
-export interface ThreadMetadata {
-  title?: string;
-  description?: string;
-  model?: string;
-  /** History of title changes for audit and undo functionality */
-  titleHistory?: TitleHistoryEntry[];
-  /** Array of selected branch IDs (one per row) */
-  selectedBranchIds?: string[];
-  [key: string]: unknown;
-}
-
-export interface Thread {
-  id: UUID;
-  title: string;
-  metadata: ThreadMetadata;
-  messages: Message[];
-  createdAt: number;
-  updatedAt: number;
-  deletedAt?: number | null;
-  /** Current active branch ID (e.g., "1.0", "1.1", "1.1.1") */
-  currentBranchId: string;
-}
+import type { MessageRole } from '../types/thread.types.js';
 
 export class ThreadRepository {
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -106,17 +40,11 @@ export class ThreadRepository {
     return new Date(normalized).getTime();
   }
 
-  public async createThread(metadata: ThreadMetadata = {}): Promise<Thread> {
-    const request: CreateThreadRequest = {
-      title: typeof metadata.title === 'string' ? metadata.title : 'New Thread',
-      projectId: metadata.projectId as string | null | undefined,
-      metadata: metadata,
-    };
+  public async createThread(newRequest: CreateThreadRequest): Promise<Thread> {
+    log.info('[ThreadRepository] Creating thread via API:', newRequest.title);
+    log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(newRequest, null, 2));
 
-    // log.info('[ThreadRepository] Creating thread via API:', request.title);
-    // log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(metadata, null, 2));
-
-    const threadDTO = await threadApiService.createThread(request);
+    const threadDTO = await threadApiService.createThread(newRequest);
 
     // log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
     // log.info(
@@ -485,7 +413,7 @@ export class ThreadRepository {
       content: payload.content,
       createdAt: now,
       userId: '',
-      rawData: payload.metadata as MessageMetadata | undefined,
+      rawData: payload.metadata as JsonValue,
       clientMessageId: payload.clientMessageId,
       deletedAt: null,
       branchId: branchId,
@@ -575,33 +503,6 @@ export class ThreadRepository {
     return this.appendMessageLocal(threadId, payload);
   }
 
-  // public async addUserPrompt(
-  //   threadId: string | null | undefined,
-  //   prompt: string,
-  //   opts: ThreadMetadata = {},
-  // ): Promise<{ thread: Thread; message: Message }> {
-  //   let tid = threadId;
-  //   if (!tid) {
-  //     const th = await this.createThread(opts);
-  //     tid = th.id;
-  //   }
-
-  //   // Get thread to use its current branchId
-  //   const thread = this.threadsById.get(tid);
-  //   if (!thread) throw new Error(`Thread not found: ${tid}`);
-
-  //   // Use appendMessage directly
-  //   const message = await this.appendMessage(tid, {
-  //     role: 'user',
-  //     content: prompt,
-  //     branchId: this.normalizeBranchId(thread.currentBranchId),
-  //   });
-
-  //   const updatedThread = await this.loadThread(tid);
-  //   if (!updatedThread) throw new Error(`Thread disappeared after creation: ${tid}`);
-  //   return { thread: updatedThread, message };
-  // }
-
   public async addAssistantResponse(
     threadId: string,
     response: string,
@@ -610,7 +511,7 @@ export class ThreadRepository {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     if (model) {
-      thread.metadata = { ...thread.metadata, model };
+      thread.metadata.initalModel = model;
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
     }
@@ -649,7 +550,6 @@ export class ThreadRepository {
 
           // Update thread title locally
           thread.title = uniqueTitle;
-          thread.metadata = { ...thread.metadata, title: uniqueTitle };
           thread.updatedAt = Date.now();
           this.threadsById.set(thread.id, thread);
 
@@ -709,22 +609,20 @@ export class ThreadRepository {
       throw new Error(`Thread not found: ${threadId}`);
     }
 
-    const nextMetadata: ThreadMetadata = { ...(thread.metadata ?? {}) };
-    nextMetadata.projectId = projectId;
-    // Keep type consistent for downstream filtering/UI
-    nextMetadata.type = projectId ? 'project' : 'personal';
-
     try {
-      await threadApiService.updateThread(threadId, {
-        projectId,
-        metadata: nextMetadata as Record<string, unknown>,
-      });
+      const req: UpdateThreadRequest = {
+        title: thread.title,
+        status: thread.status,
+        projectId: projectId,
+        metadata: thread.metadata,
+      };
+      await threadApiService.updateThread(threadId, req);
     } catch (error) {
       log.error('[ThreadRepository] Failed to update thread project assignment via API:', error);
       // Still update local cache so UI isn't stuck; next fetch may reconcile
     }
 
-    const updatedLocal = this.updateThreadMetadata(threadId, nextMetadata);
+    const updatedLocal = this.updateThreadMetadata(threadId, thread.metadata);
     return this.cloneThread(updatedLocal);
   }
 
@@ -736,7 +634,7 @@ export class ThreadRepository {
    * @returns The updated thread
    * @throws Error if thread not found or title is invalid
    */
-  public async renameThread(threadId: string, newTitle: string, userId?: string): Promise<Thread> {
+  public async renameThread(threadId: string, newTitle: string, _userId?: string): Promise<Thread> {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
 
@@ -754,24 +652,8 @@ export class ThreadRepository {
       return this.cloneThread(thread);
     }
 
-    const previousTitle = thread.title;
+    const _previousTitle = thread.title;
     const now = Date.now();
-
-    // Create title history entry
-    const historyEntry: TitleHistoryEntry = {
-      title: trimmedTitle,
-      timestamp: now,
-      previousTitle,
-      userId,
-    };
-
-    // Initialize titleHistory if it doesn't exist
-    const titleHistory = Array.isArray(thread.metadata?.titleHistory)
-      ? [...thread.metadata.titleHistory]
-      : [];
-
-    // Add new entry to history
-    titleHistory.push(historyEntry);
 
     try {
       // log.info('[ThreadRepository] Renaming thread via API:', threadId);
@@ -781,8 +663,6 @@ export class ThreadRepository {
       thread.title = trimmedTitle;
       thread.metadata = {
         ...thread.metadata,
-        title: trimmedTitle,
-        titleHistory,
       };
       thread.updatedAt = now;
 
@@ -805,65 +685,23 @@ export class ThreadRepository {
    * @returns The updated thread with previous title restored
    * @throws Error if thread not found or no rename history available
    */
-  public async undoRenameThread(threadId: string): Promise<Thread> {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
 
-    const titleHistory = thread.metadata?.titleHistory;
-    if (!Array.isArray(titleHistory) || titleHistory.length === 0) {
-      throw new Error('NO_RENAME_HISTORY');
-    }
-
-    // Get the most recent rename entry
-    const lastEntry = titleHistory[titleHistory.length - 1];
-    const previousTitle = lastEntry.previousTitle;
-
-    // Remove the last entry from history
-    const updatedHistory = titleHistory.slice(0, -1);
-
-    try {
-      // log.info('[ThreadRepository] Undoing rename via API:', threadId);
-      await threadApiService.updateThread(threadId, { title: previousTitle });
-
-      // Update local cache
-      const now = Date.now();
-      thread.title = previousTitle;
-      thread.metadata = {
-        ...thread.metadata,
-        title: previousTitle,
-        titleHistory: updatedHistory,
-      };
-      thread.updatedAt = now;
-
-      this.threadsById.set(thread.id, thread);
-
-      // log.info(
-      //   `[ThreadRepository] ↩️  Undid rename for thread ${threadId}: "${lastEntry.title}" → "${previousTitle}"`,
-      // );
-
-      return this.cloneThread(thread);
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to undo rename:', error);
-      throw error;
-    }
-  }
-
-  public setThreadModel(threadId: string, model: string): Thread {
-    return this.updateThreadMetadata(threadId, { model });
-  }
+  // public setThreadModel(threadId: string, model: string): Thread {
+  //   return this.updateThreadMetadata(threadId, { model });
+  // }
 
   public getThreadModel(threadId: string): string | undefined {
     const thread = this.threadsById.get(threadId);
     if (!thread) return undefined;
-    const m = thread.metadata?.model;
+    const m = thread.metadata.initalModel;
     return typeof m === 'string' ? m : undefined;
   }
 
-  public listThreadsByModel(model: string): Thread[] {
-    return Array.from(this.threadsById.values())
-      .filter((t) => t.metadata?.model === model)
-      .map((t) => this.cloneThread(t));
-  }
+  // public listThreadsByModel(model: string): Thread[] {
+  //   return Array.from(this.threadsById.values())
+  //     .filter((t) => t.metadata.initalModel === model)
+  //     .map((t) => this.cloneThread(t));
+  // }
 
   // public async savePromptAndResponses(
   //   threadId: string | null | undefined,
@@ -929,7 +767,8 @@ export class ThreadRepository {
 
       // Update local cache
       thread.deletedAt = Date.now();
-      thread.metadata = { ...thread.metadata, status: 'deleted' };
+      thread.status = 'deleted';
+      thread.metadata = { ...thread.metadata };
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
 
@@ -990,16 +829,6 @@ export class ThreadRepository {
       editedAt: message.editedAt,
       versions: message.versions ? [...message.versions] : [],
     };
-  }
-
-  public getMessageVersions(threadId: string, messageId: string): MessageVersion[] {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-
-    const message = thread.messages.find((m) => m.id === messageId);
-    if (!message) throw new Error(`Message not found: ${messageId}`);
-
-    return message.versions ? [...message.versions] : [];
   }
 
   /**
@@ -1084,62 +913,6 @@ export class ThreadRepository {
   }
 
   /**
-   * Switch active branch for a thread
-   */
-  public async switchBranch(threadId: string, branchId: string): Promise<Thread | null> {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) {
-      // log.warn('[ThreadRepository] Thread not found for switchBranch:', threadId);
-      return null;
-    }
-
-    // Normalize branchId to x.x.x format
-    const normalizedBranchId = this.normalizeBranchId(branchId);
-
-    // Update current branch in metadata
-    thread.currentBranchId = normalizedBranchId;
-    thread.metadata = { ...thread.metadata, currentBranchId: normalizedBranchId };
-
-    // Manage selectedBranchIds array (normalize all to x.x.x format)
-    const selectedBranchIds = Array.isArray(thread.metadata.selectedBranchIds)
-      ? thread.metadata.selectedBranchIds.map((id) => this.normalizeBranchId(id))
-      : [];
-
-    const newRowNumber = this.getRowNumber(normalizedBranchId);
-
-    // Remove any existing selected branch from the same row
-    const filteredBranchIds = selectedBranchIds.filter((existingBranchId) => {
-      const existingRowNumber = this.getRowNumber(existingBranchId);
-      return existingRowNumber !== newRowNumber;
-    });
-
-    // Add the new branch if it's not already in the array
-    if (!filteredBranchIds.includes(normalizedBranchId)) {
-      filteredBranchIds.push(normalizedBranchId);
-    }
-
-    thread.metadata.selectedBranchIds = filteredBranchIds;
-    thread.updatedAt = Date.now();
-
-    // Update in API
-    try {
-      const updateRequest: UpdateThreadRequest = {
-        metadata: thread.metadata,
-      };
-      await threadApiService.updateThread(threadId, updateRequest);
-      // log.info('[ThreadRepository] Switched to branch:', branchId, 'for thread:', threadId);
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to update branch in API:', error);
-      // Continue anyway - local state is updated
-    }
-
-    // Update cache
-    this.threadsById.set(threadId, thread);
-
-    return this.cloneThread(thread);
-  }
-
-  /**
    * Delete a branch (removes from local cache only, messages remain in API)
    */
   public deleteBranch(threadId: string, branchId: string): void {
@@ -1193,15 +966,13 @@ export class ThreadRepository {
     const normalizedBranchId = this.normalizeBranchId(dto.currentBranchId || '1.0.0');
     return {
       id: dto.id,
+      createdUserId: dto.createdUserId,
+      description: dto.description,
       title: dto.title,
-      metadata: {
-        // Standard fields
-        type: dto.type,
-        projectId: dto.projectId,
-        status: dto.status,
-        // Merge in custom metadata from API (provider, modelAccessName, url, etc.)
-        ...(dto.metadata || {}),
-      },
+      projectId: dto.projectId,
+      type: dto.type,
+      status: dto.status,
+      metadata: (dto.metadata as unknown as ThreadMetadata) || {},
       messages: [], // Messages loaded separately
       createdAt: this.parseApiTimeMs(dto.createdAt),
       updatedAt: this.parseApiTimeMs(dto.updatedAt),
@@ -1255,7 +1026,7 @@ export class ThreadRepository {
       role: dto.role as MessageRole,
       content: (dto.content as string) || '',
       createdAt: this.parseApiTimeMs(dto.createdAt),
-      rawData: (dto.rawData as MessageMetadata) || undefined,
+      rawData: (dto.rawData as JsonValue) ?? undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId,
@@ -1274,16 +1045,7 @@ export class ThreadRepository {
       message.content = 'empty';
     }
 
-    // Extract attachments from rawData if present
-    // log.info('[ThreadRepository] mapDTOToMessage - checking for attachments', {
-    //   messageId: message.id,
-    //   role: message.role,
-    //   hasRawData: !!message.rawData,
-    //   provider: message.provider,
-    // });
-
     if (message.role === 'assistant' && message.rawData) {
-      // log.info('[ThreadRepository] Extracting attachments for assistant message:', message.id);
       message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
       // log.info('[ThreadRepository] Extraction result:', {
       //   attachmentsCount: message.attachments?.length || 0,
@@ -1588,6 +1350,11 @@ export class ThreadRepository {
     return {
       id: thread.id,
       title: thread.title,
+      type: thread.type,
+      createdUserId: thread.createdUserId,
+      description: thread.description,
+      status: thread.status,
+      projectId: thread.projectId,
       metadata: { ...thread.metadata },
       messages: thread.messages.map((m) => ({ ...m })),
       createdAt: thread.createdAt,

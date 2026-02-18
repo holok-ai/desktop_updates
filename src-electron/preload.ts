@@ -1,14 +1,40 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
 import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 
 import type { ProviderConfig } from '@holokai/chat-component';
-import type { ThreadStatus } from '$lib/types/status.type.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
+
+import type {
+  Thread,
+  JsonValue,
+  JsonObject,
+  JsonArray,
+  JsonPrimitive,
+} from './types/thread.types.js';
+import type { CreateThreadRequest } from './services/mokuapi/thread.types.js';
+
+// Re-export types for use by other modules
+export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
+
+/**
+ * OLD Thread Interface (commented out - now imported from thread.types.ts)
+ *
+ * export interface Thread {
+ *   messages: any;
+ *   id: string;
+ *   title: string;
+ *   description: string;
+ *   status: ThreadStatus;
+ *   createdAt: Date;
+ *   updatedAt: Date;
+ *   metadata?: Record<string, unknown>;
+ *   currentBranchId: string;
+ * }
+ */
 
 /**
  * Preload Script with Context Bridge
@@ -43,7 +69,7 @@ export interface ThreadAPI {
   getById: (id: string) => Promise<Thread | null>;
 
   // Create a new thread (optionally within a project context)
-  create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
+  create: (request: CreateThreadRequest) => Promise<Thread>;
 
   // Update an existing thread
   update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
@@ -77,47 +103,6 @@ export interface ThreadAPI {
     targetProjectId: string | null,
     options?: { privacyMode?: string; contextHandling?: string },
   ) => Promise<Thread>;
-
-  // Copy thread to another context
-  copyThread: (
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { allowDuplicate?: boolean },
-  ) => Promise<Thread>;
-
-  // Check if thread has large files that need confirmation
-  checkLargeFiles: (threadId: string) => Promise<{
-    needsConfirmation: boolean;
-    totalSize: number;
-    fileCount: number;
-    estimatedTransferTime?: number;
-    largeFiles?: Array<{ filename: string; size: number }>;
-  }>;
-
-  // Check if thread was previously copied to destination
-  checkDuplicate: (
-    threadId: string,
-    targetProjectId: string | null,
-  ) => Promise<{
-    isDuplicate: boolean;
-    previousCopyDate?: number;
-    previousThreadId?: string;
-  }>;
-
-  // Cancel an in-progress copy operation
-  cancelCopy: (operationId: string) => Promise<void>;
-
-  // Get progress for a copy operation
-  getCopyProgress: (operationId: string) => Promise<{
-    operationId: string;
-    phase: string;
-    filesTotal: number;
-    filesCompleted: number;
-    bytesTotal: number;
-    bytesTransferred: number;
-    currentFile?: string;
-    estimatedTimeRemaining?: number;
-  } | null>;
 
   // Get messages for a thread (persisted)
   getMessages: (id: string) => Promise<Message[]>;
@@ -181,21 +166,6 @@ export interface ThreadAPI {
     { success: true; message: Message; thread: Thread } | { success: false; error: string }
   >;
 
-  // Get message versions
-  getMessageVersions: (
-    threadId: string,
-    messageId: string,
-  ) => Promise<
-    | { success: true; versions: Array<{ content: string; editedAt: number }> }
-    | { success: false; error: string }
-  >;
-
-  // Switch active branch
-  switchBranch: (
-    threadId: string,
-    branchId: string,
-  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
-
   // Delete a branch
   deleteBranch: (
     threadId: string,
@@ -216,23 +186,6 @@ export interface ThreadAPI {
       error?: Record<string, unknown>;
     }) => void,
   ) => () => void;
-}
-
-/**
- * Thread Interface
- *
- * Defines the structure of a thread object.
- */
-export interface Thread {
-  messages: any;
-  id: string;
-  title: string;
-  description: string;
-  status: ThreadStatus;
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: Record<string, unknown>;
-  currentBranchId: string;
 }
 
 /**
@@ -505,9 +458,10 @@ export type ToolUseEventPayload = {
 };
 
 export interface ChatAPI {
-  // Initialize/Create a chat service instance for a thread
+  // Initialize/Create a chat service instance for a thread+branch
   createServiceForThread: (
     threadId: string,
+    branchId: string,
     modelAccessName: string,
     providerType: string,
     config: ProviderConfig,
@@ -544,8 +498,8 @@ export interface ChatAPI {
   // Get audit/performance metrics
   getMetrics: () => Promise<unknown>;
 
-  // Get audit logs with detailed metrics for a thread
-  getAuditLogs: (threadId: string) => Promise<unknown[]>;
+  // Get audit logs with detailed metrics for a thread+branch
+  getAuditLogs: (threadId: string, branchId: string) => Promise<unknown[]>;
 
   // Cleanup/close the provider for a thread
   destroyProvider: (threadId: string) => Promise<{ success: boolean }>;
@@ -703,9 +657,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Chat API Implementation
    */
   chat: {
-    // 1. Initialize/Create a chat service instance for a thread
+    // 1. Initialize/Create a chat service instance for a thread+branch
     createServiceForThread: (
       threadId: string,
+      branchId: string,
       modelAccessName: string,
       providerType: string,
       config: ProviderConfig,
@@ -714,6 +669,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke(
         'chat:createServiceForThread',
         threadId,
+        branchId,
         modelAccessName,
         providerType,
         config,
@@ -749,7 +705,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
 
     // 5a. Get audit logs with detailed metrics for a thread
-    getAuditLogs: (threadId: string) => ipcRenderer.invoke('chat:getAuditLogs', threadId),
+    getAuditLogs: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('chat:getAuditLogs', threadId, branchId),
 
     // 6. Cleanup/close the provider for a thread
     destroyProvider: (threadId: string) => ipcRenderer.invoke('chat:destroyProvider', threadId),
@@ -855,8 +812,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getById: (id: string) => ipcRenderer.invoke('thread:getById', id),
 
-    create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) =>
-      ipcRenderer.invoke('thread:create', thread),
+    create: (request: CreateThreadRequest) => ipcRenderer.invoke('thread:create', request),
 
     update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
@@ -873,22 +829,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       targetProjectId: string | null,
       options?: { privacyMode?: string; contextHandling?: string },
     ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
-
-    copyThread: (
-      threadId: string,
-      targetProjectId: string | null,
-      options?: { allowDuplicate?: boolean },
-    ) => ipcRenderer.invoke('thread:copy', threadId, targetProjectId, options),
-
-    checkLargeFiles: (threadId: string) => ipcRenderer.invoke('thread:checkLargeFiles', threadId),
-
-    checkDuplicate: (threadId: string, targetProjectId: string | null) =>
-      ipcRenderer.invoke('thread:checkDuplicate', threadId, targetProjectId),
-
-    cancelCopy: (operationId: string) => ipcRenderer.invoke('thread:cancelCopy', operationId),
-
-    getCopyProgress: (operationId: string) =>
-      ipcRenderer.invoke('thread:getCopyProgress', operationId),
 
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
@@ -975,12 +915,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     updateMessage: (threadId: string, messageId: string, newContent: string) =>
       ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
-
-    getMessageVersions: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
-
-    switchBranch: (threadId: string, branchId: string) =>
-      ipcRenderer.invoke('thread:switchBranch', threadId, branchId),
 
     deleteBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),

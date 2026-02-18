@@ -246,39 +246,23 @@
     text = ''; // Clear input immediately
     selectedFiles = [];
 
-    // Read text file contents and append to message
-    const MAX_FILE_SIZE = 100 * 1024; // 100KB
-    for (const file of filesToProcess) {
-      // Validate file size
-      if (file.size > MAX_FILE_SIZE) {
-        validationError = `File "${file.name}" is too large. Maximum size is 100KB.`;
-        setTimeout(() => {
-          validationError = '';
-        }, 5000);
-        continue;
-      }
+    // Append filenames to payload if there are files
+    if (filesToProcess.length > 0) {
+      const filenames = filesToProcess.map((f) => f.name).join(' , ');
+      payload += `\n\n${filenames}`;
+    }
 
-      try {
-        // Read file as text
-        const fileContents = await file.text();
-
-        // Append to payload in the specified format
-        const fileSection = `\n\nFile contents for ${file.name} are: ${fileContents}`;
-        payload += fileSection;
-      } catch (error) {
-        console.error('Error reading file:', file.name, error);
-        validationError = `Failed to read file: ${file.name}`;
-        setTimeout(() => {
-          validationError = '';
-        }, 5000);
-      }
+    // Upload files to get attachments if threadId exists
+    let attachments: Attachment[] = [];
+    if (filesToProcess.length > 0 && _threadId) {
+      attachments = await _uploadFiles(filesToProcess, _threadId);
     }
 
     await sendMessage(
       selectedApplicationSlug,
       selectedModelIds.length > 0 ? selectedModelIds : [selectedModelId],
       payload,
-      [],
+      attachments,
     );
   }
 
