@@ -195,8 +195,9 @@ Describe what this project is about and what threads should focus on.
       });
 
       // 4. Create chat provider
-      const providerResult = await window.electronAPI.chat.createProvider(
+      const providerResult = await window.electronAPI.chat.createServiceForThread(
         threadId,
+        modelDetails.accessName, 
         modelDetails.provider,
         { url: modelDetails.url, model: modelDetails.accessName },
       );

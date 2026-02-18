@@ -73,7 +73,6 @@ export function registerSettingsHandlers(): void {
    * Get all settings
    */
   ipcMain.handle('settings:getAll', (): Promise<AppSettings> => {
-    settingsLog.info('GetAll called');
     const settings = settingsService.getAllSettings();
 
     // Add tool definitions from orchestrator

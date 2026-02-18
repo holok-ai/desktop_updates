@@ -17,7 +17,7 @@ function formatAnthropicResponse(content: unknown): string {
     // Check if the string is actually JSON that needs parsing
     if (content.startsWith('[') || content.startsWith('{')) {
       try {
-        const parsed = JSON.parse(content);
+        const parsed = JSON.parse(content) as unknown;
         return formatAnthropicResponse(parsed); // Recursively format the parsed content
       } catch {
         // Not valid JSON, return as-is
@@ -30,29 +30,43 @@ function formatAnthropicResponse(content: unknown): string {
   // Handle array of content blocks
   if (Array.isArray(content)) {
     return content
-      .filter((item) => item && item.type === 'text' && item.text)
+      .filter((item): item is { type: string; text: string } => {
+        if (typeof item !== 'object' || item === null) {
+          return false;
+        }
+        const obj = item as Record<string, unknown>;
+        return (
+          'type' in obj && obj.type === 'text' && 'text' in obj && typeof obj.text === 'string'
+        );
+      })
       .map((item) => item.text)
       .join('\n\n');
   }
 
   // Handle full Anthropic API response object with content array
-  if (content && typeof content === 'object' && 'content' in content) {
+  if (content !== null && typeof content === 'object' && 'content' in content) {
     const obj = content as { content: unknown };
     return formatAnthropicResponse(obj.content); // Recursively format the content field
   }
 
   // Handle single content object with text property
-  if (content && typeof content === 'object' && 'text' in content) {
+  if (content !== null && typeof content === 'object' && 'text' in content) {
     return String((content as { text: string }).text);
   }
 
   // Fallback: if we got here with an object, stringify it to see what it contains
-  if (content && typeof content === 'object') {
+  if (content !== null && typeof content === 'object') {
     console.warn('[response-formatter] Unexpected object format:', content);
     return JSON.stringify(content);
   }
 
-  return String(content || '');
+  // At this point, content is a primitive (string, number, boolean, null, undefined)
+  if (content === null || content === undefined) {
+    return '';
+  }
+
+  // Content must be a number or boolean at this point
+  return String(content as string | number | boolean);
 }
 
 /**
@@ -62,17 +76,21 @@ function formatAnthropicResponse(content: unknown): string {
  * @param modelId - Optional model ID to help identify the provider
  * @returns Formatted text content
  */
-export function formatResponseContent(content: unknown, provider: string, modelId?: string): string {
+export function formatResponseContent(
+  content: unknown,
+  provider: string,
+  modelId?: string,
+): string {
   const normalizedProvider = provider.toLowerCase();
-  const normalizedModelId = (modelId || '').toLowerCase();
+  const normalizedModelId = (modelId ?? '').toLowerCase();
 
   // Check if this is a Claude/Anthropic model
-  const isClaudeModel =
+  const isclaudeModel =
     normalizedProvider === 'claude' ||
     normalizedProvider === 'anthropic' ||
     normalizedModelId.includes('claude-');
 
-  if (isClaudeModel) {
+  if (isclaudeModel) {
     return formatAnthropicResponse(content);
   }
 
@@ -80,5 +98,16 @@ export function formatResponseContent(content: unknown, provider: string, modelI
   if (typeof content === 'string') {
     return content;
   }
-  return String(content || '');
+
+  // Handle non-string primitives and objects
+  if (content === null || content === undefined) {
+    return '';
+  }
+
+  if (typeof content === 'object') {
+    return JSON.stringify(content);
+  }
+
+  // Content must be a number or boolean at this point
+  return String(content as string | number | boolean);
 }

@@ -7,9 +7,9 @@
     StartingPage,
     ThreadLayout,
     ChatLayout,
-    Tool,
+    Tool as _Tool,
   } from '$lib/types/app.type';
-  import type { ToolDefinition } from '../../../src-electron/preload';
+  import type { ToolDefinition as _ToolDefinition } from '../../../src-electron/preload';
   import { defaultUserAvatar } from '$lib/types/app.type';
   import {
     APP_THEME_MODE,

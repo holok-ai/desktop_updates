@@ -10,6 +10,10 @@
     laneIndex?: number;
     /** Optional model name used in this lane */
     modelName?: string;
+    /** Whether this lane is expanded */
+    isExpanded?: boolean;
+    /** Callback to toggle expand/collapse */
+    onToggleExpand?: () => void;
     /** Optional callback when lane is selected */
     onSelect?: () => void;
   }
@@ -18,15 +22,29 @@
     laneId: _laneId = '',
     laneIndex = 0,
     modelName = '',
+    isExpanded = false,
+    onToggleExpand,
     onSelect
   }: Props = $props();
 </script>
 
 <div class="chat-lane-header">
-  <div class="lane-info">
+  <div
+    class="lane-info"
+    class:clickable={onToggleExpand}
+    class:expanded={isExpanded}
+    onclick={onToggleExpand}
+    onkeydown={() => {}}
+    role="button"
+    tabindex={onToggleExpand ? 0 : undefined}
+    title={isExpanded ? "Click to collapse" : "Click to expand"}
+  >
     <span class="lane-number">Lane {laneIndex + 1}</span>
     {#if modelName}
       <span class="lane-model">{modelName}</span>
+    {/if}
+    {#if onToggleExpand}
+      <i class="pi pi-{isExpanded ? 'compress' : 'arrows-h'} expand-icon"></i>
     {/if}
   </div>
   {#if onSelect}
@@ -59,6 +77,29 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.8125rem;
+    flex: 1;
+  }
+
+  .lane-info.clickable {
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    margin: -0.25rem -0.5rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .lane-info.clickable:hover {
+    background: var(--surface-hover, #f0f0f0);
+  }
+
+  .lane-info.expanded {
+    background: var(--primary-color-subtle, #e8eaff);
+  }
+
+  .expand-icon {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666);
   }
 
   .lane-number {

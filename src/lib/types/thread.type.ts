@@ -11,6 +11,11 @@ export type BranchType = 'prompt-variation' | 'model-variation' | null;
 export interface Message {
   id: string;
   clientMessageId?: string;
+
+  threadId: string;
+  branchId: string;
+  modelId?: string | null;
+
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;
@@ -23,10 +28,9 @@ export interface Message {
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
   attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
-  /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
-  branchId: string;
-  modelId?: string | null;
-  isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
+
+  isHidden?: boolean;
+  isLocal?: boolean;
 }
 
 export interface Thread {

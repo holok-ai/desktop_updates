@@ -4,13 +4,14 @@ import { DesktopChatService, ToolOrchestrator } from '../services/chat/index.js'
 import type { DesktopChatRequest, ToolStatus } from '../services/chat/index.js';
 import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
+import { modelRepository } from '../repository/model-repository.js';
 import log from 'electron-log';
 
 /**
  * Chat IPC Handlers
  * Handles all chat-related IPC communication between renderer and main process.
  * Manages ChatService lifecycle and streaming token responses.
- * 
+ *
  * INTERIM SOLUTION: Uses Map<threadId, DesktopChatService> for per-thread service management.
  * Future ticket (#361) will replace this with StreamManager architecture.
  */
@@ -37,74 +38,70 @@ export function registerChatHandlers(auth?: AuthService): void {
    * Create Chat Provider - Initialize ChatService for a thread
    */
   ipcMain.handle(
-    'chat:createProvider',
+    'chat:createServiceForThread',
     async (
       _event,
       threadId: string,
+      modelAccessName: string,
       providerType: string,
       config: ProviderConfig,
-      workingDirectory?: string
+      workingDirectory?: string,
     ): Promise<{ success: boolean; error?: string }> => {
-      log.info('[IPC] chat:createProvider called', {
-        threadId,
-        providerType,
-        config, 
-        workingDirectory
-      });
-
       try {
         // Inject access token from auth service if available
-        log.info('[IPC] Token injection check:', {
-          provider: providerType,
-          hasAuthService: !!authService,
-        });
-
         if (authService) {
           try {
             const accessToken = await authService.getAccessToken();
-            const tokenPreview = accessToken ? `${accessToken.slice(0, 10)}...` : '(empty)';
             config.apiKey = accessToken;
-            log.info('[IPC] Access token injected into chat provider config:', tokenPreview);
-          } catch (error) {
-            log.error('[IPC] Could not get access token:', error);
-            log.warn('[IPC] Using provided apiKey (if any)');
+          } catch (_error) {
+            log.warn('[IPC] Could not get access token, using provided apiKey');
           }
-        } else {
-          log.warn('[IPC] No auth service available for token injection');
+        }
+
+        // Look up model details if modelAccessName provided
+        if (modelAccessName) {
+          const allModels = await modelRepository.listAll();
+          const foundModel = allModels.find((m) => m.accessName === modelAccessName);
+
+          if (foundModel) {
+            providerType = foundModel.provider;
+
+            // Look up application by applicationSlug to get apiKey
+            const allApplications = await modelRepository.listAllApplications();
+            const foundApplication = allApplications.find(
+              (app) => app.slug === foundModel.applicationSlug,
+            );
+
+            if (foundApplication) {
+              const appApiKey = (foundApplication as { apiKey?: string }).apiKey;
+              if (appApiKey) {
+                config.apiKey = appApiKey;
+              }
+            }
+
+            // Update config with model details
+            config.model = foundModel.accessName;
+            if (foundModel.url) {
+              (config as { url?: string }).url = foundModel.url;
+            }
+          }
         }
 
         // Create DesktopChatService for this thread
         const newConfig: ProviderConfig = {
-          url: (config as { url?: string }).url ?? '', // Will use default if empty
+          url: (config as { url?: string }).url ?? '',
           apiKey: config.apiKey ?? '',
           model: config.model,
         };
 
-        log.info('[IPC] Creating DesktopChatService with config:', {
-          provider: providerType,
-          url: newConfig.url,
-          model: newConfig.model,
-          hasApiKey: !!newConfig.apiKey,
-          apiKeyLength: newConfig.apiKey?.length || 0,
-        });
-        const chatService = new DesktopChatService(
-          providerType,
-          newConfig,
-          workingDirectory
-        );
+        const chatService = new DesktopChatService(providerType, newConfig, workingDirectory);
 
         // Store in map
         chatServices.set(threadId, chatService);
 
-        log.info('[IPC] DesktopChatService created for thread:', {
-          threadId,
-          provider: providerType,
-          model: config.model,
-          url: newConfig.url || 'default'
-        });
         return { success: true };
       } catch (error) {
-        log.error('[IPC] Error creating chat provider:', error);
+        log.error('[IPC] Error creating chat service:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
       }
@@ -152,7 +149,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           },
           (status: ToolStatus) => {
             event.sender.send('chat:toolStatus', { threadId, ...status });
-          }
+          },
         );
         log.info('[IPC] Chat message sent successfully');
         return { success: true };
@@ -206,7 +203,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       const orchestrator = ToolOrchestrator.getInstance();
       orchestrator.setAllowedPaths(allowedPaths);
       return { success: true };
-    }
+    },
   );
 
   log.info('[IPC] Chat handlers registered');
@@ -216,7 +213,7 @@ export function registerChatHandlers(auth?: AuthService): void {
  * Unregister chat handlers - Called when app is closing
  */
 export function unregisterChatHandlers(): void {
-  ipcMain.removeHandler('chat:createProvider');
+  ipcMain.removeHandler('chat:createServiceForThread');
   ipcMain.removeHandler('chat:send');
   ipcMain.removeHandler('chat:getAuditLogs');
   ipcMain.removeHandler('chat:destroyProvider');

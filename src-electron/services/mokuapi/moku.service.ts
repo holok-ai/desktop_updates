@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/require-await */
 /**
  * Moku Service
  * - Handles all API calls to Moku backend

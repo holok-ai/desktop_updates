@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { querystring, push } from 'svelte-spa-router';
-  import { ROUTE } from '$lib/constants/route.constant';
+  import { onMount as _onMount } from 'svelte';
+  import { querystring, push as _push } from 'svelte-spa-router';
+  import { ROUTE as _ROUTE } from '$lib/constants/route.constant';
   import type { Project, UserSummaryDTO } from '$lib/types/project.type';
   import { projectService } from '$lib/services/project.service';
 
@@ -67,7 +67,7 @@
     }
   }
 
-  function handleUserCheckboxChange(user: UserSummaryDTO, checked: boolean): void {
+  function _handleUserCheckboxChange(user: UserSummaryDTO, checked: boolean): void {
     if (checked) {
       selectedUsers.set(user.id, 'viewer');
     } else {
@@ -83,7 +83,7 @@
     }
   }
 
-  async function handleAddMembers(role: 'viewer' | 'editor'): Promise<void> {
+  async function _handleAddMembers(role: 'viewer' | 'editor'): Promise<void> {
     if (!project || selectedUsers.size === 0) {
       return;
     }
@@ -217,7 +217,9 @@
                   </button>
                 {/if}
                 <div class="member-role">
-                  <span class="role-badge role-{member.memberRole.toLowerCase()}">{member.memberRole}</span>
+                  <span class="role-badge role-{member.memberRole.toLowerCase()}"
+                    >{member.memberRole}</span
+                  >
                 </div>
               </div>
             {/each}
@@ -546,5 +548,4 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-
 </style>
