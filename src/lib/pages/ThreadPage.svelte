@@ -81,6 +81,16 @@
         agentId,
       );
 
+      // Load models for the specific agent (if available)
+      if (agentId) {
+        console.log('[ThreadPage] Loading models for agentId:', agentId);
+        availableModels = await window.electronAPI.models.getModelsForApplication(agentId);
+        console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
+      } else {
+        console.log('[ThreadPage] No agentId - loading all models');
+        availableModels = await window.electronAPI.models.listAll();
+      }
+
       // Load messages for this thread
       const msgs = await threadService.getMessages(id);
       messages = msgs;
@@ -112,7 +122,6 @@
         threadTitle = '';
         messages = [];
       }
-
     }
   });
 
@@ -127,11 +136,15 @@
       console.warn('[ThreadPage] Could not load settings:', e);
     }
 
-    // Load available models
-    try {
-      availableModels = await window.electronAPI.models.listAll();
-    } catch (e) {
-      console.warn('[ThreadPage] Could not load models:', e);
+    // Load available models only if no thread (new thread scenario)
+    // For existing threads, models are loaded in loadThread() based on agentId
+    if (!threadId) {
+      try {
+        console.log('[ThreadPage] New thread - loading all models');
+        availableModels = await window.electronAPI.models.listAll();
+      } catch (e) {
+        console.warn('[ThreadPage] Could not load models:', e);
+      }
     }
   });
 </script>
