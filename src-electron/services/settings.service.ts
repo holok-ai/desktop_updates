@@ -74,22 +74,18 @@ export interface AppSettings {
  * Using environment variables with localhost fallback for development/testing
  */
 const DEFAULT_SETTINGS: AppSettings = {
-  // Development Moku web URL (for SSO testing)
+  // Production Moku web URL (for SSO testing)
   // NOTE: This should be the Moku web app URL, NOT the desktop app URL
-  mokuWebUrl: 'http://localhost:4200', // Moku web runs on different port
+  mokuWebUrl: 'https://moku.holokai.dev',
 
-  // Development Moku API URL - configurable via environment variable
-  mokuApiUrl: 'http://localhost:8080',
+  // Production Moku API URL
+  mokuApiUrl: 'https://moku.holokai.dev',
 
-  // Default Holo API URL (user-configurable)
+  // Production Holo API URL (user-configurable)
   holoApiUrl: DEFAULT_HOLO_API_URL,
 
   // Directory Whitelist - empty by default
   directoryWhitelist: [],
-
-  // Production alternatives (commented out):
-  // mokuWebUrl: 'https://moku.holokai.com',
-  // mokuApiUrl: 'https://moku.holokai.com/api',
 
   // Appearance
   theme: 'light',
