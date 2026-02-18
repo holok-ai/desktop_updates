@@ -30,26 +30,32 @@ export interface DesktopThreadDTO extends ThreadDTO {
 /**
  * LLM execution status for messages
  */
-export type LLMStatus = 'success' | 'error' | 'timeout' | 'partial' | 'rate_limited' | 'invalid_request';
+export type LLMStatus =
+  | 'success'
+  | 'error'
+  | 'timeout'
+  | 'partial'
+  | 'rate_limited'
+  | 'invalid_request';
 
 /**
  * Message DTO from Moku API
  */
- export interface MessageDTO {
-      id: string;                    // UUID as string
-      threadId: string;              // UUID as string
-      branchId: string | null;
-      model: string | null;
-      provider: string | null;
-      role: string | null;
-      content: any;                  // JSONB content array from API
-      rawData: any;                  // JSONB from llm_responses
-      status: LLMStatus | null;      // LLM execution status
-      options: any;                  // JSONB from llm_requests
-      createdUserId: string | null;
-      createdAt: string;             // ISO 8601 date string
-      updatedAt: string;             // ISO 8601 date string
-  }
+export interface MessageDTO {
+  id: string; // UUID as string
+  threadId: string; // UUID as string
+  branchId: string | null;
+  model: string | null;
+  provider: string | null;
+  role: string | null;
+  content: unknown; // JSONB content from API
+  rawData: unknown; // JSONB from llm_responses
+  status: LLMStatus | null; // LLM execution status
+  options: unknown; // JSONB from llm_requests
+  createdUserId: string | null;
+  createdAt: string; // ISO 8601 date string
+  updatedAt: string; // ISO 8601 date string
+}
 
 // export interface MessageDTO {
 //   id: string;

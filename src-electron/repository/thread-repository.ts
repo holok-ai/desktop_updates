@@ -33,7 +33,7 @@ export interface Message {
   userId: string;
   content: string;
   createdAt: number;
-  rawData?: any;
+  rawData?: MessageMetadata;
   attachments?: Attachment[];
   clientMessageId?: string;
   deletedAt?: number | null;
@@ -81,13 +81,13 @@ export interface Thread {
 }
 
 export class ThreadRepository {
-  private readonly MAX_FILE_SIZE = 10 * 1024 * 1024; 
+  private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
 
   // API-first architecture - no longer loading from local disk
   // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
-  
+
   private parseApiTimeMs(value: unknown): number {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
     if (value instanceof Date) return value.getTime();
@@ -171,9 +171,10 @@ export class ThreadRepository {
     const filtered: MessageDTO[] = [];
 
     for (const dto of messageDTOs) {
-      const branchId = dto.options?.branch_id || dto.branchId || '1.0';
+      const branchId =
+        (dto.options as { branch_id?: string } | null)?.branch_id ?? dto.branchId ?? '1.0';
       // Create key from role, content, and branchId to catch all duplicates
-      const key = `${dto.role}:${dto.content}:${branchId}`;
+      const key = `${dto.role}:${String(dto.content)}:${branchId}`;
 
       // Check if we've seen this exact message on this branch before
       if (seen.has(key)) {
@@ -410,7 +411,7 @@ export class ThreadRepository {
       role,
       content,
       branchId: this.normalizeBranchId(thread.currentBranchId),
-      provider: ''
+      provider: '',
     });
   }
 
@@ -427,7 +428,7 @@ export class ThreadRepository {
       clientMessageId?: string;
       branchId?: string;
       modelId?: string | null;
-      provider?: string | null; 
+      provider?: string | null;
     },
   ): Promise<Message> {
     // Check local idempotency cache first
@@ -478,18 +479,18 @@ export class ThreadRepository {
     const branchId = this.normalizeBranchId(rawBranchId);
     const message: Message = {
       id: crypto.randomUUID(), // Generate local ID
-      threadId: threadId, 
+      threadId: threadId,
       title: thread.title,
       role: payload.role,
       content: payload.content,
       createdAt: now,
       userId: '',
-      rawData: payload.metadata as any | undefined,
+      rawData: payload.metadata as MessageMetadata | undefined,
       clientMessageId: payload.clientMessageId,
       deletedAt: null,
       branchId: branchId,
       modelId: payload.modelId ?? '',
-      provider: payload.provider || ''
+      provider: payload.provider || '',
     };
 
     // log.info('[ThreadRepository] Created message locally:', message.id, 'branchId:', branchId);
@@ -573,7 +574,6 @@ export class ThreadRepository {
     // Delegate to appendMessageLocal for local-only creation
     return this.appendMessageLocal(threadId, payload);
   }
-
 
   // public async addUserPrompt(
   //   threadId: string | null | undefined,
@@ -992,7 +992,6 @@ export class ThreadRepository {
     };
   }
 
-  
   public getMessageVersions(threadId: string, messageId: string): MessageVersion[] {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
@@ -1002,7 +1001,6 @@ export class ThreadRepository {
 
     return message.versions ? [...message.versions] : [];
   }
-
 
   /**
    * Get a single message by ID within a thread.
@@ -1219,8 +1217,8 @@ export class ThreadRepository {
   private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
     // Extract branchId from dto.branchId or from options.branch_id
     let branchId = dto.branchId;
-    if (!branchId && dto.options?.branch_id) {
-      branchId = dto.options.branch_id;
+    if (!branchId && (dto.options as { branch_id?: string } | null)?.branch_id) {
+      branchId = (dto.options as { branch_id?: string }).branch_id ?? null;
     }
     // Fallback to "1.0.0" for legacy messages without branchId
     if (!branchId) {
@@ -1232,10 +1230,9 @@ export class ThreadRepository {
     }
 
     // Log rawData type and preview for debugging
-    const rawDataType = typeof dto.rawData; 
-    const metadataPreview = rawDataType === 'string'
-      ? (dto.rawData as unknown as string).substring(0, 100) + '...'
-      : dto.rawData;
+    const rawDataType = typeof dto.rawData;
+    const _metadataPreview: unknown =
+      rawDataType === 'string' ? (dto.rawData as string).substring(0, 100) + '...' : dto.rawData;
 
     // log.info(
     //   '[ThreadRepository] Message branchId: ',
@@ -1247,7 +1244,7 @@ export class ThreadRepository {
     //   ', metadata type: ',
     //   rawDataType,
     //   ', metadata: ',
-    //   metadataPreview,
+    //   _metadataPreview,
     // );
 
     const message: Message = {
@@ -1256,21 +1253,23 @@ export class ThreadRepository {
       title: threadTitle,
       userId: dto.createdUserId || '',
       role: dto.role as MessageRole,
-      content: dto.content,
+      content: (dto.content as string) || '',
       createdAt: this.parseApiTimeMs(dto.createdAt),
-      rawData: dto.rawData as MessageMetadata | undefined,
+      rawData: (dto.rawData as MessageMetadata) || undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId,
       modelId: dto.model || '',
-      provider: dto.provider || ''
+      provider: dto.provider || '',
     };
 
     // If assistant message has no content but has rawData, set content to "empty"
-    if (message.role === 'assistant' &&
-        (!message.content || message.content.trim() === '') &&
-        message.rawData &&
-        Object.keys(message.rawData).length > 0) {
+    if (
+      message.role === 'assistant' &&
+      (!message.content || message.content.trim() === '') &&
+      message.rawData &&
+      Object.keys(message.rawData).length > 0
+    ) {
       // log.info('[ThreadRepository] Assistant message has empty content but has rawData, setting content to "empty":', message.id);
       message.content = 'empty';
     }
@@ -1312,10 +1311,10 @@ export class ThreadRepository {
       if (message.role === 'assistant' || message.role === 'system') {
         try {
           // Parse content if it's a string (might be JSON)
-          let content = message.content;
+          let content: unknown = message.content;
           if (typeof content === 'string') {
             try {
-              content = JSON.parse(content);
+              content = JSON.parse(content) as unknown;
             } catch {
               // Not JSON, skip
               continue;
@@ -1325,7 +1324,7 @@ export class ThreadRepository {
           // Check for guard response structure
           const hasResponse = content && typeof content === 'object' && 'response' in content;
           if (hasResponse) {
-            const guardContent = content as any;
+            const guardContent = content as { response: unknown };
             let response = guardContent.response;
 
             // The response field might be a JSON string, parse it
@@ -1339,12 +1338,8 @@ export class ThreadRepository {
             }
 
             // Now check if it has the guard structure (passed field is required, errors is optional)
-            if (
-              response &&
-              typeof response === 'object' &&
-              'passed' in response
-            ) {
-              const passed = response.passed;
+            if (response && typeof response === 'object' && 'passed' in response) {
+              const _passed = (response as { passed: boolean }).passed;
               // log.info('[ThreadRepository] Found guard message:', {
               //   messageId: message.id,
               //   role: message.role,
@@ -1377,14 +1372,20 @@ export class ThreadRepository {
             content &&
             typeof content === 'object' &&
             'type' in content &&
-            (content as any).type === 'error' &&
+            (content as { type: string }).type === 'error' &&
             'status' in content &&
-            (content as any).status === 400 &&
+            (content as { status: number }).status === 400 &&
             'requestId' in content &&
             'seq' in content &&
             'error' in content
           ) {
-            const errorContent = content as any;
+            const _errorContent = content as {
+              type: string;
+              status: number;
+              requestId: string;
+              seq: number;
+              error: unknown;
+            };
             // log.info('[ThreadRepository] Found error response (status 400):', {
             //   messageId: message.id,
             //   requestId: errorContent.requestId,
@@ -1405,7 +1406,10 @@ export class ThreadRepository {
   /**
    * Extract image attachments from response rawData based on provider
    */
-  private extractAttachmentsFromRawData(rawData: any, provider: string): Attachment[] | undefined {
+  private extractAttachmentsFromRawData(
+    rawData: unknown,
+    provider: string,
+  ): Attachment[] | undefined {
     // log.info('[ThreadRepository] extractAttachmentsFromRawData called', {
     //   hasRawData: !!rawData,
     //   provider,
@@ -1454,17 +1458,26 @@ export class ThreadRepository {
   /**
    * Extract image attachments from Gemini response rawData
    */
-  private extractGeminiAttachments(rawData: any): Attachment[] | undefined {
+  private extractGeminiAttachments(rawData: unknown): Attachment[] | undefined {
     try {
-      // log.info('[ThreadRepository] extractGeminiAttachments - checking rawData structure', {
-      //   hasMessage: !!rawData?.message,
-      //   hasUsageMetadata: !!rawData?.message?.usageMetadata,
-      //   hasCandidatesTokensDetails: !!rawData?.message?.usageMetadata?.candidatesTokensDetails,
-      //   candidatesTokensDetailsLength: rawData?.message?.usageMetadata?.candidatesTokensDetails?.length,
-      // });
+      // Type guard to check if rawData has the expected Gemini structure
+      if (!rawData || typeof rawData !== 'object') {
+        return undefined;
+      }
+
+      const data = rawData as Record<string, unknown>;
+      const message = data.message as Record<string, unknown> | undefined;
+      if (!message) {
+        return undefined;
+      }
+
+      const usageMetadata = message.usageMetadata as Record<string, unknown> | undefined;
+      const candidatesTokensDetails = usageMetadata?.candidatesTokensDetails as
+        | Array<{ modality?: string }>
+        | undefined;
 
       // Log the modality value - FIXED: it's candidatesTokensDetails (plural Tokens)
-      const modality = rawData?.message?.usageMetadata?.candidatesTokensDetails?.[0]?.modality;
+      const modality = candidatesTokensDetails?.[0]?.modality;
       // log.info('[ThreadRepository] Gemini modality check:', {
       //   modality,
       //   isImage: modality === 'IMAGE',
@@ -1481,16 +1494,17 @@ export class ThreadRepository {
       // log.info('[ThreadRepository] Image detected! Extracting inline data...');
 
       // Get all parts from the response
-      const parts = rawData?.message?.candidates?.[0]?.content?.parts;
+      const candidates = message.candidates as Array<Record<string, unknown>> | undefined;
+      const content = candidates?.[0]?.content as Record<string, unknown> | undefined;
+      const parts = content?.parts as Array<Record<string, unknown>> | undefined;
 
       // log.info('[ThreadRepository] Checking candidates structure', {
-      //   hasCandidates: !!rawData?.message?.candidates,
-      //   candidatesLength: rawData?.message?.candidates?.length,
-      //   hasFirstCandidate: !!rawData?.message?.candidates?.[0],
-      //   hasContent: !!rawData?.message?.candidates?.[0]?.content,
+      //   hasCandidates: !!message.candidates,
+      //   candidatesLength: (message.candidates as Array<unknown> | undefined)?.length,
+      //   hasFirstCandidate: !!candidates?.[0],
+      //   hasContent: !!candidates?.[0]?.content,
       //   hasParts: !!parts,
       //   partsLength: parts?.length,
-      //   partsTypes: parts?.map((p: any, i: number) => ({ index: i, hasText: !!p.text, hasInlineData: !!p.inlineData })),
       // });
 
       if (!parts || parts.length === 0) {
@@ -1499,24 +1513,28 @@ export class ThreadRepository {
       }
 
       // FIXED: Find the part with inlineData (image can be in any part, not just first)
-      const imagePart = parts.find((part: any) => part.inlineData);
+      const imagePart = parts.find((part) => 'inlineData' in part && part.inlineData);
+
+      if (!imagePart || !('inlineData' in imagePart)) {
+        return undefined;
+      }
+
+      const inlineData = imagePart.inlineData as { mimeType?: string; data?: string } | undefined;
 
       // log.info('[ThreadRepository] InlineData search:', {
       //   foundImagePart: !!imagePart,
-      //   hasMimeType: !!imagePart?.inlineData?.mimeType,
-      //   mimeType: imagePart?.inlineData?.mimeType,
-      //   hasData: !!imagePart?.inlineData?.data,
-      //   dataLength: imagePart?.inlineData?.data?.length,
+      //   hasMimeType: !!inlineData?.mimeType,
+      //   mimeType: inlineData?.mimeType,
+      //   hasData: !!inlineData?.data,
+      //   dataLength: inlineData?.data?.length,
       // });
 
-      if (!imagePart?.inlineData || !imagePart.inlineData.mimeType || !imagePart.inlineData.data) {
+      if (!inlineData || !inlineData.mimeType || !inlineData.data) {
         // log.warn('[ThreadRepository] Gemini image found but inlineData is incomplete', {
         //   imagePart,
         // });
         return undefined;
       }
-
-      const inlineData = imagePart.inlineData;
 
       // Calculate size from base64 data
       const base64Data = inlineData.data;
@@ -1533,7 +1551,8 @@ export class ThreadRepository {
       };
 
       // Clear the inlineData from rawData to save space (data is now in attachment)
-      delete imagePart.inlineData.data;
+      const inlineDataMutable = inlineData as { data?: string };
+      delete inlineDataMutable.data;
       // log.info('[ThreadRepository] Cleared inlineData from rawData to save space');
 
       // log.info('[ThreadRepository] ✅ Successfully extracted Gemini image attachment:', {

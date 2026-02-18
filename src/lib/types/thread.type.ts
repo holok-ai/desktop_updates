@@ -12,7 +12,7 @@ export interface Message {
   id: string;
   clientMessageId?: string;
 
-  thread_id: string; 
+  threadId: string;
   branchId: string;
   modelId?: string | null;
 
@@ -29,8 +29,8 @@ export interface Message {
   metadata?: MessageMetadata;
   attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
 
-  isHidden?: boolean; 
-  isLocal?:  boolean;
+  isHidden?: boolean;
+  isLocal?: boolean;
 }
 
 export interface Thread {

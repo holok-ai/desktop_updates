@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * ThreadChatView — Interactive chat view for user interaction with models 
+   * ThreadChatView — Interactive chat view for user interaction with models
    */
   import { onMount, onDestroy, tick } from 'svelte';
   import ChatMessage from './ChatMessage.svelte';
@@ -132,13 +132,12 @@
       modelAccessName = detail.accessName;
       applicationSlug = detail.applicationSlug;
 
-    console.log('[ThreadChatView] extractModelInfo - found model:', {
-      modelId,
-      modelAccessName,
-      applicationSlug, 
-      availableModelsCount: availableModels.length
-    });
-
+      console.log('[ThreadChatView] extractModelInfo - found model:', {
+        modelId,
+        modelAccessName,
+        applicationSlug,
+        availableModelsCount: availableModels.length,
+      });
     } else {
       console.log('[ThreadChatView] extractModelInfo - model NOT found in availableModels');
     }
@@ -165,7 +164,6 @@
       return { success: false, created: false };
     }
 
-
     // Verify we have required model info
     if (!modelDetail.provider) {
       error = 'Cannot initialise chat: missing model info';
@@ -175,7 +173,7 @@
     // Create or recreate the provider
     const result = await window.electronAPI.chat.createServiceForThread(
       thread.id,
-      modelDetail.accessName, 
+      modelDetail.accessName,
       modelDetail.provider,
       { url: modelDetail.url, model: modelDetail.accessName },
       (thread.metadata?.workingDirectory as string) || undefined,
@@ -219,12 +217,14 @@
 
     // Subscribe to stream for this thread + branch
     unsubscribeStream = threadService.subscribeToStream(thread.id, branchId, (token: string) => {
-      addDebugLog(`[ThreadChatView] Received token (length: ${token.length}): "${token.substring(0, 20)}..."`);
+      addDebugLog(
+        `[ThreadChatView] Received token (length: ${token.length}): "${token.substring(0, 20)}..."`,
+      );
       console.log('[ThreadChatView] Received streaming token:', {
         branchId,
         tokenLength: token.length,
         tokenPreview: token.substring(0, 50),
-        fullToken: token  // Show complete token
+        fullToken: token, // Show complete token
       });
 
       // First token: clear no-response timeout
@@ -261,27 +261,34 @@
     text: string,
     _attachments?: Attachment[],
   ) {
-
     // Validation
     if (!text.trim() || isStreaming) return;
-    const threadId: string = thread?.id || ''; 
+    const threadId: string = thread?.id || '';
 
     error = '';
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
-    const branchId = await threadService.calculateNextBranchId(threadId, lastMessageBranchId || '0.0.0' );
+    const branchId = await threadService.calculateNextBranchId(
+      threadId,
+      lastMessageBranchId || '0.0.0',
+    );
 
     // Delegate to appropriate handler
     const multipleModels = modelIds.length > 1;
     if (multipleModels) {
-      await sendMessageBranch(modelIds, branchId, text);
+      await sendMessageBranch(threadId, modelIds, branchId, text);
     } else {
-      await sendMessageSingle(threadId, branchId, modelIds[0],  text);
+      await sendMessageSingle(threadId, branchId, modelIds[0], text);
     }
   }
 
   // ── Send message to multiple models (branches) ──
-  async function sendMessageBranch(modelIds: string[], branchId: string, text: string) {
+  async function sendMessageBranch(
+    threadId: string,
+    modelIds: string[],
+    branchId: string,
+    text: string,
+  ) {
     if (!thread) return;
 
     // Extract base row from branchId (e.g., "5.0.0" -> 5)
@@ -304,7 +311,7 @@
       const userClientMessageId = crypto.randomUUID();
       const userMsg: Message = {
         id: userClientMessageId,
-        thread_id: thread.id || '', 
+        threadId: threadId,
         clientMessageId: userClientMessageId,
         role: 'user',
         content: text,
@@ -318,6 +325,7 @@
       const assistantClientMessageId = crypto.randomUUID();
       const assistantMsg: Message = {
         id: assistantClientMessageId,
+        threadId: thread.id,
         clientMessageId: assistantClientMessageId,
         role: 'assistant',
         content: '',
@@ -355,7 +363,7 @@
 
           // Update the corresponding assistant message in the messages array
           const assistantMsgIndex = messages.findIndex(
-            (m) => m.role === 'assistant' && m.branchId === branch.branchId
+            (m) => m.role === 'assistant' && m.branchId === branch.branchId,
           );
           if (assistantMsgIndex !== -1) {
             // Create new array with updated message for Svelte reactivity
@@ -435,15 +443,25 @@
   }
 
   // ── Send message to single model ──
-  async function sendMessageSingle(threadId: string, branchId: string,  modelId: string, promptText: string) {
+  async function sendMessageSingle(
+    threadId: string,
+    branchId: string,
+    modelId: string,
+    promptText: string,
+  ) {
+    // add new prompt as "local" message - let thread-repository replace it once it shows up in llm_requests
+    const [success, newMessage]: [boolean, Message] = await threadService.appendPrompt(
+      threadId,
+      branchId,
+      promptText,
+      modelId,
+      messages,
+    );
+    if (!success || !newMessage) return;
 
-        // add new prompt as "local" message - let thread-repository replace it once it shows up in llm_requests
-      const [success, newMessage]: [boolean, Message] = await threadService.appendPrompt(threadId, branchId, promptText, modelId, messages); 
-      if (!success || !newMessage) return; 
-
-      messages = [...messages,  newMessage]; 
-        await tick();
-        scrollToBottom();
+    messages = [...messages, newMessage];
+    await tick();
+    scrollToBottom();
 
     // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
@@ -465,12 +483,15 @@
       }
     }, STREAMING_IDLE_TIMEOUT_MS);
 
-
     try {
-
-      const chatSuccess : boolean = await threadService.submitPromptToChat(threadId, branchId, modelId, messages); 
+      const chatSuccess: boolean = await threadService.submitPromptToChat(
+        threadId,
+        branchId,
+        modelId,
+        messages,
+      );
       if (!chatSuccess) {
-        const errorMessage =  'Chat failed';
+        const errorMessage = 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
         handleGuardError(errorMessage, branchId);
         isStreaming = false;
@@ -481,15 +502,17 @@
       if (thread && responseText) {
         console.log('[ThreadChatView] Streaming complete. Final responseText:', {
           length: responseText.length,
-          content: responseText
+          content: responseText,
         });
-        addDebugLog(`[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars)`);
+        addDebugLog(
+          `[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars)`,
+        );
         await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelName);
 
         // Append assistant message to local list
         const assistantMsg: Message = {
           id: crypto.randomUUID(),
-          thread_id: threadId, 
+          threadId,
           role: 'assistant',
           content: responseText,
           createdAt: Date.now(),
@@ -523,26 +546,25 @@
   // ── Helpers ──
   function handleGuardError(errorMessage: string, branchId: string) {
     // Check if this is a guard/PII error
-    const isGuardError = errorMessage.includes('personally identifiable') ||
-                         errorMessage.includes('PII') ||
-                         errorMessage.includes('inappropriate') ||
-                         errorMessage.includes('not allowed') ||
-                         errorMessage.includes('guard') ||
-                         errorMessage.includes('blocked') ||
-                         errorMessage.includes('ResponseError') ||
-                         errorMessage.includes('detected:') ||
-                         errorMessage.includes('Physical address') ||
-                         errorMessage.includes('Social Security Number') ||
-                         errorMessage.includes('credit card') ||
-                         errorMessage.includes('Potential');
+    const isGuardError =
+      errorMessage.includes('personally identifiable') ||
+      errorMessage.includes('PII') ||
+      errorMessage.includes('inappropriate') ||
+      errorMessage.includes('not allowed') ||
+      errorMessage.includes('guard') ||
+      errorMessage.includes('blocked') ||
+      errorMessage.includes('ResponseError') ||
+      errorMessage.includes('detected:') ||
+      errorMessage.includes('Physical address') ||
+      errorMessage.includes('Social Security Number') ||
+      errorMessage.includes('credit card') ||
+      errorMessage.includes('Potential');
 
     if (isGuardError) {
       error = `🛡️ Message blocked by security guard: ${errorMessage}`;
 
       // Find the request message that triggered the guard
-      const requestMessage = messages.find(
-        m => m.branchId === branchId && m.role === 'user'
-      );
+      const requestMessage = messages.find((m) => m.branchId === branchId && m.role === 'user');
 
       if (requestMessage) {
         // Save the original prompt text
@@ -561,7 +583,7 @@
       // Add a system message to the thread
       const guardMessage: Message = {
         id: crypto.randomUUID(),
-        thread_id: thread?.id || '', 
+        threadId: thread?.id || '',
         role: 'system',
         content: `**⚠️ Message Blocked**\n\n${errorMessage}\n\n*Your message was not sent to the model. It has been restored to the input field for editing.*`,
         createdAt: Date.now(),
@@ -804,11 +826,7 @@
                 <i class="pi pi-microchip-ai"></i>
                 Model
               </label>
-              <select
-                id="model-select"
-                class="model-dropdown"
-                bind:value={selectedModelKey}
-              >
+              <select id="model-select" class="model-dropdown" bind:value={selectedModelKey}>
                 {#each availableModels as m}
                   <option value="{m.provider}::{m.id}">
                     {m.title} ({m.provider})
@@ -836,7 +854,11 @@
           onCopyRequest={() => copyToInput(item.pair.request.content)}
         />
       {:else if item.type === 'branch'}
-        {console.log('[ThreadChatView] Rendering ChatBranch:', { branchId: item.id, laneCount: item.lanes.length, lanes: item.lanes })}
+        {console.log('[ThreadChatView] Rendering ChatBranch:', {
+          branchId: item.id,
+          laneCount: item.lanes.length,
+          lanes: item.lanes,
+        })}
         <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
       {/if}
     {/each}

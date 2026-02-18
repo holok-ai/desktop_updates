@@ -218,7 +218,13 @@ export function registerThreadHandlers(): void {
       .filter((m) => !m.deletedAt)
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((m) => ({ ...m }));
-    threadLog.info('[thread:getMessages] Loaded', t.messages.length, 'total, returning', items.length, 'after filtering');
+    threadLog.info(
+      '[thread:getMessages] Loaded',
+      t.messages.length,
+      'total, returning',
+      items.length,
+      'after filtering',
+    );
     return items;
   });
 
@@ -280,9 +286,9 @@ export function registerThreadHandlers(): void {
         const msg: Message = await threadRepository.appendMessage(threadId, {
           role: 'user',
           content: original.content,
-          metadata: original.rawData,
+          metadata: original.rawData as Record<string, unknown> | undefined,
           modelId: original.modelId,
-          provider: original.provider
+          provider: original.provider,
         });
         const rt = toRendererThread(await threadRepository.loadThread(threadId));
         if (!rt) throw new Error('Failed to convert thread after duplicate');
@@ -585,7 +591,11 @@ export function registerThreadHandlers(): void {
   // Switch active branch
   ipcMain.handle(
     'thread:switchBranch',
-    async (_event, threadId: string, branchId: string): Promise<{ success: true; thread: RendererThread } | { success: false; error: string }> => {
+    async (
+      _event,
+      threadId: string,
+      branchId: string,
+    ): Promise<{ success: true; thread: RendererThread } | { success: false; error: string }> => {
       try {
         const thread = await threadRepository.switchBranch(threadId, branchId);
         if (!thread) {
@@ -607,7 +617,11 @@ export function registerThreadHandlers(): void {
   // Delete a branch
   ipcMain.handle(
     'thread:deleteBranch',
-    async (_event, threadId: string, branchId: string): Promise<{ success: true } | { success: false; error: string }> => {
+    async (
+      _event,
+      threadId: string,
+      branchId: string,
+    ): Promise<{ success: true } | { success: false; error: string }> => {
       try {
         threadRepository.deleteBranch(threadId, branchId);
         // Broadcast thread update after branch deletion
@@ -683,8 +697,7 @@ export function registerThreadHandlers(): void {
 
       try {
         // Extract branchId from payload if provided
-        const branchId = payload.branch_id ??
-          (payload.metadata?.branchId as string | undefined);
+        const branchId = payload.branch_id ?? (payload.metadata?.branchId as string | undefined);
 
         const msg: Message = await threadRepository.appendMessage(threadId, {
           role: payload.role,
@@ -692,7 +705,7 @@ export function registerThreadHandlers(): void {
           metadata: payload.metadata,
           clientMessageId: payload.client_message_id,
           branchId,
-          provider: ''
+          provider: '',
         });
 
         const rt = toRendererThread(await threadRepository.loadThread(threadId));
@@ -1074,7 +1087,6 @@ export function registerThreadHandlers(): void {
     },
   );
 
- 
   threadLog.info('Handlers registered');
 }
 

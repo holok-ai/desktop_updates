@@ -1215,7 +1215,7 @@ class oi {
         model: e,
         messages: n,
         tools: o,
-        max_tokens: 4096,
+        max_tokens: 16096,
         ...i
       };
       console.log("[ClaudeToolHandler] Creating stream with params", {
@@ -1223,7 +1223,7 @@ class oi {
         messagesCount: n.length,
         toolsCount: o.length,
         threadContext: i,
-        max_tokens: 4096,
+        max_tokens: 16096,
         fullParams: JSON.stringify(f, null, 2).substring(0, 500)
       });
       let m;
@@ -1268,7 +1268,7 @@ class oi {
           errorMessage: y instanceof Error ? y.message : String(y)
         });
       }), console.log("[ClaudeToolHandler] Stream started, waiting for final message");
-      const p = 3e4, h = new Promise((y, _) => {
+      const p = 6e4, h = new Promise((y, _) => {
         setTimeout(() => _(new Error(`Stream timeout after ${p}ms`)), p);
       }), g = await Promise.race([
         m.finalMessage(),

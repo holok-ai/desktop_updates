@@ -11,7 +11,7 @@ import log from 'electron-log';
  * Chat IPC Handlers
  * Handles all chat-related IPC communication between renderer and main process.
  * Manages ChatService lifecycle and streaming token responses.
- * 
+ *
  * INTERIM SOLUTION: Uses Map<threadId, DesktopChatService> for per-thread service management.
  * Future ticket (#361) will replace this with StreamManager architecture.
  */
@@ -45,7 +45,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       modelAccessName: string,
       providerType: string,
       config: ProviderConfig,
-      workingDirectory?: string
+      workingDirectory?: string,
     ): Promise<{ success: boolean; error?: string }> => {
       try {
         // Inject access token from auth service if available
@@ -53,7 +53,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           try {
             const accessToken = await authService.getAccessToken();
             config.apiKey = accessToken;
-          } catch (error) {
+          } catch (_error) {
             log.warn('[IPC] Could not get access token, using provided apiKey');
           }
         }
@@ -61,17 +61,19 @@ export function registerChatHandlers(auth?: AuthService): void {
         // Look up model details if modelAccessName provided
         if (modelAccessName) {
           const allModels = await modelRepository.listAll();
-          const foundModel = allModels.find(m => m.accessName === modelAccessName);
+          const foundModel = allModels.find((m) => m.accessName === modelAccessName);
 
           if (foundModel) {
             providerType = foundModel.provider;
 
             // Look up application by applicationSlug to get apiKey
             const allApplications = await modelRepository.listAllApplications();
-            const foundApplication = allApplications.find(app => app.slug === foundModel.applicationSlug);
+            const foundApplication = allApplications.find(
+              (app) => app.slug === foundModel.applicationSlug,
+            );
 
             if (foundApplication) {
-              const appApiKey = (foundApplication as any).apiKey;
+              const appApiKey = (foundApplication as { apiKey?: string }).apiKey;
               if (appApiKey) {
                 config.apiKey = appApiKey;
               }
@@ -92,11 +94,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           model: config.model,
         };
 
-        const chatService = new DesktopChatService(
-          providerType,
-          newConfig,
-          workingDirectory
-        );
+        const chatService = new DesktopChatService(providerType, newConfig, workingDirectory);
 
         // Store in map
         chatServices.set(threadId, chatService);
@@ -151,7 +149,7 @@ export function registerChatHandlers(auth?: AuthService): void {
           },
           (status: ToolStatus) => {
             event.sender.send('chat:toolStatus', { threadId, ...status });
-          }
+          },
         );
         log.info('[IPC] Chat message sent successfully');
         return { success: true };
@@ -205,7 +203,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       const orchestrator = ToolOrchestrator.getInstance();
       orchestrator.setAllowedPaths(allowedPaths);
       return { success: true };
-    }
+    },
   );
 
   log.info('[IPC] Chat handlers registered');

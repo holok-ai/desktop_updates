@@ -39,25 +39,23 @@ export class ThreadService extends BaseElectronService {
     this.registerCleanup(unsubDeleted);
 
     // Listen for streaming token events
-    const unsubTokens = window.electronAPI.chat.onToken((data: {
-      threadId: string;
-      branchId: string;
-      token: string;
-    }) => {
-      if (!data.branchId) {
-        console.error('[ThreadService] Token event missing branchId - this is an error!', data);
-        return;
-      }
+    const unsubTokens = window.electronAPI.chat.onToken(
+      (data: { threadId: string; branchId: string; token: string }) => {
+        if (!data.branchId) {
+          console.error('[ThreadService] Token event missing branchId - this is an error!', data);
+          return;
+        }
 
-      const key = this.buildStreamKey(data.threadId, data.branchId);
-      const callbacks = this.streamCallbacks.get(key);
+        const key = this.buildStreamKey(data.threadId, data.branchId);
+        const callbacks = this.streamCallbacks.get(key);
 
-      if (callbacks) {
-        callbacks.forEach(callback => callback(data.token));
-      } else {
-        console.warn('[ThreadService] No subscribers for stream:', key);
-      }
-    });
+        if (callbacks) {
+          callbacks.forEach((callback) => callback(data.token));
+        } else {
+          console.warn('[ThreadService] No subscribers for stream:', key);
+        }
+      },
+    );
     this.registerCleanup(unsubTokens);
   }
 
@@ -69,7 +67,7 @@ export class ThreadService extends BaseElectronService {
   subscribeToStream(
     threadId: string,
     branchId: string,
-    callback: (token: string) => void
+    callback: (token: string) => void,
   ): () => void {
     if (!threadId || !branchId) {
       throw new Error('[ThreadService] threadId and branchId are required for stream subscription');
@@ -82,7 +80,6 @@ export class ThreadService extends BaseElectronService {
     }
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.streamCallbacks.get(key)!.add(callback);
-
 
     // Return unsubscribe function
     return () => {
@@ -122,7 +119,7 @@ export class ThreadService extends BaseElectronService {
         }
 
         // Find last message in main lane (where second part is 0)
-        const mainLaneMessages = messages.filter(m => {
+        const mainLaneMessages = messages.filter((m) => {
           const parts = (m.branchId || '').split('.');
           const lane = parseInt(parts[1]) || 0;
           return lane === 0;
@@ -154,7 +151,10 @@ export class ThreadService extends BaseElectronService {
 
       return nextBranchId;
     } catch (error) {
-      console.error('[ThreadService] Failed to calculate next branchId, using default: 1.0.0', error);
+      console.error(
+        '[ThreadService] Failed to calculate next branchId, using default: 1.0.0',
+        error,
+      );
       return '1.0.0';
     }
   }
@@ -162,7 +162,7 @@ export class ThreadService extends BaseElectronService {
   async sendChatMessage(
     threadId: string,
     branchId: string,
-    request: Record<string, unknown>
+    request: Record<string, unknown>,
   ): Promise<{ success: boolean; error?: string }> {
     if (!threadId || !branchId) {
       throw new Error('[ThreadService] threadId and branchId are required for chat message');
@@ -177,9 +177,9 @@ export class ThreadService extends BaseElectronService {
     };
 
     return wrapElectronCall(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
       () => window.electronAPI.chat.chat(threadId, payload as any),
-      'Failed to send chat message'
+      'Failed to send chat message',
     );
   }
 
@@ -228,69 +228,76 @@ export class ThreadService extends BaseElectronService {
     );
   }
 
-  /**
-   * Create a thread with an initial prompt message
-   * @param projectId - Project ID to associate the thread with (optional)
-   * @param modelAccessName - Model access name to use
-   * @param prompt - Initial message content
-   * @param status - Thread status (defaults to ACTIVE)
-   * @returns Thread ID
-   */
-  async createThreadWithPrompt(
-    projectId: string | null,
-    modelAccessName: string,
-    prompt: string,
-    status: 'active' | 'archived' | 'deleted' = 'active'
-  ): Promise<string> {
-    // Get model details
-    const models = await wrapElectronCall(
-      () => window.electronAPI.models.listAll(),
-      'Failed to get models'
-    );
-    const modelDetails = models.find(m => m.accessName === modelAccessName);
+  // /**
+  //  * Create a thread with an initial prompt message
+  //  * @param projectId - Project ID to associate the thread with (optional)
+  //  * @param modelAccessName - Model access name to use
+  //  * @param prompt - Initial message content
+  //  * @param status - Thread status (defaults to ACTIVE)
+  //  * @returns Thread ID
+  //  */
+  // async createThreadWithPrompt(
+  //   projectId: string | null,
+  //   modelAccessName: string,
+  //   prompt: string,
+  //   status: 'active' | 'archived' | 'deleted' = 'active',
+  // ): Promise<string> {
+  //   // Get model details
+  //   const models = await wrapElectronCall(
+  //     () => window.electronAPI.models.listAll(),
+  //     'Failed to get models',
+  //   );
+  //   const modelDetails = models.find((m) => m.accessName === modelAccessName);
 
-    if (!modelDetails) {
-      throw new Error('Model not found');
-    }
+  //   if (!modelDetails) {
+  //     throw new Error('Model not found');
+  //   }
 
-    // Create thread metadata
-    const metadata: Record<string, unknown> = {
-      modelTitle: modelDetails.title,
-      modelProvider: modelDetails.provider,
-      modelId: modelDetails.id,
-      modelAccessName: modelDetails.accessName,
-    };
+  //   // Create thread metadata
+  //   const metadata: Record<string, unknown> = {
+  //     modelTitle: modelDetails.title,
+  //     modelProvider: modelDetails.provider,
+  //     modelId: modelDetails.id,
+  //     modelAccessName: modelDetails.accessName,
+  //   };
 
-    if (projectId) {
-      metadata.projectId = projectId;
-    }
+  //   if (projectId) {
+  //     metadata.projectId = projectId;
+  //   }
 
-    // Create thread
-    const thread = await wrapElectronCall(
-      () => window.electronAPI.thread.create({
-        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        description: '',
-        status,
-        metadata,
-      }),
-      'Failed to create thread'
-    );
+  //   // Create thread
+  //   const thread = await wrapElectronCall(
+  //     () =>
+  //       window.electronAPI.thread.create({
+  //         title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+  //         metadata: {
+  //           description: '',
+  //           status,
+  //           ...metadata,
+  //         },
+  //         messages: [],
+  //         currentBranchId: '1.0.0',
+  //       }),
+  //     'Failed to create thread',
+  //   );
 
-    const threadId = thread.id;
+  //   const threadId = thread.id;
 
-    // Send initial message
-    await wrapElectronCall(
-      () => window.electronAPI.chat.sendMessage({
-        threadId,
-        branchId: '1.0',
-        content: prompt,
-        modelId: modelDetails.id,
-      }),
-      'Failed to send initial message'
-    );
+  //   // Send initial message
+  //   await wrapElectronCall(
+  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+  //     () =>
+  //       window.electronAPI.chat.sendMessage({
+  //         threadId,
+  //         branchId: '1.0',
+  //         content: prompt,
+  //         modelId: modelDetails.id,
+  //       }),
+  //     'Failed to send initial message',
+  //   );
 
-    return threadId;
-  }
+  //   return threadId;
+  // }
 
   async update(id: string, updates: Partial<Thread>): Promise<Thread> {
     return wrapElectronCall(
@@ -324,7 +331,10 @@ export class ThreadService extends BaseElectronService {
   }
 
   async getThread(id: string): Promise<Thread | null> {
-    const thread = await wrapElectronCall(() => window.electronAPI.thread.getById(id), 'Failed to get thread');
+    const thread = await wrapElectronCall(
+      () => window.electronAPI.thread.getById(id),
+      'Failed to get thread',
+    );
     if (thread) {
       threads.addThread(thread);
     }
@@ -422,7 +432,11 @@ export class ThreadService extends BaseElectronService {
       modelName?: string;
     },
   ): Promise<
-    | { success: true; message: { id: string; role: string; content: string; createdAt: number }; thread: Thread }
+    | {
+        success: true;
+        message: { id: string; role: string; content: string; createdAt: number };
+        thread: Thread;
+      }
     | { success: false; status: number; error: string; threadId?: string }
   > {
     // Build wire payload with snake_case field mappings
@@ -432,26 +446,48 @@ export class ThreadService extends BaseElectronService {
       metadata: payload.metadata,
     };
 
-    if (payload.clientMessageId) wirePayload.client_message_id = payload.clientMessageId;
-    if (payload.branchId) wirePayload.branch_id = payload.branchId;
-    if (payload.modelName) wirePayload.model_name = payload.modelName;
+    if (payload.clientMessageId) {
+      wirePayload.client_message_id = payload.clientMessageId;
+    }
+    if (payload.branchId) {
+      wirePayload.branch_id = payload.branchId;
+    }
+    if (payload.modelName) {
+      wirePayload.model_name = payload.modelName;
+    }
 
     const res = await wrapElectronCall(
-      () => window.electronAPI.thread.appendMessage(threadId, wirePayload),
+      () =>
+        window.electronAPI.thread.appendMessage(
+          threadId,
+          wirePayload as {
+            role: 'user' | 'assistant' | 'system';
+            content: string;
+            metadata?: Record<string, unknown>;
+            // eslint-disable-next-line @typescript-eslint/naming-convention
+            client_message_id?: string;
+          },
+        ),
       'Failed to append message',
-    ) as any;
+    );
 
     // Return success or normalize error response
-    return res.success
-      ? res
-      : {
-          success: false,
-          status: res.status,
-          error: res.error,
-          threadId: res.thread_id,
-        };
-  }
+    if (res.success) {
+      return res as {
+        success: true;
+        message: { id: string; role: string; content: string; createdAt: number };
+        thread: Thread;
+      };
+    }
 
+    return {
+      success: false,
+      status: typeof res.status === 'number' ? res.status : 500,
+      error: typeof res.error === 'string' ? res.error : 'Unknown error',
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      threadId: (res as { thread_id?: string }).thread_id,
+    };
+  }
 
   /**
    * Append a user prompt to a thread
@@ -473,22 +509,21 @@ export class ThreadService extends BaseElectronService {
     branchId: string,
     prompt: string,
     modelId: string,
-    messages: Message[],
+    _messages: Message[],
   ): Promise<[boolean, Message]> {
-
     // make sure we have a chat service
-  const result = await window.electronAPI.chat.createServiceForThread(
+    const _result = await window.electronAPI.chat.createServiceForThread(
       threadId,
-      modelId, 
+      modelId,
       '',
-      { url: '' , model: '' },
+      { url: '', model: '' },
       '',
     );
 
     const clientMessageId = crypto.randomUUID();
     const newPromptMessage: Message = {
       id: clientMessageId,
-      thread_id: threadId,
+      threadId: threadId,
       clientMessageId,
       role: 'user',
       content: prompt,
@@ -502,20 +537,35 @@ export class ThreadService extends BaseElectronService {
       role: newPromptMessage.role,
       content: newPromptMessage.content,
       metadata: modelId ? { modelId } : {},
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       client_message_id: clientMessageId,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       branch_id: branchId,
     };
 
     try {
-      const res = await wrapElectronCall(
-        () => window.electronAPI.thread.appendMessage(threadId, wirePayload),
+      const res = (await wrapElectronCall(
+        () =>
+          window.electronAPI.thread.appendMessage(
+            threadId,
+            wirePayload as {
+              role: 'user' | 'assistant' | 'system';
+              content: string;
+              metadata?: Record<string, unknown>;
+              // eslint-disable-next-line @typescript-eslint/naming-convention
+              client_message_id?: string;
+            },
+          ),
         'Failed to append message',
-      ) as any;
+      )) as {
+        success: boolean;
+        message?: { id: string; role: string; content: string; createdAt: number };
+      };
 
       // Check if append was successful
       if (!res.success || !res.message) {
         return [false, newPromptMessage];
-      }    
+      }
 
       return [true, newPromptMessage];
     } catch (error) {
@@ -525,7 +575,7 @@ export class ThreadService extends BaseElectronService {
     }
   }
 
- /**
+  /**
    * Append a user prompt to a thread
    *
    * Creates a local 'user'  message and append it to the specified thread and branch.
@@ -546,16 +596,15 @@ export class ThreadService extends BaseElectronService {
     modelId: string,
     messages: Message[],
   ): Promise<boolean> {
-
-    try { 
-    // make sure we have a chat service
-  const result = await window.electronAPI.chat.createServiceForThread(
-      threadId,
-      modelId, 
-      '',
-      { url: '' , model: '' },
-      '',
-    );
+    try {
+      // make sure we have a chat service
+      const _result = await window.electronAPI.chat.createServiceForThread(
+        threadId,
+        modelId,
+        '',
+        { url: '', model: '' },
+        '',
+      );
 
       // Build history for the model (include the new prompt)
       const historyMessages = messages.map((m) => ({
@@ -571,22 +620,24 @@ export class ThreadService extends BaseElectronService {
 
       // Send chat message with the calculated branchId
       const chatResult = await this.sendChatMessage(threadId, branchId, request);
-      console.log('[ThreadService.appendPrompt] sendChatMessage result:', chatResult);
+      console.warn('[ThreadService.appendPrompt] sendChatMessage result:', chatResult);
 
       if (!chatResult.success) {
-        const errorMessage = chatResult.error || 'Chat failed';
-        console.error('[ThreadService.appendPrompt] Error check (result validation):', errorMessage);
+        const errorMessage = chatResult.error ?? 'Chat failed';
+        console.error(
+          '[ThreadService.appendPrompt] Error check (result validation):',
+          errorMessage,
+        );
         return false;
       }
 
-      return true ;
+      return true;
     } catch (error) {
       // Return failure with the local message
       console.error('[ThreadService.appendPrompt] Exception:', error);
       return false;
     }
   }
-
 
   async updateMessage(
     threadId: string,
@@ -604,7 +655,6 @@ export class ThreadService extends BaseElectronService {
       | { success: false; error: string };
   }
 
-
   async getMessageVersions(
     threadId: string,
     messageId: string,
@@ -621,7 +671,6 @@ export class ThreadService extends BaseElectronService {
       | { success: false; error: string };
   }
 
- 
   /**
    * Switch the active branch for a thread
    */
@@ -635,7 +684,8 @@ export class ThreadService extends BaseElectronService {
         return { success: true, thread: result.thread };
       }
       if (!result.success) {
-        const errorMessage: string = typeof result.error === 'string' ? result.error : 'Failed to switch branch';
+        const errorMessage: string =
+          typeof result.error === 'string' ? result.error : 'Failed to switch branch';
         return { success: false, error: errorMessage };
       }
       return { success: false, error: 'Failed to switch branch' };
@@ -674,20 +724,19 @@ export class ThreadService extends BaseElectronService {
     modelId?: string,
     currentMessages?: Message[],
   ): Promise<
-    | { success: true; message: Message; newBranchId: string }
-    | { success: false; error: string }
+    { success: true; message: Message; newBranchId: string } | { success: false; error: string }
   > {
     // Generate next branchId hierarchically from the original message's branchId
     // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
     // Use provided messages if available (for multiple variations), otherwise fetch from backend
-    const messages = currentMessages ?? await this.getMessages(thread.id);
+    const messages = currentMessages ?? (await this.getMessages(thread.id));
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
     const content = variationContent ?? originalMessage.content;
     // Use provided modelId or fall back to original message's modelId
     const finalModelId = modelId ?? originalMessage.modelId;
-    
+
     // Create variation message with new branchId
     const res = await this.appendMessage(thread.id, {
       role: 'user',
@@ -703,7 +752,7 @@ export class ThreadService extends BaseElectronService {
 
     const message: Message = {
       id: res.message.id,
-      thread_id: thread.id || '', 
+      threadId: thread.id ?? '',
       role: 'user',
       content: content,
       createdAt: res.message.createdAt,
@@ -719,13 +768,17 @@ export class ThreadService extends BaseElectronService {
    * Build display items from messages - handles both regular messages and branches
    * Returns an array of items that can be either single messages or branches with multiple lanes
    */
-  buildDisplayItems(messages: Message[], isStreaming: boolean = false, responseText: string = ''): DisplayItem[] {
+  buildDisplayItems(
+    messages: Message[],
+    isStreaming: boolean = false,
+    responseText: string = '',
+  ): DisplayItem[] {
     if (messages.length === 0) {
       return [];
     }
 
     // Filter out hidden messages (e.g., guard-blocked messages)
-    const visibleMessages = messages.filter(m => !m.isHidden);
+    const visibleMessages = messages.filter((m) => !m.isHidden);
 
     if (visibleMessages.length === 0) {
       return [];
@@ -773,9 +826,9 @@ export class ThreadService extends BaseElectronService {
       }
 
       // Check if this row has branches (any message with lane != 0)
-      const rowHasBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
+      const hasrowBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
 
-      if (!rowHasBranches) {
+      if (!hasrowBranches) {
         // Single lane (main branch only) - display as regular message pairs
         const pairs = this.buildMessagePairs(rowMessages, isStreaming, responseText);
 
@@ -876,20 +929,27 @@ export class ThreadService extends BaseElectronService {
    * Build message pairs from a list of messages
    * Formats response content based on the provider for each message
    */
-  private buildMessagePairs(msgs: Message[], isStreaming: boolean, responseText: string): MessagePair[] {
+  private buildMessagePairs(
+    msgs: Message[],
+    isStreaming: boolean,
+    responseText: string,
+  ): MessagePair[] {
     const pairs: MessagePair[] = [];
     let i = 0;
     while (i < msgs.length) {
+      // eslint-disable-next-line security/detect-object-injection
       const msg = msgs[i];
       if (msg.role === 'user') {
         // Collect all consecutive assistant messages following this user message
         const responses: Message[] = [];
         let j = i + 1;
 
+        // eslint-disable-next-line security/detect-object-injection
         while (j < msgs.length && (msgs[j].role === 'assistant' || msgs[j].role === 'system')) {
+          // eslint-disable-next-line security/detect-object-injection
           const assistantMsg = msgs[j];
-          const provider = (assistantMsg.metadata?.provider as string) || '';
-          const modelId = assistantMsg.modelId || msg.modelId || '';
+          const provider = (assistantMsg.metadata?.provider as string) ?? '';
+          const modelId = assistantMsg.modelId ?? msg.modelId ?? '';
 
           // Format the response content based on provider and model ID
           let formattedContent = formatResponseContent(assistantMsg.content, provider, modelId);
@@ -898,7 +958,6 @@ export class ThreadService extends BaseElectronService {
           if (assistantMsg.attachments && assistantMsg.attachments.length > 0) {
             formattedContent = this.injectImageTags(formattedContent, assistantMsg.attachments);
           }
-
 
           const formattedResponse = {
             ...assistantMsg,
@@ -910,14 +969,14 @@ export class ThreadService extends BaseElectronService {
         }
 
         // Check if this is the last message and we're streaming
-        const isLastMessage = i === msgs.length - 1;
-        const isStreamingNow = isLastMessage && isStreaming && responses.length === 0;
+        const islastMessage = i === msgs.length - 1;
+        const isstreamingNow = islastMessage && isStreaming && responses.length === 0;
 
         pairs.push({
           request: msg,
           responses: responses,
-          isStreamingResponse: isStreamingNow,
-          streamingContent: isStreamingNow ? responseText : '',
+          isStreamingResponse: isstreamingNow,
+          streamingContent: isstreamingNow ? responseText : '',
         });
 
         // Skip past the user message and all collected responses
@@ -935,7 +994,10 @@ export class ThreadService extends BaseElectronService {
   /**
    * Inject markdown image tags for attachments into content
    */
-  private injectImageTags(content: string, attachments: Array<{ mimeType: string; data?: string; filename: string }>): string {
+  private injectImageTags(
+    content: string,
+    attachments: Array<{ mimeType: string; data?: string; filename: string }>,
+  ): string {
     let result = content;
 
     // Add images at the end of the content

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
-import type { ToolDefinition } from './services/tool-calling/tool-types.js'; 
+import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 
 import type { ProviderConfig } from '@holokai/chat-component';
 import type { ThreadStatus } from '$lib/types/status.type.js';
@@ -153,8 +153,6 @@ export interface ThreadAPI {
     response: string,
     model?: string,
   ) => Promise<{ id: string; role: string; content: string; createdAt: number }>;
-
-
 
   // Append a message with idempotency support
   appendMessage: (
@@ -341,7 +339,6 @@ export interface SettingsAPI {
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
 }
 
-
 /**
  * App Settings Interface
  */
@@ -378,11 +375,11 @@ export interface AppSettings {
  */
 export interface ApplicationSummary {
   id: string;
-  description: string; 
+  description: string;
   title: string;
   models?: ModelDetails[];
   provider: string;
-  slug: string; 
+  slug: string;
   url: string;
 }
 
@@ -391,12 +388,12 @@ export interface ModelDetails {
   title: string;
   accessName: string;
   provider: string;
-  applicationName: string,
-  applicationSlug: string; 
+  applicationName: string;
+  applicationSlug: string;
   slug: string;
   url: string;
-  isPublic: boolean;               // Model visibility flag (defaults to true)
-  intendedUse?: string;            // Optional description of intended use case}
+  isPublic: boolean; // Model visibility flag (defaults to true)
+  intendedUse?: string; // Optional description of intended use case}
 }
 
 /**
@@ -406,6 +403,7 @@ export interface ModelsAPI {
   listAll: () => Promise<ModelDetails[]>;
   listAllApplications: () => Promise<ApplicationSummary[]>;
   getModelsForApplication: (applicationId: string) => Promise<ModelDetails[]>;
+  refresh: () => Promise<{ success: boolean }>;
 }
 
 /**
@@ -523,7 +521,9 @@ export interface ChatAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Listen for streaming tokens (event-based)
-  onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void) => () => void;
+  onToken: (
+    callback: (data: { threadId: string; branchId: string; token: string }) => void,
+  ) => () => void;
 
   // Stop listening to token events
   offToken: () => void;
@@ -711,16 +711,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       config: ProviderConfig,
       workingDirectory?: string,
     ) =>
-      ipcRenderer.invoke('chat:createServiceForThread', threadId, modelAccessName, providerType, config, workingDirectory),
+      ipcRenderer.invoke(
+        'chat:createServiceForThread',
+        threadId,
+        modelAccessName,
+        providerType,
+        config,
+        workingDirectory,
+      ),
 
     // 2. Send a chat message (with streaming support) for a specific thread
     chat: (threadId: string, request: DesktopChatRequest) =>
       ipcRenderer.invoke('chat:send', threadId, request),
 
     // 3. Listen for streaming tokens (event-based)
-    onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, data: { threadId: string; branchId: string; token: string }): void =>
-        callback(data);
+    onToken: (
+      callback: (data: { threadId: string; branchId: string; token: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { threadId: string; branchId: string; token: string },
+      ): void => callback(data);
       ipcRenderer.on('chat:token', subscription);
 
       // Return cleanup function
@@ -830,7 +841,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   models: {
     listAll: () => ipcRenderer.invoke('models:listAll'),
     listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
-    getModelsForApplication: (applicationId: string) => ipcRenderer.invoke('models:getModelsForApplication', applicationId),
+    getModelsForApplication: (applicationId: string) =>
+      ipcRenderer.invoke('models:getModelsForApplication', applicationId),
+    refresh: () => ipcRenderer.invoke('models:refresh'),
   } as ModelsAPI,
 
   /**
@@ -962,7 +975,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     updateMessage: (threadId: string, messageId: string, newContent: string) =>
       ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
-
 
     getMessageVersions: (threadId: string, messageId: string) =>
       ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),

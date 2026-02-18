@@ -2,7 +2,6 @@ import { mokuService } from '../services/mokuapi/moku.service.js';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import log from 'electron-log';
 import type { ApplicationSummary, ModelDetails } from '../preload.js';
-import { ModelReference } from '../services/mokuapi/application.types.js';
 
 export class ModelRepository {
   private readonly agents: ApplicationSummary[] = [];
@@ -17,18 +16,17 @@ export class ModelRepository {
   /**
    * Get Holo API URL from settings
    */
-  public async getHoloApiUrl(): Promise<string> {
+  public getHoloApiUrl(): string {
     if (this.holoApiUrl) {
       return this.holoApiUrl;
     }
 
     try {
-        log.info('[ModelRepository] Fetching Holo API URL from settings');
-        const settingsService = getSettingsService();
-        this.holoApiUrl = settingsService.getHoloApiUrl(); 
+      log.info('[ModelRepository] Fetching Holo API URL from settings');
+      const settingsService = getSettingsService();
+      this.holoApiUrl = settingsService.getHoloApiUrl();
 
-        return this.holoApiUrl ;
-
+      return this.holoApiUrl;
     } catch (error) {
       log.error('[ModelRepository] Failed to fetch Holo API URL from agent details:', error);
 
@@ -52,7 +50,7 @@ export class ModelRepository {
     this.isRefreshing = true;
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
-      const holoApiUrl: string = await this.getHoloApiUrl(); 
+      const holoApiUrl: string = this.getHoloApiUrl();
 
       // Clear existing models
       this.agents.length = 0;
@@ -62,40 +60,40 @@ export class ModelRepository {
       log.info(`[ModelRepository] Read  ${agents.length} agents from Moku`);
 
       for (const thisAgent of agents) {
-          const mappedProvider = thisAgent.provider === 'anthropic' ? 'claude' : thisAgent.provider;
-          const agentUrl: string = holoApiUrl + '/api/custom/' + mappedProvider + '/' + thisAgent.urlSlug;
+        const mappedProvider = thisAgent.provider === 'anthropic' ? 'claude' : thisAgent.provider;
+        const agentUrl: string =
+          holoApiUrl + '/api/custom/' + mappedProvider + '/' + thisAgent.urlSlug;
 
-          var appSummary: ApplicationSummary = {
-            id: thisAgent.id,
-            description: thisAgent.description, 
-            slug: thisAgent.urlSlug,
-            title: thisAgent.name,
-            provider: thisAgent.provider,
-            url: agentUrl,
-            models: []
-          };
+        var appSummary: ApplicationSummary = {
+          id: thisAgent.id,
+          description: thisAgent.description,
+          slug: thisAgent.urlSlug,
+          title: thisAgent.name,
+          provider: thisAgent.provider,
+          url: agentUrl,
+          models: [],
+        };
 
-          if (thisAgent.models && thisAgent.models.length > 0) {
-            for (const model of thisAgent.models) {
-              const modelDetails: ModelDetails = {
-                id: model.id,
-                title: model.name,
-                accessName: model.accessModel,
-                provider: thisAgent.provider,
-                applicationName: appSummary.title,
-                applicationSlug: appSummary.slug,
-                slug: thisAgent.urlSlug,
-                url: agentUrl,
-                isPublic: model.isPublic, 
-                intendedUse: model.intendedUse
-              };
-              this.models.push(modelDetails);
-              appSummary.models?.push(modelDetails);
-            }
+        if (thisAgent.models && thisAgent.models.length > 0) {
+          for (const model of thisAgent.models) {
+            const modelDetails: ModelDetails = {
+              id: model.id,
+              title: model.name,
+              accessName: model.accessModel,
+              provider: thisAgent.provider,
+              applicationName: appSummary.title,
+              applicationSlug: appSummary.slug,
+              slug: thisAgent.urlSlug,
+              url: agentUrl,
+              isPublic: model.isPublic,
+              intendedUse: model.intendedUse,
+            };
+            this.models.push(modelDetails);
+            appSummary.models?.push(modelDetails);
           }
-          this.agents.push(appSummary);
+        }
+        this.agents.push(appSummary);
       }
-
 
       // Deduplicate models by provider + accessName combination
       const seenModels = new Map<string, boolean>();
@@ -128,7 +126,6 @@ export class ModelRepository {
       this.isRefreshing = false;
     }
   }
-
 
   public async listAll(): Promise<ModelDetails[]> {
     // Return cached models if already loaded
