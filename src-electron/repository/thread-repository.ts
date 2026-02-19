@@ -122,7 +122,10 @@ export class ThreadRepository {
         log.info('[ThreadRepository] Skipping duplicate message:', {
           role: dto.role,
           branchId,
-          contentPreview: dto.content ? dto.content.substring(0, 50) : '(empty)',
+          contentPreview:
+            dto.content && typeof dto.content === 'string'
+              ? dto.content.substring(0, 50)
+              : '(empty)',
         });
       } else {
         // First time seeing this message
@@ -1031,8 +1034,10 @@ export class ThreadRepository {
    * create a placeholder user message to maintain request-response pairing
    */
   private insertPlaceholderUserMessages(messages: Message[]): void {
-    log.info('[ThreadRepository] Checking for orphan assistant messages, total messages:', messages.length);
-    log.info('[ThreadRepository] Message roles:', messages.map(m => ({ role: m.role, branchId: m.branchId, id: m.id })));
+    log.info(
+      '[ThreadRepository] Checking for orphan assistant messages, total messages:',
+      messages.length,
+    );
 
     // Sort messages by branchId and createdAt to ensure correct order
     messages.sort((a, b) => {

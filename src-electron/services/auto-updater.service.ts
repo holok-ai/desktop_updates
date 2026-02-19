@@ -2,6 +2,7 @@ import pkg from 'electron-updater';
 import { app, dialog, BrowserWindow } from 'electron';
 import log, { createScopedLogger } from '../utils/logger.js';
 import { SettingsService } from './settings.service.js';
+import packageJson from '../../package.json' with { type: 'json' };
 
 const { autoUpdater } = pkg;
 const updaterLog = createScopedLogger('auto-updater');
@@ -27,6 +28,23 @@ class AutoUpdaterService {
 
   constructor() {
     this.settingsService = new SettingsService();
+  }
+
+  /**
+   * Get GitHub repository info from package.json build configuration
+   */
+  private getUpdateRepoInfo(): { owner: string; repo: string; provider: string } {
+    const publishConfig = packageJson.build?.publish?.[0];
+
+    if (!publishConfig) {
+      throw new Error('No publish configuration found in package.json');
+    }
+
+    return {
+      owner: publishConfig.owner,
+      repo: publishConfig.repo,
+      provider: publishConfig.provider,
+    };
   }
 
   initialize(): void {
@@ -142,8 +160,9 @@ class AutoUpdaterService {
 
   private async fetchUpdateMetadata(version: string): Promise<UpdateMetadata | null> {
     try {
+      const { owner, repo } = this.getUpdateRepoInfo();
       const response = await fetch(
-        `https://api.github.com/repos/holok-ai/desktop_updates/releases/tags/v${version}`,
+        `https://api.github.com/repos/${owner}/${repo}/releases/tags/v${version}`,
         {
           headers: {
             Accept: 'application/vnd.github.v3+json',

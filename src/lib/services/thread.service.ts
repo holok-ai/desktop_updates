@@ -627,7 +627,7 @@ export class ThreadService extends BaseElectronService {
     branchId: string,
     modelId: string,
     messages: Message[],
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       // make sure we have a chat service
       const _result = await window.electronAPI.chat.createServiceForThread(
@@ -659,14 +659,15 @@ export class ThreadService extends BaseElectronService {
           '[ThreadService.appendPrompt] Error check (result validation):',
           errorMessage,
         );
-        return false;
+        return { success: false, error: errorMessage };
       }
 
-      return true;
+      return { success: true };
     } catch (error) {
-      // Return failure with the local message
-      console.error('[ThreadService.appendPrompt] Exception:', error);
-      return false;
+      // Return failure with the error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ThreadService.appendPrompt] Exception:', errorMessage);
+      return { success: false, error: errorMessage };
     }
   }
 

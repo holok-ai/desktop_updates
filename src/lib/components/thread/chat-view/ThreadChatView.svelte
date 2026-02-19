@@ -45,6 +45,7 @@
   let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
   let composerText = $state(''); // Text for composer (bindable for guard errors)
   let debugActivity = $state(''); // Debug activity log
+  let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -256,6 +257,7 @@
     const threadId: string = thread?.id || '';
 
     error = '';
+    // Don't reset lastHandledErrorBranch - it tracks per-branch errors
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
     const branchId = await threadService.calculateNextBranchId(
@@ -507,14 +509,14 @@
     }, STREAMING_IDLE_TIMEOUT_MS);
 
     try {
-      const chatSuccess: boolean = await threadService.submitPromptToChat(
+      const chatResult = await threadService.submitPromptToChat(
         threadId,
         branchId,
         modelId,
         messages,
       );
-      if (!chatSuccess) {
-        const errorMessage = 'Chat failed';
+      if (!chatResult.success) {
+        const errorMessage = chatResult.error ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
         handleGuardError(errorMessage, branchId);
         isStreaming = false;
@@ -568,6 +570,18 @@
 
   // ── Helpers ──
   function handleGuardError(errorMessage: string, branchId: string) {
+    // Prevent duplicate handling for the same branch
+    console.log('[ThreadChatView] handleGuardError called', {
+      branchId,
+      lastHandledErrorBranch,
+      willSkip: lastHandledErrorBranch === branchId,
+    });
+
+    if (lastHandledErrorBranch === branchId) {
+      console.log('[ThreadChatView] ✓ Skipping duplicate error handling for branch:', branchId);
+      return;
+    }
+
     // Check if this is a guard/PII error
     const isGuardError =
       errorMessage.includes('personally identifiable') ||
@@ -584,23 +598,20 @@
       errorMessage.includes('Potential');
 
     if (isGuardError) {
-      error = `🛡️ Message blocked by security guard: ${errorMessage}`;
+      lastHandledErrorBranch = branchId; // Mark this branch as handled
+      error =
+        'Your prompt was not sent to a model as it was intercepted by a Holokai security guard. Please restate your prompt and try again.';
 
       // Find the request message that triggered the guard
       const requestMessage = messages.find((m) => m.branchId === branchId && m.role === 'user');
 
       if (requestMessage) {
-        // Save the original prompt text
-        const originalPrompt = requestMessage.content;
-
         // Replace the request message content with redacted text
-        requestMessage.content = '--> Redacted <--';
+        requestMessage.content = '{text removed}';
         messages = [...messages]; // Trigger reactivity
 
-        // Put the original text back in the composer for editing
-        composerText = originalPrompt;
-
-        console.log('[ThreadChatView] Redacted blocked message and restored to composer');
+        // Don't restore text to composer - it would trigger auto-submit
+        console.log('[ThreadChatView] Redacted blocked message');
       }
 
       // Add a system message to the thread
@@ -608,7 +619,7 @@
         id: crypto.randomUUID(),
         threadId: thread?.id || '',
         role: 'system',
-        content: `**⚠️ Message Blocked**\n\n${errorMessage}\n\n*Your message was not sent to the model. It has been restored to the input field for editing.*`,
+        content: 'Your prompt was intercepted by a Holokai security guard.',
         createdAt: Date.now(),
         branchId,
       };
@@ -1165,7 +1176,9 @@
   }
 
   @keyframes pulse-dot {
-    0%, 60%, 100% {
+    0%,
+    60%,
+    100% {
       opacity: 0.6;
       transform: scale(1);
     }

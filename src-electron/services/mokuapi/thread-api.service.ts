@@ -141,7 +141,11 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<ThreadDTO>;
-    log.info('[ThreadApiService] Fetched threads with filters:', JSON.stringify(filters), `Found ${data.content.length} threads`);
+    log.info(
+      '[ThreadApiService] Fetched threads with filters:',
+      JSON.stringify(filters),
+      `Found ${data.content.length} threads`,
+    );
     return data;
   }
 
@@ -395,21 +399,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<MessageDTO>;
-    log.info('[ThreadApiService] API returned messages:', {
-      threadId,
-      totalMessages: data.content.length,
-      totalElements: data.totalElements,
-      messages: data.content.map(m => ({
-        id: m.id,
-        role: m.role,
-        branchId: m.branchId,
-        contentType: typeof m.content,
-        contentValue: m.content,
-        hasContent: !!m.content,
-        contentPreview: typeof m.content === 'string' ? m.content?.substring(0, 50) : `[${typeof m.content}]`,
-        contentLength: typeof m.content === 'string' ? m.content?.length : 0
-      }))
-    });
     return data;
   }
 
@@ -421,7 +410,12 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async getMessage(messageId: string): Promise<MessageDTO> {
-    log.info('[ThreadApiService] getMessage called with:', messageId, 'mokuApiUrl:', this.getMokuApiUrl());
+    log.info(
+      '[ThreadApiService] getMessage called with:',
+      messageId,
+      'mokuApiUrl:',
+      this.getMokuApiUrl(),
+    );
 
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
@@ -467,7 +461,12 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createMessage(threadId: string, request: CreateMessageRequest): Promise<MessageDTO> {
-    log.info('[ThreadApiService] createMessage called with:', request, 'mokuApiUrl:', this.getMokuApiUrl());
+    log.info(
+      '[ThreadApiService] createMessage called with:',
+      request,
+      'mokuApiUrl:',
+      this.getMokuApiUrl(),
+    );
 
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
