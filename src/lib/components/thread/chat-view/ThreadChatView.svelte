@@ -542,7 +542,7 @@
           content: responseText,
           createdAt: Date.now(),
           branchId,
-          modelId: modelName,
+          modelId: modelId,
         };
         messages = [...messages, assistantMsg];
 
@@ -872,6 +872,7 @@
           requestCreatedAt={item.pair.request.createdAt}
           modelId={item.pair.request.modelId}
           branchId={item.pair.request.branchId}
+          userName={item.pair.request.userId || 'You'}
           {chatLayout}
           {fontSize}
           responses={item.pair.responses}
@@ -888,6 +889,17 @@
         <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
       {/if}
     {/each}
+
+    <!-- Loading indicator while waiting for first streaming token -->
+    {#if isStreaming && responseText === ''}
+      <div class="waiting-indicator">
+        <div class="waiting-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    {/if}
   </div>
 
   <!-- Composer at the bottom -->
@@ -1117,5 +1129,51 @@
 
   .debug-log::placeholder {
     color: #6a6a6a;
+  }
+
+  /* Waiting indicator for first streaming token */
+  .waiting-indicator {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin: 0.5rem 0;
+  }
+
+  .waiting-dots {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .waiting-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary-color, #646cff);
+    opacity: 0.6;
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+
+  .waiting-dots .dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .waiting-dots .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .waiting-dots .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes pulse-dot {
+    0%, 60%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    30% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
   }
 </style>

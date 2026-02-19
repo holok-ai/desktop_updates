@@ -395,7 +395,21 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<MessageDTO>;
-    //log.info('[ThreadApiService] Successfully fetched messages:', data.content);
+    log.info('[ThreadApiService] API returned messages:', {
+      threadId,
+      totalMessages: data.content.length,
+      totalElements: data.totalElements,
+      messages: data.content.map(m => ({
+        id: m.id,
+        role: m.role,
+        branchId: m.branchId,
+        contentType: typeof m.content,
+        contentValue: m.content,
+        hasContent: !!m.content,
+        contentPreview: typeof m.content === 'string' ? m.content?.substring(0, 50) : `[${typeof m.content}]`,
+        contentLength: typeof m.content === 'string' ? m.content?.length : 0
+      }))
+    });
     return data;
   }
 

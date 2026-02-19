@@ -535,7 +535,7 @@
 
   .composer-textarea:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .composer-textarea::placeholder {
@@ -582,7 +582,7 @@
 
   .attach-icon-button:disabled {
     opacity: 0.4;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .send-button {
@@ -612,7 +612,7 @@
 
   .send-button:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .error-message {
