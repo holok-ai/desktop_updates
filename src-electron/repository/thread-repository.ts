@@ -119,11 +119,11 @@ export class ThreadRepository {
           seen.set(key, dto);
         }
         // else: Existing is earlier, skip current (it's a duplicate)
-        // log.info('[ThreadRepository] Skipping duplicate message:', {
-        //   role: dto.role,
-        //   branchId,
-        //   contentPreview: dto.content.substring(0, 50),
-        // });
+        log.info('[ThreadRepository] Skipping duplicate message:', {
+          role: dto.role,
+          branchId,
+          contentPreview: dto.content ? dto.content.substring(0, 50) : '(empty)',
+        });
       } else {
         // First time seeing this message
         seen.set(key, dto);
@@ -169,6 +169,8 @@ export class ThreadRepository {
           cachedThread.messages = dedupedMessages.map((dto) =>
             this.mapDTOToMessage(dto, cachedThread.title),
           );
+          // Insert placeholder user messages for orphan assistant messages
+          this.insertPlaceholderUserMessages(cachedThread.messages);
           // Process guard messages and mark them as hidden
           this.processGuardMessages(cachedThread.messages);
           this.threadsById.set(threadId, cachedThread);
@@ -230,6 +232,9 @@ export class ThreadRepository {
       const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
 
       thread.messages = dedupedMessages.map((dto) => this.mapDTOToMessage(dto, thread.title));
+
+      // Insert placeholder user messages for orphan assistant messages
+      this.insertPlaceholderUserMessages(thread.messages);
 
       // Process guard messages and mark them as hidden
       this.processGuardMessages(thread.messages);
@@ -979,24 +984,6 @@ export class ThreadRepository {
       branchId = this.normalizeBranchId(branchId);
     }
 
-    // Log rawData type and preview for debugging
-    const rawDataType = typeof dto.rawData;
-    const _metadataPreview: unknown =
-      rawDataType === 'string' ? (dto.rawData as string).substring(0, 100) + '...' : dto.rawData;
-
-    // log.info(
-    //   '[ThreadRepository] Message branchId: ',
-    //   branchId,
-    //   ', role: ',
-    //   dto.role,
-    //   ', model: ',
-    //   dto.model ?? 'null',
-    //   ', metadata type: ',
-    //   rawDataType,
-    //   ', metadata: ',
-    //   _metadataPreview,
-    // );
-
     const message: Message = {
       id: dto.id,
       threadId: dto.threadId,
@@ -1036,6 +1023,81 @@ export class ThreadRepository {
     }
 
     return message;
+  }
+
+  /**
+   * Insert placeholder user messages for orphan assistant messages
+   * If an assistant message doesn't have a preceding user message with the same branchId,
+   * create a placeholder user message to maintain request-response pairing
+   */
+  private insertPlaceholderUserMessages(messages: Message[]): void {
+    log.info('[ThreadRepository] Checking for orphan assistant messages, total messages:', messages.length);
+    log.info('[ThreadRepository] Message roles:', messages.map(m => ({ role: m.role, branchId: m.branchId, id: m.id })));
+
+    // Sort messages by branchId and createdAt to ensure correct order
+    messages.sort((a, b) => {
+      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
+      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
+
+      if (aRow !== bRow) return aRow - bRow;
+      if (aLane !== bLane) return aLane - bLane;
+      if (aIter !== bIter) return aIter - bIter;
+      return a.createdAt - b.createdAt;
+    });
+
+    const toInsert: { index: number; message: Message }[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+
+      // Check if this is an assistant message
+      if (message.role === 'assistant') {
+        // Look for a preceding user message with the same branchId
+        let hasUserMessage = false;
+        for (let j = i - 1; j >= 0; j--) {
+          if (messages[j].branchId === message.branchId) {
+            if (messages[j].role === 'user') {
+              hasUserMessage = true;
+              break;
+            }
+          }
+        }
+
+        // If no user message found, create a placeholder
+        if (!hasUserMessage) {
+          log.info('[ThreadRepository] Creating placeholder user message for orphan assistant:', {
+            assistantId: message.id,
+            branchId: message.branchId,
+          });
+
+          const placeholderUser: Message = {
+            id: crypto.randomUUID(),
+            threadId: message.threadId,
+            title: message.title,
+            userId: message.userId,
+            role: 'user',
+            content: '', // Empty content for placeholder
+            createdAt: message.createdAt - 1, // Set timestamp slightly before assistant
+            branchId: message.branchId,
+            modelId: message.modelId,
+            provider: message.provider,
+            deletedAt: null,
+          };
+
+          toInsert.push({ index: i, message: placeholderUser });
+        }
+      }
+    }
+
+    // Insert placeholder messages in reverse order to maintain correct indices
+    for (let i = toInsert.length - 1; i >= 0; i--) {
+      const { index, message } = toInsert[i];
+      messages.splice(index, 0, message);
+    }
+
+    if (toInsert.length > 0) {
+      log.info('[ThreadRepository] Inserted', toInsert.length, 'placeholder user messages');
+    }
   }
 
   /**

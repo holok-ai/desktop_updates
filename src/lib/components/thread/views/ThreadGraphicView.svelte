@@ -48,6 +48,7 @@
     title: string;
     content: string;
     model: string;
+    userId?: string;
     role: 'user' | 'assistant';
   }>({ visible: false, x: 0, y: 0, title: '', content: '', model: '', role: 'user' });
 
@@ -69,6 +70,7 @@
     role: 'user' | 'assistant';
     content: string;
     modelId: string;
+    userId?: string;
     createdAt: number;
     parentId: string | null;
   }
@@ -252,6 +254,7 @@
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: msg.content,
       modelId: msg.modelId || '',
+      userId: msg.userId,
       createdAt: msg.createdAt,
       parentId,
     };
@@ -392,6 +395,7 @@
       content:
         preview.length > MAX_PREVIEW_LEN ? preview.substring(0, MAX_PREVIEW_LEN) + '...' : preview,
       model: node.modelId || '',
+      userId: node.userId,
       role: node.role,
     };
   }
@@ -586,6 +590,9 @@
         style="left: {tooltip.x}px; top: {tooltip.y}px;"
       >
         <div class="tooltip-header">{tooltip.title}</div>
+        {#if tooltip.userId}
+          <div class="tooltip-model">User: {tooltip.userId}</div>
+        {/if}
         {#if tooltip.model}
           <div class="tooltip-model">Model: {tooltip.model}</div>
         {/if}
