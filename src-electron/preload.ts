@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
 import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 
-import type { ProviderConfig } from '@holokai/chat-component';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
@@ -661,8 +660,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       threadId: string,
       branchId: string,
       modelAccessName: string,
-      providerType: string,
-      config: ProviderConfig,
       workingDirectory?: string,
     ) =>
       ipcRenderer.invoke(
@@ -670,8 +667,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         threadId,
         branchId,
         modelAccessName,
-        providerType,
-        config,
         workingDirectory,
       ),
 
