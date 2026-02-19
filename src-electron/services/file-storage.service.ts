@@ -32,10 +32,11 @@ export class FileStorageService {
     fileBuffer: Buffer,
     originalName: string,
     mimeType: string,
+    fileId?: string,
   ): Promise<Attachment> {
     try {
-      // Generate unique file ID
-      const fileId = randomUUID();
+      // Use provided file ID or generate unique file ID
+      const actualFileId = fileId || randomUUID();
 
       // Extract extension from original filename
       const extension = path.extname(originalName) || this.getExtensionFromMimeType(mimeType);
@@ -44,14 +45,14 @@ export class FileStorageService {
       const threadDir = path.join(this.baseStoragePath, threadId);
       this.ensureDirectory(threadDir);
 
-      const fileName = `${fileId}${extension}`;
+      const fileName = `${actualFileId}${extension}`;
       const filePath = path.join(threadDir, fileName);
 
       // Write file to disk
       await fs.promises.writeFile(filePath, fileBuffer);
 
       log.info('[FileStorageService] File saved', {
-        fileId,
+        fileId: actualFileId,
         threadId,
         filename: originalName,
         size: fileBuffer.length,
@@ -61,7 +62,7 @@ export class FileStorageService {
 
       // Return attachment metadata
       const attachment: Attachment = {
-        id: fileId,
+        id: actualFileId,
         filename: originalName,
         mimeType,
         size: fileBuffer.length,

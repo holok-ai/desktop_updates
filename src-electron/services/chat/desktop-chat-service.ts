@@ -69,7 +69,7 @@ export class DesktopChatService {
         : undefined;
 
     // Create file received callback to handle files from chat responses (e.g., Gemini generated images)
-    const onFileReceived = async (
+    const onFileReceivedAsync = async (
       threadId: string,
       fileId: string,
       mimeType: string,
@@ -88,12 +88,18 @@ export class DesktopChatService {
         // Convert base64 contents to Buffer
         const buffer = Buffer.from(contents, 'base64');
 
-        // Save file using file storage service
-        await fileStorageService.saveFile(threadId, buffer, displayName, mimeType);
+        // Save file using file storage service - pass fileId from chat-service to ensure consistency
+        const attachment = await fileStorageService.saveFile(
+          threadId,
+          buffer,
+          displayName,
+          mimeType,
+          fileId,
+        );
 
         log.info('[DesktopChatService] File saved successfully', {
           threadId,
-          fileId,
+          fileId: attachment.id,
           displayName,
           size: buffer.length,
         });
@@ -107,12 +113,27 @@ export class DesktopChatService {
       }
     };
 
+    // Wrapper to handle async onFileReceived without returning promise (void return required by setTools)
+    const onFileReceived = (
+      threadId: string,
+      fileId: string,
+      mimeType: string,
+      contents: string,
+      displayName: string,
+    ): void => {
+      void onFileReceivedAsync(threadId, fileId, mimeType, contents, displayName);
+    };
+
     if (canUseTools && onToolUse !== undefined) {
       this.chatService = new ChatService(providerType, config, true);
       this.chatService.setTools(tools, onToolUse, onFileReceived);
     } else {
       this.chatService = new ChatService(providerType, config, true);
-      this.chatService.setTools([], async () => ({ success: false }), onFileReceived);
+      this.chatService.setTools(
+        [],
+        (_toolUse: ChatComponentToolUse) => Promise.resolve({ success: false }),
+        onFileReceived,
+      );
     }
   }
 

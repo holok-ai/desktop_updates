@@ -1,3 +1,5 @@
+import type { ThreadMetadata } from '../../types/thread.types.js';
+
 /**
  * Thread and Message API Type Definitions
  * These types match the Moku API backend DTOs for thread operations
@@ -9,6 +11,7 @@
 export interface ThreadDTO {
   id: string;
   title: string;
+  description: string;
   type: 'personal' | 'project';
   ownerId: string;
   projectId: string | null;
@@ -16,6 +19,7 @@ export interface ThreadDTO {
   status: 'active' | 'archived' | 'deleted';
   createdAt: string; // ISO-8601 timestamp
   updatedAt: string; // ISO-8601 timestamp
+  deletedAt: string; // ISO-8601 timestamp
   metadata?: Record<string, unknown>; // Custom metadata including model configuration
 }
 
@@ -30,26 +34,32 @@ export interface DesktopThreadDTO extends ThreadDTO {
 /**
  * LLM execution status for messages
  */
-export type LLMStatus = 'success' | 'error' | 'timeout' | 'partial' | 'rate_limited' | 'invalid_request';
+export type LLMStatus =
+  | 'success'
+  | 'error'
+  | 'timeout'
+  | 'partial'
+  | 'rate_limited'
+  | 'invalid_request';
 
 /**
  * Message DTO from Moku API
  */
- export interface MessageDTO {
-      id: string;                    // UUID as string
-      threadId: string;              // UUID as string
-      branchId: string | null;
-      model: string | null;
-      provider: string | null;
-      role: string | null;
-      content: any;                  // JSONB content array from API
-      rawData: any;                  // JSONB from llm_responses
-      status: LLMStatus | null;      // LLM execution status
-      options: any;                  // JSONB from llm_requests
-      createdUserId: string | null;
-      createdAt: string;             // ISO 8601 date string
-      updatedAt: string;             // ISO 8601 date string
-  }
+export interface MessageDTO {
+  id: string; // UUID as string
+  threadId: string; // UUID as string
+  branchId: string | null;
+  model: string | null;
+  provider: string | null;
+  role: string | null;
+  content: unknown; // JSONB content from API
+  rawData: unknown; // JSONB from llm_responses
+  status: LLMStatus | null; // LLM execution status
+  options: unknown; // JSONB from llm_requests
+  createdUserId: string | null;
+  createdAt: string; // ISO 8601 date string
+  updatedAt: string; // ISO 8601 date string
+}
 
 // export interface MessageDTO {
 //   id: string;
@@ -79,7 +89,11 @@ export type LLMStatus = 'success' | 'error' | 'timeout' | 'partial' | 'rate_limi
  */
 export interface CreateThreadRequest {
   title: string;
-  projectId?: string | null;
+  projectId: string | null;
+  agentId: string;
+  applicationSlug: string;
+  initialProvider?: string;
+  initalModel?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -88,9 +102,9 @@ export interface CreateThreadRequest {
  */
 export interface UpdateThreadRequest {
   title?: string;
-  status?: 'active' | 'archived' | 'deleted';
+  status?: string; //'active' | 'archived' | 'deleted';
   projectId?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: ThreadMetadata;
 }
 
 /**

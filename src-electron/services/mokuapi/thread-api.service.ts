@@ -87,7 +87,6 @@ class ThreadApiService {
    * Defaults to 'https://api.holok.ai' if not configured.
    */
   private getMokuApiUrl(): string {
-    log.info('[ThreadApiService] getMokuApiUrl called', getSettingsServiceInternal().getMokuApiUrl());
     try {
       return getSettingsServiceInternal().getMokuApiUrl() || 'https://api.holok.ai';
     } catch (error) {

@@ -13,8 +13,9 @@ import type {
   ProjectPermission,
   ProjectRole,
 } from '../types/project.types.js';
+
 import type { Thread as RendererThread } from '../preload.js';
-import type { Thread as InternalThread } from '../repository/thread-repository.js';
+import type { Thread as InternalThread } from '../types/thread.types.js';
 
 /**
  * Helper to convert internal thread representation to renderer-friendly shape
@@ -22,17 +23,14 @@ import type { Thread as InternalThread } from '../repository/thread-repository.j
 function toRendererThread(t: InternalThread): RendererThread {
   return {
     id: t.id,
-    title: t.title && t.title.length > 0 ? t.title : ((t.metadata?.title as string) ?? ''),
-    description: (t.metadata?.description as string) ?? '',
-    status: (() => {
-      const s = t.metadata?.status;
-      if (typeof s === 'string') {
-        if (s === 'active' || s === 'archived' || s === 'deleted') return s;
-      }
-      return 'active';
-    })(),
-    createdAt: new Date(t.createdAt),
-    updatedAt: new Date(t.updatedAt ?? t.createdAt),
+    type: t.type,
+    projectId: t.projectId,
+    createdUserId: t.createdUserId,
+    title: t.title && t.title.length > 0 ? t.title : '',
+    description: t.description ?? '',
+    status: t.status,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt ?? t.createdAt,
     messages: t.messages || [],
     metadata: t.metadata ?? {},
     currentBranchId: t.currentBranchId,
@@ -239,10 +237,13 @@ export function registerProjectHandlers(): void {
   /**
    * Search users in the organization
    */
-  ipcMain.handle('project:searchUsers', async (_, searchTerm?: string | null): Promise<unknown[]> => {
-    log.info('[IPC:project:searchUsers]', { searchTerm });
-    return await projectRepository.searchUsers(searchTerm);
-  });
+  ipcMain.handle(
+    'project:searchUsers',
+    async (_, searchTerm?: string | null): Promise<unknown[]> => {
+      log.info('[IPC:project:searchUsers]', { searchTerm });
+      return await projectRepository.searchUsers(searchTerm);
+    },
+  );
 
   /**
    * Get project members

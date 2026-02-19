@@ -1,6 +1,6 @@
 {
   "name": "holokai-desktop",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
@@ -59,9 +59,7 @@
   "author": "Holokai",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.68.0",
     "@holokai/chat-component": "file:packages/chat-service",
-    "@perplexity-ai/perplexity_ai": "^0.16.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "chart.js": "^4.5.1",
@@ -72,8 +70,6 @@
     "highlight.js": "^11.11.1",
     "mammoth": "^1.11.0",
     "marked": "^17.0.0",
-    "ollama": "^0.6.2",
-    "openai": "^6.7.0",
     "pdf2json": "^4.0.2",
     "playwright": "^1.58.1",
     "primeicons": "^7.0.0",

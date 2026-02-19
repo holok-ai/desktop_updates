@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { THREAD_STATUS } from '$lib/constants/status.constant';
   import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
@@ -46,19 +45,13 @@
 
     try {
       // create a thread
-      const thread = await threadService.create({
-        title: `New ${app.title} Chat`,
-        description: '',
-        status: THREAD_STATUS.ACTIVE,
-        currentBranchId: '1.0',
-        messages: [], 
-        metadata: {
-          modelTitle: firstModel.title,
-          modelProvider: firstModel.provider,
-          modelId: firstModel.id,
-          agentId: app.id, // Save the agent/application ID
-        },
-      });
+      const thread = await threadService.create(
+        `New ${app.title} Chat`,
+        null, // projectId - no project context
+        app.id, // agentId
+        app.slug, // applicationSlug
+        firstModel.id, // initialModel
+      );
 
       if (!thread || !thread.id) {
         throw new Error('Failed to create thread');

@@ -194,9 +194,11 @@ Describe what this project is about and what threads should focus on.
         branchId: '1.0.0',
       });
 
-      // 4. Create chat provider
-      const providerResult = await window.electronAPI.chat.createProvider(
+      // 4. Create chat provider for branch 1.0.0
+      const providerResult = await window.electronAPI.chat.createServiceForThread(
         threadId,
+        '1.0.0',
+        modelDetails.accessName,
         modelDetails.provider,
         { url: modelDetails.url, model: modelDetails.accessName },
       );

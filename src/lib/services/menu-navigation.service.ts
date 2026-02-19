@@ -42,7 +42,9 @@ export class MenuNavigationService {
       },
       {
         channel: 'menu:refresh',
-        handler: () => {
+        handler: async () => {
+          // Refresh models from Moku API before reloading
+          await window.electronAPI.models.refresh();
           globalThis.location.reload();
         },
       },

@@ -33,6 +33,14 @@
     fontSize?: number;
     /** Optional model name for this lane */
     modelName?: string;
+    /** Optional model intended use for tooltip */
+    modelIntendedUse?: string;
+    /** Whether this lane is expanded */
+    isExpanded?: boolean;
+    /** Whether this lane is collapsed (another lane is expanded) */
+    isCollapsed?: boolean;
+    /** Callback to toggle expand/collapse */
+    onToggleExpand?: () => void;
     /** Callback when lane is selected */
     onSelectLane?: () => void;
     /** Callback when copy request is clicked */
@@ -50,22 +58,34 @@
     chatLayout,
     fontSize = 14,
     modelName = '',
+    modelIntendedUse = '',
+    isExpanded = false,
+    isCollapsed = false,
+    onToggleExpand,
     onSelectLane,
     onCopyRequest,
     onCopyResponse,
-    onRetry
+    onRetry,
   }: Props = $props();
 
   $effect(() => {
-    console.log('[ChatLane] Rendered with:', { laneId, laneIndex, pairCount: messagePairs.length, modelName });
+    console.log('[ChatLane] Rendered with:', {
+      laneId,
+      laneIndex,
+      pairCount: messagePairs.length,
+      modelName,
+    });
   });
 </script>
 
-<div class="chat-lane">
+<div class="chat-lane" class:lane-expanded={isExpanded} class:lane-collapsed={isCollapsed}>
   <ChatLaneHeader
     {laneId}
     {laneIndex}
     {modelName}
+    {modelIntendedUse}
+    {isExpanded}
+    {onToggleExpand}
     onSelect={onSelectLane}
   />
 
@@ -96,6 +116,22 @@
     border: 1px solid var(--surface-border, #e0e0e0);
     border-radius: 6px;
     background: var(--surface-main, #fff);
+    transition: all 0.3s ease;
+  }
+
+  .chat-lane.lane-expanded {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .chat-lane.lane-collapsed {
+    min-width: 0;
+    width: 0;
+    overflow: hidden;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
   }
 
   .lane-messages {

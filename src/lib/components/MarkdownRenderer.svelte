@@ -212,14 +212,37 @@
 
   // Process FileId tags and convert to appropriate display elements
   async function processFileIdTags(text: string): Promise<string> {
-    // Match <FileId id="..." thread_id="..." mime_type="..." name="..." />
-    const fileIdRegex = /<FileId\s+id="([^"]+)"\s+thread_id="([^"]+)"\s+mime_type="([^"]+)"\s+name="([^"]+)"\s*\/>/g;
+    // Match <FileId ... /> tags with flexible attribute order
+    // Captures the entire tag content to parse attributes individually
+    const fileIdRegex = /<FileId\s+([^>]+)\s*\/>/g;
 
     let processedText = text;
     const matches = Array.from(text.matchAll(fileIdRegex));
 
+    if (matches.length > 0) {
+      console.log('[MarkdownRenderer] Found FileId tags:', matches.length);
+    }
+
     for (const match of matches) {
-      const [fullMatch, fileId, threadId, mimeType, fileName] = match;
+      const [fullMatch, attributes] = match;
+
+      // Parse attributes flexibly
+      const fileIdMatch = attributes.match(/file_id="([^"]+)"/);
+      const threadIdMatch = attributes.match(/thread_id="([^"]+)"/);
+      const mimeTypeMatch = attributes.match(/mime_type="([^"]+)"/);
+      const fileNameMatch = attributes.match(/name="([^"]*)"/);
+
+      if (!fileIdMatch || !mimeTypeMatch) {
+        console.error('[MarkdownRenderer] FileId tag missing required attributes:', fullMatch);
+        continue;
+      }
+
+      const fileId = fileIdMatch[1];
+      const threadId = threadIdMatch ? threadIdMatch[1] : null;
+      const mimeType = mimeTypeMatch[1];
+      const fileName = fileNameMatch ? fileNameMatch[1] : 'file';
+
+      console.log('[MarkdownRenderer] Processing FileId:', { fileId, threadId, mimeType, fileName });
 
       try {
         // Fetch file from backend

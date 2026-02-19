@@ -66,7 +66,7 @@ export const CHAT_LAYOUT_OPTIONS = [
 ] as const;
 
 export const CHAT_FONT_SIZE_MIN = 7;
-export const CHAT_FONT_SIZE_MAX = 20;
+export const CHAT_FONT_SIZE_MAX = 32;
 export const CHAT_FONT_SIZE_DEFAULT = 14;
 
 /* ── Avatar ── */
