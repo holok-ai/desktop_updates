@@ -6,6 +6,7 @@ import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
 import { modelRepository } from '../repository/model-repository.js';
 import log from 'electron-log';
+import { threadRepository } from '../repository/thread-repository.js';
 
 /**
  * Chat IPC Handlers
@@ -52,63 +53,48 @@ export function registerChatHandlers(auth?: AuthService): void {
       threadId: string,
       branchId: string,
       modelAccessName: string,
-      providerType: string,
-      config: ProviderConfig,
       workingDirectory?: string,
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        // Inject access token from auth service if available
+        // get the users api key to use in chat service
+        let accessToken = '';
         if (authService) {
-          try {
-            const accessToken = await authService.getAccessToken();
-            config.apiKey = accessToken;
-          } catch (_error) {
-            log.warn('[IPC] Could not get access token, using provided apiKey');
-          }
+          accessToken = await authService.getAccessToken();
         }
 
-        // Look up model details if modelAccessName provided
-        if (modelAccessName) {
-          const allModels = await modelRepository.listAll();
-          const foundModel = allModels.find((m) => m.accessName === modelAccessName);
-
-          if (foundModel) {
-            providerType = foundModel.provider;
-
-            // Look up application by applicationSlug to get apiKey
-            const allApplications = await modelRepository.listAllApplications();
-            const foundApplication = allApplications.find(
-              (app) => app.slug === foundModel.applicationSlug,
-            );
-
-            if (foundApplication) {
-              const appApiKey = (foundApplication as { apiKey?: string }).apiKey;
-              if (appApiKey) {
-                config.apiKey = appApiKey;
-              }
-            }
-
-            // Update config with model details
-            config.model = foundModel.accessName;
-            if (foundModel.url) {
-              (config as { url?: string }).url = foundModel.url;
-            }
-          }
+        // thread should be in repository since we're trying to chat on it
+        const thisThread = await threadRepository.loadThread(threadId);
+        if (!thisThread) {
+          log.error('[IPC] Could not find thread for chat service.');
+          return { success: false, error: 'Could not find thread id' };
         }
+
+        const thisAgent = await modelRepository.getAgentById(thisThread.metadata.agentId);
+        if (!thisAgent) {
+          log.error('[IPC] Could not find agent for thread chat service.');
+          return { success: false, error: 'Could not find thread id' };
+        }
+        const url: string = thisAgent?.url ?? '';
+        const provider: string = thisAgent.provider; //  thisThread.metadata.initialProvider ?? '';
 
         // Create DesktopChatService for this thread+branch
         const newConfig: ProviderConfig = {
-          url: (config as { url?: string }).url ?? '',
-          apiKey: config.apiKey ?? '',
-          model: config.model,
+          url: url,
+          apiKey: accessToken,
+          model: modelAccessName,
         };
 
-        const chatService = new DesktopChatService(providerType, newConfig, workingDirectory);
+        const chatService = new DesktopChatService(provider, newConfig, workingDirectory);
 
         // Store in map with composite key (threadId:branchId)
         const serviceKey = buildServiceKey(threadId, branchId);
         chatServices.set(serviceKey, chatService);
-        log.info('[IPC] Chat service created and stored with key:', serviceKey);
+        log.info(
+          '[IPC] Chat service created and stored with key:',
+          serviceKey,
+          url,
+          modelAccessName,
+        );
 
         return { success: true };
       } catch (error) {

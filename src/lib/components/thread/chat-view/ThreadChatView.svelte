@@ -169,8 +169,6 @@
       thread.id,
       branchId,
       modelDetail.accessName,
-      modelDetail.provider,
-      { url: modelDetail.url, model: modelDetail.accessName },
       (thread.metadata?.workingDirectory as string) || undefined,
     );
 

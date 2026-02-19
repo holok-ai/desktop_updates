@@ -25,6 +25,10 @@ export function registerModelsHandlers(): void {
       await modelRepository.refreshModels();
       return { success: true };
     });
+
+    ipcMain.handle('models:getAgent', async (_event, agentId: string) => {
+      return await modelRepository.getAgentById(agentId);
+    });
   } else if (typeof (ipcMain as unknown as { on?: unknown }).on === 'function') {
     // Register no-op listener so tests that inspect handler registration don't fail.
     (ipcMain as unknown as { on: (channel: string, fn: (...args: unknown[]) => void) => void }).on(
@@ -43,6 +47,10 @@ export function registerModelsHandlers(): void {
       'models:refresh',
       () => {},
     );
+    (ipcMain as unknown as { on: (channel: string, fn: (...args: unknown[]) => void) => void }).on(
+      'models:getAgent',
+      () => {},
+    );
   }
 
   console.log('[IPC] Models handlers registered');
@@ -53,5 +61,6 @@ export function unregisterModelsHandlers(): void {
   ipcMain.removeHandler('models:listAllApplications');
   ipcMain.removeHandler('models:getModelsForApplication');
   ipcMain.removeHandler('models:refresh');
+  ipcMain.removeHandler('models:getAgent');
   console.log('[IPC] Models handlers unregistered');
 }

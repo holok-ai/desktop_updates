@@ -36,6 +36,11 @@ export class ModelRepository {
     }
   }
 
+  public buildCustomUrl(provider: string, agentSlug: string): string {
+    const holoApiUrl: string = this.getHoloApiUrl();
+    return holoApiUrl + '/api/custom/' + provider + '/' + agentSlug;
+  }
+
   /**
    * Refresh models from Moku API after authentication
    * Called automatically after successful login
@@ -50,8 +55,6 @@ export class ModelRepository {
     this.isRefreshing = true;
     log.info('[ModelRepository] Refreshing models from Moku API');
     try {
-      const holoApiUrl: string = this.getHoloApiUrl();
-
       // Clear existing models
       this.agents.length = 0;
       this.models.length = 0;
@@ -61,8 +64,7 @@ export class ModelRepository {
 
       for (const thisAgent of agents) {
         const mappedProvider = thisAgent.provider === 'anthropic' ? 'claude' : thisAgent.provider;
-        const agentUrl: string =
-          holoApiUrl + '/api/custom/' + mappedProvider + '/' + thisAgent.urlSlug;
+        const agentUrl: string = this.buildCustomUrl(mappedProvider, thisAgent.urlSlug);
 
         var appSummary: ApplicationSummary = {
           id: thisAgent.id,
@@ -161,6 +163,25 @@ export class ModelRepository {
       ...app,
       models: app.models ? [...app.models] : [],
     }));
+  }
+
+  /*
+   */
+  public async getAgentById(agentId: string): Promise<ApplicationSummary | null> {
+    // Ensure cache is populated
+    if (this.agents.length === 0) {
+      log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
+      await this.refreshModels();
+    }
+
+    // Find application by ID or slug
+    const agent = this.agents.find((a) => a.id === agentId);
+
+    if (!agent) {
+      log.warn(`[ModelRepository] Agent application not found: ${agentId}`);
+      return null;
+    }
+    return agent;
   }
 
   /**

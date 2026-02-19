@@ -49,8 +49,7 @@
         `New ${app.title} Chat`,
         null, // projectId - no project context
         app.id, // agentId
-        app.slug, // applicationSlug
-        firstModel.id, // initialModel
+        firstModel.accessName, // initialModel
       );
 
       if (!thread || !thread.id) {

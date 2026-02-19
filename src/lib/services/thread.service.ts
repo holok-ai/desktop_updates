@@ -6,6 +6,7 @@ import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWr
 import { BaseElectronService } from './base-electron.service';
 import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 import { formatResponseContent } from '$lib/utils/response-formatter';
+import type { ThreadMetadata } from '../../../src-electron/types/thread.types.js';
 
 export class ThreadService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
@@ -221,46 +222,100 @@ export class ThreadService extends BaseElectronService {
     return this.getAll({ projectId, updateStore: true });
   }
 
+  /**
+   *
+   * create - creates a new thread
+   *
+   **/
   async create(
     title: string,
     projectId: string | null,
     agentId: string,
-    applicationSlug: string,
     initialModel?: string,
   ): Promise<Thread> {
-    // Build metadata object with agent and model information
-    const metadata: Record<string, unknown> = {
+    console.warn('[ThreadService.create] Starting thread creation', {
+      title,
+      projectId,
       agentId,
-      applicationSlug,
+      initialModel,
+    });
+
+    let selectedModel: ModelDetails | undefined = undefined;
+
+    console.warn('[ThreadService.create] Fetching agent details for agentId:', agentId);
+    const agent = await window.electronAPI.models.getAgent(agentId);
+
+    if (!agent) {
+      console.error('[ThreadService.create] Agent not found:', agentId);
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+    console.warn('[ThreadService.create] Agent found:', {
+      id: agent.id,
+      title: agent.title,
+      provider: agent.provider,
+      slug: agent.slug,
+      modelsCount: agent.models?.length ?? 0,
+    });
+
+    // Build metadata object with agent and model information
+    const metadata: ThreadMetadata = {
+      agentId,
+      initialProvider: agent.provider,
+      applicationSlug: agent.slug,
     };
+    console.warn('[ThreadService.create] Initial metadata:', metadata);
 
+    // find the model the caller specified
     if (initialModel) {
-      metadata.initalModel = initialModel;
-
-      // Look up model title for display in thread list
+      console.warn('[ThreadService.create] Looking up specified model:', initialModel);
       try {
-        const models = await window.electronAPI.models.listAll();
-        const modelDetails = models.find(
-          (m) => m.id === initialModel || m.accessName === initialModel,
+        const models = await window.electronAPI.models.getModelsForApplication(agentId);
+        console.warn('[ThreadService.create] Available models:', models.length);
+        selectedModel = models.find((m) => m.id === initialModel || m.accessName === initialModel);
+        console.warn(
+          '[ThreadService.create] Selected model found:',
+          selectedModel ? selectedModel.title : 'NOT FOUND',
         );
-        if (modelDetails) {
-          metadata.modelTitle = modelDetails.title;
-          metadata.modelProvider = modelDetails.provider;
-        }
       } catch (error) {
-        console.warn('[ThreadService] Could not load model details for metadata:', error);
+        console.warn('[ThreadService.create] Could not load model details for metadata:', error);
       }
+    } else {
+      console.warn('[ThreadService.create] No initialModel specified');
+    }
+
+    // or use the first one
+    if (!selectedModel && agent.models && agent.models?.length > 0) {
+      console.warn('[ThreadService.create] No model selected, using first model from agent');
+      selectedModel = agent.models?.[0];
+      console.warn('[ThreadService.create] Using default model:', selectedModel?.title);
+    }
+
+    if (selectedModel) {
+      console.warn('[ThreadService.create] Setting model metadata:', {
+        title: selectedModel.title,
+        accessName: selectedModel.accessName,
+        provider: selectedModel.provider,
+      });
+      metadata.modelTitle = selectedModel.title;
+      metadata.initalModel = selectedModel.accessName;
+      metadata.modelProvider = selectedModel.provider;
+    } else {
+      console.warn(
+        '[ThreadService.create] No model selected - metadata will not include model info',
+      );
     }
 
     const request: CreateThreadRequest = {
       title,
       projectId,
       agentId,
-      applicationSlug,
+      applicationSlug: agent.slug,
       initalModel: initialModel ?? undefined,
       metadata,
     };
+    console.warn('[ThreadService.create] Final request payload:', request);
 
+    console.warn('[ThreadService.create] Calling IPC to create thread');
     return wrapElectronCall(
       () => window.electronAPI.thread.create(request),
       'Failed to create thread',
@@ -495,8 +550,6 @@ export class ThreadService extends BaseElectronService {
       branchId,
       modelId,
       '',
-      { url: '', model: '' },
-      '',
     );
 
     const clientMessageId = crypto.randomUUID();
@@ -581,8 +634,6 @@ export class ThreadService extends BaseElectronService {
         threadId,
         branchId,
         modelId,
-        '',
-        { url: '', model: '' },
         '',
       );
 

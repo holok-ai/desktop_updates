@@ -33,7 +33,6 @@ function toRendererThread(t: InternalThread): RendererThread {
     updatedAt: t.updatedAt ?? t.createdAt,
     messages: t.messages || [],
     metadata: t.metadata ?? {},
-    currentBranchId: t.currentBranchId,
   } as RendererThread;
 }
 

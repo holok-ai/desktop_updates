@@ -37,9 +37,10 @@ export interface Message {
 
 export interface ThreadMetadata {
   applicationSlug?: string;
-  agentId?: string;
+  agentId: string;
   initialProvider?: string;
   initalModel?: string;
+  modelTitle?: string;
   // Allow any additional properties for flexible metadata
   [key: string]: JsonValue | undefined;
 }
@@ -57,5 +58,4 @@ export interface Thread {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null;
-  currentBranchId: string;
 }

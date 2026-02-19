@@ -356,6 +356,7 @@ export interface ModelsAPI {
   listAll: () => Promise<ModelDetails[]>;
   listAllApplications: () => Promise<ApplicationSummary[]>;
   getModelsForApplication: (applicationId: string) => Promise<ModelDetails[]>;
+  getAgent: (agentId: string) => Promise<ApplicationSummary | null>;
   refresh: () => Promise<{ success: boolean }>;
 }
 
@@ -463,8 +464,6 @@ export interface ChatAPI {
     threadId: string,
     branchId: string,
     modelAccessName: string,
-    providerType: string,
-    config: ProviderConfig,
     workingDirectory?: string,
   ) => Promise<{ success: boolean; error?: string }>;
 
@@ -800,6 +799,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
     getModelsForApplication: (applicationId: string) =>
       ipcRenderer.invoke('models:getModelsForApplication', applicationId),
+    getAgent: (agentId: string) => ipcRenderer.invoke('models:getAgent', agentId),
     refresh: () => ipcRenderer.invoke('models:refresh'),
   } as ModelsAPI,
 

@@ -31,7 +31,6 @@ function toRendererThread(t: InternalThread | null): RendererThread | null {
     updatedAt: t.updatedAt,
     metadata: { ...t.metadata },
     createdUserId: t.createdUserId,
-    currentBranchId: t.currentBranchId,
   };
 }
 
@@ -430,8 +429,14 @@ export function registerThreadHandlers(): void {
         }
       }
 
+      // get a branch id
+      let branchId: string = '1.0.0';
+      if (threadBefore && threadBefore.messages && threadBefore.messages.length > 0) {
+        branchId = threadBefore?.messages[threadBefore.messages.length - 1]?.branchId ?? '1.0.0';
+      }
+
       // Add the assistant response (this may trigger auto-title generation)
-      const msg = await threadRepository.addAssistantResponse(threadId, response, model);
+      const msg = await threadRepository.addAssistantResponse(threadId, response, branchId, model);
       const threadObj = await threadRepository.loadThread(threadId);
       const thread = toRendererThread(threadObj);
       if (!thread) throw new Error('Failed to convert thread after assistant response');

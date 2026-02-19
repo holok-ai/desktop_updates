@@ -24,14 +24,6 @@ export interface ThreadDTO {
 }
 
 /**
- * Desktop extension of ThreadDTO that adds desktop-specific fields
- * This is used internally in the desktop app after receiving ThreadDTO from Moku API
- */
-export interface DesktopThreadDTO extends ThreadDTO {
-  currentBranchId: string; // Current active branch (e.g., "1.0", "1.1")
-}
-
-/**
  * LLM execution status for messages
  */
 export type LLMStatus =
@@ -94,7 +86,7 @@ export interface CreateThreadRequest {
   applicationSlug: string;
   initialProvider?: string;
   initalModel?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: ThreadMetadata;
 }
 
 /**
