@@ -141,11 +141,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as PagedResponse<ThreadDTO>;
-    log.info(
-      '[ThreadApiService] Fetched threads with filters:',
-      JSON.stringify(filters),
-      `Found ${data.content.length} threads`,
-    );
     return data;
   }
 
@@ -164,8 +159,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/threads/${threadId}`;
-
-    log.info('[ThreadApiService] Fetching thread:', threadId);
 
     const response = await fetch(url, {
       headers: {
@@ -188,7 +181,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as ThreadDTO;
-    log.info('[ThreadApiService] Successfully fetched thread:', threadId);
     return data;
   }
 
@@ -200,48 +192,23 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createThread(request: CreateThreadRequest): Promise<ThreadDTO> {
-    log.info('[ThreadApiService] createThread called with:', request);
-
     const accessToken = await this.getAccessToken();
-    log.info(
-      '[ThreadApiService] Access token retrieved:',
-      accessToken ? `YES (${accessToken.substring(0, 20)}...)` : 'NO',
-    );
 
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
 
     const mokuApiUrl = this.getMokuApiUrl();
-    log.info('[ThreadApiService] Moku API URL:', mokuApiUrl);
-
     const url = `${mokuApiUrl}/api/threads`;
-    log.info('[ThreadApiService] Full URL:', url);
 
-    log.info('[ThreadApiService] Creating thread:', request.title);
-    log.info('[ThreadApiService] Request body:', JSON.stringify(request));
-
-    let response;
-    try {
-      log.info('[ThreadApiService] About to call fetch...');
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-      log.info('[ThreadApiService] Fetch completed, status:', response.status);
-    } catch (fetchError) {
-      log.error('[ThreadApiService] Fetch error:', fetchError);
-      log.error('[ThreadApiService] Fetch error details:', {
-        message: fetchError instanceof Error ? fetchError.message : String(fetchError),
-        name: fetchError instanceof Error ? fetchError.name : 'unknown',
-        stack: fetchError instanceof Error ? fetchError.stack : 'no stack',
-      });
-      throw fetchError;
-    }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -254,7 +221,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as ThreadDTO;
-    log.info('[ThreadApiService] Successfully created thread:', data.id);
     return data;
   }
 
@@ -274,8 +240,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/threads/${threadId}`;
-
-    log.info('[ThreadApiService] Updating thread:', threadId);
 
     const response = await fetch(url, {
       method: 'PATCH',
@@ -300,7 +264,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as ThreadDTO;
-    log.info('[ThreadApiService] Successfully updated thread:', threadId);
     return data;
   }
 
@@ -318,8 +281,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/threads/${threadId}`;
-
-    log.info('[ThreadApiService] Deleting thread:', threadId);
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -341,8 +302,6 @@ class ThreadApiService {
       }
       throw new Error(`Failed to delete thread: ${response.status} ${errorText}`);
     }
-
-    log.info('[ThreadApiService] Successfully deleted thread:', threadId);
   }
 
   // ============================================================================
@@ -376,8 +335,6 @@ class ThreadApiService {
 
     const url = `${mokuApiUrl}/api/threads/${threadId}/messages${params.toString() ? '?' + params.toString() : ''}`;
 
-    log.info('[ThreadApiService] Fetching messages for thread:', threadId);
-
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -410,13 +367,6 @@ class ThreadApiService {
    * @throws Error if not authenticated, not found, or request fails
    */
   async getMessage(messageId: string): Promise<MessageDTO> {
-    log.info(
-      '[ThreadApiService] getMessage called with:',
-      messageId,
-      'mokuApiUrl:',
-      this.getMokuApiUrl(),
-    );
-
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
@@ -424,8 +374,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/messages/${messageId}`;
-
-    log.info('[ThreadApiService] Fetching message:', messageId);
 
     const response = await fetch(url, {
       headers: {
@@ -448,7 +396,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as MessageDTO;
-    log.info('[ThreadApiService] Successfully fetched message:', messageId);
     return data;
   }
 
@@ -461,13 +408,6 @@ class ThreadApiService {
    * @throws Error if not authenticated or request fails
    */
   async createMessage(threadId: string, request: CreateMessageRequest): Promise<MessageDTO> {
-    log.info(
-      '[ThreadApiService] createMessage called with:',
-      request,
-      'mokuApiUrl:',
-      this.getMokuApiUrl(),
-    );
-
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
@@ -475,8 +415,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/threads/${threadId}/messages`;
-
-    log.info('[ThreadApiService] Creating message in thread:', threadId);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -505,8 +443,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as MessageDTO;
-
-    log.info('[ThreadApiService] Successfully created message:', data.id);
     return data;
   }
 
@@ -526,8 +462,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/messages/${messageId}`;
-
-    log.info('[ThreadApiService] Updating message:', messageId);
 
     const response = await fetch(url, {
       method: 'PATCH',
@@ -552,7 +486,6 @@ class ThreadApiService {
     }
 
     const data = (await response.json()) as MessageDTO;
-    log.info('[ThreadApiService] Successfully updated message:', messageId);
     return data;
   }
 
@@ -570,8 +503,6 @@ class ThreadApiService {
 
     const mokuApiUrl = this.getMokuApiUrl();
     const url = `${mokuApiUrl}/api/messages/${messageId}`;
-
-    log.info('[ThreadApiService] Deleting message:', messageId);
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -593,8 +524,6 @@ class ThreadApiService {
       }
       throw new Error(`Failed to delete message: ${response.status} ${errorText}`);
     }
-
-    log.info('[ThreadApiService] Successfully deleted message:', messageId);
   }
 }
 

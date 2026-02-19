@@ -376,39 +376,6 @@ export function registerThreadHandlers(): void {
     },
   );
 
-  // // Add user prompt (creates thread if id null)
-  // ipcMain.handle(
-  //   'thread:addUserPrompt',
-  //   async (
-  //     _event,
-  //     threadId: string | null,
-  //     prompt: string,
-  //     opts: {
-  //       title?: string;
-  //       description?: string;
-  //       model?: string;
-  //       projectId?: string; // Associate thread with a project
-  //       metadata?: Record<string, unknown>;
-  //     } = {},
-  //   ): Promise<{
-  //     thread: RendererThread;
-  //     message: { id: string; role: string; content: string; createdAt: number };
-  //   }> => {
-  //     // Pass opts directly - metadata is already properly structured
-  //     const res = await threadRepository.addUserPrompt(threadId, prompt, opts);
-  //     const rt = toRendererThread(res.thread);
-  //     if (!rt) throw new Error('Failed to convert thread');
-  //     const msg = {
-  //       id: res.message.id,
-  //       role: res.message.role,
-  //       content: res.message.content,
-  //       createdAt: res.message.createdAt,
-  //     };
-  //     broadcast('thread:updated', rt);
-  //     return { thread: rt, message: msg };
-  //   },
-  // );
-
   // Add assistant response
   ipcMain.handle(
     'thread:addAssistantResponse',
@@ -479,54 +446,6 @@ export function registerThreadHandlers(): void {
         throw new Error(`Thread not found: ${threadId}`);
       }
       return thread;
-
-      // const currentUser = auth.getUser();
-      // const ownerId = (thread.metadata?.userId as string | undefined) ?? undefined;
-      // if (ownerId && currentUser && ownerId !== currentUser.id) {
-      //   throw new Error('THREAD_ACCESS_DENIED');
-      // }
-
-      // const currentProjectId = (thread.metadata?.projectId as string | undefined) ?? undefined;
-
-      // // If moving to the same project, no-op
-      // if (currentProjectId === targetProjectId) {
-      //   const rt = toRendererThread(thread);
-      //   if (!rt) throw new Error('Failed to convert thread');
-      //   return rt;
-      // }
-
-      // // Update thread metadata with new project assignment
-      // const newMetadata: ThreadMetadata = { ...thread.metadata };
-      // if (targetProjectId === null) {
-      //   // Moving to general history - remove projectId using explicit undefined (handled in repo)
-      //   (newMetadata as Record<string, unknown>).projectId = undefined;
-      // } else {
-      //   // Moving to a project - set projectId
-      //   newMetadata.projectId = targetProjectId;
-      // }
-
-      // // Handle privacy mode if provided
-      // if (options?.privacyMode) {
-      //   newMetadata.privacyMode = options.privacyMode;
-      // }
-
-      // // Handle context/memory transition if provided
-      // if (options?.contextHandling) {
-      //   newMetadata.contextHandling = options.contextHandling;
-      // }
-
-      // const updated = threadRepository.updateThreadMetadata(threadId, newMetadata);
-      // const rt = toRendererThread(updated);
-      // if (!rt) throw new Error('Failed to convert updated thread');
-
-      // broadcast('thread:updated', rt);
-      // threadLog.info('Thread moved', {
-      //   threadId,
-      //   fromProject: currentProjectId ?? 'general',
-      //   toProject: targetProjectId ?? 'general',
-      // });
-
-      // return rt;
     },
   );
 

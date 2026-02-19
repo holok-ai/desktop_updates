@@ -45,22 +45,10 @@ export class ThreadRepository {
 
     const threadDTO = await threadApiService.createThread(newRequest);
 
-    // log.info('[ThreadRepository] ThreadDTO received from API:', JSON.stringify(threadDTO, null, 2));
-    // log.info(
-    //   '[ThreadRepository] Metadata in ThreadDTO:',
-    //   JSON.stringify(threadDTO.metadata, null, 2),
-    // );
-
     const thread = this.mapDTOToThread(threadDTO);
-
-    // log.info(
-    //   '[ThreadRepository] Mapped thread metadata:',
-    //   JSON.stringify(thread.metadata, null, 2),
-    // );
 
     // Cache locally for session
     this.threadsById.set(thread.id, thread);
-    // log.info('[ThreadRepository] Thread created and cached:', thread.id);
 
     return this.cloneThread(thread);
   }
@@ -134,12 +122,6 @@ export class ThreadRepository {
       }
     }
 
-    // log.info('[ThreadRepository] Deduplication:', {
-    //   original: messageDTOs.length,
-    //   filtered: filtered.length,
-    //   removed: messageDTOs.length - filtered.length,
-    // });
-
     return filtered;
   }
 
@@ -147,22 +129,9 @@ export class ThreadRepository {
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
-      // log.info(
-      //   '[ThreadRepository] Thread found in cache (refreshing messages from API):',
-      //   threadId,
-      //   'with',
-      //   cachedThread.messages.length,
-      //   'cached messages',
-      // );
-
       const cachedMessagesCount = cachedThread.messages.length;
       try {
         const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-        // log.info(
-        //   '[ThreadRepository] Received',
-        //   messagesResponse.content.length,
-        //   'message DTOs from API for cached thread',
-        // );
 
         // Deduplicate tool-loop continuation messages
         const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
@@ -177,25 +146,12 @@ export class ThreadRepository {
           // Process guard messages and mark them as hidden
           this.processGuardMessages(cachedThread.messages);
           this.threadsById.set(threadId, cachedThread);
-          // log.info(
-          //   '[ThreadRepository] Refreshed',
-          //   cachedThread.messages.length,
-          //   'messages for cached thread',
-          // );
         } else if (cachedMessagesCount > 0) {
           // API returned empty but cache has messages - keep cached messages (likely local-only)
-          // log.info(
-          //   '[ThreadRepository] API returned empty, keeping',
-          //   cachedMessagesCount,
-          //   'cached messages (likely local-only not yet synced)',
-          // );
         }
       } catch (error) {
         log.error('[ThreadRepository] Failed to refresh messages for cached thread:', error);
         // On error, keep cached messages if they exist
-        if (cachedMessagesCount > 0) {
-          // log.info('[ThreadRepository] Keeping cached messages due to API error');
-        }
       }
 
       return this.cloneThread(cachedThread);
@@ -203,33 +159,12 @@ export class ThreadRepository {
 
     // Fetch from API
     try {
-      // log.info('[ThreadRepository] Fetching thread from API:', threadId);
       const threadDTO = await threadApiService.getThread(threadId);
-
-      // log.info(
-      //   '[ThreadRepository] ThreadDTO received from API:',
-      //   JSON.stringify(threadDTO, null, 2),
-      // );
-      // log.info(
-      //   '[ThreadRepository] Metadata in ThreadDTO:',
-      //   JSON.stringify(threadDTO.metadata, null, 2),
-      // );
 
       const thread = this.mapDTOToThread(threadDTO);
 
-      // log.info(
-      //   '[ThreadRepository] Mapped thread metadata:',
-      //   JSON.stringify(thread.metadata, null, 2),
-      // );
-
       // Fetch messages for the thread
-      // log.info('[ThreadRepository] Fetching messages for thread:', threadId);
       const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
-      // log.info(
-      //   '[ThreadRepository] Received',
-      //   messagesResponse.content.length,
-      //   'message DTOs from API',
-      // );
 
       // Deduplicate tool-loop continuation messages
       const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
@@ -244,13 +179,6 @@ export class ThreadRepository {
 
       // Update cache
       this.threadsById.set(thread.id, thread);
-      // log.info(
-      //   '[ThreadRepository] Thread fetched and cached:',
-      //   threadId,
-      //   'with',
-      //   thread.messages.length,
-      //   'messages',
-      // );
 
       return this.cloneThread(thread);
     } catch (error) {
@@ -268,16 +196,10 @@ export class ThreadRepository {
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
       // Return cached messages without API call
-      // log.info(
-      //   '[ThreadRepository] getMessages - returning',
-      //   cachedThread.messages.length,
-      //   'cached messages',
-      // );
       return cachedThread.messages.map((m) => ({ ...m }));
     }
 
     // Not cached - load the thread (which will fetch messages)
-    // log.info('[ThreadRepository] getMessages - thread not cached, loading from API');
     const thread = await this.loadThread(threadId);
     if (!thread) return [];
     return thread.messages.map((m) => ({ ...m }));
@@ -375,7 +297,6 @@ export class ThreadRepository {
         const thread = this.threadsById.get(threadId);
         const found = thread?.messages.find((m) => m.id === existingId);
         if (found) {
-          // log.info('[ThreadRepository] Message found in local idempotency cache:', existingId);
           return { ...found };
         }
       }
@@ -388,7 +309,6 @@ export class ThreadRepository {
     // Get thread from cache or fetch it
     let thread = this.threadsById.get(threadId);
     if (!thread) {
-      // log.info('[ThreadRepository] Thread not in cache, fetching:', threadId);
       const loadedThread = await this.loadThread(threadId);
       if (!loadedThread) throw new Error(`Thread not found: ${threadId}`);
       thread = loadedThread;
@@ -400,16 +320,6 @@ export class ThreadRepository {
     const lastMessageTime =
       thread.messages.length > 0 ? Math.max(...thread.messages.map((m) => m.createdAt)) : localNow;
     const now = Math.max(localNow, lastMessageTime + 1000); // Add 1 second to ensure it's after
-
-    // log.info(
-    //   '[ThreadRepository] Creating message with timestamp:',
-    //   new Date(now).toISOString(),
-    //   '(local:',
-    //   new Date(localNow).toISOString(),
-    //   ', last:',
-    //   new Date(lastMessageTime).toISOString(),
-    //   ')',
-    // );
 
     const rawBranchId = payload.branchId ?? '1.0.0';
     const branchId = this.normalizeBranchId(rawBranchId);
@@ -429,20 +339,12 @@ export class ThreadRepository {
       provider: payload.provider || '',
     };
 
-    // log.info('[ThreadRepository] Created message locally:', message.id, 'branchId:', branchId);
-
     // Check for duplicates before adding to cache
     const duplicate = thread.messages.find(
       (m) => m.branchId === branchId && m.role === payload.role && m.content === payload.content,
     );
 
     if (duplicate) {
-      // log.warn('[ThreadRepository] Duplicate message detected, skipping add:', {
-      //   existingId: duplicate.id,
-      //   newId: message.id,
-      //   branchId: branchId,
-      //   role: payload.role,
-      // });
       return duplicate;
     }
 
@@ -488,7 +390,6 @@ export class ThreadRepository {
         const thread = this.threadsById.get(threadId);
         const found = thread?.messages.find((m) => m.id === existingId);
         if (found) {
-          // log.info('[ThreadRepository] Message found in local idempotency cache:', existingId);
           return { ...found };
         }
       }
@@ -501,7 +402,6 @@ export class ThreadRepository {
     // Get thread from cache or fetch it
     let thread = this.threadsById.get(threadId);
     if (!thread) {
-      // log.info('[ThreadRepository] Thread not in cache, fetching:', threadId);
       const loadedThread = await this.loadThread(threadId);
       if (!loadedThread) throw new Error(`Thread not found: ${threadId}`);
       thread = loadedThread;
@@ -528,16 +428,9 @@ export class ThreadRepository {
     const isFirstResponse = assistantMessageCount === 0;
     const needsTitle = !thread.title || thread.title.trim() === '';
 
-    // log.info(
-    //   `[ThreadRepository] Auto-title check for thread ${threadId}: assistantCount=${assistantMessageCount}, isFirst=${isFirstResponse}, needsTitle=${needsTitle}, currentTitle="${thread.title}"`,
-    // );
-
     // Auto-generate title from first user prompt if this is the first response
     if (isFirstResponse && needsTitle) {
       const firstUserPrompt = thread.messages.find((m) => m.role === 'user');
-      // log.info(
-      //   `[ThreadRepository] Found first user prompt: ${firstUserPrompt ? `"${firstUserPrompt.content.substring(0, 50)}..."` : 'NONE'}`,
-      // );
 
       if (firstUserPrompt && firstUserPrompt.content) {
         try {
@@ -548,7 +441,6 @@ export class ThreadRepository {
 
           // Generate and ensure unique title
           const candidateTitle = titleGeneratorService.generateTitle(firstUserPrompt.content);
-          // log.info(`[ThreadRepository] Generated candidate title: "${candidateTitle}"`);
 
           const uniqueTitle = titleGeneratorService.ensureUniqueTitle(
             candidateTitle,
@@ -563,9 +455,6 @@ export class ThreadRepository {
           // Update title via API
           try {
             await threadApiService.updateThread(threadId, { title: uniqueTitle });
-            // log.info(
-            //   `[ThreadRepository] ✅ Auto-generated and updated title for thread ${threadId}: "${uniqueTitle}"`,
-            // );
           } catch (error) {
             log.error('[ThreadRepository] Failed to update title via API:', error);
             // Continue with local title change
@@ -574,13 +463,7 @@ export class ThreadRepository {
           log.error('[ThreadRepository] ❌ Failed to generate title:', error);
           // Continue without title - addMessage will still work
         }
-      } else {
-        // log.warn(`[ThreadRepository] ⚠️ Cannot generate title - no user prompt found`);
       }
-    } else {
-      // log.info(
-      //   `[ThreadRepository] Skipping auto-title: isFirst=${isFirstResponse}, needsTitle=${needsTitle}`,
-      // );
     }
 
     return this.addMessage(threadId, 'assistant', branchId, response);
@@ -663,7 +546,6 @@ export class ThreadRepository {
     const now = Date.now();
 
     try {
-      // log.info('[ThreadRepository] Renaming thread via API:', threadId);
       await threadApiService.updateThread(threadId, { title: trimmedTitle });
 
       // Update local cache
@@ -674,10 +556,6 @@ export class ThreadRepository {
       thread.updatedAt = now;
 
       this.threadsById.set(thread.id, thread);
-
-      // log.info(
-      //   `[ThreadRepository] ✅ Renamed thread ${threadId}: "${previousTitle}" → "${trimmedTitle}"`,
-      // );
 
       return this.cloneThread(thread);
     } catch (error) {
@@ -693,39 +571,12 @@ export class ThreadRepository {
    * @throws Error if thread not found or no rename history available
    */
 
-  // public setThreadModel(threadId: string, model: string): Thread {
-  //   return this.updateThreadMetadata(threadId, { model });
-  // }
-
   public getThreadModel(threadId: string): string | undefined {
     const thread = this.threadsById.get(threadId);
     if (!thread) return undefined;
     const m = thread.metadata.initalModel;
     return typeof m === 'string' ? m : undefined;
   }
-
-  // public listThreadsByModel(model: string): Thread[] {
-  //   return Array.from(this.threadsById.values())
-  //     .filter((t) => t.metadata.initalModel === model)
-  //     .map((t) => this.cloneThread(t));
-  // }
-
-  // public async savePromptAndResponses(
-  //   threadId: string | null | undefined,
-  //   prompt: string,
-  //   responses: { text: string; model?: string }[],
-  //   opts: { title?: string; description?: string } = {},
-  // ): Promise<{ thread: Thread; promptMessage: Message; responseMessages: Message[] }> {
-  //   const { thread, message: promptMessage } = await this.addUserPrompt(threadId, prompt, opts);
-  //   const responseMessages: Message[] = [];
-  //   for (const r of responses) {
-  //     const resp = await this.addAssistantResponse(thread.id, r.text, r.model);
-  //     responseMessages.push(resp);
-  //   }
-  //   const t = await this.loadThread(thread.id);
-  //   if (!t) throw new Error(`Thread not found after save: ${thread.id}`);
-  //   return { thread: t, promptMessage, responseMessages };
-  // }
 
   public replaceMessages(threadId: string, messages: Message[]): Thread {
     const thread = this.threadsById.get(threadId);
@@ -745,12 +596,10 @@ export class ThreadRepository {
     });
 
     try {
-      // log.info('[ThreadRepository] Deleting thread via API:', threadId);
       await threadApiService.deleteThread(threadId);
 
       // Remove from local cache
       const deleted = this.threadsById.delete(threadId);
-      // log.info('[ThreadRepository] Thread deleted:', threadId);
       return deleted;
     } catch (error) {
       log.error('[ThreadRepository] Failed to delete thread:', error);
@@ -769,7 +618,6 @@ export class ThreadRepository {
     });
 
     try {
-      // log.info('[ThreadRepository] Soft deleting thread via API:', threadId);
       await threadApiService.deleteThread(threadId);
 
       // Update local cache
@@ -779,7 +627,6 @@ export class ThreadRepository {
       thread.updatedAt = Date.now();
       this.threadsById.set(thread.id, thread);
 
-      // log.info('[ThreadRepository] Thread soft deleted:', threadId);
       return true;
     } catch (error) {
       log.error('[ThreadRepository] Failed to soft delete thread:', error);
@@ -943,7 +790,6 @@ export class ThreadRepository {
     thread.updatedAt = Date.now();
 
     this.threadsById.set(threadId, thread);
-    // log.info('[ThreadRepository] Deleted branch from cache:', branchId);
   }
 
   /**
@@ -981,7 +827,6 @@ export class ThreadRepository {
     // Fallback to "1.0.0" for legacy messages without branchId
     if (!branchId) {
       branchId = '1.0.0';
-      // log.warn('[ThreadRepository] Message missing branchId, defaulting to "1.0.0":', dto.id);
     } else {
       // Normalize/cap to 3-part format
       branchId = this.normalizeBranchId(branchId);
@@ -1010,19 +855,11 @@ export class ThreadRepository {
       message.rawData &&
       Object.keys(message.rawData).length > 0
     ) {
-      // log.info('[ThreadRepository] Assistant message has empty content but has rawData, setting content to "empty":', message.id);
       message.content = 'empty';
     }
 
     if (message.role === 'assistant' && message.rawData) {
       message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
-      // log.info('[ThreadRepository] Extraction result:', {
-      //   attachmentsCount: message.attachments?.length || 0,
-      // });
-    } else {
-      // log.info('[ThreadRepository] Skipping attachment extraction:', {
-      //   reason: message.role !== 'assistant' ? 'not assistant' : 'no rawData',
-      // });
     }
 
     return message;
@@ -1110,8 +947,6 @@ export class ThreadRepository {
    * Guard responses have content.response = { passed: boolean, errors: Array<{title, text}> }
    */
   private processGuardMessages(messages: Message[]): void {
-    // log.info('[ThreadRepository] Processing guard messages, total messages:', messages.length);
-
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
 
@@ -1148,30 +983,14 @@ export class ThreadRepository {
             // Now check if it has the guard structure (passed field is required, errors is optional)
             if (response && typeof response === 'object' && 'passed' in response) {
               const _passed = (response as { passed: boolean }).passed;
-              // log.info('[ThreadRepository] Found guard message:', {
-              //   messageId: message.id,
-              //   role: message.role,
-              //   passed: passed,
-              //   errorCount: response.errors?.length || 0,
-              //   errors: response.errors,
-              // });
 
               // Always mark the guard response as hidden
               message.isHidden = true;
-              // log.info('[ThreadRepository] Marked guard response as hidden:', message.id);
 
               // Always mark the guard request (previous message) as hidden
               if (i > 0 && messages[i - 1].role === 'user') {
                 messages[i - 1].isHidden = true;
-                // log.info('[ThreadRepository] Marked guard request as hidden:', messages[i - 1].id);
               }
-
-              // Commented out: Hide the actual message that triggered the guard
-              // if (!passed && i > 1) {
-              //   // The message before the guard request is the actual user message that triggered the guard
-              //   messages[i - 2].isHidden = true;
-              //   log.info('[ThreadRepository] Guard failed - marked triggering message as hidden:', messages[i - 2].id);
-              // }
             }
           }
 
@@ -1194,15 +1013,9 @@ export class ThreadRepository {
               seq: number;
               error: unknown;
             };
-            // log.info('[ThreadRepository] Found error response (status 400):', {
-            //   messageId: message.id,
-            //   requestId: errorContent.requestId,
-            //   error: errorContent.error,
-            // });
 
             // Mark this error response as hidden
             message.isHidden = true;
-            // log.info('[ThreadRepository] Marked error response as hidden:', message.id);
           }
         } catch (error) {
           log.error('[ThreadRepository] Error processing guard message:', error);
@@ -1218,47 +1031,23 @@ export class ThreadRepository {
     rawData: unknown,
     provider: string,
   ): Attachment[] | undefined {
-    // log.info('[ThreadRepository] extractAttachmentsFromRawData called', {
-    //   hasRawData: !!rawData,
-    //   provider,
-    //   rawDataType: typeof rawData,
-    //   rawDataKeys: rawData ? Object.keys(rawData).slice(0, 20) : [],
-    // });
-
-    // Log first 500 chars of rawData for debugging
-    // if (rawData) {
-    //   try {
-    //     const preview = JSON.stringify(rawData).substring(0, 500);
-    //     log.info('[ThreadRepository] rawData preview:', preview);
-    //   } catch (e) {
-    //     log.warn('[ThreadRepository] Could not stringify rawData');
-    //   }
-    // }
-
     if (!rawData) {
-      // log.info('[ThreadRepository] No rawData, skipping attachment extraction');
       return undefined;
     }
 
     const normalizedProvider = (provider || '').toLowerCase();
-    // log.info('[ThreadRepository] Normalized provider:', normalizedProvider);
 
     switch (normalizedProvider) {
       case 'gemini':
-        // log.info('[ThreadRepository] Calling extractGeminiAttachments');
         return this.extractGeminiAttachments(rawData);
       case 'claude':
       case 'anthropic':
-        // log.info('[ThreadRepository] Claude/Anthropic provider - not yet implemented');
         return undefined;
       case 'openai':
-        // log.info('[ThreadRepository] OpenAI provider - not yet implemented');
         return undefined;
       case 'ollama':
-        // log.info('[ThreadRepository] Ollama provider - not yet implemented');
         return undefined;
       default:
-        // log.warn('[ThreadRepository] Unknown provider for attachment extraction:', normalizedProvider);
         return undefined;
     }
   }
@@ -1286,37 +1075,20 @@ export class ThreadRepository {
 
       // Log the modality value - FIXED: it's candidatesTokensDetails (plural Tokens)
       const modality = candidatesTokensDetails?.[0]?.modality;
-      // log.info('[ThreadRepository] Gemini modality check:', {
-      //   modality,
-      //   isImage: modality === 'IMAGE',
-      // });
 
       // Check if response contains image data
       const hasImage = modality === 'IMAGE';
 
       if (!hasImage) {
-        // log.info('[ThreadRepository] No image detected in Gemini response (modality !== "IMAGE")');
         return undefined;
       }
-
-      // log.info('[ThreadRepository] Image detected! Extracting inline data...');
 
       // Get all parts from the response
       const candidates = message.candidates as Array<Record<string, unknown>> | undefined;
       const content = candidates?.[0]?.content as Record<string, unknown> | undefined;
       const parts = content?.parts as Array<Record<string, unknown>> | undefined;
 
-      // log.info('[ThreadRepository] Checking candidates structure', {
-      //   hasCandidates: !!message.candidates,
-      //   candidatesLength: (message.candidates as Array<unknown> | undefined)?.length,
-      //   hasFirstCandidate: !!candidates?.[0],
-      //   hasContent: !!candidates?.[0]?.content,
-      //   hasParts: !!parts,
-      //   partsLength: parts?.length,
-      // });
-
       if (!parts || parts.length === 0) {
-        // log.warn('[ThreadRepository] No parts found in candidates');
         return undefined;
       }
 
@@ -1329,18 +1101,7 @@ export class ThreadRepository {
 
       const inlineData = imagePart.inlineData as { mimeType?: string; data?: string } | undefined;
 
-      // log.info('[ThreadRepository] InlineData search:', {
-      //   foundImagePart: !!imagePart,
-      //   hasMimeType: !!inlineData?.mimeType,
-      //   mimeType: inlineData?.mimeType,
-      //   hasData: !!inlineData?.data,
-      //   dataLength: inlineData?.data?.length,
-      // });
-
       if (!inlineData || !inlineData.mimeType || !inlineData.data) {
-        // log.warn('[ThreadRepository] Gemini image found but inlineData is incomplete', {
-        //   imagePart,
-        // });
         return undefined;
       }
 
@@ -1361,14 +1122,6 @@ export class ThreadRepository {
       // Clear the inlineData from rawData to save space (data is now in attachment)
       const inlineDataMutable = inlineData as { data?: string };
       delete inlineDataMutable.data;
-      // log.info('[ThreadRepository] Cleared inlineData from rawData to save space');
-
-      // log.info('[ThreadRepository] ✅ Successfully extracted Gemini image attachment:', {
-      //   mimeType: attachment.mimeType,
-      //   size: attachment.size,
-      //   dataLength: base64Data.length,
-      //   filename: attachment.filename,
-      // });
 
       return [attachment];
     } catch (error) {
