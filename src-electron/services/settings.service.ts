@@ -54,6 +54,9 @@ export interface AppSettings {
   enabledTools?: string[];
   shellCommands?: string;
 
+  // General
+  deleteConfirmationRequired?: boolean;
+
   // Updates
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
@@ -86,6 +89,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   // Directory Whitelist - empty by default
   directoryWhitelist: [],
+
+  // General
+  deleteConfirmationRequired: false,
 
   // Appearance
   theme: 'light',

@@ -292,6 +292,15 @@
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1.2rem;
+    background: var(--surface-main);
+  }
+
   .members-section {
     max-width: 800px;
     margin: 0 auto;
@@ -412,18 +421,21 @@
   }
 
   .role-badge.role-owner {
-    background: #dbeafe;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--info-color) 12%, var(--surface-card));
+    color: var(--info-color);
+    border: 1px solid color-mix(in srgb, var(--info-color) 30%, transparent);
   }
 
   .role-badge.role-editor {
-    background: #d1f4e0;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--success-color) 12%, var(--surface-card));
+    color: var(--success-color);
+    border: 1px solid color-mix(in srgb, var(--success-color) 30%, transparent);
   }
 
   .role-badge.role-viewer {
-    background: #eff6ff;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-secondary) 8%, var(--surface-card));
+    color: var(--text-secondary);
+    border: 1px solid color-mix(in srgb, var(--text-secondary) 20%, transparent);
   }
 
   .add-member-section {

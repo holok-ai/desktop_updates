@@ -10,9 +10,6 @@ export type {
   ToolOrchestra,
   ToolUse,
   ToolUseNotification,
-  ToolUseCallback
+  ToolUseCallback,
 } from '../tool-calling/orchestrator-types.js';
-export type {
-  ToolStatus,
-  ToolStatusCallback
-} from '../tool-calling/tool-types.js';
+export type { ToolStatus, ToolStatusCallback } from '../tool-calling/tool-types.js';

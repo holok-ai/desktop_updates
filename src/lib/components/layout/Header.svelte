@@ -25,8 +25,8 @@
     if (path === ROUTE.PROJECT_THREAD) {
       const projectId = params.get('projectId');
       const threadId = params.get('threadId');
-      const project = projectId ? $projects.find(p => p.id === projectId) : null;
-      const thread = threadId ? $threads.find(t => t.id === threadId) : null;
+      const project = projectId ? $projects.find((p) => p.id === projectId) : null;
+      const thread = threadId ? $threads.find((t) => t.id === threadId) : null;
 
       // Show project name if available, thread title or loading indicator
       if (project) {
@@ -34,8 +34,11 @@
           items: [
             { label: 'Projects', isLink: true },
             { label: truncate(project.title, 47), isLink: true },
-            { label: thread ? truncate(thread.title || 'Untitled', 47) : 'Loading...', isLink: false }
-          ]
+            {
+              label: thread ? truncate(thread.title || 'Untitled', 47) : 'Loading...',
+              isLink: false,
+            },
+          ],
         };
       }
 
@@ -43,8 +46,8 @@
       return {
         items: [
           { label: 'Projects', isLink: true },
-          { label: 'Loading...', isLink: false }
-        ]
+          { label: 'Loading...', isLink: false },
+        ],
       };
     }
 
@@ -52,21 +55,21 @@
     if (path === ROUTE.THREAD) {
       const threadId = params.get('threadId');
       if (threadId) {
-        const thread = $threads.find(t => t.id === threadId);
+        const thread = $threads.find((t) => t.id === threadId);
         if (thread) {
           return {
             items: [
               { label: 'Threads', isLink: true },
-              { label: truncate(thread.title || 'Untitled', 47), isLink: false }
-            ]
+              { label: truncate(thread.title || 'Untitled', 47), isLink: false },
+            ],
           };
         }
         // Thread not yet in store - show loading
         return {
           items: [
             { label: 'Threads', isLink: true },
-            { label: 'Loading...', isLink: false }
-          ]
+            { label: 'Loading...', isLink: false },
+          ],
         };
       }
       // No threadId - new thread view
@@ -87,13 +90,13 @@
     if (path === ROUTE.PROJECTS_VIEW) {
       const projectId = params.get('projectId');
       if (projectId) {
-        const project = $projects.find(p => p.id === projectId);
+        const project = $projects.find((p) => p.id === projectId);
         if (project) {
           return {
             items: [
               { label: 'Projects', isLink: true },
-              { label: truncate(project.title, 47), isLink: false }
-            ]
+              { label: truncate(project.title, 47), isLink: false },
+            ],
           };
         }
       }
@@ -103,79 +106,79 @@
     // Handle Project Members: Projects → Project Name → Members
     if (path === ROUTE.PROJECT_MEMBERS) {
       const projectId = params.get('projectId');
-      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+      const project = projectId ? $projects.find((p) => p.id === projectId) : null;
 
       if (project) {
         return {
           items: [
             { label: 'Projects', isLink: true },
             { label: truncate(project.title, 47), isLink: true },
-            { label: 'Members', isLink: false }
-          ]
+            { label: 'Members', isLink: false },
+          ],
         };
       }
 
       return {
         items: [
           { label: 'Projects', isLink: true },
-          { label: 'Loading...', isLink: false }
-        ]
+          { label: 'Loading...', isLink: false },
+        ],
       };
     }
 
     // Handle Project Files: Projects → Project Name → Files
     if (path === ROUTE.PROJECT_FILES) {
       const projectId = params.get('projectId');
-      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+      const project = projectId ? $projects.find((p) => p.id === projectId) : null;
 
       if (project) {
         return {
           items: [
             { label: 'Projects', isLink: true },
             { label: truncate(project.title, 47), isLink: true },
-            { label: 'Files', isLink: false }
-          ]
+            { label: 'Files', isLink: false },
+          ],
         };
       }
 
       return {
         items: [
           { label: 'Projects', isLink: true },
-          { label: 'Loading...', isLink: false }
-        ]
+          { label: 'Loading...', isLink: false },
+        ],
       };
     }
 
     // Handle Project Instructions: Projects → Project Name → Instructions
     if (path === ROUTE.PROJECT_INSTRUCTIONS) {
       const projectId = params.get('projectId');
-      const project = projectId ? $projects.find(p => p.id === projectId) : null;
+      const project = projectId ? $projects.find((p) => p.id === projectId) : null;
 
       if (project) {
         return {
           items: [
             { label: 'Projects', isLink: true },
             { label: truncate(project.title, 47), isLink: true },
-            { label: 'Instructions', isLink: false }
-          ]
+            { label: 'Instructions', isLink: false },
+          ],
         };
       }
 
       return {
         items: [
           { label: 'Projects', isLink: true },
-          { label: 'Loading...', isLink: false }
-        ]
+          { label: 'Loading...', isLink: false },
+        ],
       };
     }
 
     // Map other routes to single breadcrumb
     let label = null;
-    if (path === ROUTE.NEW_THREAD) {
+    if (path === ROUTE.NEW_THREAD || path === ROUTE.HOME) {
       label = 'New Thread';
     } else if (path === ROUTE.SETTINGS) {
       label = 'Settings';
-    } else if (path === '/' || path === '/search' || path.startsWith('/search')) {
+    } else if (path === '/search' || path.startsWith('/search')) {
       label = 'Search';
     }
 
@@ -216,7 +219,11 @@
     }
 
     // Handle project sub-pages (Members, Files, Instructions) breadcrumb navigation
-    if (path === ROUTE.PROJECT_MEMBERS || path === ROUTE.PROJECT_FILES || path === ROUTE.PROJECT_INSTRUCTIONS) {
+    if (
+      path === ROUTE.PROJECT_MEMBERS ||
+      path === ROUTE.PROJECT_FILES ||
+      path === ROUTE.PROJECT_INSTRUCTIONS
+    ) {
       if (index === 0 && firstItem === 'Projects') {
         // Click on "Projects" → go to projects list
         push(ROUTE.PROJECTS);
@@ -314,17 +321,17 @@
     margin-left: 50px;
   }
 
-  .breadcrumb-wrapper :global([data-slot="breadcrumb-page"]) {
+  .breadcrumb-wrapper :global([data-slot='breadcrumb-page']) {
     color: rgba(255, 255, 255, 0.7);
     font-size: 14px;
     font-weight: 500;
   }
 
-  .breadcrumb-wrapper :global([data-slot="breadcrumb-list"]) {
+  .breadcrumb-wrapper :global([data-slot='breadcrumb-list']) {
     color: rgba(255, 255, 255, 0.7);
   }
 
-  .breadcrumb-wrapper :global([data-slot="breadcrumb-link"]) {
+  .breadcrumb-wrapper :global([data-slot='breadcrumb-link']) {
     color: rgba(255, 255, 255, 0.7);
     font-size: 14px;
     font-weight: 500;
@@ -333,11 +340,11 @@
     transition: color 0.2s ease;
   }
 
-  .breadcrumb-wrapper :global([data-slot="breadcrumb-link"]:hover) {
+  .breadcrumb-wrapper :global([data-slot='breadcrumb-link']:hover) {
     color: var(--holokai-blue);
   }
 
-  .breadcrumb-wrapper :global([data-slot="breadcrumb-separator"]) {
+  .breadcrumb-wrapper :global([data-slot='breadcrumb-separator']) {
     color: rgba(255, 255, 255, 0.5);
     margin: 0 0.5rem;
   }

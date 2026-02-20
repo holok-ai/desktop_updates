@@ -48,10 +48,10 @@
     isProcessing
       ? `${actionVerbPast}...`
       : showLargeFileConfirmation
-          ? 'Confirm Transfer'
-          : showDuplicateWarning
-            ? 'Create Another Copy'
-            : `${actionVerb} Thread`,
+        ? 'Confirm Transfer'
+        : showDuplicateWarning
+          ? 'Create Another Copy'
+          : `${actionVerb} Thread`,
   );
 
   $effect(() => {
@@ -288,8 +288,8 @@
           {#if !hasWritePermissions}
             <div class="info-box warning">
               <p>
-                You don't have write permissions to any projects. You can only copy to the My
-                Thread List.
+                You don't have write permissions to any projects. You can only copy to the My Thread
+                List.
               </p>
             </div>
           {/if}
@@ -300,7 +300,12 @@
         {/if}
 
         <div class="dialog-actions">
-          <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isProcessing}>
+          <button
+            type="button"
+            class="btn-secondary"
+            onclick={handleCancel}
+            disabled={isProcessing}
+          >
             Cancel
           </button>
           <button type="button" class="btn-primary" onclick={handleConfirm} disabled={isProcessing}>

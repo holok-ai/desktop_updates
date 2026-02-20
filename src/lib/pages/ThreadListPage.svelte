@@ -9,6 +9,7 @@
   import { ROUTE } from '$lib/constants/route.constant';
 
   let isLoading = $state(true);
+  let searchQuery = $state('');
 
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
@@ -35,10 +36,13 @@
     push(ROUTE.NEW_THREAD);
   }
 
-  // Filter to show only personal threads (no projectId)
-  const personalThreads = $derived(
-    $threads.filter(t => !t.metadata?.projectId)
-  );
+  // Filter to show only personal threads (no projectId), then apply search
+  const personalThreads = $derived(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return $threads
+      .filter((t) => !t.projectId)
+      .filter((t) => !query || (t.title ?? '').toLowerCase().includes(query));
+  });
 </script>
 
 <div class="threads-page">
@@ -50,17 +54,27 @@
     </button>
   </div>
 
+  <div class="search-bar">
+    <i class="pi pi-search"></i>
+    <input type="text" placeholder="Search threads..." bind:value={searchQuery} />
+  </div>
+
   {#if isLoading}
     <div class="loading-state">
       <p>Loading threads...</p>
     </div>
-  {:else if personalThreads.length > 0}
+  {:else if personalThreads().length > 0}
     <div class="threads-section">
       <div class="threads-list">
-        {#each personalThreads as thread (thread.id)}
+        {#each personalThreads() as thread (thread.id)}
           <ThreadListItem {thread} />
         {/each}
       </div>
+    </div>
+  {:else if searchQuery.trim()}
+    <div class="empty-threads">
+      <i class="pi pi-search"></i>
+      <p>No threads match "{searchQuery.trim()}".</p>
     </div>
   {:else}
     <div class="empty-threads">
@@ -118,6 +132,36 @@
 
   .new-thread-button i {
     font-size: 0.875rem;
+  }
+
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    margin-bottom: 1.25rem;
+  }
+
+  .search-bar i {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    flex-shrink: 0;
+  }
+
+  .search-bar input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+  }
+
+  .search-bar input::placeholder {
+    color: var(--text-secondary);
   }
 
   .loading-state {

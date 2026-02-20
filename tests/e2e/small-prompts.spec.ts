@@ -1,7 +1,12 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { createThread, waitForStreamingComplete, navigateToThreads, forceThreadRefresh } from '../helpers/ui-helpers';
+import {
+  createThread,
+  waitForStreamingComplete,
+  navigateToThreads,
+  forceThreadRefresh,
+} from '../helpers/ui-helpers';
 
 test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
   let app: ElectronApplication | undefined;
@@ -43,7 +48,9 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
       console.log('[Prompt 1] Assistant message not visible after 60s, attempting recovery...');
       await forceThreadRefresh(page);
       // Use a more generic locator after refresh as .last() might be tricky if DOM changed
-      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({ timeout: 60000 });
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
     }
 
     // Wait for streaming to complete (message no longer has .streaming class)
@@ -85,7 +92,9 @@ test.describe('E2E: Small Prompts - Basic Chat Functionality', () => {
     } catch (error) {
       console.log('[Prompt 2] Assistant message not visible after 60s, attempting recovery...');
       await forceThreadRefresh(page);
-      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({ timeout: 60000 });
+      await expect(page.locator('.messages .message.assistant').first()).toBeVisible({
+        timeout: 60000,
+      });
     }
 
     // Wait for streaming to complete

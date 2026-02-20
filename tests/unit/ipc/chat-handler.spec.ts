@@ -119,7 +119,7 @@ describe('Chat IPC handlers', () => {
         model: 'm',
         apiKey: 'k',
       },
-      '/working/dir'
+      '/working/dir',
     );
     expect(createRes.success).toBe(true);
 
@@ -127,11 +127,7 @@ describe('Chat IPC handlers', () => {
     const sent: any[] = [];
     const event = { sender: { send: (ch: string, data: any) => sent.push([ch, data]) } } as any;
 
-    const sendRes = await handlers['chat:send'](
-      event,
-      threadId,
-      { model: 'm', messages: [] }
-    );
+    const sendRes = await handlers['chat:send'](event, threadId, { model: 'm', messages: [] });
     expect(sendRes.success).toBe(true);
     expect(sent.some(([ch]) => ch === 'chat:token')).toBe(true);
   });
@@ -156,7 +152,7 @@ describe('Chat IPC handlers', () => {
       threadId1,
       'ollama',
       { url: 'http://x', model: 'm', apiKey: 'k' },
-      '/dir1'
+      '/dir1',
     );
     expect(createRes1.success).toBe(true);
 
@@ -166,7 +162,7 @@ describe('Chat IPC handlers', () => {
       threadId2,
       'ollama',
       { url: 'http://x', model: 'm', apiKey: 'k' },
-      '/dir2'
+      '/dir2',
     );
     expect(createRes2.success).toBe(true);
 
@@ -195,7 +191,7 @@ describe('Chat IPC handlers', () => {
         model: 'm',
         apiKey: 'k',
       },
-      '/working/dir'
+      '/working/dir',
     );
     const logs = handlers['chat:getAuditLogs'](null, threadId);
     expect(Array.isArray(logs)).toBe(true);
@@ -206,7 +202,7 @@ describe('Chat IPC handlers', () => {
     // after destroy, send should throw for that thread
     const event = { sender: { send: () => {} } } as any;
     await expect(
-      handlers['chat:send'](event, threadId, { model: 'm', messages: [] })
+      handlers['chat:send'](event, threadId, { model: 'm', messages: [] }),
     ).rejects.toThrow();
   });
 

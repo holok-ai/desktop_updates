@@ -39,13 +39,15 @@
   // Get last 10 threads sorted by most recent
   const recentThreads = $derived(
     $threads
-      .filter(t => !t.metadata?.projectId)
+      .filter((t) => !t.metadata?.projectId)
       .sort((a, b) => {
-        const aTime = typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
-        const bTime = typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
+        const aTime =
+          typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
+        const bTime =
+          typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
         return bTime - aTime;
       })
-      .slice(0, 10)
+      .slice(0, 10),
   );
 
   // Derive favorite items for display, ordered by most recently added
@@ -56,14 +58,24 @@
         if (f.type === 'thread') {
           const thread = $threads.find((t) => t.id === f.id);
           if (!thread) return null;
-          return { id: f.id, type: f.type as FavoriteType, label: thread.title || 'Untitled', sublabel: (thread.metadata?.modelTitle as string) || '' };
+          return {
+            id: f.id,
+            type: f.type as FavoriteType,
+            label: thread.title || 'Untitled',
+            sublabel: (thread.metadata?.modelTitle as string) || '',
+          };
         } else {
           const project = $projects.find((p) => p.id === f.id);
           if (!project) return null;
-          return { id: f.id, type: f.type as FavoriteType, label: project.title, sublabel: project.type };
+          return {
+            id: f.id,
+            type: f.type as FavoriteType,
+            label: project.title,
+            sublabel: project.type,
+          };
         }
       })
-      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .filter((item): item is NonNullable<typeof item> => item !== null),
   );
 
   function toggleFavorites() {
@@ -144,6 +156,17 @@
     const stored = storageService.getThemeMode();
     setMode(stored === APP_THEME_MODE.DARK ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT);
 
+    // React to theme changes applied elsewhere (e.g., Settings page)
+    const html = document.documentElement;
+    const syncFromClass = () => {
+      const isDark = html.classList.contains(APP_THEME_MODE.DARK);
+      const nextMode = isDark ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
+      if (currentMode !== nextMode) {
+        currentMode = nextMode;
+        modeStore.set(nextMode);
+      }
+    };
+
     // Load collapsed state
     isCollapsed = storageService.getSidebarCollapsed();
 
@@ -155,16 +178,6 @@
       }
     })();
 
-    // React to theme changes applied elsewhere (e.g., Settings page)
-    const html = document.documentElement;
-    const syncFromClass = () => {
-      const isDark = html.classList.contains(APP_THEME_MODE.DARK);
-      const nextMode = isDark ? APP_THEME_MODE.DARK : APP_THEME_MODE.LIGHT;
-      if (currentMode !== nextMode) {
-        currentMode = nextMode;
-        modeStore.set(nextMode);
-      }
-    };
     const observer = new MutationObserver(syncFromClass);
     observer.observe(html, { attributes: true, attributeFilter: ['class'] });
     // Also handle storage changes (in case of multi-window)
@@ -257,7 +270,17 @@
           title={isCollapsed ? activity.label : ''}
         >
           {#if isCollapsed}
-            <i class="pi {activity.id === 'new-thread' ? 'pi-plus' : activity.id === 'search' ? 'pi-search' : activity.id === 'threads' ? 'pi-comments' : activity.id === 'projects' ? 'pi-folder' : ''}"></i>
+            <i
+              class="pi {activity.id === 'new-thread'
+                ? 'pi-plus'
+                : activity.id === 'search'
+                  ? 'pi-search'
+                  : activity.id === 'threads'
+                    ? 'pi-comments'
+                    : activity.id === 'projects'
+                      ? 'pi-folder'
+                      : ''}"
+            ></i>
           {:else}
             {activity.label}
           {/if}
@@ -267,101 +290,101 @@
 
     <!-- Favorites Section - only show when not collapsed -->
     {#if !isCollapsed}
-    <li class="favorites-section">
-      <div
-        class="recent-header"
-        role="button"
-        tabindex="0"
-        onmouseenter={() => (favoritesHovered = true)}
-        onmouseleave={() => (favoritesHovered = false)}
-        onclick={toggleFavorites}
-        onkeydown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggleFavorites();
-          }
-        }}
-      >
-        <span class="recent-label">Favorites</span>
-        {#if favoritesHovered}
-          <button
-            class="recent-toggle"
-            onclick={(e) => {
-              e.stopPropagation();
+      <li class="favorites-section">
+        <div
+          class="recent-header"
+          role="button"
+          tabindex="0"
+          onmouseenter={() => (favoritesHovered = true)}
+          onmouseleave={() => (favoritesHovered = false)}
+          onclick={toggleFavorites}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
               toggleFavorites();
-            }}
-          >
-            {showFavorites ? 'hide' : 'show'}
-          </button>
-        {/if}
-      </div>
-      <hr class="recent-divider" />
+            }
+          }}
+        >
+          <span class="recent-label">Favorites</span>
+          {#if favoritesHovered}
+            <button
+              class="recent-toggle"
+              onclick={(e) => {
+                e.stopPropagation();
+                toggleFavorites();
+              }}
+            >
+              {showFavorites ? 'hide' : 'show'}
+            </button>
+          {/if}
+        </div>
+        <hr class="recent-divider" />
 
-      {#if showFavorites && favoriteItems.length > 0}
-        <ul class="recent-threads">
-          {#each favoriteItems as item (item.id)}
-            <li>
-              <button class="recent-thread-item" onclick={() => handleFavoriteClick(item)}>
-                <span class="thread-title">
-                  {#if item.type === 'project'}
-                    <i class="pi pi-folder" style="font-size: 10px; margin-right: 4px;"></i>
-                  {/if}
-                  {item.label}
-                </span>
-                <span class="thread-model">{item.sublabel}</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </li>
+        {#if showFavorites && favoriteItems.length > 0}
+          <ul class="recent-threads">
+            {#each favoriteItems as item (item.id)}
+              <li>
+                <button class="recent-thread-item" onclick={() => handleFavoriteClick(item)}>
+                  <span class="thread-title">
+                    {#if item.type === 'project'}
+                      <i class="pi pi-folder" style="font-size: 10px; margin-right: 4px;"></i>
+                    {/if}
+                    {item.label}
+                  </span>
+                  <span class="thread-model">{item.sublabel}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </li>
     {/if}
 
     <!-- Recent Section - only show when not collapsed -->
     {#if !isCollapsed}
-    <li class="recent-section">
-      <div
-        class="recent-header"
-        role="button"
-        tabindex="0"
-        onmouseenter={() => (recentHovered = true)}
-        onmouseleave={() => (recentHovered = false)}
-        onclick={() => void toggleRecentThreads()}
-        onkeydown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            void toggleRecentThreads();
-          }
-        }}
-      >
-        <span class="recent-label">Recent</span>
-        {#if recentHovered}
-          <button
-            class="recent-toggle"
-            onclick={(e) => {
-              e.stopPropagation();
+      <li class="recent-section">
+        <div
+          class="recent-header"
+          role="button"
+          tabindex="0"
+          onmouseenter={() => (recentHovered = true)}
+          onmouseleave={() => (recentHovered = false)}
+          onclick={() => void toggleRecentThreads()}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
               void toggleRecentThreads();
-            }}
-          >
-            {showRecentThreads ? 'hide' : 'show'}
-          </button>
-        {/if}
-      </div>
-      <hr class="recent-divider" />
+            }
+          }}
+        >
+          <span class="recent-label">Recent</span>
+          {#if recentHovered}
+            <button
+              class="recent-toggle"
+              onclick={(e) => {
+                e.stopPropagation();
+                void toggleRecentThreads();
+              }}
+            >
+              {showRecentThreads ? 'hide' : 'show'}
+            </button>
+          {/if}
+        </div>
+        <hr class="recent-divider" />
 
-      {#if showRecentThreads && recentThreads.length > 0}
-        <ul class="recent-threads">
-          {#each recentThreads as thread (thread.id)}
-            <li>
-              <button class="recent-thread-item" onclick={() => handleThreadClick(thread)}>
-                <span class="thread-title">{thread.title || 'Untitled'}</span>
-                <span class="thread-model">{thread.metadata?.modelTitle || ''}</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </li>
+        {#if showRecentThreads && recentThreads.length > 0}
+          <ul class="recent-threads">
+            {#each recentThreads as thread (thread.id)}
+              <li>
+                <button class="recent-thread-item" onclick={() => handleThreadClick(thread)}>
+                  <span class="thread-title">{thread.title || 'Untitled'}</span>
+                  <span class="thread-model">{thread.metadata?.modelTitle || ''}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </li>
     {/if}
   </ul>
 

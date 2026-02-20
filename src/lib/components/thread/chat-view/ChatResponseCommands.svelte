@@ -39,12 +39,7 @@
   onmouseleave={() => (hovered = false)}
 >
   {#each commands as cmd}
-    <button
-      class="cmd-btn"
-      onclick={cmd.action}
-      title={cmd.label}
-      aria-label={cmd.label}
-    >
+    <button class="cmd-btn" onclick={cmd.action} title={cmd.label} aria-label={cmd.label}>
       <i class="pi {cmd.icon}"></i>
     </button>
   {/each}
@@ -84,7 +79,9 @@
     color: var(--text-secondary, #666);
     cursor: pointer;
     font-size: 0.75rem;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
   }
 
   .cmd-btn:hover {

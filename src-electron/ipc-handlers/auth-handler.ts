@@ -72,7 +72,9 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     // Check if this code has already been processed (prevents duplicate processing on Windows)
     if (processedCodes.has(code)) {
       authLog.warn('[AUTH] Code already processed, ignoring duplicate callback');
-      authLog.warn('[AUTH] This typically happens on Windows where multiple protocol handlers fire');
+      authLog.warn(
+        '[AUTH] This typically happens on Windows where multiple protocol handlers fire',
+      );
       return;
     }
 
@@ -81,10 +83,13 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
     authLog.info('[AUTH] Code marked as processed');
 
     // Clean up old codes after 5 minutes to prevent memory leak
-    setTimeout(() => {
-      processedCodes.delete(code);
-      authLog.info('[AUTH] Cleaned up processed code from tracking set');
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        processedCodes.delete(code);
+        authLog.info('[AUTH] Cleaned up processed code from tracking set');
+      },
+      5 * 60 * 1000,
+    );
 
     authLog.info('Valid OAuth callback received, exchanging code for tokens');
     authLog.info('Calling authService.processOAuthCallback...');

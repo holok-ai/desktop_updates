@@ -9,7 +9,7 @@ export const ROUTE = {
   PROJECT_MEMBERS: '/project/members',
   PROJECT_FILES: '/project/files',
   PROJECT_INSTRUCTIONS: '/project/instructions',
-  SEARCH:  '/search', 
+  SEARCH: '/search',
   SETTINGS: '/settings',
   LOGIN: '/login',
 } as const;

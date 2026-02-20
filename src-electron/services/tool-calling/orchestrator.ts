@@ -31,8 +31,10 @@ export class ToolOrchestrator implements ToolOrchestra {
       this.tools.set(tool.getName(), tool);
     }
 
-    log.info(`[ToolOrchestrator] Initialized tools (${this.tools.size}):`,
-             Array.from(this.tools.keys()).join(', '));
+    log.info(
+      `[ToolOrchestrator] Initialized tools (${this.tools.size}):`,
+      Array.from(this.tools.keys()).join(', '),
+    );
   }
 
   /**
@@ -57,7 +59,7 @@ export class ToolOrchestrator implements ToolOrchestra {
    * Get all available tool definitions
    */
   getToolDefinitions(): ToolDefinition[] {
-    return Array.from(this.tools.values()).map(tool => tool.getDefinition());
+    return Array.from(this.tools.values()).map((tool) => tool.getDefinition());
   }
 
   /**
@@ -66,10 +68,14 @@ export class ToolOrchestrator implements ToolOrchestra {
   async executeTool(
     name: string,
     input: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
-    log.info('[ToolOrchestrator] Executing tool:', name,
-             'with context:', JSON.stringify(executionContext));
+    log.info(
+      '[ToolOrchestrator] Executing tool:',
+      name,
+      'with context:',
+      JSON.stringify(executionContext),
+    );
 
     const tool = this.tools.get(name);
     if (!tool) {
@@ -96,8 +102,8 @@ export class ToolOrchestrator implements ToolOrchestra {
         // Add more tool-supporting Ollama models here as needed
       ];
 
-      return toolSupportedModels.some(supportedModel =>
-        model.toLowerCase().includes(supportedModel.toLowerCase())
+      return toolSupportedModels.some((supportedModel) =>
+        model.toLowerCase().includes(supportedModel.toLowerCase()),
       );
     }
 

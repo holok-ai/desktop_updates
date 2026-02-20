@@ -449,6 +449,15 @@ Describe what this project is about and what threads should focus on.
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1.2rem;
+    background: var(--surface-main);
+  }
+
   .instructions-section {
     max-width: 900px;
     margin: 0 auto;

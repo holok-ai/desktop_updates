@@ -166,6 +166,13 @@ export interface ReadPdfResult {
  */
 export interface ToolResult {
   success: boolean;
-  data?: ReadFolderResult | ReadFileResult | WriteFileResult | ShellResult | ReadWordResult | ReadExcelResult | ReadPdfResult;
+  data?:
+    | ReadFolderResult
+    | ReadFileResult
+    | WriteFileResult
+    | ShellResult
+    | ReadWordResult
+    | ReadExcelResult
+    | ReadPdfResult;
   error?: string;
 }

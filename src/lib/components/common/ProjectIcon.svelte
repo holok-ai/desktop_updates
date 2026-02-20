@@ -5,7 +5,7 @@
     icon = 'folder',
     color = '#3B82F6',
     size = 48,
-    iconSize = 24
+    iconSize = 24,
   }: {
     icon?: string;
     color?: string;
@@ -14,7 +14,7 @@
   } = $props();
 
   const iconPath = $derived(
-    icon && PROJECT_ICON_SVGS[icon] ? PROJECT_ICON_SVGS[icon] : PROJECT_ICON_SVGS['folder']
+    icon && PROJECT_ICON_SVGS[icon] ? PROJECT_ICON_SVGS[icon] : PROJECT_ICON_SVGS['folder'],
   );
 </script>
 
@@ -26,13 +26,7 @@
     height: {size}px;
   "
 >
-  <svg
-    width={iconSize}
-    height={iconSize}
-    viewBox="0 0 16 16"
-    fill="none"
-    aria-hidden="true"
-  >
+  <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none" aria-hidden="true">
     <path d={iconPath} fill="currentColor" />
   </svg>
 </div>
@@ -47,4 +41,3 @@
     flex-shrink: 0;
   }
 </style>
-

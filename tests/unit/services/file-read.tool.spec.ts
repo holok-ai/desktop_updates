@@ -55,7 +55,7 @@ describe('FileReadTool', () => {
   describe('getDefinition', () => {
     it('should return tool definition with correct schema', () => {
       const definition = tool.getDefinition();
-      
+
       expect(definition.name).toBe('read_file');
       expect(definition.input_schema.type).toBe('object');
       expect(definition.input_schema.properties).toHaveProperty('file_path');
@@ -75,15 +75,12 @@ describe('FileReadTool', () => {
       });
       (fs.promises.readFile as any).mockResolvedValue(mockContent);
 
-      const result = await tool.execute(
-        { file_path: './test.txt' },
-        executionContext
-      );
+      const result = await tool.execute({ file_path: './test.txt' }, executionContext);
 
       expect(result.success).toBe(true);
       expect(mockContext.service.resolvePath).toHaveBeenCalledWith(
         './test.txt',
-        '/test/working/dir'
+        '/test/working/dir',
       );
       expect(result.data).toHaveProperty('content', mockContent);
     });
@@ -99,15 +96,12 @@ describe('FileReadTool', () => {
       });
       (fs.promises.readFile as any).mockResolvedValue(mockContent);
 
-      const result = await tool.execute(
-        { file_path: '/absolute/path/file.txt' },
-        executionContext
-      );
+      const result = await tool.execute({ file_path: '/absolute/path/file.txt' }, executionContext);
 
       expect(result.success).toBe(true);
       expect(mockContext.service.resolvePath).toHaveBeenCalledWith(
         '/absolute/path/file.txt',
-        '/test/working/dir'
+        '/test/working/dir',
       );
     });
 
@@ -136,16 +130,8 @@ describe('FileReadTool', () => {
       await tool.execute({ file_path: './file.txt' }, context1);
       await tool.execute({ file_path: './file.txt' }, context2);
 
-      expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(
-        1,
-        './file.txt',
-        '/dir1'
-      );
-      expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(
-        2,
-        './file.txt',
-        '/dir2'
-      );
+      expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(1, './file.txt', '/dir1');
+      expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(2, './file.txt', '/dir2');
     });
 
     it('should call status callback when provided', async () => {
@@ -171,13 +157,13 @@ describe('FileReadTool', () => {
         expect.objectContaining({
           toolName: 'read_file',
           state: 'in_progress',
-        })
+        }),
       );
       expect(statusCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           toolName: 'read_file',
           state: 'complete',
-        })
+        }),
       );
     });
 
@@ -201,10 +187,7 @@ describe('FileReadTool', () => {
     it('should return error for non-existent file', async () => {
       (fs.existsSync as any).mockReturnValue(false);
 
-      const result = await tool.execute(
-        { file_path: './nonexistent.txt' },
-        executionContext
-      );
+      const result = await tool.execute({ file_path: './nonexistent.txt' }, executionContext);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('FILE_NOT_FOUND');
@@ -217,10 +200,7 @@ describe('FileReadTool', () => {
         isDirectory: () => true,
       });
 
-      const result = await tool.execute(
-        { file_path: './dir' },
-        executionContext
-      );
+      const result = await tool.execute({ file_path: './dir' }, executionContext);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('NOT_A_FILE');
@@ -232,10 +212,7 @@ describe('FileReadTool', () => {
         reason: 'blacklist',
       });
 
-      const result = await tool.execute(
-        { file_path: './restricted.txt' },
-        executionContext
-      );
+      const result = await tool.execute({ file_path: './restricted.txt' }, executionContext);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('cannot access');
@@ -258,7 +235,7 @@ describe('FileReadTool', () => {
           start_line: 2,
           end_line: 4,
         },
-        executionContext
+        executionContext,
       );
 
       expect(result.success).toBe(true);
@@ -282,15 +259,11 @@ describe('FileReadTool', () => {
           file_path: './test.txt',
           encoding: 'ascii',
         },
-        executionContext
+        executionContext,
       );
 
       expect(result.success).toBe(true);
-      expect(fs.promises.readFile).toHaveBeenCalledWith(
-        expect.any(String),
-        { encoding: 'ascii' }
-      );
+      expect(fs.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
     });
   });
 });
-

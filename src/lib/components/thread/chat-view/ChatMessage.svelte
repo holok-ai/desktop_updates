@@ -94,9 +94,7 @@
   ]);
 
   // Concatenate all response content for copying
-  const allResponseContent = $derived(
-    responses.map(r => r.content).join('\n\n---\n\n')
-  );
+  const allResponseContent = $derived(responses.map((r) => r.content).join('\n\n---\n\n'));
 
   const responseCommands = $derived([
     {
@@ -117,11 +115,7 @@
   ]);
 </script>
 
-<div
-  class="chat-message"
-  role="article"
-  aria-label="Chat message"
->
+<div class="chat-message" role="article" aria-label="Chat message">
   <!-- Request -->
   <ChatRequest
     content={requestContent}
@@ -135,11 +129,7 @@
   />
 
   <!-- Request commands (hover-reveal) -->
-  <ChatRequestCommands
-    commands={requestCommands}
-    gapHeight={commandGap}
-    {chatLayout}
-  />
+  <ChatRequestCommands commands={requestCommands} gapHeight={commandGap} {chatLayout} />
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
@@ -167,11 +157,7 @@
 
   <!-- Response commands (hover-reveal) - shown if there are any responses -->
   {#if responses.length > 0 && !isStreaming}
-    <ChatResponseCommands
-      commands={responseCommands}
-      gapHeight={commandGap}
-      {chatLayout}
-    />
+    <ChatResponseCommands commands={responseCommands} gapHeight={commandGap} {chatLayout} />
   {/if}
 </div>
 

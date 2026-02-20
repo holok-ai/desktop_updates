@@ -66,6 +66,7 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+    deleteConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -90,6 +91,7 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+    deleteConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -146,6 +148,7 @@
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       avatar: all.avatar ? { ...defaultUserAvatar, ...all.avatar } : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
+      deleteConfirmationRequired: all.deleteConfirmationRequired ?? false,
       showRecentList: all.showRecentList ?? true,
       showFavoritesList: all.showFavoritesList ?? true,
       threadLayout: (all.threadLayout as ThreadLayout) || THREAD_LAYOUT.SINGLE_COL,
@@ -238,6 +241,7 @@
         directoryWhitelist: [...settings.directoryWhitelist],
         avatar: { ...settings.avatar },
         startingPage: settings.startingPage,
+        deleteConfirmationRequired: settings.deleteConfirmationRequired,
         showRecentList: settings.showRecentList,
         showFavoritesList: settings.showFavoritesList,
         threadLayout: settings.threadLayout,
@@ -335,6 +339,7 @@
       directoryWhitelist: settings.directoryWhitelist,
       avatar: settings.avatar,
       startingPage: settings.startingPage,
+      deleteConfirmationRequired: settings.deleteConfirmationRequired,
       showRecentList: settings.showRecentList,
       showFavoritesList: settings.showFavoritesList,
       threadLayout: settings.threadLayout,
@@ -354,6 +359,7 @@
         directoryWhitelist: savedSettings.directoryWhitelist,
         avatar: savedSettings.avatar,
         startingPage: savedSettings.startingPage,
+        deleteConfirmationRequired: savedSettings.deleteConfirmationRequired,
         showRecentList: savedSettings.showRecentList,
         showFavoritesList: savedSettings.showFavoritesList,
         threadLayout: savedSettings.threadLayout,
@@ -550,6 +556,21 @@
                         </button>
                       </div>
                     {/if}
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Confirmations -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Confirmations</div>
+                  <div class="subgroup-controls">
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.deleteConfirmationRequired} />
+                      <span class="text-sm"
+                        >Require confirmation to delete threads and projects?</span
+                      >
+                    </label>
                   </div>
                 </div>
               </div>

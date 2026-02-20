@@ -40,10 +40,7 @@ export class FileWriteEventService {
   /**
    * Handle tool use event from chat service
    */
-  handleToolUse(
-    data: ToolUseData,
-    messages: Message[],
-  ): Record<string, FileWriteEvent[]> {
+  handleToolUse(data: ToolUseData, messages: Message[]): Record<string, FileWriteEvent[]> {
     if (data.toolName !== 'write_file') {
       return this.getFilteredEvents();
     }
@@ -171,8 +168,7 @@ export class FileWriteEventService {
         const isdurationKnown = typeof durationMs === 'number' && Number.isFinite(durationMs);
         // Hide notification for fast operations (<= threshold). Show for slower operations.
         const shouldhideNotification =
-          isdurationKnown &&
-          durationMs <= FileWriteEventService.NOTIFICATION_DURATION_THRESHOLD_MS;
+          isdurationKnown && durationMs <= FileWriteEventService.NOTIFICATION_DURATION_THRESHOLD_MS;
 
         return {
           ...event,
@@ -267,4 +263,3 @@ export class FileWriteEventService {
     this.toolCallMessageMap = {};
   }
 }
-

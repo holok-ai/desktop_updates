@@ -706,20 +706,20 @@ export async function createThread(
     }
   }
 
-    // Wait for chat view to be fully loaded
-    try {
+  // Wait for chat view to be fully loaded
+  try {
+    await expect(chatPane).toBeVisible({ timeout: 30000 });
+  } catch (error) {
+    console.log('[createThread] Chat pane not visible after navigation, retrying click...');
+    // Try clicking the thread item again as a last resort
+    const threadItemRetry = page.locator('div.thread-item, [role="menuitem"]').first();
+    if (await threadItemRetry.isVisible()) {
+      await threadItemRetry.click();
       await expect(chatPane).toBeVisible({ timeout: 30000 });
-    } catch (error) {
-      console.log('[createThread] Chat pane not visible after navigation, retrying click...');
-      // Try clicking the thread item again as a last resort
-      const threadItemRetry = page.locator('div.thread-item, [role="menuitem"]').first();
-      if (await threadItemRetry.isVisible()) {
-        await threadItemRetry.click();
-        await expect(chatPane).toBeVisible({ timeout: 30000 });
-      } else {
-        throw error;
-      }
+    } else {
+      throw error;
     }
+  }
 
   // CRITICAL: Verify user message appeared after thread creation
   // If not, force UI refresh to recover from error state

@@ -52,7 +52,9 @@
 
   $: language = getLanguageFromPath(filePath);
   $: isLargeContent = content.length > CONTENT_PREVIEW_LIMIT;
-  $: previewBody = isLargeContent ? content.slice(0, CONTENT_PREVIEW_LIMIT) + '\n... (truncated)' : content;
+  $: previewBody = isLargeContent
+    ? content.slice(0, CONTENT_PREVIEW_LIMIT) + '\n... (truncated)'
+    : content;
   $: previewMarkdown = '```' + language + '\n' + previewBody + '\n```';
   $: sizeDeltaBytes =
     typeof previousSizeBytes === 'number' ? bytesWritten - previousSizeBytes : bytesWritten;

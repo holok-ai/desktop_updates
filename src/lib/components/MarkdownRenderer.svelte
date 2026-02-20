@@ -73,10 +73,30 @@
 
     // Common languages to consider for auto-detection (in priority order)
     const commonLanguages = [
-      'python', 'javascript', 'typescript', 'java', 'csharp', 'cpp', 'c',
-      'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'scala',
-      'html', 'css', 'sql', 'bash', 'shell', 'powershell',
-      'json', 'yaml', 'xml', 'markdown'
+      'python',
+      'javascript',
+      'typescript',
+      'java',
+      'csharp',
+      'cpp',
+      'c',
+      'php',
+      'ruby',
+      'go',
+      'rust',
+      'swift',
+      'kotlin',
+      'scala',
+      'html',
+      'css',
+      'sql',
+      'bash',
+      'shell',
+      'powershell',
+      'json',
+      'yaml',
+      'xml',
+      'markdown',
     ];
 
     // Helper function to detect CSV content
@@ -85,11 +105,13 @@
       if (lines.length < 2) return false;
 
       // Check if most lines have consistent comma count
-      const commaCounts = lines.map(line => (line.match(/,/g) || []).length);
+      const commaCounts = lines.map((line) => (line.match(/,/g) || []).length);
       if (commaCounts.length === 0) return false;
 
       const avgCommas = commaCounts.reduce((a, b) => a + b, 0) / commaCounts.length;
-      const consistentCommas = commaCounts.filter(count => Math.abs(count - avgCommas) <= 1).length;
+      const consistentCommas = commaCounts.filter(
+        (count) => Math.abs(count - avgCommas) <= 1,
+      ).length;
 
       // Additional checks for CSV patterns
       const _hasQuotes = text.includes('"') || text.includes("'");
@@ -135,16 +157,13 @@
           }
         }
       } else {
-        // Auto-detect language using common languages subset
+        // No language specified — render as plaintext with no label
         try {
-          const result = hljs.highlightAuto(code, commonLanguages);
-          highlighted = result.value;
-          detectedLang = result.language || 'plaintext';
-          isInferred = true;
+          highlighted = hljs.highlight(code, { language: 'plaintext' }).value;
         } catch {
           highlighted = code;
-          detectedLang = 'plaintext';
         }
+        detectedLang = '';
       }
 
       const langBadge = detectedLang
@@ -197,13 +216,13 @@
         .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
         .replace(
           /\[Security checks passed, processing your request\.\.\.\]\n?/g,
-          '<span class="status-success"><span class="checkmark">✓</span></span>'
+          '<span class="status-success"><span class="checkmark">✓</span></span>',
         );
     } else if (hasValidation) {
       // Only validation: show spinner
       return text.replace(
         /\[Validating request and running security checks\.\.\.\]\n?/g,
-        '<span class="status-spinner"><span class="spinner"></span> Validating request...</span>'
+        '<span class="status-spinner"><span class="spinner"></span> Validating request...</span>',
       );
     }
 
@@ -242,7 +261,12 @@
       const mimeType = mimeTypeMatch[1];
       const fileName = fileNameMatch ? fileNameMatch[1] : 'file';
 
-      console.log('[MarkdownRenderer] Processing FileId:', { fileId, threadId, mimeType, fileName });
+      console.log('[MarkdownRenderer] Processing FileId:', {
+        fileId,
+        threadId,
+        mimeType,
+        fileName,
+      });
 
       try {
         // Fetch file from backend
@@ -251,7 +275,10 @@
         if (result.success && result.buffer) {
           // Convert buffer to base64
           const base64 = btoa(
-            new Uint8Array(result.buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+            new Uint8Array(result.buffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              '',
+            ),
           );
 
           // Determine how to display based on mime type
@@ -274,7 +301,8 @@
             const textContent = atob(base64);
             replacement = `\`\`\`\n${textContent}\n\`\`\``;
           } else if (
-            mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            mimeType ===
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           ) {
             // Display as download link for Office documents
@@ -305,7 +333,7 @@
             `<div class="file-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>File not found: ${fileName}</span>
-            </div>`
+            </div>`,
           );
         }
       } catch (error) {
@@ -315,7 +343,7 @@
           `<div class="file-error">
             <i class="pi pi-exclamation-triangle"></i>
             <span>Error loading file: ${fileName}</span>
-          </div>`
+          </div>`,
         );
       }
     }
@@ -651,6 +679,7 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    margin-left: auto;
     background: rgba(100, 108, 255, 0.15);
     color: var(--text-secondary);
     border: 1px solid rgba(100, 108, 255, 0.3);
@@ -850,7 +879,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* File download/display components */

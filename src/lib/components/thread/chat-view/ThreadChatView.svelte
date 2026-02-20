@@ -12,6 +12,7 @@
   import type { ChatLayout } from '$lib/types/app.type';
   import type { Attachment } from '$shared/types/attachment.types';
   import { copyToInput } from '$lib/services/clipboard.service';
+  import { toastStore } from '$lib/services/toast.service';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -40,6 +41,7 @@
   let isStreaming = $state(false);
   let responseText = $state('');
   let error = $state('');
+  let agentUnavailableInfo = $state(false);
   let messagesEl: HTMLDivElement | undefined = $state();
   let fontSize = $state(14); // Font size from settings
   let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
@@ -112,6 +114,17 @@
     // Extract model info if thread exists
     if (thread?.metadata) {
       extractModelInfo();
+    }
+
+    // Warn if the thread's agent is no longer accessible
+    if (thread) {
+      const agentToCheck = agentId ?? (thread.metadata?.agentId as string | undefined);
+      const available = await threadService.isAgentAvailable(agentToCheck);
+      if (!available) {
+        toastStore.show('You no longer have access to this assistant to submit prompts.', {
+          variant: 'success',
+        });
+      }
     }
   });
 
@@ -256,8 +269,15 @@
     if (!text.trim() || isStreaming) return;
     const threadId: string = thread?.id || '';
 
+    // Check agent availability (all threads require an agent)
+    const agentToCheck = agentId ?? (thread?.metadata?.agentId as string | undefined);
+    const available = await threadService.isAgentAvailable(agentToCheck);
+    if (!available) {
+      agentUnavailableInfo = true;
+      return;
+    }
+
     error = '';
-    // Don't reset lastHandledErrorBranch - it tracks per-branch errors
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
     const branchId = await threadService.calculateNextBranchId(
@@ -599,8 +619,15 @@
 
     if (isGuardError) {
       lastHandledErrorBranch = branchId; // Mark this branch as handled
-      error =
-        'Your prompt was not sent to a model as it was intercepted by a Holokai security guard. Please restate your prompt and try again.';
+      // Extract the "message" field from JSON body (e.g. "400 {"error":{"message":"..."}}"),
+      // falling back to the raw string if parsing fails or the field is absent.
+      try {
+        const jsonStart = errorMessage.indexOf('{');
+        const parsed = jsonStart !== -1 ? JSON.parse(errorMessage.slice(jsonStart)) : null;
+        error = parsed?.error?.message ?? errorMessage;
+      } catch {
+        error = errorMessage;
+      }
 
       // Find the request message that triggered the guard
       const requestMessage = messages.find((m) => m.branchId === branchId && m.role === 'user');
@@ -659,166 +686,6 @@
   let displayItems = $derived.by(() => {
     return threadService.buildDisplayItems(messages, isStreaming, responseText, availableModels);
   });
-
-  /* OLD CODE - COMMENTED OUT FOR TESTING
-  // ── Build message pairs for rendering ──
-  interface MessagePair {
-    request: Message;
-    response: Message | null;
-    isStreamingResponse: boolean;
-    streamingContent: string;
-  }
-
-  interface Lane {
-    id: string;
-    branchId: string;
-    messagePairs: MessagePair[];
-    modelName?: string;
-    modelIntendedUse?: string;
-  }
-
-  interface MessageDisplay {
-    type: 'message';
-    pair: MessagePair;
-  }
-
-  interface BranchDisplay {
-    type: 'branch';
-    id: string;
-    position: number;
-    lanes: Lane[];
-  }
-
-  type DisplayItem = MessageDisplay | BranchDisplay;
-
-  /**
-   * Build display items from messages - handles both regular messages and branches
-   *
-  let displayItems = $derived.by(() => {
-    if (messages.length === 0) return [];
-
-    // Filter out hidden messages (e.g., guard-blocked messages)
-    const visibleMessages = messages.filter(m => !m.isHidden);
-
-    if (visibleMessages.length === 0) return [];
-
-    // Sort messages by branchId first
-    const sortedMessages = [...visibleMessages].sort((a, b) => {
-      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
-      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
-
-      // Sort by row, then lane, then iteration
-      if (aRow !== bRow) return aRow - bRow;
-      if (aLane !== bLane) return aLane - bLane;
-      return aIter - bIter;
-    });
-
-    console.log('[ThreadChatView] Sorted messages:', sortedMessages.map(m => ({
-      branchId: m.branchId,
-      role: m.role,
-      content: m.content.substring(0, 30)
-    })));
-
-    // Group messages by row (first number in branchId)
-    const rowMap = new Map<number, Message[]>();
-
-    for (const msg of sortedMessages) {
-      const row = getBranchRow(msg.branchId);
-
-      if (!rowMap.has(row)) {
-        rowMap.set(row, []);
-      }
-
-      rowMap.get(row)!.push(msg);
-    }
-
-    // Build display items
-    const items: DisplayItem[] = [];
-    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
-
-    for (const row of sortedRows) {
-      const rowMessages = rowMap.get(row)!;
-
-      console.log(`[ThreadChatView] Processing row ${row}, messages:`, rowMessages.map(m => ({
-        branchId: m.branchId,
-        lane: getBranchLane(m.branchId),
-        role: m.role
-      })));
-
-      // Check if this row has branches (any message with lane != 0)
-      const hasBranches = rowMessages.some((msg) => getBranchLane(msg.branchId) !== 0);
-
-      console.log(`[ThreadChatView] Row ${row} hasBranches:`, hasBranches);
-
-      if (!hasBranches) {
-        // Single lane (main branch only) - display as regular message pairs
-        const pairs = buildMessagePairs(rowMessages);
-
-        for (const pair of pairs) {
-          items.push({
-            type: 'message',
-            pair,
-          });
-        }
-      } else {
-        // Multiple lanes - display as branch
-        // Group messages by lane key (first two parts: "1.0", "1.1", etc.)
-        const laneMap = new Map<string, Message[]>();
-
-        for (const msg of rowMessages) {
-          const laneKey = getLaneKey(msg.branchId);
-
-          if (!laneMap.has(laneKey)) {
-            laneMap.set(laneKey, []);
-          }
-
-          laneMap.get(laneKey)!.push(msg);
-        }
-
-        console.log(`[ThreadChatView] Row ${row} lane keys:`, Array.from(laneMap.keys()));
-
-        // Build lanes sorted by lane number
-        const laneKeys = Array.from(laneMap.keys()).sort((a, b) => {
-          const laneA = getBranchLane(a);
-          const laneB = getBranchLane(b);
-          return laneA - laneB;
-        });
-
-        const lanes: Lane[] = laneKeys.map((laneKey, index) => {
-          const msgs = laneMap.get(laneKey)!;
-          const pairs = buildMessagePairs(msgs);
-
-          // Try to extract model name from first message
-          const modelName = msgs[0]?.modelId || undefined;
-
-          console.log(`[ThreadChatView] Lane ${laneKey}:`, {
-            messageCount: msgs.length,
-            pairCount: pairs.length,
-            modelName
-          });
-
-          return {
-            id: `lane-${row}-${index}`,
-            branchId: laneKey,
-            messagePairs: pairs,
-            modelName,
-          };
-        });
-
-        console.log(`[ThreadChatView] Creating branch for row ${row} with ${lanes.length} lanes`);
-
-        items.push({
-          type: 'branch',
-          id: `branch-${row}`,
-          position: row,
-          lanes,
-        });
-      }
-    }
-
-    return items;
-  });
-  END OLD CODE */
 </script>
 
 <div class="thread-chat-view">
@@ -827,6 +694,20 @@
       <i class="pi pi-exclamation-triangle"></i>
       <span>{error}</span>
       <button class="error-close" onclick={() => (error = '')} aria-label="Dismiss">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  {/if}
+
+  {#if agentUnavailableInfo}
+    <div class="info-banner" role="status">
+      <i class="pi pi-info-circle"></i>
+      <span>This assistant is no longer available or you do not have permission to use it.</span>
+      <button
+        class="info-close"
+        onclick={() => (agentUnavailableInfo = false)}
+        aria-label="Dismiss"
+      >
         <i class="pi pi-times"></i>
       </button>
     </div>
@@ -989,6 +870,37 @@
 
   .error-close:hover {
     background: rgba(0, 0, 0, 0.08);
+  }
+
+  .info-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    background: color-mix(in srgb, var(--info-color) 10%, var(--surface-main));
+    border-bottom: 1px solid color-mix(in srgb, var(--info-color) 30%, transparent);
+    color: var(--info-color);
+    font-size: 0.875rem;
+    flex-shrink: 0;
+  }
+
+  .info-banner span {
+    flex: 1;
+  }
+
+  .info-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.7;
+    padding: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .info-close:hover {
+    opacity: 1;
   }
 
   .messages-area {

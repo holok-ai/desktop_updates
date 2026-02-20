@@ -1,5 +1,5 @@
 @import './lib/styles/highlight.css';
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -100,7 +100,8 @@ html:not(.dark) {
   --info-color: #3b82f6;
   --modal-overlay: var(--maskbg);
 
-  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0 color-mix(in srgb, var(--surface-900) 15%, transparent);
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 15%, transparent);
 
   --input-background: #ffffff;
   --input-border: rgba(0, 0, 0, 0.5);
@@ -109,6 +110,12 @@ html:not(.dark) {
   /* Control border colors */
   --control-border: rgba(0, 0, 0, 0.25);
   --control-border-card: rgba(0, 0, 0, 0.2);
+
+  /* Thread graphic view node colors */
+  --graphic-user-fill: #eff6ff;
+  --graphic-user-stroke: #3b82f6;
+  --graphic-assistant-fill: #ecfdf5;
+  --graphic-assistant-stroke: #10b981;
 }
 
 /* Dark theme overrides */
@@ -118,14 +125,14 @@ html.dark,
   --surface-sidebar-secondary: var(--holokai-sidebar-secondary-dark-color);
   --holokai-sidebar-secondary-item-hover: var(--holokai-sidebar-secondary-item-hover-dark-color);
   --holokai-sidebar-secondary-item-active: var(--holokai-sidebar-secondary-item-active-dark-color);
-  --surface-main: var(--surface-900);
-  --surface-card: var(--surface-800);
-  --surface-overlay: var(--surface-700);
-  --surface-ground: var(--surface-900);
+  --surface-main: #1b1b1b;
+  --surface-card: #242424;
+  --surface-overlay: #2e2e2e;
+  --surface-ground: #1b1b1b;
   --surface-hover: color-mix(in srgb, var(--primary-color) 18%, transparent);
-  --surface-border: var(--surface-700);
-  --border-sidebar: var(--surface-800);
-  --border-card: var(--surface-700);
+  --surface-border: rgba(255, 255, 255, 0.1);
+  --border-sidebar: #242424;
+  --border-card: rgba(255, 255, 255, 0.1);
   --border-active: var(--primary-color);
   --background-primary-active: var(--holokai-sidebar-item-active-dark-color);
   --background-primary-hover: var(--holokai-sidebar-item-hover-dark-color);
@@ -162,7 +169,14 @@ html.dark,
   --control-border: rgba(255, 255, 255, 0.25);
   --control-border-card: rgba(255, 255, 255, 0.2);
 
-  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0 color-mix(in srgb, var(--surface-900) 40%, transparent);
+  --sidebar-secondary-box-shadow: 0 0 calc(var(--inline-spacing, 0.5rem) * 3) 0
+    color-mix(in srgb, var(--surface-900) 40%, transparent);
+
+  /* Thread graphic view node colors */
+  --graphic-user-fill: #1e3a5f;
+  --graphic-user-stroke: #60a5fa;
+  --graphic-assistant-fill: #052e16;
+  --graphic-assistant-stroke: #34d399;
 
   color-scheme: dark;
   color: var(--text-primary);
@@ -276,18 +290,18 @@ select:disabled {
   cursor: not-allowed;
 }
 
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="search"],
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='search'],
 textarea {
   width: 100%;
 }
 
 /* Radio and Checkbox Styles */
-input[type="radio"],
-input[type="checkbox"] {
+input[type='radio'],
+input[type='checkbox'] {
   width: 1rem;
   height: 1rem;
   cursor: pointer;
@@ -295,8 +309,8 @@ input[type="checkbox"] {
   padding: 0;
 }
 
-input[type="radio"]:checked,
-input[type="checkbox"]:checked {
+input[type='radio']:checked,
+input[type='checkbox']:checked {
   accent-color: var(--primary-color);
 }
 
@@ -416,7 +430,8 @@ button.btn-holokai i,
   font-size: 0.74375rem; /* 15% smaller than 0.875rem */
 }
 
-i, .pi {
+i,
+.pi {
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -432,7 +447,9 @@ i, .pi {
   position: absolute;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 [data-tooltip]::before {
@@ -486,7 +503,9 @@ i, .pi {
   position: absolute;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 [data-tooltip-left]::after {
@@ -501,7 +520,9 @@ i, .pi {
   position: absolute;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 [data-tooltip-left]:hover::before,
@@ -691,8 +712,12 @@ i, .pi {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════

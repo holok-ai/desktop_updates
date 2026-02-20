@@ -105,10 +105,10 @@ describe('FileToolsService', () => {
     it('should use different working directories correctly', () => {
       const workingDir1 = '/dir1';
       const workingDir2 = '/dir2';
-      
+
       const result1 = service.resolvePath('./file.txt', workingDir1);
       const result2 = service.resolvePath('./file.txt', workingDir2);
-      
+
       expect(result1).toContain(workingDir1);
       expect(result2).toContain(workingDir2);
       expect(result1).not.toBe(result2);

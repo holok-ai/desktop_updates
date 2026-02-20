@@ -33,7 +33,8 @@ vi.mock('../../../src-electron/services/settings/settings.service.js', () => ({
 }));
 
 // Import service and test helpers
-const { threadApiService, __setDependenciesForTesting, __resetDependenciesForTesting } = await import('../../../src-electron/services/mokuapi/thread-api.service.js');
+const { threadApiService, __setDependenciesForTesting, __resetDependenciesForTesting } =
+  await import('../../../src-electron/services/mokuapi/thread-api.service.js');
 
 describe('ThreadApiService (unit)', () => {
   let fetchMock: any;
@@ -252,9 +253,7 @@ describe('ThreadApiService (unit)', () => {
       });
 
       // Act & Assert
-      await expect(threadApiService.getThread(threadId)).rejects.toThrow(
-        'Thread not found',
-      );
+      await expect(threadApiService.getThread(threadId)).rejects.toThrow('Thread not found');
     });
   });
 });

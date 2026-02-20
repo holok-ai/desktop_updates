@@ -76,7 +76,7 @@ describe('ProjectCache Integration Tests', () => {
       // This test documents the behavior when encryption is not available
       // In production, this should log a warning
       const projectDTO = createMockProjectDTO('no-encrypt-1', 'No Encryption');
-      
+
       await expect(cache.set('no-encrypt-1', projectDTO)).resolves.not.toThrow();
       const retrieved = await cache.get('no-encrypt-1');
       expect(retrieved).not.toBeNull();
@@ -151,14 +151,14 @@ describe('ProjectCache Integration Tests', () => {
       // Create
       const projectDTO = createMockProjectDTO('lifecycle-1', 'Lifecycle Project');
       await cache.set('lifecycle-1', projectDTO);
-      
+
       let retrieved = await cache.get('lifecycle-1');
       expect(retrieved?.title).toBe('Lifecycle Project');
 
       // Update
       const updatedDTO = { ...projectDTO, name: 'Updated Lifecycle Project' };
       await cache.set('lifecycle-1', updatedDTO);
-      
+
       retrieved = await cache.get('lifecycle-1');
       expect(retrieved?.title).toBe('Updated Lifecycle Project');
 
@@ -172,7 +172,7 @@ describe('ProjectCache Integration Tests', () => {
       // Phase 1: Create projects in first "session"
       const project1 = createMockProjectDTO('restart-1', 'Before Restart 1');
       const project2 = createMockProjectDTO('restart-2', 'Before Restart 2');
-      
+
       await cache.set('restart-1', project1);
       await cache.set('restart-2', project2);
 
@@ -228,7 +228,7 @@ describe('ProjectCache Integration Tests', () => {
       await Promise.all(promises);
 
       const writeTime = Date.now() - startTime;
-      
+
       // Should complete in reasonable time (< 10 seconds)
       expect(writeTime).toBeLessThan(10000);
 
@@ -242,7 +242,7 @@ describe('ProjectCache Integration Tests', () => {
     });
 
     it('should maintain <50MB memory footprint with 1000 projects', async () => {
-      // Note: This is a behavioral test - actual memory measurement 
+      // Note: This is a behavioral test - actual memory measurement
       // would require process.memoryUsage() before/after
       for (let i = 1; i <= 1000; i++) {
         const project = createMockProjectDTO(`mem-${i}`, `Memory ${i}`);
@@ -251,45 +251,44 @@ describe('ProjectCache Integration Tests', () => {
 
       // With LRU eviction, memory cache should stay at ~100 projects
       const metrics = cache.getMetrics();
-      expect(metrics.evictions).toBeGreaterThan(890);  // At least 900 evictions
+      expect(metrics.evictions).toBeGreaterThan(890); // At least 900 evictions
     });
   });
 
   describe('Name to Title Mapping Integration', () => {
     it('should consistently map name→title across cache lifecycle', async () => {
       const projectDTO = createMockProjectDTO('mapping-1', 'Original Name');
-      
+
       // Set with 'name' field from API
       await cache.set('mapping-1', projectDTO);
-      
+
       // Get from memory - should have 'title' field
       const fromMemory = await cache.get('mapping-1');
       expect(fromMemory?.title).toBe('Original Name');
       expect(fromMemory).not.toHaveProperty('name');
-      
+
       // Create new cache, load from disk - should still have 'title' field
       const newCache = new ProjectCache();
       await newCache.initialize();
-      
+
       const fromDisk = await newCache.get('mapping-1');
       expect(fromDisk?.title).toBe('Original Name');
       expect(fromDisk).not.toHaveProperty('name');
-      
+
       await newCache.clearAll();
     });
 
     it('should preserve title through multiple updates', async () => {
       let projectDTO = createMockProjectDTO('update-1', 'Version 1');
       await cache.set('update-1', projectDTO);
-      
+
       // Update with new name
       projectDTO = { ...projectDTO, name: 'Version 2' };
       await cache.set('update-1', projectDTO);
-      
+
       const retrieved = await cache.get('update-1');
       expect(retrieved?.title).toBe('Version 2');
       expect(retrieved).not.toHaveProperty('name');
     });
   });
 });
-

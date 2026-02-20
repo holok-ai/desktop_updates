@@ -33,10 +33,7 @@
           class="search-input"
         />
       </div>
-      <button
-        class="btn-holokai search-button"
-        onclick={handleSearch}
-      >
+      <button class="btn-holokai search-button" onclick={handleSearch}>
         <i class="pi pi-search"></i>
         <span>Search</span>
       </button>

@@ -7,7 +7,12 @@
 
 import { test, expect } from '@playwright/test';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, SIMPLE_TEST_PROMPT, waitForStreamingComplete, forceThreadRefresh } from '../helpers/ui-helpers';
+import {
+  createThread,
+  SIMPLE_TEST_PROMPT,
+  waitForStreamingComplete,
+  forceThreadRefresh,
+} from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Isolated Instances', () => {
   test('send prompt and receive assistant response', async () => {
@@ -42,7 +47,9 @@ test.describe('E2E: Chat with Isolated Instances', () => {
           timeout: 60000,
         });
       } catch (error) {
-        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        console.log(
+          '[Isolated Chat] Assistant message not visible after 60s, attempting recovery...',
+        );
         await forceThreadRefresh(page);
         await expect(assistantContent).toBeVisible({ timeout: 30000 });
       }
@@ -91,7 +98,9 @@ test.describe('E2E: Chat with Isolated Instances', () => {
           timeout: 60000,
         });
       } catch (error) {
-        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        console.log(
+          '[Isolated Chat] Assistant message not visible after 60s, attempting recovery...',
+        );
         await forceThreadRefresh(page);
         await expect(assistantContent).toBeVisible({ timeout: 30000 });
       }
@@ -139,7 +148,9 @@ test.describe('E2E: Chat with Isolated Instances', () => {
           timeout: 60000,
         });
       } catch (error) {
-        console.log('[Isolated Chat] Assistant message not visible after 60s, attempting recovery...');
+        console.log(
+          '[Isolated Chat] Assistant message not visible after 60s, attempting recovery...',
+        );
         await forceThreadRefresh(page);
         await expect(assistantContent).toBeVisible({ timeout: 30000 });
       }

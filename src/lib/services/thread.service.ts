@@ -910,6 +910,22 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
+   * Check whether an agent is still in the available applications list.
+   * Returns false if agentId is falsy, not found, or the API call fails.
+   */
+  async isAgentAvailable(agentId: string | null | undefined): Promise<boolean> {
+    if (!agentId) {
+      return false;
+    }
+    try {
+      const apps = await window.electronAPI.models.listAllApplications();
+      return apps.some((a) => a.id === agentId);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Parse branchId to extract row number
    * "1.0" → 1, "2.1.3" → 2
    */

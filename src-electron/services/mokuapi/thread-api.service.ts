@@ -132,7 +132,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Get threads failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -169,7 +168,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Get thread failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -212,7 +210,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Create thread failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -252,7 +249,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Update thread failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -292,7 +288,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Delete thread failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -344,7 +339,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Get messages failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -384,7 +378,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Get message failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -427,7 +420,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Create message failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -474,7 +466,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Update message failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -514,7 +505,6 @@ class ThreadApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ThreadApiService] Delete message failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');

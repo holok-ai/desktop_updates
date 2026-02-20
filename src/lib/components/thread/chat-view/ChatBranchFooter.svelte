@@ -8,9 +8,7 @@
     onSelectLane?: (laneIndex: number) => void;
   }
 
-  let {
-    onSelectLane: _onSelectLane
-  }: Props = $props();
+  let { onSelectLane: _onSelectLane }: Props = $props();
 </script>
 
 <div class="chat-branch-footer">

@@ -167,22 +167,19 @@ export function registerChatHandlers(auth?: AuthService): void {
    */
   ipcMain.handle('chat:getAuditLogs', (_event, threadId: string, branchId: string) => {
     log.info('[IPC] chat:getAuditLogs called for thread:', threadId, 'branch:', branchId);
+    if (!threadId || !branchId) return;
 
     const serviceKey = buildServiceKey(threadId, branchId);
     const chatService = chatServices.get(serviceKey);
-    if (!chatService) {
-      const errorMessage = `Chat service not initialized for thread: ${threadId}, branch: ${branchId}`;
-      log.error('[IPC]', errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    try {
-      const logs = chatService.getAuditLogs();
-      log.info('[IPC] Audit logs retrieved successfully');
-      return logs;
-    } catch (error) {
-      log.error('[IPC] Error retrieving audit logs:', error);
-      throw error;
+    if (chatService) {
+      try {
+        const logs = chatService.getAuditLogs();
+        log.info('[IPC] Audit logs retrieved successfully');
+        return logs;
+      } catch (error) {
+        log.error('[IPC] Error retrieving audit logs:', error);
+        throw error;
+      }
     }
   });
 

@@ -2,10 +2,10 @@
 
 /**
  * Test GitHub Personal Access Token
- * 
+ *
  * Usage:
  *   GH_TOKEN=your_token node scripts/test-github-token.js
- * 
+ *
  * Or set it in your environment:
  *   export GH_TOKEN=your_token
  *   node scripts/test-github-token.js
@@ -35,10 +35,10 @@ async function testToken() {
     console.log('Test 1: Checking repository access...');
     const repoResponse = await fetch(`https://api.github.com/repos/${repo}`, {
       headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'holokai-desktop'
-      }
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'holokai-desktop',
+      },
     });
 
     if (repoResponse.ok) {
@@ -58,17 +58,17 @@ async function testToken() {
     console.log('Test 2: Checking releases access...');
     const releasesResponse = await fetch(`https://api.github.com/repos/${repo}/releases`, {
       headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'holokai-desktop'
-      }
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'holokai-desktop',
+      },
     });
 
     if (releasesResponse.ok) {
       const releases = await releasesResponse.json();
       console.log('✅ Releases access: SUCCESS');
       console.log(`   Found ${releases.length} existing release(s)\n`);
-      
+
       if (releases.length > 0) {
         console.log('   Recent releases:');
         releases.slice(0, 3).forEach((release, i) => {
@@ -87,10 +87,10 @@ async function testToken() {
     console.log('Test 3: Checking token permissions...');
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'holokai-desktop'
-      }
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'holokai-desktop',
+      },
     });
 
     if (userResponse.ok) {
@@ -107,7 +107,6 @@ async function testToken() {
     console.log('  GH_TOKEN=your_token npm run package -- --publish=always');
     console.log('\nOr set GH_TOKEN in your environment and run:');
     console.log('  npm run package -- --publish=always');
-
   } catch (error) {
     console.error('❌ Error testing token:', error.message);
     process.exit(1);
@@ -115,4 +114,3 @@ async function testToken() {
 }
 
 testToken();
-

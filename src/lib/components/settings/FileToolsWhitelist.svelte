@@ -81,17 +81,11 @@
         placeholder="Enter folder path (e.g., /home/user/projects)"
         class="flex-1 p-2 rounded border bg-transparent text-sm"
       />
-      <button
-        onclick={addPath}
-        class="btn-primary"
-      >
+      <button onclick={addPath} class="btn-primary">
         <i class="pi pi-plus"></i>
         <span>Add</span>
       </button>
-      <button
-        onclick={selectFolder}
-        class="btn-primary"
-      >
+      <button onclick={selectFolder} class="btn-primary">
         <i class="pi pi-folder"></i>
         <span>Browse...</span>
       </button>
@@ -103,18 +97,13 @@
   </div>
 
   {#if paths.length === 0}
-    <div class="empty-state">
-      No allowed directories. Use Add or Browse above to enter or select directories.
-    </div>
+    <div class="empty-state">No allowed folders. Add folders using Add or Browse.</div>
   {:else}
     <ul class="space-y-2">
       {#each paths as path}
         <li class="path-item">
           <span class="path-text" title={path}>{path}</span>
-          <button
-            onclick={() => removePath(path)}
-            class="btn-secondary remove-btn"
-          >
+          <button onclick={() => removePath(path)} class="btn-secondary remove-btn">
             <i class="pi pi-trash"></i>
             <span>Remove</span>
           </button>

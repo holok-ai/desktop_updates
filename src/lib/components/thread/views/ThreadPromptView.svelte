@@ -246,7 +246,7 @@
             <!-- Response preview (progressive reveal) -->
             {#if pair.responses.length > 0 && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
               {@const level = getRevealLevel(pair.request.id)}
-              {@const allResponseContent = pair.responses.map(r => r.content).join('\n\n---\n\n')}
+              {@const allResponseContent = pair.responses.map((r) => r.content).join('\n\n---\n\n')}
               {@const visibleContent = getVisibleResponse(allResponseContent, level)}
               {@const truncated = isTruncated(allResponseContent, level)}
 
@@ -292,7 +292,9 @@
                       />
                       {#if pair.responses.length > 0 && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
                         {@const level = getRevealLevel(pair.request.id)}
-                        {@const allResponseContent = pair.responses.map(r => r.content).join('\n\n---\n\n')}
+                        {@const allResponseContent = pair.responses
+                          .map((r) => r.content)
+                          .join('\n\n---\n\n')}
                         {@const visibleContent = getVisibleResponse(allResponseContent, level)}
                         {@const truncated = isTruncated(allResponseContent, level)}
                         <div class="response-preview {responseAlignClass(chatLayout)}">
@@ -427,7 +429,7 @@
   .preview-text.plain-text {
     white-space: pre-wrap;
     word-break: break-word;
-    color: #000;
+    color: var(--text-primary);
     padding-top: 0.1rem;
     line-height: 1.2;
   }

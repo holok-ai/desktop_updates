@@ -48,7 +48,7 @@ export class FileReadTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const userPath = (params.file_path || params.path) as string;
     const encoding = (params.encoding as 'utf-8' | 'ascii' | 'latin1') ?? 'utf-8';
@@ -57,7 +57,7 @@ export class FileReadTool implements ITool {
 
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)
