@@ -29,7 +29,6 @@ export default [
       'packages/**',
       'src-shared/**',
       'scripts/**',
-      'tests/**',
       'e2e/**',
       'eslint-plugin-holokai/**',
 

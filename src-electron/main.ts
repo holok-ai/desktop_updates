@@ -210,7 +210,7 @@ function createMenu(): void {
               type: 'info',
               title: 'About Holokai Desktop',
               message: 'Holokai Desktop',
-              detail: 'Version: 1.0\n\nHolokai Desktop application for chat workflows. ',
+              detail: `Version: ${app.getVersion()}\n\nHolokai Desktop application for chat workflows.`,
               buttons: ['OK'],
             });
           },
