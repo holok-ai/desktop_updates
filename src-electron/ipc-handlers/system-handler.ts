@@ -29,20 +29,6 @@ export function registerSystemHandlers(): void {
     return Promise.resolve(app.getVersion());
   });
 
-  /**
-   * Get system path
-   */
-  ipcMain.handle(
-    'system:getPath',
-    (
-      _event,
-      name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
-    ): Promise<string> => {
-      systemLog.info('GetPath called', { name });
-      return Promise.resolve(app.getPath(name));
-    },
-  );
-
   systemLog.info('Handlers registered');
 }
 
@@ -52,6 +38,5 @@ export function registerSystemHandlers(): void {
 export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('system:platform');
   ipcMain.removeHandler('system:version');
-  ipcMain.removeHandler('system:getPath');
   systemLog.info('Handlers unregistered');
 }

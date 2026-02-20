@@ -82,14 +82,6 @@ export interface ThreadAPI {
     | { success: false; status: number; error: string; code?: string }
   >;
 
-  // Undo the most recent rename operation
-  undoRename: (
-    threadId: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; status: number; error: string; code?: string }
-  >;
-
   // Delete a thread
   delete: (id: string) => Promise<boolean>;
 
@@ -115,22 +107,6 @@ export interface ThreadAPI {
   onTitleGenerationFinished: (
     callback: (data: { threadId: string; title: string }) => void,
   ) => () => void;
-  // Add user prompt (creates thread if id null)
-  addUserPrompt: (
-    threadId: string | null,
-    prompt: string,
-    opts?: {
-      title?: string;
-      description?: string;
-      model?: string;
-      projectId?: string; // Associate thread with a project
-      metadata?: Record<string, unknown>;
-    },
-  ) => Promise<{
-    thread: Thread;
-    message: { id: string; role: string; content: string; createdAt: number };
-  }>;
-
   // Add assistant response to a thread
   addAssistantResponse: (
     threadId: string,
@@ -171,20 +147,6 @@ export interface ThreadAPI {
     branchId: string,
   ) => Promise<{ success: true } | { success: false; error: string }>;
 
-  // Telemetry: listen for message.persisted audit events
-  onMessagePersisted: (
-    callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
-  ) => () => void;
-  // Listen for message error events (e.g., delivery/provider errors)
-  onMessageError: (
-    callback: (evt: {
-      thread_id?: string;
-      message_id?: string;
-      client_message_id?: string;
-      timestamp?: string;
-      error?: Record<string, unknown>;
-    }) => void,
-  ) => () => void;
 }
 
 /**
@@ -266,22 +228,7 @@ export interface SettingsAPI {
   // Set multiple settings
   setMultiple: (settings: Partial<AppSettings>) => Promise<void>;
 
-  // Reset to defaults
-  reset: () => Promise<void>;
-
-  // Get Moku Web URL
-  getMokuWebUrl: () => Promise<string>;
-
-  // Get Moku API URL
-  getMokuApiUrl: () => Promise<string>;
-
-  // Get settings file path
-  getStorePath: () => Promise<string>;
-
-  // Directory whitelist management
-  getDirectoryWhitelist: () => Promise<string[]>;
-  addWhitelistPath: (path: string) => Promise<void>;
-  removeWhitelistPath: (path: string) => Promise<void>;
+  // Select folder using native dialog
   selectFolder: () => Promise<string | null>;
 
   // Updates
@@ -368,26 +315,11 @@ export interface AuthAPI {
   // Start OAuth flow (Steps 1-2 of SSO)
   startOAuthFlow: () => Promise<{ authUrl: string }>;
 
-  // Exchange authorization code for tokens (Step 5 of SSO)
-  exchangeCode: (code: string, codeVerifier: string) => Promise<AuthState>;
-
-  // Mock login for testing
-  mockLogin: (provider: AuthProvider) => Promise<AuthState>;
-
   // Get authentication state
   getAuthState: () => Promise<AuthState>;
 
-  // Get current user
-  getUser: () => Promise<UserProfile | null>;
-
-  // Check if authenticated
-  isAuthenticated: () => Promise<boolean>;
-
   // Logout
   logout: () => Promise<void>;
-
-  // Refresh access token
-  refreshToken: () => Promise<void>;
 
   // OAuth callback event listeners
   onAuthCallbackSuccess: (
@@ -427,9 +359,6 @@ export interface AuthState {
 export interface SystemAPI {
   platform: () => Promise<string>;
   version: () => Promise<string>;
-  getPath: (
-    name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
-  ) => Promise<string>;
 }
 
 /**
@@ -449,14 +378,6 @@ export interface LogAPI {
  *
  * Chat service operations for interacting with LLM providers.
  */
-export type ToolUseEventPayload = {
-  toolName: string;
-  input: unknown;
-  stage: 'start' | 'complete';
-  toolCallId: string;
-  result?: unknown;
-};
-
 export interface ChatAPI {
   // Initialize/Create a chat service instance for a thread+branch
   createServiceForThread: (
@@ -480,30 +401,8 @@ export interface ChatAPI {
   // Stop listening to token events
   offToken: () => void;
 
-  // Listen for tool use events (event-based)
-  onToolUse: (callback: (data: ToolUseEventPayload & { threadId: string }) => void) => () => void;
-
-  // Listen for tool status events (for UI feedback during long operations)
-  onToolStatus: (
-    callback: (status: {
-      threadId: string;
-      toolName: string;
-      state: 'in_progress' | 'complete';
-      message?: string;
-    }) => void,
-  ) => () => void;
-
-  // Get audit/performance metrics
-  getMetrics: () => Promise<unknown>;
-
   // Get audit logs with detailed metrics for a thread+branch
   getAuditLogs: (threadId: string, branchId: string) => Promise<unknown[]>;
-
-  // Cleanup/close the provider for a thread
-  destroyProvider: (threadId: string) => Promise<{ success: boolean }>;
-
-  // Update allowed paths for tool execution
-  updateAllowedPaths: (allowedPaths: string[]) => Promise<{ success: boolean }>;
 }
 
 /**
@@ -528,56 +427,12 @@ export interface FileAPI {
     fileId: string;
   }) => Promise<{ success: boolean; buffer?: Buffer; error?: string }>;
 
-  // Delete file
-  delete: (payload: {
-    threadId: string;
-    fileId: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-
   // Validate file before upload
   validate: (payload: {
     filename: string;
     mimeType: string;
     size: number;
   }) => Promise<FileValidationResult>;
-
-  // Request preview token for secure file access
-  preview: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
-    success: boolean;
-    token?: string;
-    fileInfo?: {
-      filename: string;
-      mimeType: string;
-      size: number;
-      isPreviewable: boolean;
-      canInlinePreview: boolean;
-    };
-    error?: string;
-  }>;
-
-  // Request download token for secure file access
-  download: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
-    success: boolean;
-    token?: string;
-    fileInfo?: {
-      filename: string;
-      mimeType: string;
-      size: number;
-    };
-    error?: string;
-  }>;
-
-  // Get file with token (secure retrieval)
-  getWithToken: (payload: { token: string }) => Promise<{
-    success: boolean;
-    buffer?: Buffer;
-    filename?: string;
-    mimeType?: string;
-    error?: string;
-  }>;
-
-  // Listen for upload progress events
-  onUploadProgress: (callback: (data: { fileId: string; progress: number }) => void) => () => void;
 }
 
 /**
@@ -605,20 +460,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:startOAuthFlow'),
 
-    exchangeCode: (code: string, codeVerifier: string) =>
-      ipcRenderer.invoke('auth:exchangeCode', code, codeVerifier),
-
-    mockLogin: (provider: AuthProvider) => ipcRenderer.invoke('auth:mockLogin', provider),
-
     getAuthState: () => ipcRenderer.invoke('auth:getAuthState'),
 
-    getUser: () => ipcRenderer.invoke('auth:getUser'),
-
-    isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
-
     logout: () => ipcRenderer.invoke('auth:logout'),
-
-    refreshToken: () => ipcRenderer.invoke('auth:refreshToken'),
 
     // OAuth callback event listeners
     onAuthCallbackSuccess: (
@@ -695,61 +539,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('chat:token');
     },
 
-    // 5. Get audit/performance metrics
-    getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
-
-    // 5a. Get audit logs with detailed metrics for a thread
+    // 5. Get audit logs with detailed metrics for a thread
     getAuditLogs: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('chat:getAuditLogs', threadId, branchId),
-
-    // 6. Cleanup/close the provider for a thread
-    destroyProvider: (threadId: string) => ipcRenderer.invoke('chat:destroyProvider', threadId),
-
-    // 7. Update allowed paths for tool execution
-    updateAllowedPaths: (allowedPaths: string[]) =>
-      ipcRenderer.invoke('chat:updateAllowedPaths', allowedPaths),
-
-    // 7. Listen for tool use events
-    onToolUse: (
-      callback: (data: ToolUseEventPayload & { threadId: string }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: ToolUseEventPayload & { threadId: string },
-      ): void => callback(data);
-      ipcRenderer.on('chat:toolUse', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('chat:toolUse', subscription);
-      };
-    },
-
-    // 11. Listen for tool status events (for UI feedback during long operations)
-    onToolStatus: (
-      callback: (status: {
-        threadId: string;
-        toolName: string;
-        state: 'in_progress' | 'complete';
-        message?: string;
-      }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        status: {
-          threadId: string;
-          toolName: string;
-          state: 'in_progress' | 'complete';
-          message?: string;
-        },
-      ): void => callback(status);
-      ipcRenderer.on('chat:toolStatus', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('chat:toolStatus', subscription);
-      };
-    },
   },
 
   /**
@@ -764,20 +556,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     setMultiple: (settings: Partial<AppSettings>) =>
       ipcRenderer.invoke('settings:setMultiple', settings),
-
-    reset: () => ipcRenderer.invoke('settings:reset'),
-
-    getMokuWebUrl: () => ipcRenderer.invoke('settings:getMokuWebUrl'),
-
-    getMokuApiUrl: () => ipcRenderer.invoke('settings:getMokuApiUrl'),
-
-    getStorePath: () => ipcRenderer.invoke('settings:getStorePath'),
-
-    getDirectoryWhitelist: () => ipcRenderer.invoke('settings:getDirectoryWhitelist'),
-
-    addWhitelistPath: (path: string) => ipcRenderer.invoke('settings:addWhitelistPath', path),
-
-    removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
 
@@ -814,8 +592,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     renameThread: (threadId: string, newTitle: string) =>
       ipcRenderer.invoke('thread:renameThread', threadId, newTitle),
-
-    undoRename: (threadId: string) => ipcRenderer.invoke('thread:undoRename', threadId),
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
 
@@ -882,19 +658,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
 
-    addUserPrompt: (
-      threadId: string | null,
-      prompt: string,
-      opts:
-        | {
-            title?: string;
-            description?: string;
-            model?: string;
-            metadata?: Record<string, unknown>;
-          }
-        | undefined,
-    ) => ipcRenderer.invoke('thread:addUserPrompt', threadId, prompt, opts),
-
     addAssistantResponse: (threadId: string, response: string, model?: string) =>
       ipcRenderer.invoke('thread:addAssistantResponse', threadId, response, model),
 
@@ -914,43 +677,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
 
-    onMessagePersisted: (
-      callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
-    ) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: { thread_id: string; message_id: string; timestamp: string },
-      ): void => callback(data);
-      ipcRenderer.on('message:persisted', subscription);
-      return (): void => {
-        ipcRenderer.removeListener('message:persisted', subscription);
-      };
-    },
-    // Listen for message error events forwarded from main process
-    onMessageError: (
-      callback: (evt: {
-        thread_id?: string;
-        message_id?: string;
-        client_message_id?: string;
-        timestamp?: string;
-        error?: Record<string, unknown>;
-      }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: {
-          thread_id?: string;
-          message_id?: string;
-          client_message_id?: string;
-          timestamp?: string;
-          error?: Record<string, unknown>;
-        },
-      ): void => callback(data);
-      ipcRenderer.on('message:error', subscription);
-      return (): void => {
-        ipcRenderer.removeListener('message:error', subscription);
-      };
-    },
   } as ThreadAPI,
 
   /**
@@ -959,7 +685,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   system: {
     platform: () => ipcRenderer.invoke('system:platform'),
     version: () => ipcRenderer.invoke('system:version'),
-    getPath: (name: string) => ipcRenderer.invoke('system:getPath', name),
   } as SystemAPI,
 
   /**
@@ -991,34 +716,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
 
-    delete: (payload: { threadId: string; fileId: string }) =>
-      ipcRenderer.invoke('file:delete', payload),
-
     validate: (payload: { filename: string; mimeType: string; size: number }) =>
       ipcRenderer.invoke('file:validate', payload),
-
-    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:preview', payload),
-
-    download: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:download', payload),
-
-    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
-
-    onUploadProgress: (
-      callback: (data: { fileId: string; progress: number }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: { fileId: string; progress: number },
-      ): void => callback(data);
-      ipcRenderer.on('file:uploadProgress', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('file:uploadProgress', subscription);
-      };
-    },
   } as FileAPI,
 
   /**

@@ -123,71 +123,6 @@ export function registerSettingsHandlers(): void {
   );
 
   /**
-   * Reset settings to defaults
-   */
-  ipcMain.handle('settings:reset', (): Promise<void> => {
-    settingsLog.info('Reset called');
-    settingsService.resetToDefaults();
-    return Promise.resolve();
-  });
-
-  /**
-   * Get Moku Web URL
-   */
-  ipcMain.handle('settings:getMokuWebUrl', (): Promise<string> => {
-    settingsLog.info('GetMokuWebUrl called');
-    return Promise.resolve(settingsService.getMokuWebUrl());
-  });
-
-  /**
-   * Get Moku API URL
-   */
-  ipcMain.handle('settings:getMokuApiUrl', (): Promise<string> => {
-    settingsLog.info('GetMokuApiUrl called');
-    return Promise.resolve(settingsService.getMokuApiUrl());
-  });
-
-  /**
-   * Get settings file path
-   */
-  ipcMain.handle('settings:getStorePath', (): Promise<string> => {
-    settingsLog.info('GetStorePath called');
-    return Promise.resolve(settingsService.getStorePath());
-  });
-
-  /**
-   * Get directory whitelist
-   */
-  ipcMain.handle('settings:getDirectoryWhitelist', (): Promise<string[]> => {
-    settingsLog.info('GetDirectoryWhitelist called');
-    return Promise.resolve(settingsService.getDirectoryWhitelist());
-  });
-
-  /**
-   * Add path to file tools whitelist
-   */
-  ipcMain.handle('settings:addWhitelistPath', (_event, filePath: string): Promise<void> => {
-    settingsLog.info('AddWhitelistPath called', { filePath });
-    try {
-      settingsService.addWhitelistPath(filePath);
-      return Promise.resolve();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      settingsLog.error('AddWhitelistPath failed', { filePath, error: message });
-      return Promise.reject(new Error(message));
-    }
-  });
-
-  /**
-   * Remove path from file tools whitelist
-   */
-  ipcMain.handle('settings:removeWhitelistPath', (_event, filePath: string): Promise<void> => {
-    settingsLog.info('RemoveWhitelistPath called', { filePath });
-    settingsService.removeWhitelistPath(filePath);
-    return Promise.resolve();
-  });
-
-  /**
    * Select folder using native dialog
    */
   ipcMain.handle('settings:selectFolder', async (): Promise<string | null> => {
@@ -273,13 +208,6 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:get');
   ipcMain.removeHandler('settings:set');
   ipcMain.removeHandler('settings:setMultiple');
-  ipcMain.removeHandler('settings:reset');
-  ipcMain.removeHandler('settings:getMokuWebUrl');
-  ipcMain.removeHandler('settings:getMokuApiUrl');
-  ipcMain.removeHandler('settings:getStorePath');
-  ipcMain.removeHandler('settings:getDirectoryWhitelist');
-  ipcMain.removeHandler('settings:addWhitelistPath');
-  ipcMain.removeHandler('settings:removeWhitelistPath');
   ipcMain.removeHandler('settings:selectFolder');
   ipcMain.removeHandler('settings:checkForUpdates');
   ipcMain.removeHandler('settings:openLogInVSCode');

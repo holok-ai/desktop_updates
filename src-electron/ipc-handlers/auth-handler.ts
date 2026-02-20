@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { AuthService, AuthState, UserProfile } from '../services/auth.service.js';
+import { AuthService, AuthState } from '../services/auth.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 
 /**
@@ -186,66 +186,6 @@ export function registerAuthHandlers(): AuthService {
   });
 
   /**
-   * Exchange authorization code for tokens (manual exchange for testing)
-   */
-  ipcMain.handle('auth:exchangeCode', async (_event, code: string): Promise<AuthState> => {
-    authLog.info('exchangeCode called');
-
-    try {
-      const authState = await authService.exchangeCodeForTokens(code);
-
-      // Return only non-sensitive data to renderer
-      return {
-        user: authState.user,
-        tokens: null, // Never send tokens to renderer
-        isAuthenticated: authState.isAuthenticated,
-        isTestMode: authState.isTestMode,
-      };
-    } catch (error) {
-      authLog.error('Error exchanging auth code', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw error;
-    }
-  });
-
-  /**
-   * Mock login - Simulates complete authentication flow for testing
-   */
-  ipcMain.handle('auth:mockLogin', async (_event): Promise<AuthState> => {
-    authLog.info('mockLogin called');
-
-    try {
-      const authState = await authService.mockLogin();
-
-      // Execute post-authentication callback if registered
-      if (onAuthSuccessCallback) {
-        authLog.info('Executing post-authentication callback (mock login)...');
-        try {
-          await onAuthSuccessCallback();
-          authLog.info('Post-authentication callback completed successfully');
-        } catch (error) {
-          authLog.error('Post-authentication callback failed:', error);
-          // Don't throw - auth succeeded even if post-auth actions failed
-        }
-      }
-
-      // Return only non-sensitive data to renderer
-      return {
-        user: authState.user,
-        tokens: null, // Never send tokens to renderer
-        isAuthenticated: authState.isAuthenticated,
-        isTestMode: authState.isTestMode,
-      };
-    } catch (error) {
-      authLog.error('Error with mock login', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw error;
-    }
-  });
-
-  /**
    * Get current authentication state
    */
   ipcMain.handle('auth:getAuthState', (): Promise<AuthState> => {
@@ -260,22 +200,6 @@ export function registerAuthHandlers(): AuthService {
       isAuthenticated: authState.isAuthenticated,
       isTestMode: authState.isTestMode, // Include test mode flag
     });
-  });
-
-  /**
-   * Get current user profile
-   */
-  ipcMain.handle('auth:getUser', (): Promise<UserProfile | null> => {
-    authLog.info('GetUser called');
-    return Promise.resolve(authService.getUser());
-  });
-
-  /**
-   * Check if user is authenticated
-   */
-  ipcMain.handle('auth:isAuthenticated', (): Promise<boolean> => {
-    authLog.info('IsAuthenticated called');
-    return Promise.resolve(authService.isAuthenticated());
   });
 
   /**
@@ -295,22 +219,6 @@ export function registerAuthHandlers(): AuthService {
     }
   });
 
-  /**
-   * Refresh access token - Uses refresh token to get new access token
-   */
-  ipcMain.handle('auth:refreshToken', async (): Promise<void> => {
-    authLog.info('refreshToken called');
-
-    try {
-      await authService.refreshAccessToken();
-    } catch (error) {
-      authLog.error('Error refreshing token', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw error;
-    }
-  });
-
   authLog.info('Handlers registered');
   return authService;
 }
@@ -320,13 +228,8 @@ export function registerAuthHandlers(): AuthService {
  */
 export function unregisterAuthHandlers(): void {
   ipcMain.removeHandler('auth:startOAuthFlow');
-  ipcMain.removeHandler('auth:exchangeCode');
-  ipcMain.removeHandler('auth:mockLogin');
   ipcMain.removeHandler('auth:getAuthState');
-  ipcMain.removeHandler('auth:getUser');
-  ipcMain.removeHandler('auth:isAuthenticated');
   ipcMain.removeHandler('auth:logout');
-  ipcMain.removeHandler('auth:refreshToken');
 
   authLog.info('Handlers unregistered');
 }
