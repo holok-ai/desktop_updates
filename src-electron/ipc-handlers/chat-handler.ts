@@ -186,43 +186,6 @@ export function registerChatHandlers(auth?: AuthService): void {
     }
   });
 
-  /**
-   * Destroy Chat Service - Clean up when thread is closed
-   * Destroys all services (all models) for the given thread
-   */
-  ipcMain.handle('chat:destroyProvider', (_event, threadId: string): { success: boolean } => {
-    log.info('[IPC] chat:destroyProvider called for thread:', threadId);
-
-    // Delete all services for this thread (all models)
-    const keysToDelete: string[] = [];
-    for (const key of chatServices.keys()) {
-      if (key.startsWith(`${threadId}:`)) {
-        keysToDelete.push(key);
-      }
-    }
-
-    keysToDelete.forEach((key) => {
-      chatServices.delete(key);
-      log.info('[IPC] Deleted chat service:', key);
-    });
-
-    log.info('[IPC] Destroyed', keysToDelete.length, 'service(s) for thread:', threadId);
-    return { success: true };
-  });
-
-  /**
-   * Update allowed paths for all future tool executions
-   */
-  ipcMain.handle(
-    'chat:updateAllowedPaths',
-    (_event, allowedPaths: string[]): { success: boolean } => {
-      log.info('[IPC] chat:updateAllowedPaths called');
-      const orchestrator = ToolOrchestrator.getInstance();
-      orchestrator.setAllowedPaths(allowedPaths);
-      return { success: true };
-    },
-  );
-
   log.info('[IPC] Chat handlers registered');
 }
 
@@ -233,8 +196,6 @@ export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:createServiceForThread');
   ipcMain.removeHandler('chat:send');
   ipcMain.removeHandler('chat:getAuditLogs');
-  ipcMain.removeHandler('chat:destroyProvider');
-  ipcMain.removeHandler('chat:updateAllowedPaths');
 
   // Clean up all service instances
   chatServices.clear();

@@ -9,9 +9,6 @@ import type {
   UpdateProjectInput,
   ProjectMember,
   AddMemberInput,
-  UpdateMemberRoleInput,
-  ProjectPermission,
-  ProjectRole,
 } from '../types/project.types.js';
 
 import type { Thread as RendererThread } from '../preload.js';
@@ -104,31 +101,11 @@ export function registerProjectHandlers(): void {
   });
 
   /**
-   * Alias for project:list (backward compatibility)
-   */
-  ipcMain.handle('project:getAll', async (): Promise<Project[]> => {
-    log.info('[IPC:project:getAll]');
-    await projectRepository.loadProjects(false);
-    return projectRepository.listProjects();
-  });
-
-  /**
    * Get a single project by ID
    */
   ipcMain.handle('project:get', async (_, projectId: string): Promise<Project | null> => {
     log.info('[IPC:project:get]', projectId);
     return await projectRepository.getProject(projectId as GUID);
-  });
-
-  /**
-   * Get thread count for a project
-   * Uses ThreadRepository (API access is encapsulated there).
-   */
-  ipcMain.handle('project:getThreadsCount', async (_, projectId: string): Promise<number> => {
-    log.info('[IPC:project:getThreadsCount]', projectId);
-    const count = await threadRepository.getProjectThreadCount(projectId);
-    log.debug(`[IPC:project:getThreadsCount] Found ${count} threads for project ${projectId}`);
-    return count;
   });
 
   /**
@@ -138,14 +115,6 @@ export function registerProjectHandlers(): void {
     log.info('[IPC:project:getThreads]', projectId);
     const threads = await threadRepository.listThreads({ projectId });
     return threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
-  });
-
-  /**
-   * Alias for project:get (backward compatibility)
-   */
-  ipcMain.handle('project:getById', async (_, projectId: string): Promise<Project | null> => {
-    log.info('[IPC:project:getById]', projectId);
-    return await projectRepository.getProject(projectId as GUID);
   });
 
   /**
@@ -199,38 +168,6 @@ export function registerProjectHandlers(): void {
     },
   );
 
-  // ==================== Permission Checks ====================
-
-  /**
-   * Check if user has permission (throws on failure)
-   */
-  ipcMain.handle(
-    'project:hasPermission',
-    async (_, projectId: string, permission: ProjectPermission): Promise<void> => {
-      log.debug('[IPC:project:hasPermission]', projectId, permission);
-      await projectRepository.hasPermission(projectId, permission);
-    },
-  );
-
-  /**
-   * Check permission without throwing (returns boolean)
-   */
-  ipcMain.handle(
-    'project:checkPermission',
-    async (_, projectId: string, permission: ProjectPermission): Promise<boolean> => {
-      log.debug('[IPC:project:checkPermission]', projectId, permission);
-      return await projectRepository.checkPermission(projectId, permission);
-    },
-  );
-
-  /**
-   * Get user's role in a project
-   */
-  ipcMain.handle('project:getUserRole', async (_, projectId: string): Promise<ProjectRole> => {
-    log.debug('[IPC:project:getUserRole]', projectId);
-    return await projectRepository.getUserRole(projectId);
-  });
-
   // ==================== Member Management ====================
 
   /**
@@ -243,14 +180,6 @@ export function registerProjectHandlers(): void {
       return await projectRepository.searchUsers(searchTerm);
     },
   );
-
-  /**
-   * Get project members
-   */
-  ipcMain.handle('project:getMembers', async (_, projectId: string): Promise<ProjectMember[]> => {
-    log.info('[IPC:project:getMembers]', projectId);
-    return await projectRepository.getMembers(projectId);
-  });
 
   /**
    * Add a member to a project
@@ -282,27 +211,6 @@ export function registerProjectHandlers(): void {
     },
   );
 
-  /**
-   * Update a member's role
-   */
-  ipcMain.handle(
-    'project:updateMemberRole',
-    async (
-      _,
-      projectId: string,
-      memberId: string,
-      input: UpdateMemberRoleInput,
-    ): Promise<ProjectMember> => {
-      log.info('[IPC:project:updateMemberRole]', projectId, memberId, input.role);
-      const member = await projectRepository.updateMemberRole(projectId, memberId, input);
-
-      // Broadcast member role updated event
-      broadcast('project:memberRoleUpdated', projectId, member);
-
-      return member;
-    },
-  );
-
   log.info('[ProjectHandler] All project IPC handlers registered');
 }
 
@@ -315,21 +223,13 @@ export function unregisterProjectHandlers(): void {
   ipcMain.removeHandler('project:loadProjects');
   ipcMain.removeHandler('project:listPersonalProjects');
   ipcMain.removeHandler('project:listSharedProjects');
-  ipcMain.removeHandler('project:getAll');
   ipcMain.removeHandler('project:get');
-  ipcMain.removeHandler('project:getThreadsCount');
   ipcMain.removeHandler('project:getThreads');
-  ipcMain.removeHandler('project:getById');
   ipcMain.removeHandler('project:update');
   ipcMain.removeHandler('project:delete');
-  ipcMain.removeHandler('project:hasPermission');
-  ipcMain.removeHandler('project:checkPermission');
-  ipcMain.removeHandler('project:getUserRole');
   ipcMain.removeHandler('project:searchUsers');
-  ipcMain.removeHandler('project:getMembers');
   ipcMain.removeHandler('project:addMember');
   ipcMain.removeHandler('project:removeMember');
-  ipcMain.removeHandler('project:updateMemberRole');
 
   log.info('[ProjectHandler] All project IPC handlers unregistered');
 }

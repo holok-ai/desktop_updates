@@ -10,7 +10,7 @@ import {
 } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerProjectHandlers } from './ipc-handlers/project-handler.js';
-import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
@@ -280,12 +280,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
     protocolLog.debug('[Renderer]', message, ...params);
-  });
-
-  // Forward backend error events (from services or tests) to renderer
-  ipcMain.on('backend:error', (_event, payload: Record<string, unknown>) => {
-    protocolLog.warn('[Backend] forwarding error event', payload);
-    broadcast('message:error', payload);
   });
 }
 
