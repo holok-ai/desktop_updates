@@ -178,18 +178,4 @@ export class DesktopChatService {
     return this.chatService.getAuditLogs();
   }
 
-  /**
-   * Update working directory for this chat service instance
-   */
-  setWorkingDirectory(directory: string): void {
-    log.info('[DesktopChatService] Setting working directory:', directory);
-    this.threadContext.workingDirectory = directory;
-  }
-
-  /**
-   * Get current working directory
-   */
-  getWorkingDirectory(): string {
-    return this.threadContext.workingDirectory;
-  }
 }

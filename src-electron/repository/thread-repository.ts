@@ -187,24 +187,6 @@ export class ThreadRepository {
     }
   }
 
-  /**
-   * Get messages for a thread from cache without fetching from API.
-   * If thread is not cached, loads it first (which will fetch from API).
-   * This method is optimized to avoid redundant API calls when messages are already loaded.
-   */
-  public async getMessages(threadId: string): Promise<Message[]> {
-    const cachedThread = this.threadsById.get(threadId);
-    if (cachedThread) {
-      // Return cached messages without API call
-      return cachedThread.messages.map((m) => ({ ...m }));
-    }
-
-    // Not cached - load the thread (which will fetch messages)
-    const thread = await this.loadThread(threadId);
-    if (!thread) return [];
-    return thread.messages.map((m) => ({ ...m }));
-  }
-
   public async listThreads(options?: {
     projectId?: string;
     page?: number;
@@ -277,7 +259,7 @@ export class ThreadRepository {
    * Create message locally without API call
    * Messages are created when chat function is called, not via API
    */
-  public async appendMessageLocal(
+  private async appendMessageLocal(
     threadId: string,
     payload: {
       role: MessageRole;
@@ -469,7 +451,7 @@ export class ThreadRepository {
     return this.addMessage(threadId, 'assistant', branchId, response);
   }
 
-  public updateThreadMetadata(threadId: string, updates: Partial<ThreadMetadata>): Thread {
+  private updateThreadMetadata(threadId: string, updates: Partial<ThreadMetadata>): Thread {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
     const merged: ThreadMetadata = { ...thread.metadata, ...updates };
@@ -571,23 +553,6 @@ export class ThreadRepository {
    * @throws Error if thread not found or no rename history available
    */
 
-  public getThreadModel(threadId: string): string | undefined {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) return undefined;
-    const m = thread.metadata.initalModel;
-    return typeof m === 'string' ? m : undefined;
-  }
-
-  public replaceMessages(threadId: string, messages: Message[]): Thread {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    thread.messages = messages.map((m) => ({ ...m }));
-    thread.updatedAt = Date.now();
-    this.threadsById.set(thread.id, thread);
-    // Note: No longer saving to disk - API-first architecture
-    return this.cloneThread(thread);
-  }
-
   public async deleteThread(threadId: string): Promise<boolean> {
     // Delete associated files before deleting thread
     fileStorageService.deleteThreadFiles(threadId).catch((error) => {
@@ -634,22 +599,6 @@ export class ThreadRepository {
     }
   }
 
-  public clearAll(): void {
-    this.threadsById.clear();
-    this.idempotencyIndex.clear();
-    // Note: No longer saving to disk - API-first architecture
-  }
-
-  public setThreadTimestamps(threadId: string, createdAt: number, updatedAt: number): Thread {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) throw new Error(`Thread not found: ${threadId}`);
-    thread.createdAt = createdAt;
-    thread.updatedAt = updatedAt;
-    this.threadsById.set(thread.id, thread);
-    // Note: No longer saving to disk - API-first architecture
-    return this.cloneThread(thread);
-  }
-
   public updateMessage(threadId: string, messageId: string, newContent: string): Message {
     const thread = this.threadsById.get(threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
@@ -686,70 +635,6 @@ export class ThreadRepository {
   }
 
   /**
-   * Get a single message by ID within a thread.
-   * Used for tree traversal operations.
-   */
-  public getMessage(threadId: string, messageId: string): Message | null {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) return null;
-    const message = thread.messages.find((m) => m.id === messageId);
-    return message ? { ...message } : null;
-  }
-
-  /**
-   * Get all messages for a specific branchId.
-   * Returns messages that belong to this branch.
-   */
-  public getMessagesByBranchId(threadId: string, branchId: string): Message[] {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) return [];
-    return thread.messages
-      .filter((m) => m.branchId === branchId)
-      .map((m) => ({ ...m }))
-      .sort((a, b) => a.createdAt - b.createdAt);
-  }
-
-  /**
-   * Get all branch variations for a base branchId.
-   * E.g., for "1.0", returns all "1.0.1", "1.0.2", etc.
-   */
-  public getBranchesForMessage(threadId: string, messageId: string): Message[] {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) return [];
-    const message = thread.messages.find((m) => m.id === messageId);
-    if (!message) return [];
-
-    const baseBranchId = message.branchId;
-    const baseDepth = baseBranchId.split('.').length;
-
-    // Find all messages that are direct variations of this branch
-    return thread.messages
-      .filter((m) => {
-        const parts = m.branchId.split('.');
-        // Must be exactly one level deeper
-        if (parts.length !== baseDepth + 1) return false;
-        return m.branchId.startsWith(baseBranchId + '.');
-      })
-      .map((m) => ({ ...m }))
-      .sort((a, b) => a.branchId.localeCompare(b.branchId));
-  }
-
-  /**
-   * Get all root messages in a thread (messages with branchId = "1.0").
-   */
-  public getRootMessages(threadId: string): Message[] {
-    const thread = this.threadsById.get(threadId);
-    if (!thread) return [];
-    return thread.messages
-      .filter((m) => {
-        const normalizedId = this.normalizeBranchId(m.branchId);
-        return normalizedId === '1.0.0' || normalizedId.startsWith('1.0.0.');
-      })
-      .map((m) => ({ ...m }))
-      .sort((a, b) => a.createdAt - b.createdAt);
-  }
-
-  /**
    * Get the row number from a branchId (first number)
    * E.g., "2.0" -> 2, "2.1.0" -> 2, "3.0" -> 3
    */
@@ -758,12 +643,6 @@ export class ThreadRepository {
     if (parts.length === 2) return `${parts[0]}.${parts[1]}.0`;
     if (parts.length > 3) return parts.slice(0, 3).join('.');
     return branchId; // already 3-part
-  }
-
-  private getRowNumber(branchId: string): number {
-    const parts = branchId.split('.');
-    const rowNum = parseInt(parts[0] || '0', 10);
-    return isNaN(rowNum) ? 0 : rowNum;
   }
 
   /**
@@ -1162,32 +1041,6 @@ export class ThreadRepository {
     };
   }
 
-  /**
-   * @deprecated No longer used - API-first architecture.
-   * Threads are fetched from Moku API on demand.
-   * Kept for backward compatibility.
-   */
-  private getStorePath(): string | null {
-    return null;
-  }
-
-  /**
-   * @deprecated No longer used - API-first architecture.
-   * All thread operations now persist to Moku API directly.
-   * Kept for backward compatibility but does nothing.
-   */
-  private saveToDisk(): void {
-    // No-op: API-first architecture - threads persist via API calls
-  }
-
-  /**
-   * @deprecated No longer used - API-first architecture.
-   * Threads are fetched from Moku API via loadThread/listThreads.
-   * Kept for backward compatibility but does nothing.
-   */
-  private loadFromDisk(): void {
-    // No-op: API-first architecture - threads loaded via API calls
-  }
 }
 
 export const threadRepository = new ThreadRepository();

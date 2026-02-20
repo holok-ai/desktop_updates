@@ -250,20 +250,6 @@ export class TitleGeneratorService {
     return candidate;
   }
 
-  /**
-   * Get the current configuration
-   */
-  public getConfig(): TitleGeneratorConfig {
-    return { ...this.config };
-  }
-
-  /**
-   * Update configuration
-   */
-  public updateConfig(updates: Partial<TitleGeneratorConfig>): void {
-    this.config = { ...this.config, ...updates };
-    log.info('[TitleGeneratorService] Configuration updated:', this.config);
-  }
 }
 
 /**

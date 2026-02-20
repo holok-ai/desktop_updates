@@ -349,15 +349,6 @@ export class ProjectRepository {
   }
 
   /**
-   * Clear all cached projects
-   */
-  public clearCache(): void {
-    this.projectsById.clear();
-    this.lastLoadTime = 0;
-    log.info('[ProjectRepository] Cache cleared');
-  }
-
-  /**
    * Map ProjectDTO (list view) to Project domain model
    * Maps API 'name' to desktop 'title' and derives 'status' from 'active'
    */
@@ -451,27 +442,6 @@ export class ProjectRepository {
       return response.content;
     } catch (error) {
       log.error('[ProjectRepository] Failed to search users:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get project members
-   * @param projectId The project ID
-   * @returns Array of member DTOs with user information
-   */
-  public async getProjectMembers(projectId: GUID): Promise<MemberDTO[]> {
-    try {
-      log.info('[ProjectRepository] Getting members for project', { projectId });
-      const members = await ApiRetry.execute(
-        () => projectMemberApiService.getProjectMembers(projectId),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.getProjectMembers',
-      );
-      log.info('[ProjectRepository] Retrieved', members.length, 'members');
-      return members;
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to get project members:', error);
       throw error;
     }
   }

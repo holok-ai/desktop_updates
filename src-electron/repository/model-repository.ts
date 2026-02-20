@@ -9,10 +9,6 @@ export class ModelRepository {
   private holoApiUrl: string = '';
   private isRefreshing: boolean = false;
 
-  public getModel(modelId: string): ModelDetails | undefined {
-    return this.models.find((m) => m.id === modelId);
-  }
-
   /**
    * Get Holo API URL from settings
    */
