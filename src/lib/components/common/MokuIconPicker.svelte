@@ -39,7 +39,7 @@
       aria-label="Select {icon} icon"
       title={icon}
       onclick={() => handleIconSelect(icon)}
-      disabled={disabled}
+      {disabled}
     >
       <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d={PROJECT_ICON_SVGS[icon]} fill="currentColor" />
@@ -103,4 +103,3 @@
     transform: scale(1.1);
   }
 </style>
-

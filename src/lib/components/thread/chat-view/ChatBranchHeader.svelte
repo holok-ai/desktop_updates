@@ -10,17 +10,15 @@
     branchId?: string;
   }
 
-  let {
-    laneCount = 0,
-    branchId: _branchId = ''
-  }: Props = $props();
+  let { laneCount = 0, branchId: _branchId = '' }: Props = $props();
 </script>
 
 <div class="chat-branch-header">
   <div class="branch-info">
     <i class="pi pi-share-alt"></i>
     <span class="branch-label">
-      {laneCount} {laneCount === 1 ? 'response' : 'responses'}
+      {laneCount}
+      {laneCount === 1 ? 'response' : 'responses'}
     </span>
   </div>
 </div>

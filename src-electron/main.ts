@@ -360,7 +360,8 @@ export function setupCspViolationReporter(): void {
   const telemetryUrl = process.env.CSP_TELEMETRY_URL || process.env.TELEMETRY_URL;
 
   app.on('web-contents-created', (_event, contents) => {
-    contents.on('console-message', (_event, level, message, line, sourceId) => {
+    contents.on('console-message', (event) => {
+      const { level, message, lineNumber: line, sourceId } = event;
       // Check if this is a CSP violation
       if (
         message.includes('Content Security Policy') ||

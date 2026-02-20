@@ -5,12 +5,12 @@ export interface ApplicationSummary {
   urlSlug: string;
   providerName: string;
   modelNames: Set<string>;
-  guards?: Set<string>;  // Note: Java returns Set<String> (prompt names)
-  evaluators?: Set<string>;  // Note: Java returns Set<String> (prompt names)
+  guards?: Set<string>; // Note: Java returns Set<String> (prompt names)
+  evaluators?: Set<string>; // Note: Java returns Set<String> (prompt names)
   systemPromptName: string;
   active: boolean;
-  createdAt: string;  // ISO 8601 datetime string
-  updatedAt: string;  // ISO 8601 datetime string
+  createdAt: string; // ISO 8601 datetime string
+  updatedAt: string; // ISO 8601 datetime string
 }
 
 export interface ApplicationFilters {
@@ -45,7 +45,7 @@ export interface ApplicationDetail {
   // Team
   teamId?: string;
   teamName?: string;
-  teamPath?: string;  // ← MISSING in current interface!
+  teamPath?: string; // ← MISSING in current interface!
 
   // Guards and Evaluators
   guards: PromptReference[];
@@ -64,9 +64,9 @@ export interface ApplicationDetail {
 export interface ModelReference {
   id: string;
   name: string;
-  accessModel: string;             // Model identifier used for API calls
-  isPublic: boolean;               // Model visibility flag (defaults to true)
-  intendedUse?: string;            // Optional description of intended use case
+  accessModel: string; // Model identifier used for API calls
+  isPublic: boolean; // Model visibility flag (defaults to true)
+  intendedUse?: string; // Optional description of intended use case
 }
 
 export interface PromptReference {

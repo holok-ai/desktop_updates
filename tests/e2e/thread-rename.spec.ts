@@ -91,7 +91,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
     // Find first thread item - try multiple selectors
     let firstThread = page.locator('div.thread-item').first();
     let threadCount = await firstThread.count();
-    
+
     // If no div.thread-item found, try menuitem
     if (threadCount === 0) {
       firstThread = page
@@ -100,7 +100,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
         .first();
       threadCount = await firstThread.count();
     }
-    
+
     // Wait for thread item to be visible
     if (threadCount === 0) {
       // Wait a bit more for threads to load
@@ -108,7 +108,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
       firstThread = page.locator('div.thread-item, [role="menuitem"]').first();
       threadCount = await firstThread.count();
     }
-    
+
     await expect(firstThread).toBeVisible({ timeout: 10000 });
 
     // Wait a bit for any animations/modals to settle
@@ -145,10 +145,10 @@ test.describe('E2E: Thread Rename (simple)', () => {
     // Save the rename
     const saveButton = page.getByRole('button', { name: 'Rename' });
     await expect(saveButton).toBeEnabled({ timeout: 3000 });
-    
+
     // Click the save button and wait for it to process
     await saveButton.click();
-    
+
     // Wait for the rename to complete - check if dialog closes or if title updates
     // Try waiting for dialog to be hidden first (faster than detached)
     let dialogClosed = false;
@@ -165,7 +165,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
         console.log('[thread-rename] Dialog did not close, checking if rename succeeded...');
       }
     }
-    
+
     // If dialog didn't close, try alternative methods
     if (!dialogClosed) {
       const isStillVisible = await renameDialog.isVisible({ timeout: 1000 }).catch(() => false);
@@ -177,12 +177,12 @@ test.describe('E2E: Thread Rename (simple)', () => {
           const errorText = await errorMessage.textContent();
           console.log('[thread-rename] Error message found:', errorText);
         }
-        
+
         // Try pressing Enter as fallback
         console.log('[thread-rename] Dialog still visible, trying Enter key...');
         await page.keyboard.press('Enter');
         await page.waitForTimeout(500);
-        
+
         // Check again
         const stillVisible = await renameDialog.isVisible({ timeout: 1000 }).catch(() => false);
         if (stillVisible) {
@@ -193,7 +193,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
         }
       }
     }
-    
+
     // Wait a bit for any async operations to complete
     await page.waitForTimeout(1000);
 
@@ -201,16 +201,16 @@ test.describe('E2E: Thread Rename (simple)', () => {
     let titleUpdated = false;
     let retries = 0;
     const maxRetries = 5;
-    
+
     while (!titleUpdated && retries < maxRetries) {
       // Check if title is visible in sidebar
       const threadItemWithNewTitle = page.locator('div.thread-item').filter({ hasText: newTitle });
       titleUpdated = await threadItemWithNewTitle.isVisible({ timeout: 2000 }).catch(() => false);
-      
+
       if (!titleUpdated) {
         retries++;
         console.log(`[thread-rename] Title not updated yet, retry ${retries}/${maxRetries}...`);
-        
+
         if (retries < maxRetries) {
           // Try navigating away and back to refresh sidebar
           if (retries === 2) {
@@ -225,7 +225,7 @@ test.describe('E2E: Thread Rename (simple)', () => {
             await page.reload();
             await page.waitForLoadState('networkidle');
             await page.waitForTimeout(2000);
-            
+
             // Navigate to threads
             await page.getByRole('menuitem', { name: 'Threads' }).click();
             await page.waitForTimeout(1000);
@@ -243,8 +243,10 @@ test.describe('E2E: Thread Rename (simple)', () => {
       const altThreadItem = page.locator('[role="menuitem"]').filter({ hasText: newTitle });
       titleUpdated = await altThreadItem.isVisible({ timeout: 5000 }).catch(() => false);
     }
-    
-    await expect(page.locator('div.thread-item, [role="menuitem"]').filter({ hasText: newTitle })).toBeVisible({
+
+    await expect(
+      page.locator('div.thread-item, [role="menuitem"]').filter({ hasText: newTitle }),
+    ).toBeVisible({
       timeout: 5000,
     });
   });

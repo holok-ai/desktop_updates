@@ -42,10 +42,7 @@ export class ForbiddenError extends HolokaiError {
  * Resource not found error (404)
  */
 export class NotFoundError extends HolokaiError {
-  constructor(
-    resourceType: string,
-    resourceId: string,
-  ) {
+  constructor(resourceType: string, resourceId: string) {
     super(`${resourceType} not found: ${resourceId}`, 'NOT_FOUND', 404);
   }
 }
@@ -98,4 +95,3 @@ export class RateLimitError extends HolokaiError {
     super(message, 'RATE_LIMIT', 429);
   }
 }
-

@@ -41,7 +41,10 @@ function createBranchStore(): {
         const states: ThreadBranchStates = {};
         if (typeof parsed === 'object' && parsed !== null) {
           for (const [threadId, state] of Object.entries(parsed)) {
-            const s = state as { selections?: [string, number][]; collapsed?: [string, boolean][] } | null;
+            const s = state as {
+              selections?: [string, number][];
+              collapsed?: [string, boolean][];
+            } | null;
             if (s !== null && typeof s === 'object') {
               // eslint-disable-next-line security/detect-object-injection
               states[threadId] = {
@@ -61,7 +64,10 @@ function createBranchStore(): {
 
   function save(states: ThreadBranchStates): void {
     try {
-      const serializable: Record<string, { selections: [string, number][]; collapsed: [string, boolean][] }> = {};
+      const serializable: Record<
+        string,
+        { selections: [string, number][]; collapsed: [string, boolean][] }
+      > = {};
       for (const [threadId, state] of Object.entries(states)) {
         // eslint-disable-next-line security/detect-object-injection
         serializable[threadId] = {
@@ -78,7 +84,11 @@ function createBranchStore(): {
   function getState(states: ThreadBranchStates, threadId: string): BranchState {
     // eslint-disable-next-line security/detect-object-injection
     const existingState = states[threadId];
-    if (existingState === null || existingState === undefined || typeof existingState !== 'object') {
+    if (
+      existingState === null ||
+      existingState === undefined ||
+      typeof existingState !== 'object'
+    ) {
       const newState: BranchState = {
         selections: new Map(),
         collapsed: new Map(),
@@ -195,11 +205,3 @@ export function getBranchStateForThread(threadId: string) {
     return threadState;
   });
 }
-
-
-
-
-
-
-
-

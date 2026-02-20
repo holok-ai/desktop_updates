@@ -6,6 +6,7 @@
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { threadService } from '$lib/services/thread.service';
+  import pRetry from 'p-retry';
 
   let applications = $state<ApplicationSummary[]>([]);
   let isLoading = $state(true);
@@ -26,7 +27,20 @@
   async function loadApplications() {
     try {
       isLoading = true;
-      applications = await window.electronAPI.models.listAllApplications();
+
+      const loadedAgents = await pRetry(
+        async () => {
+          const agentsInRetry = await window.electronAPI.models.listAllApplications();
+          if (!agentsInRetry || agentsInRetry.length < 1) throw new Error(`No applications`);
+          return agentsInRetry;
+        },
+        {
+          retries: 5,
+          minTimeout: 2000, // wait 1s before first retry
+          factor: 2, // wait X more time after a fail (1, 2, 4 ...)
+        },
+      );
+      applications = loadedAgents;
     } catch (error) {
       console.error('[ApplicationThread] Failed to load applications:', error);
       errorMessage = error instanceof Error ? error.message : 'Failed to load applications';

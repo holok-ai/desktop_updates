@@ -124,7 +124,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Get projects failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -161,7 +160,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Get project failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -189,9 +187,6 @@ class ProjectApiService {
    */
   async createProject(request: ProjectCreateRequest): Promise<ProjectDetailDTO> {
     const accessToken = await this.getAccessToken();
-    console.log({
-      accessToken,
-    });
     if (!accessToken) {
       throw new Error('Not authenticated. Please log in.');
     }
@@ -210,7 +205,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Create project failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -254,7 +248,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Update project failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -301,7 +294,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Delete project failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');
@@ -342,7 +334,6 @@ class ProjectApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[ProjectApiService] Get updates failed:', response.status, errorText);
 
       if (response.status === 401) {
         throw new Error('Authentication failed. Please log in again.');

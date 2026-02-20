@@ -4,13 +4,13 @@ import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
 
 /**
  * E2E Test: Multi-Thread Chat Workflow
- * 
+ *
  * Tests the full user workflow for multi-threaded chat sessions:
  * - Opening multiple threads
  * - Sending messages with tool use in each
  * - Verifying correct file operations per thread
  * - Verifying no cross-contamination between threads
- * 
+ *
  * This test verifies the integration of:
  * - ToolOrchestrator singleton
  * - DesktopChatService per thread
@@ -90,24 +90,24 @@ test.describe('Multi-Thread Chat E2E', () => {
 
 /**
  * Note: Full E2E implementation would require:
- * 
+ *
  * 1. Test setup:
  *    - Create temporary directories for each thread
  *    - Set up test files in each directory
  *    - Configure Electron app with test settings
- * 
+ *
  * 2. UI interaction:
  *    - Use Playwright to interact with chat UI
  *    - Create new threads via UI
  *    - Set working directories per thread
  *    - Send messages that trigger tool use
- * 
+ *
  * 3. Verification:
  *    - Check file system state after operations
  *    - Verify UI displays correct results per thread
  *    - Check IPC communication logs
  *    - Verify ToolOrchestrator singleton usage
- * 
+ *
  * 4. Cleanup:
  *    - Remove temporary directories
  *    - Reset app state

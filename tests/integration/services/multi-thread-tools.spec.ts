@@ -168,9 +168,9 @@ describe('Multi-Thread Tools Integration', () => {
       }));
 
       const results = await Promise.all(
-        contexts.map(context =>
-          orchestrator.executeTool('test_tool', { index: contexts.indexOf(context) }, context)
-        )
+        contexts.map((context) =>
+          orchestrator.executeTool('test_tool', { index: contexts.indexOf(context) }, context),
+        ),
       );
 
       // All should succeed
@@ -231,8 +231,8 @@ describe('Multi-Thread Tools Integration', () => {
       // Execute all concurrently
       const results = await Promise.all(
         contexts.map((ctx, idx) =>
-          orchestrator.executeTool('test_tool', { project: idx }, ctx as ToolExecutionContext)
-        )
+          orchestrator.executeTool('test_tool', { project: idx }, ctx as ToolExecutionContext),
+        ),
       );
 
       // Verify each result maintains its own context

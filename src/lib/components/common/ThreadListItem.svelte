@@ -7,11 +7,7 @@
 
   const dispatch = createEventDispatcher();
 
-  const { 
-    thread, 
-    isSelected, 
-    showActions
-  } = $props<{
+  const { thread, isSelected, showActions } = $props<{
     thread: Thread;
     isSelected: boolean;
     showActions?: boolean;
@@ -22,7 +18,8 @@
 
   // Check if user has write permissions to any projects
   const hasWritePermissions = $derived(
-    Array.isArray($projects) && $projects.some((p) => p.userRole === 'owner' || p.userRole === 'editor')
+    Array.isArray($projects) &&
+      $projects.some((p) => p.userRole === 'owner' || p.userRole === 'editor'),
   );
 
   // Check if this thread is a favorite
@@ -127,30 +124,19 @@
       <div class="thread-title">{thread.title}</div>
       {#if showActions}
         <div class="thread-actions">
-          <button
-            class="action-button menu-trigger"
-            title="More actions"
-            onclick={toggleMenu}
-          >
+          <button class="action-button menu-trigger" title="More actions" onclick={toggleMenu}>
             ⋯
           </button>
           {#if showMenu}
             <div class="context-menu" class:upward={openUpward} role="menu" bind:this={menuElement}>
-              <button
-                class="menu-item"
-                role="menuitem"
-                onclick={handleToggleFavorite}
-              >
-                <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}" style="margin-right: 6px; font-size: 12px;"></i>
+              <button class="menu-item" role="menuitem" onclick={handleToggleFavorite}>
+                <i
+                  class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"
+                  style="margin-right: 6px; font-size: 12px;"
+                ></i>
                 {isFav ? 'Remove favorite' : 'Make favorite'}
               </button>
-              <button
-                class="menu-item"
-                role="menuitem"
-                onclick={handleRename}
-              >
-                Rename
-              </button>
+              <button class="menu-item" role="menuitem" onclick={handleRename}> Rename </button>
               <button
                 class="menu-item"
                 role="menuitem"
@@ -160,11 +146,7 @@
                 Change project
               </button>
               <hr class="menu-divider" />
-              <button
-                class="menu-item delete"
-                role="menuitem"
-                onclick={handleDelete}
-              >
+              <button class="menu-item delete" role="menuitem" onclick={handleDelete}>
                 Delete
               </button>
             </div>
@@ -185,7 +167,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  
+
   .thread-item {
     display: flex;
     align-items: center;

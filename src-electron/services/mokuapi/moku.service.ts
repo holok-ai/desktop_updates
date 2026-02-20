@@ -60,8 +60,6 @@ export class MokuService {
    * Step 1 of authentication flow
    */
   public async exchangeCodeForApiKey(code: string): Promise<string> {
-    log.info('[MokuService] Exchanging code for apiKey');
-
     const mokuApiUrl = this.getMokuApiUrl();
 
     const response = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
@@ -72,17 +70,13 @@ export class MokuService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[MokuService] Exchange code failed:', response.status, errorText);
-
       if (response.status === 401) {
         throw new Error('Invalid or expired exchange code. Please try logging in again.');
       }
-      throw new Error(`Failed to exchange code: ${response.status}`);
+      throw new Error(`Failed to exchange code: ${response.status} ${errorText}`);
     }
 
     const { apiKey } = (await response.json()) as ExchangeCodeResponse;
-    log.info('[MokuService] Successfully received apiKey');
-
     return apiKey;
   }
 
@@ -95,9 +89,7 @@ export class MokuService {
   ): Promise<{ accessToken: string; expires_in: number }> {
     const mokuApiUrl = this.getMokuApiUrl();
 
-    const refreshUrl = `${mokuApiUrl}/api/auth/token/refresh`;
-    log.info(`Calling refresh endpoint at: ${refreshUrl}`);
-    const response = await fetch(refreshUrl, {
+    const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -105,8 +97,7 @@ export class MokuService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.error('[MokuService] Token refresh failed:', response.status, errorText);
-      throw new Error(`Failed to get access token: ${response.status}`);
+      throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
     }
 
     const { accessToken, expires_in } = (await response.json()) as TokenRefreshResponse;
@@ -119,7 +110,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
     const response = await fetch(`${mokuApiUrl}/api/v1/agents`, {
@@ -144,7 +134,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -164,12 +153,10 @@ export class MokuService {
 
         if (!response.ok) {
           const errorText = await response.text();
-          log.error('[MokuService] Get applications failed:', response.status, errorText);
-
           if (response.status === 401) {
             throw new Error('Authentication failed. Please log in again.');
           }
-          throw new Error(`Failed to get applications: ${response.status}`);
+          throw new Error(`Failed to get applications: ${response.status} ${errorText}`);
         }
 
         const data = (await response.json()) as PagedResponse<ApplicationSummary>;
@@ -201,7 +188,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -216,12 +202,10 @@ export class MokuService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        log.error('[MokuService] Get application detail failed:', response.status, errorText);
-
         if (response.status === 401) {
           throw new Error('Authentication failed. Please log in again.');
         }
-        throw new Error(`Failed to get application detail: ${response.status}`);
+        throw new Error(`Failed to get application detail: ${response.status} ${errorText}`);
       }
 
       const data = (await response.json()) as ApplicationDetail;
@@ -241,7 +225,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -256,12 +239,10 @@ export class MokuService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        log.error('[MokuService] Get agent detail failed:', response.status, errorText);
-
         if (response.status === 401) {
           throw new Error('Authentication failed. Please log in again.');
         }
-        throw new Error(`Failed to get agent detail: ${response.status}`);
+        throw new Error(`Failed to get agent detail: ${response.status} ${errorText}`);
       }
 
       const data = (await response.json()) as AgentChatConfig;
@@ -284,7 +265,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -315,7 +295,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -330,7 +309,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -345,7 +323,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -363,7 +340,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -378,7 +354,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 
@@ -396,7 +371,6 @@ export class MokuService {
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      log.error('[MokuService] No access token available');
       throw new Error('Not authenticated. Please log in first.');
     }
 

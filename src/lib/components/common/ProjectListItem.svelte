@@ -5,7 +5,11 @@
 
   const dispatch = createEventDispatcher();
 
-  const { project, isSelected, showActions = true } = $props<{
+  const {
+    project,
+    isSelected,
+    showActions = true,
+  } = $props<{
     project: Project;
     isSelected: boolean;
     showActions?: boolean;
@@ -19,7 +23,6 @@
     e.stopPropagation();
     dispatch('delete', { id: project.id });
   }
-
 </script>
 
 <div

@@ -41,6 +41,7 @@ export interface AppSettings {
 
   // General
   avatar: UserAvatar;
+  deleteConfirmationRequired: boolean;
 
   // Appearance
   startingPage: StartingPage;
@@ -84,6 +85,7 @@ export const defaultAppSettings: AppSettings = {
   theme: APP_THEME_MODE.LIGHT as AppThemeMode,
   avatar: { ...defaultUserAvatar },
   startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+  deleteConfirmationRequired: false,
   showRecentList: true,
   showFavoritesList: true,
   threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,

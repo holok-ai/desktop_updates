@@ -11,7 +11,12 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication } from 'playwright';
 import { launchElectronApp, closeElectronApp } from '../helpers/electron-app';
-import { createThread, waitForStreamingComplete, SIMPLE_TEST_PROMPT, forceThreadRefresh } from '../helpers/ui-helpers';
+import {
+  createThread,
+  waitForStreamingComplete,
+  SIMPLE_TEST_PROMPT,
+  forceThreadRefresh,
+} from '../helpers/ui-helpers';
 
 test.describe('E2E: Chat with Hybrid Approach', () => {
   let app: ElectronApplication;

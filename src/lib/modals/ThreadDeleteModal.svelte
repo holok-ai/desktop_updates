@@ -61,20 +61,10 @@
       </p>
 
       <div class="dialog-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          onclick={handleCancel}
-          disabled={isDeleting}
-        >
+        <button type="button" class="btn-secondary" onclick={handleCancel} disabled={isDeleting}>
           Cancel
         </button>
-        <button
-          type="button"
-          class="btn-danger"
-          onclick={handleConfirm}
-          disabled={isDeleting}
-        >
+        <button type="button" class="btn-danger" onclick={handleConfirm} disabled={isDeleting}>
           {isDeleting ? 'Deleting...' : 'Delete Thread'}
         </button>
       </div>
@@ -85,4 +75,3 @@
 <style>
   /* All base modal styles are in app.css */
 </style>
-

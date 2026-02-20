@@ -20,7 +20,7 @@
   let { messages = [] }: Props = $props();
 
   // ── Layout constants ──
-  const NODE_W = 220;
+  const NODE_W = 270;
   const NODE_H = 56;
   const NODE_RX = 12;
   const H_GAP = 40; // Horizontal gap between lanes
@@ -114,13 +114,15 @@
         lastNodeId = userNode.id;
         cursorY += NODE_H + V_GAP;
 
-        // Assistant node
-        if (pair.response) {
-          const respNode = createNode(pair.response, LEFT_PAD, cursorY, lastNodeId);
-          nodes.push(respNode);
-          edges.push(createEdge(lastNodeId, respNode.id, nodes));
-          lastNodeId = respNode.id;
-          cursorY += NODE_H + V_GAP;
+        // Assistant nodes (potentially multiple)
+        if (pair.responses.length > 0) {
+          for (const response of pair.responses) {
+            const respNode = createNode(response, LEFT_PAD, cursorY, lastNodeId);
+            nodes.push(respNode);
+            edges.push(createEdge(lastNodeId, respNode.id, nodes));
+            lastNodeId = respNode.id;
+            cursorY += NODE_H + V_GAP;
+          }
         } else if (pair.isStreamingResponse) {
           // Streaming placeholder
           const streamNode: LayoutNode = {
@@ -171,9 +173,9 @@
             lanePrevId = un.id;
             laneY += NODE_H + V_GAP;
 
-            // Assistant node
-            if (pair.response) {
-              const rn = createNode(pair.response, laneX, laneY, lanePrevId);
+            // Assistant nodes (potentially multiple)
+            for (const response of pair.responses) {
+              const rn = createNode(response, laneX, laneY, lanePrevId);
               laneNodes.push(rn);
               laneEdges.push(createEdge(lanePrevId, rn.id, [...nodes, ...laneNodes]));
               lanePrevId = rn.id;
@@ -559,12 +561,13 @@
               x={node.x + 34}
               y={node.y + 20}
               class="node-role-label"
-              fill={nodeStroke(node.role)}>{node.role === 'user' ? 'User' : 'Assistant'}</text
-            >
+              fill={nodeStroke(node.role)}
+              >{node.role === 'user' ? (node.userId ? node.userId : 'User') : 'Assistant'}
+            </text>
 
             <!-- Label line 2 — content preview -->
             <text x={node.x + 34} y={node.y + 38} class="node-content-label"
-              >{truncate(node.content, 24)}</text
+              >{truncate(node.content, 45)}</text
             >
 
             <!-- Model badge (assistant only) -->

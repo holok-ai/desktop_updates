@@ -3,11 +3,7 @@ import log from 'electron-log';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type {
-  ToolResult,
-  FolderEntry,
-  WriteFileParams,
-} from './tool-types.js';
+import type { ToolResult, FolderEntry, WriteFileParams } from './tool-types.js';
 
 /**
  * File Tools Service
@@ -22,15 +18,16 @@ export class FileToolsService {
 
   constructor(allowedPaths?: string[]) {
     this.blacklistedPaths = this.initializeBlacklist();
-    this.allowedPaths = new Set((allowedPaths || []).map((p) =>
-      path.normalize(path.resolve(p))
-    ));
+    this.allowedPaths = new Set((allowedPaths || []).map((p) => path.normalize(path.resolve(p))));
 
-    log.info('[FileToolsService] Initialized', JSON.stringify({
-      blacklistedPathsCount: this.blacklistedPaths.size,
-      allowedPathsCount: this.allowedPaths.size,
-      allowedPaths: Array.from(this.allowedPaths),
-    }));
+    log.info(
+      '[FileToolsService] Initialized',
+      JSON.stringify({
+        blacklistedPathsCount: this.blacklistedPaths.size,
+        allowedPathsCount: this.allowedPaths.size,
+        allowedPaths: Array.from(this.allowedPaths),
+      }),
+    );
   }
 
   /**
@@ -43,7 +40,6 @@ export class FileToolsService {
   public getMaxFolderFiles(): number {
     return this.maxFolderFiles;
   }
-
 
   /**
    * Read folder contents with optional recursive traversal
@@ -399,7 +395,8 @@ export class FileToolsService {
    * @param userPath - User-provided path (relative or absolute)
    * @param workingDirectory - Context working directory
    */
-  public resolvePath(userPath: string, workingDirectory: string): string { let resolved = userPath;
+  public resolvePath(userPath: string, workingDirectory: string): string {
+    let resolved = userPath;
 
     // Expand home directory
     if (resolved.startsWith('~')) {
@@ -543,7 +540,6 @@ export class FileToolsService {
 
     return blacklist;
   }
-
 
   /**
    * Set allowed paths (whitelist) for file access

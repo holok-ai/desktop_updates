@@ -70,12 +70,7 @@ function isRetryableError(error: unknown, config: RetryConfig): boolean {
   if (!error) return false;
 
   // Check for HTTP response errors
-  if (
-    error &&
-    typeof error === 'object' &&
-    'status' in error &&
-    typeof error.status === 'number'
-  ) {
+  if (error && typeof error === 'object' && 'status' in error && typeof error.status === 'number') {
     return config.retryableStatuses.includes(error.status);
   }
 
@@ -181,10 +176,7 @@ export const ApiRetry = {
 
         // Last attempt - don't delay, just throw
         if (attempt === config.maxAttempts) {
-          log.error(
-            `${logPrefix} All ${config.maxAttempts} attempts failed:`,
-            lastError.message,
-          );
+          log.error(`${logPrefix} All ${config.maxAttempts} attempts failed:`, lastError.message);
           throw new RetryExhaustedError(
             `Operation failed after ${config.maxAttempts} attempts: ${lastError.message}`,
             config.maxAttempts,
@@ -220,4 +212,3 @@ export const withRetry = <T>(
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
   context?: string,
 ): Promise<T> => ApiRetry.execute(fn, config, context);
-

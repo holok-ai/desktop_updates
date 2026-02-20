@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../../src-electron/preload';
@@ -17,6 +18,16 @@
   let showMenu = $state(false);
   let showRenameModal = $state(false);
   let showDeleteModal = $state(false);
+  let deleteConfirmationRequired = $state(true);
+
+  onMount(async () => {
+    try {
+      const s = await window.electronAPI.settings.getAll();
+      deleteConfirmationRequired = s.deleteConfirmationRequired ?? true;
+    } catch {
+      deleteConfirmationRequired = true;
+    }
+  });
 
   const isFav = $derived($favorites.some((e) => e.id === thread.id));
 
@@ -105,7 +116,11 @@
   function handleDelete(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
-    showDeleteModal = true;
+    if (deleteConfirmationRequired) {
+      showDeleteModal = true;
+    } else {
+      void handleDeleteConfirmed();
+    }
   }
 
   async function handleDeleteConfirmed() {

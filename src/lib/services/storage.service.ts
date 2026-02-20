@@ -1,7 +1,5 @@
 import type { AppThemeMode } from '$lib/types/app.type';
-import type { SidebarActivity } from '$lib/types/sidebar.type';
 import { APP_THEME_MODE, APP_THEME_MODE_STORAGE_KEY } from '$lib/constants/app.constant';
-import { SIDEBAR_STORAGE_KEY } from '$lib/constants/sidebar.constant';
 
 type GetOptions<T> = {
   coerce?: (value: string) => T | null;
@@ -10,14 +8,9 @@ type GetOptions<T> = {
 
 class StorageService {
   private readonly KEYS = {
-    LAST_THREAD_ID: 'lastThreadId',
-    LAST_PROJECT_ID: 'lastProjectId',
-    SIDEBAR_ACTIVITY: SIDEBAR_STORAGE_KEY,
-    ACTIVITY_LIST_WIDTH: 'activityListWidth',
-    ACTIVITY_LIST_COLLAPSED: 'activityListCollapsed',
     SIDEBAR_COLLAPSED: 'sidebarCollapsed',
     THEME_MODE: APP_THEME_MODE_STORAGE_KEY,
-    SHOW_COMMENTS: 'showComments',
+    FAVORITES: 'favorites',
   } as const;
 
   private get<T>(key: string, defaultValue: T, options?: GetOptions<T>): T {
@@ -71,34 +64,6 @@ class StorageService {
     }
   }
 
-  getLastThreadId(): string | null {
-    return this.get(this.KEYS.LAST_THREAD_ID, null, {
-      coerce: (raw) => raw,
-    });
-  }
-
-  setLastThreadId(id: string): boolean {
-    return this.set(this.KEYS.LAST_THREAD_ID, id);
-  }
-
-  removeLastThreadId(): boolean {
-    return this.remove(this.KEYS.LAST_THREAD_ID);
-  }
-
-  getLastProjectId(): string | null {
-    return this.get(this.KEYS.LAST_PROJECT_ID, null, {
-      coerce: (raw) => raw,
-    });
-  }
-
-  setLastProjectId(id: string): boolean {
-    return this.set(this.KEYS.LAST_PROJECT_ID, id);
-  }
-
-  removeLastProjectId(): boolean {
-    return this.remove(this.KEYS.LAST_PROJECT_ID);
-  }
-
   getThemeMode(): AppThemeMode {
     return this.get(this.KEYS.THEME_MODE, APP_THEME_MODE.LIGHT as AppThemeMode, {
       coerce: (raw) => {
@@ -112,89 +77,6 @@ class StorageService {
 
   setThemeMode(mode: AppThemeMode): boolean {
     return this.set(this.KEYS.THEME_MODE, mode);
-  }
-
-  getSidebarActivity(): SidebarActivity | null {
-    return this.get(this.KEYS.SIDEBAR_ACTIVITY, null);
-  }
-
-  setSidebarActivity(activity: SidebarActivity): boolean {
-    return this.set(this.KEYS.SIDEBAR_ACTIVITY, activity);
-  }
-
-  getShowComments(): boolean {
-    return this.get(this.KEYS.SHOW_COMMENTS, false, {
-      coerce: (raw) => {
-        if (raw === 'true') {
-          return true;
-        }
-        if (raw === 'false') {
-          return false;
-        }
-        return null;
-      },
-    });
-  }
-
-  setShowComments(show: boolean): boolean {
-    return this.set(this.KEYS.SHOW_COMMENTS, show);
-  }
-
-  /**
-   * Get the custom width for Activity List sidebar
-   * @returns The custom width in pixels, or 280 (default)
-   */
-  getActivityListWidth(): number {
-    const value = this.get(this.KEYS.ACTIVITY_LIST_WIDTH, 280, {
-      coerce: (raw) => {
-        const parsed = Number.parseInt(raw, 10);
-        if (!Number.isNaN(parsed) && parsed >= 200 && parsed <= 600) {
-          return parsed;
-        }
-        return null;
-      },
-    });
-
-    // Additional validation in case JSON parsing succeeded but value is out of range
-    if (typeof value === 'number' && (value < 200 || value > 600)) {
-      return 280;
-    }
-
-    return value;
-  }
-
-  /**
-   * Set the custom width for Activity List sidebar
-   * @param width Width in pixels (will be clamped between 200 and 600)
-   */
-  setActivityListWidth(width: number): boolean {
-    // Clamp width between min and max
-    const clampedWidth = Math.max(200, Math.min(600, width));
-    return this.set(this.KEYS.ACTIVITY_LIST_WIDTH, clampedWidth);
-  }
-
-  /**
-   * Get the collapsed state for Activity List sidebar
-   */
-  getActivityListCollapsed(): boolean {
-    return this.get(this.KEYS.ACTIVITY_LIST_COLLAPSED, false, {
-      coerce: (raw) => {
-        if (raw === 'true') {
-          return true;
-        }
-        if (raw === 'false') {
-          return false;
-        }
-        return null;
-      },
-    });
-  }
-
-  /**
-   * Set the collapsed state for Activity List sidebar
-   */
-  setActivityListCollapsed(collapsed: boolean): boolean {
-    return this.set(this.KEYS.ACTIVITY_LIST_COLLAPSED, collapsed);
   }
 
   /**
@@ -219,6 +101,14 @@ class StorageService {
    */
   setSidebarCollapsed(collapsed: boolean): boolean {
     return this.set(this.KEYS.SIDEBAR_COLLAPSED, collapsed);
+  }
+
+  getFavorites<T>(): T[] {
+    return this.get<T[]>(this.KEYS.FAVORITES, []);
+  }
+
+  setFavorites<T>(favorites: T[]): boolean {
+    return this.set(this.KEYS.FAVORITES, favorites);
   }
 }
 

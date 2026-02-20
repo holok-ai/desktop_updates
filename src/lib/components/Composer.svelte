@@ -236,7 +236,6 @@
       (!payload && selectedFiles.length === 0) ||
       !sendMessage ||
       isStreaming ||
-      !selectedApplicationSlug ||
       !selectedModelId
     ) {
       return;

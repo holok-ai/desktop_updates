@@ -52,7 +52,7 @@ export class FolderReadTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const userPath = params.path as string;
     const recursive = (params.recursive as boolean) ?? false;
@@ -62,7 +62,7 @@ export class FolderReadTool implements ITool {
 
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)

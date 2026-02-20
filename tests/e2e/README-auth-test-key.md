@@ -17,12 +17,14 @@ Simple test to verify authentication using the centralized test token mechanism 
 ## Key Changes from Previous Version
 
 ### Before (Old Implementation)
+
 - Hardcoded Peter Baxter's tokens directly in test file
 - Manual Electron launch with custom environment setup
 - Manual login flow handling (clicking "Login With Key" button)
 - Duplicated authentication logic
 
 ### After (Current Implementation)
+
 - Uses centralized `launchAuthenticatedApp()` fixture
 - Uses Kong Pham's tokens from `tests/fixtures/electron-auth.ts`
 - Automatic authentication (no UI interaction needed)
@@ -35,8 +37,8 @@ Test tokens are defined in `tests/fixtures/electron-auth.ts`:
 
 ```typescript
 export const TEST_TOKENS = {
-  accessToken: 'eyJhbGci...',  // Valid for http://moku.holokai.dev
-  apiKey: 'eyJhbGci...',       // Valid for http://moku.holokai.dev
+  accessToken: 'eyJhbGci...', // Valid for http://moku.holokai.dev
+  apiKey: 'eyJhbGci...', // Valid for http://moku.holokai.dev
   user: {
     id: '19451f75-d9f6-4da2-b17b-af3b649e6fe8',
     email: 'kong.pham@nkk.com.vn',
@@ -95,6 +97,7 @@ DEBUG=pw:api npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
 **Cause:** Test tokens are invalid or expired.
 
 **Solution:**
+
 1. Generate fresh tokens from `http://moku.holokai.dev`
 2. Update `tests/fixtures/electron-auth.ts`
 3. See `tests/e2e/README-environment-config.md` for details
@@ -104,6 +107,7 @@ DEBUG=pw:api npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
 **Cause:** `PLAYWRIGHT_TEST_TOKENS` environment variable not set correctly.
 
 **Solution:**
+
 - Verify `launchAuthenticatedApp()` is being used
 - Check that `TEST_TOKENS` are defined in fixture
 - Ensure no environment variable override
@@ -113,6 +117,7 @@ DEBUG=pw:api npm run test:e2e -- tests/e2e/auth-test-key.spec.ts
 **Cause:** Test tokens don't match expected user.
 
 **Solution:**
+
 - Update test expectations to match tokens in fixture
 - Or update tokens in fixture to match test expectations
 
@@ -161,6 +166,7 @@ App launches authenticated
 ## Security Note
 
 **Test tokens are for development/testing only:**
+
 - Valid for `http://moku.holokai.dev` environment
 - Should NOT be production tokens
 - Expire in 2036 (long-lived for convenience)

@@ -38,12 +38,12 @@ export class ReadPdfTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const userPath = params.file_path as string;
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)

@@ -5,7 +5,7 @@ import type { Attachment } from '../../../src-shared/types/attachment.types.js';
  * Desktop-specific chat message with attachment support
  */
 export interface DesktopChatMessage extends ChatMessage {
-    attachments?: Attachment[];
+  attachments?: Attachment[];
 }
 
 /**
@@ -13,6 +13,6 @@ export interface DesktopChatMessage extends ChatMessage {
  * Extends chat-component ChatRequest with desktop-specific fields
  */
 export interface DesktopChatRequest extends ChatRequest {
-    messages: DesktopChatMessage[];
-    working_directory?: string; // For file tools operations
+  messages: DesktopChatMessage[];
+  working_directory?: string; // For file tools operations
 }

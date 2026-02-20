@@ -24,8 +24,11 @@ export interface CreateProjectInput {
  * Ensures createdAt/updatedAt are Date objects.
  */
 function mapBackendToFrontendProject(backendProject: Project): Project {
-  const { title: backendTitle, createdAt: backendCreatedAt, updatedAt: backendUpdatedAt } =
-    backendProject;
+  const {
+    title: backendTitle,
+    createdAt: backendCreatedAt,
+    updatedAt: backendUpdatedAt,
+  } = backendProject;
 
   const title: string = typeof backendTitle === 'string' ? backendTitle : '';
 
@@ -182,15 +185,15 @@ export class ProjectService extends BaseElectronService {
   public async addMembers(
     projectId: GUID,
     userIds: string[],
-    role: 'viewer' | 'editor'
+    role: 'viewer' | 'editor',
   ): Promise<Array<{ userId: string; success: boolean; error?: string }>> {
     const results = await Promise.allSettled(
       userIds.map((userId) =>
         wrapElectronCall(
           () => window.electronAPI.project.addMember(projectId, { userId, role }),
-          `Failed to add user ${userId}`
-        )
-      )
+          `Failed to add user ${userId}`,
+        ),
+      ),
     );
 
     return results.map((result, index) => {
@@ -201,7 +204,7 @@ export class ProjectService extends BaseElectronService {
         return {
           userId,
           success: false,
-          error: result.reason instanceof Error ? result.reason.message : 'Unknown error'
+          error: result.reason instanceof Error ? result.reason.message : 'Unknown error',
         };
       }
     });
@@ -215,7 +218,7 @@ export class ProjectService extends BaseElectronService {
   public async removeMember(projectId: GUID, memberId: string): Promise<void> {
     await wrapElectronCall(
       () => window.electronAPI.project.removeMember(projectId, memberId),
-      'Failed to remove member'
+      'Failed to remove member',
     );
   }
 }

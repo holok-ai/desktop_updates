@@ -379,6 +379,7 @@ To analyze and optimize bundle size:
 The project uses GitHub Actions for continuous integration and deployment. The pipeline automatically runs on every push and pull request.
 
 **Pipeline includes**:
+
 - Linting and type checking
 - Security scanning
 - Unit, integration, and E2E tests (across Linux, macOS, Windows)
@@ -386,6 +387,7 @@ The project uses GitHub Actions for continuous integration and deployment. The p
 - Automated packaging for releases
 
 **For detailed CI/CD documentation**, see [`docs/ci-cd-setup.md`](docs/ci-cd-setup.md) which includes:
+
 - Complete pipeline architecture
 - Job descriptions and timeouts
 - Running checks locally

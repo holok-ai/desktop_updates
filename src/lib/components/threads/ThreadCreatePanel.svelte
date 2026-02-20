@@ -13,10 +13,7 @@
     newThreadPrompt: string;
   }
 
-  let {
-    selectedModel = $bindable(),
-    newThreadPrompt = $bindable(),
-  }: Props = $props();
+  let { selectedModel = $bindable(), newThreadPrompt = $bindable() }: Props = $props();
 
   let promptTextarea: HTMLTextAreaElement | undefined = $state();
   let selectedModelId = $state<string | null>(null);
@@ -48,12 +45,14 @@
     // Shift+Enter allows newline (default behavior, no action needed)
   }
 
-  function handleModelSelectorSelect(e: CustomEvent<{
-    modelId: string;
-    modelDetails: ModelDetails;
-    appSlug: string;
-    modelSlug: string;
-  }>) {
+  function handleModelSelectorSelect(
+    e: CustomEvent<{
+      modelId: string;
+      modelDetails: ModelDetails;
+      appSlug: string;
+      modelSlug: string;
+    }>,
+  ) {
     const { modelDetails } = e.detail;
     selectedModel = modelDetails;
     selectedModelId = modelDetails.accessName;

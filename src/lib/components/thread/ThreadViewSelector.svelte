@@ -101,7 +101,9 @@
     color: var(--text-secondary, #666);
     cursor: pointer;
     border-radius: 4px;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    transition:
+      border-color 0.15s ease,
+      color 0.15s ease;
   }
 
   .view-tab:focus {

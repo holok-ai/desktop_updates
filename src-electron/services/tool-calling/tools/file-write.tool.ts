@@ -4,7 +4,12 @@
  */
 
 import type { ITool, ToolContext } from './base-tool.js';
-import type { ToolDefinition, ToolResult, WriteFileParams, WriteFileResult } from '../tool-types.js';
+import type {
+  ToolDefinition,
+  ToolResult,
+  WriteFileParams,
+  WriteFileResult,
+} from '../tool-types.js';
 import type { ToolExecutionContext } from '../orchestrator-types.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -51,7 +56,7 @@ export class FileWriteTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const writeParams = params as unknown as WriteFileParams;
 
@@ -69,7 +74,7 @@ export class FileWriteTool implements ITool {
 
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)

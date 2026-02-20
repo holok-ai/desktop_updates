@@ -49,6 +49,15 @@
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1.2rem;
+    background: var(--surface-main);
+  }
+
   .files-list {
     max-width: 1200px;
     margin: 0 auto;

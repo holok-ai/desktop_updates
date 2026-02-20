@@ -33,8 +33,5 @@ export interface ITool {
   /**
    * Execute the tool with given input and execution context
    */
-  execute(
-    input: Record<string, unknown>,
-    context: ToolExecutionContext
-  ): Promise<ToolResult>;
+  execute(input: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult>;
 }

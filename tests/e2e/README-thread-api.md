@@ -1,9 +1,11 @@
 # Thread API E2E Test
 
 ## Overview
+
 This E2E test verifies that thread creation and listing works end-to-end with the real Moku API backend using pre-seeded authentication tokens.
 
 ## Test Coverage
+
 1. **Create thread via API** - Creates a thread through the Electron app which calls the real Moku API
 2. **Verify in thread list** - Confirms the thread appears in both API response and UI
 3. **Thread with metadata** - Tests creating threads with custom description and tags
@@ -16,6 +18,7 @@ This E2E test verifies that thread creation and listing works end-to-end with th
 You need a valid access token for the Moku API. You can obtain this by:
 
 **Option A: Extract from logged-in Desktop app**
+
 1. Launch the Desktop app normally and log in
 2. Open DevTools (`Ctrl+Shift+I` or `F12`)
 3. Go to Console tab
@@ -23,6 +26,7 @@ You need a valid access token for the Moku API. You can obtain this by:
 5. Copy the `accessToken` value (and optionally `user` profile)
 
 **Option B: Use API directly** (if you have credentials)
+
 1. Authenticate with the Moku API using your credentials
 2. Extract the access token from the response
 
@@ -42,6 +46,7 @@ export PLAYWRIGHT_TEST_TOKENS='{"accessToken":"your-token-here","user":{"id":"us
 ```
 
 **Token Format:**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -57,12 +62,14 @@ export PLAYWRIGHT_TEST_TOKENS='{"accessToken":"your-token-here","user":{"id":"us
 ```
 
 **Required fields:**
+
 - `accessToken` - Valid JWT token for Moku API
 - `user.id` - User ID
 - `user.email` - User email
 - `user.name` - User name
 
 **Optional fields:**
+
 - `apiKey` - API key for token refresh
 - `user.organizationId` - Organization ID
 - `expiresAt` - Token expiration timestamp (defaults to 24h from now if not provided)
@@ -70,17 +77,20 @@ export PLAYWRIGHT_TEST_TOKENS='{"accessToken":"your-token-here","user":{"id":"us
 ## Running the Test
 
 ### Prerequisites
+
 - Electron app must be built: `npm run build:prod`
 - Valid `PLAYWRIGHT_TEST_TOKENS` environment variable set
 - Moku API must be accessible
 
 ### Command
+
 ```bash
 # Set environment variable first, then run test
 npm run test:e2e tests/e2e/thread-api.spec.ts
 ```
 
 Or directly with Playwright:
+
 ```bash
 npx playwright test tests/e2e/thread-api.spec.ts
 ```
@@ -112,27 +122,32 @@ Test Files  1 passed (1)
 ## Troubleshooting
 
 ### "PLAYWRIGHT_TEST_TOKENS environment variable is required"
+
 - Make sure you set the environment variable before running the test
 - Check that the JSON is valid (use a JSON validator)
 - Ensure quotes are properly escaped for your shell
 
 ### "Authentication failed"
+
 - Verify the access token is valid and not expired
 - Check that the token has the correct format (JWT)
 - Ensure the Moku API URL is correct
 - Test the token manually: `curl -H "Authorization: Bearer YOUR_TOKEN" https://api.holok.ai/api/threads`
 
 ### Thread creation fails with 401
+
 - Token is expired - generate a new one
 - Token doesn't have necessary permissions
 - Moku API URL is incorrect
 
 ### Thread creation fails with network error
+
 - Verify Moku API is running and accessible
 - Check network connectivity
 - Verify firewall settings
 
 ### Token expires during test
+
 - Set a longer `expiresAt` value in the token JSON
 - Use a fresh token before running tests
 - Consider using `apiKey` for automatic token refresh
@@ -204,6 +219,7 @@ Store the token JSON in your CI/CD secrets management system.
 ### Why This Approach?
 
 **Advantages:**
+
 - ✅ No manual interaction required
 - ✅ Fully automated E2E testing
 - ✅ Works in CI/CD pipelines
@@ -212,6 +228,7 @@ Store the token JSON in your CI/CD secrets management system.
 - ✅ Fast test execution
 
 **Trade-offs:**
+
 - ⚠️ Requires valid tokens to be managed
 - ⚠️ Tokens can expire
 - ⚠️ Not testing the actual OAuth flow (tested separately)
