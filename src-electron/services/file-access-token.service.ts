@@ -100,57 +100,6 @@ export class FileAccessTokenService {
   }
 
   /**
-   * Revoke a token (e.g., after use for one-time access)
-   */
-  revokeToken(token: string): boolean {
-    return this.tokens.delete(token);
-  }
-
-  /**
-   * Check if a token is valid without consuming it
-   */
-  isValid(token: string): boolean {
-    return this.validateToken(token) !== null;
-  }
-
-  /**
-   * Get remaining time for a token in milliseconds
-   */
-  getTokenTTL(token: string): number {
-    const payload = this.tokens.get(token);
-    if (!payload) {
-      return 0;
-    }
-
-    const remaining = payload.expiresAt - Date.now();
-    return remaining > 0 ? remaining : 0;
-  }
-
-  /**
-   * Clean up all expired tokens
-   */
-  cleanupExpired(): number {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [token, payload] of this.tokens.entries()) {
-      if (now > payload.expiresAt) {
-        this.tokens.delete(token);
-        cleaned++;
-      }
-    }
-
-    return cleaned;
-  }
-
-  /**
-   * Get current token count (for monitoring)
-   */
-  getTokenCount(): number {
-    return this.tokens.size;
-  }
-
-  /**
    * Create HMAC signature for token integrity
    */
   private createSignature(

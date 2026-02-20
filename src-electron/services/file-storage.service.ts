@@ -189,16 +189,6 @@ export class FileStorageService {
   }
 
   /**
-   * Generate thumbnail for images (optional, basic implementation)
-   * TODO: Implement proper image resizing with sharp or similar library
-   */
-  async generateThumbnail(): Promise<Buffer | null> {
-    // Placeholder - implement in future iteration
-    // For now, just return null (no thumbnail)
-    return null;
-  }
-
-  /**
    * Check if file exists
    */
   fileExists(threadId: string, fileId: string): boolean {

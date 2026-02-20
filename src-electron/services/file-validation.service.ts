@@ -64,37 +64,6 @@ export class FileValidationService {
   }
 
   /**
-   * Check if file type is allowed
-   */
-  isAllowedType(mimeType: string, extension: string): boolean {
-    // Check if MIME type is allowed
-    if (!this.config.allowedMimeTypes.has(mimeType)) {
-      return false;
-    }
-
-    // Check if extension is allowed
-    const normalizedExt = extension.toLowerCase().replace(/^\./, '');
-    if (!this.config.allowedExtensions.has(normalizedExt)) {
-      return false;
-    }
-
-    // Check if extension matches MIME type
-    const allowedExtensions = this.config.mimeToExtensions.get(mimeType);
-    if (!allowedExtensions || !allowedExtensions.includes(normalizedExt)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Check file size within limits
-   */
-  isAllowedSize(size: number): boolean {
-    return size > 0 && size <= this.config.maxFileSize;
-  }
-
-  /**
    * Sanitize filename (prevent path traversal and malicious names)
    */
   sanitizeFilename(filename: string): string {
@@ -128,26 +97,6 @@ export class FileValidationService {
     }
 
     return sanitized;
-  }
-
-  /**
-   * Get max file size from config
-   */
-  getMaxFileSize(): number {
-    return this.config.maxFileSize;
-  }
-
-  /**
-   * Update max file size (can be called from settings)
-   */
-  setMaxFileSize(size: number): void {
-    if (size <= 0) {
-      log.warn('[FileValidationService] Invalid max file size', { size });
-      return;
-    }
-
-    this.config.maxFileSize = size;
-    log.info('[FileValidationService] Max file size updated', { size });
   }
 
   /**
@@ -351,24 +300,6 @@ export class FileValidationService {
     };
   }
 
-  /**
-   * Get list of allowed file types for display in UI
-   */
-  getAllowedFileTypes(): string[] {
-    return Array.from(this.config.allowedExtensions).sort();
-  }
-
-  /**
-   * Get human-readable description of allowed types
-   */
-  getAllowedTypesDescription(): string {
-    const types = [
-      'Images (JPG, PNG, GIF, WEBP, SVG)',
-      'Documents (PDF, TXT, MD)',
-      'Data (JSON, CSV, XLS, XLSX)',
-    ];
-    return types.join(', ');
-  }
 }
 
 // Export singleton instance
