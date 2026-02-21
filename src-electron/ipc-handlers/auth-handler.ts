@@ -103,6 +103,19 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
         authLog.info('State - user:', authState.user?.email);
         authLog.info('Sending auth:callback-success to renderer...');
 
+        // Execute post-authentication callback before notifying renderer
+        // so that caches (e.g. model repository) are warm when the renderer navigates
+        if (onAuthSuccessCallback) {
+          authLog.info('Executing post-authentication callback...');
+          try {
+            await onAuthSuccessCallback();
+            authLog.info('Post-authentication callback completed successfully');
+          } catch (error) {
+            authLog.error('Post-authentication callback failed:', error);
+            // Don't throw - auth succeeded even if post-auth actions failed
+          }
+        }
+
         // Notify renderer of successful authentication
         if (mainWindow) {
           mainWindow.webContents.send('auth:callback-success', {
@@ -113,18 +126,6 @@ export function handleOAuthCallback(url: string, mainWindow: BrowserWindow | nul
           authLog.info('auth:callback-success sent to renderer');
         } else {
           authLog.warn('Cannot send to renderer - mainWindow is null');
-        }
-
-        // Execute post-authentication callback if registered
-        if (onAuthSuccessCallback) {
-          authLog.info('Executing post-authentication callback...');
-          try {
-            await onAuthSuccessCallback();
-            authLog.info('Post-authentication callback completed successfully');
-          } catch (error) {
-            authLog.error('Post-authentication callback failed:', error);
-            // Don't throw - auth succeeded even if post-auth actions failed
-          }
         }
       })
       .catch((error: unknown) => {

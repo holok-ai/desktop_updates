@@ -1,5 +1,5 @@
 /* eslint-disable security/detect-object-injection */
-/* eslint-disable @typescript-eslint/require-await */
+
 /* eslint-disable security/detect-non-literal-fs-filename */
 /**
  * FileStorageService

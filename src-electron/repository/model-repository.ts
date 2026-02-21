@@ -2,6 +2,7 @@ import { mokuService } from '../services/mokuapi/moku.service.js';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import log from 'electron-log';
 import type { ApplicationSummary, ModelDetails } from '../preload.js';
+import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 
 export class ModelRepository {
   private readonly agents: ApplicationSummary[] = [];
@@ -18,7 +19,6 @@ export class ModelRepository {
     }
 
     try {
-      log.info('[ModelRepository] Fetching Holo API URL from settings');
       const settingsService = getSettingsService();
       this.holoApiUrl = settingsService.getHoloApiUrl();
 
@@ -41,21 +41,25 @@ export class ModelRepository {
    * Refresh models from Moku API after authentication
    * Called automatically after successful login
    */
-  public async refreshModels(): Promise<void> {
+  private async refreshModels(): Promise<ApiResponse<boolean>> {
     // Prevent concurrent refresh calls
     if (this.isRefreshing) {
-      log.info('[ModelRepository] Refresh already in progress, skipping');
-      return;
+      return apiOk(true);
     }
 
     this.isRefreshing = true;
-    log.info('[ModelRepository] Refreshing models from Moku API');
     try {
       // Clear existing models
       this.agents.length = 0;
       this.models.length = 0;
 
-      const agents = await mokuService.getAllAgents();
+      const agentsResult = await mokuService.getAllAgents();
+      if (!agentsResult.success) {
+        log.error('[ModelRepository] Failed to refresh models from Moku:', agentsResult.errorText);
+        return apiFail(agentsResult.errorCode, agentsResult.errorText);
+      }
+
+      const agents = agentsResult.data;
       log.info(`[ModelRepository] Read  ${agents.length} agents from Moku`);
 
       for (const thisAgent of agents) {
@@ -117,57 +121,72 @@ export class ModelRepository {
       log.info(
         `[ModelRepository] Successfully loaded ${this.models.length} models from ${this.agents.length} applications (removed ${duplicatesCount} duplicates)`,
       );
+
+      return apiOk(true);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       log.error('[ModelRepository] Failed to refresh models from Moku:', error);
-      // Don't throw - allow application to continue even if model refresh fails
+      return apiFail(-1, message);
     } finally {
       this.isRefreshing = false;
     }
   }
 
-  public async listAll(): Promise<ModelDetails[]> {
+  public async listAllModels(): Promise<ApiResponse<ModelDetails[]>> {
     // Return cached models if already loaded
     if (this.models.length > 0) {
-      log.info(`[ModelRepository] Returning ${this.models.length} cached models`);
-      return [...this.models]; // Return copy
+      return apiOk([...this.models]);
     }
 
     // Fetch applications from Moku if cache is empty
-    log.info('[ModelRepository] Cache empty, fetching models from Moku API');
-    await this.refreshModels();
+    const refreshResult = await this.refreshModels();
+    if (!refreshResult.success) {
+      return apiFail(refreshResult.errorCode, refreshResult.errorText);
+    }
 
-    return [...this.models]; // Return copy
+    return apiOk([...this.models]);
   }
 
-  public async listAllApplications(): Promise<ApplicationSummary[]> {
+  public async listAllApplications(
+    reloadFromApi: boolean = false,
+  ): Promise<ApiResponse<ApplicationSummary[]>> {
+    // Clear cache if a forced reload is requested
+    if (reloadFromApi) {
+      this.agents.length = 0;
+      this.models.length = 0;
+    }
+
     // Return cached applications if already loaded
     if (this.agents.length > 0) {
-      log.info(`[ModelRepository] Returning ${this.agents.length} cached applications`);
-      // Return deep copy to prevent modifications to cached data
-      return this.agents.map((app) => ({
-        ...app,
-        models: app.models ? [...app.models] : [],
-      }));
+      return apiOk(
+        this.agents.map((app) => ({
+          ...app,
+          models: app.models ? [...app.models] : [],
+        })),
+      );
     }
 
     // Fetch applications from Moku if cache is empty
-    log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
-    await this.refreshModels();
+    const refreshResult = await this.refreshModels();
+    if (!refreshResult.success) {
+      return apiFail(refreshResult.errorCode, refreshResult.errorText);
+    }
 
-    // Return deep copy to prevent modifications to cached data
-    return this.agents.map((app) => ({
-      ...app,
-      models: app.models ? [...app.models] : [],
-    }));
+    return apiOk(
+      this.agents.map((app) => ({
+        ...app,
+        models: app.models ? [...app.models] : [],
+      })),
+    );
   }
 
-  /*
-   */
-  public async getAgentById(agentId: string): Promise<ApplicationSummary | null> {
+  public async getAgentById(agentId: string): Promise<ApiResponse<ApplicationSummary>> {
     // Ensure cache is populated
     if (this.agents.length === 0) {
-      log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
-      await this.refreshModels();
+      const refreshResult = await this.refreshModels();
+      if (!refreshResult.success) {
+        return apiFail(refreshResult.errorCode, refreshResult.errorText);
+      }
     }
 
     // Find application by ID or slug
@@ -175,31 +194,34 @@ export class ModelRepository {
 
     if (!agent) {
       log.warn(`[ModelRepository] Agent application not found: ${agentId}`);
-      return null;
+      return apiFail(404, 'Agent not found');
     }
-    return agent;
+    return apiOk(agent);
   }
 
   /**
    * Get models for a specific application by application ID
    */
-  public async getModelsForApplication(applicationId: string): Promise<ModelDetails[]> {
+  public async getModelsForApplication(
+    applicationId: string,
+  ): Promise<ApiResponse<ModelDetails[]>> {
     // Ensure cache is populated
     if (this.agents.length === 0) {
-      log.info('[ModelRepository] Cache empty, fetching applications from Moku API');
-      await this.refreshModels();
+      const refreshResult = await this.refreshModels();
+      if (!refreshResult.success) {
+        return apiFail(refreshResult.errorCode, refreshResult.errorText);
+      }
     }
 
     // Find application by ID or slug
     const app = this.agents.find((a) => a.id === applicationId || a.slug === applicationId);
-
     if (!app) {
       log.warn(`[ModelRepository] Application not found: ${applicationId}`);
-      return [];
+      return apiFail(404, `Application not found: ${applicationId}`);
     }
 
     // Return deep copy to prevent modifications to cached data
-    return app.models ? [...app.models] : [];
+    return apiOk(app.models ? [...app.models] : []);
   }
 }
 

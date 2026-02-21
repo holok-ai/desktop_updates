@@ -1,6 +1,7 @@
 <script lang="ts">
   import { projectService } from '$lib/services/project.service';
   import { MOKU_COLOR_PALETTE, VALID_PROJECT_ICONS } from '$lib/constants/project-validation';
+  import MokuColorGrid from '$lib/components/common/MokuColorGrid.svelte';
 
   let { show = $bindable(false) }: { show: boolean } = $props();
 
@@ -175,22 +176,6 @@
           <label>Appearance</label>
           <div class="appearance-section">
             <div class="appearance-field">
-              <span class="field-subtitle">Color</span>
-              <select
-                bind:value={selectedColor}
-                disabled={isSubmitting}
-                class="color-dropdown"
-                style="background-color: {selectedColor}; color: white;"
-              >
-                {#each MOKU_COLOR_PALETTE as color}
-                  <option value={color} style="background-color: {color}; color: white;">
-                    ●
-                  </option>
-                {/each}
-              </select>
-            </div>
-
-            <div class="appearance-field">
               <span class="field-subtitle">Icon</span>
               <select bind:value={selectedIcon} disabled={isSubmitting} class="icon-dropdown">
                 {#each VALID_PROJECT_ICONS as icon}
@@ -199,6 +184,11 @@
                   </option>
                 {/each}
               </select>
+            </div>
+
+            <div class="appearance-field">
+              <span class="field-subtitle">Color</span>
+              <MokuColorGrid bind:value={selectedColor} disabled={isSubmitting} />
             </div>
           </div>
         </div>
@@ -268,7 +258,7 @@
   textarea {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid var(--surface-border);
+    border: 1px solid var(--input-border, rgba(128, 128, 128, 0.5));
     border-radius: 6px;
     font-size: 14px;
     background: var(--surface-overlay);
@@ -362,13 +352,24 @@
     gap: 8px;
   }
 
+  .appearance-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .appearance-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   .field-subtitle {
     font-size: 13px;
     font-weight: 500;
     color: var(--text-secondary);
   }
 
-  .color-dropdown,
   .icon-dropdown {
     width: 100%;
     padding: 10px 12px;
@@ -396,13 +397,11 @@
     background: var(--surface-overlay);
   }
 
-  .color-dropdown:focus,
   .icon-dropdown:focus {
     outline: none;
     border-color: var(--primary-color);
   }
 
-  .color-dropdown:disabled,
   .icon-dropdown:disabled {
     opacity: 0.6;
     cursor: not-allowed;

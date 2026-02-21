@@ -15,6 +15,7 @@ import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
+import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
 
@@ -239,11 +240,15 @@ function registerIpcHandlers(): void {
   // Register post-authentication callback to refresh models from Moku API
   registerAuthSuccessCallback(async () => {
     appLog.info('[Main] Auth success - refreshing models from Moku API');
-    try {
-      await modelRepository.refreshModels();
+    const result = await modelRepository.listAllApplications(true);
+    if (result.success) {
       appLog.info('[Main] Models refreshed successfully after authentication');
-    } catch (error) {
-      appLog.error('[Main] Failed to refresh models after authentication:', error);
+    } else {
+      appLog.error(
+        '[Main] Failed to refresh models after authentication:',
+        result.errorCode,
+        result.errorText,
+      );
     }
   });
 
@@ -264,6 +269,9 @@ function registerIpcHandlers(): void {
 
   // Register file upload/download IPC handlers
   registerFileHandlers();
+
+  // Register auto-updater IPC handlers
+  registerAutoUpdaterHandlers();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {

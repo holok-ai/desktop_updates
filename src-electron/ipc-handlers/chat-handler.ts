@@ -69,13 +69,13 @@ export function registerChatHandlers(auth?: AuthService): void {
           return { success: false, error: 'Could not find thread id' };
         }
 
-        const thisAgent = await modelRepository.getAgentById(thisThread.metadata.agentId);
-        if (!thisAgent) {
+        const agentResult = await modelRepository.getAgentById(thisThread.metadata.agentId);
+        if (!agentResult.success) {
           log.error('[IPC] Could not find agent for thread chat service.');
           return { success: false, error: 'Could not find thread id' };
         }
-        const url: string = thisAgent?.url ?? '';
-        const provider: string = thisAgent.provider; //  thisThread.metadata.initialProvider ?? '';
+        const url: string = agentResult.data.url ?? '';
+        const provider: string = agentResult.data.provider; //  thisThread.metadata.initialProvider ?? '';
 
         // Create DesktopChatService for this thread+branch
         const newConfig: ProviderConfig = {

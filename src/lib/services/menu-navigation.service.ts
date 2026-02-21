@@ -43,8 +43,8 @@ export class MenuNavigationService {
       {
         channel: 'menu:refresh',
         handler: async () => {
-          // Refresh models from Moku API before reloading
-          await window.electronAPI.models.refresh();
+          // Force reload from API before reloading the renderer
+          await window.electronAPI.models.listAllApplications(true);
           globalThis.location.reload();
         },
       },

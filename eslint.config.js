@@ -11,6 +11,7 @@ export default [
   {
     ignores: [
       // Ignore all common directories except src/ and src-electron/
+      '.claude/**',
       'node_modules/**',
       'dist/**',
       'dist-electron/**',

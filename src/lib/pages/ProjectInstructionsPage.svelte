@@ -11,6 +11,7 @@
   import type { Project } from '$lib/types/project.type';
   import type { GUID } from '$lib/types/app.type';
   import type { ModelDetails } from '../../../src-electron/preload';
+  import { modelService } from '$lib/services/model.service';
 
   // ── Core state ──
   let projectId = $state<string | null>(null);
@@ -165,7 +166,7 @@ Describe what this project is about and what threads should focus on.
 
     try {
       // 1. Get model details
-      const models = await window.electronAPI.models.listAll();
+      const models = await modelService.getAvailableModels();
       const modelDetails = models.find((m: ModelDetails) => m.accessName === selectedModelId);
       if (!modelDetails) throw new Error('Model not found');
 

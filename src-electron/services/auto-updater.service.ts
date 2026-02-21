@@ -102,6 +102,84 @@ class AutoUpdaterService {
     });
   }
 
+  /**
+   * Check whether an update is available and return a human-readable status string.
+   * Resolves within 30 seconds regardless of outcome.
+   */
+  getUpdateAvailability(): Promise<string> {
+    return new Promise((resolve) => {
+      let resolved = false;
+      if (!app.isPackaged) {
+        return resolve('Update check skipped. THis is a development build.');
+      }
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve('No update information available.');
+        }
+      }, 30000);
+
+      const cleanup = (): void => {
+        resolved = true;
+        clearTimeout(timeout);
+      };
+
+      autoUpdater.once('update-available', (info) => {
+        cleanup();
+        resolve(`Version ${info.version} is available.`);
+      });
+
+      autoUpdater.once('update-not-available', () => {
+        cleanup();
+        resolve("You're on the latest version.");
+      });
+
+      const toFriendlyError = (message: string): string => {
+        if (
+          message.includes('latest-mac.yml') ||
+          message.includes('latest-win.yml') ||
+          message.includes('Cannot find latest')
+        ) {
+          return 'No updates have been published yet.';
+        }
+        return `Could not check for updates: ${message}`;
+      };
+
+      autoUpdater.once('error', (err) => {
+        cleanup();
+        resolve(toFriendlyError(err.message));
+      });
+
+      autoUpdater.checkForUpdates().catch((err: unknown) => {
+        if (!resolved) {
+          cleanup();
+          const message = err instanceof Error ? err.message : String(err);
+          resolve(toFriendlyError(message));
+        }
+      });
+    });
+  }
+
+  /**
+   * Trigger an immediate download of the available update.
+   * Returns success once the download starts (not when it completes).
+   */
+  async updateNow(): Promise<{ success: boolean; error?: string }> {
+    if (!this.initialized) {
+      return { success: false, error: 'Auto-updater is not initialized' };
+    }
+
+    try {
+      await autoUpdater.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      updaterLog.error('updateNow failed:', message);
+      return { success: false, error: message };
+    }
+  }
+
   getPendingUpdateVersion(): string | undefined {
     return this.settingsService.getSetting('pendingUpdateVersion');
   }
