@@ -26,6 +26,7 @@
   import type { Thread, ModelDetails } from '../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import { threadService } from '$lib/services/thread.service';
+  import { modelService } from '$lib/services/model.service';
 
   // ── State ──
   let threadId = $state<string | null>(null);
@@ -84,11 +85,11 @@
       // Load models for the specific agent (if available)
       if (agentId) {
         console.log('[ThreadPage] Loading models for agentId:', agentId);
-        availableModels = await window.electronAPI.models.getModelsForApplication(agentId);
+        availableModels = await modelService.getModelsForApplication(agentId);
         console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
       } else {
         console.log('[ThreadPage] No agentId - loading all models');
-        availableModels = await window.electronAPI.models.listAll();
+        availableModels = await modelService.getAvailableModels();
       }
 
       // Load messages for this thread
@@ -141,7 +142,7 @@
     if (!threadId) {
       try {
         console.log('[ThreadPage] New thread - loading all models');
-        availableModels = await window.electronAPI.models.listAll();
+        availableModels = await modelService.getAvailableModels();
       } catch (e) {
         console.warn('[ThreadPage] Could not load models:', e);
       }

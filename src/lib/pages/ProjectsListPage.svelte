@@ -174,10 +174,6 @@
       <i class="pi pi-folder-open"></i>
       <h2>No Projects Yet</h2>
       <p>Create your first project to get started organizing your work</p>
-      <button class="btn-holokai" onclick={handleCreateProject}>
-        <i class="pi pi-plus"></i>
-        Create Project
-      </button>
     </div>
   {:else}
     <div class="projects-grid">

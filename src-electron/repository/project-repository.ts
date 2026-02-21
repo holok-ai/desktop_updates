@@ -48,12 +48,10 @@ export class ProjectRepository {
 
     // Return cached if not forcing refresh and cache is fresh
     if (!forceRefresh && now - this.lastLoadTime < this.CACHE_TTL && this.projectsById.size > 0) {
-      log.debug('[ProjectRepository] Returning cached projects');
       return this.listProjects();
     }
 
     try {
-      log.info('[ProjectRepository] Loading projects from API');
       const response = await ApiRetry.execute(
         () => projectApiService.getProjects({ size: 1000 }),
         DEFAULT_RETRY_CONFIG,
@@ -69,7 +67,6 @@ export class ProjectRepository {
       }
 
       this.lastLoadTime = now;
-      log.info('[ProjectRepository] Loaded', this.projectsById.size, 'projects');
 
       return this.listProjects();
     } catch (error) {
@@ -85,7 +82,6 @@ export class ProjectRepository {
    */
   public async getProject(projectId: GUID): Promise<Project | null> {
     try {
-      log.info('[ProjectRepository] Fetching project from API:', projectId);
       const dto = await ApiRetry.execute(
         () => projectApiService.getProject(projectId),
         DEFAULT_RETRY_CONFIG,
@@ -100,7 +96,6 @@ export class ProjectRepository {
           DEFAULT_RETRY_CONFIG,
           'ProjectRepository.getProject.members',
         );
-        log.info('[ProjectRepository] Loaded', members.length, 'members for project:', projectId);
       } catch (error) {
         log.warn('[ProjectRepository] Failed to load members for project:', projectId, error);
         // Continue with empty members array
@@ -155,9 +150,6 @@ export class ProjectRepository {
     type?: 'personal' | 'shared',
     metadata?: Record<string, unknown> | null,
   ): Promise<Project> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Creating project:', title);
-
     // Validate title
     const titleError = validateProjectName(title);
     if (titleError) {
@@ -218,9 +210,6 @@ export class ProjectRepository {
       // Add to cache
       this.projectsById.set(project.id as GUID, project);
 
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Created project ${dto.id} in ${duration}ms`);
-
       return this.cloneProject(project);
     } catch (error) {
       log.error('[ProjectRepository] Failed to create project:', error);
@@ -240,9 +229,6 @@ export class ProjectRepository {
       metadata?: Record<string, unknown> | null;
     },
   ): Promise<Project> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Updating project:', projectId);
-
     // Validate title if provided
     if (updates.title) {
       const titleError = validateProjectName(updates.title);
@@ -293,12 +279,6 @@ export class ProjectRepository {
           DEFAULT_RETRY_CONFIG,
           'ProjectRepository.updateProject.members',
         );
-        log.info(
-          '[ProjectRepository] Loaded',
-          members.length,
-          'members for updated project:',
-          projectId,
-        );
       } catch (error) {
         log.warn(
           '[ProjectRepository] Failed to load members for updated project:',
@@ -312,9 +292,6 @@ export class ProjectRepository {
       // Update cache
       this.projectsById.set(project.id as GUID, project);
 
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Updated project ${projectId} in ${duration}ms`);
-
       return this.cloneProject(project);
     } catch (error) {
       log.error('[ProjectRepository] Failed to update project:', error);
@@ -326,9 +303,6 @@ export class ProjectRepository {
    * Delete a project via API (soft delete)
    */
   public async deleteProject(projectId: GUID): Promise<boolean> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Deleting project:', projectId);
-
     try {
       await ApiRetry.execute(
         () => projectApiService.deleteProject(projectId),
@@ -339,8 +313,6 @@ export class ProjectRepository {
       // Remove from cache
       this.projectsById.delete(projectId);
 
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Deleted project ${projectId} in ${duration}ms`);
       return true;
     } catch (error) {
       log.error('[ProjectRepository] Failed to delete project:', error);
@@ -432,13 +404,11 @@ export class ProjectRepository {
    */
   public async searchUsers(searchTerm?: string | null): Promise<UserSummaryDTO[]> {
     try {
-      log.info('[ProjectRepository] Searching users', { searchTerm });
       const response = await ApiRetry.execute(
         () => userApiService.searchUsers(searchTerm),
         DEFAULT_RETRY_CONFIG,
         'ProjectRepository.searchUsers',
       );
-      log.info('[ProjectRepository] Found', response.content.length, 'users');
       return response.content;
     } catch (error) {
       log.error('[ProjectRepository] Failed to search users:', error);
@@ -499,13 +469,10 @@ export class ProjectRepository {
    * Requires view_members permission
    */
   public async getMembers(projectId: string): Promise<ProjectMember[]> {
-    log.info('[ProjectRepository] Getting members for project:', projectId);
-
     // Check permission
     await this.hasPermission(projectId, 'view_members' as ProjectPermission);
 
     // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
     return [];
   }
 
@@ -514,8 +481,6 @@ export class ProjectRepository {
    * Requires invite_members permission (owner only)
    */
   public async addMember(projectId: string, input: AddMemberInput): Promise<ProjectMember> {
-    log.info('[ProjectRepository] Adding member to project:', projectId, input.userId);
-
     // Check permission
     await this.hasPermission(projectId, 'invite_members' as ProjectPermission);
 
@@ -542,7 +507,6 @@ export class ProjectRepository {
         joinedAt: memberDTO.createdAt,
       };
 
-      log.info('[ProjectRepository] Successfully added member:', member.email);
       return member;
     } catch (error) {
       log.error('[ProjectRepository] Failed to add member:', error);
@@ -555,8 +519,6 @@ export class ProjectRepository {
    * Requires remove_members permission (owner only)
    */
   public async removeMember(projectId: string, memberId: string): Promise<void> {
-    log.info('[ProjectRepository] Removing member from project:', projectId, memberId);
-
     // Check permission (only owner can remove members)
     await this.hasPermission(projectId, 'remove_members' as ProjectPermission);
 
@@ -566,8 +528,6 @@ export class ProjectRepository {
         DEFAULT_RETRY_CONFIG,
         'ProjectRepository.removeMember',
       );
-
-      log.info('[ProjectRepository] Successfully removed member:', memberId);
     } catch (error) {
       log.error('[ProjectRepository] Failed to remove member:', error);
       throw error;
@@ -580,16 +540,13 @@ export class ProjectRepository {
    */
   public async updateMemberRole(
     projectId: string,
-    memberId: string,
-    input: UpdateMemberRoleInput,
+    _memberId: string,
+    _input: UpdateMemberRoleInput,
   ): Promise<ProjectMember> {
-    log.info('[ProjectRepository] Updating member role:', projectId, memberId, input.role);
-
     // Check permission
     await this.hasPermission(projectId, 'change_member_roles' as ProjectPermission);
 
     // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
     throw new NotFoundError('API endpoint', `/projects/{id}/members/{memberId}`);
   }
 }

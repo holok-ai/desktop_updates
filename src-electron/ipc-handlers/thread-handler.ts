@@ -109,8 +109,11 @@ export function registerThreadHandlers(): void {
 
       // Server-side validation: ensure provided model is available
       if (request.initalModel) {
-        const allModels = await modelRepository.listAll();
-        const mdl = allModels.find(
+        const modelsResult = await modelRepository.listAllModels();
+        if (!modelsResult.success) {
+          throw new Error('Failed to load models');
+        }
+        const mdl = modelsResult.data.find(
           (m) => m.id === request.initalModel || m.accessName === request.initalModel,
         );
         if (!mdl) {

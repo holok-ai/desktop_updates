@@ -1,6 +1,6 @@
 {
   "name": "holokai-desktop",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
@@ -138,7 +138,7 @@
     "vite": "^7.1.12"
   },
   "build": {
-    "appId": "com.holokai.desktop.svelte",
+    "appId": "com.holokai.desktop",
     "productName": "Holokai Desktop",
     "icon": "build/icon.png",
     "directories": {
@@ -188,7 +188,7 @@
         }
       ],
       "gatekeeperAssess": false,
-      "hardenedRuntime": false
+      "hardenedRuntime": true
     },
     "linux": {
       "icon": "build/icon.png",

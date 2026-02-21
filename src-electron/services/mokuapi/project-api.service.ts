@@ -20,44 +20,14 @@ import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
 import type { AuthService } from '../auth.service.js';
 import type { SettingsService } from '../settings.service.js';
 
-// For testing only - allow mock injection
-let mockAuthService: AuthService | null = null;
-let mockSettingsService: SettingsService | null = null;
-
 function getAuthServiceInternal(): AuthService {
-  // If mock injected for testing, use that
-  if (mockAuthService) {
-    return mockAuthService;
-  }
   // Otherwise use real service
   return getAuthService();
 }
 
 function getSettingsServiceInternal(): SettingsService {
-  // If mock injected for testing, use that
-  if (mockSettingsService) {
-    return mockSettingsService;
-  }
   // Otherwise use real service
   return getSettingsService();
-}
-
-/**
- * For testing only - inject mock dependencies
- * @internal
- */
-export function __setDependenciesForTesting(auth: AuthService, settings: SettingsService): void {
-  mockAuthService = auth;
-  mockSettingsService = settings;
-}
-
-/**
- * For testing only - reset dependencies
- * @internal
- */
-export function __resetDependenciesForTesting(): void {
-  mockAuthService = null;
-  mockSettingsService = null;
 }
 
 /**

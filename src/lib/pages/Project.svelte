@@ -8,6 +8,7 @@
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import { favorites } from '$lib/stores/favorite.store';
   import type { ModelDetails } from '../../../src-electron/preload';
+  import { modelService } from '$lib/services/model.service';
 
   let projectId = $state<string | null>(null);
   let selectedModelId = $state<string | null>(null);
@@ -132,7 +133,7 @@
     isSubmitting = true;
     try {
       // Get model details
-      const models = await window.electronAPI.models.listAll();
+      const models = await modelService.getAvailableModels();
       const modelDetails = models.find((m) => m.accessName === selectedModelId);
 
       if (!modelDetails) {
@@ -140,7 +141,7 @@
       }
 
       // Get application by slug to get the agentId
-      const applications = await window.electronAPI.models.listAllApplications();
+      const applications = await modelService.getAvailableApplications();
       const application = applications.find((app) => app.slug === modelDetails.applicationSlug);
 
       if (!application) {

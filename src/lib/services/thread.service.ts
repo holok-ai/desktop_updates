@@ -241,21 +241,13 @@ export class ThreadService extends BaseElectronService {
     });
 
     let selectedModel: ModelDetails | undefined = undefined;
+    const agentResult = await window.electronAPI.models.getAgent(agentId);
 
-    console.warn('[ThreadService.create] Fetching agent details for agentId:', agentId);
-    const agent = await window.electronAPI.models.getAgent(agentId);
-
-    if (!agent) {
+    if (!agentResult.success) {
       console.error('[ThreadService.create] Agent not found:', agentId);
       throw new Error(`Agent not found: ${agentId}`);
     }
-    console.warn('[ThreadService.create] Agent found:', {
-      id: agent.id,
-      title: agent.title,
-      provider: agent.provider,
-      slug: agent.slug,
-      modelsCount: agent.models?.length ?? 0,
-    });
+    const agent = agentResult.data;
 
     // Build metadata object with agent and model information
     const metadata: ThreadMetadata = {
@@ -263,39 +255,23 @@ export class ThreadService extends BaseElectronService {
       initialProvider: agent.provider,
       applicationSlug: agent.slug,
     };
-    console.warn('[ThreadService.create] Initial metadata:', metadata);
 
     // find the model the caller specified
     if (initialModel) {
-      console.warn('[ThreadService.create] Looking up specified model:', initialModel);
-      try {
-        const models = await window.electronAPI.models.getModelsForApplication(agentId);
-        console.warn('[ThreadService.create] Available models:', models.length);
-        selectedModel = models.find((m) => m.id === initialModel || m.accessName === initialModel);
-        console.warn(
-          '[ThreadService.create] Selected model found:',
-          selectedModel ? selectedModel.title : 'NOT FOUND',
+      const modelsResult = await window.electronAPI.models.getModelsForApplication(agentId);
+      if (modelsResult.success) {
+        selectedModel = modelsResult.data.find(
+          (m) => m.id === initialModel || m.accessName === initialModel,
         );
-      } catch (error) {
-        console.warn('[ThreadService.create] Could not load model details for metadata:', error);
       }
-    } else {
-      console.warn('[ThreadService.create] No initialModel specified');
     }
 
     // or use the first one
     if (!selectedModel && agent.models && agent.models?.length > 0) {
-      console.warn('[ThreadService.create] No model selected, using first model from agent');
       selectedModel = agent.models?.[0];
-      console.warn('[ThreadService.create] Using default model:', selectedModel?.title);
     }
 
     if (selectedModel) {
-      console.warn('[ThreadService.create] Setting model metadata:', {
-        title: selectedModel.title,
-        accessName: selectedModel.accessName,
-        provider: selectedModel.provider,
-      });
       metadata.modelTitle = selectedModel.title;
       metadata.initalModel = selectedModel.accessName;
       metadata.modelProvider = selectedModel.provider;
@@ -315,83 +291,11 @@ export class ThreadService extends BaseElectronService {
     };
     console.warn('[ThreadService.create] Final request payload:', request);
 
-    console.warn('[ThreadService.create] Calling IPC to create thread');
     return wrapElectronCall(
       () => window.electronAPI.thread.create(request),
       'Failed to create thread',
     );
   }
-
-  // /**
-  //  * Create a thread with an initial prompt message
-  //  * @param projectId - Project ID to associate the thread with (optional)
-  //  * @param modelAccessName - Model access name to use
-  //  * @param prompt - Initial message content
-  //  * @param status - Thread status (defaults to ACTIVE)
-  //  * @returns Thread ID
-  //  */
-  // async createThreadWithPrompt(
-  //   projectId: string | null,
-  //   modelAccessName: string,
-  //   prompt: string,
-  //   status: 'active' | 'archived' | 'deleted' = 'active',
-  // ): Promise<string> {
-  //   // Get model details
-  //   const models = await wrapElectronCall(
-  //     () => window.electronAPI.models.listAll(),
-  //     'Failed to get models',
-  //   );
-  //   const modelDetails = models.find((m) => m.accessName === modelAccessName);
-
-  //   if (!modelDetails) {
-  //     throw new Error('Model not found');
-  //   }
-
-  //   // Create thread metadata
-  //   const metadata: Record<string, unknown> = {
-  //     modelTitle: modelDetails.title,
-  //     modelProvider: modelDetails.provider,
-  //     modelId: modelDetails.id,
-  //     modelAccessName: modelDetails.accessName,
-  //   };
-
-  //   if (projectId) {
-  //     metadata.projectId = projectId;
-  //   }
-
-  //   // Create thread
-  //   const thread = await wrapElectronCall(
-  //     () =>
-  //       window.electronAPI.thread.create({
-  //         title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-  //         metadata: {
-  //           description: '',
-  //           status,
-  //           ...metadata,
-  //         },
-  //         messages: [],
-  //         currentBranchId: '1.0.0',
-  //       }),
-  //     'Failed to create thread',
-  //   );
-
-  //   const threadId = thread.id;
-
-  //   // Send initial message
-  //   await wrapElectronCall(
-  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-  //     () =>
-  //       window.electronAPI.chat.sendMessage({
-  //         threadId,
-  //         branchId: '1.0',
-  //         content: prompt,
-  //         modelId: modelDetails.id,
-  //       }),
-  //     'Failed to send initial message',
-  //   );
-
-  //   return threadId;
-  // }
 
   async update(id: string, updates: Partial<Thread>): Promise<Thread> {
     return wrapElectronCall(
@@ -917,12 +821,11 @@ export class ThreadService extends BaseElectronService {
     if (!agentId) {
       return false;
     }
-    try {
-      const apps = await window.electronAPI.models.listAllApplications();
-      return apps.some((a) => a.id === agentId);
-    } catch {
+    const result = await window.electronAPI.models.listAllApplications();
+    if (!result.success) {
       return false;
     }
+    return result.data.some((a) => a.id === agentId);
   }
 
   /**

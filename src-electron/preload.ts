@@ -15,9 +15,11 @@ import type {
   JsonPrimitive,
 } from './types/thread.types.js';
 import type { CreateThreadRequest } from './services/mokuapi/thread.types.js';
+import type { ApiResponse } from './types/api-response.js';
 
 // Re-export types for use by other modules
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
+export type { ApiResponse };
 
 /**
  * OLD Thread Interface (commented out - now imported from thread.types.ts)
@@ -146,7 +148,6 @@ export interface ThreadAPI {
     threadId: string,
     branchId: string,
   ) => Promise<{ success: true } | { success: false; error: string }>;
-
 }
 
 /**
@@ -296,14 +297,26 @@ export interface ModelDetails {
 }
 
 /**
+ * Updater API
+ *
+ * Auto-update operations exposed to the renderer.
+ */
+export interface UpdaterAPI {
+  // Check whether an update is available; resolves to a human-readable status string
+  getUpdateAvailability: () => Promise<string>;
+
+  // Trigger an immediate download of the available update
+  updateNow: () => Promise<{ success: boolean; error?: string }>;
+}
+
+/**
  * Models API
  */
 export interface ModelsAPI {
-  listAll: () => Promise<ModelDetails[]>;
-  listAllApplications: () => Promise<ApplicationSummary[]>;
-  getModelsForApplication: (applicationId: string) => Promise<ModelDetails[]>;
-  getAgent: (agentId: string) => Promise<ApplicationSummary | null>;
-  refresh: () => Promise<{ success: boolean }>;
+  listAllModels: () => Promise<ApiResponse<ModelDetails[]>>;
+  listAllApplications: (reloadFromApi?: boolean) => Promise<ApiResponse<ApplicationSummary[]>>;
+  getModelsForApplication: (applicationId: string) => Promise<ApiResponse<ModelDetails[]>>;
+  getAgent: (agentId: string) => Promise<ApiResponse<ApplicationSummary>>;
 }
 
 /**
@@ -448,6 +461,7 @@ export interface ElectronAPI {
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
+  updater: UpdaterAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -559,7 +573,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
 
-    checkForUpdates: () => ipcRenderer.invoke('settings:checkForUpdates'),
+    checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
 
     openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
   } as SettingsAPI,
@@ -568,12 +582,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Models API Implementation
    */
   models: {
-    listAll: () => ipcRenderer.invoke('models:listAll'),
-    listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
+    listAllModels: () => ipcRenderer.invoke('models:listAll'),
+    listAllApplications: (reloadFromApi?: boolean) =>
+      ipcRenderer.invoke('models:listAllApplications', reloadFromApi),
     getModelsForApplication: (applicationId: string) =>
       ipcRenderer.invoke('models:getModelsForApplication', applicationId),
     getAgent: (agentId: string) => ipcRenderer.invoke('models:getAgent', agentId),
-    refresh: () => ipcRenderer.invoke('models:refresh'),
   } as ModelsAPI,
 
   /**
@@ -676,7 +690,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     deleteBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
-
   } as ThreadAPI,
 
   /**
@@ -795,6 +808,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as ProjectAPI,
+
+  /**
+   * Updater API Implementation
+   */
+  updater: {
+    getUpdateAvailability: () => ipcRenderer.invoke('updater:getUpdateAvailability'),
+    updateNow: () => ipcRenderer.invoke('updater:updateNow'),
+  } as UpdaterAPI,
 
   /**
    * Menu Command Listener

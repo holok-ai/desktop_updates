@@ -303,12 +303,8 @@
   async function handleCheckForUpdates() {
     isCheckingUpdates = true;
     try {
-      const result = await window.electronAPI.settings.checkForUpdates();
-      if (result.success) {
-        toastStore.show('Checking for updates...', { variant: 'success' });
-      } else {
-        toastStore.show(result.error ?? 'Failed to check for updates', { variant: 'error' });
-      }
+      const message = await window.electronAPI.updater.getUpdateAvailability();
+      toastStore.show(message, { variant: 'info' });
     } catch {
       toastStore.show('Failed to check for updates', { variant: 'error' });
     } finally {

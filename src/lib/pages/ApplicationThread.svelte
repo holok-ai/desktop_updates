@@ -8,9 +8,17 @@
   import { threadService } from '$lib/services/thread.service';
   import pRetry from 'p-retry';
 
+  class EmptyAgentListError extends Error {
+    constructor() {
+      super('listAllApplications returned 0 agents');
+      this.name = 'EmptyAgentListError';
+    }
+  }
+
   let applications = $state<ApplicationSummary[]>([]);
   let isLoading = $state(true);
   let errorMessage = $state<string | null>(null);
+  let noAgentsAvailable = $state(false);
 
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
@@ -25,26 +33,43 @@
   });
 
   async function loadApplications() {
+    window.electronAPI.log.info(
+      '[ApplicationThread] loadApplications called, isAuthenticated:',
+      $isAuthenticated,
+    );
     try {
       isLoading = true;
+      noAgentsAvailable = false;
 
       const loadedAgents = await pRetry(
         async () => {
           const agentsInRetry = await window.electronAPI.models.listAllApplications();
-          if (!agentsInRetry || agentsInRetry.length < 1) throw new Error(`No applications`);
-          return agentsInRetry;
+          if (!agentsInRetry.success) throw new Error(agentsInRetry.errorText);
+          if (agentsInRetry.data.length < 1) throw new EmptyAgentListError();
+
+          // no error and agent list is not empty
+          return agentsInRetry.data;
         },
         {
-          retries: 5,
-          minTimeout: 2000, // wait 1s before first retry
-          factor: 2, // wait X more time after a fail (1, 2, 4 ...)
+          retries: 3,
+          minTimeout: 1000, // wait 1s before first retry
+          factor: 1.5, // wait X more time after a fail (1, 2, 4 ...)
         },
       );
+
       applications = loadedAgents;
     } catch (error) {
-      console.error('[ApplicationThread] Failed to load applications:', error);
-      errorMessage = error instanceof Error ? error.message : 'Failed to load applications';
-      toastStore.show('Failed to load applications', { variant: 'error' });
+      if (error instanceof EmptyAgentListError) {
+        toastStore.show('You do not have access to any assistants', { variant: 'info' });
+        window.electronAPI.log.warn(
+          '[ApplicationThread] All retries exhausted: API returned 0 agents',
+        );
+        noAgentsAvailable = true;
+      } else {
+        console.error('[ApplicationThread] Failed to load applications:', error);
+        errorMessage = error instanceof Error ? error.message : 'Failed to load applications';
+        toastStore.show('Failed to load applications', { variant: 'error' });
+      }
     } finally {
       isLoading = false;
     }
@@ -106,11 +131,13 @@
     {:else if applications.length === 0}
       <div class="empty-state">
         <i class="pi pi-inbox"></i>
-        <p>No applications available</p>
-        <button class="btn-secondary" onclick={loadApplications}>
-          <i class="pi pi-refresh"></i>
-          Retry
-        </button>
+        {#if noAgentsAvailable}
+          <p>No assistants have been assigned to your account, so you are not able to chat yet.</p>
+          <p>Contact your Holokai administrator and get some.</p>
+        {:else}
+          <p>No applications available</p>
+        {/if}
+        <button class="btn-secondary" onclick={loadApplications}> Retry </button>
       </div>
     {:else}
       <div class="applications-grid">
@@ -298,8 +325,8 @@
   .btn-secondary {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
+    height: 30px;
+    padding: 0 1.25rem;
     background: var(--surface-card);
     color: var(--text-primary);
     border: 1px solid var(--surface-border);

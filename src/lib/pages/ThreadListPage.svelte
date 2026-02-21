@@ -80,10 +80,6 @@
     <div class="empty-threads">
       <i class="pi pi-comments"></i>
       <p>No threads yet. Create your first thread to get started.</p>
-      <button class="create-first-button" onclick={handleNewThread}>
-        <i class="pi pi-plus"></i>
-        Create Thread
-      </button>
     </div>
   {/if}
 </div>
@@ -201,29 +197,5 @@
   .empty-threads p {
     margin: 0;
     font-size: 1rem;
-  }
-
-  .create-first-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    margin-top: 1rem;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .create-first-button:hover {
-    background: var(--primary-color-hover);
-  }
-
-  .create-first-button i {
-    font-size: 0.875rem;
   }
 </style>

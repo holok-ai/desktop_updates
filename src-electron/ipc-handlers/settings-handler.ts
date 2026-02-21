@@ -1,6 +1,5 @@
 import { ipcMain, dialog, app, shell } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
-import { autoUpdaterService } from '../services/auto-updater.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
 import { ToolOrchestrator } from '../services/tool-calling/orchestrator.js';
@@ -140,24 +139,6 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
-   * Manually trigger an update check
-   */
-  ipcMain.handle(
-    'settings:checkForUpdates',
-    (_event): Promise<{ success: boolean; error?: string }> => {
-      settingsLog.info('CheckForUpdates called (manual)');
-      try {
-        autoUpdaterService.checkForUpdates();
-        return Promise.resolve({ success: true });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to check for updates';
-        settingsLog.error('CheckForUpdates failed', { error: message });
-        return Promise.resolve({ success: false, error: message });
-      }
-    },
-  );
-
-  /**
    * Open log file in default application
    */
   ipcMain.handle(
@@ -209,7 +190,6 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:set');
   ipcMain.removeHandler('settings:setMultiple');
   ipcMain.removeHandler('settings:selectFolder');
-  ipcMain.removeHandler('settings:checkForUpdates');
   ipcMain.removeHandler('settings:openLogInVSCode');
 
   settingsLog.info('Handlers unregistered');

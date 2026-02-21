@@ -1,53 +1,30 @@
-/* eslint-disable security/detect-object-injection */
 /**
  * Model Service
  * Provides information about available LLM models and their capabilities
  * Uses ModelRepository via IPC to fetch models from Moku API
  */
 
-import type { ModelsByProvider } from '$lib/types/dashboard.type';
 import type { ApplicationSummary, ModelDetails } from '../../../src-electron/preload';
 
 class ModelService {
   /**
-   * Get all available models grouped by provider
+   * Get all available models as a flat list
    */
-  async getAvailableModels(): Promise<ModelsByProvider> {
-    try {
-      // Fetch models from backend via IPC
-      const models = await window.electronAPI.models.listAll();
-
-      // Group models by provider
-      const modelsByProvider: ModelsByProvider = {};
-
-      for (const model of models) {
-        const provider =
-          model.provider !== null && model.provider !== '' ? model.provider : 'Unknown';
-
-        if (!(provider in modelsByProvider)) {
-          modelsByProvider[provider] = [];
-        }
-
-        // Use accessName (e.g., gpt-4, claude-3) as the model identifier
-        if (provider in modelsByProvider) {
-          modelsByProvider[provider].push(model.accessName);
-        }
-      }
-
-      return modelsByProvider;
-    } catch (error) {
-      console.error('[ModelService] Error fetching models:', error);
-      // Return empty object on error
-      return {};
+  async getAvailableModels(): Promise<ModelDetails[]> {
+    const result = await window.electronAPI.models.listAllModels();
+    if (result.success) {
+      return result.data;
     }
+    console.error('[ModelService] Error fetching models:', result.errorCode, result.errorText);
+    return [];
   }
 
   /**
    * Get models for a specific provider
    */
-  async getProviderModels(provider: string): Promise<string[]> {
+  async getProviderModels(provider: string): Promise<ModelDetails[]> {
     const models = await this.getAvailableModels();
-    return provider in models ? models[provider] : [];
+    return models.filter((m) => m.provider === provider);
   }
 
   /**
@@ -55,36 +32,39 @@ class ModelService {
    */
   async getProviders(): Promise<string[]> {
     const models = await this.getAvailableModels();
-    return Object.keys(models);
+    return [...new Set(models.map((m) => m.provider))];
   }
 
   /**
    * Get all available applications with their models
    */
   async getAvailableApplications(): Promise<ApplicationSummary[]> {
-    try {
-      // Fetch applications from backend via IPC
-      const applications = await window.electronAPI.models.listAllApplications();
-      return applications;
-    } catch (error) {
-      console.error('[ModelService] Error fetching applications:', error);
-      // Return empty array on error
-      return [];
+    const result = await window.electronAPI.models.listAllApplications();
+    if (result.success) {
+      return result.data;
     }
+    console.error(
+      '[ModelService] Error fetching applications:',
+      result.errorCode,
+      result.errorText,
+    );
+    return [];
   }
 
   /**
    * Get models for a specific application/agent
    */
   async getModelsForApplication(applicationId: string): Promise<ModelDetails[]> {
-    try {
-      // Fetch models for application from backend via IPC
-      const models = await window.electronAPI.models.getModelsForApplication(applicationId);
-      return models;
-    } catch (error) {
-      console.error('[ModelService] Error fetching models for application:', error);
-      return [];
+    const result = await window.electronAPI.models.getModelsForApplication(applicationId);
+    if (result.success) {
+      return result.data;
     }
+    console.error(
+      '[ModelService] Error fetching models for application:',
+      result.errorCode,
+      result.errorText,
+    );
+    return [];
   }
 }
 

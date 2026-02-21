@@ -9,6 +9,7 @@
 import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
 import type { AgentListItem } from './agent.types.js';
+import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
 
 /**
  * Response from /api/auth/exchange-code endpoint
@@ -93,25 +94,33 @@ export class MokuService {
     return { accessToken, expires_in };
   }
 
-  public async getAllAgents(): Promise<AgentListItem[]> {
+  public async getAllAgents(): Promise<ApiResponse<AgentListItem[]>> {
     const mokuApiUrl = this.getMokuApiUrl();
     const accessToken = this.getAccessToken();
 
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in first.');
-    }
-    const response = await fetch(`${mokuApiUrl}/api/v1/agents`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return apiFail(401, 'Not authenticated. Please log in first.');
     }
 
-    return (await response.json()) as AgentListItem[];
+    try {
+      const response = await fetch(`${mokuApiUrl}/api/v1/agents`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
+
+      const data = (await response.json()) as AgentListItem[];
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
+    }
   }
 }
 
