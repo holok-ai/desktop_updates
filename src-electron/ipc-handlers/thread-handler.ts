@@ -1,7 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
-import { modelRepository } from '../repository/model-repository.js';
-import { titleValidationService } from '../services/title-validation.service.js';
 import { threadApiService } from '../services/mokuapi/thread-api.service.js';
 import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 import type { MessageDTO, RequestOptionsDTO } from '../services/mokuapi/thread.types.js';
@@ -13,6 +11,8 @@ import type { CreateThreadRequest } from '../services/mokuapi/thread.types.js';
 
 import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
+import { CreateThreadCommand } from '../commands/thread.create.js';
+import { RenameThreadCommand } from '../commands/thread.rename.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -129,25 +129,14 @@ export function registerThreadHandlers(): void {
       threadLog.info('Create called', { title: request.title, agentId: request.agentId });
 
       try {
-        // Server-side validation: ensure provided model is available
-        if (request.initalModel) {
-          const modelsResult = await modelRepository.listAllModels();
-          if (!modelsResult.success) {
-            return apiFail(-1, 'Failed to load models');
-          }
-          const mdl = modelsResult.data.find(
-            (m) => m.id === request.initalModel || m.accessName === request.initalModel,
-          );
-          if (!mdl) {
-            return apiFail(400, 'Model unavailable—choose another');
-          }
-        }
+        const cmd = new CreateThreadCommand();
+        const result = await cmd.execute(request);
+        if (!result.success) return result as ApiResponse<RendererThread>;
 
-        const th = await threadRepository.createThread(request);
-        const rt = toRendererThread(th);
+        const rt = toRendererThread(result.data);
         if (!rt) return apiFail(-1, 'Failed to convert created thread');
         broadcast('thread:created', rt);
-        perfLog.end({ threadId: th.id });
+        perfLog.end({ threadId: result.data.id });
         return apiOk(rt);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -203,53 +192,17 @@ export function registerThreadHandlers(): void {
         return apiFail(403, 'THREAD_ACCESS_DENIED');
       }
 
-      const _currentUser = auth.getUser();
-      const internal = await threadRepository.loadThread(threadId);
-      if (!internal) {
-        return apiFail(404, 'THREAD_NOT_FOUND');
-      }
+      const currentUser = auth.getUser();
 
-      try {
-        // Get all existing thread titles for duplicate checking
-        const allThreads = await threadRepository.listThreads();
-        const existingTitles = allThreads.filter((t) => t.id !== threadId).map((t) => t.title);
+      const cmd = new RenameThreadCommand();
+      const result = await cmd.execute(threadId, newTitle, currentUser?.id);
+      if (!result.success) return result as ApiResponse<RendererThread>;
 
-        // Validate the new title
-        const validation = titleValidationService.validate(
-          newTitle,
-          existingTitles,
-          internal.title,
-        );
+      const rt = toRendererThread(result.data);
+      if (!rt) return apiFail(-1, 'Failed to convert thread after rename');
 
-        if (!validation.valid) {
-          return apiFail(400, validation.error || 'Invalid title');
-        }
-
-        // Rename the thread (uses sanitized title from validation)
-        const sanitizedTitle = validation.sanitizedTitle || newTitle;
-        const userId = _currentUser?.id;
-        const updated = await threadRepository.renameThread(threadId, sanitizedTitle, userId);
-
-        const rt = toRendererThread(updated);
-        if (!rt) return apiFail(-1, 'Failed to convert thread after rename');
-
-        // Broadcast the update
-        broadcast('thread:updated', rt);
-
-        threadLog.info(`Thread ${threadId} renamed to "${sanitizedTitle}"`);
-
-        return apiOk(rt);
-      } catch (error) {
-        const err = error as Error;
-        threadLog.error(`Failed to rename thread ${threadId}:`, err);
-
-        // Map repository errors to appropriate status codes
-        if (err.message === 'TITLE_EMPTY' || err.message === 'TITLE_TOO_LONG') {
-          return apiFail(400, err.message);
-        }
-
-        return apiFail(500, err.message || 'Failed to rename thread');
-      }
+      broadcast('thread:updated', rt);
+      return apiOk(rt);
     },
   );
 

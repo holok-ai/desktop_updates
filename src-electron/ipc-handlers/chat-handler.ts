@@ -1,13 +1,11 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import type { ProviderConfig } from '@holokai/chat-component';
 import { DesktopChatService, ToolOrchestrator } from '../services/chat/index.js';
 import type { DesktopChatRequest, ToolStatus } from '../services/chat/index.js';
 import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
-import { modelRepository } from '../repository/model-repository.js';
 import log from 'electron-log';
-import { threadRepository } from '../repository/thread-repository.js';
 import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
+import { CreateChatServiceCommand } from '../commands/chat.create-service.js';
 
 /**
  * Chat IPC Handlers
@@ -58,45 +56,19 @@ export function registerChatHandlers(auth?: AuthService): void {
       workingDirectory?: string,
     ): Promise<ApiResponse<void>> => {
       try {
-        // get the users api key to use in chat service
         let accessToken = '';
         if (authService) {
           accessToken = await authService.getAccessToken();
         }
 
-        // thread should be in repository since we're trying to chat on it
-        const thisThread = await threadRepository.loadThread(threadId);
-        if (!thisThread) {
-          log.error('[IPC] Could not find thread for chat service.');
-          return apiFail(-1, 'Could not find thread id');
-        }
-
-        const agentResult = await modelRepository.getAgentById(thisThread.metadata.agentId);
-        if (!agentResult.success) {
-          log.error('[IPC] Could not find agent for thread chat service.');
-          return apiFail(-1, 'Could not find agent for thread');
-        }
-        const url: string = agentResult.data.url ?? '';
-        const provider: string = agentResult.data.provider; //  thisThread.metadata.initialProvider ?? '';
-
-        // Create DesktopChatService for this thread+branch
-        const newConfig: ProviderConfig = {
-          url: url,
-          apiKey: accessToken,
-          model: modelAccessName,
-        };
-
-        const chatService = new DesktopChatService(provider, newConfig, workingDirectory);
+        const cmd = new CreateChatServiceCommand();
+        const result = await cmd.execute(threadId, branchId, modelAccessName, accessToken, workingDirectory);
+        if (!result.success) return result as ApiResponse<void>;
 
         // Store in map with composite key (threadId:branchId)
         const serviceKey = buildServiceKey(threadId, branchId);
-        chatServices.set(serviceKey, chatService);
-        log.info(
-          '[IPC] Chat service created and stored with key:',
-          serviceKey,
-          url,
-          modelAccessName,
-        );
+        chatServices.set(serviceKey, result.data);
+        log.info('[IPC] Chat service created and stored with key:', serviceKey, modelAccessName);
 
         return apiOk(undefined) as ApiResponse<void>;
       } catch (error) {
