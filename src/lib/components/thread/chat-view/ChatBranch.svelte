@@ -40,9 +40,18 @@
     fontSize?: number;
     /** Callback when a lane is selected as primary */
     onSelectLane?: (laneIndex: number) => void;
+    /** Callback when copy request is clicked in any lane */
+    onCopyRequest?: (content: string) => void;
   }
 
-  let { branchId, lanes = [], chatLayout, fontSize = 14, onSelectLane }: Props = $props();
+  let {
+    branchId,
+    lanes = [],
+    chatLayout,
+    fontSize = 14,
+    onSelectLane,
+    onCopyRequest,
+  }: Props = $props();
 
   // Track which lane is expanded (-1 means none)
   let expandedLaneIndex = $state<number>(-1);
@@ -78,6 +87,7 @@
         isCollapsed={expandedLaneIndex !== -1 && expandedLaneIndex !== index}
         onToggleExpand={() => handleToggleExpand(index)}
         onSelectLane={() => handleSelectLane(index)}
+        {onCopyRequest}
       />
     {/each}
   </div>

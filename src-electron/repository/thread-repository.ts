@@ -10,6 +10,7 @@ import type {
   MessageDTO,
   CreateThreadRequest,
   UpdateThreadRequest,
+  RequestOptionsDTO,
 } from '../services/mokuapi/thread.types.js';
 import type { MessageRole } from '../types/thread.types.js';
 
@@ -698,18 +699,17 @@ export class ThreadRepository {
    * Converts ISO-8601 timestamps to epoch milliseconds.
    */
   private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
-    // Extract branchId from dto.branchId or from options.branch_id
     let branchId = dto.branchId;
-    if (!branchId && (dto.options as { branch_id?: string } | null)?.branch_id) {
-      branchId = (dto.options as { branch_id?: string }).branch_id ?? null;
-    }
-    // Fallback to "1.0.0" for legacy messages without branchId
     if (!branchId) {
       branchId = '1.0.0';
     } else {
       // Normalize/cap to 3-part format
       branchId = this.normalizeBranchId(branchId);
     }
+
+    const opts = dto.options as { desktop_options?: RequestOptionsDTO } | null;
+    const desktopOptions = opts?.desktop_options ?? null;
+    log.info('[ThreadRepository] mapDTOToMessage desktopOptions:', JSON.stringify(desktopOptions));
 
     const message: Message = {
       id: dto.id,
@@ -725,6 +725,7 @@ export class ThreadRepository {
       branchId,
       modelId: dto.model || '',
       provider: dto.provider || '',
+      desktopOptions,
     };
 
     // If assistant message has no content but has rawData, set content to "empty"
@@ -1040,7 +1041,6 @@ export class ThreadRepository {
       deletedAt: thread.deletedAt ?? null,
     };
   }
-
 }
 
 export const threadRepository = new ThreadRepository();

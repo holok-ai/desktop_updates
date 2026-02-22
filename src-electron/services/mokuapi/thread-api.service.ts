@@ -4,9 +4,11 @@
  */
 
 import log from 'electron-log';
+import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
 import type {
   ThreadDTO,
   MessageDTO,
+  RequestOptionsDTO,
   CreateThreadRequest,
   UpdateThreadRequest,
   PagedResponse,
@@ -327,7 +329,6 @@ class ThreadApiService {
     if (filters?.sort) params.append('sort', filters.sort);
 
     const url = `${mokuApiUrl}/api/threads/${threadId}/messages${params.toString() ? '?' + params.toString() : ''}`;
-
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -351,8 +352,110 @@ class ThreadApiService {
     return data;
   }
 
-}
+  // Update just the branch ID
+  async updateRequestBranch(
+    threadId: string,
+    messageId: string,
+    branchId: string,
+  ): Promise<ApiResponse<MessageDTO>> {
+    log.info('[ThreadApiService] updateRequestBranch called', { threadId, messageId, branchId });
 
+    if (!branchId) {
+      log.warn('[ThreadApiService] updateRequestBranch: no branchId provided');
+      return apiFail(400, 'Invalid parameters. No branch id provided.');
+    }
+
+    const accessToken = await this.getAccessToken();
+    if (!accessToken) {
+      log.warn('[ThreadApiService] updateRequestBranch: not authenticated');
+      return apiFail(401, 'Not authenticated. Please log in.');
+    }
+
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads/${threadId}/messages/${messageId}`;
+      log.info('[ThreadApiService] updateRequestBranch PATCH', url, { branch_id: branchId });
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ branch_id: branchId }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error('[ThreadApiService] updateRequestBranch failed', response.status, errorText);
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
+
+      const data = (await response.json()) as MessageDTO;
+      log.info('[ThreadApiService] updateRequestBranch success', { messageId: data.id });
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] updateRequestBranch exception', message);
+      return apiFail(-1, message);
+    }
+  }
+
+  // Update just the desktop options
+  async updateRequestDesktopOptions(
+    threadId: string,
+    messageId: string,
+    desktopOptions: RequestOptionsDTO,
+  ): Promise<ApiResponse<MessageDTO>> {
+    log.info('[ThreadApiService] updateRequestDesktopOptions called', {
+      threadId,
+      messageId,
+      desktopOptions,
+    });
+
+    if (!desktopOptions) {
+      log.warn('[ThreadApiService] updateRequestDesktopOptions: no desktopOptions provided');
+      return apiFail(400, 'Invalid parameters. Desktop options field not provided.');
+    }
+
+    const accessToken = await this.getAccessToken();
+    if (!accessToken) {
+      log.warn('[ThreadApiService] updateRequestDesktopOptions: not authenticated');
+      return apiFail(401, 'Not authenticated. Please log in.');
+    }
+
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads/${threadId}/messages/${messageId}`;
+      log.info('[ThreadApiService] updateRequestDesktopOptions PATCH', url, desktopOptions);
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ desktop_options: desktopOptions }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error(
+          '[ThreadApiService] updateRequestDesktopOptions failed',
+          response.status,
+          errorText,
+        );
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
+
+      const data = (await response.json()) as MessageDTO;
+      log.info('[ThreadApiService] updateRequestDesktopOptions success', { messageId: data.id });
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] updateRequestDesktopOptions exception', message);
+      return apiFail(-1, message);
+    }
+  }
+}
 /**
  * Singleton instance of ThreadApiService.
  * Import this in other modules to make thread/message API calls.

@@ -14,12 +14,17 @@ import type {
   JsonArray,
   JsonPrimitive,
 } from './types/thread.types.js';
-import type { CreateThreadRequest } from './services/mokuapi/thread.types.js';
+import type {
+  CreateThreadRequest,
+  MessageDTO,
+  RequestOptionsDTO,
+} from './services/mokuapi/thread.types.js';
 import type { ApiResponse } from './types/api-response.js';
 
 // Re-export types for use by other modules
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
 export type { ApiResponse };
+export type { MessageDTO, RequestOptionsDTO };
 
 /**
  * OLD Thread Interface (commented out - now imported from thread.types.ts)
@@ -148,6 +153,20 @@ export interface ThreadAPI {
     threadId: string,
     branchId: string,
   ) => Promise<{ success: true } | { success: false; error: string }>;
+
+  // Update message branch ID via Moku API
+  updateMessageBranch: (
+    threadId: string,
+    messageId: string,
+    branchId: string,
+  ) => Promise<ApiResponse<MessageDTO>>;
+
+  // Update message desktop options via Moku API
+  updateMessageDesktopOptions: (
+    threadId: string,
+    messageId: string,
+    desktopOptions: RequestOptionsDTO,
+  ) => Promise<ApiResponse<MessageDTO>>;
 }
 
 /**
@@ -690,6 +709,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     deleteBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
+
+    updateMessageBranch: (threadId: string, messageId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:updateMessageBranch', threadId, messageId, branchId),
+
+    updateMessageDesktopOptions: (
+      threadId: string,
+      messageId: string,
+      desktopOptions: RequestOptionsDTO,
+    ) =>
+      ipcRenderer.invoke('thread:updateMessageDesktopOptions', threadId, messageId, desktopOptions),
   } as ThreadAPI,
 
   /**
