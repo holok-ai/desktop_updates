@@ -42,10 +42,9 @@
     tabindex={onToggleExpand ? 0 : undefined}
     title={isExpanded ? 'Click to collapse' : 'Click to expand'}
   >
-    <span class="lane-number">Lane {laneIndex + 1}</span>
-    {#if modelName}
-      <span class="lane-model" title={modelIntendedUse || ''}>{modelName}</span>
-    {/if}
+    <span class="lane-model" title={modelIntendedUse || ''}
+      >{modelName || `Model ${laneIndex + 1}`}</span
+    >
     {#if onToggleExpand}
       <i class="pi pi-{isExpanded ? 'compress' : 'arrows-h'} expand-icon"></i>
     {/if}
@@ -105,14 +104,10 @@
     color: var(--text-secondary, #666);
   }
 
-  .lane-number {
+  .lane-model {
     font-weight: 600;
     color: var(--text-primary, #111);
-  }
-
-  .lane-model {
-    color: var(--text-secondary, #666);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .lane-select-button {

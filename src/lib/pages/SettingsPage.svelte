@@ -54,6 +54,7 @@
   let isLoading = $state(true);
   let appVersion = $state('');
   let isCheckingUpdates = $state(false);
+  let isDevelopmentBuild = $state(false);
 
   // Tools list from ToolOrchestrator
   let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
@@ -78,7 +79,6 @@
     unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
   });
@@ -103,7 +103,6 @@
     unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
   });
@@ -135,10 +134,12 @@
   }
 
   onMount(async () => {
-    const [all, version] = await Promise.all([
+    const [all, version, devBuild] = await Promise.all([
       window.electronAPI.settings.getAll(),
       window.electronAPI.system.version(),
+      window.electronAPI.updater.isDevelopmentBuild(),
     ]);
+    isDevelopmentBuild = devBuild;
 
     settings = {
       mokuWebUrl: all.mokuWebUrl,
@@ -158,9 +159,8 @@
       shellCommands: all.shellCommands ?? '',
       windowsCommands: all.windowsCommands ?? '',
       unixCommands: all.unixCommands ?? '',
-      autoCheckUpdates: all.autoCheckUpdates ?? Boolean(all.autoUpdate ?? true),
+      autoCheckUpdates: all.autoCheckUpdates ?? true,
       autoInstallUpdates: all.autoInstallUpdates ?? false,
-      autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
     };
@@ -253,7 +253,6 @@
         unixCommands: settings.unixCommands,
         autoCheckUpdates: settings.autoCheckUpdates,
         autoInstallUpdates: settings.autoInstallUpdates,
-        autoUpdate: settings.autoCheckUpdates, // keep legacy field in sync
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
       });
@@ -713,12 +712,16 @@
                       <span class="info-value">{appVersion}</span>
                     </div>
                     <div class="info-row">
-                      <span class="info-key">Update Available</span>
+                      <span class="info-key">Latest Version</span>
                       <span class="info-value">
-                        {#if settings.updateAvailable}
-                          Yes ({settings.latestVersion || 'unknown'})
+                        {#if isDevelopmentBuild}
+                          Not Available In Development
+                        {:else if settings.latestVersion}
+                          {settings.latestVersion}{settings.latestVersion === appVersion
+                            ? " (You've got the latest.)"
+                            : ''}
                         {:else}
-                          No
+                          —
                         {/if}
                       </span>
                     </div>
@@ -733,7 +736,7 @@
                   <div class="subgroup-controls">
                     <label class="inline-flex items-center gap-2">
                       <input type="checkbox" bind:checked={settings.autoCheckUpdates} />
-                      <span class="text-sm">Automatically check for updates</span>
+                      <span class="text-sm">Check for updates on startup?</span>
                     </label>
                     <label class="inline-flex items-center gap-2">
                       <input type="checkbox" bind:checked={settings.autoInstallUpdates} />

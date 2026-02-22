@@ -39,6 +39,13 @@ export function registerAutoUpdaterHandlers(): void {
     return autoUpdaterService.updateNow();
   });
 
+  /**
+   * Returns whether the app is running as a development (unpackaged) build.
+   */
+  ipcMain.handle('updater:isDevelopmentBuild', (): boolean => {
+    return autoUpdaterService.isDevelopmentBuild();
+  });
+
   updaterLog.info('Handlers registered');
 }
 
@@ -49,6 +56,7 @@ export function unregisterAutoUpdaterHandlers(): void {
   ipcMain.removeHandler('updater:checkForUpdates');
   ipcMain.removeHandler('updater:getUpdateAvailability');
   ipcMain.removeHandler('updater:updateNow');
+  ipcMain.removeHandler('updater:isDevelopmentBuild');
 
   updaterLog.info('Handlers unregistered');
 }

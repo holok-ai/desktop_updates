@@ -60,10 +60,6 @@ export interface AppSettings {
   // Updates
   autoCheckUpdates: boolean;
   autoInstallUpdates: boolean;
-
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate: boolean;
-
   updateAvailable?: boolean;
   latestVersion?: string;
 }
@@ -97,7 +93,6 @@ export const defaultAppSettings: AppSettings = {
   unixCommands: '',
   autoCheckUpdates: true,
   autoInstallUpdates: false,
-  autoUpdate: false,
 };
 
 export type GUID = ReturnType<typeof crypto.randomUUID>;
