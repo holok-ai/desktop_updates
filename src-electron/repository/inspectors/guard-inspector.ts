@@ -11,9 +11,7 @@ import type { IMessageInspector } from './message-inspector.js';
  */
 export class GuardInspector implements IMessageInspector {
   inspect(messages: Message[]): Message[] {
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-
+    for (const [i, message] of messages.entries()) {
       if (message.role !== 'assistant' && message.role !== 'system') continue;
 
       try {
@@ -28,8 +26,9 @@ export class GuardInspector implements IMessageInspector {
 
         if (this.isGuardResponse(content)) {
           message.isHidden = true;
-          if (i > 0 && messages[i - 1].role === 'user') {
-            messages[i - 1].isHidden = true;
+          const prev = messages[i - 1];
+          if (i > 0 && prev?.role === 'user') {
+            prev.isHidden = true;
           }
         }
 
@@ -63,12 +62,6 @@ export class GuardInspector implements IMessageInspector {
   private isErrorPayload(content: unknown): boolean {
     if (!content || typeof content !== 'object') return false;
     const c = content as Record<string, unknown>;
-    return (
-      c.type === 'error' &&
-      c.status === 400 &&
-      'requestId' in c &&
-      'seq' in c &&
-      'error' in c
-    );
+    return c.type === 'error' && c.status === 400 && 'requestId' in c && 'seq' in c && 'error' in c;
   }
 }

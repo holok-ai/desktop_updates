@@ -87,34 +87,36 @@ export class ThreadRepository {
     return this.cloneThread(toSave);
   }
 
-  public async loadThread(threadId: string): Promise<Thread | null> {
-    // Check cache first
-    const cachedThread = this.threadsById.get(threadId);
-    if (cachedThread) {
-      const cachedMessagesCount = cachedThread.messages.length;
-      const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
+  private async loadCachedThread(cachedThread: Thread): Promise<Thread | null> {
+    const threadId: string = cachedThread.id;
+    const cachedMessagesCount = cachedThread.messages.length;
+    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
-      if (messagesResult.success) {
-        const mapped = messagesResult.data.content.map((dto) =>
-          this.mapDTOToMessage(dto, cachedThread.title),
-        );
-        const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
+    if (messagesResult.success) {
+      const mapped = messagesResult.data.content.map((dto) =>
+        this.mapDTOToMessage(dto, cachedThread.title),
+      );
+      const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
 
-        // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
-        if (finalMessages.length > 0) {
-          cachedThread.messages = finalMessages;
-          this.threadsById.set(threadId, cachedThread);
-        } else if (cachedMessagesCount > 0) {
-          // API returned empty but cache has messages - keep cached messages (likely local-only)
-        }
-      } else {
-        log.error('[ThreadRepository] Failed to refresh messages for cached thread:', messagesResult.errorText);
-        // On error, keep cached messages if they exist
+      // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
+      if (finalMessages.length > 0) {
+        cachedThread.messages = finalMessages;
+        this.threadsById.set(threadId, cachedThread);
+      } else if (cachedMessagesCount > 0) {
+        // API returned empty but cache has messages - keep cached messages (likely local-only)
       }
-
-      return this.cloneThread(cachedThread);
+    } else {
+      log.error(
+        '[ThreadRepository] Failed to refresh messages for cached thread:',
+        messagesResult.errorText,
+      );
+      // On error, keep cached messages if they exist
     }
 
+    return this.cloneThread(cachedThread);
+  }
+
+  private async loadUncachedThread(threadId: string): Promise<Thread | null> {
     // Fetch from API
     const threadResult = await threadApiService.getThread(threadId);
     if (!threadResult.success) {
@@ -142,6 +144,18 @@ export class ThreadRepository {
     return this.cloneThread(thread);
   }
 
+  public async loadThread(threadId: string): Promise<Thread | null> {
+    // Check cache first
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      // we have a thread id in cache, so update the messages in it
+      return this.loadCachedThread(cachedThread);
+    } else {
+      // thread id is no longer in cache, so try to load it
+      return this.loadUncachedThread(threadId);
+    }
+  }
+
   public async listThreads(options?: {
     projectId?: string;
     page?: number;
@@ -164,7 +178,7 @@ export class ThreadRepository {
       return this.mapDTOToThread(dto);
     });
 
-    // Update cache
+    // create a key in cache that we know this thread
     threads.forEach((thread) => this.threadsById.set(thread.id, thread));
 
     return threads.map((t) => this.cloneThread(t));
@@ -443,7 +457,10 @@ export class ThreadRepository {
     };
     const updateResult = await threadApiService.updateThread(threadId, req);
     if (!updateResult.success) {
-      log.error('[ThreadRepository] Failed to update thread project assignment via API:', updateResult.errorText);
+      log.error(
+        '[ThreadRepository] Failed to update thread project assignment via API:',
+        updateResult.errorText,
+      );
       // Still update local cache so UI isn't stuck; next fetch may reconcile
     }
 

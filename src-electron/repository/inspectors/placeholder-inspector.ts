@@ -29,12 +29,15 @@ export class PlaceholderInspector implements IMessageInspector {
     const toInsert: { index: number; message: Message }[] = [];
 
     for (let i = 0; i < sorted.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection
       const message = sorted[i];
 
       if (message.role === 'assistant') {
         let hasUserMessage = false;
         for (let j = i - 1; j >= 0; j--) {
+          // eslint-disable-next-line security/detect-object-injection
           if (sorted[j].branchId === message.branchId) {
+            // eslint-disable-next-line security/detect-object-injection
             if (sorted[j].role === 'user') {
               hasUserMessage = true;
               break;
@@ -43,10 +46,13 @@ export class PlaceholderInspector implements IMessageInspector {
         }
 
         if (!hasUserMessage) {
-          log.info('[PlaceholderInspector] Creating placeholder user message for orphan assistant:', {
-            assistantId: message.id,
-            branchId: message.branchId,
-          });
+          log.info(
+            '[PlaceholderInspector] Creating placeholder user message for orphan assistant:',
+            {
+              assistantId: message.id,
+              branchId: message.branchId,
+            },
+          );
 
           const placeholder: Message = {
             id: crypto.randomUUID(),
@@ -69,6 +75,7 @@ export class PlaceholderInspector implements IMessageInspector {
 
     // Insert in reverse order to keep indices stable
     for (let i = toInsert.length - 1; i >= 0; i--) {
+      // eslint-disable-next-line security/detect-object-injection
       const { index, message } = toInsert[i];
       sorted.splice(index, 0, message);
     }

@@ -19,12 +19,12 @@ export class DuplicationInspector implements IMessageInspector {
       const key = `${message.role}:${message.content}:${message.branchId}`;
 
       if (seen.has(key)) {
-        const existing = seen.get(key)!;
+        const existing = seen.get(key);
 
-        if (message.createdAt < existing.createdAt) {
+        if (existing && message.createdAt < existing.createdAt) {
           const index = filtered.indexOf(existing);
           if (index !== -1) {
-            filtered[index] = message;
+            filtered.splice(index, 1, message);
           }
           seen.set(key, message);
         }

@@ -11,6 +11,7 @@ export interface IMessageInspector {
 /**
  * Runs an ordered list of IMessageInspector passes over a message array.
  */
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class MessageInspector {
   static run(inspectors: IMessageInspector[], messages: Message[]): Message[] {
     return inspectors.reduce<Message[]>((msgs, inspector) => inspector.inspect(msgs), messages);
