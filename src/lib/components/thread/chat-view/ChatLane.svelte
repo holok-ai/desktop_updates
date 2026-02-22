@@ -44,7 +44,7 @@
     /** Callback when lane is selected */
     onSelectLane?: () => void;
     /** Callback when copy request is clicked */
-    onCopyRequest?: () => void;
+    onCopyRequest?: (content: string) => void;
     /** Callback when copy response is clicked */
     onCopyResponse?: () => void;
     /** Callback when retry is clicked */

@@ -76,8 +76,14 @@
     const lastItem = displayItems[displayItems.length - 1];
 
     if (lastItem.type === 'message') {
-      // Last item is a message - return its branchId
-      return lastItem.pair.request.branchId;
+      const branchId = lastItem.pair.request.branchId;
+      // If from a branch lane (lane != 0), normalize to row.0.0 so calculateNextBranchId
+      // increments to the next row rather than staying in the same branch row
+      if (parseInt(branchId.split('.')[1] ?? '0') !== 0) {
+        const row = branchId.split('.')[0];
+        return `${row}.0.0`;
+      }
+      return branchId;
     } else {
       // Last item is a branch - extract the row number and return row.0.0
       // so that calculateNextBranchId will increment to the next row
@@ -682,6 +688,40 @@
     clearTimeouts();
   }
 
+  // ── Lane selection ──
+  async function handleSelectLane(branchItemId: string, laneIndex: number): Promise<void> {
+    if (!thread?.id) return;
+
+    const branchItem = displayItems.find(
+      (item) => item.type === 'branch' && item.id === branchItemId,
+    );
+    if (!branchItem || branchItem.type !== 'branch') return;
+
+    const lane = branchItem.lanes[laneIndex];
+    if (!lane) return;
+
+    await threadService.selectBranchLane(thread.id, lane.branchId, messages);
+
+    // Update in-memory messages so displayItems re-derives immediately with new isSelectedBranch values
+    const [rowStr] = lane.branchId.split('.');
+    const row = parseInt(rowStr);
+    const selectedLaneNum = parseInt(lane.branchId.split('.')[1]);
+    messages = messages.map((m) => {
+      const parts = m.branchId.split('.');
+      if (parseInt(parts[0]) !== row || m.role !== 'user') {
+        return m;
+      }
+      const msgLane = parseInt(parts[1]);
+      return {
+        ...m,
+        desktopOptions: {
+          ...(m.desktopOptions ?? {}),
+          isSelectedBranch: msgLane === selectedLaneNum,
+        },
+      };
+    });
+  }
+
   // ── Build display items using thread service ──
   let displayItems = $derived.by(() => {
     return threadService.buildDisplayItems(messages, isStreaming, responseText, availableModels);
@@ -757,6 +797,16 @@
 
     {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
       {#if item.type === 'message'}
+        {console.log(
+          '[ThreadChatView] ChatMessage branchId:',
+          item.pair.request.branchId,
+          'lane:',
+          item.pair.request.branchId.split('.')[1],
+          'showBranchIcon:',
+          parseInt(item.pair.request.branchId.split('.')[1] ?? '0') !== 0,
+          'desktopOptions:',
+          item.pair.request.desktopOptions,
+        )}
         <ChatMessage
           requestContent={item.pair.request.content}
           requestCreatedAt={item.pair.request.createdAt}
@@ -768,7 +818,8 @@
           responses={item.pair.responses}
           isStreaming={item.pair.isStreamingResponse}
           streamingContent={item.pair.streamingContent}
-          onCopyRequest={() => copyToInput(item.pair.request.content)}
+          onCopyRequest={(content) => copyToInput(content)}
+          showBranchIcon={parseInt(item.pair.request.branchId.split('.')[1] ?? '0') !== 0}
         />
       {:else if item.type === 'branch'}
         {console.log('[ThreadChatView] Rendering ChatBranch:', {
@@ -776,7 +827,14 @@
           laneCount: item.lanes.length,
           lanes: item.lanes,
         })}
-        <ChatBranch branchId={item.id} lanes={item.lanes} {chatLayout} {fontSize} />
+        <ChatBranch
+          branchId={item.id}
+          lanes={item.lanes}
+          {chatLayout}
+          {fontSize}
+          onCopyRequest={(content) => copyToInput(content)}
+          onSelectLane={(laneIndex) => handleSelectLane(item.id, laneIndex)}
+        />
       {/if}
     {/each}
 

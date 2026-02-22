@@ -1,4 +1,5 @@
 import type { Attachment } from '../../src-shared/types/attachment.types.js';
+import type { RequestOptionsDTO } from '../services/mokuapi/thread.types.js';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
 
@@ -33,6 +34,7 @@ export interface Message {
   versions?: MessageVersion[];
   isEdited?: boolean;
   isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
+  desktopOptions?: RequestOptionsDTO | null;
 }
 
 export interface ThreadMetadata {

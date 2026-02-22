@@ -1,5 +1,12 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import type { Thread, CreateThreadRequest, ModelDetails } from '../../../src-electron/preload.js';
+import type {
+  Thread,
+  CreateThreadRequest,
+  ModelDetails,
+  MessageDTO,
+  RequestOptionsDTO,
+  ApiResponse,
+} from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
 import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
@@ -592,6 +599,73 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
+   * Update the branch ID of a message via Moku API
+   */
+  async updateMessageBranch(
+    threadId: string,
+    messageId: string,
+    branchId: string,
+  ): Promise<ApiResponse<MessageDTO>> {
+    return window.electronAPI.thread.updateMessageBranch(threadId, messageId, branchId);
+  }
+
+  /**
+   * Update the desktop options of a message via Moku API
+   */
+  async updateMessageDesktopOptions(
+    threadId: string,
+    messageId: string,
+    desktopOptions: RequestOptionsDTO,
+  ): Promise<ApiResponse<MessageDTO>> {
+    return window.electronAPI.thread.updateMessageDesktopOptions(
+      threadId,
+      messageId,
+      desktopOptions,
+    );
+  }
+
+  /**
+   * Mark the selected branch lane as isSelectedBranch=true and all other lanes in the same
+   * branch row as isSelectedBranch=false.
+   *
+   * @param threadId - The thread ID
+   * @param selectedLaneBranchId - The lane.branchId of the selected lane (e.g. "2.1")
+   * @param messages - Current messages array to search for user prompts in each lane
+   */
+  async selectBranchLane(
+    threadId: string,
+    selectedLaneBranchId: string,
+    messages: Message[],
+  ): Promise<void> {
+    const [rowStr, laneStr] = selectedLaneBranchId.split('.');
+    const row = parseInt(rowStr);
+    const selectedLaneNum = parseInt(laneStr);
+
+    // Iterate lane numbers 1, 2, 3… stopping when no user message found for that lane
+    for (let laneNum = 1; ; laneNum++) {
+      const lanePrefix = `${row}.${laneNum}.`;
+      const firstUserMsg = messages.find(
+        (m) => m.branchId.startsWith(lanePrefix) && m.role === 'user',
+      );
+      if (!firstUserMsg) {
+        break;
+      }
+
+      const wasselected = laneNum === selectedLaneNum;
+      const result = await this.updateMessageDesktopOptions(threadId, firstUserMsg.id, {
+        isSelectedBranch: wasselected,
+      });
+      if (!result.success) {
+        console.error(
+          `[ThreadService] selectBranchLane: failed to set isSelectedBranch=${String(wasselected)}`,
+          firstUserMsg.id,
+          result,
+        );
+      }
+    }
+  }
+
+  /**
    * Delete a branch from a thread
    */
   async deleteBranch(
@@ -762,51 +836,92 @@ export class ThreadService extends BaseElectronService {
           return laneA - laneB;
         });
 
-        const lanes: Lane[] = laneKeys.map((laneKey, index) => {
+        // Check if any lane has been selected (isSelectedBranch = true)
+        const selectedLaneKey = laneKeys.find((laneKey) => {
           const msgs = laneMap.get(laneKey);
-          if (!msgs) {
+          const firstUserMsg = msgs?.find((m) => m.role === 'user');
+          console.warn(
+            '[buildDisplayItems] lane check:',
+            laneKey,
+            'firstUserMsg.desktopOptions:',
+            firstUserMsg?.desktopOptions,
+          );
+          return firstUserMsg?.desktopOptions?.isSelectedBranch === true;
+        });
+
+        console.warn(
+          '[buildDisplayItems] row',
+          row,
+          'laneKeys:',
+          laneKeys,
+          'selectedLaneKey:',
+          selectedLaneKey,
+        );
+
+        if (selectedLaneKey) {
+          // Render only the selected lane — filter rowMessages by lane number directly
+          const selectedLaneNum = this.getBranchLane(selectedLaneKey);
+          const selectedMsgs = rowMessages.filter(
+            (m) => this.getBranchLane(m.branchId) === selectedLaneNum,
+          );
+          console.warn(
+            '[buildDisplayItems] flat rendering selected lane',
+            selectedLaneKey,
+            'msgCount:',
+            selectedMsgs.length,
+          );
+          const pairs = this.buildMessagePairs(selectedMsgs, isStreaming, responseText);
+          for (const pair of pairs) {
+            items.push({ type: 'message', pair, isFromBranch: true });
+          }
+        } else {
+          // No selected lane — render full multi-lane branch
+          const lanes: Lane[] = laneKeys.map((laneKey, index) => {
+            const msgs = laneMap.get(laneKey);
+            if (!msgs) {
+              return {
+                id: `lane-${row}-${index}`,
+                branchId: laneKey,
+                messagePairs: [],
+                modelName: undefined,
+                modelIntendedUse: undefined,
+              };
+            }
+
+            const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
+
+            // Try to extract model name and intended use from first message
+            const modelId = msgs[0]?.modelId ?? undefined;
+            let modelName = modelId;
+            let modelIntendedUse: string | undefined;
+
+            // Look up model details if available
+            if (modelId && availableModels.length > 0) {
+              const modelDetails = availableModels.find(
+                (m) => m.id === modelId || m.accessName === modelId,
+              );
+              if (modelDetails) {
+                modelName = modelDetails.title || modelDetails.accessName;
+                modelIntendedUse = modelDetails.intendedUse;
+              }
+            }
+
             return {
               id: `lane-${row}-${index}`,
               branchId: laneKey,
-              messagePairs: [],
-              modelName: undefined,
-              modelIntendedUse: undefined,
+              messagePairs: pairs,
+              modelName,
+              modelIntendedUse,
             };
-          }
+          });
 
-          const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
-
-          // Try to extract model name and intended use from first message
-          const modelId = msgs[0]?.modelId ?? undefined;
-          let modelName = modelId;
-          let modelIntendedUse: string | undefined;
-
-          // Look up model details if available
-          if (modelId && availableModels.length > 0) {
-            const modelDetails = availableModels.find(
-              (m) => m.id === modelId || m.accessName === modelId,
-            );
-            if (modelDetails) {
-              modelName = modelDetails.title || modelDetails.accessName;
-              modelIntendedUse = modelDetails.intendedUse;
-            }
-          }
-
-          return {
-            id: `lane-${row}-${index}`,
-            branchId: laneKey,
-            messagePairs: pairs,
-            modelName,
-            modelIntendedUse,
-          };
-        });
-
-        items.push({
-          type: 'branch',
-          id: `branch-${row}`,
-          position: row,
-          lanes,
-        });
+          items.push({
+            type: 'branch',
+            id: `branch-${row}`,
+            position: row,
+            lanes,
+          });
+        }
       }
     }
 
@@ -969,6 +1084,7 @@ export interface Lane {
 export interface MessageDisplay {
   type: 'message';
   pair: MessagePair;
+  isFromBranch?: boolean;
 }
 
 export interface BranchDisplay {

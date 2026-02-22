@@ -48,11 +48,13 @@
     branchId?: string;
 
     /** Callback when copy is clicked on request */
-    onCopyRequest?: () => void;
+    onCopyRequest?: (content: string) => void;
     /** Callback when copy is clicked on response */
     onCopyResponse?: () => void;
     /** Callback when retry is clicked */
     onRetry?: () => void;
+    /** Whether this message came from a selected branch lane (shows tree icon) */
+    showBranchIcon?: boolean;
   }
 
   let {
@@ -73,6 +75,7 @@
     onCopyRequest,
     onCopyResponse,
     onRetry,
+    showBranchIcon = false,
   }: Props = $props();
 
   const requestCommands = $derived([
@@ -81,7 +84,7 @@
       label: 'Copy prompt',
       action: () => {
         navigator.clipboard.writeText(requestContent);
-        onCopyRequest?.();
+        onCopyRequest?.(requestContent);
       },
     },
     {
@@ -116,6 +119,13 @@
 </script>
 
 <div class="chat-message" role="article" aria-label="Chat message">
+  {#if showBranchIcon}
+    <div class="branch-icon" title="Selected branch">
+      <!-- tree icon: unimplemented -->
+      🌿
+    </div>
+  {/if}
+
   <!-- Request -->
   <ChatRequest
     content={requestContent}
@@ -167,5 +177,11 @@
     flex-direction: column;
     gap: 0;
     padding: 0.25rem 0;
+  }
+
+  .branch-icon {
+    font-size: 0.75rem;
+    opacity: 0.5;
+    padding: 0 0.25rem;
   }
 </style>

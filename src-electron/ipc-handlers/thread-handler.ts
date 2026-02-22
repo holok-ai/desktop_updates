@@ -2,6 +2,9 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { threadRepository } from '../repository/thread-repository.js';
 import { modelRepository } from '../repository/model-repository.js';
 import { titleValidationService } from '../services/title-validation.service.js';
+import { threadApiService } from '../services/mokuapi/thread-api.service.js';
+import type { ApiResponse } from '../types/api-response.js';
+import type { MessageDTO, RequestOptionsDTO } from '../services/mokuapi/thread.types.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import { ThreadMetadata, Message } from '../types/thread.types.js';
@@ -493,6 +496,32 @@ export function registerThreadHandlers(): void {
     },
   );
 
+  // Update message branch ID via Moku API
+  ipcMain.handle(
+    'thread:updateMessageBranch',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+      branchId: string,
+    ): Promise<ApiResponse<MessageDTO>> => {
+      return threadApiService.updateRequestBranch(threadId, messageId, branchId);
+    },
+  );
+
+  // Update message desktop options via Moku API
+  ipcMain.handle(
+    'thread:updateMessageDesktopOptions',
+    async (
+      _event,
+      threadId: string,
+      messageId: string,
+      desktopOptions: RequestOptionsDTO,
+    ): Promise<ApiResponse<MessageDTO>> => {
+      return threadApiService.updateRequestDesktopOptions(threadId, messageId, desktopOptions);
+    },
+  );
+
   threadLog.info('Handlers registered');
 }
 
@@ -505,5 +534,7 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:delete');
   ipcMain.removeHandler('thread:moveToProject');
   ipcMain.removeHandler('thread:updateMessage');
+  ipcMain.removeHandler('thread:updateMessageBranch');
+  ipcMain.removeHandler('thread:updateMessageDesktopOptions');
   threadLog.info('Handlers unregistered');
 }

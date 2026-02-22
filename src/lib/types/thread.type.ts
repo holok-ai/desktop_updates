@@ -1,5 +1,6 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
 import type { MessageStatus, ThreadStatus } from './status.type.ts';
+import type { RequestOptionsDTO } from '../../../src-electron/preload.js';
 
 export interface MessageVersion {
   content: string;
@@ -32,6 +33,7 @@ export interface Message {
 
   isHidden?: boolean;
   isLocal?: boolean;
+  desktopOptions?: RequestOptionsDTO | null;
 }
 
 export interface Thread {

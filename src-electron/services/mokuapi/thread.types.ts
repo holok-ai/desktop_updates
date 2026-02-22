@@ -53,6 +53,14 @@ export interface MessageDTO {
   updatedAt: string; // ISO 8601 date string
 }
 
+export interface RequestOptionsDTO {
+  isSelectedBranch?: boolean;
+  wasBlockedByGuard?: boolean;
+  guardBlockReason?: string;
+  guardBlockedAt?: string;
+  comment?: string;
+}
+
 /**
  * Request body for creating a new thread
  */
