@@ -13,6 +13,13 @@ import type {
   RequestOptionsDTO,
 } from '../services/mokuapi/thread.types.js';
 import type { MessageRole } from '../types/thread.types.js';
+import {
+  type IMessageInspector,
+  MessageInspector,
+  DuplicationInspector,
+  PlaceholderInspector,
+  GuardInspector,
+} from './inspectors/index.js';
 
 export class ThreadRepository {
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -21,6 +28,12 @@ export class ThreadRepository {
   // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
+
+  private readonly messageInspectors: IMessageInspector[] = [
+    new DuplicationInspector(),
+    new PlaceholderInspector(),
+    new GuardInspector(),
+  ];
 
   private parseApiTimeMs(value: unknown): number {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -74,61 +87,6 @@ export class ThreadRepository {
     return this.cloneThread(toSave);
   }
 
-  /**
-   * Filter out duplicate audit records from tool-loop continuations.
-   * When a chat request uses tools, the audit service records:
-   * 1. Initial request with user message
-   * 2. Continuation request(s) with tool results
-   *
-   * This function keeps only the initial request and filters out continuations,
-   * which are identified by having the same content and branch_id as a previous message.
-   */
-  private deduplicateToolLoopMessages(messageDTOs: MessageDTO[]): MessageDTO[] {
-    const seen = new Map<string, MessageDTO>();
-    const filtered: MessageDTO[] = [];
-
-    for (const dto of messageDTOs) {
-      const branchId =
-        (dto.options as { branch_id?: string } | null)?.branch_id ?? dto.branchId ?? '1.0';
-      // Create key from role, content, and branchId to catch all duplicates
-      const key = `${dto.role}:${String(dto.content)}:${branchId}`;
-
-      // Check if we've seen this exact message on this branch before
-      if (seen.has(key)) {
-        const existing = seen.get(key);
-        if (!existing) continue;
-
-        // Keep the earlier timestamp (initial request, not continuation)
-        const existingTime = this.parseApiTimeMs(existing.createdAt);
-        const currentTime = this.parseApiTimeMs(dto.createdAt);
-
-        if (currentTime < existingTime) {
-          // Current is earlier, replace the existing one
-          const index = filtered.indexOf(existing);
-          if (index !== -1) {
-            filtered[index] = dto;
-          }
-          seen.set(key, dto);
-        }
-        // else: Existing is earlier, skip current (it's a duplicate)
-        log.info('[ThreadRepository] Skipping duplicate message:', {
-          role: dto.role,
-          branchId,
-          contentPreview:
-            dto.content && typeof dto.content === 'string'
-              ? dto.content.substring(0, 50)
-              : '(empty)',
-        });
-      } else {
-        // First time seeing this message
-        seen.set(key, dto);
-        filtered.push(dto);
-      }
-    }
-
-    return filtered;
-  }
-
   public async loadThread(threadId: string): Promise<Thread | null> {
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
@@ -137,18 +95,14 @@ export class ThreadRepository {
       const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
       if (messagesResult.success) {
-        // Deduplicate tool-loop continuation messages
-        const dedupedMessages = this.deduplicateToolLoopMessages(messagesResult.data.content);
+        const mapped = messagesResult.data.content.map((dto) =>
+          this.mapDTOToMessage(dto, cachedThread.title),
+        );
+        const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
 
         // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
-        if (dedupedMessages.length > 0) {
-          cachedThread.messages = dedupedMessages.map((dto) =>
-            this.mapDTOToMessage(dto, cachedThread.title),
-          );
-          // Insert placeholder user messages for orphan assistant messages
-          this.insertPlaceholderUserMessages(cachedThread.messages);
-          // Process guard messages and mark them as hidden
-          this.processGuardMessages(cachedThread.messages);
+        if (finalMessages.length > 0) {
+          cachedThread.messages = finalMessages;
           this.threadsById.set(threadId, cachedThread);
         } else if (cachedMessagesCount > 0) {
           // API returned empty but cache has messages - keep cached messages (likely local-only)
@@ -174,16 +128,10 @@ export class ThreadRepository {
     const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
     if (messagesResult.success) {
-      // Deduplicate tool-loop continuation messages
-      const dedupedMessages = this.deduplicateToolLoopMessages(messagesResult.data.content);
-
-      thread.messages = dedupedMessages.map((dto) => this.mapDTOToMessage(dto, thread.title));
-
-      // Insert placeholder user messages for orphan assistant messages
-      this.insertPlaceholderUserMessages(thread.messages);
-
-      // Process guard messages and mark them as hidden
-      this.processGuardMessages(thread.messages);
+      const mapped = messagesResult.data.content.map((dto) =>
+        this.mapDTOToMessage(dto, thread.title),
+      );
+      thread.messages = MessageInspector.run(this.messageInspectors, mapped);
     } else {
       log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
     }
@@ -744,165 +692,6 @@ export class ThreadRepository {
     }
 
     return message;
-  }
-
-  /**
-   * Insert placeholder user messages for orphan assistant messages
-   * If an assistant message doesn't have a preceding user message with the same branchId,
-   * create a placeholder user message to maintain request-response pairing
-   */
-  private insertPlaceholderUserMessages(messages: Message[]): void {
-    log.info(
-      '[ThreadRepository] Checking for orphan assistant messages, total messages:',
-      messages.length,
-    );
-
-    // Sort messages by branchId and createdAt to ensure correct order
-    messages.sort((a, b) => {
-      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
-      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
-
-      if (aRow !== bRow) return aRow - bRow;
-      if (aLane !== bLane) return aLane - bLane;
-      if (aIter !== bIter) return aIter - bIter;
-      return a.createdAt - b.createdAt;
-    });
-
-    const toInsert: { index: number; message: Message }[] = [];
-
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-
-      // Check if this is an assistant message
-      if (message.role === 'assistant') {
-        // Look for a preceding user message with the same branchId
-        let hasUserMessage = false;
-        for (let j = i - 1; j >= 0; j--) {
-          if (messages[j].branchId === message.branchId) {
-            if (messages[j].role === 'user') {
-              hasUserMessage = true;
-              break;
-            }
-          }
-        }
-
-        // If no user message found, create a placeholder
-        if (!hasUserMessage) {
-          log.info('[ThreadRepository] Creating placeholder user message for orphan assistant:', {
-            assistantId: message.id,
-            branchId: message.branchId,
-          });
-
-          const placeholderUser: Message = {
-            id: crypto.randomUUID(),
-            threadId: message.threadId,
-            title: message.title,
-            userId: message.userId,
-            role: 'user',
-            content: '', // Empty content for placeholder
-            createdAt: message.createdAt - 1, // Set timestamp slightly before assistant
-            branchId: message.branchId,
-            modelId: message.modelId,
-            provider: message.provider,
-            deletedAt: null,
-          };
-
-          toInsert.push({ index: i, message: placeholderUser });
-        }
-      }
-    }
-
-    // Insert placeholder messages in reverse order to maintain correct indices
-    for (let i = toInsert.length - 1; i >= 0; i--) {
-      const { index, message } = toInsert[i];
-      messages.splice(index, 0, message);
-    }
-
-    if (toInsert.length > 0) {
-      log.info('[ThreadRepository] Inserted', toInsert.length, 'placeholder user messages');
-    }
-  }
-
-  /**
-   * Process guard messages and mark them as hidden
-   * Guard responses have content.response = { passed: boolean, errors: Array<{title, text}> }
-   */
-  private processGuardMessages(messages: Message[]): void {
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-
-      // Check if this is an assistant or system message with guard structure
-      if (message.role === 'assistant' || message.role === 'system') {
-        try {
-          // Parse content if it's a string (might be JSON)
-          let content: unknown = message.content;
-          if (typeof content === 'string') {
-            try {
-              content = JSON.parse(content) as unknown;
-            } catch {
-              // Not JSON, skip
-              continue;
-            }
-          }
-
-          // Check for guard response structure
-          const hasResponse = content && typeof content === 'object' && 'response' in content;
-          if (hasResponse) {
-            const guardContent = content as { response: unknown };
-            let response = guardContent.response;
-
-            // The response field might be a JSON string, parse it
-            if (typeof response === 'string') {
-              try {
-                response = JSON.parse(response);
-              } catch {
-                // Not valid JSON, skip
-                continue;
-              }
-            }
-
-            // Now check if it has the guard structure (passed field is required, errors is optional)
-            if (response && typeof response === 'object' && 'passed' in response) {
-              const _passed = (response as { passed: boolean }).passed;
-
-              // Always mark the guard response as hidden
-              message.isHidden = true;
-
-              // Always mark the guard request (previous message) as hidden
-              if (i > 0 && messages[i - 1].role === 'user') {
-                messages[i - 1].isHidden = true;
-              }
-            }
-          }
-
-          // Check for error response structure (type:"error", status:400)
-          if (
-            content &&
-            typeof content === 'object' &&
-            'type' in content &&
-            (content as { type: string }).type === 'error' &&
-            'status' in content &&
-            (content as { status: number }).status === 400 &&
-            'requestId' in content &&
-            'seq' in content &&
-            'error' in content
-          ) {
-            const _errorContent = content as {
-              type: string;
-              status: number;
-              requestId: string;
-              seq: number;
-              error: unknown;
-            };
-
-            // Mark this error response as hidden
-            message.isHidden = true;
-          }
-        } catch (error) {
-          log.error('[ThreadRepository] Error processing guard message:', error);
-        }
-      }
-    }
   }
 
   /**
