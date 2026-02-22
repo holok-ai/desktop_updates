@@ -8,7 +8,7 @@ import type {
   UpdateProjectInput,
   AddMemberInput,
 } from '../types/project.types.js';
-import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
+import { apiOk, apiFail } from '../types/api-response.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type { Thread as InternalThread } from '../types/thread.types.js';
@@ -116,7 +116,9 @@ export function registerProjectHandlers(): void {
     log.info('[IPC:project:getThreads]', projectId);
     try {
       const threads = await threadRepository.listThreads({ projectId });
-      const rendererThreads = threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
+      const rendererThreads = threads
+        .map(toRendererThread)
+        .filter((t): t is RendererThread => t !== null);
       return apiOk(rendererThreads);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -128,21 +130,18 @@ export function registerProjectHandlers(): void {
   /**
    * Update a project
    */
-  ipcMain.handle(
-    'project:update',
-    async (_, projectId: string, input: UpdateProjectInput) => {
-      log.info('[IPC:project:update]', projectId);
+  ipcMain.handle('project:update', async (_, projectId: string, input: UpdateProjectInput) => {
+    log.info('[IPC:project:update]', projectId);
 
-      const result = await projectRepository.updateProject(projectId as GUID, input);
+    const result = await projectRepository.updateProject(projectId as GUID, input);
 
-      // Broadcast update event on success
-      if (result.success) {
-        broadcast('project:updated', result.data);
-      }
+    // Broadcast update event on success
+    if (result.success) {
+      broadcast('project:updated', result.data);
+    }
 
-      return result;
-    },
-  );
+    return result;
+  });
 
   /**
    * Delete a project
@@ -183,49 +182,40 @@ export function registerProjectHandlers(): void {
   /**
    * Search users in the organization
    */
-  ipcMain.handle(
-    'project:searchUsers',
-    async (_, searchTerm?: string | null) => {
-      log.info('[IPC:project:searchUsers]', { searchTerm });
-      return await projectRepository.searchUsers(searchTerm);
-    },
-  );
+  ipcMain.handle('project:searchUsers', async (_, searchTerm?: string | null) => {
+    log.info('[IPC:project:searchUsers]', { searchTerm });
+    return await projectRepository.searchUsers(searchTerm);
+  });
 
   /**
    * Add a member to a project
    */
-  ipcMain.handle(
-    'project:addMember',
-    async (_, projectId: string, input: AddMemberInput) => {
-      log.info('[IPC:project:addMember]', projectId, input.userId);
-      const result = await projectRepository.addMember(projectId, input);
+  ipcMain.handle('project:addMember', async (_, projectId: string, input: AddMemberInput) => {
+    log.info('[IPC:project:addMember]', projectId, input.userId);
+    const result = await projectRepository.addMember(projectId, input);
 
-      // Broadcast member added event on success
-      if (result.success) {
-        broadcast('project:memberAdded', projectId, result.data);
-      }
+    // Broadcast member added event on success
+    if (result.success) {
+      broadcast('project:memberAdded', projectId, result.data);
+    }
 
-      return result;
-    },
-  );
+    return result;
+  });
 
   /**
    * Remove a member from a project
    */
-  ipcMain.handle(
-    'project:removeMember',
-    async (_, projectId: string, memberId: string) => {
-      log.info('[IPC:project:removeMember]', projectId, memberId);
-      const result = await projectRepository.removeMember(projectId, memberId);
+  ipcMain.handle('project:removeMember', async (_, projectId: string, memberId: string) => {
+    log.info('[IPC:project:removeMember]', projectId, memberId);
+    const result = await projectRepository.removeMember(projectId, memberId);
 
-      // Broadcast member removed event on success
-      if (result.success) {
-        broadcast('project:memberRemoved', projectId, memberId);
-      }
+    // Broadcast member removed event on success
+    if (result.success) {
+      broadcast('project:memberRemoved', projectId, memberId);
+    }
 
-      return result;
-    },
-  );
+    return result;
+  });
 
   log.info('[ProjectHandler] All project IPC handlers registered');
 }

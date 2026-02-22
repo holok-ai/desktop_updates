@@ -89,11 +89,16 @@ export class ProjectService extends BaseElectronService {
     this.registerCleanup(unsubDeleted);
   }
 
-  public async loadProjects(forceRefresh = false): Promise<ApiResponse<void>> {
+  public async loadProjects(forceRefresh = false): Promise<ApiResponse<Project[]>> {
     // Ensure project repository cache is loaded/refreshed first
     const loadResult = await window.electronAPI.project.loadProjects(forceRefresh);
     if (!loadResult.success) {
-      return { success: false, data: null, errorCode: loadResult.errorCode, errorText: loadResult.errorText };
+      return {
+        success: false,
+        data: null,
+        errorCode: loadResult.errorCode,
+        errorText: loadResult.errorText,
+      };
     }
 
     // Fetch grouped lists from cache
@@ -108,7 +113,7 @@ export class ProjectService extends BaseElectronService {
     const combined = [...personal, ...shared].map((p) => mapBackendToFrontendProject(p));
     projects.setProjects(combined);
 
-    return { success: true, data: undefined as unknown as void, errorCode: 0, errorText: '' } as ApiResponse<void>;
+    return { success: true, data: combined, errorCode: 0, errorText: '' };
   }
 
   public async createProject(input: CreateProjectInput): Promise<ApiResponse<Project>> {
@@ -169,9 +174,7 @@ export class ProjectService extends BaseElectronService {
     role: 'viewer' | 'editor',
   ): Promise<Array<{ userId: string; success: boolean; error?: string }>> {
     const results = await Promise.allSettled(
-      userIds.map((userId) =>
-        window.electronAPI.project.addMember(projectId, { userId, role }),
-      ),
+      userIds.map((userId) => window.electronAPI.project.addMember(projectId, { userId, role })),
     );
 
     return results.map((result, index) => {
@@ -184,9 +187,10 @@ export class ProjectService extends BaseElectronService {
         return {
           userId,
           success: false,
-          error: result.status === 'rejected'
-            ? (result.reason instanceof Error ? result.reason.message : 'Unknown error')
-            : 'Unknown error',
+          error:
+            result.status === 'rejected' && result.reason instanceof Error
+              ? result.reason.message
+              : 'Unknown error',
         };
       }
     });

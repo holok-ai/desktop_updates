@@ -9,7 +9,6 @@ import type {
 } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
-import { wrapElectronCall } from '$lib/utils/apiWrapper';
 import { BaseElectronService } from './base-electron.service';
 import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 import { formatResponseContent } from '$lib/utils/response-formatter';
@@ -174,7 +173,12 @@ export class ThreadService extends BaseElectronService {
     request: Record<string, unknown>,
   ): Promise<ApiResponse<void>> {
     if (!threadId || !branchId) {
-      return { success: false, data: null, errorCode: -1, errorText: 'threadId and branchId are required for chat message' };
+      return {
+        success: false,
+        data: null,
+        errorCode: -1,
+        errorText: 'threadId and branchId are required for chat message',
+      };
     }
 
     const payload = {
@@ -247,7 +251,12 @@ export class ThreadService extends BaseElectronService {
 
     if (!agentResult.success) {
       console.error('[ThreadService.create] Agent not found:', agentId);
-      return { success: false, data: null, errorCode: -1, errorText: `Agent not found: ${agentId}` };
+      return {
+        success: false,
+        data: null,
+        errorCode: -1,
+        errorText: `Agent not found: ${agentId}`,
+      };
     }
     const agent = agentResult.data;
 
@@ -300,10 +309,7 @@ export class ThreadService extends BaseElectronService {
     return window.electronAPI.thread.update(id, updates);
   }
 
-  async rename(
-    threadId: string,
-    newTitle: string,
-  ): Promise<ApiResponse<Thread>> {
+  async rename(threadId: string, newTitle: string): Promise<ApiResponse<Thread>> {
     return window.electronAPI.thread.renameThread(threadId, newTitle);
   }
 
@@ -457,7 +463,7 @@ export class ThreadService extends BaseElectronService {
     branchId: string,
     modelId: string,
     messages: Message[],
-  ): Promise<ApiResponse<void>> {
+  ): Promise<ApiResponse<null>> {
     try {
       // make sure we have a chat service
       const _result = await window.electronAPI.chat.createServiceForThread(
@@ -492,7 +498,7 @@ export class ThreadService extends BaseElectronService {
         return { success: false, data: null, errorCode: -1, errorText: errorMessage };
       }
 
-      return { success: true, data: undefined as unknown as void, errorCode: 0, errorText: '' } as ApiResponse<void>;
+      return { success: true, data: null, errorCode: 0, errorText: '' };
     } catch (error) {
       // Return failure with the error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -579,10 +585,7 @@ export class ThreadService extends BaseElectronService {
   /**
    * Delete a branch from a thread
    */
-  async deleteBranch(
-    threadId: string,
-    branchId: string,
-  ): Promise<ApiResponse<void>> {
+  async deleteBranch(threadId: string, branchId: string): Promise<ApiResponse<void>> {
     return window.electronAPI.thread.deleteBranch(threadId, branchId);
   }
 
