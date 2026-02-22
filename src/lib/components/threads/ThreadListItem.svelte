@@ -87,13 +87,7 @@
         toastStore.show('Thread renamed', { variant: 'success' });
         showRenameModal = false;
       } else {
-        // Handle validation errors
-        let errorMsg = result.error || 'Failed to rename thread';
-        if (result.code === 'TITLE_EMPTY') {
-          errorMsg = 'Thread title cannot be empty';
-        } else if (result.code === 'TITLE_TOO_LONG') {
-          errorMsg = 'Thread title is too long (max 100 characters)';
-        }
+        const errorMsg = result.errorText || 'Failed to rename thread';
         toastStore.show(errorMsg, { variant: 'error' });
       }
     } catch (error) {
@@ -124,15 +118,14 @@
   }
 
   async function handleDeleteConfirmed() {
-    try {
-      await threadService.delete(thread.id);
+    const result = await threadService.delete(thread.id);
+    if (result.success) {
       toastStore.show('Thread deleted successfully', { variant: 'success' });
-      showDeleteModal = false;
-    } catch (error) {
-      console.error('Failed to delete thread:', error);
+    } else {
+      console.error('Failed to delete thread:', result.errorText);
       toastStore.show('Failed to delete thread', { variant: 'error' });
-      showDeleteModal = false;
     }
+    showDeleteModal = false;
   }
 
   function handleDeleteCancel() {
