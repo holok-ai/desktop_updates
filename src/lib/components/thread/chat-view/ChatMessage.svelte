@@ -119,13 +119,6 @@
 </script>
 
 <div class="chat-message" role="article" aria-label="Chat message">
-  {#if showBranchIcon}
-    <div class="branch-icon" title="Selected branch">
-      <!-- tree icon: unimplemented -->
-      🌿
-    </div>
-  {/if}
-
   <!-- Request -->
   <ChatRequest
     content={requestContent}
@@ -139,7 +132,12 @@
   />
 
   <!-- Request commands (hover-reveal) -->
-  <ChatRequestCommands commands={requestCommands} gapHeight={commandGap} {chatLayout} />
+  <ChatRequestCommands
+    commands={requestCommands}
+    gapHeight={commandGap}
+    {chatLayout}
+    {showBranchIcon}
+  />
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
@@ -177,11 +175,5 @@
     flex-direction: column;
     gap: 0;
     padding: 0.25rem 0;
-  }
-
-  .branch-icon {
-    font-size: 0.75rem;
-    opacity: 0.5;
-    padding: 0 0.25rem;
   }
 </style>

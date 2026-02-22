@@ -55,9 +55,8 @@ describe('SettingsService (unit)', () => {
     expect(svc.getHoloApiUrl()).toBe(DEFAULT_HOLO_API_URL);
     expect(svc.getTheme()).toBe('light');
     // new fields present with defaults
-    const auto = svc.getSetting('autoUpdate');
+    const auto = svc.getSetting('autoCheckUpdates');
     expect(auto).toBeDefined();
-    // if boolean, ensure true, otherwise just defined
     if (typeof auto === 'boolean') expect(auto).toBe(true);
     expect(svc.getSetting('updateAvailable')).toBe(false);
     expect(svc.getSetting('latestVersion')).toBe('');
@@ -75,9 +74,9 @@ describe('SettingsService (unit)', () => {
     expect(svc.getMokuWebUrl()).toBe('https://example.com');
 
     // set multiple settings
-    svc.setSettings({ theme: 'dark', autoUpdate: false, latestVersion: '1.2.3' });
+    svc.setSettings({ theme: 'dark', autoCheckUpdates: false, latestVersion: '1.2.3' });
     expect(svc.getTheme()).toBe('dark');
-    expect(svc.getSetting('autoUpdate')).toBe(false);
+    expect(svc.getSetting('autoCheckUpdates')).toBe(false);
     expect(svc.getSetting('latestVersion')).toBe('1.2.3');
 
     // reset to defaults
@@ -105,7 +104,7 @@ describe('SettingsService (unit)', () => {
     const all = svc.getAllSettings();
     expect(all).toBeTruthy();
     expect((all as any).mokuWebUrl).toBeDefined();
-    const au = (all as any).autoUpdate;
+    const au = (all as any).autoCheckUpdates;
     expect(au).toBeDefined();
     if (typeof au === 'boolean') expect(au).toBe(true);
   });

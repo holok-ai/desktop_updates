@@ -95,7 +95,12 @@ class AutoUpdaterService {
       return;
     }
 
-    // Always check for updates (mandatory updates should install even if auto-update is disabled)
+    const autoCheckEnabled = this.settingsService.getSetting('autoCheckUpdates') ?? true;
+    if (!autoCheckEnabled) {
+      updaterLog.info('Skipping update check - autoCheckUpdates is disabled');
+      return;
+    }
+
     updaterLog.info('Checking for updates...');
     autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
       updaterLog.error('checkForUpdatesAndNotify failed', error);
@@ -110,7 +115,7 @@ class AutoUpdaterService {
     return new Promise((resolve) => {
       let resolved = false;
       if (!app.isPackaged) {
-        return resolve('Update check skipped. THis is a development build.');
+        return resolve('Update check skipped. This is a development build.');
       }
 
       const timeout = setTimeout(() => {
@@ -178,6 +183,10 @@ class AutoUpdaterService {
       updaterLog.error('updateNow failed:', message);
       return { success: false, error: message };
     }
+  }
+
+  isDevelopmentBuild(): boolean {
+    return !app.isPackaged;
   }
 
   getPendingUpdateVersion(): string | undefined {
@@ -365,9 +374,8 @@ class AutoUpdaterService {
 
     autoUpdater.on('update-not-available', (info) => {
       updaterLog.info(`Update not available. Current version: ${info.version}`);
-      // Clear update available flag in settings
       this.settingsService.setSetting('updateAvailable', false);
-      this.settingsService.setSetting('latestVersion', '');
+      this.settingsService.setSetting('latestVersion', info.version);
     });
 
     autoUpdater.on('error', (error) => {
@@ -545,10 +553,10 @@ class AutoUpdaterService {
       });
     } else {
       // Optional update - only show prompt if auto-update is enabled
-      const autoUpdateEnabled = this.settingsService.getSetting('autoUpdate') ?? true;
-      if (!autoUpdateEnabled) {
+      const autoInstallEnabled = this.settingsService.getSetting('autoInstallUpdates') ?? false;
+      if (!autoInstallEnabled) {
         updaterLog.info(
-          `Optional update available: ${newVersion}, but auto-updates are disabled. Skipping prompt.`,
+          `Optional update available: ${newVersion}, but auto-install is disabled. Skipping prompt.`,
         );
         return;
       }

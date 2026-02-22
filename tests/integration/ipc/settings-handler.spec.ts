@@ -43,7 +43,7 @@ vi.mock('../../../src-electron/services/settings.service', () => ({
         mokuApiUrl: 'a',
         holoApiUrl: DEFAULT_HOLO_API_URL,
         theme: 'light',
-        autoUpdate: true,
+        autoCheckUpdates: true,
         updateAvailable: false,
         latestVersion: '',
       };

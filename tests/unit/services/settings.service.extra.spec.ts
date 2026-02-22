@@ -63,8 +63,8 @@ describe('SettingsService', () => {
   it('theme getter/setter and new fields', () => {
     svc.setTheme('dark');
     expect(svc.getTheme()).toBe('dark');
-    svc.setSettings({ autoUpdate: false, latestVersion: '9.9.9', updateAvailable: true });
-    expect(svc.getSetting('autoUpdate')).toBe(false);
+    svc.setSettings({ autoCheckUpdates: false, latestVersion: '9.9.9', updateAvailable: true });
+    expect(svc.getSetting('autoCheckUpdates')).toBe(false);
     expect(svc.getSetting('latestVersion')).toBe('9.9.9');
     expect(svc.getSetting('updateAvailable')).toBe(true);
   });

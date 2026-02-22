@@ -77,10 +77,7 @@ export interface ThreadAPI {
   update: (id: string, updates: Partial<Thread>) => Promise<ApiResponse<Thread>>;
 
   // Rename a thread with validation and title history tracking
-  renameThread: (
-    threadId: string,
-    newTitle: string,
-  ) => Promise<ApiResponse<Thread>>;
+  renameThread: (threadId: string, newTitle: string) => Promise<ApiResponse<Thread>>;
 
   // Delete a thread
   delete: (id: string) => Promise<ApiResponse<boolean>>;
@@ -134,10 +131,7 @@ export interface ThreadAPI {
   ) => Promise<ApiResponse<{ message: Message; thread: Thread }>>;
 
   // Delete a branch
-  deleteBranch: (
-    threadId: string,
-    branchId: string,
-  ) => Promise<ApiResponse<void>>;
+  deleteBranch: (threadId: string, branchId: string) => Promise<ApiResponse<void>>;
 
   // Update message branch ID via Moku API
   updateMessageBranch: (
@@ -204,7 +198,10 @@ export interface ProjectAPI {
   searchUsers: (searchTerm?: string | null) => Promise<ApiResponse<UserSummaryDTO[]>>;
 
   // Add a member to a project
-  addMember: (projectId: GUID, input: { userId: string; role: string }) => Promise<ApiResponse<unknown>>;
+  addMember: (
+    projectId: GUID,
+    input: { userId: string; role: string },
+  ) => Promise<ApiResponse<unknown>>;
 
   // Remove a member from a project
   removeMember: (projectId: GUID, memberId: string) => Promise<ApiResponse<void>>;
@@ -262,8 +259,6 @@ export interface AppSettings {
   shellCommands?: string;
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
   /* ToolOrchestrator data need to load the UI  */
@@ -311,6 +306,9 @@ export interface UpdaterAPI {
 
   // Trigger an immediate download of the available update
   updateNow: () => Promise<{ success: boolean; error?: string }>;
+
+  // Returns true if running in a development (unpackaged) build
+  isDevelopmentBuild: () => Promise<boolean>;
 }
 
 /**
@@ -405,10 +403,7 @@ export interface ChatAPI {
   ) => Promise<ApiResponse<void>>;
 
   // Send a chat message (with streaming support) for a specific thread
-  chat: (
-    threadId: string,
-    request: DesktopChatRequest,
-  ) => Promise<ApiResponse<void>>;
+  chat: (threadId: string, request: DesktopChatRequest) => Promise<ApiResponse<void>>;
 
   // Listen for streaming tokens (event-based)
   onToken: (
@@ -829,6 +824,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updater: {
     getUpdateAvailability: () => ipcRenderer.invoke('updater:getUpdateAvailability'),
     updateNow: () => ipcRenderer.invoke('updater:updateNow'),
+    isDevelopmentBuild: () => ipcRenderer.invoke('updater:isDevelopmentBuild'),
   } as UpdaterAPI,
 
   /**

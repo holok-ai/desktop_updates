@@ -55,14 +55,14 @@ describe('types and constants sanity checks', () => {
       mokuWebUrl: 'https://example.com',
       mokuApiUrl: 'https://api.example.com',
       theme: APP_THEME_MODE.LIGHT as unknown as AppSettings['theme'],
-      autoUpdate: true,
+      autoCheckUpdates: true,
       updateAvailable: false,
       latestVersion: '1.0.0',
     };
 
     expect(typeof sample.mokuWebUrl).toBe('string');
     expect(typeof sample.mokuApiUrl).toBe('string');
-    expect(typeof sample.autoUpdate).toBe('boolean');
+    expect(typeof sample.autoCheckUpdates).toBe('boolean');
     expect(sample.theme === APP_THEME_MODE.LIGHT || sample.theme === APP_THEME_MODE.DARK).toBe(
       true,
     );
@@ -72,7 +72,7 @@ describe('types and constants sanity checks', () => {
     expect(defaultAppSettings).toBeDefined();
     expect(defaultAppSettings.mokuWebUrl).toBe('');
     expect(defaultAppSettings.mokuApiUrl).toBe('');
-    expect(typeof defaultAppSettings.autoUpdate).toBe('boolean');
+    expect(typeof defaultAppSettings.autoCheckUpdates).toBe('boolean');
     expect(
       defaultAppSettings.theme === APP_THEME_MODE.LIGHT ||
         defaultAppSettings.theme === APP_THEME_MODE.DARK,

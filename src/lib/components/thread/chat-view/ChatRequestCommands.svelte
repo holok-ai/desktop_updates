@@ -18,9 +18,16 @@
     gapHeight?: number;
     /** Chat layout to determine alignment */
     chatLayout?: ChatLayout;
+    /** Whether to show the branch indicator icon */
+    showBranchIcon?: boolean;
   }
 
-  let { commands = [], gapHeight = 4, chatLayout = 'left-right' }: Props = $props();
+  let {
+    commands = [],
+    gapHeight = 4,
+    chatLayout = 'left-right',
+    showBranchIcon = false,
+  }: Props = $props();
   let hovered = $state(false);
 
   // Determine if commands should be right-aligned
@@ -43,6 +50,11 @@
       <i class="pi {cmd.icon}"></i>
     </button>
   {/each}
+  {#if showBranchIcon}
+    <span class="cmd-btn branch-icon" title="Selected branch" aria-label="Selected branch">
+      <i class="pi pi-share-alt"></i>
+    </span>
+  {/if}
 </div>
 
 <style>
@@ -87,5 +99,10 @@
   .cmd-btn:hover {
     background: color-mix(in srgb, var(--primary-color, #646cff) 15%, transparent);
     color: var(--primary-color, #646cff);
+  }
+
+  .branch-icon {
+    color: var(--green-500, #22c55e);
+    cursor: default;
   }
 </style>

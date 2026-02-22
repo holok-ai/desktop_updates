@@ -60,10 +60,6 @@ export interface AppSettings {
   // Updates
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
-
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate?: boolean;
-
   updateAvailable?: boolean;
   latestVersion?: string;
   pendingUpdateVersion?: string;
@@ -108,7 +104,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Updates
   autoCheckUpdates: true,
   autoInstallUpdates: false,
-  autoUpdate: true,
   updateAvailable: false,
   latestVersion: '',
 };
@@ -191,10 +186,6 @@ export class SettingsService {
         autoInstallUpdates: {
           type: 'boolean',
           default: DEFAULT_SETTINGS.autoInstallUpdates,
-        },
-        autoUpdate: {
-          type: 'boolean',
-          default: DEFAULT_SETTINGS.autoUpdate,
         },
         updateAvailable: {
           type: 'boolean',
@@ -358,5 +349,4 @@ export class SettingsService {
     this.store.set('directoryWhitelist', filtered);
     log.info('[SettingsService] Removed whitelist path:', normalized);
   }
-
 }
