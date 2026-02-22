@@ -12,6 +12,7 @@ import { apiOk, apiFail } from '../types/api-response.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type { Thread as InternalThread } from '../types/thread.types.js';
+import { DeleteProjectCommand } from '../commands/project.delete.js';
 
 /**
  * Helper to convert internal thread representation to renderer-friendly shape
@@ -151,26 +152,9 @@ export function registerProjectHandlers(): void {
     async (_, projectId: string, options?: { deleteThreads?: boolean }) => {
       log.info('[IPC:project:delete]', projectId, options);
 
-      const pid = projectId as GUID;
-      const deleteThreads = options?.deleteThreads === true;
-
-      // Best-effort: handle threads in project before deleting project
-      try {
-        const projectThreads = await threadRepository.listThreads({ projectId });
-        if (deleteThreads) {
-          await Promise.all(projectThreads.map((t) => threadRepository.deleteThread(t.id)));
-        } else {
-          await Promise.all(
-            projectThreads.map((t) => threadRepository.setThreadProjectId(t.id, null)),
-          );
-        }
-      } catch (error) {
-        log.warn('[IPC:project:delete] Failed to handle project threads before deletion:', error);
-      }
-
-      const result = await projectRepository.deleteProject(pid);
+      const cmd = new DeleteProjectCommand();
+      const result = await cmd.execute(projectId, options);
       if (result.success && result.data) {
-        // Broadcast deletion event
         broadcast('project:deleted', projectId);
       }
       return result;
