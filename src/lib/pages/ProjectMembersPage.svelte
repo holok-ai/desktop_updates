@@ -35,7 +35,11 @@
     loading = true;
     error = '';
     try {
-      project = await projectService.getProjectById(id);
+      const result = await projectService.getProjectById(id);
+      project = result.success ? result.data : null;
+      if (!result.success) {
+        error = result.errorText || 'Failed to load project';
+      }
     } catch (e) {
       console.error('Failed to load project:', e);
       error = e instanceof Error ? e.message : 'Failed to load project';
@@ -54,7 +58,8 @@
       isSearching = true;
       showDropdown = true;
       try {
-        searchResults = await projectService.searchUsers(searchTerm);
+        const searchResult = await projectService.searchUsers(searchTerm);
+        searchResults = searchResult.success ? searchResult.data : [];
       } catch (error) {
         console.error('[ProjectMembersPage] Failed to search users:', error);
         searchResults = [];

@@ -1,6 +1,7 @@
 /**
  * Project API Service
- * Handles authenticated API calls to Moku backend for project operations
+ * Handles authenticated API calls to Moku backend for project operations.
+ * All methods return ApiResponse<T> instead of throwing.
  */
 
 import log from 'electron-log';
@@ -13,6 +14,7 @@ import type {
   ProjectUpdatesResponse,
 } from './project.types.js';
 import type { PagedResponse } from './paging.types.js';
+import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
 
 // Import dependencies directly (singleton pattern ensures single instance)
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
@@ -65,257 +67,213 @@ class ProjectApiService {
 
   /**
    * List projects where user is a member with optional pagination.
-   *
-   * @param filters - Optional filters (page, size, sort)
-   * @returns Paginated response with projects
-   * @throws Error if not authenticated or request fails
    */
-  async getProjects(filters?: ProjectFilters): Promise<PagedResponse<ProjectDTO>> {
+  async getProjects(filters?: ProjectFilters): Promise<ApiResponse<PagedResponse<ProjectDTO>>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const params = new URLSearchParams();
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const params = new URLSearchParams();
 
-    if (filters?.page !== undefined) params.append('page', filters.page.toString());
-    if (filters?.size !== undefined) params.append('size', filters.size.toString());
-    if (filters?.sort) params.append('sort', filters.sort);
+      if (filters?.page !== undefined) params.append('page', filters.page.toString());
+      if (filters?.size !== undefined) params.append('size', filters.size.toString());
+      if (filters?.sort) params.append('sort', filters.sort);
 
-    const url = `${mokuApiUrl}/api/v1/projects${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${mokuApiUrl}/api/v1/projects${params.toString() ? '?' + params.toString() : ''}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      throw new Error(`Failed to get projects: ${response.status} ${errorText}`);
-    }
 
-    const data = (await response.json()) as PagedResponse<ProjectDTO>;
-    return data;
+      const data = (await response.json()) as PagedResponse<ProjectDTO>;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
+    }
   }
 
   /**
    * Get a single project by ID.
-   *
-   * @param projectId - Project ID
-   * @returns Project detail data with user's role
-   * @throws Error if not authenticated, not found, or request fails
    */
-  async getProject(projectId: string): Promise<ProjectDetailDTO> {
+  async getProject(projectId: string): Promise<ApiResponse<ProjectDetailDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
 
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
-      }
-      if (response.status === 403) {
-        throw new Error('Access denied. You do not have permission to access this project.');
-      }
-      if (response.status === 404) {
-        throw new Error(`Project not found: ${projectId}`);
-      }
-      throw new Error(`Failed to get project: ${response.status} ${errorText}`);
+      const data = (await response.json()) as ProjectDetailDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ProjectDetailDTO;
-    return data;
   }
 
   /**
    * Create a new project.
    * The creator is automatically added as an owner member.
-   *
-   * @param request - Project creation request
-   * @returns Created project detail data
-   * @throws Error if not authenticated or request fails
    */
-  async createProject(request: ProjectCreateRequest): Promise<ProjectDetailDTO> {
+  async createProject(request: ProjectCreateRequest): Promise<ApiResponse<ProjectDetailDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/v1/projects`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/v1/projects`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 400) {
-        throw new Error(`Invalid project request: ${errorText}`);
-      }
-      throw new Error(`Failed to create project: ${response.status} ${errorText}`);
+
+      const data = (await response.json()) as ProjectDetailDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ProjectDetailDTO;
-    return data;
   }
 
   /**
    * Update an existing project.
    * Requires owner role.
-   *
-   * @param projectId - Project ID
-   * @param request - Project update request
-   * @returns Updated project detail data
-   * @throws Error if not authenticated, not found, insufficient permissions, or request fails
    */
-  async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailDTO> {
+  async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ApiResponse<ProjectDetailDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
 
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
-      }
-      if (response.status === 403) {
-        throw new Error('Access denied. Owner role required to update this project.');
-      }
-      if (response.status === 404) {
-        throw new Error(`Project not found: ${projectId}`);
-      }
-      if (response.status === 400) {
-        throw new Error(`Invalid update request: ${errorText}`);
-      }
-      throw new Error(`Failed to update project: ${response.status} ${errorText}`);
+      const data = (await response.json()) as ProjectDetailDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ProjectDetailDTO;
-    return data;
   }
 
   /**
    * Delete a project (soft delete).
    * Requires owner role.
-   *
-   * @param projectId - Project ID
-   * @throws Error if not authenticated, not found, insufficient permissions, or request fails
    */
-  async deleteProject(projectId: string): Promise<void> {
+  async deleteProject(projectId: string): Promise<ApiResponse<void>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
+      }
 
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
-      }
-      if (response.status === 403) {
-        throw new Error('Access denied. Owner role required to delete this project.');
-      }
-      if (response.status === 404) {
-        throw new Error(`Project not found: ${projectId}`);
-      }
-      throw new Error(`Failed to delete project: ${response.status} ${errorText}`);
+      return apiOk(undefined) as ApiResponse<void>;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
     }
   }
 
   /**
    * Get project updates since a specific timestamp.
-   *
-   * @param projectId - Project ID
-   * @param since - ISO-8601 timestamp to check for updates
-   * @returns Update counts for threads, members, and workflows
-   * @throws Error if not authenticated, not found, or request fails
    */
-  async getUpdates(projectId: string, since: string): Promise<ProjectUpdatesResponse> {
+  async getUpdates(projectId: string, since: string): Promise<ApiResponse<ProjectUpdatesResponse>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/v1/projects/${projectId}/updates?since=${encodeURIComponent(since)}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/v1/projects/${projectId}/updates?since=${encodeURIComponent(since)}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 404) {
-        throw new Error(`Project not found: ${projectId}`);
-      }
-      throw new Error(`Failed to get project updates: ${response.status} ${errorText}`);
+
+      const data = (await response.json()) as ProjectUpdatesResponse;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ProjectUpdatesResponse;
-    return data;
   }
 }
 

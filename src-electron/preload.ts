@@ -161,19 +161,19 @@ export interface ThreadAPI {
  */
 export interface ProjectAPI {
   // Get all projects
-  getAll: () => Promise<Project[]>;
+  getAll: () => Promise<ApiResponse<Project[]>>;
 
   // Load projects into cache (TTL). If forceRefresh=true, bypass cache.
-  loadProjects: (forceRefresh?: boolean) => Promise<void>;
+  loadProjects: (forceRefresh?: boolean) => Promise<ApiResponse<Project[]>>;
 
   // List cached personal projects
-  listPersonalProjects: () => Promise<Project[]>;
+  listPersonalProjects: () => Promise<ApiResponse<Project[]>>;
 
   // List cached shared projects
-  listSharedProjects: () => Promise<Project[]>;
+  listSharedProjects: () => Promise<ApiResponse<Project[]>>;
 
   // Get a single project by ID
-  getById: (id: GUID) => Promise<Project | null>;
+  getById: (id: GUID) => Promise<ApiResponse<Project | null>>;
 
   // Create a new project
   create: (data: {
@@ -181,7 +181,7 @@ export interface ProjectAPI {
     description?: string;
     metadata?: Record<string, unknown>;
     privacyMode?: ProjectPrivacyMode;
-  }) => Promise<Project>;
+  }) => Promise<ApiResponse<Project>>;
 
   // Update an existing project
   update: (
@@ -192,22 +192,22 @@ export interface ProjectAPI {
       metadata?: Record<string, unknown>;
       privacyMode?: ProjectPrivacyMode;
     },
-  ) => Promise<Project>;
+  ) => Promise<ApiResponse<Project>>;
 
   // Delete a project
-  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<ApiResponse<boolean>>;
 
-  // Get thread count for a project
-  getThreads: (projectId: GUID) => Promise<number>;
+  // Get threads for a project
+  getThreads: (projectId: GUID) => Promise<ApiResponse<Thread[]>>;
 
   // Search users in organization
-  searchUsers: (searchTerm?: string | null) => Promise<UserSummaryDTO[]>;
+  searchUsers: (searchTerm?: string | null) => Promise<ApiResponse<UserSummaryDTO[]>>;
 
   // Add a member to a project
-  addMember: (projectId: GUID, input: { userId: string; role: string }) => Promise<unknown>;
+  addMember: (projectId: GUID, input: { userId: string; role: string }) => Promise<ApiResponse<unknown>>;
 
   // Remove a member from a project
-  removeMember: (projectId: GUID, memberId: string) => Promise<void>;
+  removeMember: (projectId: GUID, memberId: string) => Promise<ApiResponse<void>>;
 
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
@@ -402,13 +402,13 @@ export interface ChatAPI {
     branchId: string,
     modelAccessName: string,
     workingDirectory?: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<ApiResponse<void>>;
 
   // Send a chat message (with streaming support) for a specific thread
   chat: (
     threadId: string,
     request: DesktopChatRequest,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<ApiResponse<void>>;
 
   // Listen for streaming tokens (event-based)
   onToken: (
@@ -419,7 +419,7 @@ export interface ChatAPI {
   offToken: () => void;
 
   // Get audit logs with detailed metrics for a thread+branch
-  getAuditLogs: (threadId: string, branchId: string) => Promise<unknown[]>;
+  getAuditLogs: (threadId: string, branchId: string) => Promise<ApiResponse<unknown[]>>;
 }
 
 /**

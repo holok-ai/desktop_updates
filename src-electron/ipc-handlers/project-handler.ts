@@ -4,12 +4,11 @@ import { projectRepository } from '../repository/project-repository.js';
 import { threadRepository } from '../repository/thread-repository.js';
 import type { GUID } from '../../src/lib/types/app.type.js';
 import type {
-  Project,
   CreateProjectInput,
   UpdateProjectInput,
-  ProjectMember,
   AddMemberInput,
 } from '../types/project.types.js';
+import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 
 import type { Thread as RendererThread } from '../preload.js';
 import type { Thread as InternalThread } from '../types/thread.types.js';
@@ -44,6 +43,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 /**
  * Register IPC handlers for project operations
+ * All handlers return ApiResponse<T>.
  */
 export function registerProjectHandlers(): void {
   // ==================== CRUD Operations ====================
@@ -51,59 +51,60 @@ export function registerProjectHandlers(): void {
   /**
    * Create a new project
    */
-  ipcMain.handle('project:create', async (_, input: CreateProjectInput): Promise<Project> => {
+  ipcMain.handle('project:create', async (_, input: CreateProjectInput) => {
     log.info('[IPC:project:create]', input.title);
-    const project = await projectRepository.createProject(
+    const result = await projectRepository.createProject(
       input.title,
       input.description,
       input.type,
       input.metadata,
     );
 
-    // Broadcast creation event
-    broadcast('project:created', project);
+    // Broadcast creation event on success
+    if (result.success) {
+      broadcast('project:created', result.data);
+    }
 
-    return project;
+    return result;
   });
 
   /**
    * List all projects for current user
    * Uses ProjectRepository cache.
    */
-  ipcMain.handle('project:list', async (): Promise<unknown[]> => {
+  ipcMain.handle('project:list', async () => {
     log.info('[IPC:project:list]');
-    await projectRepository.loadProjects(false);
-    return projectRepository.listProjects();
+    return await projectRepository.loadProjects(false);
   });
 
   /**
    * Load projects (cached with TTL) - can be forced to refresh.
    */
-  ipcMain.handle('project:loadProjects', async (_event, forceRefresh?: boolean): Promise<void> => {
+  ipcMain.handle('project:loadProjects', async (_event, forceRefresh?: boolean) => {
     log.info('[IPC:project:loadProjects]', { forceRefresh: forceRefresh === true });
-    await projectRepository.loadProjects(forceRefresh === true);
+    return await projectRepository.loadProjects(forceRefresh === true);
   });
 
   /**
    * List personal projects from cache
    */
-  ipcMain.handle('project:listPersonalProjects', (): unknown[] => {
+  ipcMain.handle('project:listPersonalProjects', () => {
     log.info('[IPC:project:listPersonalProjects]');
-    return projectRepository.listPersonalProjects();
+    return apiOk(projectRepository.listPersonalProjects());
   });
 
   /**
    * List shared projects from cache
    */
-  ipcMain.handle('project:listSharedProjects', (): unknown[] => {
+  ipcMain.handle('project:listSharedProjects', () => {
     log.info('[IPC:project:listSharedProjects]');
-    return projectRepository.listSharedProjects();
+    return apiOk(projectRepository.listSharedProjects());
   });
 
   /**
    * Get a single project by ID
    */
-  ipcMain.handle('project:get', async (_, projectId: string): Promise<Project | null> => {
+  ipcMain.handle('project:get', async (_, projectId: string) => {
     log.info('[IPC:project:get]', projectId);
     return await projectRepository.getProject(projectId as GUID);
   });
@@ -111,10 +112,17 @@ export function registerProjectHandlers(): void {
   /**
    * Get threads for a project
    */
-  ipcMain.handle('project:getThreads', async (_, projectId: string): Promise<RendererThread[]> => {
+  ipcMain.handle('project:getThreads', async (_, projectId: string) => {
     log.info('[IPC:project:getThreads]', projectId);
-    const threads = await threadRepository.listThreads({ projectId });
-    return threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
+    try {
+      const threads = await threadRepository.listThreads({ projectId });
+      const rendererThreads = threads.map(toRendererThread).filter((t): t is RendererThread => t !== null);
+      return apiOk(rendererThreads);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error('[IPC:project:getThreads] Failed:', message);
+      return apiFail(-1, message);
+    }
   });
 
   /**
@@ -122,15 +130,17 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle(
     'project:update',
-    async (_, projectId: string, input: UpdateProjectInput): Promise<Project> => {
+    async (_, projectId: string, input: UpdateProjectInput) => {
       log.info('[IPC:project:update]', projectId);
 
-      const project = await projectRepository.updateProject(projectId as GUID, input);
+      const result = await projectRepository.updateProject(projectId as GUID, input);
 
-      // Broadcast update event
-      broadcast('project:updated', project);
+      // Broadcast update event on success
+      if (result.success) {
+        broadcast('project:updated', result.data);
+      }
 
-      return project;
+      return result;
     },
   );
 
@@ -139,7 +149,7 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle(
     'project:delete',
-    async (_, projectId: string, options?: { deleteThreads?: boolean }): Promise<boolean> => {
+    async (_, projectId: string, options?: { deleteThreads?: boolean }) => {
       log.info('[IPC:project:delete]', projectId, options);
 
       const pid = projectId as GUID;
@@ -159,12 +169,12 @@ export function registerProjectHandlers(): void {
         log.warn('[IPC:project:delete] Failed to handle project threads before deletion:', error);
       }
 
-      const ok = await projectRepository.deleteProject(pid);
-      if (ok) {
+      const result = await projectRepository.deleteProject(pid);
+      if (result.success && result.data) {
         // Broadcast deletion event
         broadcast('project:deleted', projectId);
       }
-      return ok;
+      return result;
     },
   );
 
@@ -175,7 +185,7 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle(
     'project:searchUsers',
-    async (_, searchTerm?: string | null): Promise<unknown[]> => {
+    async (_, searchTerm?: string | null) => {
       log.info('[IPC:project:searchUsers]', { searchTerm });
       return await projectRepository.searchUsers(searchTerm);
     },
@@ -186,14 +196,16 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle(
     'project:addMember',
-    async (_, projectId: string, input: AddMemberInput): Promise<ProjectMember> => {
+    async (_, projectId: string, input: AddMemberInput) => {
       log.info('[IPC:project:addMember]', projectId, input.userId);
-      const member = await projectRepository.addMember(projectId, input);
+      const result = await projectRepository.addMember(projectId, input);
 
-      // Broadcast member added event
-      broadcast('project:memberAdded', projectId, member);
+      // Broadcast member added event on success
+      if (result.success) {
+        broadcast('project:memberAdded', projectId, result.data);
+      }
 
-      return member;
+      return result;
     },
   );
 
@@ -202,12 +214,16 @@ export function registerProjectHandlers(): void {
    */
   ipcMain.handle(
     'project:removeMember',
-    async (_, projectId: string, memberId: string): Promise<void> => {
+    async (_, projectId: string, memberId: string) => {
       log.info('[IPC:project:removeMember]', projectId, memberId);
-      await projectRepository.removeMember(projectId, memberId);
+      const result = await projectRepository.removeMember(projectId, memberId);
 
-      // Broadcast member removed event
-      broadcast('project:memberRemoved', projectId, memberId);
+      // Broadcast member removed event on success
+      if (result.success) {
+        broadcast('project:memberRemoved', projectId, memberId);
+      }
+
+      return result;
     },
   );
 

@@ -193,7 +193,7 @@
     );
 
     if (!result.success) {
-      error = result.error || 'Failed to create chat provider';
+      error = result.errorText || 'Failed to create chat provider';
       return { success: false, created: false };
     }
 
@@ -542,7 +542,7 @@
         messages,
       );
       if (!chatResult.success) {
-        const errorMessage = chatResult.error ?? 'Chat failed';
+        const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
         handleGuardError(errorMessage, branchId);
         isStreaming = false;

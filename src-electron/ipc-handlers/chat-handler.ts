@@ -7,11 +7,13 @@ import { getSettingsService } from './settings-handler.js';
 import { modelRepository } from '../repository/model-repository.js';
 import log from 'electron-log';
 import { threadRepository } from '../repository/thread-repository.js';
+import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 
 /**
  * Chat IPC Handlers
  * Handles all chat-related IPC communication between renderer and main process.
  * Manages ChatService lifecycle and streaming token responses.
+ * All handlers return ApiResponse<T>.
  *
  * INTERIM SOLUTION: Uses Map<threadId, DesktopChatService> for per-thread service management.
  * Future ticket (#361) will replace this with StreamManager architecture.
@@ -54,7 +56,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       branchId: string,
       modelAccessName: string,
       workingDirectory?: string,
-    ): Promise<{ success: boolean; error?: string }> => {
+    ): Promise<ApiResponse<void>> => {
       try {
         // get the users api key to use in chat service
         let accessToken = '';
@@ -66,13 +68,13 @@ export function registerChatHandlers(auth?: AuthService): void {
         const thisThread = await threadRepository.loadThread(threadId);
         if (!thisThread) {
           log.error('[IPC] Could not find thread for chat service.');
-          return { success: false, error: 'Could not find thread id' };
+          return apiFail(-1, 'Could not find thread id');
         }
 
         const agentResult = await modelRepository.getAgentById(thisThread.metadata.agentId);
         if (!agentResult.success) {
           log.error('[IPC] Could not find agent for thread chat service.');
-          return { success: false, error: 'Could not find thread id' };
+          return apiFail(-1, 'Could not find agent for thread');
         }
         const url: string = agentResult.data.url ?? '';
         const provider: string = agentResult.data.provider; //  thisThread.metadata.initialProvider ?? '';
@@ -96,11 +98,11 @@ export function registerChatHandlers(auth?: AuthService): void {
           modelAccessName,
         );
 
-        return { success: true };
+        return apiOk(undefined) as ApiResponse<void>;
       } catch (error) {
         log.error('[IPC] Error creating chat service:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
+        return apiFail(-1, errorMessage);
       }
     },
   );
@@ -114,13 +116,13 @@ export function registerChatHandlers(auth?: AuthService): void {
       event: IpcMainInvokeEvent,
       threadId: string,
       request: DesktopChatRequest,
-    ): Promise<{ success: boolean; error?: string }> => {
+    ): Promise<ApiResponse<void>> => {
       // Extract branchId from request - required for service lookup and stream routing
       const branchId = request.branch_id;
       if (!branchId) {
         const errorMessage = 'branch_id is required in chat request';
         log.error('[IPC]', errorMessage);
-        throw new Error(errorMessage);
+        return apiFail(-1, errorMessage);
       }
 
       log.info('[IPC] chat:send called for thread:', threadId, 'branch:', branchId);
@@ -131,7 +133,7 @@ export function registerChatHandlers(auth?: AuthService): void {
       if (!chatService) {
         const errorMessage = `Chat service not initialized for thread: ${threadId}, branch: ${branchId} (key: ${serviceKey})`;
         log.error('[IPC]', errorMessage);
-        throw new Error(errorMessage);
+        return apiFail(-1, errorMessage);
       }
 
       try {
@@ -153,11 +155,11 @@ export function registerChatHandlers(auth?: AuthService): void {
           },
         );
         log.info('[IPC] Chat message sent successfully');
-        return { success: true };
+        return apiOk(undefined) as ApiResponse<void>;
       } catch (error) {
         log.error('[IPC] Error sending chat message:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
+        return apiFail(-1, errorMessage);
       }
     },
   );
@@ -165,21 +167,26 @@ export function registerChatHandlers(auth?: AuthService): void {
   /**
    * Get Audit Logs - Retrieve chat audit logs from thread+branch service
    */
-  ipcMain.handle('chat:getAuditLogs', (_event, threadId: string, branchId: string) => {
+  ipcMain.handle('chat:getAuditLogs', (_event, threadId: string, branchId: string): ApiResponse<unknown[]> => {
     log.info('[IPC] chat:getAuditLogs called for thread:', threadId, 'branch:', branchId);
-    if (!threadId || !branchId) return;
+    if (!threadId || !branchId) {
+      return apiFail(-1, 'threadId and branchId are required');
+    }
 
     const serviceKey = buildServiceKey(threadId, branchId);
     const chatService = chatServices.get(serviceKey);
-    if (chatService) {
-      try {
-        const logs = chatService.getAuditLogs();
-        log.info('[IPC] Audit logs retrieved successfully');
-        return logs;
-      } catch (error) {
-        log.error('[IPC] Error retrieving audit logs:', error);
-        throw error;
-      }
+    if (!chatService) {
+      return apiFail(-1, `Chat service not found for key: ${serviceKey}`);
+    }
+
+    try {
+      const logs = chatService.getAuditLogs();
+      log.info('[IPC] Audit logs retrieved successfully');
+      return apiOk(logs);
+    } catch (error) {
+      log.error('[IPC] Error retrieving audit logs:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      return apiFail(-1, message);
     }
   });
 

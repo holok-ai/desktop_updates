@@ -1,5 +1,5 @@
 import type { GUID } from '$lib/types/app.type';
-import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
+import type { ApiResponse } from '../../../src-electron/preload.js';
 import { projects } from '../stores/project.store';
 import type { Project, UserSummaryDTO } from '../types/project.type.js';
 import { BaseElectronService } from './base-electron.service';
@@ -89,34 +89,30 @@ export class ProjectService extends BaseElectronService {
     this.registerCleanup(unsubDeleted);
   }
 
-  public async loadProjects(forceRefresh = false): Promise<void> {
+  public async loadProjects(forceRefresh = false): Promise<ApiResponse<void>> {
     // Ensure project repository cache is loaded/refreshed first
-    await wrapElectronCall(
-      () => window.electronAPI.project.loadProjects(forceRefresh),
-      'Failed to load projects',
-    );
+    const loadResult = await window.electronAPI.project.loadProjects(forceRefresh);
+    if (!loadResult.success) {
+      return { success: false, data: null, errorCode: loadResult.errorCode, errorText: loadResult.errorText };
+    }
 
     // Fetch grouped lists from cache
-    const [personal, shared] = await Promise.all([
-      wrapElectronCall(
-        () => window.electronAPI.project.listPersonalProjects(),
-        'Failed to load personal projects',
-      ),
-      wrapElectronCall(
-        () => window.electronAPI.project.listSharedProjects(),
-        'Failed to load shared projects',
-      ),
+    const [personalResult, sharedResult] = await Promise.all([
+      window.electronAPI.project.listPersonalProjects(),
+      window.electronAPI.project.listSharedProjects(),
     ]);
+
+    const personal = personalResult.success ? personalResult.data : [];
+    const shared = sharedResult.success ? sharedResult.data : [];
 
     const combined = [...personal, ...shared].map((p) => mapBackendToFrontendProject(p));
     projects.setProjects(combined);
+
+    return { success: true, data: undefined as unknown as void, errorCode: 0, errorText: '' } as ApiResponse<void>;
   }
 
-  public async createProject(input: CreateProjectInput): Promise<Project> {
-    return wrapElectronCall(
-      () => window.electronAPI.project.create(input),
-      'Failed to create project',
-    );
+  public async createProject(input: CreateProjectInput): Promise<ApiResponse<Project>> {
+    return window.electronAPI.project.create(input);
   }
 
   public async updateProject(
@@ -130,49 +126,34 @@ export class ProjectService extends BaseElectronService {
         [key: string]: unknown;
       };
     },
-  ): Promise<Project> {
-    return wrapElectronCall(
-      () => window.electronAPI.project.update(id, updates),
-      'Failed to update project',
-    );
+  ): Promise<ApiResponse<Project>> {
+    return window.electronAPI.project.update(id, updates);
   }
 
-  public async deleteProject(id: GUID, deleteThreads = false): Promise<boolean> {
-    return wrapElectronCall(
-      () => window.electronAPI.project.delete(id, { deleteThreads }),
-      'Failed to delete project',
-    );
+  public async deleteProject(id: GUID, deleteThreads = false): Promise<ApiResponse<boolean>> {
+    return window.electronAPI.project.delete(id, { deleteThreads });
   }
 
   public async getThreadCount(projectId: GUID): Promise<number> {
-    return wrapElectronCallWithFallback(
-      () => window.electronAPI.project.getThreads(projectId),
-      'Failed to get thread count',
-      0,
-    );
+    const result = await window.electronAPI.project.getThreads(projectId);
+    return result.success ? result.data.length : 0;
   }
 
-  public async searchUsers(searchTerm?: string | null): Promise<UserSummaryDTO[]> {
-    return wrapElectronCall(
-      () => window.electronAPI.project.searchUsers(searchTerm),
-      'Failed to search users',
-    );
+  public async searchUsers(searchTerm?: string | null): Promise<ApiResponse<UserSummaryDTO[]>> {
+    return window.electronAPI.project.searchUsers(searchTerm);
   }
 
-  public async getProjectById(id: GUID): Promise<Project | null> {
-    const backendProject = await wrapElectronCall(
-      () => window.electronAPI.project.getById(id),
-      'Failed to get project',
-    );
+  public async getProjectById(id: GUID): Promise<ApiResponse<Project | null>> {
+    const result = await window.electronAPI.project.getById(id);
 
-    if (backendProject !== null) {
-      const frontendProject = mapBackendToFrontendProject(backendProject);
+    if (result.success && result.data !== null) {
+      const frontendProject = mapBackendToFrontendProject(result.data);
       // Update store so UI can display the full project details
-      // This is safe because it's only called once per project selection
       projects.updateProject(frontendProject);
-      return frontendProject;
+      return { success: true, data: frontendProject, errorCode: 0, errorText: '' };
     }
-    return null;
+
+    return result;
   }
 
   /**
@@ -189,22 +170,23 @@ export class ProjectService extends BaseElectronService {
   ): Promise<Array<{ userId: string; success: boolean; error?: string }>> {
     const results = await Promise.allSettled(
       userIds.map((userId) =>
-        wrapElectronCall(
-          () => window.electronAPI.project.addMember(projectId, { userId, role }),
-          `Failed to add user ${userId}`,
-        ),
+        window.electronAPI.project.addMember(projectId, { userId, role }),
       ),
     );
 
     return results.map((result, index) => {
       const userId = userIds.at(index) ?? '';
-      if (result.status === 'fulfilled') {
+      if (result.status === 'fulfilled' && result.value.success) {
         return { userId, success: true };
+      } else if (result.status === 'fulfilled' && !result.value.success) {
+        return { userId, success: false, error: result.value.errorText };
       } else {
         return {
           userId,
           success: false,
-          error: result.reason instanceof Error ? result.reason.message : 'Unknown error',
+          error: result.status === 'rejected'
+            ? (result.reason instanceof Error ? result.reason.message : 'Unknown error')
+            : 'Unknown error',
         };
       }
     });
@@ -215,11 +197,8 @@ export class ProjectService extends BaseElectronService {
    * @param projectId The project ID
    * @param memberId The member ID to remove
    */
-  public async removeMember(projectId: GUID, memberId: string): Promise<void> {
-    await wrapElectronCall(
-      () => window.electronAPI.project.removeMember(projectId, memberId),
-      'Failed to remove member',
-    );
+  public async removeMember(projectId: GUID, memberId: string): Promise<ApiResponse<void>> {
+    return window.electronAPI.project.removeMember(projectId, memberId);
   }
 }
 
