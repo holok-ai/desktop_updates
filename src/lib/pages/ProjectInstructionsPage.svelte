@@ -87,7 +87,8 @@ Describe what this project is about and what threads should focus on.
     loading = true;
     error = '';
     try {
-      project = await projectService.getProjectById(id as GUID);
+      const projectResult = await projectService.getProjectById(id as GUID);
+      project = projectResult.success ? projectResult.data : null;
       if (project) {
         const loaded = (project.metadata?.instructions as string) ?? '';
         instructions = loaded;
@@ -208,7 +209,7 @@ Describe what this project is about and what threads should focus on.
         { url: modelDetails.url, model: modelDetails.accessName },
       );
       if (!providerResult.success) {
-        throw new Error(providerResult.error || 'Failed to initialize chat provider');
+        throw new Error(providerResult.errorText || 'Failed to initialize chat provider');
       }
 
       // Small delay for provider readiness
@@ -238,7 +239,7 @@ Describe what this project is about and what threads should focus on.
       const chatResult = await window.electronAPI.chat.chat(threadId, chatPayload as any);
 
       if (!chatResult.success) {
-        throw new Error(chatResult.error || 'Chat request failed');
+        throw new Error(chatResult.errorText || 'Chat request failed');
       }
 
       testComplete = true;

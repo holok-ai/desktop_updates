@@ -172,9 +172,9 @@ export class ThreadService extends BaseElectronService {
     threadId: string,
     branchId: string,
     request: Record<string, unknown>,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<ApiResponse<void>> {
     if (!threadId || !branchId) {
-      throw new Error('[ThreadService] threadId and branchId are required for chat message');
+      return { success: false, data: null, errorCode: -1, errorText: 'threadId and branchId are required for chat message' };
     }
 
     const payload = {
@@ -185,11 +185,8 @@ export class ThreadService extends BaseElectronService {
       branch_id: branchId,
     };
 
-    return wrapElectronCall(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-      () => window.electronAPI.chat.chat(threadId, payload as any),
-      'Failed to send chat message',
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+    return window.electronAPI.chat.chat(threadId, payload as any);
   }
 
   /**
@@ -460,7 +457,7 @@ export class ThreadService extends BaseElectronService {
     branchId: string,
     modelId: string,
     messages: Message[],
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<ApiResponse<void>> {
     try {
       // make sure we have a chat service
       const _result = await window.electronAPI.chat.createServiceForThread(
@@ -487,20 +484,20 @@ export class ThreadService extends BaseElectronService {
       console.warn('[ThreadService.appendPrompt] sendChatMessage result:', chatResult);
 
       if (!chatResult.success) {
-        const errorMessage = chatResult.error ?? 'Chat failed';
+        const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.error(
           '[ThreadService.appendPrompt] Error check (result validation):',
           errorMessage,
         );
-        return { success: false, error: errorMessage };
+        return { success: false, data: null, errorCode: -1, errorText: errorMessage };
       }
 
-      return { success: true };
+      return { success: true, data: undefined as unknown as void, errorCode: 0, errorText: '' } as ApiResponse<void>;
     } catch (error) {
       // Return failure with the error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[ThreadService.appendPrompt] Exception:', errorMessage);
-      return { success: false, error: errorMessage };
+      return { success: false, data: null, errorCode: -1, errorText: errorMessage };
     }
   }
 
