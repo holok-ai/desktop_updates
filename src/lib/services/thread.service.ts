@@ -9,7 +9,7 @@ import type {
 } from '../../../src-electron/preload.js';
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
-import { wrapElectronCall, wrapElectronCallWithFallback } from '$lib/utils/apiWrapper';
+import { wrapElectronCall } from '$lib/utils/apiWrapper';
 import { BaseElectronService } from './base-electron.service';
 import { getNextVariationBranchId } from '$lib/utils/branch-utils';
 import { formatResponseContent } from '$lib/utils/response-formatter';
@@ -119,7 +119,8 @@ export class ThreadService extends BaseElectronService {
         baseBranchId = lastMessageBranchId;
       } else {
         // Find last message in main lane (lane 0)
-        const messages = await this.getMessages(threadId);
+        const messagesResult = await this.getMessages(threadId);
+        const messages = messagesResult.success ? messagesResult.data : [];
 
         if (messages.length === 0) {
           // First message in thread
@@ -202,30 +203,27 @@ export class ThreadService extends BaseElectronService {
     projectId?: string | null;
     includeProjectOnly?: boolean;
     updateStore?: boolean;
-  }): Promise<Thread[]> {
-    const allThreads = await wrapElectronCall(
-      () => window.electronAPI.thread.getAll(options),
-      'Failed to load threads',
-    );
+  }): Promise<ApiResponse<Thread[]>> {
+    const result = await window.electronAPI.thread.getAll(options);
 
-    if (options?.updateStore !== false) {
-      threads.setThreads(allThreads);
+    if (result.success && options?.updateStore !== false) {
+      threads.setThreads(result.data);
     }
 
-    return allThreads;
+    return result;
   }
 
   /**
    * Get only personal threads (threads without a projectId)
    */
-  async listPersonal(): Promise<Thread[]> {
+  async listPersonal(): Promise<ApiResponse<Thread[]>> {
     return this.getAll({ projectId: null, updateStore: true });
   }
 
   /**
    * Get threads for a specific project
    */
-  async listForProject(projectId: string): Promise<Thread[]> {
+  async listForProject(projectId: string): Promise<ApiResponse<Thread[]>> {
     return this.getAll({ projectId, updateStore: true });
   }
 
@@ -239,7 +237,7 @@ export class ThreadService extends BaseElectronService {
     projectId: string | null,
     agentId: string,
     initialModel?: string,
-  ): Promise<Thread> {
+  ): Promise<ApiResponse<Thread>> {
     console.warn('[ThreadService.create] Starting thread creation', {
       title,
       projectId,
@@ -252,7 +250,7 @@ export class ThreadService extends BaseElectronService {
 
     if (!agentResult.success) {
       console.error('[ThreadService.create] Agent not found:', agentId);
-      throw new Error(`Agent not found: ${agentId}`);
+      return { success: false, data: null, errorCode: -1, errorText: `Agent not found: ${agentId}` };
     }
     const agent = agentResult.data;
 
@@ -298,71 +296,46 @@ export class ThreadService extends BaseElectronService {
     };
     console.warn('[ThreadService.create] Final request payload:', request);
 
-    return wrapElectronCall(
-      () => window.electronAPI.thread.create(request),
-      'Failed to create thread',
-    );
+    return window.electronAPI.thread.create(request);
   }
 
-  async update(id: string, updates: Partial<Thread>): Promise<Thread> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.update(id, updates),
-      'Failed to update thread',
-    );
+  async update(id: string, updates: Partial<Thread>): Promise<ApiResponse<Thread>> {
+    return window.electronAPI.thread.update(id, updates);
   }
 
   async rename(
     threadId: string,
     newTitle: string,
-  ): Promise<
-    | { success: true; thread: Thread }
-    | { success: false; status: number; error: string; code?: string }
-  > {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.renameThread(threadId, newTitle),
-      'Failed to rename thread',
-    );
+  ): Promise<ApiResponse<Thread>> {
+    return window.electronAPI.thread.renameThread(threadId, newTitle);
   }
 
-  async delete(id: string): Promise<boolean> {
-    return wrapElectronCall(() => window.electronAPI.thread.delete(id), 'Failed to delete thread');
+  async delete(id: string): Promise<ApiResponse<boolean>> {
+    return window.electronAPI.thread.delete(id);
   }
 
-  async softDelete(id: string): Promise<boolean> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.softDelete(id),
-      'Failed to soft delete thread',
-    );
+  async softDelete(id: string): Promise<ApiResponse<boolean>> {
+    return window.electronAPI.thread.softDelete(id);
   }
 
-  async getThread(id: string): Promise<Thread | null> {
-    const thread = await wrapElectronCall(
-      () => window.electronAPI.thread.getById(id),
-      'Failed to get thread',
-    );
-    if (thread) {
-      threads.addThread(thread);
+  async getThread(id: string): Promise<ApiResponse<Thread | null>> {
+    const result = await window.electronAPI.thread.getById(id);
+    if (result.success && result.data) {
+      threads.addThread(result.data);
     }
-    return thread;
+    return result;
   }
 
-  async getMessages(id: string): Promise<Message[]> {
-    return wrapElectronCallWithFallback(
-      () => window.electronAPI.thread.getMessages(id),
-      'Failed to get thread messages',
-      [],
-    );
+  async getMessages(id: string): Promise<ApiResponse<Message[]>> {
+    return window.electronAPI.thread.getMessages(id);
   }
 
   async moveToProject(
     threadId: string,
     targetProjectId: string | null,
     options?: { privacyMode?: string; contextHandling?: string },
-  ): Promise<Thread> {
-    return wrapElectronCall(
-      () => window.electronAPI.thread.moveToProject(threadId, targetProjectId, options),
-      'Failed to move thread to project',
-    );
+  ): Promise<ApiResponse<Thread>> {
+    return window.electronAPI.thread.moveToProject(threadId, targetProjectId, options);
   }
 
   async appendMessage(
@@ -375,14 +348,7 @@ export class ThreadService extends BaseElectronService {
       branchId?: string;
       modelName?: string;
     },
-  ): Promise<
-    | {
-        success: true;
-        message: { id: string; role: string; content: string; createdAt: number };
-        thread: Thread;
-      }
-    | { success: false; status: number; error: string; threadId?: string }
-  > {
+  ): Promise<ApiResponse<{ message: Message; thread: Thread }>> {
     // Build wire payload with snake_case field mappings
     const wirePayload: Record<string, unknown> = {
       role: payload.role,
@@ -400,37 +366,16 @@ export class ThreadService extends BaseElectronService {
       wirePayload.model_name = payload.modelName;
     }
 
-    const res = await wrapElectronCall(
-      () =>
-        window.electronAPI.thread.appendMessage(
-          threadId,
-          wirePayload as {
-            role: 'user' | 'assistant' | 'system';
-            content: string;
-            metadata?: Record<string, unknown>;
-            // eslint-disable-next-line @typescript-eslint/naming-convention
-            client_message_id?: string;
-          },
-        ),
-      'Failed to append message',
+    return window.electronAPI.thread.appendMessage(
+      threadId,
+      wirePayload as {
+        role: 'user' | 'assistant' | 'system';
+        content: string;
+        metadata?: Record<string, unknown>;
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        client_message_id?: string;
+      },
     );
-
-    // Return success or normalize error response
-    if (res.success) {
-      return res as {
-        success: true;
-        message: { id: string; role: string; content: string; createdAt: number };
-        thread: Thread;
-      };
-    }
-
-    return {
-      success: false,
-      status: typeof res.status === 'number' ? res.status : 500,
-      error: typeof res.error === 'string' ? res.error : 'Unknown error',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      threadId: (res as { thread_id?: string }).thread_id,
-    };
   }
 
   /**
@@ -475,44 +420,21 @@ export class ThreadService extends BaseElectronService {
       modelId: modelId,
     };
 
-    // Build wire payload with snake_case field mappings
-    const wirePayload: Record<string, unknown> = {
-      role: newPromptMessage.role,
-      content: newPromptMessage.content,
-      metadata: modelId ? { modelId } : {},
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      client_message_id: clientMessageId,
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      branch_id: branchId,
-    };
-
     try {
-      const res = (await wrapElectronCall(
-        () =>
-          window.electronAPI.thread.appendMessage(
-            threadId,
-            wirePayload as {
-              role: 'user' | 'assistant' | 'system';
-              content: string;
-              metadata?: Record<string, unknown>;
-              // eslint-disable-next-line @typescript-eslint/naming-convention
-              client_message_id?: string;
-            },
-          ),
-        'Failed to append message',
-      )) as {
-        success: boolean;
-        message?: { id: string; role: string; content: string; createdAt: number };
-      };
+      const res = await this.appendMessage(threadId, {
+        role: newPromptMessage.role,
+        content: newPromptMessage.content,
+        metadata: modelId ? { modelId } : {},
+        clientMessageId,
+        branchId,
+      });
 
-      // Check if append was successful
-      if (!res.success || !res.message) {
+      if (!res.success) {
         return [false, newPromptMessage];
       }
 
       return [true, newPromptMessage];
     } catch (error) {
-      // Return failure with the local message
       console.error('[ThreadService.appendPrompt] Exception:', error);
       return [false, newPromptMessage];
     }
@@ -586,16 +508,8 @@ export class ThreadService extends BaseElectronService {
     threadId: string,
     messageId: string,
     newContent: string,
-  ): Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  > {
-    const res: unknown = await wrapElectronCall(
-      () => window.electronAPI.thread.updateMessage(threadId, messageId, newContent),
-      'Failed to update message',
-    );
-    return res as
-      | { success: true; message: Message; thread: Thread }
-      | { success: false; error: string };
+  ): Promise<ApiResponse<{ message: Message; thread: Thread }>> {
+    return window.electronAPI.thread.updateMessage(threadId, messageId, newContent);
   }
 
   /**
@@ -671,14 +585,8 @@ export class ThreadService extends BaseElectronService {
   async deleteBranch(
     threadId: string,
     branchId: string,
-  ): Promise<{ success: true } | { success: false; error: string }> {
-    return wrapElectronCall(async () => {
-      const result = await window.electronAPI.thread.deleteBranch(threadId, branchId);
-      if (result.success) {
-        return { success: true };
-      }
-      return { success: false, error: result.error || 'Failed to delete branch' };
-    }, 'Failed to delete branch');
+  ): Promise<ApiResponse<void>> {
+    return window.electronAPI.thread.deleteBranch(threadId, branchId);
   }
 
   /**
@@ -702,7 +610,13 @@ export class ThreadService extends BaseElectronService {
     // Generate next branchId hierarchically from the original message's branchId
     // E.g., "1.0" -> "1.0.1", "1.0" -> "1.0.2" (if 1.0.1 exists)
     // Use provided messages if available (for multiple variations), otherwise fetch from backend
-    const messages = currentMessages ?? (await this.getMessages(thread.id));
+    let messages: Message[];
+    if (currentMessages) {
+      messages = currentMessages;
+    } else {
+      const messagesResult = await this.getMessages(thread.id);
+      messages = messagesResult.success ? messagesResult.data : [];
+    }
     const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
@@ -720,15 +634,15 @@ export class ThreadService extends BaseElectronService {
     });
 
     if (!res.success) {
-      return { success: false, error: res.error };
+      return { success: false, error: res.errorText };
     }
 
     const message: Message = {
-      id: res.message.id,
+      id: res.data.message.id,
       threadId: thread.id ?? '',
       role: 'user',
       content: content,
-      createdAt: res.message.createdAt,
+      createdAt: res.data.message.createdAt,
       clientMessageId,
       branchId: newBranchId,
       modelId: finalModelId,

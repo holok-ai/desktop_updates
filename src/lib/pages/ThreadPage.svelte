@@ -59,14 +59,15 @@
     error = '';
     try {
       // Load thread metadata
-      const t = await threadService.getThread(id);
-      if (!t) {
-        error = 'Thread not found';
+      const threadResult = await threadService.getThread(id);
+      if (!threadResult.success || !threadResult.data) {
+        error = threadResult.success ? 'Thread not found' : threadResult.errorText;
         thread = null;
         threadTitle = '';
         messages = [];
         return;
       }
+      const t = threadResult.data;
       thread = t;
       threadTitle = t.title || 'Untitled Thread';
 
@@ -93,8 +94,8 @@
       }
 
       // Load messages for this thread
-      const msgs = await threadService.getMessages(id);
-      messages = msgs;
+      const msgsResult = await threadService.getMessages(id);
+      messages = msgsResult.success ? msgsResult.data : [];
     } catch (e) {
       console.error('[ThreadPage] Failed to load thread:', e);
       error = e instanceof Error ? e.message : 'Failed to load thread';

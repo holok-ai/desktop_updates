@@ -106,41 +106,43 @@ class ThreadApiService {
    * @returns Paginated response with threads
    * @throws Error if not authenticated or request fails
    */
-  async getThreads(filters?: ThreadFilters): Promise<PagedResponse<ThreadDTO>> {
+  async getThreads(filters?: ThreadFilters): Promise<ApiResponse<PagedResponse<ThreadDTO>>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const params = new URLSearchParams();
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const params = new URLSearchParams();
 
-    if (filters?.type) params.append('type', filters.type);
-    if (filters?.projectId) params.append('projectId', filters.projectId);
-    if (filters?.page !== undefined) params.append('page', filters.page.toString());
-    if (filters?.size !== undefined) params.append('size', filters.size.toString());
-    if (filters?.sort) params.append('sort', filters.sort);
+      if (filters?.type) params.append('type', filters.type);
+      if (filters?.projectId) params.append('projectId', filters.projectId);
+      if (filters?.page !== undefined) params.append('page', filters.page.toString());
+      if (filters?.size !== undefined) params.append('size', filters.size.toString());
+      if (filters?.sort) params.append('sort', filters.sort);
 
-    const url = `${mokuApiUrl}/api/threads${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${mokuApiUrl}/api/threads${params.toString() ? '?' + params.toString() : ''}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      throw new Error(`Failed to get threads: ${response.status} ${errorText}`);
-    }
 
-    const data = (await response.json()) as PagedResponse<ThreadDTO>;
-    return data;
+      const data = (await response.json()) as PagedResponse<ThreadDTO>;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] getThreads exception', message);
+      return apiFail(-1, message);
+    }
   }
 
   /**
@@ -150,36 +152,35 @@ class ThreadApiService {
    * @returns Thread data
    * @throws Error if not authenticated, not found, or request fails
    */
-  async getThread(threadId: string): Promise<ThreadDTO> {
+  async getThread(threadId: string): Promise<ApiResponse<ThreadDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/threads/${threadId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 404) {
-        throw new Error(`Thread not found: ${threadId}`);
-      }
-      throw new Error(`Failed to get thread: ${response.status} ${errorText}`);
+
+      const data = (await response.json()) as ThreadDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] getThread exception', message);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ThreadDTO;
-    return data;
   }
 
   /**
@@ -189,36 +190,37 @@ class ThreadApiService {
    * @returns Created thread data
    * @throws Error if not authenticated or request fails
    */
-  async createThread(request: CreateThreadRequest): Promise<ThreadDTO> {
+  async createThread(request: CreateThreadRequest): Promise<ApiResponse<ThreadDTO>> {
     const accessToken = await this.getAccessToken();
-
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/threads`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      throw new Error(`Failed to create thread: ${response.status} ${errorText}`);
-    }
 
-    const data = (await response.json()) as ThreadDTO;
-    return data;
+      const data = (await response.json()) as ThreadDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] createThread exception', message);
+      return apiFail(-1, message);
+    }
   }
 
   /**
@@ -229,38 +231,37 @@ class ThreadApiService {
    * @returns Updated thread data
    * @throws Error if not authenticated, not found, or request fails
    */
-  async updateThread(threadId: string, request: UpdateThreadRequest): Promise<ThreadDTO> {
+  async updateThread(threadId: string, request: UpdateThreadRequest): Promise<ApiResponse<ThreadDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/threads/${threadId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 404) {
-        throw new Error(`Thread not found: ${threadId}`);
-      }
-      throw new Error(`Failed to update thread: ${response.status} ${errorText}`);
+
+      const data = (await response.json()) as ThreadDTO;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] updateThread exception', message);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as ThreadDTO;
-    return data;
   }
 
   /**
@@ -269,33 +270,34 @@ class ThreadApiService {
    * @param threadId - Thread ID
    * @throws Error if not authenticated, not found, or request fails
    */
-  async deleteThread(threadId: string): Promise<void> {
+  async deleteThread(threadId: string): Promise<ApiResponse<void>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const url = `${mokuApiUrl}/api/threads/${threadId}`;
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 404) {
-        throw new Error(`Thread not found: ${threadId}`);
-      }
-      throw new Error(`Failed to delete thread: ${response.status} ${errorText}`);
+
+      return apiOk(undefined) as ApiResponse<void>;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] deleteThread exception', message);
+      return apiFail(-1, message);
     }
   }
 
@@ -314,42 +316,41 @@ class ThreadApiService {
   async getMessages(
     threadId: string,
     filters?: MessageFilters,
-  ): Promise<PagedResponse<MessageDTO>> {
+  ): Promise<ApiResponse<PagedResponse<MessageDTO>>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please log in.');
+      return apiFail(401, 'Not authenticated. Please log in.');
     }
 
-    const mokuApiUrl = this.getMokuApiUrl();
-    const params = new URLSearchParams();
+    try {
+      const mokuApiUrl = this.getMokuApiUrl();
+      const params = new URLSearchParams();
 
-    if (filters?.role) params.append('role', filters.role);
-    if (filters?.page !== undefined) params.append('page', filters.page.toString());
-    if (filters?.size !== undefined) params.append('size', filters.size.toString());
-    if (filters?.sort) params.append('sort', filters.sort);
+      if (filters?.role) params.append('role', filters.role);
+      if (filters?.page !== undefined) params.append('page', filters.page.toString());
+      if (filters?.size !== undefined) params.append('size', filters.size.toString());
+      if (filters?.sort) params.append('sort', filters.sort);
 
-    const url = `${mokuApiUrl}/api/threads/${threadId}/messages${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      const url = `${mokuApiUrl}/api/threads/${threadId}/messages${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return apiFail(response.status, errorText || `HTTP error ${response.status}`);
       }
-      if (response.status === 404) {
-        throw new Error(`Thread not found: ${threadId}`);
-      }
-      throw new Error(`Failed to get messages: ${response.status} ${errorText}`);
+
+      const data = (await response.json()) as PagedResponse<MessageDTO>;
+      return apiOk(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error('[ThreadApiService] getMessages exception', message);
+      return apiFail(-1, message);
     }
-
-    const data = (await response.json()) as PagedResponse<MessageDTO>;
-    return data;
   }
 
   // Update just the branch ID

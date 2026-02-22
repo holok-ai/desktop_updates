@@ -84,20 +84,20 @@
 
     try {
       // create a thread
-      const thread = await threadService.create(
+      const createResult = await threadService.create(
         `New ${app.title} Chat`,
         null, // projectId - no project context
         app.id, // agentId
         firstModel.accessName, // initialModel
       );
 
-      if (!thread || !thread.id) {
-        throw new Error('Failed to create thread');
+      if (!createResult.success) {
+        throw new Error(createResult.errorText || 'Failed to create thread');
       }
 
       // Navigate to the new thread page
       const params = new URLSearchParams();
-      params.set('threadId', thread.id);
+      params.set('threadId', createResult.data.id);
       push(`${ROUTE.THREAD}?${params.toString()}`);
     } catch (error) {
       console.error('[ApplicationThread] Failed to create thread:', error);
