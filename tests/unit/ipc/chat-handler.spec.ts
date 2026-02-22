@@ -1,220 +1,280 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+/**
+ * Chat IPC Handler Tests
+ *
+ * Tests at the IPC handler boundary.
+ * Mocks: DesktopChatService, ToolOrchestrator, threadRepository, modelRepository, AuthService.
+ * Verifies every handler returns ApiResponse<T>.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { expectApiSuccessVoid, expectApiFail, expectApiSuccess } from '../../helpers/api-response.helpers';
 
-describe('Chat IPC handlers', () => {
-  let handlers: Record<string, Function> = {};
+// ── Capture IPC handlers ──────────────────────────────────────────
 
-  beforeEach(async () => {
-    handlers = {};
-    vi.resetModules();
+let handlers: Record<string, Function> = {};
 
-    // Mock electron to capture handlers registered via ipcMain.handle
-    vi.doMock('electron', () => {
-      return {
-        app: {
-          getVersion: () => '0.0.0-test',
-          getPath: () => '/tmp',
-          on: vi.fn(),
-          whenReady: () => Promise.resolve(),
-        },
-        ipcMain: {
-          handle: (channel: string, fn: Function) => {
-            handlers[channel] = fn;
-          },
-          removeHandler: vi.fn(),
-          on: vi.fn(),
-        },
-        BrowserWindow: class {
-          static getAllWindows() {
-            return [];
-          }
-        },
-        Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },
-        dialog: { showMessageBox: vi.fn() },
-        contextBridge: { exposeInMainWorld: vi.fn() },
-        ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
-      } as any;
+vi.mock('electron', () => ({
+  app: { getPath: vi.fn(() => '/mock'), on: vi.fn(), whenReady: () => Promise.resolve() },
+  ipcMain: {
+    handle: (channel: string, fn: Function) => { handlers[channel] = fn; },
+    removeHandler: vi.fn(),
+  },
+  BrowserWindow: { getAllWindows: vi.fn(() => []) },
+}));
+
+vi.mock('electron-log', () => ({
+  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
+// ── Mock DesktopChatService class ──────────────────────────────────
+
+const mockChatFn = vi.fn();
+const mockGetAuditLogs = vi.fn(() => [{ requestId: 'r1' }]);
+
+vi.mock('../../../src-electron/services/chat/index', () => ({
+  DesktopChatService: class MockDesktopChatService {
+    chat = mockChatFn;
+    getAuditLogs = mockGetAuditLogs;
+  },
+  ToolOrchestrator: {
+    getInstance: vi.fn(() => ({
+      getToolDefinitions: vi.fn(() => []),
+      setAllowedPaths: vi.fn(),
+    })),
+  },
+}));
+
+// ── Mock repositories ──────────────────────────────────────────────
+
+const mockThreadRepo = {
+  loadThread: vi.fn(),
+};
+
+vi.mock('../../../src-electron/repository/thread-repository', () => ({
+  threadRepository: mockThreadRepo,
+}));
+
+const mockModelRepo = {
+  getAgentById: vi.fn(),
+};
+
+vi.mock('../../../src-electron/repository/model-repository', () => ({
+  modelRepository: mockModelRepo,
+}));
+
+// ── Mock settings-handler ──────────────────────────────────────────
+
+vi.mock('../../../src-electron/ipc-handlers/settings-handler', () => ({
+  getSettingsService: vi.fn(() => ({
+    getDirectoryWhitelist: vi.fn(() => []),
+  })),
+}));
+
+// ── Mock auth-handler ──────────────────────────────────────────────
+
+vi.mock('../../../src-electron/ipc-handlers/auth-handler', () => ({
+  getAuthService: vi.fn(() => ({
+    isAuthenticated: () => true,
+    getAccessToken: async () => 'test-token',
+    getUser: () => ({ id: 'user-1' }),
+  })),
+}));
+
+// ── Fake data ──────────────────────────────────────────────────────
+
+const fakeThread = {
+  id: 'thread-1',
+  title: 'Test',
+  metadata: { agentId: 'agent-1' },
+  messages: [],
+};
+
+const fakeAgent = {
+  id: 'agent-1',
+  url: 'https://api.test.com',
+  provider: 'openai',
+  title: 'Test Agent',
+};
+
+// ── Setup / Teardown ───────────────────────────────────────────────
+
+beforeEach(async () => {
+  handlers = {};
+  vi.clearAllMocks();
+
+  // Default mocks for successful createServiceForThread
+  mockThreadRepo.loadThread.mockResolvedValue(fakeThread);
+  mockModelRepo.getAgentById.mockResolvedValue({ success: true, data: fakeAgent, errorCode: 0, errorText: '' });
+  mockChatFn.mockResolvedValue(undefined);
+
+  const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
+  const { AuthService } = await import('../../../src-electron/services/auth.service');
+  mod.registerChatHandlers();
+});
+
+afterEach(async () => {
+  const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
+  mod.unregisterChatHandlers();
+});
+
+// ── Tests ──────────────────────────────────────────────────────────
+
+describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
+  describe('handler registration', () => {
+    it('registers all expected channels', () => {
+      expect(handlers['chat:createServiceForThread']).toBeDefined();
+      expect(handlers['chat:send']).toBeDefined();
+      expect(handlers['chat:getAuditLogs']).toBeDefined();
+    });
+  });
+
+  describe('chat:createServiceForThread', () => {
+    it('returns ApiResponse<void> on success', async () => {
+      const result = await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4', '/work/dir',
+      );
+
+      expectApiSuccessVoid(result);
     });
 
-    // Mock @holokai/chat-component ChatService
-    vi.doMock('@holokai/chat-component', () => {
-      return {
-        ChatService: class {
-          async chat(_req: any, onToken?: (t: string) => void) {
-            if (onToken) onToken('tok');
-          }
-          async chatWithOptions(_req: any, onToken?: (t: string) => void) {
-            if (onToken) onToken('opt');
-          }
-          getAuditLogs() {
-            return [{ requestId: 'r1' }];
-          }
-        },
-      };
+    it('returns apiFail when thread not found', async () => {
+      mockThreadRepo.loadThread.mockResolvedValue(null);
+
+      const result = await handlers['chat:createServiceForThread'](
+        null, 'nonexistent', 'branch-1', 'gpt-4',
+      );
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toContain('thread');
     });
 
-    // Mock ToolOrchestrator
-    vi.doMock('../../../src-electron/services/tool-calling/orchestrator', () => {
-      return {
-        ToolOrchestrator: {
-          getInstance: vi.fn(() => ({
-            getToolDefinitions: vi.fn(() => []),
-            executeTool: vi.fn(async () => ({ success: true, data: {} })),
-            supportsToolCalling: vi.fn(() => true),
-            setAllowedPaths: vi.fn(),
-            getAllowedPaths: vi.fn(() => []),
-            addAllowedPaths: vi.fn(),
-            removeAllowedPaths: vi.fn(),
-            clearAllowedPaths: vi.fn(),
-          })),
-          resetInstance: vi.fn(),
-        },
-      };
+    it('returns apiFail when agent not found', async () => {
+      mockModelRepo.getAgentById.mockResolvedValue({
+        success: false, data: null, errorCode: -1, errorText: 'Agent not found',
+      });
+
+      const result = await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4',
+      );
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toContain('agent');
+    });
+  });
+
+  describe('chat:send', () => {
+    it('returns ApiResponse<void> on success', async () => {
+      // First create the service
+      await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
+      );
+
+      const event = { sender: { send: vi.fn() } };
+      const request = { branch_id: 'branch-1', messages: [], model: 'gpt-4' };
+
+      const result = await handlers['chat:send'](event, 'thread-1', request);
+
+      expectApiSuccessVoid(result);
     });
 
-    // Mock settings-handler
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => {
-      return {
-        getSettingsService: vi.fn(() => ({
-          getDirectoryWhitelist: vi.fn(() => []),
-        })),
-      };
+    it('returns apiFail when branch_id missing', async () => {
+      const event = { sender: { send: vi.fn() } };
+      const request = { messages: [], model: 'gpt-4' }; // no branch_id
+
+      const result = await handlers['chat:send'](event, 'thread-1', request);
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toContain('branch_id');
     });
 
-    // Mock electron-log
-    vi.doMock('electron-log', () => ({
-      default: {
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-      },
-    }));
+    it('returns apiFail when service not initialized', async () => {
+      const event = { sender: { send: vi.fn() } };
+      const request = { branch_id: 'branch-1', messages: [] };
 
-    // Import module under test after mocks
-    const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
-    // Register handlers
-    mod.registerChatHandlers();
+      const result = await handlers['chat:send'](event, 'nonexistent', request);
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toContain('not initialized');
+    });
+
+    it('streams tokens to sender', async () => {
+      // Mock chat to call the onToken callback
+      mockChatFn.mockImplementation(async (req: unknown, onToken: (t: string) => void) => {
+        onToken('hello');
+        onToken(' world');
+      });
+
+      await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
+      );
+
+      const sendSpy = vi.fn();
+      const event = { sender: { send: sendSpy } };
+      const request = { branch_id: 'branch-1', messages: [] };
+
+      await handlers['chat:send'](event, 'thread-1', request);
+
+      expect(sendSpy).toHaveBeenCalledWith('chat:token', {
+        threadId: 'thread-1', branchId: 'branch-1', token: 'hello',
+      });
+      expect(sendSpy).toHaveBeenCalledWith('chat:token', {
+        threadId: 'thread-1', branchId: 'branch-1', token: ' world',
+      });
+    });
+
+    it('returns apiFail when chat throws', async () => {
+      mockChatFn.mockRejectedValue(new Error('Provider timeout'));
+
+      await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
+      );
+
+      const event = { sender: { send: vi.fn() } };
+      const request = { branch_id: 'branch-1', messages: [] };
+
+      const result = await handlers['chat:send'](event, 'thread-1', request);
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toBe('Provider timeout');
+    });
   });
 
-  it('registers chat handlers', () => {
-    expect(Object.keys(handlers)).toEqual(
-      expect.arrayContaining([
-        'chat:createProvider',
-        'chat:send',
-        'chat:getAuditLogs',
-        'chat:destroyProvider',
-        'chat:updateAllowedPaths',
-      ]),
-    );
+  describe('chat:getAuditLogs', () => {
+    it('returns ApiResponse<unknown[]> on success', async () => {
+      // Create service first
+      await handlers['chat:createServiceForThread'](
+        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
+      );
+
+      const result = handlers['chat:getAuditLogs'](null, 'thread-1', 'branch-1');
+
+      expectApiSuccess(result);
+      expect(Array.isArray(result.data)).toBe(true);
+    });
+
+    it('returns apiFail when threadId or branchId missing', () => {
+      const result = handlers['chat:getAuditLogs'](null, '', '');
+
+      expectApiFail(result, -1);
+    });
+
+    it('returns apiFail when service not found', () => {
+      const result = handlers['chat:getAuditLogs'](null, 'nonexistent', 'branch-1');
+
+      expectApiFail(result, -1);
+      expect(result.errorText).toContain('not found');
+    });
   });
 
-  it('createProvider success with threadId and then send streams tokens', async () => {
-    // call createProvider with threadId (it's an async handler)
-    const threadId = 'thread-1';
-    const createRes = await handlers['chat:createProvider'](
-      null,
-      threadId,
-      'ollama',
-      {
-        url: 'http://x',
-        model: 'm',
-        apiKey: 'k',
-      },
-      '/working/dir',
-    );
-    expect(createRes.success).toBe(true);
+  describe('unregisterChatHandlers', () => {
+    it('removes all registered handlers', async () => {
+      const { ipcMain } = await import('electron');
+      const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
 
-    // prepare fake event with sender.send spy
-    const sent: any[] = [];
-    const event = { sender: { send: (ch: string, data: any) => sent.push([ch, data]) } } as any;
+      mod.unregisterChatHandlers();
 
-    const sendRes = await handlers['chat:send'](event, threadId, { model: 'm', messages: [] });
-    expect(sendRes.success).toBe(true);
-    expect(sent.some(([ch]) => ch === 'chat:token')).toBe(true);
-  });
-
-  it('send throws when service not initialized for thread', async () => {
-    // do not call createProvider - service not created for this thread
-    const event = { sender: { send: () => {} } } as any;
-    const threadId = 'non-existent-thread';
-
-    await expect(
-      handlers['chat:send'](event, threadId, { model: 'm', messages: [] }),
-    ).rejects.toThrow();
-  });
-
-  it('should support multiple threads with different services', async () => {
-    const threadId1 = 'thread-1';
-    const threadId2 = 'thread-2';
-
-    // Create provider for thread 1
-    const createRes1 = await handlers['chat:createProvider'](
-      null,
-      threadId1,
-      'ollama',
-      { url: 'http://x', model: 'm', apiKey: 'k' },
-      '/dir1',
-    );
-    expect(createRes1.success).toBe(true);
-
-    // Create provider for thread 2
-    const createRes2 = await handlers['chat:createProvider'](
-      null,
-      threadId2,
-      'ollama',
-      { url: 'http://x', model: 'm', apiKey: 'k' },
-      '/dir2',
-    );
-    expect(createRes2.success).toBe(true);
-
-    // Both threads should work independently
-    const sent1: any[] = [];
-    const sent2: any[] = [];
-    const event1 = { sender: { send: (ch: string, data: any) => sent1.push([ch, data]) } } as any;
-    const event2 = { sender: { send: (ch: string, data: any) => sent2.push([ch, data]) } } as any;
-
-    const sendRes1 = await handlers['chat:send'](event1, threadId1, { model: 'm', messages: [] });
-    const sendRes2 = await handlers['chat:send'](event2, threadId2, { model: 'm', messages: [] });
-
-    expect(sendRes1.success).toBe(true);
-    expect(sendRes2.success).toBe(true);
-  });
-
-  it('getAuditLogs returns logs when service present and destroyProvider clears service', async () => {
-    const threadId = 'thread-1';
-    // create provider (async)
-    await handlers['chat:createProvider'](
-      null,
-      threadId,
-      'ollama',
-      {
-        url: 'http://localhost',
-        model: 'm',
-        apiKey: 'k',
-      },
-      '/working/dir',
-    );
-    const logs = handlers['chat:getAuditLogs'](null, threadId);
-    expect(Array.isArray(logs)).toBe(true);
-
-    const destroyed = handlers['chat:destroyProvider'](null, threadId);
-    expect(destroyed.success).toBe(true);
-
-    // after destroy, send should throw for that thread
-    const event = { sender: { send: () => {} } } as any;
-    await expect(
-      handlers['chat:send'](event, threadId, { model: 'm', messages: [] }),
-    ).rejects.toThrow();
-  });
-
-  it('unregisterChatHandlers calls removeHandler for each channel', async () => {
-    const electron = await import('electron');
-    const removeSpy = electron.ipcMain.removeHandler as any;
-    const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
-    mod.unregisterChatHandlers();
-    expect(removeSpy).toHaveBeenCalledWith('chat:createProvider');
-    expect(removeSpy).toHaveBeenCalledWith('chat:send');
-    expect(removeSpy).toHaveBeenCalledWith('chat:getAuditLogs');
-    expect(removeSpy).toHaveBeenCalledWith('chat:destroyProvider');
-    expect(removeSpy).toHaveBeenCalledWith('chat:updateAllowedPaths');
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('chat:createServiceForThread');
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('chat:send');
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('chat:getAuditLogs');
+    });
   });
 });
