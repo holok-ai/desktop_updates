@@ -21,14 +21,12 @@
 
   // Load threads on mount
   onMount(async () => {
-    try {
-      await threadService.getAll({ updateStore: true });
-    } catch (error) {
-      console.error('[ThreadListPage] Failed to load threads:', error);
+    const result = await threadService.getAll({ updateStore: true });
+    if (!result.success) {
+      console.error('[ThreadListPage] Failed to load threads:', result.errorText);
       toastStore.show('Failed to load threads', { variant: 'error' });
-    } finally {
-      isLoading = false;
     }
+    isLoading = false;
   });
 
   // Navigate to application thread page

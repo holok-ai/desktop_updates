@@ -98,10 +98,9 @@
   async function toggleRecentThreads() {
     // If we're about to show recent threads and the thread list is empty, load threads first
     if (!showRecentThreads && $threads.length === 0) {
-      try {
-        await threadService.getAll({ updateStore: true });
-      } catch (error) {
-        console.error('[ActivitySidebar] Failed to load threads:', error);
+      const result = await threadService.getAll({ updateStore: true });
+      if (!result.success) {
+        console.error('[ActivitySidebar] Failed to load threads:', result.errorText);
       }
     }
     showRecentThreads = !showRecentThreads;

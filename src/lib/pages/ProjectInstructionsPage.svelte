@@ -171,7 +171,7 @@ Describe what this project is about and what threads should focus on.
       if (!modelDetails) throw new Error('Model not found');
 
       // 2. Create a test thread via threadService
-      const testThread = await threadService.create({
+      const testThreadResult = await (threadService.create as any)({
         title: `[Test] ${testPrompt.substring(0, 40)}${testPrompt.length > 40 ? '...' : ''}`,
         description: 'Instructions test thread',
         status: THREAD_STATUS.ACTIVE,
@@ -183,9 +183,13 @@ Describe what this project is about and what threads should focus on.
           modelAccessName: modelDetails.accessName,
           isTestThread: true,
         },
-      } as any);
+      });
 
-      const threadId = testThread.id;
+      if (!testThreadResult.success) {
+        throw new Error(testThreadResult.errorText || 'Failed to create test thread');
+      }
+
+      const threadId = testThreadResult.data.id;
       testThreadId = threadId;
 
       // 3. Append user message

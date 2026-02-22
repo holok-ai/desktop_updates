@@ -62,48 +62,41 @@ type AuthProvider = 'microsoft' | 'google' | 'oauth2';
 
 export interface ThreadAPI {
   // Get all threads with optional project filtering
-  // - projectId: null = personal threads only
-  // - projectId: string = specific project's threads
-  // - projectId: undefined = all threads
-  // - includeProjectOnly: for legacy compatibility
   getAll: (options?: {
     projectId?: string | null;
     includeProjectOnly?: boolean;
-  }) => Promise<Thread[]>;
+  }) => Promise<ApiResponse<Thread[]>>;
 
   // Get a single thread by ID
-  getById: (id: string) => Promise<Thread | null>;
+  getById: (id: string) => Promise<ApiResponse<Thread | null>>;
 
   // Create a new thread (optionally within a project context)
-  create: (request: CreateThreadRequest) => Promise<Thread>;
+  create: (request: CreateThreadRequest) => Promise<ApiResponse<Thread>>;
 
   // Update an existing thread
-  update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
+  update: (id: string, updates: Partial<Thread>) => Promise<ApiResponse<Thread>>;
 
   // Rename a thread with validation and title history tracking
   renameThread: (
     threadId: string,
     newTitle: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; status: number; error: string; code?: string }
-  >;
+  ) => Promise<ApiResponse<Thread>>;
 
   // Delete a thread
-  delete: (id: string) => Promise<boolean>;
+  delete: (id: string) => Promise<ApiResponse<boolean>>;
 
   // Soft delete a thread (deletedAt timestamp)
-  softDelete: (id: string) => Promise<boolean>;
+  softDelete: (id: string) => Promise<ApiResponse<boolean>>;
 
   // Move thread to/from a project
   moveToProject: (
     threadId: string,
     targetProjectId: string | null,
     options?: { privacyMode?: string; contextHandling?: string },
-  ) => Promise<Thread>;
+  ) => Promise<ApiResponse<Thread>>;
 
   // Get messages for a thread (persisted)
-  getMessages: (id: string) => Promise<Message[]>;
+  getMessages: (id: string) => Promise<ApiResponse<Message[]>>;
 
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
@@ -114,12 +107,13 @@ export interface ThreadAPI {
   onTitleGenerationFinished: (
     callback: (data: { threadId: string; title: string }) => void,
   ) => () => void;
+
   // Add assistant response to a thread
   addAssistantResponse: (
     threadId: string,
     response: string,
     model?: string,
-  ) => Promise<{ id: string; role: string; content: string; createdAt: number }>;
+  ) => Promise<ApiResponse<{ id: string; role: string; content: string; createdAt: number }>>;
 
   // Append a message with idempotency support
   appendMessage: (
@@ -130,29 +124,20 @@ export interface ThreadAPI {
       metadata?: Record<string, unknown>;
       client_message_id?: string;
     },
-  ) => Promise<
-    | {
-        success: true;
-        message: Message;
-        thread: Thread;
-      }
-    | { success: false; status: number; error: string; thread_id?: string }
-  >;
+  ) => Promise<ApiResponse<{ message: Message; thread: Thread }>>;
 
   // Update message (edit)
   updateMessage: (
     threadId: string,
     messageId: string,
     newContent: string,
-  ) => Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  >;
+  ) => Promise<ApiResponse<{ message: Message; thread: Thread }>>;
 
   // Delete a branch
   deleteBranch: (
     threadId: string,
     branchId: string,
-  ) => Promise<{ success: true } | { success: false; error: string }>;
+  ) => Promise<ApiResponse<void>>;
 
   // Update message branch ID via Moku API
   updateMessageBranch: (

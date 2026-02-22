@@ -44,9 +44,12 @@ export class ThreadRepository {
     log.info('[ThreadRepository] Creating thread via API:', newRequest.title);
     log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(newRequest, null, 2));
 
-    const threadDTO = await threadApiService.createThread(newRequest);
+    const result = await threadApiService.createThread(newRequest);
+    if (!result.success) {
+      throw new Error(`Failed to create thread: ${result.errorText}`);
+    }
 
-    const thread = this.mapDTOToThread(threadDTO);
+    const thread = this.mapDTOToThread(result.data);
 
     // Cache locally for session
     this.threadsById.set(thread.id, thread);
@@ -131,11 +134,11 @@ export class ThreadRepository {
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
       const cachedMessagesCount = cachedThread.messages.length;
-      try {
-        const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+      const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
+      if (messagesResult.success) {
         // Deduplicate tool-loop continuation messages
-        const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
+        const dedupedMessages = this.deduplicateToolLoopMessages(messagesResult.data.content);
 
         // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
         if (dedupedMessages.length > 0) {
@@ -150,8 +153,8 @@ export class ThreadRepository {
         } else if (cachedMessagesCount > 0) {
           // API returned empty but cache has messages - keep cached messages (likely local-only)
         }
-      } catch (error) {
-        log.error('[ThreadRepository] Failed to refresh messages for cached thread:', error);
+      } else {
+        log.error('[ThreadRepository] Failed to refresh messages for cached thread:', messagesResult.errorText);
         // On error, keep cached messages if they exist
       }
 
@@ -159,16 +162,20 @@ export class ThreadRepository {
     }
 
     // Fetch from API
-    try {
-      const threadDTO = await threadApiService.getThread(threadId);
+    const threadResult = await threadApiService.getThread(threadId);
+    if (!threadResult.success) {
+      log.error('[ThreadRepository] Failed to load thread:', threadResult.errorText);
+      return null;
+    }
 
-      const thread = this.mapDTOToThread(threadDTO);
+    const thread = this.mapDTOToThread(threadResult.data);
 
-      // Fetch messages for the thread
-      const messagesResponse = await threadApiService.getMessages(threadId, { size: 1000 });
+    // Fetch messages for the thread
+    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
+    if (messagesResult.success) {
       // Deduplicate tool-loop continuation messages
-      const dedupedMessages = this.deduplicateToolLoopMessages(messagesResponse.content);
+      const dedupedMessages = this.deduplicateToolLoopMessages(messagesResult.data.content);
 
       thread.messages = dedupedMessages.map((dto) => this.mapDTOToMessage(dto, thread.title));
 
@@ -177,15 +184,14 @@ export class ThreadRepository {
 
       // Process guard messages and mark them as hidden
       this.processGuardMessages(thread.messages);
-
-      // Update cache
-      this.threadsById.set(thread.id, thread);
-
-      return this.cloneThread(thread);
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to load thread:', error);
-      return null;
+    } else {
+      log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
     }
+
+    // Update cache
+    this.threadsById.set(thread.id, thread);
+
+    return this.cloneThread(thread);
   }
 
   public async listThreads(options?: {
@@ -193,27 +199,27 @@ export class ThreadRepository {
     page?: number;
     size?: number;
   }): Promise<Thread[]> {
-    try {
-      const response = await threadApiService.getThreads({
-        type: options?.projectId ? 'project' : undefined,
-        projectId: options?.projectId,
-        page: options?.page || 0,
-        size: options?.size || 50,
-        sort: 'createdAt,desc',
-      });
+    const result = await threadApiService.getThreads({
+      type: options?.projectId ? 'project' : undefined,
+      projectId: options?.projectId,
+      page: options?.page || 0,
+      size: options?.size || 50,
+      sort: 'createdAt,desc',
+    });
 
-      const threads = response.content.map((dto) => {
-        return this.mapDTOToThread(dto);
-      });
-
-      // Update cache
-      threads.forEach((thread) => this.threadsById.set(thread.id, thread));
-
-      return threads.map((t) => this.cloneThread(t));
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to list threads:', error);
+    if (!result.success) {
+      log.error('[ThreadRepository] Failed to list threads:', result.errorText);
       return [];
     }
+
+    const threads = result.data.content.map((dto) => {
+      return this.mapDTOToThread(dto);
+    });
+
+    // Update cache
+    threads.forEach((thread) => this.threadsById.set(thread.id, thread));
+
+    return threads.map((t) => this.cloneThread(t));
   }
 
   /**
@@ -222,20 +228,20 @@ export class ThreadRepository {
    * Uses the threads list endpoint and reads `totalElements` to avoid paging through all results.
    */
   public async getProjectThreadCount(projectId: string): Promise<number> {
-    try {
-      const response = await threadApiService.getThreads({
-        type: 'project',
-        projectId,
-        page: 0,
-        size: 1,
-        sort: 'createdAt,desc',
-      });
+    const result = await threadApiService.getThreads({
+      type: 'project',
+      projectId,
+      page: 0,
+      size: 1,
+      sort: 'createdAt,desc',
+    });
 
-      return response.totalElements;
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to get project thread count:', error);
+    if (!result.success) {
+      log.error('[ThreadRepository] Failed to get project thread count:', result.errorText);
       return 0;
     }
+
+    return result.data.totalElements;
   }
 
   public async addMessage(
@@ -436,10 +442,9 @@ export class ThreadRepository {
           this.threadsById.set(thread.id, thread);
 
           // Update title via API
-          try {
-            await threadApiService.updateThread(threadId, { title: uniqueTitle });
-          } catch (error) {
-            log.error('[ThreadRepository] Failed to update title via API:', error);
+          const titleResult = await threadApiService.updateThread(threadId, { title: uniqueTitle });
+          if (!titleResult.success) {
+            log.error('[ThreadRepository] Failed to update title via API:', titleResult.errorText);
             // Continue with local title change
           }
         } catch (error) {
@@ -482,16 +487,15 @@ export class ThreadRepository {
       throw new Error(`Thread not found: ${threadId}`);
     }
 
-    try {
-      const req: UpdateThreadRequest = {
-        title: thread.title,
-        status: thread.status,
-        projectId: projectId,
-        metadata: thread.metadata,
-      };
-      await threadApiService.updateThread(threadId, req);
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to update thread project assignment via API:', error);
+    const req: UpdateThreadRequest = {
+      title: thread.title,
+      status: thread.status,
+      projectId: projectId,
+      metadata: thread.metadata,
+    };
+    const updateResult = await threadApiService.updateThread(threadId, req);
+    if (!updateResult.success) {
+      log.error('[ThreadRepository] Failed to update thread project assignment via API:', updateResult.errorText);
       // Still update local cache so UI isn't stuck; next fetch may reconcile
     }
 
@@ -528,23 +532,22 @@ export class ThreadRepository {
     const _previousTitle = thread.title;
     const now = Date.now();
 
-    try {
-      await threadApiService.updateThread(threadId, { title: trimmedTitle });
-
-      // Update local cache
-      thread.title = trimmedTitle;
-      thread.metadata = {
-        ...thread.metadata,
-      };
-      thread.updatedAt = now;
-
-      this.threadsById.set(thread.id, thread);
-
-      return this.cloneThread(thread);
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to rename thread:', error);
-      throw error;
+    const renameResult = await threadApiService.updateThread(threadId, { title: trimmedTitle });
+    if (!renameResult.success) {
+      log.error('[ThreadRepository] Failed to rename thread:', renameResult.errorText);
+      throw new Error(renameResult.errorText);
     }
+
+    // Update local cache
+    thread.title = trimmedTitle;
+    thread.metadata = {
+      ...thread.metadata,
+    };
+    thread.updatedAt = now;
+
+    this.threadsById.set(thread.id, thread);
+
+    return this.cloneThread(thread);
   }
 
   /**
@@ -561,16 +564,15 @@ export class ThreadRepository {
       // Continue with thread deletion even if file deletion fails
     });
 
-    try {
-      await threadApiService.deleteThread(threadId);
-
-      // Remove from local cache
-      const deleted = this.threadsById.delete(threadId);
-      return deleted;
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to delete thread:', error);
+    const result = await threadApiService.deleteThread(threadId);
+    if (!result.success) {
+      log.error('[ThreadRepository] Failed to delete thread:', result.errorText);
       return false;
     }
+
+    // Remove from local cache
+    const deleted = this.threadsById.delete(threadId);
+    return deleted;
   }
 
   public async softDeleteThread(threadId: string): Promise<boolean> {
@@ -583,21 +585,20 @@ export class ThreadRepository {
       // Continue with soft delete even if file deletion fails
     });
 
-    try {
-      await threadApiService.deleteThread(threadId);
-
-      // Update local cache
-      thread.deletedAt = Date.now();
-      thread.status = 'deleted';
-      thread.metadata = { ...thread.metadata };
-      thread.updatedAt = Date.now();
-      this.threadsById.set(thread.id, thread);
-
-      return true;
-    } catch (error) {
-      log.error('[ThreadRepository] Failed to soft delete thread:', error);
+    const result = await threadApiService.deleteThread(threadId);
+    if (!result.success) {
+      log.error('[ThreadRepository] Failed to soft delete thread:', result.errorText);
       return false;
     }
+
+    // Update local cache
+    thread.deletedAt = Date.now();
+    thread.status = 'deleted';
+    thread.metadata = { ...thread.metadata };
+    thread.updatedAt = Date.now();
+    this.threadsById.set(thread.id, thread);
+
+    return true;
   }
 
   public updateMessage(threadId: string, messageId: string, newContent: string): Message {

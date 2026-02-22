@@ -109,10 +109,9 @@
 
   async function loadProjectThreads() {
     if (!projectId) return;
-    try {
-      await threadService.getAll({ projectId, updateStore: true });
-    } catch (error) {
-      console.error('Failed to load project threads:', error);
+    const result = await threadService.getAll({ projectId, updateStore: true });
+    if (!result.success) {
+      console.error('Failed to load project threads:', result.errorText);
     }
   }
 
@@ -158,17 +157,20 @@
       });
 
       // Create thread with metadata
-      const thread = await threadService.create(
+      const createResult = await threadService.create(
         prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
         projectId,
         application.id, // agentId
-        modelDetails.applicationSlug, // applicationSlug
         modelDetails.accessName, // initialModel
       );
 
+      if (!createResult.success) {
+        throw new Error(createResult.errorText || 'Failed to create thread');
+      }
+
       // Navigate to thread with prompt (ThreadChatView will auto-submit)
       const params = new URLSearchParams();
-      params.set('threadId', thread.id);
+      params.set('threadId', createResult.data.id);
       params.set('prompt', prompt);
       params.set('projectId', projectId);
       push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
