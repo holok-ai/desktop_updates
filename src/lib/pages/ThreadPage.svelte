@@ -25,7 +25,7 @@
   import { CHAT_LAYOUT } from '$lib/constants/app.constant';
   import type { Thread, ModelDetails } from '../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { modelService } from '$lib/services/model.service';
 
   // ── State ──

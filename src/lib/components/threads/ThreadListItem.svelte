@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../../src-electron/preload';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { toastStore } from '$lib/services/toast.service';
   import { favorites } from '$lib/stores/favorite.store';
   import ThreadRenameModal from '$lib/modals/ThreadRenameModal.svelte';

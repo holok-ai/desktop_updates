@@ -5,7 +5,7 @@
   import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import pRetry from 'p-retry';
 
   class EmptyAgentListError extends Error {

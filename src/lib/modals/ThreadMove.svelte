@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
   import { toastStore } from '$lib/services/toast.service';

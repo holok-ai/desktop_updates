@@ -6,7 +6,7 @@
   import ChatMessage from './ChatMessage.svelte';
   import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService, type BackgroundStream } from '$lib/services/thread.service';
+  import { threadFacade as threadService, type BackgroundStream } from '$lib/services/thread-facade';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';

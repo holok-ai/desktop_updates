@@ -13,7 +13,7 @@
   import { projects } from '$lib/stores/project.store';
   import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
   import type { Thread } from '../../../../src-electron/preload';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();

@@ -2,7 +2,7 @@
   import { querystring, push } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { ROUTE } from '$lib/constants/route.constant';
   import ModelSelector from '$lib/components/common/ModelSelector.svelte';
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
