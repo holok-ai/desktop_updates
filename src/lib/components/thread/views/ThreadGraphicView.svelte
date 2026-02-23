@@ -10,7 +10,7 @@
    *   • Hover shows tooltip with message preview and model info
    */
   import type { Message } from '$lib/types/thread.type';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
 
   // ── Props ──
   interface Props {
