@@ -309,6 +309,11 @@ export interface UpdaterAPI {
 
   // Returns true if running in a development (unpackaged) build
   isDevelopmentBuild: () => Promise<boolean>;
+
+  // Listen for update check completion
+  onUpdateCheckComplete: (
+    callback: (result: { updateAvailable: boolean; version?: string }) => void,
+  ) => () => void;
 }
 
 /**
@@ -825,6 +830,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getUpdateAvailability: () => ipcRenderer.invoke('updater:getUpdateAvailability'),
     updateNow: () => ipcRenderer.invoke('updater:updateNow'),
     isDevelopmentBuild: () => ipcRenderer.invoke('updater:isDevelopmentBuild'),
+    onUpdateCheckComplete: (callback): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        result: { updateAvailable: boolean; version?: string },
+      ): void => callback(result);
+      ipcRenderer.on('updater:checkComplete', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('updater:checkComplete', subscription);
+      };
+    },
   } as UpdaterAPI,
 
   /**

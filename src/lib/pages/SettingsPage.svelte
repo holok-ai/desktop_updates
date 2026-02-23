@@ -55,6 +55,8 @@
   let appVersion = $state('');
   let isCheckingUpdates = $state(false);
   let isDevelopmentBuild = $state(false);
+  let showInstallConfirm = $state(false);
+  let isInstalling = $state(false);
 
   // Tools list from ToolOrchestrator
   let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
@@ -302,12 +304,39 @@
   async function handleCheckForUpdates() {
     isCheckingUpdates = true;
     try {
+      // see if there is an update
       const message = await window.electronAPI.updater.getUpdateAvailability();
       toastStore.show(message, { variant: 'info' });
+
+      // now get the updated info from settings
+      const updated = await window.electronAPI.settings.getAll();
+      settings.latestVersion = updated.latestVersion ?? '';
+      settings.updateAvailable = Boolean(updated.updateAvailable ?? false);
+
+      if (settings.updateAvailable) {
+        showInstallConfirm = true;
+      }
     } catch {
       toastStore.show('Failed to check for updates', { variant: 'error' });
     } finally {
       isCheckingUpdates = false;
+    }
+  }
+
+  async function handleInstallNow() {
+    isInstalling = true;
+    try {
+      const result = await window.electronAPI.updater.updateNow();
+      if (!result.success) {
+        toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
+        showInstallConfirm = false;
+      }
+      // If successful, the app will quit and install — no need to hide the modal
+    } catch {
+      toastStore.show('Failed to start update download.', { variant: 'error' });
+      showInstallConfirm = false;
+    } finally {
+      isInstalling = false;
     }
   }
 
@@ -935,6 +964,26 @@
   </div>
 </div>
 
+{#if showInstallConfirm}
+  <div class="install-overlay">
+    <div class="install-modal">
+      <p>Install version <strong>{settings.latestVersion}</strong>?</p>
+      <div class="install-actions">
+        <button class="btn-primary" onclick={handleInstallNow} disabled={isInstalling}>
+          {isInstalling ? 'Downloading...' : 'Install Now'}
+        </button>
+        <button
+          class="btn-secondary"
+          onclick={() => (showInstallConfirm = false)}
+          disabled={isInstalling}
+        >
+          I'll Do It Later
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .settings-page {
     display: flex;
@@ -1306,5 +1355,38 @@
 
   .hidden {
     display: none;
+  }
+
+  .install-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .install-modal {
+    background: var(--surface-card, #fff);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    color: var(--text-primary, #111);
+    min-width: 280px;
+  }
+
+  .install-modal p {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+
+  .install-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
   }
 </style>

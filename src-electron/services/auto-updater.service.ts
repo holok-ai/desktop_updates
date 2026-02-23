@@ -354,6 +354,12 @@ class AutoUpdaterService {
     this.updatingModal.center();
   }
 
+  private notifyCheckComplete(updateAvailable: boolean, version?: string): void {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('updater:checkComplete', { updateAvailable, version });
+    });
+  }
+
   private closeUpdatingModal(): void {
     if (this.updatingModal) {
       this.updatingModal.close();
@@ -376,6 +382,7 @@ class AutoUpdaterService {
       updaterLog.info(`Update not available. Current version: ${info.version}`);
       this.settingsService.setSetting('updateAvailable', false);
       this.settingsService.setSetting('latestVersion', info.version);
+      this.notifyCheckComplete(false);
     });
 
     autoUpdater.on('error', (error) => {
@@ -440,6 +447,7 @@ class AutoUpdaterService {
         // For other errors (network, download issues), log but don't close modal
         // The modal should stay open during mandatory updates to show progress
         updaterLog.warn('Non-fatal auto-updater error (keeping modal open):', message);
+        this.notifyCheckComplete(false);
       }
     });
 
@@ -533,6 +541,8 @@ class AutoUpdaterService {
     // Update settings to reflect that an update is available
     this.settingsService.setSetting('updateAvailable', true);
     this.settingsService.setSetting('latestVersion', newVersion);
+
+    this.notifyCheckComplete(true, newVersion);
 
     const metadata = await this.fetchUpdateMetadata(newVersion);
     this.currentUpdateMetadata = metadata || {
