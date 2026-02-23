@@ -3,6 +3,7 @@
    * ChatLane — a single lane within a branch, containing messages
    */
   import ChatLaneHeader from './ChatLaneHeader.svelte';
+  import ChatLaneHeaderReadOnly from './ChatLaneHeaderReadOnly.svelte';
   import ChatMessage from './ChatMessage.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
 
@@ -43,6 +44,8 @@
     onToggleExpand?: () => void;
     /** Callback when lane is selected */
     onSelectLane?: () => void;
+    /** Callback to dismiss/close the branch view (view mode) */
+    onDismiss?: () => void;
     /** Callback when copy request is clicked */
     onCopyRequest?: (content: string) => void;
     /** Callback when copy response is clicked */
@@ -63,6 +66,7 @@
     isCollapsed = false,
     onToggleExpand,
     onSelectLane,
+    onDismiss,
     onCopyRequest,
     onCopyResponse,
     onRetry,
@@ -79,15 +83,27 @@
 </script>
 
 <div class="chat-lane" class:lane-expanded={isExpanded} class:lane-collapsed={isCollapsed}>
-  <ChatLaneHeader
-    {laneId}
-    {laneIndex}
-    {modelName}
-    {modelIntendedUse}
-    {isExpanded}
-    {onToggleExpand}
-    onSelect={onSelectLane}
-  />
+  {#if onDismiss}
+    <ChatLaneHeaderReadOnly
+      {laneId}
+      {laneIndex}
+      {modelName}
+      {modelIntendedUse}
+      {isExpanded}
+      {onToggleExpand}
+      {onDismiss}
+    />
+  {:else}
+    <ChatLaneHeader
+      {laneId}
+      {laneIndex}
+      {modelName}
+      {modelIntendedUse}
+      {isExpanded}
+      {onToggleExpand}
+      onSelect={onSelectLane}
+    />
+  {/if}
 
   <div class="lane-messages">
     {#each messagePairs as pair (pair.request.createdAt)}

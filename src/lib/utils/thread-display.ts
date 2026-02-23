@@ -39,6 +39,8 @@ export interface BranchDisplay {
   id: string;
   position: number;
   lanes: Lane[];
+  /** True when the branch is re-expanded for viewing (a lane was already selected). */
+  isViewMode?: boolean;
 }
 
 export type DisplayItem = MessageDisplay | BranchDisplay;
@@ -61,6 +63,7 @@ export class ThreadDisplay {
     isStreaming: boolean = false,
     responseText: string = '',
     availableModels: ModelDetails[] = [],
+    expandedBranchRows: Set<number> = new Set(),
   ): DisplayItem[] {
     if (messages.length === 0) {
       return [];
@@ -159,7 +162,7 @@ export class ThreadDisplay {
           return firstUserMsg?.desktopOptions?.isSelectedBranch === true;
         });
 
-        if (selectedLaneKey) {
+        if (selectedLaneKey && !expandedBranchRows.has(row)) {
           // Render only the selected lane — filter rowMessages by lane number directly
           const selectedLaneNum = ThreadContext.parseBranchLane(selectedLaneKey);
           const selectedMsgs = rowMessages.filter(
@@ -170,7 +173,8 @@ export class ThreadDisplay {
             items.push({ type: 'message', pair, isFromBranch: true });
           }
         } else {
-          // No selected lane — render full multi-lane branch
+          // No selected lane, or force-expanded for viewing — render full multi-lane branch
+          const isViewMode = Boolean(selectedLaneKey) && expandedBranchRows.has(row);
           const lanes: Lane[] = laneKeys.map((laneKey, index) => {
             const msgs = laneMap.get(laneKey);
             if (!msgs) {
@@ -215,6 +219,7 @@ export class ThreadDisplay {
             id: `branch-${row}`,
             position: row,
             lanes,
+            isViewMode,
           });
         }
       }

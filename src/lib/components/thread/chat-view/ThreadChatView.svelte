@@ -48,6 +48,7 @@
   let composerText = $state(''); // Text for composer (bindable for guard errors)
   let debugActivity = $state(''); // Debug activity log
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
+  let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -720,11 +721,40 @@
         },
       };
     });
+
+    // If this row was force-expanded for viewing, collapse it now
+    if (expandedBranchRows.has(row)) {
+      const next = new Set(expandedBranchRows);
+      next.delete(row);
+      expandedBranchRows = next;
+    }
+  }
+
+  // ── Branch view expand/dismiss ──
+  function handleBranchIconClick(branchId: string): void {
+    const row = parseInt(branchId.split('.')[0]);
+    if (!isNaN(row)) {
+      const next = new Set(expandedBranchRows);
+      next.add(row);
+      expandedBranchRows = next;
+    }
+  }
+
+  function handleDismissBranch(branchPosition: number): void {
+    const next = new Set(expandedBranchRows);
+    next.delete(branchPosition);
+    expandedBranchRows = next;
   }
 
   // ── Build display items using thread service ──
   let displayItems = $derived.by(() => {
-    return threadService.buildDisplayItems(messages, isStreaming, responseText, availableModels);
+    return threadService.buildDisplayItems(
+      messages,
+      isStreaming,
+      responseText,
+      availableModels,
+      expandedBranchRows,
+    );
   });
 </script>
 
@@ -819,7 +849,8 @@
           isStreaming={item.pair.isStreamingResponse}
           streamingContent={item.pair.streamingContent}
           onCopyRequest={(content) => copyToInput(content)}
-          showBranchIcon={parseInt(item.pair.request.branchId.split('.')[1] ?? '0') !== 0}
+          showBranchIcon={item.isFromBranch === true}
+          onBranchClick={item.isFromBranch ? () => handleBranchIconClick(item.pair.request.branchId) : undefined}
         />
       {:else if item.type === 'branch'}
         {console.log('[ThreadChatView] Rendering ChatBranch:', {
@@ -834,6 +865,8 @@
           {fontSize}
           onCopyRequest={(content) => copyToInput(content)}
           onSelectLane={(laneIndex) => handleSelectLane(item.id, laneIndex)}
+          isViewMode={item.isViewMode ?? false}
+          onDismiss={item.isViewMode ? () => handleDismissBranch(item.position) : undefined}
         />
       {/if}
     {/each}

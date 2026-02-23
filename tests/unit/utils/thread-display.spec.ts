@@ -488,3 +488,75 @@ describe('ThreadDisplay.buildDisplayItems', () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// buildDisplayItems — expandedBranchRows / isViewMode
+// ═══════════════════════════════════════════════════════════════════
+
+describe('ThreadDisplay.buildDisplayItems — expandedBranchRows', () => {
+  /** Helper: multi-lane row 2 with lane 1 selected. */
+  function branchMessages(selected: boolean = true): Message[] {
+    return [
+      msg({
+        id: 'u1',
+        branchId: '2.1.0',
+        role: 'user',
+        desktopOptions: selected ? { isSelectedBranch: true } : undefined,
+      }),
+      msg({ id: 'a1', branchId: '2.1.0', role: 'assistant' }),
+      msg({ id: 'u2', branchId: '2.2.0', role: 'user' }),
+      msg({ id: 'a2', branchId: '2.2.0', role: 'assistant' }),
+    ];
+  }
+
+  it('selected lane WITHOUT expandedBranchRows → flattened MessageDisplay (default behaviour)', () => {
+    const items = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', [], new Set());
+    // Should be flattened to MessageDisplay with isFromBranch
+    expect(items.every((i) => i.type === 'message')).toBe(true);
+    for (const item of items) {
+      if (item.type === 'message') {
+        expect(item.isFromBranch).toBe(true);
+      }
+    }
+  });
+
+  it('selected lane WITH row in expandedBranchRows → BranchDisplay with isViewMode=true', () => {
+    const expanded = new Set([2]);
+    const items = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', [], expanded);
+    // Should render as BranchDisplay since row 2 is force-expanded
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe('branch');
+    if (items[0].type === 'branch') {
+      expect(items[0].isViewMode).toBe(true);
+      expect(items[0].lanes).toHaveLength(2);
+      expect(items[0].position).toBe(2);
+    }
+  });
+
+  it('no selected lane WITH row in expandedBranchRows → BranchDisplay with isViewMode=false', () => {
+    const expanded = new Set([2]);
+    const items = ThreadDisplay.buildDisplayItems(branchMessages(false), false, '', [], expanded);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe('branch');
+    if (items[0].type === 'branch') {
+      expect(items[0].isViewMode).toBe(false);
+    }
+  });
+
+  it('expandedBranchRows for a different row does not affect the target row', () => {
+    // Row 2 has selected lane, but expandedBranchRows contains row 5 (not 2)
+    const expanded = new Set([5]);
+    const items = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', [], expanded);
+    // Row 2 should still flatten because row 2 is not in the set
+    expect(items.every((i) => i.type === 'message')).toBe(true);
+  });
+
+  it('empty expandedBranchRows set behaves same as no set provided', () => {
+    const withEmpty = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', [], new Set());
+    const withDefault = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', []);
+    // Both should flatten the selected lane
+    expect(withEmpty.length).toBe(withDefault.length);
+    expect(withEmpty.every((i) => i.type === 'message')).toBe(true);
+    expect(withDefault.every((i) => i.type === 'message')).toBe(true);
+  });
+});

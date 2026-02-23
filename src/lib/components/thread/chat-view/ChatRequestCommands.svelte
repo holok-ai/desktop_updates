@@ -20,6 +20,8 @@
     chatLayout?: ChatLayout;
     /** Whether to show the branch indicator icon */
     showBranchIcon?: boolean;
+    /** Callback when branch icon is clicked to re-expand branch view */
+    onBranchClick?: () => void;
   }
 
   let {
@@ -27,6 +29,7 @@
     gapHeight = 4,
     chatLayout = 'left-right',
     showBranchIcon = false,
+    onBranchClick,
   }: Props = $props();
   let hovered = $state(false);
 
@@ -51,9 +54,20 @@
     </button>
   {/each}
   {#if showBranchIcon}
-    <span class="cmd-btn branch-icon" title="Selected branch" aria-label="Selected branch">
-      <i class="pi pi-share-alt"></i>
-    </span>
+    {#if onBranchClick}
+      <button
+        class="cmd-btn branch-icon branch-icon-clickable"
+        onclick={onBranchClick}
+        title="Expand branch view"
+        aria-label="Expand branch view"
+      >
+        <i class="pi pi-share-alt"></i>
+      </button>
+    {:else}
+      <span class="cmd-btn branch-icon" title="Selected branch" aria-label="Selected branch">
+        <i class="pi pi-share-alt"></i>
+      </span>
+    {/if}
   {/if}
 </div>
 
@@ -104,5 +118,14 @@
   .branch-icon {
     color: var(--green-500, #22c55e);
     cursor: default;
+  }
+
+  .branch-icon-clickable {
+    cursor: pointer;
+  }
+
+  .branch-icon-clickable:hover {
+    background: color-mix(in srgb, var(--green-500, #22c55e) 15%, transparent);
+    color: var(--green-600, #16a34a);
   }
 </style>
