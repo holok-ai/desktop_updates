@@ -10,9 +10,18 @@ import type {
 import { threads } from '../stores/thread.store.js';
 import type { Message } from '$lib/types/thread.type.js';
 import { BaseElectronService } from './base-electron.service';
-import { getNextVariationBranchId } from '$lib/utils/branch-utils';
-import { formatResponseContent } from '$lib/utils/response-formatter';
+import { ThreadContext } from '$lib/utils/thread-context';
+import { ThreadDisplay } from '$lib/utils/thread-display';
 import type { ThreadMetadata } from '../../../src-electron/types/thread.types.js';
+
+// Re-export display types for backward compatibility
+export type {
+  MessagePair,
+  Lane,
+  MessageDisplay,
+  BranchDisplay,
+  DisplayItem,
+} from '$lib/utils/thread-display';
 
 export class ThreadService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
@@ -617,7 +626,7 @@ export class ThreadService extends BaseElectronService {
       const messagesResult = await this.getMessages(thread.id);
       messages = messagesResult.success ? messagesResult.data : [];
     }
-    const newBranchId = getNextVariationBranchId(originalMessage.branchId, messages);
+    const newBranchId = ThreadContext.getNextVariationBranchId(originalMessage.branchId, messages);
 
     const clientMessageId = crypto.randomUUID();
     const content = variationContent ?? originalMessage.content;
@@ -652,194 +661,16 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
-   * Build display items from messages - handles both regular messages and branches
-   * Returns an array of items that can be either single messages or branches with multiple lanes
+   * Build display items from messages — delegates to ThreadDisplay static class.
+   * Kept as an instance method for backward compatibility with Svelte component calls.
    */
   buildDisplayItems(
     messages: Message[],
     isStreaming: boolean = false,
     responseText: string = '',
     availableModels: ModelDetails[] = [],
-  ): DisplayItem[] {
-    if (messages.length === 0) {
-      return [];
-    }
-
-    // Filter out hidden messages (e.g., guard-blocked messages)
-    const visibleMessages = messages.filter((m) => !m.isHidden);
-
-    if (visibleMessages.length === 0) {
-      return [];
-    }
-
-    // Sort messages by branchId first
-    const sortedMessages = [...visibleMessages].sort((a, b) => {
-      const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
-      const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);
-
-      // Sort by row, then lane, then iteration
-      if (aRow !== bRow) {
-        return aRow - bRow;
-      }
-      if (aLane !== bLane) {
-        return aLane - bLane;
-      }
-      return aIter - bIter;
-    });
-
-    // Group messages by row (first number in branchId)
-    const rowMap = new Map<number, Message[]>();
-
-    for (const msg of sortedMessages) {
-      const row = this.getBranchRow(msg.branchId);
-
-      if (!rowMap.has(row)) {
-        rowMap.set(row, []);
-      }
-
-      const rowArray = rowMap.get(row);
-      if (rowArray) {
-        rowArray.push(msg);
-      }
-    }
-
-    // Build display items
-    const items: DisplayItem[] = [];
-    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
-
-    for (const row of sortedRows) {
-      const rowMessages = rowMap.get(row);
-      if (!rowMessages) {
-        continue;
-      }
-
-      // Check if this row has branches (any message with lane != 0)
-      const hasrowBranches = rowMessages.some((msg) => this.getBranchLane(msg.branchId) !== 0);
-
-      if (!hasrowBranches) {
-        // Single lane (main branch only) - display as regular message pairs
-        const pairs = this.buildMessagePairs(rowMessages, isStreaming, responseText);
-
-        for (const pair of pairs) {
-          items.push({
-            type: 'message',
-            pair,
-          });
-        }
-      } else {
-        // Multiple lanes - display as branch
-        const laneMap = new Map<string, Message[]>();
-
-        for (const msg of rowMessages) {
-          const laneKey = this.getLaneKey(msg.branchId);
-
-          if (!laneMap.has(laneKey)) {
-            laneMap.set(laneKey, []);
-          }
-
-          const laneArray = laneMap.get(laneKey);
-          if (laneArray) {
-            laneArray.push(msg);
-          }
-        }
-
-        // Build lanes sorted by lane number
-        const laneKeys = Array.from(laneMap.keys()).sort((a, b) => {
-          const laneA = this.getBranchLane(a);
-          const laneB = this.getBranchLane(b);
-          return laneA - laneB;
-        });
-
-        // Check if any lane has been selected (isSelectedBranch = true)
-        const selectedLaneKey = laneKeys.find((laneKey) => {
-          const msgs = laneMap.get(laneKey);
-          const firstUserMsg = msgs?.find((m) => m.role === 'user');
-          console.warn(
-            '[buildDisplayItems] lane check:',
-            laneKey,
-            'firstUserMsg.desktopOptions:',
-            firstUserMsg?.desktopOptions,
-          );
-          return firstUserMsg?.desktopOptions?.isSelectedBranch === true;
-        });
-
-        console.warn(
-          '[buildDisplayItems] row',
-          row,
-          'laneKeys:',
-          laneKeys,
-          'selectedLaneKey:',
-          selectedLaneKey,
-        );
-
-        if (selectedLaneKey) {
-          // Render only the selected lane — filter rowMessages by lane number directly
-          const selectedLaneNum = this.getBranchLane(selectedLaneKey);
-          const selectedMsgs = rowMessages.filter(
-            (m) => this.getBranchLane(m.branchId) === selectedLaneNum,
-          );
-          console.warn(
-            '[buildDisplayItems] flat rendering selected lane',
-            selectedLaneKey,
-            'msgCount:',
-            selectedMsgs.length,
-          );
-          const pairs = this.buildMessagePairs(selectedMsgs, isStreaming, responseText);
-          for (const pair of pairs) {
-            items.push({ type: 'message', pair, isFromBranch: true });
-          }
-        } else {
-          // No selected lane — render full multi-lane branch
-          const lanes: Lane[] = laneKeys.map((laneKey, index) => {
-            const msgs = laneMap.get(laneKey);
-            if (!msgs) {
-              return {
-                id: `lane-${row}-${index}`,
-                branchId: laneKey,
-                messagePairs: [],
-                modelName: undefined,
-                modelIntendedUse: undefined,
-              };
-            }
-
-            const pairs = this.buildMessagePairs(msgs, isStreaming, responseText);
-
-            // Try to extract model name and intended use from first message
-            const modelId = msgs[0]?.modelId ?? undefined;
-            let modelName = modelId;
-            let modelIntendedUse: string | undefined;
-
-            // Look up model details if available
-            if (modelId && availableModels.length > 0) {
-              const modelDetails = availableModels.find(
-                (m) => m.id === modelId || m.accessName === modelId,
-              );
-              if (modelDetails) {
-                modelName = modelDetails.title || modelDetails.accessName;
-                modelIntendedUse = modelDetails.intendedUse;
-              }
-            }
-
-            return {
-              id: `lane-${row}-${index}`,
-              branchId: laneKey,
-              messagePairs: pairs,
-              modelName,
-              modelIntendedUse,
-            };
-          });
-
-          items.push({
-            type: 'branch',
-            id: `branch-${row}`,
-            position: row,
-            lanes,
-          });
-        }
-      }
-    }
-
-    return items;
+  ): ReturnType<typeof ThreadDisplay.buildDisplayItems> {
+    return ThreadDisplay.buildDisplayItems(messages, isStreaming, responseText, availableModels);
   }
 
   /**
@@ -857,157 +688,6 @@ export class ThreadService extends BaseElectronService {
     return result.data.some((a) => a.id === agentId);
   }
 
-  /**
-   * Parse branchId to extract row number
-   * "1.0" → 1, "2.1.3" → 2
-   */
-  private getBranchRow(branchId: string): number {
-    const [firstPart] = branchId.split('.');
-    return parseInt(firstPart) ?? 0;
-  }
-
-  /**
-   * Parse branchId to extract lane number
-   * "1.0" → 0, "1.1" → 1, "2.1.3" → 1
-   */
-  private getBranchLane(branchId: string): number {
-    const [, secondPart] = branchId.split('.');
-    return secondPart ? (parseInt(secondPart) ?? 0) : 0;
-  }
-
-  /**
-   * Get lane key (first two parts of branchId)
-   * "1.0" → "1.0", "2.1.3" → "2.1"
-   */
-  private getLaneKey(branchId: string): string {
-    const parts = branchId.split('.');
-    return parts.slice(0, 2).join('.');
-  }
-
-  /**
-   * Build message pairs from a list of messages
-   * Formats response content based on the provider for each message
-   */
-  private buildMessagePairs(
-    msgs: Message[],
-    isStreaming: boolean,
-    responseText: string,
-  ): MessagePair[] {
-    const pairs: MessagePair[] = [];
-    let i = 0;
-    while (i < msgs.length) {
-      // eslint-disable-next-line security/detect-object-injection
-      const msg = msgs[i];
-      if (msg.role === 'user') {
-        // Collect all consecutive assistant messages following this user message
-        const responses: Message[] = [];
-        let j = i + 1;
-
-        // eslint-disable-next-line security/detect-object-injection
-        while (j < msgs.length && (msgs[j].role === 'assistant' || msgs[j].role === 'system')) {
-          // eslint-disable-next-line security/detect-object-injection
-          const assistantMsg = msgs[j];
-          const provider = (assistantMsg.metadata?.provider as string) ?? '';
-          const modelId = assistantMsg.modelId ?? msg.modelId ?? '';
-
-          // Format the response content based on provider and model ID
-          let formattedContent = formatResponseContent(assistantMsg.content, provider, modelId);
-
-          // Inject image tags for attachments
-          if (assistantMsg.attachments && assistantMsg.attachments.length > 0) {
-            formattedContent = this.injectImageTags(formattedContent, assistantMsg.attachments);
-          }
-
-          const formattedResponse = {
-            ...assistantMsg,
-            content: formattedContent,
-          };
-
-          responses.push(formattedResponse);
-          j++;
-        }
-
-        // Check if this is the last message and we're streaming
-        const islastMessage = i === msgs.length - 1;
-        const isstreamingNow = islastMessage && isStreaming && responses.length === 0;
-
-        pairs.push({
-          request: msg,
-          responses: responses,
-          isStreamingResponse: isstreamingNow,
-          streamingContent: isstreamingNow ? responseText : '',
-        });
-
-        // Skip past the user message and all collected responses
-        i = j;
-      } else {
-        // Orphan assistant/system message (no user request before it)
-        // Skip it for now - we only display request-response pairs
-        console.warn('[ThreadService] Skipping orphan assistant/system message at index:', i);
-        i += 1;
-      }
-    }
-    return pairs;
-  }
-
-  /**
-   * Inject markdown image tags for attachments into content
-   */
-  private injectImageTags(
-    content: string,
-    attachments: Array<{ mimeType: string; data?: string; filename: string }>,
-  ): string {
-    let result = content;
-
-    // Add images at the end of the content
-    for (const attachment of attachments) {
-      // Only process image attachments
-      if (!attachment.mimeType.startsWith('image/')) {
-        continue;
-      }
-
-      // If we have base64 data, inject inline image
-      if (attachment.data) {
-        const imageTag = `\n\n![${attachment.filename}](data:${attachment.mimeType};base64,${attachment.data})`;
-        result += imageTag;
-      } else {
-        console.warn('[ThreadService] Attachment missing data:', attachment.filename);
-      }
-    }
-
-    return result;
-  }
 }
-
-// Export types for use in components
-export interface MessagePair {
-  request: Message;
-  responses: Message[]; // Changed from single response to array of responses
-  isStreamingResponse: boolean;
-  streamingContent: string;
-}
-
-export interface Lane {
-  id: string;
-  branchId: string;
-  messagePairs: MessagePair[];
-  modelName?: string;
-  modelIntendedUse?: string;
-}
-
-export interface MessageDisplay {
-  type: 'message';
-  pair: MessagePair;
-  isFromBranch?: boolean;
-}
-
-export interface BranchDisplay {
-  type: 'branch';
-  id: string;
-  position: number;
-  lanes: Lane[];
-}
-
-export type DisplayItem = MessageDisplay | BranchDisplay;
 
 export const threadService = ThreadService.getInstance();

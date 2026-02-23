@@ -1,20 +1,20 @@
 /**
  * ThreadService — unit tests for methods with real logic
  *
- * Excludes: buildDisplayItems (being refactored), branch-utils (being refactored),
- *           and pure pass-through methods (rename, delete, update, etc.)
+ * Pure display/context logic has been extracted to ThreadDisplay and ThreadContext
+ * static classes and is tested in thread-display.spec.ts and thread-context.spec.ts.
  *
  * Tests cover:
  *   - calculateNextBranchId: branchId parsing and next-ID logic
  *   - subscribeToStream: callback registration/unsubscription/multi-subscriber
  *   - sendChatMessage: input validation, payload construction
- *   - buildMessagePairs: user-assistant pairing, streaming, orphan skipping, attachments
+ *   - buildDisplayItems: delegation to ThreadDisplay (smoke test)
  *   - selectBranchLane: iterates lanes and sets isSelectedBranch
  *   - createVariation: branchId generation and append flow
  *   - create: agent resolution, model selection, metadata building
- *   - injectImageTags: image attachment injection
  *   - isAgentAvailable: agent lookup logic
- *   - helper methods: getBranchRow, getBranchLane, getLaneKey
+ *   - appendMessage: wire payload construction
+ *   - submitPromptToChat: end-to-end chat flow
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -301,259 +301,28 @@ describe('sendChatMessage', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// buildMessagePairs (private — accessed via buildDisplayItems or directly)
-// We test through the public buildDisplayItems with simple single-lane data
-// since buildMessagePairs is private. But we CAN test it by casting.
+// buildDisplayItems — delegation smoke test
+// (Full coverage is in tests/unit/utils/thread-display.spec.ts)
 // ═══════════════════════════════════════════════════════════════════
 
-describe('buildMessagePairs (via prototype access)', () => {
-  // Access private method for testing
-  const callBuildMessagePairs = (
-    msgs: Message[],
-    isStreaming = false,
-    responseText = '',
-  ) => {
-    return (threadService as any).buildMessagePairs(msgs, isStreaming, responseText);
-  };
-
-  it('pairs a user message with following assistant message', () => {
+describe('buildDisplayItems (delegation)', () => {
+  it('delegates to ThreadDisplay.buildDisplayItems and returns DisplayItems', () => {
     const messages = [
       msg({ id: 'u1', branchId: '1.0.0', role: 'user', content: 'Hello' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant', content: 'Hi there' }),
+      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant', content: 'Hi' }),
     ];
 
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].request.id).toBe('u1');
-    expect(pairs[0].responses).toHaveLength(1);
-    expect(pairs[0].responses[0].id).toBe('a1');
-    expect(pairs[0].isStreamingResponse).toBe(false);
-    expect(pairs[0].streamingContent).toBe('');
+    const items = threadService.buildDisplayItems(messages);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe('message');
+    if (items[0].type === 'message') {
+      expect(items[0].pair.request.id).toBe('u1');
+      expect(items[0].pair.responses[0].id).toBe('a1');
+    }
   });
 
-  it('collects multiple consecutive assistant responses', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-      msg({ id: 'a2', branchId: '1.0.0', role: 'assistant' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].responses).toHaveLength(2);
-  });
-
-  it('includes system messages as responses', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({ id: 's1', branchId: '1.0.0', role: 'system' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].responses).toHaveLength(2);
-  });
-
-  it('creates separate pairs for separate user messages', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-      msg({ id: 'u2', branchId: '2.0.0', role: 'user' }),
-      msg({ id: 'a2', branchId: '2.0.0', role: 'assistant' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs).toHaveLength(2);
-    expect(pairs[0].request.id).toBe('u1');
-    expect(pairs[1].request.id).toBe('u2');
-  });
-
-  it('user message with no response and streaming active gets streaming flag', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages, true, 'streaming...');
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].isStreamingResponse).toBe(true);
-    expect(pairs[0].streamingContent).toBe('streaming...');
-    expect(pairs[0].responses).toHaveLength(0);
-  });
-
-  it('streaming flag is false when user message already has a response', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages, true, 'streaming...');
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].isStreamingResponse).toBe(false);
-    expect(pairs[0].streamingContent).toBe('');
-  });
-
-  it('streaming flag only applies to the LAST user message', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-      msg({ id: 'u2', branchId: '2.0.0', role: 'user' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages, true, 'streaming...');
-    expect(pairs).toHaveLength(2);
-    expect(pairs[0].isStreamingResponse).toBe(false);
-    expect(pairs[1].isStreamingResponse).toBe(true);
-  });
-
-  it('skips orphan assistant messages at the beginning', () => {
-    const messages = [
-      msg({ id: 'a1', branchId: '1.0.0', role: 'assistant' }),
-      msg({ id: 'u1', branchId: '2.0.0', role: 'user' }),
-      msg({ id: 'a2', branchId: '2.0.0', role: 'assistant' }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].request.id).toBe('u1');
-  });
-
-  it('handles empty message array', () => {
-    const pairs = callBuildMessagePairs([]);
-    expect(pairs).toHaveLength(0);
-  });
-
-  it('injects image tags for assistant messages with attachments', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({
-        id: 'a1',
-        branchId: '1.0.0',
-        role: 'assistant',
-        content: 'Here is an image',
-        attachments: [
-          { mimeType: 'image/png', data: 'base64data', filename: 'test.png', size: 100 },
-        ],
-      }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs[0].responses[0].content).toContain('![test.png]');
-    expect(pairs[0].responses[0].content).toContain('data:image/png;base64,base64data');
-  });
-
-  it('does not inject tags for non-image attachments', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({
-        id: 'a1',
-        branchId: '1.0.0',
-        role: 'assistant',
-        content: 'A file',
-        attachments: [
-          { mimeType: 'application/pdf', data: 'pdfdata', filename: 'doc.pdf', size: 200 },
-        ],
-      }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs[0].responses[0].content).toBe('A file');
-  });
-
-  it('skips image attachments without data', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-      msg({
-        id: 'a1',
-        branchId: '1.0.0',
-        role: 'assistant',
-        content: 'Missing data',
-        attachments: [
-          { mimeType: 'image/png', filename: 'nodata.png', size: 100 },
-        ],
-      }),
-    ];
-
-    const pairs = callBuildMessagePairs(messages);
-    expect(pairs[0].responses[0].content).toBe('Missing data');
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════
-// injectImageTags (private)
-// ═══════════════════════════════════════════════════════════════════
-
-describe('injectImageTags', () => {
-  const callInjectImageTags = (
-    content: string,
-    attachments: Array<{ mimeType: string; data?: string; filename: string }>,
-  ): string => {
-    return (threadService as any).injectImageTags(content, attachments);
-  };
-
-  it('appends image markdown for image attachments with data', () => {
-    const result = callInjectImageTags('Hello', [
-      { mimeType: 'image/jpeg', data: 'abc123', filename: 'photo.jpg' },
-    ]);
-    expect(result).toBe('Hello\n\n![photo.jpg](data:image/jpeg;base64,abc123)');
-  });
-
-  it('handles multiple image attachments', () => {
-    const result = callInjectImageTags('Content', [
-      { mimeType: 'image/png', data: 'data1', filename: 'a.png' },
-      { mimeType: 'image/gif', data: 'data2', filename: 'b.gif' },
-    ]);
-    expect(result).toContain('![a.png]');
-    expect(result).toContain('![b.gif]');
-  });
-
-  it('skips non-image mimeTypes', () => {
-    const result = callInjectImageTags('Text', [
-      { mimeType: 'text/plain', data: 'txt', filename: 'readme.txt' },
-    ]);
-    expect(result).toBe('Text');
-  });
-
-  it('skips image attachments without data property', () => {
-    const result = callInjectImageTags('Text', [
-      { mimeType: 'image/png', filename: 'nodata.png' },
-    ]);
-    expect(result).toBe('Text');
-  });
-
-  it('returns original content when attachments array is empty', () => {
-    const result = callInjectImageTags('Original', []);
-    expect(result).toBe('Original');
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════
-// helper methods: getBranchRow, getBranchLane, getLaneKey
-// ═══════════════════════════════════════════════════════════════════
-
-describe('helper methods', () => {
-  const getBranchRow = (branchId: string): number => (threadService as any).getBranchRow(branchId);
-  const getBranchLane = (branchId: string): number => (threadService as any).getBranchLane(branchId);
-  const getLaneKey = (branchId: string): string => (threadService as any).getLaneKey(branchId);
-
-  describe('getBranchRow', () => {
-    it('extracts row from 3-part branchId', () => expect(getBranchRow('3.1.2')).toBe(3));
-    it('extracts row from 2-part branchId', () => expect(getBranchRow('5.0')).toBe(5));
-    it('extracts row from 1-part branchId', () => expect(getBranchRow('7')).toBe(7));
-    it('returns NaN for garbage (parseInt behavior)', () => expect(getBranchRow('abc')).toBeNaN());
-  });
-
-  describe('getBranchLane', () => {
-    it('returns 0 for main lane', () => expect(getBranchLane('1.0.0')).toBe(0));
-    it('returns lane number for branch', () => expect(getBranchLane('2.3.1')).toBe(3));
-    it('returns 0 when no second part', () => expect(getBranchLane('5')).toBe(0));
-    it('handles 2-part branchId', () => expect(getBranchLane('1.2')).toBe(2));
-  });
-
-  describe('getLaneKey', () => {
-    it('returns first two parts for 3-part branchId', () => expect(getLaneKey('2.1.3')).toBe('2.1'));
-    it('returns full string for 2-part branchId', () => expect(getLaneKey('1.0')).toBe('1.0'));
-    it('returns just the part for 1-part branchId', () => expect(getLaneKey('5')).toBe('5'));
+  it('returns empty array for empty input', () => {
+    expect(threadService.buildDisplayItems([])).toEqual([]);
   });
 });
 
