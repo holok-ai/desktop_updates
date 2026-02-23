@@ -148,9 +148,10 @@
 
   onDestroy(() => {
     clearTimeouts();
-    // Clean up all background streams
+    // Clean up all background streams and streaming sessions
     for (const stream of backgroundStreams.values()) {
       stream.unsubscribe?.();
+      threadService.clearStreamingSession(stream.threadId);
     }
     backgroundStreams.clear();
   });
@@ -315,6 +316,9 @@
       // Always accumulate into the background stream (survives thread switching)
       bgStream.accumulatedText = bgStream.accumulatedText + token;
 
+      // Sync to the ThreadService streaming session so getMessages() can merge
+      threadService.updateStreamingContent(forThreadId, bgStream.accumulatedText);
+
       // Only update UI-facing state if the user is viewing this thread
       if (isActiveThread) {
         responseText = bgStream.accumulatedText;
@@ -400,6 +404,9 @@
     };
     backgroundStreams.set(capturedThreadId, bgStream);
 
+    // Note: streaming session for branch mode is registered after user messages are created
+    // (see below) because we need the first user message for the session.
+
     // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
     const assistantMessages: Message[] = [];
@@ -451,6 +458,16 @@
     addDebugLog(
       `[sendMessageBranch] Added ${userMessages.length} user and ${assistantMessages.length} assistant messages`,
     );
+
+    // Register streaming session with ThreadService (use first user message)
+    if (userMessages.length > 0) {
+      threadService.registerStreamingSession(
+        capturedThreadId,
+        modelBranches[0].branchId,
+        userMessages[0],
+        modelBranches[0].modelId,
+      );
+    }
 
     // Set up streaming for all branches
     isStreaming = true;
@@ -542,9 +559,10 @@
 
     addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
-    // Clean up streaming
+    // Clean up streaming and streaming session
     bgStream.unsubscribe?.();
     backgroundStreams.delete(capturedThreadId);
+    threadService.clearStreamingSession(capturedThreadId);
     if (isViewingThisThread) {
       isStreaming = false;
     }
@@ -594,6 +612,10 @@
     messages = [...messages, newMessage];
     await tick();
     scrollToBottom();
+
+    // Register the streaming session with ThreadService so getMessages()
+    // can merge streaming data with API results when the user switches back.
+    threadService.registerStreamingSession(threadId, branchId, newMessage, modelId);
 
     // Set up streaming for this specific branch BEFORE sending.
     // setupTokenListener creates a BackgroundStream entry in the map.
@@ -677,9 +699,10 @@
         }
       }
 
-      // Clean up this thread's background stream — it's fully complete
+      // Clean up this thread's background stream and streaming session — fully complete
       bgStream?.unsubscribe?.();
       backgroundStreams.delete(capturedThreadId);
+      threadService.clearStreamingSession(capturedThreadId);
       if (isViewingThisThread) {
         responseText = '';
         isStreaming = false;
@@ -691,10 +714,11 @@
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
       const isViewingThisThread = thread?.id === capturedThreadId;
-      // Clean up this thread's background stream
+      // Clean up this thread's background stream and streaming session
       const bgStream = backgroundStreams.get(capturedThreadId);
       bgStream?.unsubscribe?.();
       backgroundStreams.delete(capturedThreadId);
+      threadService.clearStreamingSession(capturedThreadId);
       // Only update UI state if we're still on the same thread
       if (isViewingThisThread) {
         handleGuardError(errorMessage, capturedBranchId);
@@ -792,12 +816,13 @@
   }
 
   function finishStreamingWithError(msg: string) {
-    // Clean up the current thread's background stream
+    // Clean up the current thread's background stream and streaming session
     const currentId = thread?.id;
     if (currentId) {
       const bgStream = backgroundStreams.get(currentId);
       bgStream?.unsubscribe?.();
       backgroundStreams.delete(currentId);
+      threadService.clearStreamingSession(currentId);
     }
     isStreaming = false;
     error = msg;

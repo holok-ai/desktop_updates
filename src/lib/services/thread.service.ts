@@ -23,9 +23,31 @@ export type {
   DisplayItem,
 } from '$lib/utils/thread-display';
 
+/**
+ * Represents an active streaming session for a specific thread + branch.
+ * Holds the user prompt message and the in-progress assistant response content
+ * so that getMessages() can merge them with API results when the user switches
+ * back to a thread mid-stream.
+ */
+export interface StreamingSession {
+  threadId: string;
+  branchId: string;
+  userMessage: Message;
+  assistantContent: string;
+  modelId?: string;
+}
+
 export class ThreadService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
   private streamCallbacks = new Map<string, Set<(token: string) => void>>();
+
+  /**
+   * Active streaming sessions keyed by threadId.
+   * Registered when a prompt is submitted and streaming starts.
+   * Updated as tokens arrive. Removed when streaming completes.
+   * Used by getMessages() to merge streaming data with API results.
+   */
+  private streamingSessions = new Map<string, StreamingSession>();
 
   private constructor() {
     super();
@@ -351,8 +373,127 @@ export class ThreadService extends BaseElectronService {
     return result;
   }
 
+  // ── Streaming session management ──
+
+  /**
+   * Register a streaming session when a prompt is submitted and streaming starts.
+   */
+  registerStreamingSession(
+    threadId: string,
+    branchId: string,
+    userMessage: Message,
+    modelId?: string,
+  ): void {
+    this.streamingSessions.set(threadId, {
+      threadId,
+      branchId,
+      userMessage,
+      assistantContent: '',
+      modelId,
+    });
+  }
+
+  /**
+   * Update the accumulated assistant content for an active streaming session.
+   * Called by the token callback as tokens arrive.
+   */
+  updateStreamingContent(threadId: string, content: string): void {
+    const session = this.streamingSessions.get(threadId);
+    if (session) {
+      session.assistantContent = content;
+    }
+  }
+
+  /**
+   * Remove a streaming session when streaming completes (success or error).
+   */
+  clearStreamingSession(threadId: string): void {
+    this.streamingSessions.delete(threadId);
+  }
+
+  /**
+   * Check if a thread has an active streaming session.
+   */
+  hasStreamingSession(threadId: string): boolean {
+    return this.streamingSessions.has(threadId);
+  }
+
+  /**
+   * Get the streaming session for a thread (if any).
+   */
+  getStreamingSession(threadId: string): StreamingSession | undefined {
+    return this.streamingSessions.get(threadId);
+  }
+
+  // ── Message loading with streaming merge ──
+
   async getMessages(id: string): Promise<ApiResponse<Message[]>> {
-    return window.electronAPI.thread.getMessages(id);
+    const result = await window.electronAPI.thread.getMessages(id);
+    if (!result.success) {
+      return result;
+    }
+
+    const session = this.streamingSessions.get(id);
+    if (!session) {
+      // No active streaming — return API messages as-is
+      return result;
+    }
+
+    // Merge streaming data with API results
+    return {
+      ...result,
+      data: this.mergeStreamingMessages(result.data, session),
+    };
+  }
+
+  /**
+   * Merge API messages with an active streaming session.
+   *
+   * Three cases (matched by branchId):
+   * 1. API has neither the user prompt nor assistant response for this branch:
+   *    → Append both the streaming user message and a synthetic assistant message.
+   * 2. API has the user prompt but no assistant response for this branch:
+   *    → Append a synthetic assistant message with the streaming content.
+   * 3. API has both the user prompt and assistant response for this branch:
+   *    → Use the API version (streaming is complete or nearly so).
+   */
+  private mergeStreamingMessages(apiMessages: Message[], session: StreamingSession): Message[] {
+    const { branchId, userMessage, assistantContent, modelId } = session;
+
+    const isuserPresent = apiMessages.some(
+      (m) => m.branchId === branchId && m.role === 'user',
+    );
+    const isassistantPresent = apiMessages.some(
+      (m) => m.branchId === branchId && m.role === 'assistant',
+    );
+
+    // Case 3: API has both — use API data, streaming is done or nearly done
+    if (isuserPresent && isassistantPresent) {
+      return apiMessages;
+    }
+
+    const merged = [...apiMessages];
+
+    // Case 1: API has neither — append both
+    if (!isuserPresent) {
+      merged.push(userMessage);
+    }
+
+    // Case 1 & 2: API is missing the assistant response — append synthetic one
+    if (!isassistantPresent && assistantContent) {
+      merged.push({
+        id: `streaming-${branchId}`,
+        threadId: session.threadId,
+        role: 'assistant',
+        content: assistantContent,
+        createdAt: Date.now(),
+        branchId,
+        modelId: modelId ?? null,
+        isLocal: true,
+      });
+    }
+
+    return merged;
   }
 
   async moveToProject(
