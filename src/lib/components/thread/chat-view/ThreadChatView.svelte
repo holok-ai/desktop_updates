@@ -141,6 +141,11 @@
   });
 
   onDestroy(() => {
+    console.log('[ThreadChatView] onDestroy — component being torn down.', {
+      threadId: thread?.id,
+      isStreaming,
+      hasBgStream: thread?.id ? threadService.hasBackgroundStream(thread.id) : false,
+    });
     clearTimeouts();
     // Background streams live in threadService — do NOT clean them up here.
     // They must survive component destruction so tokens keep accumulating
@@ -154,6 +159,12 @@
   let previousThreadId: string | null = null;
   $effect(() => {
     const currentThreadId = thread?.id ?? null;
+    console.log('[ThreadChatView] $effect fired.', {
+      currentThreadId,
+      previousThreadId,
+      isStreaming,
+      hasBgStream: currentThreadId ? threadService.hasBackgroundStream(currentThreadId) : false,
+    });
 
     if (previousThreadId !== null && currentThreadId !== previousThreadId) {
       // Thread switch while component is mounted
@@ -334,6 +345,15 @@
         responseText = bgStream.accumulatedText;
         addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
         scrollToBottom();
+      } else {
+        // Background accumulation — log periodically (every 500 chars) to avoid spam
+        if (bgStream.accumulatedText.length % 500 < token.length) {
+          console.log('[ThreadChatView] Background token accumulation.', {
+            threadId: forThreadId,
+            accumulatedLength: bgStream.accumulatedText.length,
+            viewingThread: thread?.id,
+          });
+        }
       }
     };
   }
@@ -734,6 +754,11 @@
       }
 
       // Clean up this thread's background stream and streaming session — fully complete
+      console.log('[ThreadChatView] Stream complete — cleaning up.', {
+        capturedThreadId,
+        isViewingThisThread,
+        finalTextLength: finalText.length,
+      });
       bgStream?.unsubscribe?.();
       threadService.deleteBackgroundStream(capturedThreadId);
       threadService.clearStreamingSession(capturedThreadId);

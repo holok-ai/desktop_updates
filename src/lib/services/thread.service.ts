@@ -487,10 +487,17 @@ export class ThreadService extends BaseElectronService {
     const session = this.streamingSessions.get(id);
     if (!session) {
       // No active streaming — return API messages as-is
+      console.log('[ThreadService.getMessages] No streaming session for thread:', id);
       return result;
     }
 
     // Merge streaming data with API results
+    console.log('[ThreadService.getMessages] Merging streaming session.', {
+      threadId: id,
+      branchId: session.branchId,
+      assistantContentLength: session.assistantContent.length,
+      apiMessageCount: result.data.length,
+    });
     return {
       ...result,
       data: this.mergeStreamingMessages(result.data, session),
