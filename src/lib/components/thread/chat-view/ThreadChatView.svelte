@@ -50,9 +50,16 @@
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
 
-  // Captured at stream-start so the completion handler always references the correct thread
+  // Captured at stream-start so the completion handler always references the correct thread.
+  // These survive thread switches — they are only cleared when the stream completes.
   let streamingThreadId: string | null = null;
-  let streamingBranchId: string | null = null;
+  let _streamingBranchId: string | null = null;
+
+  // Closure-local accumulator that survives UI state resets from thread switching.
+  // The token callback writes into this AND into responseText. When the $effect wipes
+  // responseText on thread switch, this variable keeps the full accumulated content
+  // so the completion handler can still persist correctly, and re-attach can restore it.
+  let backgroundAccumulatedText: string = '';
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -142,35 +149,43 @@
   onDestroy(() => {
     clearTimeouts();
     unsubscribeStream?.();
+    backgroundAccumulatedText = '';
   });
 
-  // ── Detect thread switch during streaming and clean up ──
-  // When the thread prop changes (same-route navigation), the component stays mounted
-  // but we need to cancel any in-flight streaming for the old thread.
+  // ── Detect thread switch during streaming ──
+  // When the thread prop changes (same-route navigation), the component stays mounted.
+  // The backend stream is NOT cancelled — it continues running so the response will be
+  // persisted when complete. The token subscription also stays alive so
+  // backgroundAccumulatedText keeps growing. We only detach the UI.
+  //
+  // When the user returns to the streaming thread, we re-attach the UI by restoring
+  // responseText from backgroundAccumulatedText and re-enabling isStreaming.
   let previousThreadId: string | null = null;
   $effect(() => {
     const currentThreadId = thread?.id ?? null;
     if (previousThreadId !== null && currentThreadId !== previousThreadId) {
-      // Thread changed while component stays mounted — clean up old streaming state
       if (isStreaming) {
-        console.log('[ThreadChatView] Thread switched during streaming. Cleaning up old stream.', {
+        console.log('[ThreadChatView] Thread switched during streaming. Detaching UI.', {
           from: previousThreadId,
           to: currentThreadId,
         });
-        // Cancel the stream on the backend so tokens stop flowing
-        if (streamingThreadId && streamingBranchId) {
-          void window.electronAPI.chat.cancelStream(streamingThreadId, streamingBranchId);
-        }
-        // Unsubscribe the token listener
-        unsubscribeStream?.();
-        unsubscribeStream = null;
-        // Reset streaming state
+        // Only reset UI-facing state. Do NOT cancel the backend stream, do NOT
+        // unsubscribe the token listener, do NOT clear streamingThreadId/_streamingBranchId.
+        // The sendMessageSingle closure keeps running in the background.
         isStreaming = false;
         responseText = '';
-        streamingThreadId = null;
-        streamingBranchId = null;
-
         clearTimeouts();
+      }
+
+      // Check if we're returning to a thread that still has an active background stream
+      if (streamingThreadId && currentThreadId === streamingThreadId) {
+        console.log('[ThreadChatView] Returning to thread with active stream. Re-attaching UI.', {
+          threadId: currentThreadId,
+          accumulatedLength: backgroundAccumulatedText.length,
+        });
+        // Restore the UI streaming state from the background accumulator
+        isStreaming = true;
+        responseText = backgroundAccumulatedText;
       }
     }
     previousThreadId = currentThreadId;
@@ -290,8 +305,10 @@
         }
       }, STREAMING_IDLE_TIMEOUT_MS);
 
-      // Accumulate (force new string ref for Svelte reactivity)
-      responseText = responseText + token;
+      // Accumulate into both the UI-facing state and the background accumulator.
+      // backgroundAccumulatedText survives UI resets from thread switching.
+      backgroundAccumulatedText = backgroundAccumulatedText + token;
+      responseText = backgroundAccumulatedText;
       addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
 
       // Keep streaming message in view
@@ -368,7 +385,7 @@
 
     // Set streaming context so the thread-switch $effect can clean up
     streamingThreadId = capturedThreadId;
-    streamingBranchId = modelBranches[0]?.branchId ?? branchId;
+    _streamingBranchId = modelBranches[0]?.branchId ?? branchId;
 
     // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
@@ -515,7 +532,7 @@
     if (!threadSwitchedAway) {
       isStreaming = false;
       streamingThreadId = null;
-      streamingBranchId = null;
+      _streamingBranchId = null;
     }
 
     // Persist assistant responses using the captured threadId (not current thread)
@@ -567,7 +584,8 @@
     // Capture thread context at stream-start so the completion handler
     // always references the correct thread, even if the user navigates away
     streamingThreadId = threadId;
-    streamingBranchId = branchId;
+    _streamingBranchId = branchId;
+    backgroundAccumulatedText = '';
 
     // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
@@ -616,19 +634,22 @@
         return;
       }
 
-      // Streaming complete — persist assistant response using captured IDs
-      if (responseText) {
+      // Streaming complete — persist assistant response using captured IDs.
+      // Use backgroundAccumulatedText (not responseText) because responseText may have
+      // been wiped by the $effect if the user switched threads during streaming.
+      const finalText = backgroundAccumulatedText;
+      if (finalText) {
         console.log('[ThreadChatView] Streaming complete. Final responseText:', {
-          length: responseText.length,
-          content: responseText,
+          length: finalText.length,
+          content: finalText,
           persistToThread: capturedThreadId,
         });
         addDebugLog(
-          `[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars) to thread ${capturedThreadId}`,
+          `[ThreadChatView] Streaming complete - persisting response (${finalText.length} chars) to thread ${capturedThreadId}`,
         );
         await window.electronAPI.thread.addAssistantResponse(
           capturedThreadId,
-          responseText,
+          finalText,
           capturedModelName,
         );
 
@@ -638,7 +659,7 @@
             id: crypto.randomUUID(),
             threadId: capturedThreadId,
             role: 'assistant',
-            content: responseText,
+            content: finalText,
             createdAt: Date.now(),
             branchId: capturedBranchId,
             modelId: modelId,
@@ -648,15 +669,15 @@
         }
       }
 
-      // Clean up streaming state only if we haven't been cleaned up by thread switch
+      // Clean up all streaming state — stream is fully complete
+      backgroundAccumulatedText = '';
+      unsubscribeStream?.();
+      unsubscribeStream = null;
+      streamingThreadId = null;
+      _streamingBranchId = null;
       if (!threadSwitchedAway) {
         responseText = '';
         isStreaming = false;
-        unsubscribeStream?.();
-        unsubscribeStream = null;
-        streamingThreadId = null;
-        streamingBranchId = null;
-
       }
 
       await tick();
@@ -664,8 +685,15 @@
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
+      const stillOnSameThread = streamingThreadId === capturedThreadId;
+      // Clean up streaming state
+      backgroundAccumulatedText = '';
+      unsubscribeStream?.();
+      unsubscribeStream = null;
+      streamingThreadId = null;
+      _streamingBranchId = null;
       // Only update UI state if we're still on the same thread
-      if (streamingThreadId === capturedThreadId) {
+      if (stillOnSameThread) {
         handleGuardError(errorMessage, capturedBranchId);
         isStreaming = false;
       }
