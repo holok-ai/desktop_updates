@@ -183,6 +183,17 @@
         isStreaming = true;
         responseText = bgStream.accumulatedText;
 
+        // The getMessages() merge interceptor may have injected a synthetic
+        // assistant message (id: "streaming-{branchId}") into the messages array.
+        // Strip it so buildDisplayItems falls back to the live responseText,
+        // which is continuously updated by the token callback.
+        const syntheticId = `streaming-${bgStream.branchId}`;
+        const hadSynthetic = messages.some((m) => m.id === syntheticId);
+        if (hadSynthetic) {
+          messages = messages.filter((m) => m.id !== syntheticId);
+          console.log('[ThreadChatView] Stripped synthetic assistant message:', syntheticId);
+        }
+
         // Re-subscribe with a fresh callback that closes over THIS component's
         // reactive variables. The old callback (from the destroyed component instance
         // or a previous mount) still accumulates into bgStream.accumulatedText, but
