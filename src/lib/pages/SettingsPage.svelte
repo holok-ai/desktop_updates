@@ -31,6 +31,7 @@
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
   import { toastStore } from '$lib/services/toast.service';
   import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
+  import InstallUpdateModal from '$lib/modals/InstallUpdateModal.svelte';
 
   type SettingsCategory =
     | 'general'
@@ -57,6 +58,7 @@
   let isDevelopmentBuild = $state(false);
   let showInstallConfirm = $state(false);
   let isInstalling = $state(false);
+  let downloadPercent = $state<number | null>(null);
 
   // Tools list from ToolOrchestrator
   let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
@@ -325,17 +327,26 @@
 
   async function handleInstallNow() {
     isInstalling = true;
+    downloadPercent = 0;
+
+    const unsubscribeProgress = window.electronAPI.updater.onDownloadProgress((percent) => {
+      downloadPercent = percent;
+    });
+
     try {
       const result = await window.electronAPI.updater.updateNow();
       if (!result.success) {
         toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
         showInstallConfirm = false;
+        downloadPercent = null;
       }
-      // If successful, the app will quit and install — no need to hide the modal
+      // If successful, quitAndInstall is called automatically — app will restart
     } catch {
       toastStore.show('Failed to start update download.', { variant: 'error' });
       showInstallConfirm = false;
+      downloadPercent = null;
     } finally {
+      unsubscribeProgress();
       isInstalling = false;
     }
   }
@@ -741,7 +752,7 @@
                       <span class="info-value">{appVersion}</span>
                     </div>
                     <div class="info-row">
-                      <span class="info-key">Latest Version</span>
+                      <span class="info-key">Available Version</span>
                       <span class="info-value">
                         {#if isDevelopmentBuild}
                           Not Available In Development
@@ -965,23 +976,13 @@
 </div>
 
 {#if showInstallConfirm}
-  <div class="install-overlay">
-    <div class="install-modal">
-      <p>Install version <strong>{settings.latestVersion}</strong>?</p>
-      <div class="install-actions">
-        <button class="btn-primary" onclick={handleInstallNow} disabled={isInstalling}>
-          {isInstalling ? 'Downloading...' : 'Install Now'}
-        </button>
-        <button
-          class="btn-secondary"
-          onclick={() => (showInstallConfirm = false)}
-          disabled={isInstalling}
-        >
-          I'll Do It Later
-        </button>
-      </div>
-    </div>
-  </div>
+  <InstallUpdateModal
+    version={settings.latestVersion ?? ''}
+    {isInstalling}
+    {downloadPercent}
+    onInstall={handleInstallNow}
+    onDismiss={() => (showInstallConfirm = false)}
+  />
 {/if}
 
 <style>
@@ -1355,38 +1356,5 @@
 
   .hidden {
     display: none;
-  }
-
-  .install-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-  }
-
-  .install-modal {
-    background: var(--surface-card, #fff);
-    border-radius: 10px;
-    padding: 1.75rem 2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-    color: var(--text-primary, #111);
-    min-width: 280px;
-  }
-
-  .install-modal p {
-    margin: 0;
-    font-size: 0.9375rem;
-  }
-
-  .install-actions {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: flex-end;
   }
 </style>

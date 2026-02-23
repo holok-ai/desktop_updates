@@ -97,6 +97,29 @@ function createWindow(): void {
  */
 function createMenu(): void {
   const template: MenuItemConstructorOptions[] = [
+    // macOS app menu (Holokai > Quit)
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: app.getName(),
+            submenu: [
+              { role: 'about' as const },
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              {
+                label: `Quit ${app.getName()}`,
+                accelerator: 'Cmd+Q',
+                click: () => {
+                  app.quit();
+                },
+              },
+            ],
+          },
+        ]
+      : []),
     {
       label: 'File',
       submenu: [
