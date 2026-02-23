@@ -2,7 +2,7 @@
  * Settings - Updates E2E Tests
  *
  * Validates: Requirements 13.1, 13.2, 13.3
- * - Updates tab shows current version and update status
+ * - Updates tab shows current version and latest version info
  * - Clicking Check Now triggers update check
  * - Toggling auto-check updates preference
  */
@@ -37,8 +37,8 @@ test.describe.serial('Settings - Updates', () => {
     await app?.close();
   });
 
-  test('updates tab shows current version and update status', async () => {
-    // Requirement 13.1: displays current version and update availability
+  test('updates tab shows current version and latest version info', async () => {
+    // Requirement 13.1: displays current version and update info
     const panelTitle = page.locator('h2.panel-title');
     await expect(panelTitle).toHaveText('Updates');
 
@@ -49,13 +49,12 @@ test.describe.serial('Settings - Updates', () => {
     const versionText = await versionValue.textContent();
     expect(versionText?.trim().length).toBeGreaterThan(0);
 
-    // Update Available row
-    const updateRow = page.locator('.info-row', { hasText: 'Update Available' });
-    await expect(updateRow).toBeVisible({ timeout: 5000 });
-    const updateValue = updateRow.locator('.info-value');
-    const updateText = await updateValue.textContent();
-    // Should show "Yes (...)" or "No"
-    expect(updateText?.trim()).toMatch(/^(Yes|No)/);
+    // Latest Version row (shows version, "Not Available In Development", or "—")
+    const latestRow = page.locator('.info-row', { hasText: 'Latest Version' });
+    await expect(latestRow).toBeVisible({ timeout: 5000 });
+    const latestValue = latestRow.locator('.info-value');
+    const latestText = await latestValue.textContent();
+    expect(latestText?.trim().length).toBeGreaterThan(0);
   });
 
   test('clicking Check Now triggers update check', async () => {
@@ -74,9 +73,9 @@ test.describe.serial('Settings - Updates', () => {
 
   test('toggling auto-check updates preference', async () => {
     // Requirement 13.3: toggling auto-check updates the preference
-    const preferencesSection = page.locator('.subgroup-row', { hasText: 'Preferences' });
-    const autoCheckLabel = preferencesSection.locator('label', {
-      hasText: 'Automatically check for updates',
+    // The actual UI uses labels with text "Check for updates on startup?"
+    const autoCheckLabel = page.locator('label', {
+      hasText: 'Check for updates on startup',
     });
     const autoCheckbox = autoCheckLabel.locator('input[type="checkbox"]');
 

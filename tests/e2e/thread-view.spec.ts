@@ -9,7 +9,7 @@
  * - Thread title is displayed in header
  * - Editing thread title saves and reflects in UI
  *
- * Strategy: First create a thread via the new thread page (using llama3.2),
+ * Strategy: First create a thread by clicking an application card on the home page,
  * then test the thread view functionality on that thread.
  */
 
@@ -20,45 +20,22 @@ import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-aut
 let app: ElectronApplication;
 let page: Page;
 
-/** Helper: select llama3.2 model from the ModelSelector dropdown */
-async function selectLlamaModel(page: Page) {
-  const modelSelectorBtn = page.locator('button#model-selector');
-  await modelSelectorBtn.click();
-  await page.waitForTimeout(1000);
-
-  const dropdown = page.locator('.model-selector-dropdown');
-  await expect(dropdown).toBeVisible({ timeout: 5000 });
-
-  const llamaItem = dropdown.locator('.dropdown-item .model-title', { hasText: /llama/i });
-  const llamaCount = await llamaItem.count();
-  if (llamaCount > 0) {
-    await llamaItem.first().click();
-  } else {
-    const modelItems = dropdown.locator('.dropdown-item:not(.loading):not(.empty)');
-    await modelItems.first().click();
-  }
-  await page.waitForTimeout(500);
-}
-
-/** Helper: create a thread and wait for the thread view to load */
-async function createThreadAndWait(page: Page, prompt: string) {
-  // Navigate to new thread page
+/**
+ * Helper: create a thread by selecting an application card and wait for the thread view to load.
+ * The ApplicationThread page shows agent cards; clicking one creates a thread automatically.
+ */
+async function createThreadAndWait(page: Page) {
+  // Navigate to the application selection page
   await page.locator('button[aria-label="+ New Thread"]').click();
   await page.waitForTimeout(2000);
-  await expect(page).toHaveURL(/\/threads\/new/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
 
-  // Select llama3.2 model
-  const modelSelectorBtn = page.locator('button#model-selector');
-  const modelText = await modelSelectorBtn.textContent();
-  if (!modelText?.toLowerCase().includes('llama')) {
-    await selectLlamaModel(page);
-  }
+  // Wait for application cards to load
+  const cards = page.locator('.application-card');
+  await expect(cards.first()).toBeVisible({ timeout: 15000 });
 
-  // Fill prompt and send
-  const promptTextarea = page.locator('textarea#thread-prompt');
-  await promptTextarea.fill(prompt);
-  await page.waitForTimeout(300);
-  await page.locator('button.send-button').click();
+  // Click the first application card to create a thread
+  await cards.first().click();
 
   // Wait for navigation to thread view
   await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
@@ -77,19 +54,10 @@ test.describe.serial('Thread View and Chat', () => {
     await app?.close();
   });
 
-  test('opening existing thread shows chat pane with messages', async () => {
-    // Requirement 5.1: existing thread shows chat pane with previous messages
-    // First create a thread so we have one to open
-    await createThreadAndWait(page, 'Say hello');
-
-    // Wait for the user message to appear
-    const chatMessage = page.locator('div[role="article"][aria-label="Chat message"]').first();
-    await expect(chatMessage).toBeVisible({ timeout: 60000 });
-    await expect(chatMessage).toContainText('Say hello', { timeout: 5000 });
-
-    // Wait for AI response to complete (response bubble appears with content)
-    const responseBubble = page.locator('.chat-response .response-bubble').first();
-    await expect(responseBubble).toBeVisible({ timeout: 120000 });
+  test('opening existing thread shows chat pane with messages area', async () => {
+    // Requirement 5.1: existing thread shows chat pane
+    // First create a thread so we have one to view
+    await createThreadAndWait(page);
 
     // Verify the chat view has messages area
     const messagesArea = page.locator('.messages-area');
@@ -102,7 +70,7 @@ test.describe.serial('Thread View and Chat', () => {
     const threadTitle = page.locator('h1.thread-title');
     await expect(threadTitle).toBeVisible({ timeout: 5000 });
 
-    // Title should contain the prompt text (thread title is set from first message)
+    // Title should have content
     const titleText = await threadTitle.textContent();
     expect(titleText).toBeTruthy();
     expect(titleText!.length).toBeGreaterThan(0);
@@ -124,15 +92,14 @@ test.describe.serial('Thread View and Chat', () => {
     const sendButton = page.locator('button.send-button');
     await sendButton.click();
 
-    // Wait for the new user message to appear (second chat-message article)
+    // Wait for the user message to appear
     const chatMessages = page.locator('div[role="article"][aria-label="Chat message"]');
-    await expect(chatMessages.nth(1)).toBeVisible({ timeout: 30000 });
+    await expect(chatMessages.first()).toBeVisible({ timeout: 30000 });
 
-    // Verify the new user message contains our text
-    await expect(chatMessages.nth(1)).toContainText('Just respond with OK', { timeout: 5000 });
+    // Verify the user message contains our text
+    await expect(chatMessages.first()).toContainText('Just respond with OK', { timeout: 5000 });
 
     // Wait for AI response to complete
-    // The response bubble should appear within the second chat-message
     const allResponses = page.locator('.chat-response .response-bubble');
     await expect(allResponses.last()).toBeVisible({ timeout: 120000 });
   });

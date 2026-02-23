@@ -65,20 +65,23 @@ test.describe.serial('Thread List', () => {
     // If no threads exist, the empty state is also valid
   });
 
-  test('clicking New Thread button navigates to creation form', async () => {
-    // Requirement 6.2: New Thread button navigates to creation form
+  test('clicking New Thread button navigates to application selection', async () => {
+    // Requirement 6.2: New Thread button navigates to application selection page
     const newThreadBtn = page.locator('button.new-thread-button');
     await expect(newThreadBtn).toBeVisible({ timeout: 5000 });
 
     await newThreadBtn.click();
     await page.waitForTimeout(2000);
 
-    // Should navigate to /threads/new
-    await expect(page).toHaveURL(/\/threads\/new/, { timeout: 10000 });
+    // Should navigate to /threads/applications (ApplicationThread page)
+    await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
 
-    // Verify the new thread form elements are visible
-    const promptTextarea = page.locator('textarea#thread-prompt');
-    await expect(promptTextarea).toBeVisible({ timeout: 10000 });
+    // Verify the ApplicationThread page is visible with "Let's chat" header
+    const appPage = page.locator('.application-thread-page');
+    await expect(appPage).toBeVisible({ timeout: 15000 });
+
+    const header = appPage.locator('.page-header h2');
+    await expect(header).toHaveText("Let's chat");
 
     // Navigate back to threads list for the next test
     await page.locator('button[aria-label="Threads"]').click();

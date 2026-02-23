@@ -66,7 +66,7 @@ test.describe('Sidebar Navigation', () => {
     // Requirement 3.6
     await page.locator('button[aria-label="+ New Thread"]').click();
     await page.waitForTimeout(1000);
-    await expect(page).toHaveURL(/\/threads\/new/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
   });
 
   test('sidebar collapse toggle hides labels and sections', async () => {

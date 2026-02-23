@@ -40,7 +40,7 @@ test.describe.serial('Error Handling', () => {
     // The NotFound component calls replace(ROUTE.HOME) on mount,
     // so we should end up at the home/dashboard route
     const url = page.url();
-    // Should have been redirected — hash should be empty or '/' or '/threads/new' (starting page)
+    // Should have been redirected — hash should be empty or '/' (home/ApplicationThread page)
     expect(url).not.toContain('this-route-does-not-exist');
   });
 

@@ -1,12 +1,12 @@
 /**
- * Dashboard (Home Page) E2E Tests
+ * Home Page (Application Thread) E2E Tests
  *
- * Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
- * - ModelListCard is visible with model information
- * - RecentProjectsCard is visible
- * - InvitationsCard is visible
- * - SupportCard and ResourcesCard are visible
- * - MetricsChartsSection is visible
+ * Validates the home page which shows available AI applications/agents.
+ * Users select an application to start a new chat thread.
+ *
+ * The home page route is `/` and renders ApplicationThread.svelte.
+ * It displays a grid of application cards, each representing an AI agent.
+ * Clicking a card creates a thread and navigates to the thread view.
  */
 
 import { test, expect } from '@playwright/test';
@@ -16,14 +16,14 @@ import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-aut
 let app: ElectronApplication;
 let page: Page;
 
-test.describe('Dashboard (Home Page)', () => {
+test.describe('Home Page (Application Thread)', () => {
   test.beforeAll(async () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    // Navigate to dashboard via hash route (sidebar has no "Home" button)
+    // Navigate to home via hash route
     const currentUrl = page.url();
     const baseUrl = currentUrl.split('#')[0];
     await page.goto(`${baseUrl}#/`);
@@ -35,46 +35,59 @@ test.describe('Dashboard (Home Page)', () => {
     await app?.close();
   });
 
-  test('ModelListCard is visible with model information', async () => {
-    // Requirement 2.1: Dashboard displays ModelListCard with AI model info
-    const modelCard = page.locator('.dashboard-card', { hasText: 'Models by Agent' });
-    await expect(modelCard).toBeVisible({ timeout: 15000 });
+  test('home page shows "Let\'s chat" header', async () => {
+    const appPage = page.locator('.application-thread-page');
+    await expect(appPage).toBeVisible({ timeout: 15000 });
 
-    // Verify the card has content (either applications list or empty state)
-    const applicationsList = modelCard.locator('.applications-list');
-    const emptyState = modelCard.locator('.empty-state');
-
-    const hasApps = await applicationsList.isVisible({ timeout: 5000 }).catch(() => false);
-    const hasEmpty = await emptyState.isVisible({ timeout: 2000 }).catch(() => false);
-
-    expect(hasApps || hasEmpty).toBe(true);
+    const header = appPage.locator('.page-header h2');
+    await expect(header).toHaveText("Let's chat");
   });
 
-  test('RecentProjectsCard is visible', async () => {
-    // Requirement 2.2: Dashboard displays RecentProjectsCard
-    const recentProjectsCard = page.locator('.dashboard-card', { hasText: 'Recent Projects' });
-    await expect(recentProjectsCard).toBeVisible({ timeout: 10000 });
+  test('application cards are visible or shows loading/empty state', async () => {
+    const container = page.locator('.applications-container');
+    await expect(container).toBeVisible({ timeout: 10000 });
+
+    const grid = page.locator('.applications-grid');
+    const loading = page.locator('.loading-state');
+    const empty = page.locator('.empty-state');
+
+    const hasGrid = await grid.isVisible().catch(() => false);
+    const hasLoading = await loading.isVisible().catch(() => false);
+    const hasEmpty = await empty.isVisible().catch(() => false);
+
+    // One of these states should be visible
+    expect(hasGrid || hasLoading || hasEmpty).toBe(true);
   });
 
-  test('InvitationsCard is visible', async () => {
-    // Requirement 2.3: Dashboard displays InvitationsCard
-    const invitationsCard = page.locator('.dashboard-card', { hasText: 'Project Invitations' });
-    await expect(invitationsCard).toBeVisible({ timeout: 10000 });
+  test('application cards show title, description, and chat action', async () => {
+    const cards = page.locator('.application-card');
+    const count = await cards.count();
+
+    if (count > 0) {
+      const firstCard = cards.first();
+      await expect(firstCard.locator('.app-title')).toBeVisible({ timeout: 5000 });
+      await expect(firstCard.locator('.app-provider')).toBeVisible({ timeout: 5000 });
+      await expect(firstCard.locator('.card-footer')).toContainText('Chat');
+    }
+    // If no cards, the empty/loading state was already validated above
   });
 
-  test('SupportCard and ResourcesCard are visible', async () => {
-    // Requirement 2.4: Dashboard displays SupportCard and ResourcesCard
-    const supportCard = page.locator('.dashboard-card', { hasText: 'Support Center' });
-    await expect(supportCard).toBeVisible({ timeout: 10000 });
+  test('clicking an application card creates thread and navigates to chat', async () => {
+    const cards = page.locator('.application-card');
+    const count = await cards.count();
 
-    const resourcesCard = page.locator('.dashboard-card', { hasText: 'Help & Resources' });
-    await expect(resourcesCard).toBeVisible({ timeout: 10000 });
-  });
+    if (count === 0) {
+      test.skip();
+      return;
+    }
 
-  test('MetricsChartsSection is visible', async () => {
-    // Requirement 2.5: Dashboard displays MetricsChartsSection
-    const metricsCard = page.locator('.dashboard-card', { hasText: 'Usage Metrics' });
-    await metricsCard.scrollIntoViewIfNeeded();
-    await expect(metricsCard).toBeVisible({ timeout: 10000 });
+    await cards.first().click();
+
+    // Should navigate to thread view with threadId parameter
+    await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
+
+    // Thread chat view should be visible
+    const chatView = page.locator('.thread-chat-view');
+    await expect(chatView).toBeVisible({ timeout: 30000 });
   });
 });
