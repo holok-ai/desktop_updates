@@ -2,21 +2,22 @@
 
 /**
  * Release Script for Holokai Desktop
- * 
+ *
  * Automates the process of:
  * 1. Updating version in package.json
  * 2. Committing and tagging
  * 3. Pushing to GitHub
  * 4. Building and publishing to GitHub releases
- * 
+ * 5. Optionally marking release as mandatory
+ *
  * Usage:
- *   node scripts/release.js [version]
- * 
+ *   node scripts/release.js [version] [--mandatory]
+ *
  * Examples:
- *   node scripts/release.js 1.0.1          # Patch release
+ *   node scripts/release.js 1.0.1          # Optional release
+ *   node scripts/release.js 1.0.1 --mandatory  # Mandatory release
  *   node scripts/release.js 1.1.0          # Minor release
  *   node scripts/release.js 2.0.0          # Major release
- *   node scripts/release.js                # Prompts for version
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -29,19 +30,24 @@ const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 const packageJsonPath = join(rootDir, 'package.json');
 
-// Read current version
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+// Read current version and keep original content so we can revert on failure
+const originalPackageJsonContent = readFileSync(packageJsonPath, 'utf8');
+const packageJson = JSON.parse(originalPackageJsonContent);
 const currentVersion = packageJson.version;
+let packageJsonModified = false;
 
-// Get new version from command line or prompt
-const newVersion = process.argv[2];
+// Parse command line arguments
+const args = process.argv.slice(2);
+const newVersion = args.find((arg) => !arg.startsWith('--'));
+const isMandatory = args.includes('--mandatory');
 
 if (!newVersion) {
   console.error('❌ Error: Version required');
   console.error('\nUsage:');
-  console.error('  node scripts/release.js <version>');
+  console.error('  node scripts/release.js <version> [--mandatory]');
   console.error('\nExamples:');
   console.error('  node scripts/release.js 1.0.1');
+  console.error('  node scripts/release.js 1.0.1 --mandatory');
   console.error('  node scripts/release.js 1.1.0');
   console.error(`\nCurrent version: ${currentVersion}`);
   process.exit(1);
@@ -55,38 +61,30 @@ if (!semverRegex.test(newVersion)) {
   process.exit(1);
 }
 
-// Check if tag exists remotely (for multi-platform builds)
+// Check if tag exists on origin (for multi-platform builds)
 const tagName = `v${newVersion}`;
+const desktopUpdatesRepo = 'holok-ai/desktop_updates';
 let tagExistsRemotely = false;
+
 try {
-  execSync(`git ls-remote --tags origin ${tagName}`, { cwd: rootDir, stdio: 'pipe' });
-  tagExistsRemotely = true;
-} catch {
-  // Tag doesn't exist remotely
-}
-
-// If tag exists remotely, skip version check (this is a second platform build)
-if (tagExistsRemotely) {
-  // Tag exists remotely, this is a second platform build
-  console.log(`ℹ️  Tag ${tagName} already exists on remote.`);
-  console.log('   This appears to be a multi-platform build.');
-  console.log('   Skipping version update and tag creation.\n');
-} else {
-  // Check if version changed (only if tag doesn't exist)
-  if (newVersion === currentVersion) {
-    console.error(`❌ Error: Version ${newVersion} is already the current version`);
-    console.error('If you want to publish for another platform, make sure the tag exists on remote first.');
-    process.exit(1);
+  const result = execSync(`git ls-remote --tags origin ${tagName}`, {
+    cwd: rootDir,
+    stdio: 'pipe',
+    encoding: 'utf8',
+  });
+  if (result.trim()) {
+    tagExistsRemotely = true;
+    console.log(`ℹ️  Tag ${tagName} already exists on origin (multi-platform build).`);
+    console.log('   Skipping version update and tag creation.\n');
   }
+} catch {
+  // Tag doesn't exist on origin or command failed
+  tagExistsRemotely = false;
 }
 
-// Check if GH_TOKEN is set
-if (!process.env.GH_TOKEN) {
-  console.error('❌ Error: GH_TOKEN environment variable not set');
-  console.error('\nSet it with:');
-  console.error('  export GH_TOKEN=your_token_here');
-  process.exit(1);
-}
+// Note: If tag doesn't exist yet but package.json already has newVersion,
+// we still allow the release to proceed. This covers cases where the version
+// was bumped manually or by a previous failed attempt.
 
 // Check if git is clean
 try {
@@ -105,103 +103,105 @@ try {
 
 console.log('🚀 Starting release process...\n');
 console.log(`Current version: ${currentVersion}`);
-console.log(`New version: ${newVersion}\n`);
+console.log(`New version: ${newVersion}`);
+if (isMandatory) {
+  console.log('⚠️  This will be marked as a MANDATORY update\n');
+} else {
+  console.log('');
+}
 
 try {
-  // Step 1: Update version in package.json (only if tag doesn't exist remotely)
+  // Step 1: Prepare release (only if tag doesn't exist remotely)
   if (!tagExistsRemotely) {
-    console.log('📝 Step 1: Updating version in package.json...');
-    packageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-    console.log('✅ Version updated\n');
-
-    // Step 2: Commit the change
-    console.log('📦 Step 2: Committing version change...');
-    execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
-    execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
-    console.log('✅ Committed\n');
+    console.log('📝 Step 1: Preparing release...');
+    console.log('   (Version will be updated after successful build)\n');
   } else {
     console.log('📝 Step 1: Skipping version update (tag already exists)\n');
   }
 
-  // Step 2/3: Create and push tag (skip if already exists remotely)
-  const stepLabel = tagExistsRemotely ? 'Step 2' : 'Step 3';
-  console.log(`🏷️  ${stepLabel}: Checking git tag...`);
-  
-  // Check if tag exists locally
-  let tagExistsLocally = false;
-  try {
-    execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
-    tagExistsLocally = true;
-  } catch {
-    // Tag doesn't exist locally
-  }
-  
+  // Step 2: Prepare tag (only if tag exists remotely, fetch it locally if needed)
   if (tagExistsRemotely) {
-    console.log(`ℹ️  Tag ${tagName} already exists on remote. Skipping tag creation.`);
-    console.log('   This is normal when building for multiple platforms.\n');
-    
-    // Make sure we have the tag locally (for electron-builder to detect version)
+    console.log(`🏷️  Step 2: Ensuring tag ${tagName} exists locally...`);
+
+    // Check if tag exists locally
+    let tagExistsLocally = false;
+    try {
+      execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
+      tagExistsLocally = true;
+    } catch {
+      // Tag doesn't exist locally
+    }
+
     if (!tagExistsLocally) {
-      console.log('📥 Fetching tag from remote...');
-      // Fetch all tags (simpler and more reliable)
-      execSync(`git fetch origin --tags`, { cwd: rootDir, stdio: 'inherit' });
-      console.log('✅ Tags fetched\n');
+      try {
+        console.log('📥 Fetching tags from origin...');
+        // Fetch all tags so electron-builder can detect the version
+        execSync('git fetch origin --tags', {
+          cwd: rootDir,
+          stdio: 'inherit',
+        });
+        console.log('✅ Tags fetched\n');
+      } catch (error) {
+        console.warn(`⚠️  Warning: Could not fetch tags from origin: ${error.message}`);
+        console.warn('   You may need to create the tag manually.\n');
+      }
+    } else {
+      console.log('✅ Tag already exists locally\n');
     }
   } else {
-    // Tag doesn't exist, create it
-    if (!tagExistsLocally) {
-      execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
-      console.log('✅ Tag created\n');
-    }
-    
-    // Step 4: Push commits and tags
-    console.log('📤 Step 4: Pushing to GitHub...');
-    execSync('git push', { cwd: rootDir, stdio: 'inherit' });
-    execSync('git push --tags', { cwd: rootDir, stdio: 'inherit' });
-    console.log('✅ Pushed to GitHub\n');
+    console.log('🏷️  Step 2: Tag will be created after successful build\n');
   }
 
-  // Step 3/4/5: Build and publish for current platform
-  const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 5';
-  console.log(`🔨 ${buildStepNumber}: Building and publishing to GitHub releases...`);
-  
-  // Re-read package.json to ensure we have the latest version
-  const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-  
-  // If tag doesn't exist remotely, we should have updated package.json
-  // If tag exists remotely, package.json should already have the correct version
-  if (!tagExistsRemotely && currentPackageJson.version !== newVersion) {
-    console.error(`❌ Error: package.json version mismatch!`);
-    console.error(`   Expected: ${newVersion}, Found: ${currentPackageJson.version}`);
-    console.error('   This should not happen. Please check package.json manually.');
+  // Step 3/4/5: Build first (before updating/committing version)
+  const buildStepNumber = tagExistsRemotely ? 'Step 3' : 'Step 3';
+  console.log(`🔨 ${buildStepNumber}: Building application...`);
+
+  // For first-platform builds, ensure package.json version matches newVersion before build
+  if (!tagExistsRemotely) {
+    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    if (currentPackageJson.version !== newVersion) {
+      currentPackageJson.version = newVersion;
+      writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+      packageJsonModified = true;
+      console.log(`📝 package.json version set to ${newVersion} for build\n`);
+    }
+  }
+
+  // Check if GH_TOKEN is set (needed for publishing, even for public repos)
+  if (!process.env.GH_TOKEN) {
+    console.error('❌ Error: GH_TOKEN environment variable not set');
+    console.error(
+      '\nGH_TOKEN is required to publish releases to GitHub, even for public repositories.',
+    );
+    console.error('It is used to authenticate API requests when uploading release artifacts.\n');
+    console.error('Set it with:');
+    console.error('  macOS: launchctl setenv GH_TOKEN your_token_here');
+    console.error('  Windows: setx GH_TOKEN "your_token_here"');
+    console.error('  Linux: export GH_TOKEN=your_token_here');
     process.exit(1);
   }
-  
-  // Ensure package.json has the correct version (in case tag exists but package.json doesn't)
-  if (currentPackageJson.version !== newVersion) {
-    console.log(`⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`);
-    currentPackageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
-    console.log('✅ Version updated\n');
-  } else {
-    console.log(`✅ Verified package.json version: ${newVersion}\n`);
-  }
-  
+
   // Check platform
   const platform = process.platform;
   console.log(`Current platform: ${platform}\n`);
-  
+
+  // Build with current version first
+  console.log('📦 Building application (this may take a few minutes)...\n');
   execSync('npm run build:prod', { cwd: rootDir, stdio: 'inherit' });
-  
+  console.log('✅ Build successful!\n');
+
+  // Step 4/5: Publish release (before updating version)
+  const publishStepNumber = tagExistsRemotely ? 'Step 4' : 'Step 4';
+  console.log(`🚀 ${publishStepNumber}: Publishing to GitHub releases...`);
+
   if (platform === 'darwin') {
     console.log('\n📦 Building for macOS...');
     console.log(`   - Version: ${newVersion}`);
     console.log('   - macOS: DMG and ZIP files\n');
-    execSync(`npx electron-builder --mac --publish=always`, { 
-      cwd: rootDir, 
+    execSync(`npx electron-builder --mac --publish=always`, {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
     console.log('\n⚠️  Note: Windows builds should be done on a Windows machine');
     console.log('   Build Windows installer separately and upload to the same release');
@@ -209,31 +209,199 @@ try {
     console.log('\n📦 Building for Windows...');
     console.log(`   - Version: ${newVersion}`);
     console.log('   - Windows: NSIS installer (x64)\n');
-    execSync('npx electron-builder --win --x64 --publish=always', { 
-      cwd: rootDir, 
+    execSync('npx electron-builder --win --x64 --publish=always', {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
     console.log('\n⚠️  Note: macOS builds should be done on a macOS machine');
     console.log('   Build macOS installer separately and upload to the same release');
   } else {
     console.log('\n📦 Building for current platform...');
     console.log(`   - Version: ${newVersion}\n`);
-    execSync('npx electron-builder --publish=always', { 
-      cwd: rootDir, 
+    execSync('npx electron-builder --publish=always', {
+      cwd: rootDir,
       stdio: 'inherit',
-      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+      env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
     });
   }
-  
-  console.log('\n✅ Release published successfully!');
-  console.log(`\n🎉 Version ${newVersion} is now available at:`);
-  console.log(`   https://github.com/holok-ai/desktop/releases/tag/v${newVersion}`);
 
+  console.log('\n✅ Release published successfully!');
+
+  // Only commit/tag AFTER successful publish (version already set before build)
+  if (!tagExistsRemotely) {
+    console.log('📦 Step 5: Committing version change (if needed)...');
+
+    // Check if package.json has any unstaged changes before committing
+    const versionStatus = execSync('git status --porcelain package.json', {
+      cwd: rootDir,
+      encoding: 'utf8',
+    }).trim();
+
+    if (versionStatus) {
+      execSync(`git add package.json`, { cwd: rootDir, stdio: 'inherit' });
+      execSync(`git commit -m "v${newVersion}"`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Version commit created\n');
+    } else {
+      console.log('ℹ️  No version changes to commit (package.json already up to date)\n');
+    }
+
+    // Create tag if it doesn't exist locally
+    let tagExistsLocally = false;
+    try {
+      execSync(`git rev-parse -q --verify "refs/tags/${tagName}"`, { cwd: rootDir, stdio: 'pipe' });
+      tagExistsLocally = true;
+    } catch {
+      // Tag doesn't exist locally
+    }
+
+    if (!tagExistsLocally) {
+      execSync(`git tag ${tagName}`, { cwd: rootDir, stdio: 'inherit' });
+      console.log('✅ Tag created\n');
+    }
+
+    // Push commits and tags
+    console.log('📤 Step 7: Pushing to GitHub...');
+    execSync('git push', { cwd: rootDir, stdio: 'inherit' });
+
+    // Push tags to desktop_updates repo
+    console.log(`📤 Pushing tag to desktop_updates repository...`);
+    const desktopUpdatesUrl = `https://github.com/${desktopUpdatesRepo}.git`;
+    try {
+      let updatesRemoteExists = false;
+      try {
+        execSync('git remote get-url updates', { cwd: rootDir, stdio: 'pipe' });
+        updatesRemoteExists = true;
+      } catch {
+        // Remote doesn't exist
+      }
+
+      if (!updatesRemoteExists) {
+        execSync(`git remote add updates ${desktopUpdatesUrl}`, {
+          cwd: rootDir,
+          stdio: 'pipe',
+        });
+      }
+
+      const pushUrl = process.env.GH_TOKEN
+        ? `https://${process.env.GH_TOKEN}@github.com/${desktopUpdatesRepo}.git`
+        : desktopUpdatesUrl;
+      execSync(`git push ${pushUrl} ${tagName}`, {
+        cwd: rootDir,
+        stdio: 'inherit',
+      });
+      console.log('✅ Tag pushed to desktop_updates\n');
+    } catch (error) {
+      console.warn(`⚠️  Warning: Could not push tag to desktop_updates: ${error.message}`);
+      console.warn('   Tag exists locally and will be used by electron-builder.');
+      console.warn('   You may need to manually push the tag to desktop_updates.\n');
+    }
+  } else {
+    // Tag exists remotely, ensure package.json has correct version
+    const currentPackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    if (currentPackageJson.version !== newVersion) {
+      console.log(
+        `⚠️  Warning: package.json version is ${currentPackageJson.version}, updating to ${newVersion}...`,
+      );
+      currentPackageJson.version = newVersion;
+      writeFileSync(packageJsonPath, JSON.stringify(currentPackageJson, null, 2) + '\n');
+      packageJsonModified = true;
+      console.log('✅ Version updated\n');
+    }
+  }
+
+  // Update release notes if mandatory flag is set
+  if (isMandatory) {
+    console.log('\n📝 Updating release notes to mark as mandatory...');
+    try {
+      const tagName = `v${newVersion}`;
+      const apiUrl = `https://api.github.com/repos/holok-ai/desktop_updates/releases/tags/${tagName}`;
+
+      // Wait a moment for GitHub to fully create the release
+      console.log('   Waiting for release to be fully created...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Retry logic: try up to 3 times
+      let getResponse;
+      let retries = 3;
+      while (retries > 0) {
+        getResponse = await fetch(apiUrl, {
+          headers: {
+            Accept: 'application/vnd.github.v3+json',
+            Authorization: `token ${process.env.GH_TOKEN}`,
+          },
+        });
+
+        if (getResponse.ok) {
+          break;
+        }
+
+        retries--;
+        if (retries > 0) {
+          console.log(
+            `   Release not ready yet, retrying in 2 seconds... (${retries} attempts left)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (!getResponse.ok) {
+        console.warn(
+          `⚠️  Warning: Could not fetch release (${getResponse.status}). You may need to manually add [MANDATORY] to the release notes.`,
+        );
+        console.warn(`   Run: node scripts/mark-mandatory.js ${newVersion}`);
+      } else {
+        const release = await getResponse.json();
+        const currentBody = release.body || '';
+
+        // Check if already marked as mandatory
+        if (currentBody.toLowerCase().includes('[mandatory]')) {
+          console.log('✅ Release already marked as mandatory');
+        } else {
+          // Prepend [MANDATORY] to release notes
+          const updatedBody = `[MANDATORY]\n\n${currentBody}`;
+
+          // Update the release
+          const updateResponse = await fetch(apiUrl, {
+            method: 'PATCH',
+            headers: {
+              Accept: 'application/vnd.github.v3+json',
+              Authorization: `token ${process.env.GH_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              body: updatedBody,
+            }),
+          });
+
+          if (updateResponse.ok) {
+            console.log('✅ Release marked as mandatory');
+          } else {
+            const errorText = await updateResponse.text();
+            console.warn(`⚠️  Warning: Could not update release notes (${updateResponse.status}).`);
+            console.warn(`   Error: ${errorText}`);
+            console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
+            console.warn(
+              `   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️  Warning: Error updating release notes: ${error.message}`);
+      console.warn(`   Please manually add [MANDATORY] to the release notes at:`);
+      console.warn(`   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`);
+    }
+  }
+
+  console.log(`\n🎉 Version ${newVersion} is now available at:`);
+  console.log(`   https://github.com/holok-ai/desktop_updates/releases/tag/v${newVersion}`);
 } catch (error) {
   console.error('\n❌ Error during release process:', error.message);
-  console.error('\n⚠️  Note: Version in package.json has been updated.');
-  console.error('You may need to revert it manually if the release failed.');
+  if (packageJsonModified) {
+    console.error('\n⚠️  Reverting package.json to previous version...');
+    writeFileSync(packageJsonPath, originalPackageJsonContent);
+    console.error('   package.json reverted.');
+  }
   process.exit(1);
 }
-

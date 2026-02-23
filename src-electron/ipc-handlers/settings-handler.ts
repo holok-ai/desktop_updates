@@ -1,8 +1,8 @@
 import { ipcMain, dialog, app, shell } from 'electron';
 import { SettingsService, type AppSettings } from '../services/settings.service.js';
-import { autoUpdaterService } from '../services/auto-updater.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
+import { ToolOrchestrator } from '../services/tool-calling/orchestrator.js';
 import path from 'node:path';
 
 /**
@@ -48,6 +48,10 @@ export function registerSettingsHandlers(): void {
           shellCommands: '',
           autoCheckUpdates: true,
           autoInstallUpdates: false,
+          config_windowsCommands: '',
+          config_unixCommands: '',
+          config_toolList: [],
+          static_toolList: [],
         }) as AppSettings,
       getSetting: (_key: keyof AppSettings) => undefined,
       setSetting: (_k: keyof AppSettings, _v: AppSettings[keyof AppSettings]) => {},
@@ -68,8 +72,21 @@ export function registerSettingsHandlers(): void {
    * Get all settings
    */
   ipcMain.handle('settings:getAll', (): Promise<AppSettings> => {
-    settingsLog.info('GetAll called');
-    return Promise.resolve(settingsService.getAllSettings());
+    const settings = settingsService.getAllSettings();
+
+    // Add tool definitions from orchestrator
+    try {
+      const orchestrator = ToolOrchestrator.getInstance();
+      const toolDefinitions = orchestrator.getToolDefinitions();
+      return Promise.resolve({
+        ...settings,
+        static_toolList: toolDefinitions,
+      });
+    } catch (error) {
+      settingsLog.error('Failed to get tool definitions from orchestrator:', error);
+      // Return settings without static_toolList if orchestrator fails
+      return Promise.resolve(settings);
+    }
   });
 
   /**
@@ -105,71 +122,6 @@ export function registerSettingsHandlers(): void {
   );
 
   /**
-   * Reset settings to defaults
-   */
-  ipcMain.handle('settings:reset', (): Promise<void> => {
-    settingsLog.info('Reset called');
-    settingsService.resetToDefaults();
-    return Promise.resolve();
-  });
-
-  /**
-   * Get Moku Web URL
-   */
-  ipcMain.handle('settings:getMokuWebUrl', (): Promise<string> => {
-    settingsLog.info('GetMokuWebUrl called');
-    return Promise.resolve(settingsService.getMokuWebUrl());
-  });
-
-  /**
-   * Get Moku API URL
-   */
-  ipcMain.handle('settings:getMokuApiUrl', (): Promise<string> => {
-    settingsLog.info('GetMokuApiUrl called');
-    return Promise.resolve(settingsService.getMokuApiUrl());
-  });
-
-  /**
-   * Get settings file path
-   */
-  ipcMain.handle('settings:getStorePath', (): Promise<string> => {
-    settingsLog.info('GetStorePath called');
-    return Promise.resolve(settingsService.getStorePath());
-  });
-
-  /**
-   * Get directory whitelist
-   */
-  ipcMain.handle('settings:getDirectoryWhitelist', (): Promise<string[]> => {
-    settingsLog.info('GetDirectoryWhitelist called');
-    return Promise.resolve(settingsService.getDirectoryWhitelist());
-  });
-
-  /**
-   * Add path to file tools whitelist
-   */
-  ipcMain.handle('settings:addWhitelistPath', (_event, filePath: string): Promise<void> => {
-    settingsLog.info('AddWhitelistPath called', { filePath });
-    try {
-      settingsService.addWhitelistPath(filePath);
-      return Promise.resolve();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      settingsLog.error('AddWhitelistPath failed', { filePath, error: message });
-      return Promise.reject(new Error(message));
-    }
-  });
-
-  /**
-   * Remove path from file tools whitelist
-   */
-  ipcMain.handle('settings:removeWhitelistPath', (_event, filePath: string): Promise<void> => {
-    settingsLog.info('RemoveWhitelistPath called', { filePath });
-    settingsService.removeWhitelistPath(filePath);
-    return Promise.resolve();
-  });
-
-  /**
    * Select folder using native dialog
    */
   ipcMain.handle('settings:selectFolder', async (): Promise<string | null> => {
@@ -187,24 +139,6 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
-   * Manually trigger an update check
-   */
-  ipcMain.handle(
-    'settings:checkForUpdates',
-    (_event): Promise<{ success: boolean; error?: string }> => {
-      settingsLog.info('CheckForUpdates called (manual)');
-      try {
-        autoUpdaterService.checkForUpdatesManual();
-        return Promise.resolve({ success: true });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to check for updates';
-        settingsLog.error('CheckForUpdates failed', { error: message });
-        return Promise.resolve({ success: false, error: message });
-      }
-    },
-  );
-
-  /**
    * Open log file in default application
    */
   ipcMain.handle(
@@ -212,7 +146,7 @@ export function registerSettingsHandlers(): void {
     async (): Promise<{ success: boolean; error?: string }> => {
       settingsLog.info('OpenLogInVSCode called');
       try {
-        const logPath = path.join(app.getPath('userData'), 'logs', 'desktop.log');
+        const logPath = path.join(app.getPath('userData'), 'logs', 'main.log');
 
         // Check if log file exists
         const fs = await import('node:fs');
@@ -255,15 +189,7 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:get');
   ipcMain.removeHandler('settings:set');
   ipcMain.removeHandler('settings:setMultiple');
-  ipcMain.removeHandler('settings:reset');
-  ipcMain.removeHandler('settings:getMokuWebUrl');
-  ipcMain.removeHandler('settings:getMokuApiUrl');
-  ipcMain.removeHandler('settings:getStorePath');
-  ipcMain.removeHandler('settings:getDirectoryWhitelist');
-  ipcMain.removeHandler('settings:addWhitelistPath');
-  ipcMain.removeHandler('settings:removeWhitelistPath');
   ipcMain.removeHandler('settings:selectFolder');
-  ipcMain.removeHandler('settings:checkForUpdates');
   ipcMain.removeHandler('settings:openLogInVSCode');
 
   settingsLog.info('Handlers unregistered');

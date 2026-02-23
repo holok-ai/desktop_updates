@@ -1,12 +1,46 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopChatRequest } from './services/chat/index.js';
-import type { ProviderConfig } from '@holokai/chat-component';
-import type { ThreadStatus } from '$lib/types/status.type.js';
+import type { ToolDefinition } from './services/tool-calling/tool-types.js';
+
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
+
+import type {
+  Thread,
+  JsonValue,
+  JsonObject,
+  JsonArray,
+  JsonPrimitive,
+} from './types/thread.types.js';
+import type {
+  CreateThreadRequest,
+  MessageDTO,
+  RequestOptionsDTO,
+} from './services/mokuapi/thread.types.js';
+import type { ApiResponse } from './types/api-response.js';
+
+// Re-export types for use by other modules
+export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
+export type { ApiResponse };
+export type { MessageDTO, RequestOptionsDTO };
+
+/**
+ * OLD Thread Interface (commented out - now imported from thread.types.ts)
+ *
+ * export interface Thread {
+ *   messages: any;
+ *   id: string;
+ *   title: string;
+ *   description: string;
+ *   status: ThreadStatus;
+ *   createdAt: Date;
+ *   updatedAt: Date;
+ *   metadata?: Record<string, unknown>;
+ *   currentBranchId: string;
+ * }
+ */
 
 /**
  * Preload Script with Context Bridge
@@ -28,104 +62,38 @@ type AuthProvider = 'microsoft' | 'google' | 'oauth2';
 
 export interface ThreadAPI {
   // Get all threads with optional project filtering
-  // - projectId: null = personal threads only
-  // - projectId: string = specific project's threads
-  // - projectId: undefined = all threads
-  // - includeProjectOnly: for legacy compatibility
   getAll: (options?: {
     projectId?: string | null;
     includeProjectOnly?: boolean;
-  }) => Promise<Thread[]>;
+  }) => Promise<ApiResponse<Thread[]>>;
 
   // Get a single thread by ID
-  getById: (id: string) => Promise<Thread | null>;
+  getById: (id: string) => Promise<ApiResponse<Thread | null>>;
 
   // Create a new thread (optionally within a project context)
-  create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Thread>;
-
-  // Create a new thread with initial prompt atomically
-  // This is the ONLY method that should create threads with initialPrompt set in metadata
-  createWithInitialPrompt: (payload: {
-    prompt: string;
-    metadata: Record<string, unknown>;
-  }) => Promise<Thread>;
+  create: (request: CreateThreadRequest) => Promise<ApiResponse<Thread>>;
 
   // Update an existing thread
-  update: (id: string, updates: Partial<Thread>) => Promise<Thread>;
+  update: (id: string, updates: Partial<Thread>) => Promise<ApiResponse<Thread>>;
 
   // Rename a thread with validation and title history tracking
-  renameThread: (
-    threadId: string,
-    newTitle: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; status: number; error: string; code?: string }
-  >;
-
-  // Undo the most recent rename operation
-  undoRename: (
-    threadId: string,
-  ) => Promise<
-    | { success: true; thread: Thread }
-    | { success: false; status: number; error: string; code?: string }
-  >;
+  renameThread: (threadId: string, newTitle: string) => Promise<ApiResponse<Thread>>;
 
   // Delete a thread
-  delete: (id: string) => Promise<boolean>;
+  delete: (id: string) => Promise<ApiResponse<boolean>>;
 
   // Soft delete a thread (deletedAt timestamp)
-  softDelete: (id: string) => Promise<boolean>;
+  softDelete: (id: string) => Promise<ApiResponse<boolean>>;
 
   // Move thread to/from a project
   moveToProject: (
     threadId: string,
     targetProjectId: string | null,
     options?: { privacyMode?: string; contextHandling?: string },
-  ) => Promise<Thread>;
-
-  // Copy thread to another context
-  copyThread: (
-    threadId: string,
-    targetProjectId: string | null,
-    options?: { allowDuplicate?: boolean },
-  ) => Promise<Thread>;
-
-  // Check if thread has large files that need confirmation
-  checkLargeFiles: (threadId: string) => Promise<{
-    needsConfirmation: boolean;
-    totalSize: number;
-    fileCount: number;
-    estimatedTransferTime?: number;
-    largeFiles?: Array<{ filename: string; size: number }>;
-  }>;
-
-  // Check if thread was previously copied to destination
-  checkDuplicate: (
-    threadId: string,
-    targetProjectId: string | null,
-  ) => Promise<{
-    isDuplicate: boolean;
-    previousCopyDate?: number;
-    previousThreadId?: string;
-  }>;
-
-  // Cancel an in-progress copy operation
-  cancelCopy: (operationId: string) => Promise<void>;
-
-  // Get progress for a copy operation
-  getCopyProgress: (operationId: string) => Promise<{
-    operationId: string;
-    phase: string;
-    filesTotal: number;
-    filesCompleted: number;
-    bytesTotal: number;
-    bytesTransferred: number;
-    currentFile?: string;
-    estimatedTimeRemaining?: number;
-  } | null>;
+  ) => Promise<ApiResponse<Thread>>;
 
   // Get messages for a thread (persisted)
-  getMessages: (id: string) => Promise<Message[]>;
+  getMessages: (id: string) => Promise<ApiResponse<Message[]>>;
 
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
@@ -136,40 +104,13 @@ export interface ThreadAPI {
   onTitleGenerationFinished: (
     callback: (data: { threadId: string; title: string }) => void,
   ) => () => void;
-  // Add user prompt (creates thread if id null)
-  addUserPrompt: (
-    threadId: string | null,
-    prompt: string,
-    opts?: {
-      title?: string;
-      description?: string;
-      model?: string;
-      projectId?: string; // Associate thread with a project
-      metadata?: Record<string, unknown>;
-    },
-  ) => Promise<{
-    thread: Thread;
-    message: { id: string; role: string; content: string; createdAt: number };
-  }>;
 
   // Add assistant response to a thread
   addAssistantResponse: (
     threadId: string,
     response: string,
     model?: string,
-  ) => Promise<{ id: string; role: string; content: string; createdAt: number }>;
-
-  // Save prompt and multiple responses in a single operation
-  savePromptAndResponses: (
-    threadId: string | null,
-    prompt: string,
-    responses: { text: string; model?: string }[],
-    opts?: { title?: string; description?: string },
-  ) => Promise<{
-    thread: Thread;
-    promptMessage: { id: string; role: string; content: string; createdAt: number };
-    responseMessages: { id: string; role: string; content: string; createdAt: number }[];
-  }>;
+  ) => Promise<ApiResponse<{ id: string; role: string; content: string; createdAt: number }>>;
 
   // Append a message with idempotency support
   appendMessage: (
@@ -180,91 +121,31 @@ export interface ThreadAPI {
       metadata?: Record<string, unknown>;
       client_message_id?: string;
     },
-  ) => Promise<
-    | {
-        success: true;
-        message: Message;
-        thread: Thread;
-      }
-    | { success: false; status: number; error: string; thread_id?: string }
-  >;
+  ) => Promise<ApiResponse<{ message: Message; thread: Thread }>>;
 
   // Update message (edit)
   updateMessage: (
     threadId: string,
     messageId: string,
     newContent: string,
-  ) => Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  >;
-
-  // Update message metadata (e.g., for comments)
-  updateMessageMetadata: (
-    threadId: string,
-    messageId: string,
-    metadataUpdates: Record<string, unknown>,
-  ) => Promise<
-    { success: true; message: Message; thread: Thread } | { success: false; error: string }
-  >;
-
-  // Get message versions
-  getMessageVersions: (
-    threadId: string,
-    messageId: string,
-  ) => Promise<
-    | { success: true; versions: Array<{ content: string; editedAt: number }> }
-    | { success: false; error: string }
-  >;
-
-  // Delete messages after a specific message
-  deleteMessagesAfter: (
-    threadId: string,
-    messageId: string,
-  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
-
-  // Switch active branch
-  switchBranch: (
-    threadId: string,
-    branchId: string,
-  ) => Promise<{ success: true; thread: Thread } | { success: false; error: string }>;
+  ) => Promise<ApiResponse<{ message: Message; thread: Thread }>>;
 
   // Delete a branch
-  deleteBranch: (
+  deleteBranch: (threadId: string, branchId: string) => Promise<ApiResponse<void>>;
+
+  // Update message branch ID via Moku API
+  updateMessageBranch: (
     threadId: string,
+    messageId: string,
     branchId: string,
-  ) => Promise<{ success: true } | { success: false; error: string }>;
+  ) => Promise<ApiResponse<MessageDTO>>;
 
-  // Telemetry: listen for message.persisted audit events
-  onMessagePersisted: (
-    callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
-  ) => () => void;
-  // Listen for message error events (e.g., delivery/provider errors)
-  onMessageError: (
-    callback: (evt: {
-      thread_id?: string;
-      message_id?: string;
-      client_message_id?: string;
-      timestamp?: string;
-      error?: Record<string, unknown>;
-    }) => void,
-  ) => () => void;
-}
-
-/**
- * Thread Interface
- *
- * Defines the structure of a thread object.
- */
-export interface Thread {
-  messages: any;
-  id: string;
-  title: string;
-  description: string;
-  status: ThreadStatus;
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: Record<string, unknown>;
-  currentBranchId: string;
+  // Update message desktop options via Moku API
+  updateMessageDesktopOptions: (
+    threadId: string,
+    messageId: string,
+    desktopOptions: RequestOptionsDTO,
+  ) => Promise<ApiResponse<MessageDTO>>;
 }
 
 /**
@@ -274,19 +155,19 @@ export interface Thread {
  */
 export interface ProjectAPI {
   // Get all projects
-  getAll: () => Promise<Project[]>;
+  getAll: () => Promise<ApiResponse<Project[]>>;
 
   // Load projects into cache (TTL). If forceRefresh=true, bypass cache.
-  loadProjects: (forceRefresh?: boolean) => Promise<void>;
+  loadProjects: (forceRefresh?: boolean) => Promise<ApiResponse<Project[]>>;
 
   // List cached personal projects
-  listPersonalProjects: () => Promise<Project[]>;
+  listPersonalProjects: () => Promise<ApiResponse<Project[]>>;
 
   // List cached shared projects
-  listSharedProjects: () => Promise<Project[]>;
+  listSharedProjects: () => Promise<ApiResponse<Project[]>>;
 
   // Get a single project by ID
-  getById: (id: GUID) => Promise<Project | null>;
+  getById: (id: GUID) => Promise<ApiResponse<Project | null>>;
 
   // Create a new project
   create: (data: {
@@ -294,7 +175,7 @@ export interface ProjectAPI {
     description?: string;
     metadata?: Record<string, unknown>;
     privacyMode?: ProjectPrivacyMode;
-  }) => Promise<Project>;
+  }) => Promise<ApiResponse<Project>>;
 
   // Update an existing project
   update: (
@@ -305,22 +186,25 @@ export interface ProjectAPI {
       metadata?: Record<string, unknown>;
       privacyMode?: ProjectPrivacyMode;
     },
-  ) => Promise<Project>;
+  ) => Promise<ApiResponse<Project>>;
 
   // Delete a project
-  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<boolean>;
+  delete: (id: GUID, options?: { deleteThreads?: boolean }) => Promise<ApiResponse<boolean>>;
 
-  // Get thread count for a project
-  getThreads: (projectId: GUID) => Promise<number>;
+  // Get threads for a project
+  getThreads: (projectId: GUID) => Promise<ApiResponse<Thread[]>>;
 
   // Search users in organization
-  searchUsers: (searchTerm?: string | null) => Promise<UserSummaryDTO[]>;
+  searchUsers: (searchTerm?: string | null) => Promise<ApiResponse<UserSummaryDTO[]>>;
 
   // Add a member to a project
-  addMember: (projectId: GUID, input: { userId: string; role: string }) => Promise<unknown>;
+  addMember: (
+    projectId: GUID,
+    input: { userId: string; role: string },
+  ) => Promise<ApiResponse<unknown>>;
 
   // Remove a member from a project
-  removeMember: (projectId: GUID, memberId: string) => Promise<void>;
+  removeMember: (projectId: GUID, memberId: string) => Promise<ApiResponse<void>>;
 
   // Listen to project events
   onProjectCreated: (callback: (project: Project) => void) => () => void;
@@ -346,22 +230,7 @@ export interface SettingsAPI {
   // Set multiple settings
   setMultiple: (settings: Partial<AppSettings>) => Promise<void>;
 
-  // Reset to defaults
-  reset: () => Promise<void>;
-
-  // Get Moku Web URL
-  getMokuWebUrl: () => Promise<string>;
-
-  // Get Moku API URL
-  getMokuApiUrl: () => Promise<string>;
-
-  // Get settings file path
-  getStorePath: () => Promise<string>;
-
-  // Directory whitelist management
-  getDirectoryWhitelist: () => Promise<string[]>;
-  addWhitelistPath: (path: string) => Promise<void>;
-  removeWhitelistPath: (path: string) => Promise<void>;
+  // Select folder using native dialog
   selectFolder: () => Promise<string | null>;
 
   // Updates
@@ -371,14 +240,9 @@ export interface SettingsAPI {
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
 }
 
-
 /**
  * App Settings Interface
  */
-export interface ToolSetting {
-  title: string; 
-  id: string; 
-}
 
 export interface AppSettings {
   mokuWebUrl: string;
@@ -395,14 +259,12 @@ export interface AppSettings {
   shellCommands?: string;
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
   /* ToolOrchestrator data need to load the UI  */
-  config_windowsCommands: string; 
-  config_unixCommands: string; 
-  config_toolList: ToolSetting[]; 
+  config_windowsCommands: string;
+  config_unixCommands: string;
+  static_toolList?: ToolDefinition[];
 }
 
 /**
@@ -412,11 +274,11 @@ export interface AppSettings {
  */
 export interface ApplicationSummary {
   id: string;
-  description: string; 
+  description: string;
   title: string;
   models?: ModelDetails[];
   provider: string;
-  slug: string; 
+  slug: string;
   url: string;
 }
 
@@ -425,18 +287,43 @@ export interface ModelDetails {
   title: string;
   accessName: string;
   provider: string;
-  applicationName: string,
-  applicationSlug: string; 
+  applicationName: string;
+  applicationSlug: string;
   slug: string;
   url: string;
+  isPublic: boolean; // Model visibility flag (defaults to true)
+  intendedUse?: string; // Optional description of intended use case}
+}
+
+/**
+ * Updater API
+ *
+ * Auto-update operations exposed to the renderer.
+ */
+export interface UpdaterAPI {
+  // Check whether an update is available; resolves to a human-readable status string
+  getUpdateAvailability: () => Promise<string>;
+
+  // Trigger an immediate download of the available update
+  updateNow: () => Promise<{ success: boolean; error?: string }>;
+
+  // Returns true if running in a development (unpackaged) build
+  isDevelopmentBuild: () => Promise<boolean>;
+
+  // Listen for update check completion
+  onUpdateCheckComplete: (
+    callback: (result: { updateAvailable: boolean; version?: string }) => void,
+  ) => () => void;
 }
 
 /**
  * Models API
  */
 export interface ModelsAPI {
-  listAll: () => Promise<ModelDetails[]>;
-  listAllApplications: () => Promise<ApplicationSummary[]>;
+  listAllModels: () => Promise<ApiResponse<ModelDetails[]>>;
+  listAllApplications: (reloadFromApi?: boolean) => Promise<ApiResponse<ApplicationSummary[]>>;
+  getModelsForApplication: (applicationId: string) => Promise<ApiResponse<ModelDetails[]>>;
+  getAgent: (agentId: string) => Promise<ApiResponse<ApplicationSummary>>;
 }
 
 /**
@@ -448,26 +335,11 @@ export interface AuthAPI {
   // Start OAuth flow (Steps 1-2 of SSO)
   startOAuthFlow: () => Promise<{ authUrl: string }>;
 
-  // Exchange authorization code for tokens (Step 5 of SSO)
-  exchangeCode: (code: string, codeVerifier: string) => Promise<AuthState>;
-
-  // Mock login for testing
-  mockLogin: (provider: AuthProvider) => Promise<AuthState>;
-
   // Get authentication state
   getAuthState: () => Promise<AuthState>;
 
-  // Get current user
-  getUser: () => Promise<UserProfile | null>;
-
-  // Check if authenticated
-  isAuthenticated: () => Promise<boolean>;
-
   // Logout
   logout: () => Promise<void>;
-
-  // Refresh access token
-  refreshToken: () => Promise<void>;
 
   // OAuth callback event listeners
   onAuthCallbackSuccess: (
@@ -507,9 +379,6 @@ export interface AuthState {
 export interface SystemAPI {
   platform: () => Promise<string>;
   version: () => Promise<string>;
-  getPath: (
-    name: 'home' | 'appData' | 'userData' | 'temp' | 'desktop' | 'documents' | 'downloads',
-  ) => Promise<string>;
 }
 
 /**
@@ -529,59 +398,28 @@ export interface LogAPI {
  *
  * Chat service operations for interacting with LLM providers.
  */
-export type ToolUseEventPayload = {
-  toolName: string;
-  input: unknown;
-  stage: 'start' | 'complete';
-  toolCallId: string;
-  result?: unknown;
-};
-
 export interface ChatAPI {
-  // Initialize/Create a chat service instance for a thread
-  createProvider: (
+  // Initialize/Create a chat service instance for a thread+branch
+  createServiceForThread: (
     threadId: string,
-    providerType: string,
-    config: ProviderConfig,
+    branchId: string,
+    modelAccessName: string,
     workingDirectory?: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<ApiResponse<void>>;
 
   // Send a chat message (with streaming support) for a specific thread
-  chat: (
-    threadId: string,
-    request: DesktopChatRequest,
-  ) => Promise<{ success: boolean; error?: string }>;
+  chat: (threadId: string, request: DesktopChatRequest) => Promise<ApiResponse<void>>;
 
   // Listen for streaming tokens (event-based)
-  onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void) => () => void;
+  onToken: (
+    callback: (data: { threadId: string; branchId: string; token: string }) => void,
+  ) => () => void;
 
   // Stop listening to token events
   offToken: () => void;
 
-  // Listen for tool use events (event-based)
-  onToolUse: (callback: (data: ToolUseEventPayload & { threadId: string }) => void) => () => void;
-
-  // Listen for tool status events (for UI feedback during long operations)
-  onToolStatus: (
-    callback: (status: {
-      threadId: string;
-      toolName: string;
-      state: 'in_progress' | 'complete';
-      message?: string;
-    }) => void,
-  ) => () => void;
-
-  // Get audit/performance metrics
-  getMetrics: () => Promise<unknown>;
-
-  // Get audit logs with detailed metrics for a thread
-  getAuditLogs: (threadId: string) => Promise<unknown[]>;
-
-  // Cleanup/close the provider for a thread
-  destroyProvider: (threadId: string) => Promise<{ success: boolean }>;
-
-  // Update allowed paths for tool execution
-  updateAllowedPaths: (allowedPaths: string[]) => Promise<{ success: boolean }>;
+  // Get audit logs with detailed metrics for a thread+branch
+  getAuditLogs: (threadId: string, branchId: string) => Promise<ApiResponse<unknown[]>>;
 }
 
 /**
@@ -606,56 +444,12 @@ export interface FileAPI {
     fileId: string;
   }) => Promise<{ success: boolean; buffer?: Buffer; error?: string }>;
 
-  // Delete file
-  delete: (payload: {
-    threadId: string;
-    fileId: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-
   // Validate file before upload
   validate: (payload: {
     filename: string;
     mimeType: string;
     size: number;
   }) => Promise<FileValidationResult>;
-
-  // Request preview token for secure file access
-  preview: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
-    success: boolean;
-    token?: string;
-    fileInfo?: {
-      filename: string;
-      mimeType: string;
-      size: number;
-      isPreviewable: boolean;
-      canInlinePreview: boolean;
-    };
-    error?: string;
-  }>;
-
-  // Request download token for secure file access
-  download: (payload: { threadId: string; fileId: string; userId: string }) => Promise<{
-    success: boolean;
-    token?: string;
-    fileInfo?: {
-      filename: string;
-      mimeType: string;
-      size: number;
-    };
-    error?: string;
-  }>;
-
-  // Get file with token (secure retrieval)
-  getWithToken: (payload: { token: string }) => Promise<{
-    success: boolean;
-    buffer?: Buffer;
-    filename?: string;
-    mimeType?: string;
-    error?: string;
-  }>;
-
-  // Listen for upload progress events
-  onUploadProgress: (callback: (data: { fileId: string; progress: number }) => void) => () => void;
 }
 
 /**
@@ -671,6 +465,7 @@ export interface ElectronAPI {
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
+  updater: UpdaterAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -683,20 +478,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   auth: {
     startOAuthFlow: () => ipcRenderer.invoke('auth:startOAuthFlow'),
 
-    exchangeCode: (code: string, codeVerifier: string) =>
-      ipcRenderer.invoke('auth:exchangeCode', code, codeVerifier),
-
-    mockLogin: (provider: AuthProvider) => ipcRenderer.invoke('auth:mockLogin', provider),
-
     getAuthState: () => ipcRenderer.invoke('auth:getAuthState'),
 
-    getUser: () => ipcRenderer.invoke('auth:getUser'),
-
-    isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
-
     logout: () => ipcRenderer.invoke('auth:logout'),
-
-    refreshToken: () => ipcRenderer.invoke('auth:refreshToken'),
 
     // OAuth callback event listeners
     onAuthCallbackSuccess: (
@@ -733,23 +517,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Chat API Implementation
    */
   chat: {
-    // 1. Initialize/Create a chat service instance for a thread
-    createProvider: (
+    // 1. Initialize/Create a chat service instance for a thread+branch
+    createServiceForThread: (
       threadId: string,
-      providerType: string,
-      config: ProviderConfig,
+      branchId: string,
+      modelAccessName: string,
       workingDirectory?: string,
     ) =>
-      ipcRenderer.invoke('chat:createProvider', threadId, providerType, config, workingDirectory),
+      ipcRenderer.invoke(
+        'chat:createServiceForThread',
+        threadId,
+        branchId,
+        modelAccessName,
+        workingDirectory,
+      ),
 
     // 2. Send a chat message (with streaming support) for a specific thread
     chat: (threadId: string, request: DesktopChatRequest) =>
       ipcRenderer.invoke('chat:send', threadId, request),
 
     // 3. Listen for streaming tokens (event-based)
-    onToken: (callback: (data: { threadId: string; branchId: string; token: string }) => void): (() => void) => {
-      const subscription = (_event: IpcRendererEvent, data: { threadId: string; branchId: string; token: string }): void =>
-        callback(data);
+    onToken: (
+      callback: (data: { threadId: string; branchId: string; token: string }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { threadId: string; branchId: string; token: string },
+      ): void => callback(data);
       ipcRenderer.on('chat:token', subscription);
 
       // Return cleanup function
@@ -763,60 +557,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('chat:token');
     },
 
-    // 5. Get audit/performance metrics
-    getMetrics: () => ipcRenderer.invoke('chat:getMetrics'),
-
-    // 5a. Get audit logs with detailed metrics for a thread
-    getAuditLogs: (threadId: string) => ipcRenderer.invoke('chat:getAuditLogs', threadId),
-
-    // 6. Cleanup/close the provider for a thread
-    destroyProvider: (threadId: string) => ipcRenderer.invoke('chat:destroyProvider', threadId),
-
-    // 7. Update allowed paths for tool execution
-    updateAllowedPaths: (allowedPaths: string[]) =>
-      ipcRenderer.invoke('chat:updateAllowedPaths', allowedPaths),
-
-    // 7. Listen for tool use events
-    onToolUse: (
-      callback: (data: ToolUseEventPayload & { threadId: string }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: ToolUseEventPayload & { threadId: string },
-      ): void => callback(data);
-      ipcRenderer.on('chat:toolUse', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('chat:toolUse', subscription);
-      };
-    },
-
-    // 11. Listen for tool status events (for UI feedback during long operations)
-    onToolStatus: (
-      callback: (status: {
-        threadId: string;
-        toolName: string;
-        state: 'in_progress' | 'complete';
-        message?: string;
-      }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        status: {
-          threadId: string;
-          toolName: string;
-          state: 'in_progress' | 'complete';
-          message?: string;
-        },
-      ): void => callback(status);
-      ipcRenderer.on('chat:toolStatus', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('chat:toolStatus', subscription);
-      };
-    },
+    // 5. Get audit logs with detailed metrics for a thread
+    getAuditLogs: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('chat:getAuditLogs', threadId, branchId),
   },
 
   /**
@@ -832,23 +575,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setMultiple: (settings: Partial<AppSettings>) =>
       ipcRenderer.invoke('settings:setMultiple', settings),
 
-    reset: () => ipcRenderer.invoke('settings:reset'),
-
-    getMokuWebUrl: () => ipcRenderer.invoke('settings:getMokuWebUrl'),
-
-    getMokuApiUrl: () => ipcRenderer.invoke('settings:getMokuApiUrl'),
-
-    getStorePath: () => ipcRenderer.invoke('settings:getStorePath'),
-
-    getDirectoryWhitelist: () => ipcRenderer.invoke('settings:getDirectoryWhitelist'),
-
-    addWhitelistPath: (path: string) => ipcRenderer.invoke('settings:addWhitelistPath', path),
-
-    removeWhitelistPath: (path: string) => ipcRenderer.invoke('settings:removeWhitelistPath', path),
-
     selectFolder: () => ipcRenderer.invoke('settings:selectFolder'),
 
-    checkForUpdates: () => ipcRenderer.invoke('settings:checkForUpdates'),
+    checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
 
     openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
   } as SettingsAPI,
@@ -857,8 +586,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Models API Implementation
    */
   models: {
-    listAll: () => ipcRenderer.invoke('models:listAll'),
-    listAllApplications: () => ipcRenderer.invoke('models:listAllApplications'),
+    listAllModels: () => ipcRenderer.invoke('models:listAll'),
+    listAllApplications: (reloadFromApi?: boolean) =>
+      ipcRenderer.invoke('models:listAllApplications', reloadFromApi),
+    getModelsForApplication: (applicationId: string) =>
+      ipcRenderer.invoke('models:getModelsForApplication', applicationId),
+    getAgent: (agentId: string) => ipcRenderer.invoke('models:getAgent', agentId),
   } as ModelsAPI,
 
   /**
@@ -870,19 +603,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getById: (id: string) => ipcRenderer.invoke('thread:getById', id),
 
-    create: (thread: Omit<Thread, 'id' | 'createdAt' | 'updatedAt'>) =>
-      ipcRenderer.invoke('thread:create', thread),
-
-    createWithInitialPrompt: (payload: { prompt: string; metadata: Record<string, unknown> }) =>
-      ipcRenderer.invoke('thread:createWithInitialPrompt', payload),
+    create: (request: CreateThreadRequest) => ipcRenderer.invoke('thread:create', request),
 
     update: (id: string, updates: Partial<Thread>) =>
       ipcRenderer.invoke('thread:update', id, updates),
 
     renameThread: (threadId: string, newTitle: string) =>
       ipcRenderer.invoke('thread:renameThread', threadId, newTitle),
-
-    undoRename: (threadId: string) => ipcRenderer.invoke('thread:undoRename', threadId),
 
     delete: (id: string) => ipcRenderer.invoke('thread:delete', id),
 
@@ -891,22 +618,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       targetProjectId: string | null,
       options?: { privacyMode?: string; contextHandling?: string },
     ) => ipcRenderer.invoke('thread:moveToProject', threadId, targetProjectId, options),
-
-    copyThread: (
-      threadId: string,
-      targetProjectId: string | null,
-      options?: { allowDuplicate?: boolean },
-    ) => ipcRenderer.invoke('thread:copy', threadId, targetProjectId, options),
-
-    checkLargeFiles: (threadId: string) => ipcRenderer.invoke('thread:checkLargeFiles', threadId),
-
-    checkDuplicate: (threadId: string, targetProjectId: string | null) =>
-      ipcRenderer.invoke('thread:checkDuplicate', threadId, targetProjectId),
-
-    cancelCopy: (operationId: string) => ipcRenderer.invoke('thread:cancelCopy', operationId),
-
-    getCopyProgress: (operationId: string) =>
-      ipcRenderer.invoke('thread:getCopyProgress', operationId),
 
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
@@ -965,28 +676,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
 
-    addUserPrompt: (
-      threadId: string | null,
-      prompt: string,
-      opts:
-        | {
-            title?: string;
-            description?: string;
-            model?: string;
-            metadata?: Record<string, unknown>;
-          }
-        | undefined,
-    ) => ipcRenderer.invoke('thread:addUserPrompt', threadId, prompt, opts),
-
     addAssistantResponse: (threadId: string, response: string, model?: string) =>
       ipcRenderer.invoke('thread:addAssistantResponse', threadId, response, model),
-
-    savePromptAndResponses: (
-      threadId: string | null,
-      prompt: string,
-      responses: { text: string; model?: string }[],
-      opts?: { title?: string; description?: string },
-    ) => ipcRenderer.invoke('thread:savePromptAndResponses', threadId, prompt, responses, opts),
 
     appendMessage: (
       threadId: string,
@@ -1001,61 +692,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateMessage: (threadId: string, messageId: string, newContent: string) =>
       ipcRenderer.invoke('thread:updateMessage', threadId, messageId, newContent),
 
-    updateMessageMetadata: (
-      threadId: string,
-      messageId: string,
-      metadataUpdates: Record<string, unknown>,
-    ) => ipcRenderer.invoke('thread:updateMessageMetadata', threadId, messageId, metadataUpdates),
-
-    getMessageVersions: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:getMessageVersions', threadId, messageId),
-
-    deleteMessagesAfter: (threadId: string, messageId: string) =>
-      ipcRenderer.invoke('thread:deleteMessagesAfter', threadId, messageId),
-
-    switchBranch: (threadId: string, branchId: string) =>
-      ipcRenderer.invoke('thread:switchBranch', threadId, branchId),
-
     deleteBranch: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('thread:deleteBranch', threadId, branchId),
 
-    onMessagePersisted: (
-      callback: (evt: { thread_id: string; message_id: string; timestamp: string }) => void,
-    ) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: { thread_id: string; message_id: string; timestamp: string },
-      ): void => callback(data);
-      ipcRenderer.on('message:persisted', subscription);
-      return (): void => {
-        ipcRenderer.removeListener('message:persisted', subscription);
-      };
-    },
-    // Listen for message error events forwarded from main process
-    onMessageError: (
-      callback: (evt: {
-        thread_id?: string;
-        message_id?: string;
-        client_message_id?: string;
-        timestamp?: string;
-        error?: Record<string, unknown>;
-      }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: {
-          thread_id?: string;
-          message_id?: string;
-          client_message_id?: string;
-          timestamp?: string;
-          error?: Record<string, unknown>;
-        },
-      ): void => callback(data);
-      ipcRenderer.on('message:error', subscription);
-      return (): void => {
-        ipcRenderer.removeListener('message:error', subscription);
-      };
-    },
+    updateMessageBranch: (threadId: string, messageId: string, branchId: string) =>
+      ipcRenderer.invoke('thread:updateMessageBranch', threadId, messageId, branchId),
+
+    updateMessageDesktopOptions: (
+      threadId: string,
+      messageId: string,
+      desktopOptions: RequestOptionsDTO,
+    ) =>
+      ipcRenderer.invoke('thread:updateMessageDesktopOptions', threadId, messageId, desktopOptions),
   } as ThreadAPI,
 
   /**
@@ -1064,7 +712,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   system: {
     platform: () => ipcRenderer.invoke('system:platform'),
     version: () => ipcRenderer.invoke('system:version'),
-    getPath: (name: string) => ipcRenderer.invoke('system:getPath', name),
   } as SystemAPI,
 
   /**
@@ -1096,34 +743,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     get: (payload: { threadId: string; fileId: string }) => ipcRenderer.invoke('file:get', payload),
 
-    delete: (payload: { threadId: string; fileId: string }) =>
-      ipcRenderer.invoke('file:delete', payload),
-
     validate: (payload: { filename: string; mimeType: string; size: number }) =>
       ipcRenderer.invoke('file:validate', payload),
-
-    preview: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:preview', payload),
-
-    download: (payload: { threadId: string; fileId: string; userId: string }) =>
-      ipcRenderer.invoke('file:download', payload),
-
-    getWithToken: (payload: { token: string }) => ipcRenderer.invoke('file:getWithToken', payload),
-
-    onUploadProgress: (
-      callback: (data: { fileId: string; progress: number }) => void,
-    ): (() => void) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        data: { fileId: string; progress: number },
-      ): void => callback(data);
-      ipcRenderer.on('file:uploadProgress', subscription);
-
-      // Return cleanup function
-      return (): void => {
-        ipcRenderer.removeListener('file:uploadProgress', subscription);
-      };
-    },
   } as FileAPI,
 
   /**
@@ -1201,6 +822,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
   } as ProjectAPI,
+
+  /**
+   * Updater API Implementation
+   */
+  updater: {
+    getUpdateAvailability: () => ipcRenderer.invoke('updater:getUpdateAvailability'),
+    updateNow: () => ipcRenderer.invoke('updater:updateNow'),
+    isDevelopmentBuild: () => ipcRenderer.invoke('updater:isDevelopmentBuild'),
+    onUpdateCheckComplete: (callback): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        result: { updateAvailable: boolean; version?: string },
+      ): void => callback(result);
+      ipcRenderer.on('updater:checkComplete', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('updater:checkComplete', subscription);
+      };
+    },
+  } as UpdaterAPI,
 
   /**
    * Menu Command Listener

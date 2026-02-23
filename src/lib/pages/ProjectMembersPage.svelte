@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { querystring } from 'svelte-spa-router';
+  import { onMount as _onMount } from 'svelte';
+  import { querystring, push as _push } from 'svelte-spa-router';
+  import { ROUTE as _ROUTE } from '$lib/constants/route.constant';
   import type { Project, UserSummaryDTO } from '$lib/types/project.type';
   import { projectService } from '$lib/services/project.service';
 
@@ -33,7 +35,11 @@
     loading = true;
     error = '';
     try {
-      project = await projectService.getProjectById(id);
+      const result = await projectService.getProjectById(id);
+      project = result.success ? result.data : null;
+      if (!result.success) {
+        error = result.errorText || 'Failed to load project';
+      }
     } catch (e) {
       console.error('Failed to load project:', e);
       error = e instanceof Error ? e.message : 'Failed to load project';
@@ -52,7 +58,8 @@
       isSearching = true;
       showDropdown = true;
       try {
-        searchResults = await projectService.searchUsers(searchTerm);
+        const searchResult = await projectService.searchUsers(searchTerm);
+        searchResults = searchResult.success ? searchResult.data : [];
       } catch (error) {
         console.error('[ProjectMembersPage] Failed to search users:', error);
         searchResults = [];
@@ -215,7 +222,9 @@
                   </button>
                 {/if}
                 <div class="member-role">
-                  <span class="role-badge role-{member.memberRole.toLowerCase()}">{member.memberRole}</span>
+                  <span class="role-badge role-{member.memberRole.toLowerCase()}"
+                    >{member.memberRole}</span
+                  >
                 </div>
               </div>
             {/each}
@@ -288,6 +297,15 @@
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1.2rem;
+    background: var(--surface-main);
+  }
+
   .members-section {
     max-width: 800px;
     margin: 0 auto;
@@ -408,18 +426,21 @@
   }
 
   .role-badge.role-owner {
-    background: #dbeafe;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--info-color) 12%, var(--surface-card));
+    color: var(--info-color);
+    border: 1px solid color-mix(in srgb, var(--info-color) 30%, transparent);
   }
 
   .role-badge.role-editor {
-    background: #d1f4e0;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--success-color) 12%, var(--surface-card));
+    color: var(--success-color);
+    border: 1px solid color-mix(in srgb, var(--success-color) 30%, transparent);
   }
 
   .role-badge.role-viewer {
-    background: #eff6ff;
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-secondary) 8%, var(--surface-card));
+    color: var(--text-secondary);
+    border: 1px solid color-mix(in srgb, var(--text-secondary) 20%, transparent);
   }
 
   .add-member-section {
@@ -544,5 +565,4 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-
 </style>

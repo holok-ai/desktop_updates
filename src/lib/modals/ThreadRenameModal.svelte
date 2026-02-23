@@ -64,12 +64,7 @@
   >
     <div class="dialog-header">
       <h2 id="rename-dialog-title">Rename Thread</h2>
-      <button
-        class="close-button"
-        onclick={handleCancel}
-        aria-label="Close dialog"
-        type="button"
-      >
+      <button class="close-button" onclick={handleCancel} aria-label="Close dialog" type="button">
         <i class="pi pi-times"></i>
       </button>
     </div>
@@ -156,4 +151,3 @@
     cursor: not-allowed;
   }
 </style>
-

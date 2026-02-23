@@ -41,6 +41,7 @@ export interface AppSettings {
 
   // General
   avatar: UserAvatar;
+  deleteConfirmationRequired: boolean;
 
   // Appearance
   startingPage: StartingPage;
@@ -59,10 +60,6 @@ export interface AppSettings {
   // Updates
   autoCheckUpdates: boolean;
   autoInstallUpdates: boolean;
-
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate: boolean;
-
   updateAvailable?: boolean;
   latestVersion?: string;
 }
@@ -84,6 +81,7 @@ export const defaultAppSettings: AppSettings = {
   theme: APP_THEME_MODE.LIGHT as AppThemeMode,
   avatar: { ...defaultUserAvatar },
   startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+  deleteConfirmationRequired: false,
   showRecentList: true,
   showFavoritesList: true,
   threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -95,7 +93,6 @@ export const defaultAppSettings: AppSettings = {
   unixCommands: '',
   autoCheckUpdates: true,
   autoInstallUpdates: false,
-  autoUpdate: false,
 };
 
 export type GUID = ReturnType<typeof crypto.randomUUID>;

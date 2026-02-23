@@ -11,20 +11,20 @@ const TARGET_DIR = join(__dirname, '..', 'node_modules', '@holokai', 'chat-compo
 
 // Recursively copy directory
 function copyRecursive(src, dest) {
-    mkdirSync(dest, { recursive: true });
+  mkdirSync(dest, { recursive: true });
 
-    const entries = readdirSync(src, { withFileTypes: true });
+  const entries = readdirSync(src, { withFileTypes: true });
 
-    for (const entry of entries) {
-        const srcPath = join(src, entry.name);
-        const destPath = join(dest, entry.name);
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
 
-        if (entry.isDirectory()) {
-            copyRecursive(srcPath, destPath);
-        } else {
-            copyFileSync(srcPath, destPath);
-        }
+    if (entry.isDirectory()) {
+      copyRecursive(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
     }
+  }
 }
 
 // Main execution
@@ -33,18 +33,18 @@ console.log(`Source: ${SOURCE_DIR}`);
 console.log(`Target: ${TARGET_DIR}`);
 
 try {
-    // Check if source exists
-    if (!existsSync(SOURCE_DIR)) {
-        console.error('❌ Error: packages/chat-service not found!');
-        console.error('Please run "npm run build:for-desktop" in the chat-component directory first.');
-        process.exit(1);
-    }
-
-    // Copy files
-    copyRecursive(SOURCE_DIR, TARGET_DIR);
-
-    console.log('✅ Chat service installed successfully!');
-} catch (error) {
-    console.error('❌ Error installing chat service:', error);
+  // Check if source exists
+  if (!existsSync(SOURCE_DIR)) {
+    console.error('❌ Error: packages/chat-service not found!');
+    console.error('Please run "npm run build:for-desktop" in the chat-component directory first.');
     process.exit(1);
+  }
+
+  // Copy files
+  copyRecursive(SOURCE_DIR, TARGET_DIR);
+
+  console.log('✅ Chat service installed successfully!');
+} catch (error) {
+  console.error('❌ Error installing chat service:', error);
+  process.exit(1);
 }

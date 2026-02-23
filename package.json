@@ -1,6 +1,6 @@
 {
   "name": "holokai-desktop",
-  "version": "1.0.9",
+  "version": "1.0.20",
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
@@ -9,14 +9,14 @@
     "prepare:icons": "node scripts/prepare-icons.js",
     "dev": "vite",
     "build": "vite build",
-    "build:desk" : "npm run build && npm run build:electron",
+    "build:desk": "npm run build && npm run build:electron",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:watch\" -n \"VITE,ELECTRON\" -c \"blue,green\"",
     "electron:watch": "concurrently \"npm run build:electron\" \"nodemon --watch dist-electron --delay 1000ms --exec electron .\" -n \"TSC,APP\" -c \"yellow,magenta\"",
-    "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'module'}))\"",
-    "prebuild:prod": "npm run prepare:icons",
+    "build:electron": "tsc -p tsconfig.electron.json && node scripts/copy-chat-component.js && node scripts/build-preload.js && node scripts/build-electron-main.js && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'module'}))\"",
     "build:prod": "npm run build && npm run build:electron",
+    "prebuild:prod": "npm run prepare:icons",
     "prepackage": "npm run prepare:icons",
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
@@ -59,12 +59,9 @@
   "author": "Holokai",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.68.0",
     "@holokai/chat-component": "file:packages/chat-service",
-    "@perplexity-ai/perplexity_ai": "^0.16.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
-    "chart.js": "^4.5.1",
     "dompurify": "^3.3.0",
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
@@ -72,12 +69,10 @@
     "highlight.js": "^11.11.1",
     "mammoth": "^1.11.0",
     "marked": "^17.0.0",
-    "ollama": "^0.6.2",
-    "openai": "^6.7.0",
+    "p-retry": "^7.1.1",
     "pdf2json": "^4.0.2",
     "playwright": "^1.58.1",
     "primeicons": "^7.0.0",
-    "primeng": "^17.18.11",
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
@@ -143,15 +138,17 @@
     "vite": "^7.1.12"
   },
   "build": {
-    "appId": "com.holokai.desktop.svelte",
+    "appId": "com.holokai.desktop",
     "productName": "Holokai Desktop",
     "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
+    "asar": false,
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "package.json"
     ],
     "protocols": {
       "name": "Holokai Desktop",
@@ -163,8 +160,8 @@
       {
         "provider": "github",
         "owner": "holok-ai",
-        "repo": "desktop",
-        "private": true
+        "repo": "desktop_updates",
+        "private": false
       }
     ],
     "win": {
@@ -189,7 +186,9 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true
     },
     "linux": {
       "icon": "build/icon.png",

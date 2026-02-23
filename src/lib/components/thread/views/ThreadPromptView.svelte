@@ -9,7 +9,7 @@
    * No composer. No streaming. Follows chatLayout alignment.
    */
   import { onMount } from 'svelte';
-  import ChatRequest from '../ChatRequest.svelte';
+  import ChatRequest from '../chat-view/ChatRequest.svelte';
   import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
@@ -60,7 +60,7 @@
     const updated: Record<string, number> = {};
     for (const item of displayItems) {
       if (item.type === 'message') {
-        if (item.pair.response) {
+        if (item.pair.responses.length > 0) {
           const current = getRevealLevel(item.pair.request.id);
           updated[item.pair.request.id] = (current + 1) % REVEAL_LEVEL_COUNT;
         }
@@ -68,7 +68,7 @@
         // Handle branch - cycle all lanes
         for (const lane of item.lanes) {
           for (const pair of lane.messagePairs) {
-            if (pair.response) {
+            if (pair.responses.length > 0) {
               const current = getRevealLevel(pair.request.id);
               updated[pair.request.id] = (current + 1) % REVEAL_LEVEL_COUNT;
             }
@@ -84,7 +84,7 @@
     const updated: Record<string, number> = {};
     for (const item of displayItems) {
       if (item.type === 'message') {
-        if (item.pair.response) {
+        if (item.pair.responses.length > 0) {
           const current = getRevealLevel(item.pair.request.id);
           updated[item.pair.request.id] = (current - 1 + REVEAL_LEVEL_COUNT) % REVEAL_LEVEL_COUNT;
         }
@@ -92,7 +92,7 @@
         // Handle branch - cycle all lanes
         for (const lane of item.lanes) {
           for (const pair of lane.messagePairs) {
-            if (pair.response) {
+            if (pair.responses.length > 0) {
               const current = getRevealLevel(pair.request.id);
               updated[pair.request.id] = (current - 1 + REVEAL_LEVEL_COUNT) % REVEAL_LEVEL_COUNT;
             }
@@ -244,10 +244,11 @@
             />
 
             <!-- Response preview (progressive reveal) -->
-            {#if pair.response && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
+            {#if pair.responses.length > 0 && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
               {@const level = getRevealLevel(pair.request.id)}
-              {@const visibleContent = getVisibleResponse(pair.response.content, level)}
-              {@const truncated = isTruncated(pair.response.content, level)}
+              {@const allResponseContent = pair.responses.map((r) => r.content).join('\n\n---\n\n')}
+              {@const visibleContent = getVisibleResponse(allResponseContent, level)}
+              {@const truncated = isTruncated(allResponseContent, level)}
 
               <div class="response-preview {responseAlignClass(chatLayout)}">
                 <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
@@ -289,10 +290,13 @@
                         {chatLayout}
                         {fontSize}
                       />
-                      {#if pair.response && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
+                      {#if pair.responses.length > 0 && getRevealLevel(pair.request.id) > REVEAL_HIDDEN}
                         {@const level = getRevealLevel(pair.request.id)}
-                        {@const visibleContent = getVisibleResponse(pair.response.content, level)}
-                        {@const truncated = isTruncated(pair.response.content, level)}
+                        {@const allResponseContent = pair.responses
+                          .map((r) => r.content)
+                          .join('\n\n---\n\n')}
+                        {@const visibleContent = getVisibleResponse(allResponseContent, level)}
+                        {@const truncated = isTruncated(allResponseContent, level)}
                         <div class="response-preview {responseAlignClass(chatLayout)}">
                           <div class="preview-bubble" class:one-line={level === REVEAL_ONE_LINE}>
                             {#if level === REVEAL_ONE_LINE}
@@ -425,7 +429,7 @@
   .preview-text.plain-text {
     white-space: pre-wrap;
     word-break: break-word;
-    color: #000;
+    color: var(--text-primary);
     padding-top: 0.1rem;
     line-height: 1.2;
   }

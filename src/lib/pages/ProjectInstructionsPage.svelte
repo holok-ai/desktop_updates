@@ -11,6 +11,7 @@
   import type { Project } from '$lib/types/project.type';
   import type { GUID } from '$lib/types/app.type';
   import type { ModelDetails } from '../../../src-electron/preload';
+  import { modelService } from '$lib/services/model.service';
 
   // ── Core state ──
   let projectId = $state<string | null>(null);
@@ -86,7 +87,8 @@ Describe what this project is about and what threads should focus on.
     loading = true;
     error = '';
     try {
-      project = await projectService.getProjectById(id as GUID);
+      const projectResult = await projectService.getProjectById(id as GUID);
+      project = projectResult.success ? projectResult.data : null;
       if (project) {
         const loaded = (project.metadata?.instructions as string) ?? '';
         instructions = loaded;
@@ -165,12 +167,12 @@ Describe what this project is about and what threads should focus on.
 
     try {
       // 1. Get model details
-      const models = await window.electronAPI.models.listAll();
+      const models = await modelService.getAvailableModels();
       const modelDetails = models.find((m: ModelDetails) => m.accessName === selectedModelId);
       if (!modelDetails) throw new Error('Model not found');
 
       // 2. Create a test thread via threadService
-      const testThread = await threadService.create({
+      const testThreadResult = await (threadService.create as any)({
         title: `[Test] ${testPrompt.substring(0, 40)}${testPrompt.length > 40 ? '...' : ''}`,
         description: 'Instructions test thread',
         status: THREAD_STATUS.ACTIVE,
@@ -182,9 +184,13 @@ Describe what this project is about and what threads should focus on.
           modelAccessName: modelDetails.accessName,
           isTestThread: true,
         },
-      } as any);
+      });
 
-      const threadId = testThread.id;
+      if (!testThreadResult.success) {
+        throw new Error(testThreadResult.errorText || 'Failed to create test thread');
+      }
+
+      const threadId = testThreadResult.data.id;
       testThreadId = threadId;
 
       // 3. Append user message
@@ -194,14 +200,16 @@ Describe what this project is about and what threads should focus on.
         branchId: '1.0.0',
       });
 
-      // 4. Create chat provider
-      const providerResult = await window.electronAPI.chat.createProvider(
+      // 4. Create chat provider for branch 1.0.0
+      const providerResult = await window.electronAPI.chat.createServiceForThread(
         threadId,
+        '1.0.0',
+        modelDetails.accessName,
         modelDetails.provider,
         { url: modelDetails.url, model: modelDetails.accessName },
       );
       if (!providerResult.success) {
-        throw new Error(providerResult.error || 'Failed to initialize chat provider');
+        throw new Error(providerResult.errorText || 'Failed to initialize chat provider');
       }
 
       // Small delay for provider readiness
@@ -231,7 +239,7 @@ Describe what this project is about and what threads should focus on.
       const chatResult = await window.electronAPI.chat.chat(threadId, chatPayload as any);
 
       if (!chatResult.success) {
-        throw new Error(chatResult.error || 'Chat request failed');
+        throw new Error(chatResult.errorText || 'Chat request failed');
       }
 
       testComplete = true;
@@ -447,6 +455,15 @@ Describe what this project is about and what threads should focus on.
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem 1.2rem;
+    background: var(--surface-main);
+  }
+
   .instructions-section {
     max-width: 900px;
     margin: 0 auto;

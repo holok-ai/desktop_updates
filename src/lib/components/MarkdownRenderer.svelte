@@ -73,10 +73,30 @@
 
     // Common languages to consider for auto-detection (in priority order)
     const commonLanguages = [
-      'python', 'javascript', 'typescript', 'java', 'csharp', 'cpp', 'c',
-      'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'scala',
-      'html', 'css', 'sql', 'bash', 'shell', 'powershell',
-      'json', 'yaml', 'xml', 'markdown'
+      'python',
+      'javascript',
+      'typescript',
+      'java',
+      'csharp',
+      'cpp',
+      'c',
+      'php',
+      'ruby',
+      'go',
+      'rust',
+      'swift',
+      'kotlin',
+      'scala',
+      'html',
+      'css',
+      'sql',
+      'bash',
+      'shell',
+      'powershell',
+      'json',
+      'yaml',
+      'xml',
+      'markdown',
     ];
 
     // Helper function to detect CSV content
@@ -85,11 +105,13 @@
       if (lines.length < 2) return false;
 
       // Check if most lines have consistent comma count
-      const commaCounts = lines.map(line => (line.match(/,/g) || []).length);
+      const commaCounts = lines.map((line) => (line.match(/,/g) || []).length);
       if (commaCounts.length === 0) return false;
 
       const avgCommas = commaCounts.reduce((a, b) => a + b, 0) / commaCounts.length;
-      const consistentCommas = commaCounts.filter(count => Math.abs(count - avgCommas) <= 1).length;
+      const consistentCommas = commaCounts.filter(
+        (count) => Math.abs(count - avgCommas) <= 1,
+      ).length;
 
       // Additional checks for CSV patterns
       const _hasQuotes = text.includes('"') || text.includes("'");
@@ -135,16 +157,13 @@
           }
         }
       } else {
-        // Auto-detect language using common languages subset
+        // No language specified — render as plaintext with no label
         try {
-          const result = hljs.highlightAuto(code, commonLanguages);
-          highlighted = result.value;
-          detectedLang = result.language || 'plaintext';
-          isInferred = true;
+          highlighted = hljs.highlight(code, { language: 'plaintext' }).value;
         } catch {
           highlighted = code;
-          detectedLang = 'plaintext';
         }
+        detectedLang = '';
       }
 
       const langBadge = detectedLang
@@ -197,24 +216,149 @@
         .replace(/\[Validating request and running security checks\.\.\.\]\n?/g, '')
         .replace(
           /\[Security checks passed, processing your request\.\.\.\]\n?/g,
-          '<span class="status-success"><span class="checkmark">✓</span></span>'
+          '<span class="status-success"><span class="checkmark">✓</span></span>',
         );
     } else if (hasValidation) {
       // Only validation: show spinner
       return text.replace(
         /\[Validating request and running security checks\.\.\.\]\n?/g,
-        '<span class="status-spinner"><span class="spinner"></span> Validating request...</span>'
+        '<span class="status-spinner"><span class="spinner"></span> Validating request...</span>',
       );
     }
 
     return text;
   }
 
+  // Process FileId tags and convert to appropriate display elements
+  async function processFileIdTags(text: string): Promise<string> {
+    // Match <FileId ... /> tags with flexible attribute order
+    // Captures the entire tag content to parse attributes individually
+    const fileIdRegex = /<FileId\s+([^>]+)\s*\/>/g;
+
+    let processedText = text;
+    const matches = Array.from(text.matchAll(fileIdRegex));
+
+    if (matches.length > 0) {
+      console.log('[MarkdownRenderer] Found FileId tags:', matches.length);
+    }
+
+    for (const match of matches) {
+      const [fullMatch, attributes] = match;
+
+      // Parse attributes flexibly
+      const fileIdMatch = attributes.match(/file_id="([^"]+)"/);
+      const threadIdMatch = attributes.match(/thread_id="([^"]+)"/);
+      const mimeTypeMatch = attributes.match(/mime_type="([^"]+)"/);
+      const fileNameMatch = attributes.match(/name="([^"]*)"/);
+
+      if (!fileIdMatch || !mimeTypeMatch) {
+        console.error('[MarkdownRenderer] FileId tag missing required attributes:', fullMatch);
+        continue;
+      }
+
+      const fileId = fileIdMatch[1];
+      const threadId = threadIdMatch ? threadIdMatch[1] : null;
+      const mimeType = mimeTypeMatch[1];
+      const fileName = fileNameMatch ? fileNameMatch[1] : 'file';
+
+      console.log('[MarkdownRenderer] Processing FileId:', {
+        fileId,
+        threadId,
+        mimeType,
+        fileName,
+      });
+
+      try {
+        // Fetch file from backend
+        const result = await window.electronAPI.file.get({ threadId, fileId });
+
+        if (result.success && result.buffer) {
+          // Convert buffer to base64
+          const base64 = btoa(
+            new Uint8Array(result.buffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              '',
+            ),
+          );
+
+          // Determine how to display based on mime type
+          let replacement = '';
+
+          if (mimeType.startsWith('image/')) {
+            // Display as inline image
+            replacement = `![${fileName}](data:${mimeType};base64,${base64})`;
+          } else if (mimeType === 'application/pdf') {
+            // Display as download link for PDF
+            replacement = `<div class="file-download">
+              <i class="pi pi-file-pdf"></i>
+              <span class="file-download-name">${fileName}</span>
+              <a href="data:application/pdf;base64,${base64}" download="${fileName}" class="file-download-btn">
+                <i class="pi pi-download"></i> Download
+              </a>
+            </div>`;
+          } else if (mimeType === 'text/plain') {
+            // Display as code block
+            const textContent = atob(base64);
+            replacement = `\`\`\`\n${textContent}\n\`\`\``;
+          } else if (
+            mimeType ===
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          ) {
+            // Display as download link for Office documents
+            const icon = mimeType.includes('word') ? 'pi-file-word' : 'pi-file-excel';
+            replacement = `<div class="file-download">
+              <i class="pi ${icon}"></i>
+              <span class="file-download-name">${fileName}</span>
+              <a href="data:${mimeType};base64,${base64}" download="${fileName}" class="file-download-btn">
+                <i class="pi pi-download"></i> Download
+              </a>
+            </div>`;
+          } else {
+            // Generic file download
+            replacement = `<div class="file-download">
+              <i class="pi pi-file"></i>
+              <span class="file-download-name">${fileName}</span>
+              <a href="data:${mimeType};base64,${base64}" download="${fileName}" class="file-download-btn">
+                <i class="pi pi-download"></i> Download
+              </a>
+            </div>`;
+          }
+
+          processedText = processedText.replace(fullMatch, replacement);
+        } else {
+          // File not found, show error
+          processedText = processedText.replace(
+            fullMatch,
+            `<div class="file-error">
+              <i class="pi pi-exclamation-triangle"></i>
+              <span>File not found: ${fileName}</span>
+            </div>`,
+          );
+        }
+      } catch (error) {
+        console.error('[MarkdownRenderer] Failed to process FileId tag:', error);
+        processedText = processedText.replace(
+          fullMatch,
+          `<div class="file-error">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>Error loading file: ${fileName}</span>
+          </div>`,
+        );
+      }
+    }
+
+    return processedText;
+  }
+
   // Render markdown to HTML
-  function renderMarkdown(text: string): string {
+  async function renderMarkdown(text: string): Promise<string> {
     try {
-      // Process security status messages before rendering
-      let filteredText = processStatusMessages(text);
+      // Process FileId tags first (async)
+      let filteredText = await processFileIdTags(text);
+
+      // Process security status messages
+      filteredText = processStatusMessages(filteredText);
 
       configureMarked();
       const rawHtml = marked.parse(filteredText) as string;
@@ -252,6 +396,7 @@
           'button',
           'del',
           'ins',
+          'i',
         ],
         ALLOWED_ATTR: [
           'href',
@@ -265,6 +410,7 @@
           'data-code',
           'aria-label',
           'style', // For inline styles if needed
+          'download', // For download links
         ],
       });
     } catch (error) {
@@ -359,7 +505,9 @@
 
   // Update rendered HTML when content changes
   $effect(() => {
-    renderedHtml = renderMarkdown(content);
+    void renderMarkdown(content).then((html) => {
+      renderedHtml = html;
+    });
   });
 
   // Attach copy button handlers after mount
@@ -531,6 +679,7 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    margin-left: auto;
     background: rgba(100, 108, 255, 0.15);
     color: var(--text-secondary);
     border: 1px solid rgba(100, 108, 255, 0.3);
@@ -730,6 +879,81 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* File download/display components */
+  .markdown-content :global(.file-download) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .markdown-content :global(.file-download:hover) {
+    background: var(--surface-hover);
+  }
+
+  .markdown-content :global(.file-download > i) {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .markdown-content :global(.file-download-name) {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .markdown-content :global(.file-download-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+
+  .markdown-content :global(.file-download-btn:hover) {
+    opacity: 0.9;
+  }
+
+  .markdown-content :global(.file-download-btn i) {
+    font-size: 0.875rem;
+    color: white;
+  }
+
+  .markdown-content :global(.file-error) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    background: var(--error-bg);
+    border: 1px solid var(--error-color);
+    border-radius: 8px;
+    color: var(--error-color);
+  }
+
+  .markdown-content :global(.file-error i) {
+    font-size: 1.25rem;
+    flex-shrink: 0;
   }
 </style>

@@ -42,7 +42,9 @@ export class MenuNavigationService {
       },
       {
         channel: 'menu:refresh',
-        handler: () => {
+        handler: async () => {
+          // Force reload from API before reloading the renderer
+          await window.electronAPI.models.listAllApplications(true);
           globalThis.location.reload();
         },
       },

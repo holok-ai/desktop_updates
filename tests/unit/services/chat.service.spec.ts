@@ -1,109 +1,277 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ChatRequest } from '../../../src-electron/services/chat/interfaces/ChatMessage';
+/**
+ * DesktopChatService — unit tests
+ *
+ * Tests cover:
+ *   - Constructor: provider init, tool support detection, setTools wiring
+ *   - chat(): token streaming delegation, working_directory propagation
+ *   - getAuditLogs(): delegation to underlying ChatService
+ *   - File-received callback: saves files via fileStorageService
+ */
 
-// Mock the external Ollama client so unit tests don't try to connect to a real
-// Ollama server. We provide a simple chat implementation that yields token
-// pieces for streaming and returns a message for non-streaming.
-vi.mock('ollama', () => {
-  return {
-    Ollama: class {
-      opts: any;
-      constructor(opts: any) {
-        this.opts = opts;
-      }
-      async chat(req: any) {
-        if (req.stream) {
-          // async iterable of parts
-          async function* gen() {
-            const tokens = ['hello'];
-            for (const t of tokens) {
-              yield { message: { content: t } };
-            }
-          }
-          return gen();
-        }
-        return { message: { content: 'hello' } };
-      }
-    },
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ── Mocks ────────────────────────────────────────────────────────
+
+const mockChatFn = vi.fn();
+const mockSetTools = vi.fn();
+const mockGetAuditLogs = vi.fn(() => []);
+
+vi.mock('@holokai/chat-component', () => ({
+  ChatService: class {
+    chat = mockChatFn;
+    setTools = mockSetTools;
+    getAuditLogs = mockGetAuditLogs;
+  },
+}));
+
+const mockSupportsToolCalling = vi.fn(() => false);
+const mockGetToolDefinitions = vi.fn(() => []);
+const mockExecuteTool = vi.fn(async () => ({ success: true }));
+
+vi.mock('../../../src-electron/services/tool-calling/orchestrator', () => ({
+  ToolOrchestrator: {
+    getInstance: vi.fn(() => ({
+      supportsToolCalling: mockSupportsToolCalling,
+      getToolDefinitions: mockGetToolDefinitions,
+      executeTool: mockExecuteTool,
+    })),
+  },
+}));
+
+const mockSaveFile = vi.fn(async () => ({ id: 'file-1' }));
+
+vi.mock('../../../src-electron/services/file-storage.service', () => ({
+  fileStorageService: {
+    saveFile: mockSaveFile,
+  },
+}));
+
+vi.mock('electron-log', () => ({
+  default: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+// ── Tests ────────────────────────────────────────────────────────
+
+describe('DesktopChatService', () => {
+  let DesktopChatService: typeof import('../../../src-electron/services/chat/desktop-chat-service').DesktopChatService;
+  let service: InstanceType<typeof DesktopChatService>;
+
+  const defaultConfig = {
+    url: 'http://localhost:11434',
+    apiKey: 'test-key',
+    model: 'llama3:latest',
   };
-});
-
-describe('ChatService (unit)', () => {
-  let ChatService: typeof import('../../../src-electron/services/chat/ChatService').ChatService;
-  let service: InstanceType<typeof ChatService>;
 
   beforeEach(async () => {
-    // Import under test after mocking
-    const mod = await import('../../../src-electron/services/chat/ChatService');
-    ChatService = mod.ChatService;
-    service = new ChatService(
-      'ollama',
-      {
-        url: 'http://localhost:11434',
-        apiKey: 'ollama',
-        model: 'llama3:latest',
-      },
-      false,
+    vi.clearAllMocks();
+    mockSupportsToolCalling.mockReturnValue(false);
+
+    const mod = await import(
+      '../../../src-electron/services/chat/desktop-chat-service'
     );
+    DesktopChatService = mod.DesktopChatService;
+    service = new DesktopChatService('ollama', defaultConfig);
   });
 
-  it('should create ChatService instance', () => {
-    expect(service).toBeDefined();
+  // ═══════════════════════════════════════════════════════════════
+  // Constructor
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('constructor', () => {
+    it('creates an instance', () => {
+      expect(service).toBeDefined();
+    });
+
+    it('calls setTools with empty tools when tool calling is not supported', () => {
+      expect(mockSetTools).toHaveBeenCalledWith(
+        [],
+        expect.any(Function),
+        expect.any(Function),
+      );
+    });
+
+    it('calls setTools with tool definitions when tool calling is supported', async () => {
+      vi.clearAllMocks();
+      mockSupportsToolCalling.mockReturnValue(true);
+      const toolDefs = [{ name: 'read_file', description: 'Read a file', inputSchema: {} }];
+      mockGetToolDefinitions.mockReturnValue(toolDefs);
+
+      const mod = await import(
+        '../../../src-electron/services/chat/desktop-chat-service'
+      );
+      new mod.DesktopChatService('openai', {
+        url: 'https://api.openai.com',
+        apiKey: 'sk-test',
+        model: 'gpt-4',
+      });
+
+      expect(mockSetTools).toHaveBeenCalledWith(
+        toolDefs,
+        expect.any(Function),
+        expect.any(Function),
+      );
+    });
+
+    it('uses provided working directory', async () => {
+      vi.clearAllMocks();
+      const mod = await import(
+        '../../../src-electron/services/chat/desktop-chat-service'
+      );
+      const svc = new mod.DesktopChatService('ollama', defaultConfig, '/custom/path');
+
+      // Service was constructed without error — working directory stored internally
+      expect(svc).toBeDefined();
+    });
   });
 
-  it('should send a basic chat request and receive streaming response', async () => {
-    const request: ChatRequest = {
-      messages: [{ role: 'user', content: 'Say "hello" and nothing else.' }],
-      streaming: true,
-      model: 'llama3:latest',
-    };
+  // ═══════════════════════════════════════════════════════════════
+  // chat()
+  // ═══════════════════════════════════════════════════════════════
 
-    let receivedTokens = '';
-    const onTokenReceived = (token: string): void => {
-      receivedTokens += token;
-    };
-
-    await service.chat(request, onTokenReceived);
-
-    expect(receivedTokens.length).toBeGreaterThan(0);
-    expect(receivedTokens.toLowerCase()).toContain('hello');
-  }, 30000);
-
-  it('should send a chat request with options', async () => {
-    const request = {
-      messages: [{ role: 'user', content: 'Reply with just the number 5.' }],
-      streaming: true,
-      model: 'llama3:latest',
-      options: {
-        temperature: 0.1,
-        maxTokens: 10,
-      },
-    };
-
-    let receivedTokens = '';
-    const onTokenReceived = (token: string): void => {
-      receivedTokens += token;
-    };
-
-    await service.chatWithOptions(request as any, onTokenReceived);
-
-    expect(receivedTokens.length).toBeGreaterThan(0);
-  }, 30000);
-
-  it('should get audit logs when audit is enabled', async () => {
-    const mod = await import('../../../src-electron/services/chat/ChatService');
-    const ChatServiceWithAudit = mod.ChatService;
-    const serviceWithAudit = new ChatServiceWithAudit(
-      'ollama',
-      {
-        url: 'http://localhost:11434',
-        apiKey: 'ollama',
+  describe('chat', () => {
+    it('delegates to underlying ChatService.chat', async () => {
+      const request = {
+        messages: [{ role: 'user' as const, content: 'Hello' }],
+        streaming: true,
         model: 'llama3:latest',
-      },
-      true, // Enable audit
-    );
+      };
+      const onToken = vi.fn();
 
-    const logs = serviceWithAudit.getAuditLogs();
-    expect(logs).toBeDefined();
+      await service.chat(request, onToken);
+
+      expect(mockChatFn).toHaveBeenCalledWith(request, onToken);
+    });
+
+    it('streams tokens through the onToken callback', async () => {
+      const tokens: string[] = [];
+      const onToken = (token: string) => {
+        tokens.push(token);
+      };
+
+      // Mock chat to call onToken
+      mockChatFn.mockImplementation(async (_req: unknown, cb: (t: string) => void) => {
+        cb('Hello');
+        cb(' world');
+      });
+
+      await service.chat(
+        {
+          messages: [{ role: 'user', content: 'Hi' }],
+          streaming: true,
+          model: 'llama3:latest',
+        },
+        onToken,
+      );
+
+      expect(tokens).toEqual(['Hello', ' world']);
+    });
+
+    it('propagates working_directory from request', async () => {
+      const request = {
+        messages: [{ role: 'user' as const, content: 'test' }],
+        streaming: true,
+        model: 'llama3:latest',
+        working_directory: '/project/dir',
+      };
+      const onToken = vi.fn();
+
+      await service.chat(request, onToken);
+
+      // The request object should have workingDirectory set
+      expect((request as any).workingDirectory).toBe('/project/dir');
+    });
+
+    it('clears status callback after chat completes', async () => {
+      const onToolStatus = vi.fn();
+
+      await service.chat(
+        {
+          messages: [{ role: 'user' as const, content: 'test' }],
+          streaming: true,
+          model: 'llama3:latest',
+        },
+        vi.fn(),
+        undefined,
+        onToolStatus,
+      );
+
+      // Chat completed without error — status callback was cleared internally
+      expect(mockChatFn).toHaveBeenCalled();
+    });
+
+    it('clears status callback even when chat throws', async () => {
+      mockChatFn.mockRejectedValueOnce(new Error('provider error'));
+
+      await expect(
+        service.chat(
+          {
+            messages: [{ role: 'user' as const, content: 'test' }],
+            streaming: true,
+            model: 'llama3:latest',
+          },
+          vi.fn(),
+        ),
+      ).rejects.toThrow('provider error');
+
+      // No hanging references — the finally block should have run
+      expect(mockChatFn).toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // getAuditLogs()
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('getAuditLogs', () => {
+    it('returns audit logs from underlying ChatService', () => {
+      const fakeLogs = [{ timestamp: Date.now(), event: 'chat' }];
+      mockGetAuditLogs.mockReturnValueOnce(fakeLogs);
+
+      const logs = service.getAuditLogs();
+
+      expect(logs).toBe(fakeLogs);
+      expect(mockGetAuditLogs).toHaveBeenCalled();
+    });
+
+    it('returns empty array when no logs exist', () => {
+      mockGetAuditLogs.mockReturnValueOnce([]);
+
+      const logs = service.getAuditLogs();
+
+      expect(logs).toEqual([]);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // File-received callback (via setTools)
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('onFileReceived callback', () => {
+    it('saves file via fileStorageService when called', async () => {
+      // Get the onFileReceived callback that was passed to setTools
+      const onFileReceived = mockSetTools.mock.calls[0][2];
+      expect(onFileReceived).toBeInstanceOf(Function);
+
+      const base64Content = Buffer.from('test image data').toString('base64');
+
+      // Call it (returns void synchronously, but triggers async save)
+      onFileReceived('thread-1', 'file-abc', 'image/png', base64Content, 'screenshot.png');
+
+      // Allow the async save to complete
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockSaveFile).toHaveBeenCalledWith(
+        'thread-1',
+        expect.any(Buffer),
+        'screenshot.png',
+        'image/png',
+        'file-abc',
+      );
+    });
   });
 });

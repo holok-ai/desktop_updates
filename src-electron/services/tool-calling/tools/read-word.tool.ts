@@ -28,7 +28,8 @@ export class ReadWordTool implements ITool {
         properties: {
           file_path: {
             type: 'string',
-            description: 'Path to the .docx file (can be relative to working directory or absolute)',
+            description:
+              'Path to the .docx file (can be relative to working directory or absolute)',
           },
         },
         required: ['file_path'],
@@ -38,12 +39,12 @@ export class ReadWordTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    executionContext: ToolExecutionContext
+    executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const userPath = params.file_path as string;
     const resolvedPath = this.context.service.resolvePath(
       userPath,
-      executionContext.workingDirectory
+      executionContext.workingDirectory,
     );
 
     // Emit status using executionContext callback (if provided)

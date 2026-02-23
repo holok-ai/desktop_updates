@@ -14,6 +14,16 @@ import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js
  * Settings are stored in the user's app data folder and encrypted.
  */
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required: string[];
+  };
+}
+
 export interface AppSettings {
   // Moku Web URL - where the SSO login page is hosted
   mokuWebUrl: string;
@@ -44,15 +54,18 @@ export interface AppSettings {
   enabledTools?: string[];
   shellCommands?: string;
 
+  // General
+  deleteConfirmationRequired?: boolean;
+
   // Updates
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
-
-  /** @deprecated Use autoCheckUpdates instead */
-  autoUpdate?: boolean;
-
   updateAvailable?: boolean;
   latestVersion?: string;
+  pendingUpdateVersion?: string;
+
+  // Static tool list from ToolOrchestrator (added at runtime)
+  static_toolList?: ToolDefinition[];
 }
 
 /**
@@ -60,22 +73,21 @@ export interface AppSettings {
  * Using environment variables with localhost fallback for development/testing
  */
 const DEFAULT_SETTINGS: AppSettings = {
-  // Development Moku web URL (for SSO testing)
+  // Production Moku web URL (for SSO testing)
   // NOTE: This should be the Moku web app URL, NOT the desktop app URL
-  mokuWebUrl: 'http://localhost:4200', // Moku web runs on different port
+  mokuWebUrl: 'https://moku.holokai.dev',
 
-  // Development Moku API URL - configurable via environment variable
-  mokuApiUrl: 'http://localhost:8080',
+  // Production Moku API URL
+  mokuApiUrl: 'https://moku.holokai.dev',
 
-  // Default Holo API URL (user-configurable)
+  // Production Holo API URL (user-configurable)
   holoApiUrl: DEFAULT_HOLO_API_URL,
 
   // Directory Whitelist - empty by default
   directoryWhitelist: [],
 
-  // Production alternatives (commented out):
-  // mokuWebUrl: 'https://moku.holokai.com',
-  // mokuApiUrl: 'https://moku.holokai.com/api',
+  // General
+  deleteConfirmationRequired: false,
 
   // Appearance
   theme: 'light',
@@ -92,7 +104,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Updates
   autoCheckUpdates: true,
   autoInstallUpdates: false,
-  autoUpdate: true,
   updateAvailable: false,
   latestVersion: '',
 };
@@ -176,10 +187,6 @@ export class SettingsService {
           type: 'boolean',
           default: DEFAULT_SETTINGS.autoInstallUpdates,
         },
-        autoUpdate: {
-          type: 'boolean',
-          default: DEFAULT_SETTINGS.autoUpdate,
-        },
         updateAvailable: {
           type: 'boolean',
           default: DEFAULT_SETTINGS.updateAvailable,
@@ -234,8 +241,24 @@ export class SettingsService {
    * Set a specific setting
    */
   public setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
-    this.store.set(key, value);
-    log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    if (value === undefined) {
+      throw new Error(
+        `SettingsService.setSetting: value for key "${String(
+          key,
+        )}" is undefined. Use a dedicated clear method instead.`,
+      );
+    } else {
+      this.store.set(key, value);
+      log.info(`[SettingsService] Setting updated: ${key} = ${JSON.stringify(value)}`);
+    }
+  }
+
+  /**
+   * Clear a specific setting (delete from store)
+   */
+  public clearSetting<K extends keyof AppSettings>(key: K): void {
+    this.store.delete(key);
+    log.info(`[SettingsService] Setting deleted: ${String(key)}`);
   }
 
   /**
@@ -257,43 +280,10 @@ export class SettingsService {
   }
 
   /**
-   * Normalize base URL by trimming trailing slashes
-   */
-  private normalizeBaseUrl(url: string): string {
-    return url.replace(/\/+$/, '');
-  }
-
-  /**
-   * Validate URL is HTTP/HTTPS and normalize
-   */
-  private validateAndNormalizeUrl(url: string, field: string): string {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('URL must use http or https');
-      }
-      const normalized = this.normalizeBaseUrl(parsed.toString());
-      return normalized;
-    } catch (err) {
-      log.warn(`[SettingsService] Invalid URL for ${field}:`, url, err);
-      throw new Error(`Invalid URL for ${field}`);
-    }
-  }
-
-  /**
    * Get Moku Web URL (for SSO login)
    */
   public getMokuWebUrl(): string {
     return this.store.get('mokuWebUrl');
-  }
-
-  /**
-   * Set Moku Web URL
-   */
-  public setMokuWebUrl(url: string): void {
-    const normalized = this.validateAndNormalizeUrl(url, 'mokuWebUrl');
-    this.store.set('mokuWebUrl', normalized);
-    log.info('[SettingsService] Moku Web URL updated:', normalized);
   }
 
   /**
@@ -304,43 +294,10 @@ export class SettingsService {
   }
 
   /**
-   * Set Moku API URL
-   */
-  public setMokuApiUrl(url: string): void {
-    const normalized = this.validateAndNormalizeUrl(url, 'mokuApiUrl');
-    this.store.set('mokuApiUrl', normalized);
-    log.info('[SettingsService] Moku API URL updated:', normalized);
-  }
-
-  /**
    * Get Holo API URL
    */
   public getHoloApiUrl(): string {
     return this.store.get('holoApiUrl');
-  }
-
-  /**
-   * Set Holo API URL
-   */
-  public setHoloApiUrl(url: string): void {
-    const normalized = this.validateAndNormalizeUrl(url, 'holoApiUrl');
-    this.store.set('holoApiUrl', normalized);
-    log.info('[SettingsService] Holo API URL updated:', normalized);
-  }
-
-  /**
-   * Get theme setting
-   */
-  public getTheme(): 'light' | 'dark' {
-    return this.store.get('theme', 'light');
-  }
-
-  /**
-   * Set theme
-   */
-  public setTheme(theme: 'light' | 'dark'): void {
-    this.store.set('theme', theme);
-    log.info('[SettingsService] Theme updated:', theme);
   }
 
   /**
@@ -391,14 +348,5 @@ export class SettingsService {
 
     this.store.set('directoryWhitelist', filtered);
     log.info('[SettingsService] Removed whitelist path:', normalized);
-  }
-
-  /**
-   * Set the entire directory whitelist
-   */
-  public setDirectoryWhitelist(paths: string[]): void {
-    const normalized = paths.map((p) => path.normalize(p));
-    this.store.set('directoryWhitelist', normalized);
-    log.info('[SettingsService] Whitelist updated:', normalized);
   }
 }

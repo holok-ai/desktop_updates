@@ -85,7 +85,9 @@ export class AuthService {
     try {
       const encryptionAvailable = safeStorage.isEncryptionAvailable();
       if (!encryptionAvailable) {
-        log.warn('[AuthService] Encryption not available on this system, will use plain text storage');
+        log.warn(
+          '[AuthService] Encryption not available on this system, will use plain text storage',
+        );
       }
 
       // Load tokens from secure storage
@@ -296,7 +298,13 @@ export class AuthService {
 
       // Use default expiration if API returns null or 0 (1 hour = 3600 seconds)
       const expiresInSeconds = expires_in || 3600;
-      log.info('[AuthService] Initial token expires_in:', expires_in, '(using:', expiresInSeconds, 'seconds)');
+      log.info(
+        '[AuthService] Initial token expires_in:',
+        expires_in,
+        '(using:',
+        expiresInSeconds,
+        'seconds)',
+      );
 
       // Create tokens object
       const tokens: AuthTokens = {
@@ -427,7 +435,11 @@ export class AuthService {
 
       // Store updated tokens with updated user profile
       this.storeAuthData(newTokens, updatedUser);
-      log.info('[AuthService] Token refresh completed successfully, expires_in:', expiresInSeconds, 'seconds');
+      log.info(
+        '[AuthService] Token refresh completed successfully, expires_in:',
+        expiresInSeconds,
+        'seconds',
+      );
 
       return newTokens;
     } catch (error) {
@@ -460,8 +472,6 @@ export class AuthService {
       await this.refreshAccessToken();
     }
     const token = this.currentAuthState.tokens?.accessToken || '';
-    const maskedToken = token ? `${token.slice(0, 5)}... (${token.length} characters)` : '(no token)';
-    log.info('[AuthService] Access token:', maskedToken);
     return token;
   }
 
@@ -471,7 +481,7 @@ export class AuthService {
   private storeAuthData(tokens: AuthTokens, user: UserProfile): void {
     try {
       const encryptionAvailable = safeStorage.isEncryptionAvailable();
-      
+
       if (!encryptionAvailable) {
         log.warn('[AuthService] Encryption not available, storing in plain text (INSECURE)');
       }

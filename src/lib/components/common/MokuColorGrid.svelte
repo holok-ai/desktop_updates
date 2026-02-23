@@ -54,7 +54,7 @@
       aria-checked={value === color}
       aria-label="Select {colorNames[color]} ({color})"
       onclick={() => handleColorSelect(color)}
-      disabled={disabled}
+      {disabled}
     ></button>
   {/each}
 </div>
@@ -97,4 +97,3 @@
     outline-offset: 2px;
   }
 </style>
-

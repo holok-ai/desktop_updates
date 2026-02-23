@@ -4,11 +4,11 @@
   import { threads } from '$lib/stores/thread.store';
   import { threadService } from '$lib/services/thread.service';
   import { ROUTE } from '$lib/constants/route.constant';
-  import { THREAD_STATUS } from '$lib/constants/status.constant';
   import ModelSelector from '$lib/components/common/ModelSelector.svelte';
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import { favorites } from '$lib/stores/favorite.store';
   import type { ModelDetails } from '../../../src-electron/preload';
+  import { modelService } from '$lib/services/model.service';
 
   let projectId = $state<string | null>(null);
   let selectedModelId = $state<string | null>(null);
@@ -16,9 +16,7 @@
   let isSubmitting = $state(false);
 
   // Get project from store
-  const project = $derived(
-    projectId ? $projects.find(p => p.id === projectId) : null
-  );
+  const project = $derived(projectId ? $projects.find((p) => p.id === projectId) : null);
 
   // Favorite status for this project
   const isFav = $derived(projectId ? $favorites.some((e) => e.id === projectId) : false);
@@ -32,12 +30,14 @@
   // Get project threads
   const projectThreads = $derived(
     $threads
-      .filter(t => t.metadata?.projectId === projectId)
+      .filter((t) => t.projectId === projectId)
       .sort((a, b) => {
-        const aTime = typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
-        const bTime = typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
+        const aTime =
+          typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime();
+        const bTime =
+          typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime();
         return bTime - aTime;
-      })
+      }),
   );
 
   // Count members by role
@@ -109,19 +109,20 @@
 
   async function loadProjectThreads() {
     if (!projectId) return;
-    try {
-      await threadService.getAll({ projectId, updateStore: true });
-    } catch (error) {
-      console.error('Failed to load project threads:', error);
+    const result = await threadService.getAll({ projectId, updateStore: true });
+    if (!result.success) {
+      console.error('Failed to load project threads:', result.errorText);
     }
   }
 
-  function handleModelSelect(e: CustomEvent<{
-    modelId: string;
-    modelDetails: ModelDetails;
-    appSlug: string;
-    modelSlug: string;
-  }>) {
+  function handleModelSelect(
+    e: CustomEvent<{
+      modelId: string;
+      modelDetails: ModelDetails;
+      appSlug: string;
+      modelSlug: string;
+    }>,
+  ) {
     selectedModelId = e.detail.modelId;
   }
 
@@ -131,37 +132,45 @@
     isSubmitting = true;
     try {
       // Get model details
-      const models = await window.electronAPI.models.listAll();
-      const modelDetails = models.find(m => m.accessName === selectedModelId);
+      const models = await modelService.getAvailableModels();
+      const modelDetails = models.find((m) => m.accessName === selectedModelId);
 
       if (!modelDetails) {
         throw new Error('Model not found');
+      }
+
+      // Get application by slug to get the agentId
+      const applications = await modelService.getAvailableApplications();
+      const application = applications.find((app) => app.slug === modelDetails.applicationSlug);
+
+      if (!application) {
+        throw new Error('Application not found for model');
       }
 
       console.log('[Project] Creating thread with model:', {
         selectedModelId,
         modelTitle: modelDetails.title,
         modelId: modelDetails.id,
-        modelAccessName: modelDetails.accessName
+        modelAccessName: modelDetails.accessName,
+        applicationSlug: modelDetails.applicationSlug,
+        agentId: application.id,
       });
 
       // Create thread with metadata
-      const thread = await threadService.create({
-        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        description: '',
-        status: THREAD_STATUS.ACTIVE,
-        metadata: {
-          projectId,
-          modelTitle: modelDetails.title,
-          modelProvider: modelDetails.provider,
-          modelId: modelDetails.id,
-          modelAccessName: modelDetails.accessName,
-        },
-      });
+      const createResult = await threadService.create(
+        prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+        projectId,
+        application.id, // agentId
+        modelDetails.accessName, // initialModel
+      );
+
+      if (!createResult.success) {
+        throw new Error(createResult.errorText || 'Failed to create thread');
+      }
 
       // Navigate to thread with prompt (ThreadChatView will auto-submit)
       const params = new URLSearchParams();
-      params.set('threadId', thread.id);
+      params.set('threadId', createResult.data.id);
       params.set('prompt', prompt);
       params.set('projectId', projectId);
       push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
@@ -272,8 +281,14 @@
           <h4>Files</h4>
           {#if fileCounts.folders > 0 || fileCounts.files > 0}
             <div class="file-counts">
-              <div class="file-count-line">{fileCounts.folders} {fileCounts.folders === 1 ? 'folder' : 'folders'}</div>
-              <div class="file-count-line">{fileCounts.files} {fileCounts.files === 1 ? 'file' : 'files'}</div>
+              <div class="file-count-line">
+                {fileCounts.folders}
+                {fileCounts.folders === 1 ? 'folder' : 'folders'}
+              </div>
+              <div class="file-count-line">
+                {fileCounts.files}
+                {fileCounts.files === 1 ? 'file' : 'files'}
+              </div>
             </div>
           {:else}
             <div class="file-counts">
@@ -355,7 +370,10 @@
     border-radius: 6px;
     color: var(--text-secondary, #666);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, opacity 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s,
+      opacity 0.15s;
     flex-shrink: 0;
     font-size: 18px;
     opacity: 0;

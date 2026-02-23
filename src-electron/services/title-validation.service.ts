@@ -67,14 +67,6 @@ export class TitleValidationService {
   }
 
   /**
-   * Update validation configuration
-   */
-  updateConfig(updates: Partial<ValidationConfig>): void {
-    this.config = { ...this.config, ...updates };
-    log.info('[TitleValidationService] Config updated:', updates);
-  }
-
-  /**
    * Validate and sanitize a thread title
    * @param title - The title to validate
    * @param existingTitles - Optional array of existing titles to check for duplicates
@@ -161,7 +153,7 @@ export class TitleValidationService {
    * @param title - The title to sanitize
    * @returns Sanitized title
    */
-  sanitize(title: string): string {
+  private sanitize(title: string): string {
     let sanitized = title;
 
     // Remove invalid characters (control characters, etc.)
@@ -186,28 +178,6 @@ export class TitleValidationService {
     return sanitized;
   }
 
-  /**
-   * Check if a title is valid (shorthand method)
-   * @param title - The title to check
-   * @returns true if valid, false otherwise
-   */
-  isValid(title: string): boolean {
-    return this.validate(title).valid;
-  }
-
-  /**
-   * Get the configured maximum length
-   */
-  getMaxLength(): number {
-    return this.config.maxLength;
-  }
-
-  /**
-   * Get the configured minimum length
-   */
-  getMinLength(): number {
-    return this.config.minLength;
-  }
 }
 
 // Export singleton instance

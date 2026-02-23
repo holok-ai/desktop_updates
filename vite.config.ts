@@ -5,10 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    tailwindcss(), 
-    svelte()    
-  ],
+  plugins: [tailwindcss(), svelte()],
   base: './',
   server: {
     port: 5177,
@@ -23,8 +20,7 @@ export default defineConfig({
       },
       output: {
         manualChunks: {
-          'chart': ['chart.js'],
-          'highlight': ['highlight.js'],
+          highlight: ['highlight.js'],
         },
       },
     },

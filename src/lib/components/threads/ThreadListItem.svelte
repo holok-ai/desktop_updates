@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../../src-electron/preload';
@@ -17,6 +18,16 @@
   let showMenu = $state(false);
   let showRenameModal = $state(false);
   let showDeleteModal = $state(false);
+  let deleteConfirmationRequired = $state(true);
+
+  onMount(async () => {
+    try {
+      const s = await window.electronAPI.settings.getAll();
+      deleteConfirmationRequired = s.deleteConfirmationRequired ?? true;
+    } catch {
+      deleteConfirmationRequired = true;
+    }
+  });
 
   const isFav = $derived($favorites.some((e) => e.id === thread.id));
 
@@ -76,13 +87,7 @@
         toastStore.show('Thread renamed', { variant: 'success' });
         showRenameModal = false;
       } else {
-        // Handle validation errors
-        let errorMsg = result.error || 'Failed to rename thread';
-        if (result.code === 'TITLE_EMPTY') {
-          errorMsg = 'Thread title cannot be empty';
-        } else if (result.code === 'TITLE_TOO_LONG') {
-          errorMsg = 'Thread title is too long (max 100 characters)';
-        }
+        const errorMsg = result.errorText || 'Failed to rename thread';
         toastStore.show(errorMsg, { variant: 'error' });
       }
     } catch (error) {
@@ -105,19 +110,22 @@
   function handleDelete(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
-    showDeleteModal = true;
+    if (deleteConfirmationRequired) {
+      showDeleteModal = true;
+    } else {
+      void handleDeleteConfirmed();
+    }
   }
 
   async function handleDeleteConfirmed() {
-    try {
-      await threadService.delete(thread.id);
+    const result = await threadService.delete(thread.id);
+    if (result.success) {
       toastStore.show('Thread deleted successfully', { variant: 'success' });
-      showDeleteModal = false;
-    } catch (error) {
-      console.error('Failed to delete thread:', error);
+    } else {
+      console.error('Failed to delete thread:', result.errorText);
       toastStore.show('Failed to delete thread', { variant: 'error' });
-      showDeleteModal = false;
     }
+    showDeleteModal = false;
   }
 
   function handleDeleteCancel() {

@@ -15,7 +15,7 @@
   import ThreadPageFooter from '$lib/components/thread/ThreadPageFooter.svelte';
 
   // Views
-  import ThreadChatView from '$lib/components/thread/views/ThreadChatView.svelte';
+  import ThreadChatView from '$lib/components/thread/chat-view/ThreadChatView.svelte';
   import ThreadPromptView from '$lib/components/thread/views/ThreadPromptView.svelte';
   import ThreadGraphicView from '$lib/components/thread/views/ThreadGraphicView.svelte';
   import ThreadExecutionView from '$lib/components/thread/views/ThreadExecutionView.svelte';
@@ -26,6 +26,7 @@
   import type { Thread, ModelDetails } from '../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import { threadService } from '$lib/services/thread.service';
+  import { modelService } from '$lib/services/model.service';
 
   // ── State ──
   let threadId = $state<string | null>(null);
@@ -33,7 +34,6 @@
   let threadTitle = $state('');
   let messages = $state<Message[]>([]);
   let availableModels = $state<ModelDetails[]>([]);
-  let initialPrompt = $state<string | null>(null);
   let activeView = $state<ThreadViewType>('chat');
   let chatLayout = $state<ChatLayout>(CHAT_LAYOUT.LEFT_RIGHT as ChatLayout);
   let loading = $state(false);
@@ -59,14 +59,15 @@
     error = '';
     try {
       // Load thread metadata
-      const t = await threadService.getThread(id);
-      if (!t) {
-        error = 'Thread not found';
+      const threadResult = await threadService.getThread(id);
+      if (!threadResult.success || !threadResult.data) {
+        error = threadResult.success ? 'Thread not found' : threadResult.errorText;
         thread = null;
         threadTitle = '';
         messages = [];
         return;
       }
+      const t = threadResult.data;
       thread = t;
       threadTitle = t.title || 'Untitled Thread';
 
@@ -82,9 +83,19 @@
         agentId,
       );
 
+      // Load models for the specific agent (if available)
+      if (agentId) {
+        console.log('[ThreadPage] Loading models for agentId:', agentId);
+        availableModels = await modelService.getModelsForApplication(agentId);
+        console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
+      } else {
+        console.log('[ThreadPage] No agentId - loading all models');
+        availableModels = await modelService.getAvailableModels();
+      }
+
       // Load messages for this thread
-      const msgs = await threadService.getMessages(id);
-      messages = msgs;
+      const msgsResult = await threadService.getMessages(id);
+      messages = msgsResult.success ? msgsResult.data : [];
     } catch (e) {
       console.error('[ThreadPage] Failed to load thread:', e);
       error = e instanceof Error ? e.message : 'Failed to load thread';
@@ -102,7 +113,6 @@
     if (qs) {
       const params = new URLSearchParams(qs);
       const id = params.get('threadId');
-      const prompt = params.get('prompt');
 
       if (id && id !== threadId) {
         threadId = id;
@@ -113,10 +123,6 @@
         thread = null;
         threadTitle = '';
         messages = [];
-      }
-
-      if (prompt) {
-        initialPrompt = prompt;
       }
     }
   });
@@ -132,11 +138,15 @@
       console.warn('[ThreadPage] Could not load settings:', e);
     }
 
-    // Load available models
-    try {
-      availableModels = await window.electronAPI.models.listAll();
-    } catch (e) {
-      console.warn('[ThreadPage] Could not load models:', e);
+    // Load available models only if no thread (new thread scenario)
+    // For existing threads, models are loaded in loadThread() based on agentId
+    if (!threadId) {
+      try {
+        console.log('[ThreadPage] New thread - loading all models');
+        availableModels = await modelService.getAvailableModels();
+      } catch (e) {
+        console.warn('[ThreadPage] Could not load models:', e);
+      }
     }
   });
 </script>
@@ -157,7 +167,6 @@
         bind:messages
         {availableModels}
         {chatLayout}
-        {initialPrompt}
         {agentId}
         onThreadCreated={handleThreadCreated}
       />

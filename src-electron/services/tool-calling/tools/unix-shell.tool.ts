@@ -67,7 +67,7 @@ export class UnixShellTool implements ITool {
 
   async execute(
     params: Record<string, unknown>,
-    _executionContext: ToolExecutionContext
+    _executionContext: ToolExecutionContext,
   ): Promise<ToolResult> {
     const command = params.command as string;
     const args = (params.arguments as string) || '';

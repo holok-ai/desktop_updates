@@ -7,8 +7,9 @@
     StartingPage,
     ThreadLayout,
     ChatLayout,
-    Tool,
+    Tool as _Tool,
   } from '$lib/types/app.type';
+  import type { ToolDefinition as _ToolDefinition } from '../../../src-electron/preload';
   import { defaultUserAvatar } from '$lib/types/app.type';
   import {
     APP_THEME_MODE,
@@ -53,14 +54,12 @@
   let isLoading = $state(true);
   let appVersion = $state('');
   let isCheckingUpdates = $state(false);
+  let isDevelopmentBuild = $state(false);
+  let showInstallConfirm = $state(false);
+  let isInstalling = $state(false);
 
-  // Placeholder tools list — connect to real data source later
-  let availableTools: Tool[] = $state([
-    { toolId: 'web-search', toolTitle: 'Web Search' },
-    { toolId: 'file-reader', toolTitle: 'File Reader' },
-    { toolId: 'code-interpreter', toolTitle: 'Code Interpreter' },
-    { toolId: 'image-gen', toolTitle: 'Image Generation' },
-  ]);
+  // Tools list from ToolOrchestrator
+  let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
 
   let settings: AppSettings = $state({
     mokuWebUrl: '',
@@ -70,6 +69,7 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+    deleteConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -81,7 +81,6 @@
     unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
   });
@@ -94,6 +93,7 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
+    deleteConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -105,7 +105,6 @@
     unixCommands: '',
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    autoUpdate: true,
     updateAvailable: false,
     latestVersion: '',
   });
@@ -137,10 +136,12 @@
   }
 
   onMount(async () => {
-    const [all, version] = await Promise.all([
+    const [all, version, devBuild] = await Promise.all([
       window.electronAPI.settings.getAll(),
       window.electronAPI.system.version(),
+      window.electronAPI.updater.isDevelopmentBuild(),
     ]);
+    isDevelopmentBuild = devBuild;
 
     settings = {
       mokuWebUrl: all.mokuWebUrl,
@@ -150,6 +151,7 @@
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
       avatar: all.avatar ? { ...defaultUserAvatar, ...all.avatar } : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
+      deleteConfirmationRequired: all.deleteConfirmationRequired ?? false,
       showRecentList: all.showRecentList ?? true,
       showFavoritesList: all.showFavoritesList ?? true,
       threadLayout: (all.threadLayout as ThreadLayout) || THREAD_LAYOUT.SINGLE_COL,
@@ -159,9 +161,8 @@
       shellCommands: all.shellCommands ?? '',
       windowsCommands: all.windowsCommands ?? '',
       unixCommands: all.unixCommands ?? '',
-      autoCheckUpdates: all.autoCheckUpdates ?? Boolean(all.autoUpdate ?? true),
+      autoCheckUpdates: all.autoCheckUpdates ?? true,
       autoInstallUpdates: all.autoInstallUpdates ?? false,
-      autoUpdate: Boolean(all.autoUpdate ?? true),
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
     };
@@ -172,6 +173,14 @@
       avatar: { ...settings.avatar },
     };
     appVersion = version;
+
+    // Populate available tools from static_toolList
+    if (all.static_toolList && all.static_toolList.length > 0) {
+      availableTools = all.static_toolList.map((tool) => ({
+        toolId: tool.name,
+        toolTitle: tool.name,
+      }));
+    }
 
     applyTheme(settings.theme);
     isLoading = false;
@@ -234,6 +243,7 @@
         directoryWhitelist: [...settings.directoryWhitelist],
         avatar: { ...settings.avatar },
         startingPage: settings.startingPage,
+        deleteConfirmationRequired: settings.deleteConfirmationRequired,
         showRecentList: settings.showRecentList,
         showFavoritesList: settings.showFavoritesList,
         threadLayout: settings.threadLayout,
@@ -245,7 +255,6 @@
         unixCommands: settings.unixCommands,
         autoCheckUpdates: settings.autoCheckUpdates,
         autoInstallUpdates: settings.autoInstallUpdates,
-        autoUpdate: settings.autoCheckUpdates, // keep legacy field in sync
         updateAvailable: settings.updateAvailable,
         latestVersion: settings.latestVersion,
       });
@@ -295,16 +304,39 @@
   async function handleCheckForUpdates() {
     isCheckingUpdates = true;
     try {
-      const result = await window.electronAPI.settings.checkForUpdates();
-      if (result.success) {
-        toastStore.show('Checking for updates...', { variant: 'success' });
-      } else {
-        toastStore.show(result.error ?? 'Failed to check for updates', { variant: 'error' });
+      // see if there is an update
+      const message = await window.electronAPI.updater.getUpdateAvailability();
+      toastStore.show(message, { variant: 'info' });
+
+      // now get the updated info from settings
+      const updated = await window.electronAPI.settings.getAll();
+      settings.latestVersion = updated.latestVersion ?? '';
+      settings.updateAvailable = Boolean(updated.updateAvailable ?? false);
+
+      if (settings.updateAvailable) {
+        showInstallConfirm = true;
       }
     } catch {
       toastStore.show('Failed to check for updates', { variant: 'error' });
     } finally {
       isCheckingUpdates = false;
+    }
+  }
+
+  async function handleInstallNow() {
+    isInstalling = true;
+    try {
+      const result = await window.electronAPI.updater.updateNow();
+      if (!result.success) {
+        toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
+        showInstallConfirm = false;
+      }
+      // If successful, the app will quit and install — no need to hide the modal
+    } catch {
+      toastStore.show('Failed to start update download.', { variant: 'error' });
+      showInstallConfirm = false;
+    } finally {
+      isInstalling = false;
     }
   }
 
@@ -331,6 +363,7 @@
       directoryWhitelist: settings.directoryWhitelist,
       avatar: settings.avatar,
       startingPage: settings.startingPage,
+      deleteConfirmationRequired: settings.deleteConfirmationRequired,
       showRecentList: settings.showRecentList,
       showFavoritesList: settings.showFavoritesList,
       threadLayout: settings.threadLayout,
@@ -350,6 +383,7 @@
         directoryWhitelist: savedSettings.directoryWhitelist,
         avatar: savedSettings.avatar,
         startingPage: savedSettings.startingPage,
+        deleteConfirmationRequired: savedSettings.deleteConfirmationRequired,
         showRecentList: savedSettings.showRecentList,
         showFavoritesList: savedSettings.showFavoritesList,
         threadLayout: savedSettings.threadLayout,
@@ -548,6 +582,21 @@
                     {/if}
                   </div>
                 </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Confirmations -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Confirmations</div>
+                  <div class="subgroup-controls">
+                    <label class="inline-flex items-center gap-2">
+                      <input type="checkbox" bind:checked={settings.deleteConfirmationRequired} />
+                      <span class="text-sm"
+                        >Require confirmation to delete threads and projects?</span
+                      >
+                    </label>
+                  </div>
+                </div>
               </div>
             {/if}
 
@@ -692,12 +741,16 @@
                       <span class="info-value">{appVersion}</span>
                     </div>
                     <div class="info-row">
-                      <span class="info-key">Update Available</span>
+                      <span class="info-key">Latest Version</span>
                       <span class="info-value">
-                        {#if settings.updateAvailable}
-                          Yes ({settings.latestVersion || 'unknown'})
+                        {#if isDevelopmentBuild}
+                          Not Available In Development
+                        {:else if settings.latestVersion}
+                          {settings.latestVersion}{settings.latestVersion === appVersion
+                            ? " (You've got the latest.)"
+                            : ''}
                         {:else}
-                          No
+                          —
                         {/if}
                       </span>
                     </div>
@@ -712,7 +765,7 @@
                   <div class="subgroup-controls">
                     <label class="inline-flex items-center gap-2">
                       <input type="checkbox" bind:checked={settings.autoCheckUpdates} />
-                      <span class="text-sm">Automatically check for updates</span>
+                      <span class="text-sm">Check for updates on startup?</span>
                     </label>
                     <label class="inline-flex items-center gap-2">
                       <input type="checkbox" bind:checked={settings.autoInstallUpdates} />
@@ -910,6 +963,26 @@
     </div>
   </div>
 </div>
+
+{#if showInstallConfirm}
+  <div class="install-overlay">
+    <div class="install-modal">
+      <p>Install version <strong>{settings.latestVersion}</strong>?</p>
+      <div class="install-actions">
+        <button class="btn-primary" onclick={handleInstallNow} disabled={isInstalling}>
+          {isInstalling ? 'Downloading...' : 'Install Now'}
+        </button>
+        <button
+          class="btn-secondary"
+          onclick={() => (showInstallConfirm = false)}
+          disabled={isInstalling}
+        >
+          I'll Do It Later
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .settings-page {
@@ -1282,5 +1355,38 @@
 
   .hidden {
     display: none;
+  }
+
+  .install-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .install-modal {
+    background: var(--surface-card, #fff);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    color: var(--text-primary, #111);
+    min-width: 280px;
+  }
+
+  .install-modal p {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+
+  .install-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
   }
 </style>

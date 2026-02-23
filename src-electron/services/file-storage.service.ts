@@ -1,5 +1,5 @@
 /* eslint-disable security/detect-object-injection */
-/* eslint-disable @typescript-eslint/require-await */
+
 /* eslint-disable security/detect-non-literal-fs-filename */
 /**
  * FileStorageService
@@ -32,10 +32,11 @@ export class FileStorageService {
     fileBuffer: Buffer,
     originalName: string,
     mimeType: string,
+    fileId?: string,
   ): Promise<Attachment> {
     try {
-      // Generate unique file ID
-      const fileId = randomUUID();
+      // Use provided file ID or generate unique file ID
+      const actualFileId = fileId || randomUUID();
 
       // Extract extension from original filename
       const extension = path.extname(originalName) || this.getExtensionFromMimeType(mimeType);
@@ -44,14 +45,14 @@ export class FileStorageService {
       const threadDir = path.join(this.baseStoragePath, threadId);
       this.ensureDirectory(threadDir);
 
-      const fileName = `${fileId}${extension}`;
+      const fileName = `${actualFileId}${extension}`;
       const filePath = path.join(threadDir, fileName);
 
       // Write file to disk
       await fs.promises.writeFile(filePath, fileBuffer);
 
       log.info('[FileStorageService] File saved', {
-        fileId,
+        fileId: actualFileId,
         threadId,
         filename: originalName,
         size: fileBuffer.length,
@@ -61,7 +62,7 @@ export class FileStorageService {
 
       // Return attachment metadata
       const attachment: Attachment = {
-        id: fileId,
+        id: actualFileId,
         filename: originalName,
         mimeType,
         size: fileBuffer.length,
@@ -185,16 +186,6 @@ export class FileStorageService {
   getFilePath(threadId: string, fileId: string, extension?: string): string {
     const fileName = extension ? `${fileId}${extension}` : fileId;
     return path.join(this.baseStoragePath, threadId, fileName);
-  }
-
-  /**
-   * Generate thumbnail for images (optional, basic implementation)
-   * TODO: Implement proper image resizing with sharp or similar library
-   */
-  async generateThumbnail(): Promise<Buffer | null> {
-    // Placeholder - implement in future iteration
-    // For now, just return null (no thumbnail)
-    return null;
   }
 
   /**

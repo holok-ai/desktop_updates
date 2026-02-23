@@ -10,11 +10,12 @@ import {
 } from './ipc-handlers/auth-handler.js';
 import { registerSettingsHandlers } from './ipc-handlers/settings-handler.js';
 import { registerProjectHandlers } from './ipc-handlers/project-handler.js';
-import { broadcast, registerThreadHandlers } from './ipc-handlers/thread-handler.js';
+import { registerThreadHandlers } from './ipc-handlers/thread-handler.js';
 import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
+import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
 
@@ -32,6 +33,8 @@ const protocolLog = createScopedLogger('protocol');
 const appLog = createScopedLogger('app');
 
 appLog.info('Starting application');
+appLog.info(`App is packaged: ${app.isPackaged}`);
+appLog.info(`App version: ${app.getVersion()}`);
 
 /**
  * Main Electron Process
@@ -208,7 +211,7 @@ function createMenu(): void {
               type: 'info',
               title: 'About Holokai Desktop',
               message: 'Holokai Desktop',
-              detail: 'Version: 1.0\n\nHolokai Desktop application for chat workflows. ',
+              detail: `Version: ${app.getVersion()}\n\nHolokai Desktop application for chat workflows.`,
               buttons: ['OK'],
             });
           },
@@ -237,11 +240,15 @@ function registerIpcHandlers(): void {
   // Register post-authentication callback to refresh models from Moku API
   registerAuthSuccessCallback(async () => {
     appLog.info('[Main] Auth success - refreshing models from Moku API');
-    try {
-      await modelRepository.refreshModels();
+    const result = await modelRepository.listAllApplications(true);
+    if (result.success) {
       appLog.info('[Main] Models refreshed successfully after authentication');
-    } catch (error) {
-      appLog.error('[Main] Failed to refresh models after authentication:', error);
+    } else {
+      appLog.error(
+        '[Main] Failed to refresh models after authentication:',
+        result.errorCode,
+        result.errorText,
+      );
     }
   });
 
@@ -263,6 +270,9 @@ function registerIpcHandlers(): void {
   // Register file upload/download IPC handlers
   registerFileHandlers();
 
+  // Register auto-updater IPC handlers
+  registerAutoUpdaterHandlers();
+
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {
     protocolLog.info('[Renderer]', message, ...params);
@@ -278,12 +288,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.on('log:debug', (_event, message: string, ...params: unknown[]) => {
     protocolLog.debug('[Renderer]', message, ...params);
-  });
-
-  // Forward backend error events (from services or tests) to renderer
-  ipcMain.on('backend:error', (_event, payload: Record<string, unknown>) => {
-    protocolLog.warn('[Backend] forwarding error event', payload);
-    broadcast('message:error', payload);
   });
 }
 
@@ -364,7 +368,8 @@ export function setupCspViolationReporter(): void {
   const telemetryUrl = process.env.CSP_TELEMETRY_URL || process.env.TELEMETRY_URL;
 
   app.on('web-contents-created', (_event, contents) => {
-    contents.on('console-message', (_event, level, message, line, sourceId) => {
+    contents.on('console-message', (event) => {
+      const { level, message, lineNumber: line, sourceId } = event;
       // Check if this is a CSP violation
       if (
         message.includes('Content Security Policy') ||
@@ -484,7 +489,9 @@ void app.whenReady().then(() => {
   // Register all IPC handlers before creating windows
   registerIpcHandlers();
 
+  appLog.info('Initializing auto-updater service...');
   autoUpdaterService.initialize();
+  appLog.info('Checking for updates...');
   autoUpdaterService.checkForUpdates();
 
   // Create the application menu
@@ -513,14 +520,39 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on('before-quit', (_event) => {
+app.on('before-quit', (event) => {
   appLog.info('Application exiting');
 
-  // On Windows, allow quit during update installation
-  // Check if this is an update-related quit
-  if (process.platform === 'win32') {
-    // Don't prevent default quit behavior during updates
-    // This allows the installer to replace the executable
+  // Check for pending updates before quitting
+  const pendingVersion = autoUpdaterService.getPendingUpdateVersion();
+  if (pendingVersion) {
+    event.preventDefault();
+
+    // Set a timeout to prevent hanging forever if update installation fails
+    const timeout = setTimeout(() => {
+      appLog.warn('Update installation timeout - allowing quit to proceed');
+      app.quit();
+    }, 5000); // 5 second timeout
+
+    // Handle pending update installation
+    autoUpdaterService
+      .checkForPendingUpdateOnShutdown()
+      .then((updateInstalled) => {
+        clearTimeout(timeout);
+        // If update was not installed (not downloaded or failed), allow quit to proceed
+        if (!updateInstalled) {
+          appLog.info('Update installation failed or not available, allowing quit to proceed');
+          app.quit();
+        }
+        // If update was installed, quitAndInstall() will handle the quit
+        // No need to call app.quit() here as quitAndInstall() does it
+      })
+      .catch((error) => {
+        clearTimeout(timeout);
+        appLog.error('Error checking for pending update:', error);
+        // On error, allow quit to proceed
+        app.quit();
+      });
   }
 });
 

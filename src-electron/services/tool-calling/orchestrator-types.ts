@@ -24,7 +24,7 @@ export interface ToolUseNotification {
 export type ToolUseCallback = (
   toolName: string,
   input: unknown,
-  notification?: ToolUseNotification
+  notification?: ToolUseNotification,
 ) => void;
 
 /**
@@ -60,7 +60,7 @@ export interface ToolOrchestra {
   executeTool(
     name: string,
     input: Record<string, unknown>,
-    context: ToolExecutionContext
+    context: ToolExecutionContext,
   ): Promise<ToolResult>;
 
   /**

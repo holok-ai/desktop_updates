@@ -39,7 +39,8 @@ function createProjectStore(): ProjectStore {
     },
     loadProject: async (projectId: GUID): Promise<Project | null> => {
       // Fetch full project with members and files from backend
-      const project = await projectService.getProjectById(projectId);
+      const result = await projectService.getProjectById(projectId);
+      const project = result.success ? result.data : null;
 
       if (project !== null) {
         // Update store with the full project details

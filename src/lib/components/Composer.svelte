@@ -7,16 +7,31 @@
 
   // Props from ChatPane slot
   interface Props {
-    sendMessage?: (appSlug: string, modelIds: string[], text: string, attachments?: Attachment[]) => Promise<void>;
+    sendMessage?: (
+      appSlug: string,
+      modelIds: string[],
+      text: string,
+      attachments?: Attachment[],
+    ) => Promise<void>;
     isStreaming?: boolean;
     threadId?: string | null;
     disabled?: boolean;
     initialText?: string;
     applicationSlug?: string;
+    agentId?: string | null;
     modelId?: string;
   }
 
-  let { sendMessage, isStreaming = false, threadId: _threadId = null, disabled = false, initialText = '', applicationSlug, modelId }: Props = $props();
+  let {
+    sendMessage,
+    isStreaming = false,
+    threadId: _threadId = null,
+    disabled = false,
+    initialText = '',
+    applicationSlug,
+    agentId,
+    modelId,
+  }: Props = $props();
 
   let text = $state('');
   let selectedApplicationSlug = $state('');
@@ -77,10 +92,19 @@
   let isDragging = $state(false);
   let dragCounter = $state(0); // Track nested drag enter/leave events
   let validationError = $state('');
+  let fontSize = $state(14); // Default font size
 
   // Listen for copy-to-input requests
   let unsubCopyToInput: (() => void) | undefined;
-  onMount(() => {
+  onMount(async () => {
+    // Load font size from settings
+    try {
+      const settings = await window.electronAPI.settings.getAll();
+      fontSize = settings.chatFontSize ?? 14;
+    } catch (err) {
+      console.error('[Composer] Failed to load font size setting:', err);
+    }
+
     unsubCopyToInput = copyToInputStore.subscribe((content) => {
       if (content !== null) {
         text = content;
@@ -208,7 +232,12 @@
     }
 
     let payload = text.trim();
-    if ((!payload && selectedFiles.length === 0) || !sendMessage || isStreaming || !selectedApplicationSlug || !selectedModelId) {
+    if (
+      (!payload && selectedFiles.length === 0) ||
+      !sendMessage ||
+      isStreaming ||
+      !selectedModelId
+    ) {
       return;
     }
 
@@ -216,35 +245,24 @@
     text = ''; // Clear input immediately
     selectedFiles = [];
 
-    // Read text file contents and append to message
-    const MAX_FILE_SIZE = 100 * 1024; // 100KB
-    for (const file of filesToProcess) {
-      // Validate file size
-      if (file.size > MAX_FILE_SIZE) {
-        validationError = `File "${file.name}" is too large. Maximum size is 100KB.`;
-        setTimeout(() => {
-          validationError = '';
-        }, 5000);
-        continue;
-      }
-
-      try {
-        // Read file as text
-        const fileContents = await file.text();
-
-        // Append to payload in the specified format
-        const fileSection = `\n\nFile contents for ${file.name} are: ${fileContents}`;
-        payload += fileSection;
-      } catch (error) {
-        console.error('Error reading file:', file.name, error);
-        validationError = `Failed to read file: ${file.name}`;
-        setTimeout(() => {
-          validationError = '';
-        }, 5000);
-      }
+    // Append filenames to payload if there are files
+    if (filesToProcess.length > 0) {
+      const filenames = filesToProcess.map((f) => f.name).join(' , ');
+      payload += `\n\n${filenames}`;
     }
 
-    await sendMessage(selectedApplicationSlug, selectedModelIds.length > 0 ? selectedModelIds : [selectedModelId], payload, []);
+    // Upload files to get attachments if threadId exists
+    let attachments: Attachment[] = [];
+    if (filesToProcess.length > 0 && _threadId) {
+      attachments = await _uploadFiles(filesToProcess, _threadId);
+    }
+
+    await sendMessage(
+      selectedApplicationSlug,
+      selectedModelIds.length > 0 ? selectedModelIds : [selectedModelId],
+      payload,
+      attachments,
+    );
   }
 
   // Keyboard shortcut: Cmd/Ctrl + U to attach file
@@ -255,17 +273,24 @@
     }
   }
 
-  function handleModelSelect(e: CustomEvent<{
-    modelId: string;
-    modelDetails: ModelDetails;
-    appSlug: string;
-    modelSlug: string;
-    selectedModelIds: string[];
-  }>) {
+  function handleModelSelect(
+    e: CustomEvent<{
+      modelId: string;
+      modelDetails: ModelDetails;
+      appSlug: string;
+      modelSlug: string;
+      selectedModelIds: string[];
+    }>,
+  ) {
     selectedModelId = e.detail.modelId;
     selectedModelIds = e.detail.selectedModelIds;
     selectedApplicationSlug = e.detail.appSlug;
-    console.log('[Composer] Model selected - appSlug:', e.detail.appSlug, 'modelIds:', e.detail.selectedModelIds);
+    console.log(
+      '[Composer] Model selected - appSlug:',
+      e.detail.appSlug,
+      'modelIds:',
+      e.detail.selectedModelIds,
+    );
   }
 </script>
 
@@ -282,126 +307,128 @@
   aria-label="Select files to attach"
 />
 
-  <div class="composer-container">
-    <div
-      class="composer-box"
-      role="region"
-      aria-label="Message input with file drop zone"
-      class:dragging={isDragging}
-      ondragenter={handleDragEnter}
-      ondragleave={handleDragLeave}
-      ondragover={handleDragOver}
-      ondrop={handleDrop}
-    >
-      {#if isDragging}
-        <div class="drag-overlay" role="status" aria-live="polite">
-          <div class="drag-message">
-            <svg
-              class="w-12 h-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
-            <p>Drop files here to attach</p>
-          </div>
-        </div>
-      {/if}
-
-      <textarea
-        bind:this={textareaRef}
-        bind:value={text}
-        placeholder={disabled ? "Select a branch to continue..." : "Enter a prompt ..."}
-        rows={2}
-        disabled={isStreaming || disabled}
-        aria-label="Message input. Press Enter to send, Shift+Enter for new line"
-        data-testid="message-input"
-        aria-describedby="composer-help-text"
-        class="composer-textarea"
-        onkeydown={(e) => {
-          // Send on Enter (without Shift). Allow Shift+Enter for newline.
-          // Don't send if disabled or streaming
-          if (e.key === 'Enter' && !e.shiftKey && !disabled && !isStreaming) {
-            e.preventDefault();
-            send();
-          }
-        }}
-      ></textarea>
-      <span id="composer-help-text" class="sr-only">
-        Press Enter to send message. Press Shift+Enter for new line. Press Ctrl+U or Cmd+U to attach
-        files.
-      </span>
-
-      <div class="composer-actions">
-        <button
-          type="button"
-          class="attach-icon-button"
-          onclick={handleFileSelect}
-          disabled={isStreaming || disabled}
-          aria-label="Attach file (Ctrl+U or Cmd+U)"
-          title="Attach file"
-        >
-          <i class="pi pi-plus"></i>
-        </button>
-
-        <div class="model-and-send">
-          <div class="model-selector-wrapper">
-            <ModelSelector
-              bind:selectedModelId
-              label=""
-              dropdownDirection="up"
-              backgroundColor="var(--surface-card)"
-              allowMultipleSelections={true}
-              on:select={handleModelSelect}
-            />
-          </div>
-
-          <button
-            class="btn-holokai send-button"
-            type="button"
-            onclick={send}
-            disabled={isStreaming || disabled}
-            aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
-            aria-disabled={isStreaming || disabled}
-            class:sending={isStreaming}
-            data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+<div class="composer-container">
+  <div
+    class="composer-box"
+    role="region"
+    aria-label="Message input with file drop zone"
+    class:dragging={isDragging}
+    ondragenter={handleDragEnter}
+    ondragleave={handleDragLeave}
+    ondragover={handleDragOver}
+    ondrop={handleDrop}
+  >
+    {#if isDragging}
+      <div class="drag-overlay" role="status" aria-live="polite">
+        <div class="drag-message">
+          <svg
+            class="w-12 h-12"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
           >
-            <i class="pi pi-arrow-up"></i>
-          </button>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
+          </svg>
+          <p>Drop files here to attach</p>
         </div>
+      </div>
+    {/if}
+
+    <textarea
+      bind:this={textareaRef}
+      bind:value={text}
+      placeholder={disabled ? 'Select a branch to continue...' : 'Enter a prompt ...'}
+      rows={2}
+      disabled={isStreaming || disabled}
+      aria-label="Message input. Press Enter to send, Shift+Enter for new line"
+      data-testid="message-input"
+      aria-describedby="composer-help-text"
+      class="composer-textarea"
+      style="font-size: {fontSize}px;"
+      onkeydown={(e) => {
+        // Send on Enter (without Shift). Allow Shift+Enter for newline.
+        // Don't send if disabled or streaming
+        if (e.key === 'Enter' && !e.shiftKey && !disabled && !isStreaming) {
+          e.preventDefault();
+          send();
+        }
+      }}
+    ></textarea>
+    <span id="composer-help-text" class="sr-only">
+      Press Enter to send message. Press Shift+Enter for new line. Press Ctrl+U or Cmd+U to attach
+      files.
+    </span>
+
+    <div class="composer-actions">
+      <button
+        type="button"
+        class="attach-icon-button"
+        onclick={handleFileSelect}
+        disabled={isStreaming || disabled}
+        aria-label="Attach file (Ctrl+U or Cmd+U)"
+        title="Attach file"
+      >
+        <i class="pi pi-plus"></i>
+      </button>
+
+      <div class="model-and-send">
+        <div class="model-selector-wrapper">
+          <ModelSelector
+            bind:selectedModelId
+            {agentId}
+            label=""
+            dropdownDirection="up"
+            backgroundColor="var(--surface-card)"
+            allowMultipleSelections={true}
+            on:select={handleModelSelect}
+          />
+        </div>
+
+        <button
+          class="btn-holokai send-button"
+          type="button"
+          onclick={send}
+          disabled={isStreaming || disabled}
+          aria-label={isStreaming ? 'Sending message...' : 'Send message (Enter)'}
+          aria-disabled={isStreaming || disabled}
+          class:sending={isStreaming}
+          data-tooltip-left="Enter to run prompt. Shift+Enter to insert a new line."
+        >
+          <i class="pi pi-arrow-up"></i>
+        </button>
       </div>
     </div>
-
-    {#if validationError}
-      <div role="alert" class="error-message" aria-live="assertive">{validationError}</div>
-    {/if}
-
-    <!-- Attachment badges outside the box -->
-    {#if selectedFiles.length > 0}
-      <div class="attachments-badges" role="list" aria-label="Selected attachments">
-        {#each selectedFiles as file, index}
-          <div class="attachment-badge" role="listitem">
-            <span class="badge-filename">{file.name}</span>
-            <button
-              class="badge-remove"
-              onclick={() => removeFile(index)}
-              aria-label="Remove {file.name}"
-              type="button"
-            >
-              <i class="pi pi-times"></i>
-            </button>
-          </div>
-        {/each}
-      </div>
-    {/if}
   </div>
+
+  {#if validationError}
+    <div role="alert" class="error-message" aria-live="assertive">{validationError}</div>
+  {/if}
+
+  <!-- Attachment badges outside the box -->
+  {#if selectedFiles.length > 0}
+    <div class="attachments-badges" role="list" aria-label="Selected attachments">
+      {#each selectedFiles as file, index}
+        <div class="attachment-badge" role="listitem">
+          <span class="badge-filename">{file.name}</span>
+          <button
+            class="badge-remove"
+            onclick={() => removeFile(index)}
+            aria-label="Remove {file.name}"
+            type="button"
+          >
+            <i class="pi pi-times"></i>
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
 
 <style>
   /* Screen reader only class for accessibility */
@@ -507,7 +534,7 @@
 
   .composer-textarea:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .composer-textarea::placeholder {
@@ -554,7 +581,7 @@
 
   .attach-icon-button:disabled {
     opacity: 0.4;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .send-button {
@@ -584,7 +611,7 @@
 
   .send-button:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: wait;
   }
 
   .error-message {

@@ -1,7 +1,8 @@
 /**
  * Project Repository
  * Single source of truth for all project operations
- * Handles API access, caching, validation, permissions, and retry logic
+ * Handles API access, caching, validation, permissions, and error handling.
+ * All public async methods return ApiResponse<T>.
  */
 
 import log from 'electron-log';
@@ -16,7 +17,7 @@ import type { UserSummaryDTO } from '../services/mokuapi/user.types.js';
 import { projectMemberApiService } from '../services/mokuapi/project-member-api.service.js';
 import type { MemberDTO } from '../services/mokuapi/project-member-api.service.js';
 import type { GUID } from '../../src/lib/types/app.type.js';
-import { ApiRetry, DEFAULT_RETRY_CONFIG } from '../utils/apiretry.js';
+import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 import {
   validateProjectName,
   validateProjectDescription,
@@ -32,7 +33,6 @@ import type {
   AddMemberInput,
   UpdateMemberRoleInput,
 } from '../types/project.types.js';
-import { ValidationError, ForbiddenError, NotFoundError } from '../types/errors.js';
 
 export class ProjectRepository {
   private readonly projectsById: Map<GUID, Project> = new Map();
@@ -43,79 +43,62 @@ export class ProjectRepository {
    * Load all projects from API
    * Returns cached results if they are fresh enough
    */
-  public async loadProjects(forceRefresh: boolean = false): Promise<Project[]> {
+  public async loadProjects(forceRefresh: boolean = false): Promise<ApiResponse<Project[]>> {
     const now = Date.now();
 
     // Return cached if not forcing refresh and cache is fresh
     if (!forceRefresh && now - this.lastLoadTime < this.CACHE_TTL && this.projectsById.size > 0) {
-      log.debug('[ProjectRepository] Returning cached projects');
-      return this.listProjects();
+      return apiOk(this.listProjects());
     }
 
-    try {
-      log.info('[ProjectRepository] Loading projects from API');
-      const response = await ApiRetry.execute(
-        () => projectApiService.getProjects({ size: 1000 }),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.loadProjects',
-      );
+    const result = await projectApiService.getProjects({ size: 1000 });
 
-      // Clear cache and rebuild
-      this.projectsById.clear();
-
-      for (const dto of response.content) {
-        const project = this.mapDTOToProject(dto);
-        this.projectsById.set(project.id as GUID, project);
-      }
-
-      this.lastLoadTime = now;
-      log.info('[ProjectRepository] Loaded', this.projectsById.size, 'projects');
-
-      return this.listProjects();
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to load projects:', error);
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to load projects:', result.errorText);
       // Return cached projects if available, otherwise empty array
-      return this.listProjects();
+      return apiOk(this.listProjects());
     }
+
+    // Clear cache and rebuild
+    this.projectsById.clear();
+
+    for (const dto of result.data.content) {
+      const project = this.mapDTOToProject(dto);
+      this.projectsById.set(project.id as GUID, project);
+    }
+
+    this.lastLoadTime = now;
+
+    return apiOk(this.listProjects());
   }
 
   /**
    * Get a single project by ID
    * Always fetches fresh from API with members
    */
-  public async getProject(projectId: GUID): Promise<Project | null> {
-    try {
-      log.info('[ProjectRepository] Fetching project from API:', projectId);
-      const dto = await ApiRetry.execute(
-        () => projectApiService.getProject(projectId),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.getProject',
-      );
+  public async getProject(projectId: GUID): Promise<ApiResponse<Project | null>> {
+    const result = await projectApiService.getProject(projectId);
 
-      // Fetch members for the project
-      let members: MemberDTO[] = [];
-      try {
-        members = await ApiRetry.execute(
-          () => projectMemberApiService.getProjectMembers(projectId),
-          DEFAULT_RETRY_CONFIG,
-          'ProjectRepository.getProject.members',
-        );
-        log.info('[ProjectRepository] Loaded', members.length, 'members for project:', projectId);
-      } catch (error) {
-        log.warn('[ProjectRepository] Failed to load members for project:', projectId, error);
-        // Continue with empty members array
-      }
-
-      const project = this.mapDetailDTOToProject(dto, members);
-
-      // Update cache with fresh data
-      this.projectsById.set(project.id as GUID, project);
-
-      return this.cloneProject(project);
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to load project:', projectId, error);
-      return null;
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to load project:', projectId, result.errorText);
+      return apiOk(null);
     }
+
+    // Fetch members for the project (best-effort)
+    let members: MemberDTO[] = [];
+    const membersResult = await projectMemberApiService.getProjectMembers(projectId);
+    if (membersResult.success) {
+      members = membersResult.data;
+    } else {
+      log.warn('[ProjectRepository] Failed to load members for project:', projectId, membersResult.errorText);
+    }
+
+    const project = this.mapDetailDTOToProject(result.data, members);
+
+    // Update cache with fresh data
+    this.projectsById.set(project.id as GUID, project);
+
+    return apiOk(this.cloneProject(project));
   }
 
   /**
@@ -127,7 +110,6 @@ export class ProjectRepository {
 
   /**
    * List personal projects (type="personal")
-   * Note: API already filters to only return personal projects created by user
    */
   public listPersonalProjects(): Project[] {
     return Array.from(this.projectsById.values())
@@ -137,7 +119,6 @@ export class ProjectRepository {
 
   /**
    * List shared projects (type="shared")
-   * Note: API already filters to only return shared projects where user is a member
    */
   public listSharedProjects(): Project[] {
     return Array.from(this.projectsById.values())
@@ -154,78 +135,62 @@ export class ProjectRepository {
     description?: string | null,
     type?: 'personal' | 'shared',
     metadata?: Record<string, unknown> | null,
-  ): Promise<Project> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Creating project:', title);
-
+  ): Promise<ApiResponse<Project>> {
     // Validate title
     const titleError = validateProjectName(title);
     if (titleError) {
-      throw new ValidationError(titleError, 'title');
+      return apiFail(-1, titleError);
     }
 
     // Validate description
     const descError = validateProjectDescription(description);
     if (descError) {
-      throw new ValidationError(descError, 'description');
+      return apiFail(-1, descError);
     }
 
     // Validate metadata if provided
     if (metadata) {
       if (metadata.color && !isValidMokuColor(metadata.color as string)) {
-        throw new ValidationError(
-          'Invalid color. Color must be a non-empty string',
-          'metadata.color',
-        );
+        return apiFail(-1, 'Invalid color. Color must be a non-empty string');
       }
 
       if (metadata.icon && !isValidProjectIcon(metadata.icon as string)) {
-        throw new ValidationError('Invalid icon. Must be a valid Lucide icon ID', 'metadata.icon');
+        return apiFail(-1, 'Invalid icon. Must be a valid Lucide icon ID');
       }
     }
 
-    try {
-      const createRequest: ProjectCreateRequest = {
-        name: title, // API expects 'name'
-        description: description ?? null,
-        type: type ?? 'personal',
-        metadata: metadata ?? null,
-        userRole: 'owner', // Creator is always owner
-        active: true,
-        status: 'active',
-      };
+    const createRequest: ProjectCreateRequest = {
+      name: title, // API expects 'name'
+      description: description ?? null,
+      type: type ?? 'personal',
+      metadata: metadata ?? null,
+      userRole: 'owner', // Creator is always owner
+      active: true,
+      status: 'active',
+    };
 
-      const dto = await ApiRetry.execute(
-        () => projectApiService.createProject(createRequest),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.createProject',
-      );
+    const result = await projectApiService.createProject(createRequest);
 
-      // Fetch members for the newly created project
-      let members: MemberDTO[] = [];
-      try {
-        members = await ApiRetry.execute(
-          () => projectMemberApiService.getProjectMembers(dto.id),
-          DEFAULT_RETRY_CONFIG,
-          'ProjectRepository.createProject.members',
-        );
-      } catch (error) {
-        log.warn('[ProjectRepository] Failed to load members for new project:', dto.id, error);
-      }
-
-      const project = this.mapDetailDTOToProject(dto, members);
-
-      // Add to cache
-      this.projectsById.set(project.id as GUID, project);
-
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Created project ${dto.id} in ${duration}ms`);
-
-      return this.cloneProject(project);
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to create project:', error);
-      throw error;
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to create project:', result.errorText);
+      return apiFail(result.errorCode, result.errorText);
     }
+
+    // Fetch members for the newly created project (best-effort)
+    let members: MemberDTO[] = [];
+    const membersResult = await projectMemberApiService.getProjectMembers(result.data.id);
+    if (membersResult.success) {
+      members = membersResult.data;
+    } else {
+      log.warn('[ProjectRepository] Failed to load members for new project:', result.data.id, membersResult.errorText);
+    }
+
+    const project = this.mapDetailDTOToProject(result.data, members);
+
+    // Add to cache
+    this.projectsById.set(project.id as GUID, project);
+
+    return apiOk(this.cloneProject(project));
   }
 
   /**
@@ -239,15 +204,12 @@ export class ProjectRepository {
       description?: string | null;
       metadata?: Record<string, unknown> | null;
     },
-  ): Promise<Project> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Updating project:', projectId);
-
+  ): Promise<ApiResponse<Project>> {
     // Validate title if provided
     if (updates.title) {
       const titleError = validateProjectName(updates.title);
       if (titleError) {
-        throw new ValidationError(titleError, 'title');
+        return apiFail(-1, titleError);
       }
     }
 
@@ -255,106 +217,68 @@ export class ProjectRepository {
     if (updates.description !== undefined) {
       const descError = validateProjectDescription(updates.description);
       if (descError) {
-        throw new ValidationError(descError, 'description');
+        return apiFail(-1, descError);
       }
     }
 
     // Validate metadata if provided
     if (updates.metadata) {
       if (updates.metadata.color && !isValidMokuColor(updates.metadata.color as string)) {
-        throw new ValidationError(
-          'Invalid color. Color must be a non-empty string',
-          'metadata.color',
-        );
+        return apiFail(-1, 'Invalid color. Color must be a non-empty string');
       }
 
       if (updates.metadata.icon && !isValidProjectIcon(updates.metadata.icon as string)) {
-        throw new ValidationError('Invalid icon. Must be a valid Lucide icon ID', 'metadata.icon');
+        return apiFail(-1, 'Invalid icon. Must be a valid Lucide icon ID');
       }
     }
 
-    try {
-      const dto = await ApiRetry.execute(
-        () =>
-          projectApiService.updateProject(projectId, {
-            name: updates.title,
-            description: updates.description,
-            metadata: updates.metadata,
-          }),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.updateProject',
+    const result = await projectApiService.updateProject(projectId, {
+      name: updates.title,
+      description: updates.description,
+      metadata: updates.metadata,
+    });
+
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to update project:', result.errorText);
+      return apiFail(result.errorCode, result.errorText);
+    }
+
+    // Always fetch fresh members (best-effort)
+    let members: MemberDTO[] = [];
+    const membersResult = await projectMemberApiService.getProjectMembers(projectId);
+    if (membersResult.success) {
+      members = membersResult.data;
+    } else {
+      log.warn(
+        '[ProjectRepository] Failed to load members for updated project:',
+        projectId,
+        membersResult.errorText,
       );
-
-      // Always fetch fresh members
-      let members: MemberDTO[] = [];
-      try {
-        members = await ApiRetry.execute(
-          () => projectMemberApiService.getProjectMembers(projectId),
-          DEFAULT_RETRY_CONFIG,
-          'ProjectRepository.updateProject.members',
-        );
-        log.info(
-          '[ProjectRepository] Loaded',
-          members.length,
-          'members for updated project:',
-          projectId,
-        );
-      } catch (error) {
-        log.warn(
-          '[ProjectRepository] Failed to load members for updated project:',
-          projectId,
-          error,
-        );
-      }
-
-      const project = this.mapDetailDTOToProject(dto, members);
-
-      // Update cache
-      this.projectsById.set(project.id as GUID, project);
-
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Updated project ${projectId} in ${duration}ms`);
-
-      return this.cloneProject(project);
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to update project:', error);
-      throw error;
     }
+
+    const project = this.mapDetailDTOToProject(result.data, members);
+
+    // Update cache
+    this.projectsById.set(project.id as GUID, project);
+
+    return apiOk(this.cloneProject(project));
   }
 
   /**
    * Delete a project via API (soft delete)
    */
-  public async deleteProject(projectId: GUID): Promise<boolean> {
-    const startTime = Date.now();
-    log.info('[ProjectRepository] Deleting project:', projectId);
+  public async deleteProject(projectId: GUID): Promise<ApiResponse<boolean>> {
+    const result = await projectApiService.deleteProject(projectId);
 
-    try {
-      await ApiRetry.execute(
-        () => projectApiService.deleteProject(projectId),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.deleteProject',
-      );
-
-      // Remove from cache
-      this.projectsById.delete(projectId);
-
-      const duration = Date.now() - startTime;
-      log.info(`[ProjectRepository] Deleted project ${projectId} in ${duration}ms`);
-      return true;
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to delete project:', error);
-      return false;
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to delete project:', result.errorText);
+      return apiOk(false);
     }
-  }
 
-  /**
-   * Clear all cached projects
-   */
-  public clearCache(): void {
-    this.projectsById.clear();
-    this.lastLoadTime = 0;
-    log.info('[ProjectRepository] Cache cleared');
+    // Remove from cache
+    this.projectsById.delete(projectId);
+
+    return apiOk(true);
   }
 
   /**
@@ -436,43 +360,15 @@ export class ProjectRepository {
 
   /**
    * Search users in the organization
-   * @param searchTerm Optional search term for name/email (null/undefined returns all active users)
-   * @returns Array of user summaries
    */
-  public async searchUsers(searchTerm?: string | null): Promise<UserSummaryDTO[]> {
+  public async searchUsers(searchTerm?: string | null): Promise<ApiResponse<UserSummaryDTO[]>> {
     try {
-      log.info('[ProjectRepository] Searching users', { searchTerm });
-      const response = await ApiRetry.execute(
-        () => userApiService.searchUsers(searchTerm),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.searchUsers',
-      );
-      log.info('[ProjectRepository] Found', response.content.length, 'users');
-      return response.content;
+      const response = await userApiService.searchUsers(searchTerm);
+      return apiOk(response.content);
     } catch (error) {
       log.error('[ProjectRepository] Failed to search users:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get project members
-   * @param projectId The project ID
-   * @returns Array of member DTOs with user information
-   */
-  public async getProjectMembers(projectId: GUID): Promise<MemberDTO[]> {
-    try {
-      log.info('[ProjectRepository] Getting members for project', { projectId });
-      const members = await ApiRetry.execute(
-        () => projectMemberApiService.getProjectMembers(projectId),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.getProjectMembers',
-      );
-      log.info('[ProjectRepository] Retrieved', members.length, 'members');
-      return members;
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to get project members:', error);
-      throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      return apiFail(-1, message);
     }
   }
 
@@ -480,46 +376,50 @@ export class ProjectRepository {
 
   /**
    * Check if current user has permission for a project action
-   * @throws ForbiddenError if user lacks permission
+   * Returns ApiResponse with void on success, or error if no permission
    */
-  public async hasPermission(projectId: string, permission: ProjectPermission): Promise<void> {
-    const project = await this.getProject(projectId as GUID);
+  public async hasPermission(projectId: string, permission: ProjectPermission): Promise<ApiResponse<void>> {
+    const projectResult = await this.getProject(projectId as GUID);
+    if (!projectResult.success) {
+      return apiFail(projectResult.errorCode, projectResult.errorText);
+    }
+
+    const project = projectResult.data;
     if (!project) {
-      throw new NotFoundError('Project', projectId);
+      return apiFail(404, `Project not found: ${projectId}`);
     }
 
     if (!roleHasPermission(project.userRole, permission)) {
-      throw new ForbiddenError(
-        `Access denied. ${project.userRole} role does not have '${permission}' permission`,
-      );
+      return apiFail(403, `Access denied. ${project.userRole} role does not have '${permission}' permission`);
     }
+
+    return apiOk(undefined) as ApiResponse<void>;
   }
 
   /**
-   * Check permission without throwing
+   * Check permission without failing
    * Returns true if user has permission, false otherwise
    */
   public async checkPermission(projectId: string, permission: ProjectPermission): Promise<boolean> {
-    try {
-      await this.hasPermission(projectId, permission);
-      return true;
-    } catch (error) {
-      if (error instanceof ForbiddenError) {
-        return false;
-      }
-      throw error; // Re-throw other errors
-    }
+    const result = await this.hasPermission(projectId, permission);
+    return result.success;
   }
 
   /**
    * Get current user's role in a project
    */
-  public async getUserRole(projectId: string): Promise<ProjectRole> {
-    const project = await this.getProject(projectId as GUID);
-    if (!project) {
-      throw new NotFoundError('Project', projectId);
+  public async getUserRole(projectId: string): Promise<ApiResponse<ProjectRole>> {
+    const projectResult = await this.getProject(projectId as GUID);
+    if (!projectResult.success) {
+      return apiFail(projectResult.errorCode, projectResult.errorText);
     }
-    return project.userRole;
+
+    const project = projectResult.data;
+    if (!project) {
+      return apiFail(404, `Project not found: ${projectId}`);
+    }
+
+    return apiOk(project.userRole);
   }
 
   // ==================== Member Management ====================
@@ -528,80 +428,73 @@ export class ProjectRepository {
    * Get members for a project
    * Requires view_members permission
    */
-  public async getMembers(projectId: string): Promise<ProjectMember[]> {
-    log.info('[ProjectRepository] Getting members for project:', projectId);
-
+  public async getMembers(projectId: string): Promise<ApiResponse<ProjectMember[]>> {
     // Check permission
-    await this.hasPermission(projectId, 'view_members' as ProjectPermission);
+    const permResult = await this.hasPermission(projectId, 'view_members' as ProjectPermission);
+    if (!permResult.success) {
+      return apiFail(permResult.errorCode, permResult.errorText);
+    }
 
     // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
-    return [];
+    return apiOk([]);
   }
 
   /**
    * Add a member to a project
    * Requires invite_members permission (owner only)
    */
-  public async addMember(projectId: string, input: AddMemberInput): Promise<ProjectMember> {
-    log.info('[ProjectRepository] Adding member to project:', projectId, input.userId);
-
+  public async addMember(projectId: string, input: AddMemberInput): Promise<ApiResponse<ProjectMember>> {
     // Check permission
-    await this.hasPermission(projectId, 'invite_members' as ProjectPermission);
+    const permResult = await this.hasPermission(projectId, 'invite_members' as ProjectPermission);
+    if (!permResult.success) {
+      return apiFail(permResult.errorCode, permResult.errorText);
+    }
 
     // Validate userId
     if (!input.userId) {
-      throw new ValidationError('User ID is required', 'userId');
+      return apiFail(-1, 'User ID is required');
     }
 
-    try {
-      const memberDTO = await ApiRetry.execute(
-        () => projectMemberApiService.addProjectMember(projectId, input.userId, input.role),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.addMember',
-      );
+    const result = await projectMemberApiService.addProjectMember(projectId, input.userId, input.role);
 
-      // Map DTO to ProjectMember
-      const member: ProjectMember = {
-        id: memberDTO.id,
-        projectId: projectId,
-        userId: memberDTO.userId,
-        email: memberDTO.userEmail,
-        displayName: memberDTO.userName,
-        role: memberDTO.role as ProjectRole,
-        joinedAt: memberDTO.createdAt,
-      };
-
-      log.info('[ProjectRepository] Successfully added member:', member.email);
-      return member;
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to add member:', error);
-      throw error;
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to add member:', result.errorText);
+      return apiFail(result.errorCode, result.errorText);
     }
+
+    // Map DTO to ProjectMember
+    const member: ProjectMember = {
+      id: result.data.id,
+      projectId: projectId,
+      userId: result.data.userId,
+      email: result.data.userEmail,
+      displayName: result.data.userName,
+      role: result.data.role as ProjectRole,
+      joinedAt: result.data.createdAt,
+    };
+
+    return apiOk(member);
   }
 
   /**
    * Remove a member from a project
    * Requires remove_members permission (owner only)
    */
-  public async removeMember(projectId: string, memberId: string): Promise<void> {
-    log.info('[ProjectRepository] Removing member from project:', projectId, memberId);
-
+  public async removeMember(projectId: string, memberId: string): Promise<ApiResponse<void>> {
     // Check permission (only owner can remove members)
-    await this.hasPermission(projectId, 'remove_members' as ProjectPermission);
-
-    try {
-      await ApiRetry.execute(
-        () => projectMemberApiService.removeProjectMember(projectId, memberId),
-        DEFAULT_RETRY_CONFIG,
-        'ProjectRepository.removeMember',
-      );
-
-      log.info('[ProjectRepository] Successfully removed member:', memberId);
-    } catch (error) {
-      log.error('[ProjectRepository] Failed to remove member:', error);
-      throw error;
+    const permResult = await this.hasPermission(projectId, 'remove_members' as ProjectPermission);
+    if (!permResult.success) {
+      return apiFail(permResult.errorCode, permResult.errorText);
     }
+
+    const result = await projectMemberApiService.removeProjectMember(projectId, memberId);
+
+    if (!result.success) {
+      log.error('[ProjectRepository] Failed to remove member:', result.errorText);
+      return apiFail(result.errorCode, result.errorText);
+    }
+
+    return apiOk(undefined) as ApiResponse<void>;
   }
 
   /**
@@ -610,17 +503,17 @@ export class ProjectRepository {
    */
   public async updateMemberRole(
     projectId: string,
-    memberId: string,
-    input: UpdateMemberRoleInput,
-  ): Promise<ProjectMember> {
-    log.info('[ProjectRepository] Updating member role:', projectId, memberId, input.role);
-
+    _memberId: string,
+    _input: UpdateMemberRoleInput,
+  ): Promise<ApiResponse<ProjectMember>> {
     // Check permission
-    await this.hasPermission(projectId, 'change_member_roles' as ProjectPermission);
+    const permResult = await this.hasPermission(projectId, 'change_member_roles' as ProjectPermission);
+    if (!permResult.success) {
+      return apiFail(permResult.errorCode, permResult.errorText);
+    }
 
     // TODO: Implement when member API endpoints are available
-    log.warn('[ProjectRepository] Member API not yet implemented');
-    throw new NotFoundError('API endpoint', `/projects/{id}/members/{memberId}`);
+    return apiFail(404, 'API endpoint not implemented: /projects/{id}/members/{memberId}');
   }
 }
 

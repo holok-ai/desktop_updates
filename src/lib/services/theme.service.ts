@@ -24,7 +24,12 @@ export function applyTheme(theme: AppThemeMode): void {
 
 /**
  * Persist theme to localStorage for instant application on next launch.
+ * Best-effort: storage errors are swallowed so the UI is never blocked.
  */
 export function persistTheme(theme: AppThemeMode): void {
-  storageService.setThemeMode(theme);
+  try {
+    storageService.setThemeMode(theme);
+  } catch {
+    // swallow – best-effort persistence
+  }
 }

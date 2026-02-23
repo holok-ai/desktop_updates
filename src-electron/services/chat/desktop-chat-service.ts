@@ -13,6 +13,7 @@ import type {
 } from '../tool-calling/orchestrator-types.js';
 import type { ToolStatusCallback } from '../tool-calling/tool-types.js';
 import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
+import { fileStorageService } from '../file-storage.service.js';
 import log from 'electron-log';
 
 /**
@@ -67,11 +68,72 @@ export class DesktopChatService {
           }
         : undefined;
 
+    // Create file received callback to handle files from chat responses (e.g., Gemini generated images)
+    const onFileReceivedAsync = async (
+      threadId: string,
+      fileId: string,
+      mimeType: string,
+      contents: string,
+      displayName: string,
+    ): Promise<void> => {
+      try {
+        log.info('[DesktopChatService] onFileReceived called', {
+          threadId,
+          fileId,
+          mimeType,
+          displayName,
+          contentLength: contents.length,
+        });
+
+        // Convert base64 contents to Buffer
+        const buffer = Buffer.from(contents, 'base64');
+
+        // Save file using file storage service - pass fileId from chat-service to ensure consistency
+        const attachment = await fileStorageService.saveFile(
+          threadId,
+          buffer,
+          displayName,
+          mimeType,
+          fileId,
+        );
+
+        log.info('[DesktopChatService] File saved successfully', {
+          threadId,
+          fileId: attachment.id,
+          displayName,
+          size: buffer.length,
+        });
+      } catch (error) {
+        log.error('[DesktopChatService] Failed to save received file', {
+          threadId,
+          fileId,
+          displayName,
+          error,
+        });
+      }
+    };
+
+    // Wrapper to handle async onFileReceived without returning promise (void return required by setTools)
+    const onFileReceived = (
+      threadId: string,
+      fileId: string,
+      mimeType: string,
+      contents: string,
+      displayName: string,
+    ): void => {
+      void onFileReceivedAsync(threadId, fileId, mimeType, contents, displayName);
+    };
+
     if (canUseTools && onToolUse !== undefined) {
       this.chatService = new ChatService(providerType, config, true);
-      this.chatService.setTools(tools, onToolUse);
+      this.chatService.setTools(tools, onToolUse, onFileReceived);
     } else {
       this.chatService = new ChatService(providerType, config, true);
+      this.chatService.setTools(
+        [],
+        (_toolUse: ChatComponentToolUse) => Promise.resolve({ success: false }),
+        onFileReceived,
+      );
     }
   }
 
@@ -88,19 +150,18 @@ export class DesktopChatService {
     const { working_directory } = request;
 
     log.info('[DesktopChatService] chat called', {
-      thread_id: request.thread_id,
-      branch_id: request.branch_id,
+      thread_id: (request as unknown as { thread_id: string }).thread_id,
+      branch_id: (request as unknown as { branch_id: string }).branch_id,
       messageCount: request.messages.length,
       working_directory: working_directory || this.threadContext.workingDirectory,
     });
 
     // Update thread context for this message
     if (working_directory) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-      (request as any).workingDirectory = working_directory;
+      (request as unknown as { workingDirectory: string }).workingDirectory = working_directory;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-    (request as any).statusCallback = onToolStatus || undefined;
+    (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
+      onToolStatus || undefined;
 
     try {
       await this.chatService.chat(request, onToken);
@@ -117,18 +178,4 @@ export class DesktopChatService {
     return this.chatService.getAuditLogs();
   }
 
-  /**
-   * Update working directory for this chat service instance
-   */
-  setWorkingDirectory(directory: string): void {
-    log.info('[DesktopChatService] Setting working directory:', directory);
-    this.threadContext.workingDirectory = directory;
-  }
-
-  /**
-   * Get current working directory
-   */
-  getWorkingDirectory(): string {
-    return this.threadContext.workingDirectory;
-  }
 }

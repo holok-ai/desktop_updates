@@ -3,10 +3,8 @@
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { applyTheme, persistTheme } from '../../../src/lib/services/theme.service.js';
-import {
-  APP_THEME_MODE,
-  APP_THEME_MODE_STORAGE_KEY,
-} from '../../../src/lib/constants/app.constant.js';
+import { APP_THEME_MODE } from '../../../src/lib/constants/app.constant.js';
+import { storageService } from '../../../src/lib/services/storage.service.js';
 
 describe('theme.service', () => {
   let originalMatchMedia: typeof window.matchMedia;
@@ -44,14 +42,11 @@ describe('theme.service', () => {
     expect(mediaObj.onchange).toBeNull();
   });
 
-  it('persistTheme stores theme in localStorage and swallows errors', () => {
-    const spy = vi.spyOn(Storage.prototype, 'setItem');
+  it('persistTheme stores theme via storageService and swallows errors', () => {
+    const spy = vi.spyOn(storageService, 'setThemeMode');
 
     persistTheme(APP_THEME_MODE.DARK);
-    expect(spy).toHaveBeenCalledWith(
-      APP_THEME_MODE_STORAGE_KEY,
-      JSON.stringify(APP_THEME_MODE.DARK),
-    );
+    expect(spy).toHaveBeenCalledWith(APP_THEME_MODE.DARK);
 
     // simulate storage failure - should not throw
     spy.mockImplementationOnce(() => {
@@ -59,7 +54,5 @@ describe('theme.service', () => {
     });
 
     expect(() => persistTheme(APP_THEME_MODE.LIGHT)).not.toThrow();
-
-    spy.mockRestore();
   });
 });

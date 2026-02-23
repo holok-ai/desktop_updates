@@ -111,21 +111,6 @@ export class FileTypeDetectorService {
   }
 
   /**
-   * Check if file is previewable (images and PDFs)
-   */
-  isPreviewable(filename: string, mimeType?: string): boolean {
-    const info = this.detectFileType(filename, mimeType);
-    return info.isPreviewable;
-  }
-
-  /**
-   * Check if file should be downloaded only (not previewable)
-   */
-  isDownloadOnly(filename: string, mimeType?: string): boolean {
-    return !this.isPreviewable(filename, mimeType);
-  }
-
-  /**
    * Check if file can be displayed inline (small images)
    */
   canInlinePreview(filename: string, fileSize: number, mimeType?: string): boolean {

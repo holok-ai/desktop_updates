@@ -43,7 +43,7 @@ describe('ProjectCache', () => {
   // Helper to create mock project DTO
   const createMockProjectDTO = (id: string, name: string): ProjectDetailDTO => ({
     id,
-    name,                                    // API uses 'name'
+    name, // API uses 'name'
     description: `Description for ${name}`,
     type: 'shared',
     createdBy: 'user-123',
@@ -60,7 +60,7 @@ describe('ProjectCache', () => {
     // Create fresh cache instance
     cache = new ProjectCache();
     await cache.initialize();
-    
+
     testCacheDir = path.join(app.getPath('userData'), '.holokai', 'cache', 'encrypted', 'projects');
   });
 
@@ -84,36 +84,39 @@ describe('ProjectCache', () => {
 
     it('should store and retrieve project from memory', async () => {
       const projectDTO = createMockProjectDTO('project-1', 'Test Project');
-      
+
       await cache.set('project-1', projectDTO);
       const retrieved = await cache.get('project-1');
-      
+
       expect(retrieved).not.toBeNull();
       expect(retrieved?.id).toBe('project-1');
-      expect(retrieved?.title).toBe('Test Project');        // Mapped from 'name'
+      expect(retrieved?.title).toBe('Test Project'); // Mapped from 'name'
       expect(retrieved?.description).toBe('Description for Test Project');
     });
 
     it('should map API "name" field to "title" field', async () => {
       const projectDTO = createMockProjectDTO('project-2', 'My Amazing Project');
-      
+
       await cache.set('project-2', projectDTO);
       const retrieved = await cache.get('project-2');
-      
+
       expect(retrieved?.title).toBe('My Amazing Project');
-      expect(retrieved).not.toHaveProperty('name');         // Should not have 'name'
+      expect(retrieved).not.toHaveProperty('name'); // Should not have 'name'
     });
 
     it('should persist project to encrypted disk', async () => {
       const projectDTO = createMockProjectDTO('project-3', 'Persistent Project');
-      
+
       await cache.set('project-3', projectDTO);
-      
+
       // Check that file exists
       const filePath = path.join(testCacheDir, 'project-3.json');
-      const fileExists = await fs.access(filePath).then(() => true).catch(() => false);
+      const fileExists = await fs
+        .access(filePath)
+        .then(() => true)
+        .catch(() => false);
       expect(fileExists).toBe(true);
-      
+
       // Read and verify encrypted content
       const encryptedData = await fs.readFile(filePath);
       expect(encryptedData.toString()).toContain('encrypted:');
@@ -121,19 +124,19 @@ describe('ProjectCache', () => {
 
     it('should load project from disk on memory miss', async () => {
       const projectDTO = createMockProjectDTO('project-4', 'Disk Project');
-      
+
       // Set in first cache instance
       await cache.set('project-4', projectDTO);
-      
+
       // Create new cache instance (empty memory)
       const newCache = new ProjectCache();
       await newCache.initialize();
-      
+
       // Should load from disk
       const retrieved = await newCache.get('project-4');
       expect(retrieved).not.toBeNull();
       expect(retrieved?.title).toBe('Disk Project');
-      
+
       await newCache.clearAll();
     });
   });
@@ -141,23 +144,33 @@ describe('ProjectCache', () => {
   describe('invalidateProject()', () => {
     it('should remove project from memory', async () => {
       const projectDTO = createMockProjectDTO('project-5', 'To Delete');
-      
+
       await cache.set('project-5', projectDTO);
       expect(await cache.get('project-5')).not.toBeNull();
-      
+
       await cache.invalidateProject('project-5');
       expect(await cache.get('project-5')).toBeNull();
     });
 
     it('should delete project file from disk', async () => {
       const projectDTO = createMockProjectDTO('project-6', 'File Delete');
-      
+
       await cache.set('project-6', projectDTO);
       const filePath = path.join(testCacheDir, 'project-6.json');
-      expect(await fs.access(filePath).then(() => true).catch(() => false)).toBe(true);
-      
+      expect(
+        await fs
+          .access(filePath)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(true);
+
       await cache.invalidateProject('project-6');
-      expect(await fs.access(filePath).then(() => true).catch(() => false)).toBe(false);
+      expect(
+        await fs
+          .access(filePath)
+          .then(() => true)
+          .catch(() => false),
+      ).toBe(false);
     });
 
     it('should not throw if project does not exist', async () => {
@@ -169,12 +182,12 @@ describe('ProjectCache', () => {
     it('should clear all projects from memory', async () => {
       const project1 = createMockProjectDTO('project-7', 'Project 7');
       const project2 = createMockProjectDTO('project-8', 'Project 8');
-      
+
       await cache.set('project-7', project1);
       await cache.set('project-8', project2);
-      
+
       await cache.clearAll();
-      
+
       expect(await cache.get('project-7')).toBeNull();
       expect(await cache.get('project-8')).toBeNull();
     });
@@ -182,12 +195,12 @@ describe('ProjectCache', () => {
     it('should delete all cache files from disk', async () => {
       const project1 = createMockProjectDTO('project-9', 'Project 9');
       const project2 = createMockProjectDTO('project-10', 'Project 10');
-      
+
       await cache.set('project-9', project1);
       await cache.set('project-10', project2);
-      
+
       await cache.clearAll();
-      
+
       // Check that files are deleted
       const files = await fs.readdir(testCacheDir);
       expect(files.length).toBe(0);
@@ -196,11 +209,11 @@ describe('ProjectCache', () => {
     it('should reset cache metrics', async () => {
       const projectDTO = createMockProjectDTO('project-11', 'Project 11');
       await cache.set('project-11', projectDTO);
-      await cache.get('project-11');  // Generate hit
+      await cache.get('project-11'); // Generate hit
       await cache.get('non-existent'); // Generate miss
-      
+
       await cache.clearAll();
-      
+
       const metrics = cache.getMetrics();
       expect(metrics.hits).toBe(0);
       expect(metrics.misses).toBe(0);
@@ -214,14 +227,14 @@ describe('ProjectCache', () => {
         const projectDTO = createMockProjectDTO(`project-${i}`, `Project ${i}`);
         await cache.set(`project-${i}`, projectDTO);
       }
-      
+
       // First project should be evicted from memory
       const firstProject = await cache.get('project-1');
-      
+
       // Should still exist on disk, but will be loaded from disk
       // (check metrics to verify it was a disk hit, not memory hit)
       const metricsBefore = cache.getMetrics();
-      
+
       // Access project-101 (most recently used)
       const lastProject = await cache.get('project-101');
       expect(lastProject).not.toBeNull();
@@ -234,16 +247,16 @@ describe('ProjectCache', () => {
         const projectDTO = createMockProjectDTO(`project-${i}`, `Project ${i}`);
         await cache.set(`project-${i}`, projectDTO);
       }
-      
+
       // Access project-1 to move it to head
       await cache.get('project-1');
-      
+
       // Add 99 more projects (total 102, will evict oldest)
       for (let i = 4; i <= 102; i++) {
         const projectDTO = createMockProjectDTO(`project-${i}`, `Project ${i}`);
         await cache.set(`project-${i}`, projectDTO);
       }
-      
+
       // project-1 should still be in memory (was accessed recently)
       // project-2 should be evicted (least recently used)
       const metrics = cache.getMetrics();
@@ -255,18 +268,18 @@ describe('ProjectCache', () => {
     it('should track cache hits', async () => {
       const projectDTO = createMockProjectDTO('project-12', 'Project 12');
       await cache.set('project-12', projectDTO);
-      
-      await cache.get('project-12');  // Hit
-      await cache.get('project-12');  // Hit
-      
+
+      await cache.get('project-12'); // Hit
+      await cache.get('project-12'); // Hit
+
       const metrics = cache.getMetrics();
       expect(metrics.hits).toBeGreaterThanOrEqual(2);
     });
 
     it('should track cache misses', async () => {
-      await cache.get('non-existent-1');  // Miss
-      await cache.get('non-existent-2');  // Miss
-      
+      await cache.get('non-existent-1'); // Miss
+      await cache.get('non-existent-2'); // Miss
+
       const metrics = cache.getMetrics();
       expect(metrics.misses).toBeGreaterThanOrEqual(2);
     });
@@ -274,10 +287,10 @@ describe('ProjectCache', () => {
     it('should calculate hit rate correctly', async () => {
       const projectDTO = createMockProjectDTO('project-13', 'Project 13');
       await cache.set('project-13', projectDTO);
-      
-      await cache.get('project-13');      // Hit
-      await cache.get('non-existent');    // Miss
-      
+
+      await cache.get('project-13'); // Hit
+      await cache.get('non-existent'); // Miss
+
       const metrics = cache.getMetrics();
       // Hit rate should be 50% (1 hit, 1 miss)
       expect(metrics.hits).toBe(1);
@@ -289,17 +302,16 @@ describe('ProjectCache', () => {
     it('should sanitize project IDs to prevent path traversal', async () => {
       const maliciousId = '../../../etc/passwd';
       const projectDTO = createMockProjectDTO(maliciousId, 'Malicious Project');
-      
+
       await cache.set(maliciousId, projectDTO);
-      
+
       // Should create file with sanitized name (all non-alphanumeric chars become _)
       const files = await fs.readdir(testCacheDir);
       const sanitizedFileName = maliciousId.replace(/[^a-zA-Z0-9-]/g, '_') + '.json';
-      
+
       expect(files).toContain(sanitizedFileName);
       // Should NOT be able to escape the cache directory
-      expect(files.some(f => f.includes('..'))).toBe(false);
+      expect(files.some((f) => f.includes('..'))).toBe(false);
     });
   });
 });
-

@@ -20,6 +20,7 @@
   let projectToRename = $state<Project | null>(null);
   let projectToDelete = $state<Project | null>(null);
   let openMenuProjectId = $state<string | null>(null);
+  let deleteConfirmationRequired = $state(true);
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -46,7 +47,11 @@
 
   onMount(async () => {
     try {
-      await projectService.loadProjects();
+      const [, s] = await Promise.all([
+        projectService.loadProjects(),
+        window.electronAPI.settings.getAll(),
+      ]);
+      deleteConfirmationRequired = s.deleteConfirmationRequired ?? true;
     } catch (error) {
       console.error('Failed to load projects:', error);
       errorMessage = 'Failed to load projects';
@@ -110,11 +115,25 @@
     projectToRename = null;
   }
 
+  async function handleDeleteDirect(project: Project) {
+    try {
+      await projectService.deleteProject(project.id as any, false);
+      toastStore.show(`Project "${project.title}" deleted successfully`, { variant: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete project';
+      toastStore.show(msg, { variant: 'error' });
+    }
+  }
+
   function handleDelete(project: Project, e: MouseEvent) {
     e.stopPropagation();
-    projectToDelete = project;
-    showDeleteModal = true;
     closeMenu();
+    if (deleteConfirmationRequired) {
+      projectToDelete = project;
+      showDeleteModal = true;
+    } else {
+      void handleDeleteDirect(project);
+    }
   }
 
   function handleClickOutside(e: MouseEvent) {
@@ -155,10 +174,6 @@
       <i class="pi pi-folder-open"></i>
       <h2>No Projects Yet</h2>
       <p>Create your first project to get started organizing your work</p>
-      <button class="btn-holokai" onclick={handleCreateProject}>
-        <i class="pi pi-plus"></i>
-        Create Project
-      </button>
     </div>
   {:else}
     <div class="projects-grid">

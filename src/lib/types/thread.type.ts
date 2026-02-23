@@ -1,5 +1,6 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
 import type { MessageStatus, ThreadStatus } from './status.type.ts';
+import type { RequestOptionsDTO } from '../../../src-electron/preload.js';
 
 export interface MessageVersion {
   content: string;
@@ -11,9 +12,15 @@ export type BranchType = 'prompt-variation' | 'model-variation' | null;
 export interface Message {
   id: string;
   clientMessageId?: string;
+
+  threadId: string;
+  branchId: string;
+  modelId?: string | null;
+
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: number;
+  userId?: string;
   status?: MessageStatus;
   retryCount?: number;
   error?: string;
@@ -22,9 +29,11 @@ export interface Message {
   isEdited?: boolean;
   versions?: MessageVersion[];
   metadata?: MessageMetadata;
-  /** Hierarchical branch ID (e.g., "1.0", "1.0.1", "1.0.1.1") */
-  branchId: string;
-  modelId?: string | null;
+  attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
+
+  isHidden?: boolean;
+  isLocal?: boolean;
+  desktopOptions?: RequestOptionsDTO | null;
 }
 
 export interface Thread {
