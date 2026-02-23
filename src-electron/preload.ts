@@ -314,6 +314,12 @@ export interface UpdaterAPI {
   onUpdateCheckComplete: (
     callback: (result: { updateAvailable: boolean; version?: string }) => void,
   ) => () => void;
+
+  // Listen for download progress (0–100)
+  onDownloadProgress: (callback: (percent: number) => void) => () => void;
+
+  // Get the last check result (in case the event fired before the renderer was ready)
+  getLastCheckResult: () => Promise<{ updateAvailable: boolean; version?: string } | null>;
 }
 
 /**
@@ -840,6 +846,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('updater:checkComplete', subscription);
       };
     },
+    onDownloadProgress: (callback): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, percent: number): void => callback(percent);
+      ipcRenderer.on('updater:downloadProgress', subscription);
+      return (): void => {
+        ipcRenderer.removeListener('updater:downloadProgress', subscription);
+      };
+    },
+    getLastCheckResult: () => ipcRenderer.invoke('updater:getLastCheckResult'),
   } as UpdaterAPI,
 
   /**

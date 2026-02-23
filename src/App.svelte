@@ -4,6 +4,7 @@
   import { authStore } from './lib/stores/auth.store';
   import AppLayout from './lib/components/layout/AppLayout.svelte';
   import Toast from './lib/components/Toast.svelte';
+  import InstallUpdateModal from './lib/modals/InstallUpdateModal.svelte';
   import { toastStore } from './lib/services/toast.service';
   import { ROUTE } from '$lib/constants/route.constant';
   import { STARTING_PAGE } from '$lib/constants/app.constant';
@@ -13,20 +14,30 @@
   let updateCheckState = $state<'checking' | 'available' | null>(null);
   let availableVersion = $state<string | null>(null);
   let isInstalling = $state(false);
+  let downloadPercent = $state<number | null>(null);
 
   async function handleInstallNow(): Promise<void> {
     isInstalling = true;
+    downloadPercent = 0;
+
+    const unsubscribeProgress = window.electronAPI.updater.onDownloadProgress((percent) => {
+      downloadPercent = percent;
+    });
+
     try {
       const result = await window.electronAPI.updater.updateNow();
       if (!result.success) {
         toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
         updateCheckState = null;
+        downloadPercent = null;
       }
-      // On success the download runs in background; update-downloaded handler shows the restart dialog
+      // On success quitAndInstall is called automatically — app will restart
     } catch {
       toastStore.show('Failed to start update download.', { variant: 'error' });
       updateCheckState = null;
+      downloadPercent = null;
     } finally {
+      unsubscribeProgress();
       isInstalling = false;
     }
   }
@@ -92,6 +103,15 @@
 
             if (settings.autoCheckUpdates && !isDev && isAuthenticated) {
               updateCheckState = 'checking';
+
+              // Check if the result already arrived before we registered the listener
+              if (!checkCompleted) {
+                const cached = await window.electronAPI.updater.getLastCheckResult();
+                if (cached !== null) {
+                  checkResult = cached;
+                  checkCompleted = true;
+                }
+              }
 
               if (!checkCompleted) {
                 await new Promise<void>((resolve) => {
@@ -159,32 +179,21 @@
   <AppLayout />
 {/if}
 
-{#if updateCheckState}
+{#if updateCheckState === 'checking'}
   <div class="update-overlay">
     <div class="update-modal">
-      {#if updateCheckState === 'checking'}
-        <i class="pi pi-spin pi-spinner"></i>
-        <span>Checking for updates...</span>
-      {:else if updateCheckState === 'available'}
-        <div class="update-available-msg">
-          <i class="pi pi-arrow-circle-up"></i>
-          <span>Version <strong>{availableVersion}</strong> is available.</span>
-        </div>
-        <div class="update-actions">
-          <button class="update-btn-primary" onclick={handleInstallNow} disabled={isInstalling}>
-            {isInstalling ? 'Downloading...' : 'Install Now'}
-          </button>
-          <button
-            class="update-btn-secondary"
-            onclick={() => (updateCheckState = null)}
-            disabled={isInstalling}
-          >
-            Install Later
-          </button>
-        </div>
-      {/if}
+      <i class="pi pi-spin pi-spinner"></i>
+      <span>Checking for updates...</span>
     </div>
   </div>
+{:else if updateCheckState === 'available' && availableVersion}
+  <InstallUpdateModal
+    version={availableVersion}
+    {isInstalling}
+    {downloadPercent}
+    onInstall={handleInstallNow}
+    onDismiss={() => (updateCheckState = null)}
+  />
 {/if}
 
 <Toast />
@@ -219,63 +228,11 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
     color: var(--text-primary, #111);
     min-width: 260px;
-  }
-
-  .update-available-msg {
-    display: flex;
     align-items: center;
-    gap: 0.75rem;
   }
 
-  .update-available-msg i {
+  .update-modal i {
     font-size: 1.1rem;
     color: var(--primary-color, #646cff);
-  }
-
-  /* checking state — single row */
-  .update-modal > i,
-  .update-modal > span {
-    align-self: center;
-  }
-
-  .update-modal > i {
-    font-size: 1.1rem;
-    color: var(--primary-color, #646cff);
-  }
-
-  .update-actions {
-    display: flex;
-    gap: 0.625rem;
-    justify-content: flex-end;
-  }
-
-  .update-btn-primary {
-    padding: 0.3rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--primary-color, #646cff);
-    color: #fff;
-    cursor: pointer;
-    font-size: 0.875rem;
-  }
-
-  .update-btn-primary:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-
-  .update-btn-secondary {
-    padding: 0.3rem 1rem;
-    border: 1px solid var(--surface-border, #e0e0e0);
-    border-radius: 6px;
-    background: var(--surface-hover, #f0f0f0);
-    color: #1a1a1a;
-    cursor: pointer;
-    font-size: 0.875rem;
-  }
-
-  .update-btn-secondary:disabled {
-    opacity: 0.6;
-    cursor: default;
   }
 </style>

@@ -40,13 +40,14 @@ export interface BranchDisplay {
   position: number;
   lanes: Lane[];
   /** True when the branch is re-expanded for viewing (a lane was already selected). */
-  isViewMode?: boolean;
+  isviewMode?: boolean;
 }
 
 export type DisplayItem = MessageDisplay | BranchDisplay;
 
 // ── Static Class ────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class ThreadDisplay {
   /** Prevent instantiation — all methods are static. */
   private constructor() {}
@@ -117,11 +118,11 @@ export class ThreadDisplay {
       }
 
       // Check if this row has branches (any message with lane ≠ 0)
-      const hasRowBranches = rowMessages.some(
+      const hasrowBranches = rowMessages.some(
         (msg) => ThreadContext.parseBranchLane(msg.branchId) !== 0,
       );
 
-      if (!hasRowBranches) {
+      if (!hasrowBranches) {
         // Single lane (main branch only) — display as regular message pairs
         const pairs = ThreadDisplay.buildMessagePairs(rowMessages, isStreaming, responseText);
 
@@ -174,7 +175,7 @@ export class ThreadDisplay {
           }
         } else {
           // No selected lane, or force-expanded for viewing — render full multi-lane branch
-          const isViewMode = Boolean(selectedLaneKey) && expandedBranchRows.has(row);
+          const isviewMode = Boolean(selectedLaneKey) && expandedBranchRows.has(row);
           const lanes: Lane[] = laneKeys.map((laneKey, index) => {
             const msgs = laneMap.get(laneKey);
             if (!msgs) {
@@ -219,7 +220,7 @@ export class ThreadDisplay {
             id: `branch-${row}`,
             position: row,
             lanes,
-            isViewMode,
+            isviewMode,
           });
         }
       }
@@ -265,7 +266,10 @@ export class ThreadDisplay {
 
           // Inject image tags for attachments
           if (assistantMsg.attachments && assistantMsg.attachments.length > 0) {
-            formattedContent = ThreadDisplay.injectImageTags(formattedContent, assistantMsg.attachments);
+            formattedContent = ThreadDisplay.injectImageTags(
+              formattedContent,
+              assistantMsg.attachments,
+            );
           }
 
           const formattedResponse = {
@@ -278,14 +282,14 @@ export class ThreadDisplay {
         }
 
         // Check if this is the last message and we're streaming
-        const isLastMessage = i === msgs.length - 1;
-        const isStreamingNow = isLastMessage && isStreaming && responses.length === 0;
+        const islastMessage = i === msgs.length - 1;
+        const isstreamingNow = islastMessage && isStreaming && responses.length === 0;
 
         pairs.push({
           request: msg,
           responses: responses,
-          isStreamingResponse: isStreamingNow,
-          streamingContent: isStreamingNow ? responseText : '',
+          isStreamingResponse: isstreamingNow,
+          streamingContent: isstreamingNow ? responseText : '',
         });
 
         // Skip past the user message and all collected responses

@@ -7,6 +7,7 @@
 
 import type { Message } from '$lib/types/thread.type';
 
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class ThreadContext {
   /** Prevent instantiation — all methods are static. */
   private constructor() {}
@@ -87,7 +88,7 @@ export class ThreadContext {
    */
   static parseBranchLane(branchId: string): number {
     const [, secondPart] = branchId.split('.');
-    return secondPart ? (parseInt(secondPart) ?? 0) : 0;
+    return secondPart !== undefined && secondPart !== '' ? (parseInt(secondPart) ?? 0) : 0;
   }
 
   /**

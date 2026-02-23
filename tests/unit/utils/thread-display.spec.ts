@@ -490,7 +490,7 @@ describe('ThreadDisplay.buildDisplayItems', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// buildDisplayItems — expandedBranchRows / isViewMode
+// buildDisplayItems — expandedBranchRows / isviewMode
 // ═══════════════════════════════════════════════════════════════════
 
 describe('ThreadDisplay.buildDisplayItems — expandedBranchRows', () => {
@@ -520,26 +520,26 @@ describe('ThreadDisplay.buildDisplayItems — expandedBranchRows', () => {
     }
   });
 
-  it('selected lane WITH row in expandedBranchRows → BranchDisplay with isViewMode=true', () => {
+  it('selected lane WITH row in expandedBranchRows → BranchDisplay with isviewMode=true', () => {
     const expanded = new Set([2]);
     const items = ThreadDisplay.buildDisplayItems(branchMessages(), false, '', [], expanded);
     // Should render as BranchDisplay since row 2 is force-expanded
     expect(items).toHaveLength(1);
     expect(items[0].type).toBe('branch');
     if (items[0].type === 'branch') {
-      expect(items[0].isViewMode).toBe(true);
+      expect(items[0].isviewMode).toBe(true);
       expect(items[0].lanes).toHaveLength(2);
       expect(items[0].position).toBe(2);
     }
   });
 
-  it('no selected lane WITH row in expandedBranchRows → BranchDisplay with isViewMode=false', () => {
+  it('no selected lane WITH row in expandedBranchRows → BranchDisplay with isviewMode=false', () => {
     const expanded = new Set([2]);
     const items = ThreadDisplay.buildDisplayItems(branchMessages(false), false, '', [], expanded);
     expect(items).toHaveLength(1);
     expect(items[0].type).toBe('branch');
     if (items[0].type === 'branch') {
-      expect(items[0].isViewMode).toBe(false);
+      expect(items[0].isviewMode).toBe(false);
     }
   });
 
