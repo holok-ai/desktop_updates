@@ -11,11 +11,6 @@ import type { IMessageInspector } from './message-inspector.js';
  */
 export class PlaceholderInspector implements IMessageInspector {
   inspect(messages: Message[]): Message[] {
-    log.info(
-      '[PlaceholderInspector] Checking for orphan assistant messages, total messages:',
-      messages.length,
-    );
-
     const sorted = [...messages].sort((a, b) => {
       const [aRow, aLane, aIter] = a.branchId.split('.').map(Number);
       const [bRow, bLane, bIter] = b.branchId.split('.').map(Number);

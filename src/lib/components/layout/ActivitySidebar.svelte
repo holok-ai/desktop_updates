@@ -305,17 +305,16 @@
           }}
         >
           <span class="recent-label">Favorites</span>
-          {#if favoritesHovered}
-            <button
-              class="recent-toggle"
-              onclick={(e) => {
-                e.stopPropagation();
-                toggleFavorites();
-              }}
-            >
-              {showFavorites ? 'hide' : 'show'}
-            </button>
-          {/if}
+          <button
+            class="recent-toggle"
+            style="visibility: {favoritesHovered ? 'visible' : 'hidden'}"
+            onclick={(e) => {
+              e.stopPropagation();
+              toggleFavorites();
+            }}
+          >
+            {showFavorites ? 'hide' : 'show'}
+          </button>
         </div>
         <hr class="recent-divider" />
 
@@ -326,7 +325,7 @@
                 <button class="recent-thread-item" onclick={() => handleFavoriteClick(item)}>
                   <span class="thread-title">
                     {#if item.type === 'project'}
-                      <i class="pi pi-folder" style="font-size: 10px; margin-right: 4px;"></i>
+                      <i class="pi pi-folder" style="font-size: 10px;"></i>
                     {/if}
                     {item.label}
                   </span>
@@ -357,17 +356,16 @@
           }}
         >
           <span class="recent-label">Recent</span>
-          {#if recentHovered}
-            <button
-              class="recent-toggle"
-              onclick={(e) => {
-                e.stopPropagation();
-                void toggleRecentThreads();
-              }}
-            >
-              {showRecentThreads ? 'hide' : 'show'}
-            </button>
-          {/if}
+          <button
+            class="recent-toggle"
+            style="visibility: {recentHovered ? 'visible' : 'hidden'}"
+            onclick={(e) => {
+              e.stopPropagation();
+              void toggleRecentThreads();
+            }}
+          >
+            {showRecentThreads ? 'hide' : 'show'}
+          </button>
         </div>
         <hr class="recent-divider" />
 
@@ -415,7 +413,7 @@
   .collapse-tab {
     position: absolute;
     top: 20px;
-    right: -16px;
+    right: -24px;
     width: 24px;
     height: 32px;
     display: flex;
@@ -599,6 +597,9 @@
   }
 
   .thread-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 13px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);

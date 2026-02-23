@@ -6,7 +6,7 @@
   import ChatMessage from './ChatMessage.svelte';
   import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadService, type BackgroundStream } from '$lib/services/thread.service';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
@@ -44,11 +44,16 @@
   let agentUnavailableInfo = $state(false);
   let messagesEl: HTMLDivElement | undefined = $state();
   let fontSize = $state(14); // Font size from settings
-  let unsubscribeStream: (() => void) | null = null; // Stream subscription cleanup
   let composerText = $state(''); // Text for composer (bindable for guard errors)
   let debugActivity = $state(''); // Debug activity log
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
+
+  // ── Multi-stream support ──
+  // Background streams live in threadService (singleton) so they survive component
+  // destruction (e.g., when ThreadPage sets loading=true). Each thread can have an
+  // independent background stream. When the user navigates away, the stream keeps
+  // running. When the component is re-created, it re-attaches from the service.
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -136,8 +141,89 @@
   });
 
   onDestroy(() => {
+    console.log('[ThreadChatView] onDestroy — component being torn down.', {
+      threadId: thread?.id,
+      isStreaming,
+      hasBgStream: thread?.id ? threadService.hasBackgroundStream(thread.id) : false,
+    });
     clearTimeouts();
-    unsubscribeStream?.();
+    // Background streams live in threadService — do NOT clean them up here.
+    // They must survive component destruction so tokens keep accumulating
+    // while the component is unmounted (e.g., during ThreadPage loading state).
+  });
+
+  // ── Detect thread switch during streaming ──
+  // When the thread prop changes (same-route navigation), the component stays mounted.
+  // Each thread's backend stream continues running independently via backgroundStreams.
+  // We only detach/re-attach the UI-facing state (isStreaming, responseText).
+  let previousThreadId: string | null = null;
+  $effect(() => {
+    const currentThreadId = thread?.id ?? null;
+    console.log('[ThreadChatView] $effect fired.', {
+      currentThreadId,
+      previousThreadId,
+      isStreaming,
+      hasBgStream: currentThreadId ? threadService.hasBackgroundStream(currentThreadId) : false,
+    });
+
+    if (previousThreadId !== null && currentThreadId !== previousThreadId) {
+      // Thread switch while component is mounted
+      if (isStreaming) {
+        console.log('[ThreadChatView] Thread switched during streaming. Detaching UI.', {
+          from: previousThreadId,
+          to: currentThreadId,
+        });
+        // Only reset UI-facing state. The background stream keeps running in threadService.
+        isStreaming = false;
+        responseText = '';
+        clearTimeouts();
+      }
+    }
+
+    // Check if the current thread has an active background stream in the service.
+    // This handles both thread-switch navigation AND fresh component creation
+    // (e.g., after ThreadPage loading=true destroys and re-creates us).
+    if (currentThreadId && !isStreaming) {
+      const bgStream = threadService.getBackgroundStream(currentThreadId);
+      if (bgStream) {
+        console.log('[ThreadChatView] Re-attaching to active background stream.', {
+          threadId: currentThreadId,
+          accumulatedLength: bgStream.accumulatedText.length,
+          isFirstMount: previousThreadId === null,
+        });
+        isStreaming = true;
+        responseText = bgStream.accumulatedText;
+
+        // The getMessages() merge interceptor may have injected a synthetic
+        // assistant message (id: "streaming-{branchId}") into the messages array.
+        // Strip it so buildDisplayItems falls back to the live responseText,
+        // which is continuously updated by the token callback.
+        const syntheticId = `streaming-${bgStream.branchId}`;
+        const hadSynthetic = messages.some((m) => m.id === syntheticId);
+        if (hadSynthetic) {
+          messages = messages.filter((m) => m.id !== syntheticId);
+          console.log('[ThreadChatView] Stripped synthetic assistant message:', syntheticId);
+        }
+
+        // Re-subscribe with a fresh callback that closes over THIS component's
+        // reactive variables. The old callback (from the destroyed component instance
+        // or a previous mount) still accumulates into bgStream.accumulatedText, but
+        // it cannot update THIS component's responseText because it captured the old
+        // component's scope. Replace it with one that can.
+        bgStream.unsubscribe?.();
+        bgStream.unsubscribe = threadService.subscribeToStream(
+          currentThreadId,
+          bgStream.branchId,
+          createTokenCallback(currentThreadId, bgStream),
+        );
+        console.log(
+          '[ThreadChatView] Re-subscribed with fresh callback for thread:',
+          currentThreadId,
+        );
+      }
+    }
+
+    previousThreadId = currentThreadId;
   });
 
   function extractModelInfo() {
@@ -217,52 +303,90 @@
   }
 
   // ── Token listener (streaming) ──
-  function setupTokenListener(branchId: string) {
-    if (!thread?.id) return;
+  // Sets up a per-thread token subscription that writes into the backgroundStreams map.
+  // The callback updates both the background accumulator AND the UI-facing responseText
+  // (only when the user is viewing this thread).
 
-    responseText = '';
-    addDebugLog(`[ThreadChatView] setupTokenListener for branchId: ${branchId}`);
-
-    // Unsubscribe from previous stream if any
-    unsubscribeStream?.();
-
-    // Subscribe to stream for this thread + branch
-    unsubscribeStream = threadService.subscribeToStream(thread.id, branchId, (token: string) => {
+  /**
+   * Build a token callback that closes over the CURRENT component's reactive state.
+   * This must be called from the current component instance so that `thread`,
+   * `isStreaming`, `responseText`, etc. refer to live reactive variables.
+   */
+  function createTokenCallback(forThreadId: string, bgStream: BackgroundStream) {
+    return (token: string) => {
       addDebugLog(
-        `[ThreadChatView] Received token (length: ${token.length}): "${token.substring(0, 20)}..."`,
+        `[ThreadChatView] Received token for ${forThreadId} (length: ${token.length}): "${token.substring(0, 20)}..."`,
       );
-      console.log('[ThreadChatView] Received streaming token:', {
-        branchId,
-        tokenLength: token.length,
-        tokenPreview: token.substring(0, 50),
-        fullToken: token, // Show complete token
-      });
 
-      // First token: clear no-response timeout
-      if (streamingNoResponseTimeout) {
+      // First token: clear no-response timeout (only if this is the active thread)
+      const isActiveThread = thread?.id === forThreadId;
+      if (isActiveThread && streamingNoResponseTimeout) {
         clearTimeout(streamingNoResponseTimeout);
         streamingNoResponseTimeout = null;
         addDebugLog('[ThreadChatView] First token received - cleared no-response timeout');
       }
 
-      // Track last token time and restart idle timeout
-      streamingLastTokenAt = Date.now();
-      if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
-      streamingIdleTimeout = setTimeout(() => {
-        if (isStreaming && Date.now() - streamingLastTokenAt >= STREAMING_IDLE_TIMEOUT_MS) {
-          finishStreamingWithError('No response from model. Please try again.');
+      // Track last token time and restart idle timeout (only for active thread)
+      if (isActiveThread) {
+        streamingLastTokenAt = Date.now();
+        if (streamingIdleTimeout) clearTimeout(streamingIdleTimeout);
+        streamingIdleTimeout = setTimeout(() => {
+          if (isStreaming && Date.now() - streamingLastTokenAt >= STREAMING_IDLE_TIMEOUT_MS) {
+            finishStreamingWithError('No response from model. Please try again.');
+          }
+        }, STREAMING_IDLE_TIMEOUT_MS);
+      }
+
+      // Always accumulate into the background stream (survives thread switching)
+      bgStream.accumulatedText = bgStream.accumulatedText + token;
+
+      // Sync to the ThreadService streaming session so getMessages() can merge
+      threadService.updateStreamingContent(forThreadId, bgStream.accumulatedText);
+
+      // Only update UI-facing state if the user is viewing this thread
+      if (isActiveThread) {
+        responseText = bgStream.accumulatedText;
+        addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
+        scrollToBottom();
+      } else {
+        // Background accumulation — log periodically (every 500 chars) to avoid spam
+        if (bgStream.accumulatedText.length % 500 < token.length) {
+          console.log('[ThreadChatView] Background token accumulation.', {
+            threadId: forThreadId,
+            accumulatedLength: bgStream.accumulatedText.length,
+            viewingThread: thread?.id,
+          });
         }
-      }, STREAMING_IDLE_TIMEOUT_MS);
+      }
+    };
+  }
 
-      // Accumulate (force new string ref for Svelte reactivity)
-      responseText = responseText + token;
-      addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
+  function setupTokenListener(forThreadId: string, branchId: string) {
+    responseText = '';
+    addDebugLog(
+      `[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`,
+    );
 
-      // Keep streaming message in view
-      scrollToBottom();
-    });
+    // Create (or replace) background stream entry in the service
+    const existingStream = threadService.getBackgroundStream(forThreadId);
+    existingStream?.unsubscribe?.();
 
-    addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${thread.id}`);
+    const bgStream: BackgroundStream = {
+      threadId: forThreadId,
+      branchId,
+      accumulatedText: '',
+      unsubscribe: null,
+    };
+    threadService.setBackgroundStream(forThreadId, bgStream);
+
+    // Subscribe to stream for this thread + branch
+    bgStream.unsubscribe = threadService.subscribeToStream(
+      forThreadId,
+      branchId,
+      createTokenCallback(forThreadId, bgStream),
+    );
+
+    addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${forThreadId}`);
   }
 
   // ── Send message ──
@@ -310,6 +434,9 @@
   ) {
     if (!thread) return;
 
+    // Capture the threadId at start so we persist to the correct thread
+    const capturedThreadId = threadId;
+
     addDebugLog(`[sendMessageBranch] Starting with ${modelIds.length} models`);
 
     // Extract base row from branchId (e.g., "5.0.0" -> 5)
@@ -327,6 +454,18 @@
       `[sendMessageBranch] Created branches: ${modelBranches.map((b) => b.branchId).join(', ')}`,
     );
 
+    // Register a background stream entry so the $effect knows this thread is streaming
+    const bgStream: BackgroundStream = {
+      threadId: capturedThreadId,
+      branchId: modelBranches[0]?.branchId ?? branchId,
+      accumulatedText: '',
+      unsubscribe: null,
+    };
+    threadService.setBackgroundStream(capturedThreadId, bgStream);
+
+    // Note: streaming session for branch mode is registered after user messages are created
+    // (see below) because we need the first user message for the session.
+
     // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
     const assistantMessages: Message[] = [];
@@ -336,7 +475,7 @@
       const userClientMessageId = crypto.randomUUID();
       const userMsg: Message = {
         id: userClientMessageId,
-        threadId: threadId,
+        threadId: capturedThreadId,
         clientMessageId: userClientMessageId,
         role: 'user',
         content: text,
@@ -350,7 +489,7 @@
       const assistantClientMessageId = crypto.randomUUID();
       const assistantMsg: Message = {
         id: assistantClientMessageId,
-        threadId: thread.id,
+        threadId: capturedThreadId,
         clientMessageId: assistantClientMessageId,
         role: 'assistant',
         content: '',
@@ -361,7 +500,7 @@
       assistantMessages.push(assistantMsg);
 
       // Persist user message
-      await threadService.appendMessage(thread.id, {
+      await threadService.appendMessage(capturedThreadId, {
         role: 'user',
         content: text,
         clientMessageId: userClientMessageId,
@@ -379,13 +518,23 @@
       `[sendMessageBranch] Added ${userMessages.length} user and ${assistantMessages.length} assistant messages`,
     );
 
+    // Register streaming session with ThreadService (use first user message)
+    if (userMessages.length > 0) {
+      threadService.registerStreamingSession(
+        capturedThreadId,
+        modelBranches[0].branchId,
+        userMessages[0],
+        modelBranches[0].modelId,
+      );
+    }
+
     // Set up streaming for all branches
     isStreaming = true;
 
     // Set up token listeners for each branch
     const unsubscribers = modelBranches.map((branch) => {
       addDebugLog(`[sendMessageBranch] Setting up subscription for ${branch.branchId}`);
-      return threadService.subscribeToStream(thread!.id, branch.branchId, (token: string) => {
+      return threadService.subscribeToStream(capturedThreadId, branch.branchId, (token: string) => {
         addDebugLog(
           `[sendMessageBranch] Token received for ${branch.branchId} (${token.length} chars)`,
         );
@@ -394,25 +543,27 @@
         if (branchData) {
           branchData.responseText += token;
 
-          // Update the corresponding assistant message in the messages array
-          const assistantMsgIndex = messages.findIndex(
-            (m) => m.role === 'assistant' && m.branchId === branch.branchId,
-          );
-          if (assistantMsgIndex !== -1) {
-            // Create new array with updated message for Svelte reactivity
-            const updatedMessages = [...messages];
-            updatedMessages[assistantMsgIndex] = {
-              ...updatedMessages[assistantMsgIndex],
-              content: branchData.responseText,
-            };
-            messages = updatedMessages;
+          // Only update UI messages if the user is viewing this thread
+          if (thread?.id === capturedThreadId) {
+            const assistantMsgIndex = messages.findIndex(
+              (m) => m.role === 'assistant' && m.branchId === branch.branchId,
+            );
+            if (assistantMsgIndex !== -1) {
+              const updatedMessages = [...messages];
+              updatedMessages[assistantMsgIndex] = {
+                ...updatedMessages[assistantMsgIndex],
+                content: branchData.responseText,
+              };
+              messages = updatedMessages;
+            }
+            scrollToBottom();
           }
         }
-
-        // Keep streaming messages in view
-        scrollToBottom();
       });
     });
+
+    // Store a combined unsubscribe function
+    bgStream.unsubscribe = () => unsubscribers.forEach((unsub) => unsub());
 
     // Build history for the models
     const historyMessages = messages.map((m) => ({
@@ -448,7 +599,11 @@
 
       try {
         addDebugLog(`[sendMessageBranch] Sending message for ${branch.branchId}`);
-        const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
+        const result = await threadService.sendChatMessage(
+          capturedThreadId,
+          branch.branchId,
+          request,
+        );
         addDebugLog(
           `[sendMessageBranch] Chat result for ${branch.branchId}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
         );
@@ -463,23 +618,29 @@
     // Wait for all chats to complete
     const _results = await Promise.all(chatPromises);
 
+    const isViewingThisThread = thread?.id === capturedThreadId;
+
     addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
-    // Clean up streaming
-    unsubscribers.forEach((unsub) => unsub());
-    isStreaming = false;
+    // Clean up streaming and streaming session
+    bgStream.unsubscribe?.();
+    threadService.deleteBackgroundStream(capturedThreadId);
+    threadService.clearStreamingSession(capturedThreadId);
+    if (isViewingThisThread) {
+      isStreaming = false;
+    }
 
-    // Persist assistant responses for successful results
+    // Persist assistant responses using the captured threadId (not current thread)
     for (const branch of modelBranches) {
-      if (branch.responseText && thread) {
+      if (branch.responseText) {
         const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
 
         addDebugLog(
           `[sendMessageBranch] Persisting response for ${branch.branchId} (${branch.responseText.length} chars)`,
         );
-        // Persist the assistant response
+        // Persist the assistant response to the correct thread
         await window.electronAPI.thread.addAssistantResponse(
-          thread.id,
+          capturedThreadId,
           branch.responseText,
           modelDetails?.accessName || branch.modelId,
         );
@@ -515,9 +676,14 @@
     await tick();
     scrollToBottom();
 
-    // Set up streaming for this specific branch BEFORE sending
+    // Register the streaming session with ThreadService so getMessages()
+    // can merge streaming data with API results when the user switches back.
+    threadService.registerStreamingSession(threadId, branchId, newMessage, modelId);
+
+    // Set up streaming for this specific branch BEFORE sending.
+    // setupTokenListener creates a BackgroundStream entry in the map.
     isStreaming = true;
-    setupTokenListener(branchId);
+    setupTokenListener(threadId, branchId);
 
     // Watchdog: no response at all
     streamingNoResponseTimeout = setTimeout(() => {
@@ -535,61 +701,97 @@
       }
     }, STREAMING_IDLE_TIMEOUT_MS);
 
+    // Capture values for the entire async lifetime of this send operation
+    const capturedThreadId = threadId;
+    const capturedBranchId = branchId;
+    const capturedModelName = modelName;
+
     try {
       const chatResult = await threadService.submitPromptToChat(
-        threadId,
-        branchId,
+        capturedThreadId,
+        capturedBranchId,
         modelId,
         messages,
       );
+
+      // Check if the user is still viewing this thread
+      const isViewingThisThread = thread?.id === capturedThreadId;
+
       if (!chatResult.success) {
         const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
-        handleGuardError(errorMessage, branchId);
-        isStreaming = false;
+        if (isViewingThisThread) {
+          handleGuardError(errorMessage, capturedBranchId);
+          isStreaming = false;
+        }
         return;
       }
 
-      // Streaming complete — persist assistant response
-      if (thread && responseText) {
+      // Streaming complete — persist assistant response using the background accumulator.
+      // This survives thread switching because it's stored in threadService.
+      const bgStream = threadService.getBackgroundStream(capturedThreadId);
+      const finalText = bgStream?.accumulatedText ?? '';
+      if (finalText) {
         console.log('[ThreadChatView] Streaming complete. Final responseText:', {
-          length: responseText.length,
-          content: responseText,
+          length: finalText.length,
+          content: finalText,
+          persistToThread: capturedThreadId,
         });
         addDebugLog(
-          `[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars)`,
+          `[ThreadChatView] Streaming complete - persisting response (${finalText.length} chars) to thread ${capturedThreadId}`,
         );
-        await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelName);
+        await window.electronAPI.thread.addAssistantResponse(
+          capturedThreadId,
+          finalText,
+          capturedModelName,
+        );
 
-        // Append assistant message to local list
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'assistant',
-          content: responseText,
-          createdAt: Date.now(),
-          branchId,
-          modelId: modelId,
-        };
-        messages = [...messages, assistantMsg];
-
-        // Wait for displayItems to recalculate with new message
-        await tick();
+        // Only update local messages if the user is still viewing the same thread
+        if (isViewingThisThread) {
+          const assistantMsg: Message = {
+            id: crypto.randomUUID(),
+            threadId: capturedThreadId,
+            role: 'assistant',
+            content: finalText,
+            createdAt: Date.now(),
+            branchId: capturedBranchId,
+            modelId: modelId,
+          };
+          messages = [...messages, assistantMsg];
+          await tick();
+        }
       }
 
-      // Clean up streaming state
-      responseText = '';
-      isStreaming = false;
-      unsubscribeStream?.();
-      unsubscribeStream = null;
+      // Clean up this thread's background stream and streaming session — fully complete
+      console.log('[ThreadChatView] Stream complete — cleaning up.', {
+        capturedThreadId,
+        isViewingThisThread,
+        finalTextLength: finalText.length,
+      });
+      bgStream?.unsubscribe?.();
+      threadService.deleteBackgroundStream(capturedThreadId);
+      threadService.clearStreamingSession(capturedThreadId);
+      if (isViewingThisThread) {
+        responseText = '';
+        isStreaming = false;
+      }
 
       await tick();
       scrollToBottom();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
-      handleGuardError(errorMessage, branchId);
-      isStreaming = false;
+      const isViewingThisThread = thread?.id === capturedThreadId;
+      // Clean up this thread's background stream and streaming session
+      const bgStream = threadService.getBackgroundStream(capturedThreadId);
+      bgStream?.unsubscribe?.();
+      threadService.deleteBackgroundStream(capturedThreadId);
+      threadService.clearStreamingSession(capturedThreadId);
+      // Only update UI state if we're still on the same thread
+      if (isViewingThisThread) {
+        handleGuardError(errorMessage, capturedBranchId);
+        isStreaming = false;
+      }
     } finally {
       clearTimeouts();
     }
@@ -682,8 +884,14 @@
   }
 
   function finishStreamingWithError(msg: string) {
-    unsubscribeStream?.();
-    unsubscribeStream = null;
+    // Clean up the current thread's background stream and streaming session
+    const currentId = thread?.id;
+    if (currentId) {
+      const bgStream = threadService.getBackgroundStream(currentId);
+      bgStream?.unsubscribe?.();
+      threadService.deleteBackgroundStream(currentId);
+      threadService.clearStreamingSession(currentId);
+    }
     isStreaming = false;
     error = msg;
     clearTimeouts();
@@ -827,16 +1035,6 @@
 
     {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
       {#if item.type === 'message'}
-        {console.log(
-          '[ThreadChatView] ChatMessage branchId:',
-          item.pair.request.branchId,
-          'lane:',
-          item.pair.request.branchId.split('.')[1],
-          'showBranchIcon:',
-          parseInt(item.pair.request.branchId.split('.')[1] ?? '0') !== 0,
-          'desktopOptions:',
-          item.pair.request.desktopOptions,
-        )}
         <ChatMessage
           requestContent={item.pair.request.content}
           requestCreatedAt={item.pair.request.createdAt}
