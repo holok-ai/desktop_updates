@@ -46,6 +46,13 @@ export function registerAutoUpdaterHandlers(): void {
     return autoUpdaterService.isDevelopmentBuild();
   });
 
+  ipcMain.handle(
+    'updater:getLastCheckResult',
+    (): { updateAvailable: boolean; version?: string } | null => {
+      return autoUpdaterService.getLastCheckResult();
+    },
+  );
+
   updaterLog.info('Handlers registered');
 }
 
@@ -57,6 +64,7 @@ export function unregisterAutoUpdaterHandlers(): void {
   ipcMain.removeHandler('updater:getUpdateAvailability');
   ipcMain.removeHandler('updater:updateNow');
   ipcMain.removeHandler('updater:isDevelopmentBuild');
+  ipcMain.removeHandler('updater:getLastCheckResult');
 
   updaterLog.info('Handlers unregistered');
 }

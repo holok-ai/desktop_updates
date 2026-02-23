@@ -25,6 +25,8 @@ class AutoUpdaterService {
   private currentUpdateMetadata: UpdateMetadata | null = null;
   private updatingModal: BrowserWindow | null = null;
   private downloadedUpdateVersion: string | null = null;
+  private userRequestedInstall = false;
+  private lastCheckResult: { updateAvailable: boolean; version?: string } | null = null;
 
   constructor() {
     this.settingsService = new SettingsService();
@@ -101,6 +103,7 @@ class AutoUpdaterService {
       return;
     }
 
+    this.lastCheckResult = null;
     updaterLog.info('Checking for updates...');
     autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
       updaterLog.error('checkForUpdatesAndNotify failed', error);
@@ -112,6 +115,7 @@ class AutoUpdaterService {
    * Resolves within 30 seconds regardless of outcome.
    */
   getUpdateAvailability(): Promise<string> {
+    this.lastCheckResult = null;
     return new Promise((resolve) => {
       let resolved = false;
       if (!app.isPackaged) {
@@ -176,9 +180,11 @@ class AutoUpdaterService {
     }
 
     try {
+      this.userRequestedInstall = true;
       await autoUpdater.downloadUpdate();
       return { success: true };
     } catch (error) {
+      this.userRequestedInstall = false;
       const message = error instanceof Error ? error.message : String(error);
       updaterLog.error('updateNow failed:', message);
       return { success: false, error: message };
@@ -355,9 +361,14 @@ class AutoUpdaterService {
   }
 
   private notifyCheckComplete(updateAvailable: boolean, version?: string): void {
+    this.lastCheckResult = { updateAvailable, version };
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('updater:checkComplete', { updateAvailable, version });
     });
+  }
+
+  getLastCheckResult(): { updateAvailable: boolean; version?: string } | null {
+    return this.lastCheckResult;
   }
 
   private closeUpdatingModal(): void {
@@ -452,9 +463,11 @@ class AutoUpdaterService {
     });
 
     autoUpdater.on('download-progress', (progress) => {
-      const percent = progress.percent.toFixed(2);
+      const percent = Math.round(progress.percent);
       updaterLog.info(`Download progress: ${percent}%`);
-      // Keep modal open during download - it will close when update is downloaded and installed
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('updater:downloadProgress', percent);
+      });
     });
 
     autoUpdater.on('update-downloaded', (info) => {
@@ -465,9 +478,27 @@ class AutoUpdaterService {
         updaterLog.info(`Update downloaded: ${newVersion}`);
         this.downloadedUpdateVersion = newVersion;
 
-        // Fetch metadata again to ensure we have the correct mandatory flag
-        // This is important because the metadata might not have been fetched earlier
-        // or might have been lost between events
+        // User explicitly clicked "Install Now" — skip metadata fetch and restart immediately
+        if (this.userRequestedInstall) {
+          updaterLog.info('User-requested install: restarting immediately');
+          this.userRequestedInstall = false;
+
+          try {
+            autoUpdater.quitAndInstall(false, true);
+            updaterLog.info('quitAndInstall called successfully');
+          } catch (error) {
+            updaterLog.error('Error calling quitAndInstall:', error);
+            BrowserWindow.getAllWindows().forEach((window) => {
+              window.close();
+            });
+            setTimeout(() => {
+              app.quit();
+            }, 100);
+          }
+          return;
+        }
+
+        // Fetch metadata to determine if this is a mandatory update
         const metadata = await this.fetchUpdateMetadata(newVersion);
         const isMandatory = metadata?.mandatory ?? this.currentUpdateMetadata?.mandatory ?? false;
 
