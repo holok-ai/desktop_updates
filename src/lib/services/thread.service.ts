@@ -669,8 +669,15 @@ export class ThreadService extends BaseElectronService {
     isStreaming: boolean = false,
     responseText: string = '',
     availableModels: ModelDetails[] = [],
+    expandedBranchRows: Set<number> = new Set(),
   ): ReturnType<typeof ThreadDisplay.buildDisplayItems> {
-    return ThreadDisplay.buildDisplayItems(messages, isStreaming, responseText, availableModels);
+    return ThreadDisplay.buildDisplayItems(
+      messages,
+      isStreaming,
+      responseText,
+      availableModels,
+      expandedBranchRows,
+    );
   }
 
   /**

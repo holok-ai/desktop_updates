@@ -55,6 +55,8 @@
     onRetry?: () => void;
     /** Whether this message came from a selected branch lane (shows tree icon) */
     showBranchIcon?: boolean;
+    /** Callback when branch icon is clicked to re-expand branch view */
+    onBranchClick?: () => void;
   }
 
   let {
@@ -76,6 +78,7 @@
     onCopyResponse,
     onRetry,
     showBranchIcon = false,
+    onBranchClick,
   }: Props = $props();
 
   const requestCommands = $derived([
@@ -137,6 +140,7 @@
     gapHeight={commandGap}
     {chatLayout}
     {showBranchIcon}
+    {onBranchClick}
   />
 
   <!-- Render all responses -->

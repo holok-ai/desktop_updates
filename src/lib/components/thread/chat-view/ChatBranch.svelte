@@ -42,6 +42,10 @@
     onSelectLane?: (laneIndex: number) => void;
     /** Callback when copy request is clicked in any lane */
     onCopyRequest?: (content: string) => void;
+    /** Whether this branch is in view mode (re-expanded from collapsed) */
+    isViewMode?: boolean;
+    /** Callback when dismiss (X) is clicked in view mode */
+    onDismiss?: () => void;
   }
 
   let {
@@ -51,6 +55,8 @@
     fontSize = 14,
     onSelectLane,
     onCopyRequest,
+    isViewMode = false,
+    onDismiss,
   }: Props = $props();
 
   // Track which lane is expanded (-1 means none)
@@ -86,7 +92,8 @@
         isExpanded={expandedLaneIndex === index}
         isCollapsed={expandedLaneIndex !== -1 && expandedLaneIndex !== index}
         onToggleExpand={() => handleToggleExpand(index)}
-        onSelectLane={() => handleSelectLane(index)}
+        onSelectLane={isViewMode ? undefined : () => handleSelectLane(index)}
+        onDismiss={isViewMode ? onDismiss : undefined}
         {onCopyRequest}
       />
     {/each}
