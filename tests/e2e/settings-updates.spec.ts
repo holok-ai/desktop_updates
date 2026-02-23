@@ -50,7 +50,7 @@ test.describe.serial('Settings - Updates', () => {
     expect(versionText?.trim().length).toBeGreaterThan(0);
 
     // Latest Version row (shows version, "Not Available In Development", or "—")
-    const latestRow = page.locator('.info-row', { hasText: 'Latest Version' });
+    const latestRow = page.locator('.info-row', { hasText: 'Available Version' });
     await expect(latestRow).toBeVisible({ timeout: 5000 });
     const latestValue = latestRow.locator('.info-value');
     const latestText = await latestValue.textContent();

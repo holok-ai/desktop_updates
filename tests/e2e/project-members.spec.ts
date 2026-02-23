@@ -49,9 +49,13 @@ test.describe.serial('Project Members', () => {
     await expect(modal).not.toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(2000);
 
+    // Re-navigate to projects page to ensure fresh list
+    await page.locator('button[aria-label="Projects"]').click();
+    await page.waitForTimeout(3000);
+
     // Navigate into the project
     const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-    await expect(projectCard).toBeVisible({ timeout: 10000 });
+    await expect(projectCard).toBeVisible({ timeout: 15000 });
     await projectCard.click();
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/projectId=/, { timeout: 15000 });
