@@ -8,7 +8,7 @@
 
 import { threadRepository } from '../repository/thread-repository.js';
 import { projectRepository } from '../repository/project-repository.js';
-import { apiFail, type ApiResponse } from '../types/api-response.js';
+import { type ApiResponse } from '../types/api-response.js';
 import type { GUID } from '../../src/lib/types/app.type.js';
 import log from 'electron-log';
 
