@@ -182,6 +182,19 @@
         });
         isStreaming = true;
         responseText = bgStream.accumulatedText;
+
+        // Re-subscribe with a fresh callback that closes over THIS component's
+        // reactive variables. The old callback (from the destroyed component instance
+        // or a previous mount) still accumulates into bgStream.accumulatedText, but
+        // it cannot update THIS component's responseText because it captured the old
+        // component's scope. Replace it with one that can.
+        bgStream.unsubscribe?.();
+        bgStream.unsubscribe = threadService.subscribeToStream(
+          currentThreadId,
+          bgStream.branchId,
+          createTokenCallback(currentThreadId, bgStream),
+        );
+        console.log('[ThreadChatView] Re-subscribed with fresh callback for thread:', currentThreadId);
       }
     }
 
@@ -268,24 +281,14 @@
   // Sets up a per-thread token subscription that writes into the backgroundStreams map.
   // The callback updates both the background accumulator AND the UI-facing responseText
   // (only when the user is viewing this thread).
-  function setupTokenListener(forThreadId: string, branchId: string) {
-    responseText = '';
-    addDebugLog(`[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`);
 
-    // Create (or replace) background stream entry in the service
-    const existingStream = threadService.getBackgroundStream(forThreadId);
-    existingStream?.unsubscribe?.();
-
-    const bgStream: BackgroundStream = {
-      threadId: forThreadId,
-      branchId,
-      accumulatedText: '',
-      unsubscribe: null,
-    };
-    threadService.setBackgroundStream(forThreadId, bgStream);
-
-    // Subscribe to stream for this thread + branch
-    bgStream.unsubscribe = threadService.subscribeToStream(forThreadId, branchId, (token: string) => {
+  /**
+   * Build a token callback that closes over the CURRENT component's reactive state.
+   * This must be called from the current component instance so that `thread`,
+   * `isStreaming`, `responseText`, etc. refer to live reactive variables.
+   */
+  function createTokenCallback(forThreadId: string, bgStream: BackgroundStream) {
+    return (token: string) => {
       addDebugLog(
         `[ThreadChatView] Received token for ${forThreadId} (length: ${token.length}): "${token.substring(0, 20)}..."`,
       );
@@ -321,7 +324,31 @@
         addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
         scrollToBottom();
       }
-    });
+    };
+  }
+
+  function setupTokenListener(forThreadId: string, branchId: string) {
+    responseText = '';
+    addDebugLog(`[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`);
+
+    // Create (or replace) background stream entry in the service
+    const existingStream = threadService.getBackgroundStream(forThreadId);
+    existingStream?.unsubscribe?.();
+
+    const bgStream: BackgroundStream = {
+      threadId: forThreadId,
+      branchId,
+      accumulatedText: '',
+      unsubscribe: null,
+    };
+    threadService.setBackgroundStream(forThreadId, bgStream);
+
+    // Subscribe to stream for this thread + branch
+    bgStream.unsubscribe = threadService.subscribeToStream(
+      forThreadId,
+      branchId,
+      createTokenCallback(forThreadId, bgStream),
+    );
 
     addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${forThreadId}`);
   }
