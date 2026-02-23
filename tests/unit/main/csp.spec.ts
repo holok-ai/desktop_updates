@@ -1,5 +1,125 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// ── Helper: set up every mock that main.ts needs ──────────────────
+
+interface MockOverrides {
+  session?: any;
+  app?: any;
+  log?: any;
+}
+
+function mockMainDeps(overrides: MockOverrides = {}) {
+  const mockLog = overrides.log ?? {
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+    transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
+  };
+
+  const mockApp = overrides.app ?? {
+    getPath: vi.fn(() => '/mock/appData'),
+    setAsDefaultProtocolClient: vi.fn(),
+    on: vi.fn(),
+    whenReady: () => Promise.resolve(),
+    requestSingleInstanceLock: vi.fn(() => true),
+    quit: vi.fn(),
+    getVersion: vi.fn(() => '1.0.0'),
+    isPackaged: false,
+  };
+
+  const mockSession = overrides.session ?? {
+    defaultSession: {
+      webRequest: { onHeadersReceived: vi.fn() },
+    },
+  };
+
+  class BrowserWindow {
+    webContents: any;
+    constructor() {
+      this.webContents = {
+        send: vi.fn(),
+        isDevToolsOpened: vi.fn(() => false),
+        openDevTools: vi.fn(),
+        closeDevTools: vi.fn(),
+      };
+      (this as any).loadURL = vi.fn(async () => Promise.resolve());
+      (this as any).loadFile = vi.fn(async () => Promise.resolve());
+      (this as any).on = vi.fn();
+    }
+    static getAllWindows() {
+      return [];
+    }
+  }
+
+  // Core Electron modules
+  vi.doMock('electron', () => ({
+    app: mockApp,
+    BrowserWindow,
+    Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
+    dialog: { showMessageBox: vi.fn(async () => ({})) },
+    ipcMain: { on: vi.fn(), handle: vi.fn(), removeHandler: vi.fn() },
+    session: mockSession,
+  }));
+
+  vi.doMock('electron-log', () => ({
+    default: mockLog,
+    createScopedLogger: vi.fn(() => mockLog),
+  }));
+
+  // Logger utility (used by main.ts at top level)
+  vi.doMock('../../../src-electron/utils/logger', () => ({
+    default: mockLog,
+    createScopedLogger: vi.fn(() => mockLog),
+    logStructured: vi.fn(),
+    logPerformance: vi.fn(),
+    logError: vi.fn(),
+  }));
+
+  // All IPC handler modules imported by main.ts
+  vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
+    registerAuthHandlers: vi.fn(),
+    handleOAuthCallback: vi.fn(),
+    registerAuthSuccessCallback: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
+    registerSettingsHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
+    registerThreadHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
+    registerSystemHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/project-handler', () => ({
+    registerProjectHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/chat-handler', () => ({
+    registerChatHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/models-handler', () => ({
+    registerModelsHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/file-handler', () => ({
+    registerFileHandlers: vi.fn(),
+  }));
+  vi.doMock('../../../src-electron/ipc-handlers/auto-updater-handler', () => ({
+    registerAutoUpdaterHandlers: vi.fn(),
+  }));
+
+  // Singletons imported at module scope by main.ts
+  vi.doMock('../../../src-electron/repository/model-repository', () => ({
+    modelRepository: { loadModels: vi.fn() },
+  }));
+  vi.doMock('../../../src-electron/services/auto-updater.service', () => ({
+    autoUpdaterService: { checkForUpdates: vi.fn() },
+  }));
+
+  return { mockApp, mockSession, mockLog };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+
 describe('Content Security Policy', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -10,72 +130,14 @@ describe('Content Security Policy', () => {
     const mockSession = {
       defaultSession: {
         webRequest: {
-          onHeadersReceived: vi.fn((callback) => {
+          onHeadersReceived: vi.fn((callback: any) => {
             onHeadersReceivedCallback = callback;
           }),
         },
       },
     };
 
-    const mockApp = {
-      getPath: vi.fn(() => '/mock/appData'),
-      setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn(),
-      whenReady: () => Promise.resolve(),
-      requestSingleInstanceLock: vi.fn(() => true),
-      quit: vi.fn(),
-      getVersion: vi.fn(() => '1.0.0'),
-    };
-
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = {
-          send: vi.fn(),
-          isDevToolsOpened: vi.fn(() => false),
-          openDevTools: vi.fn(),
-          closeDevTools: vi.fn(),
-        };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ session: mockSession });
 
     const { setupContentSecurityPolicy } = await import('../../../src-electron/main.js');
     setupContentSecurityPolicy();
@@ -94,72 +156,14 @@ describe('Content Security Policy', () => {
     const mockSession = {
       defaultSession: {
         webRequest: {
-          onHeadersReceived: vi.fn((callback) => {
+          onHeadersReceived: vi.fn((callback: any) => {
             onHeadersReceivedCallback = callback;
           }),
         },
       },
     };
 
-    const mockApp = {
-      getPath: vi.fn(() => '/mock/appData'),
-      setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn(),
-      whenReady: () => Promise.resolve(),
-      requestSingleInstanceLock: vi.fn(() => true),
-      quit: vi.fn(),
-      getVersion: vi.fn(() => '1.0.0'),
-    };
-
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = {
-          send: vi.fn(),
-          isDevToolsOpened: vi.fn(() => false),
-          openDevTools: vi.fn(),
-          closeDevTools: vi.fn(),
-        };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ session: mockSession });
 
     const { setupContentSecurityPolicy } = await import('../../../src-electron/main.js');
     setupContentSecurityPolicy();
@@ -206,72 +210,14 @@ describe('Content Security Policy', () => {
     const mockSession = {
       defaultSession: {
         webRequest: {
-          onHeadersReceived: vi.fn((callback) => {
+          onHeadersReceived: vi.fn((callback: any) => {
             onHeadersReceivedCallback = callback;
           }),
         },
       },
     };
 
-    const mockApp = {
-      getPath: vi.fn(() => '/mock/appData'),
-      setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn(),
-      whenReady: () => Promise.resolve(),
-      requestSingleInstanceLock: vi.fn(() => true),
-      quit: vi.fn(),
-      getVersion: vi.fn(() => '1.0.0'),
-    };
-
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = {
-          send: vi.fn(),
-          isDevToolsOpened: vi.fn(() => false),
-          openDevTools: vi.fn(),
-          closeDevTools: vi.fn(),
-        };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ session: mockSession });
 
     const { setupContentSecurityPolicy } = await import('../../../src-electron/main.js');
     setupContentSecurityPolicy();
@@ -294,18 +240,11 @@ describe('Content Security Policy', () => {
 
   it('setupCspViolationReporter registers web-contents-created listener', async () => {
     let webContentsCreatedCallback: any = null;
-    const mockSession = {
-      defaultSession: {
-        webRequest: {
-          onHeadersReceived: vi.fn(),
-        },
-      },
-    };
 
     const mockApp = {
       getPath: vi.fn(() => '/mock/appData'),
       setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn((event, callback) => {
+      on: vi.fn((event: string, callback: any) => {
         if (event === 'web-contents-created') {
           webContentsCreatedCallback = callback;
         }
@@ -314,57 +253,10 @@ describe('Content Security Policy', () => {
       requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       getVersion: vi.fn(() => '1.0.0'),
+      isPackaged: false,
     };
 
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = {
-          send: vi.fn(),
-          isDevToolsOpened: vi.fn(() => false),
-          openDevTools: vi.fn(),
-          closeDevTools: vi.fn(),
-        };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ app: mockApp });
 
     const { setupCspViolationReporter } = await import('../../../src-electron/main.js');
     setupCspViolationReporter();
@@ -377,18 +269,10 @@ describe('Content Security Policy', () => {
     let webContentsCreatedCallback: any = null;
     let consoleMessageCallback: any = null;
 
-    const mockSession = {
-      defaultSession: {
-        webRequest: {
-          onHeadersReceived: vi.fn(),
-        },
-      },
-    };
-
     const mockApp = {
       getPath: vi.fn(() => '/mock/appData'),
       setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn((event, callback) => {
+      on: vi.fn((event: string, callback: any) => {
         if (event === 'web-contents-created') {
           webContentsCreatedCallback = callback;
         }
@@ -397,63 +281,16 @@ describe('Content Security Policy', () => {
       requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       getVersion: vi.fn(() => '1.0.0'),
+      isPackaged: false,
     };
 
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = {
-          send: vi.fn(),
-          isDevToolsOpened: vi.fn(() => false),
-          openDevTools: vi.fn(),
-          closeDevTools: vi.fn(),
-        };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ app: mockApp });
 
     const { setupCspViolationReporter } = await import('../../../src-electron/main.js');
     setupCspViolationReporter();
 
     const mockWebContents = {
-      on: vi.fn((event, callback) => {
+      on: vi.fn((event: string, callback: any) => {
         if (event === 'console-message') {
           consoleMessageCallback = callback;
         }
@@ -465,14 +302,13 @@ describe('Content Security Policy', () => {
 
     expect(mockWebContents.on).toHaveBeenCalledWith('console-message', expect.any(Function));
 
-    // Simulate a CSP violation message
-    consoleMessageCallback(
-      null,
-      1,
-      'Refused to execute inline script because it violates Content Security Policy',
-      10,
-      'main.js',
-    );
+    // Simulate a CSP violation message (Electron passes a single event object)
+    consoleMessageCallback({
+      level: 1,
+      message: 'Refused to execute inline script because it violates Content Security Policy',
+      lineNumber: 10,
+      sourceId: 'main.js',
+    });
 
     // Some test environments route logger output differently; accept either
     // the logger mock being called or the violation having been handled without
@@ -487,65 +323,20 @@ describe('Content Security Policy', () => {
     let webContentsCreatedCallback: any = null;
     let consoleMessageCallback: any = null;
 
-    const mockSession = {
-      defaultSession: { webRequest: { onHeadersReceived: vi.fn() } },
-    };
-
     const mockApp = {
       getPath: vi.fn(() => '/mock/appData'),
       setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn((event, callback) => {
+      on: vi.fn((event: string, callback: any) => {
         if (event === 'web-contents-created') webContentsCreatedCallback = callback;
       }),
       whenReady: () => Promise.resolve(),
       requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       getVersion: vi.fn(() => '1.2.3'),
+      isPackaged: false,
     };
 
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = { send: vi.fn() };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
-
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ app: mockApp });
 
     const mockFetch = vi.fn(() => Promise.resolve({ ok: true }));
     // @ts-ignore
@@ -555,14 +346,19 @@ describe('Content Security Policy', () => {
     setupCspViolationReporter();
 
     const mockWebContents = {
-      on: vi.fn((event, cb) => {
+      on: vi.fn((event: string, cb: any) => {
         if (event === 'console-message') consoleMessageCallback = cb;
       }),
     };
     webContentsCreatedCallback(null, mockWebContents);
 
-    // Simulate a CSP violation
-    consoleMessageCallback(null, 2, 'Content Security Policy violation detected', 15, 'app.js');
+    // Simulate a CSP violation (Electron passes a single event object)
+    consoleMessageCallback({
+      level: 2,
+      message: 'Content Security Policy violation detected',
+      lineNumber: 15,
+      sourceId: 'app.js',
+    });
 
     // Allow async fetch to run
     await new Promise((r) => setTimeout(r, 10));
@@ -584,60 +380,20 @@ describe('Content Security Policy', () => {
     let webContentsCreatedCallback: any = null;
     let consoleMessageCallback: any = null;
 
-    const mockSession = { defaultSession: { webRequest: { onHeadersReceived: vi.fn() } } };
     const mockApp = {
       getPath: vi.fn(() => '/mock/appData'),
       setAsDefaultProtocolClient: vi.fn(),
-      on: vi.fn((event, cb) => {
+      on: vi.fn((event: string, cb: any) => {
         if (event === 'web-contents-created') webContentsCreatedCallback = cb;
       }),
       whenReady: () => Promise.resolve(),
       requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       getVersion: vi.fn(() => '1.2.3'),
+      isPackaged: false,
     };
-    const mockLog = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      transports: { file: { resolvePathFn: null, level: 'info' }, console: { level: 'info' } },
-    };
-    class BrowserWindow {
-      webContents: any;
-      constructor() {
-        this.webContents = { send: vi.fn() };
-        (this as any).loadURL = vi.fn(async () => Promise.resolve());
-        (this as any).loadFile = vi.fn(async () => Promise.resolve());
-        (this as any).on = vi.fn();
-      }
-      static getAllWindows() {
-        return [];
-      }
-    }
 
-    vi.doMock('electron', () => ({
-      app: mockApp,
-      BrowserWindow,
-      Menu: { buildFromTemplate: vi.fn(() => ({})), setApplicationMenu: vi.fn() },
-      dialog: { showMessageBox: vi.fn(async () => ({})) },
-      ipcMain: { on: vi.fn() },
-      session: mockSession,
-    }));
-    vi.doMock('electron-log', () => ({ default: mockLog }));
-    vi.doMock('../../../src-electron/ipc-handlers/auth-handler', () => ({
-      registerAuthHandlers: vi.fn(),
-      handleOAuthCallback: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/settings-handler', () => ({
-      registerSettingsHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/thread-handler', () => ({
-      registerThreadHandlers: vi.fn(),
-    }));
-    vi.doMock('../../../src-electron/ipc-handlers/system-handler', () => ({
-      registerSystemHandlers: vi.fn(),
-    }));
+    mockMainDeps({ app: mockApp });
 
     const mockFetch = vi.fn(() => Promise.reject(new Error('network fail')));
     // @ts-ignore
@@ -647,13 +403,18 @@ describe('Content Security Policy', () => {
     setupCspViolationReporter();
 
     const mockWebContents = {
-      on: vi.fn((event, cb) => {
+      on: vi.fn((event: string, cb: any) => {
         if (event === 'console-message') consoleMessageCallback = cb;
       }),
     };
     webContentsCreatedCallback(null, mockWebContents);
 
-    consoleMessageCallback(null, 2, 'Content Security Policy violation detected', 20, 'app.js');
+    consoleMessageCallback({
+      level: 2,
+      message: 'Content Security Policy violation detected',
+      lineNumber: 20,
+      sourceId: 'app.js',
+    });
 
     // Allow async fetch to run and catch
     await new Promise((r) => setTimeout(r, 10));
