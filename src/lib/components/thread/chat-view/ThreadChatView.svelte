@@ -850,7 +850,9 @@
           streamingContent={item.pair.streamingContent}
           onCopyRequest={(content) => copyToInput(content)}
           showBranchIcon={item.isFromBranch === true}
-          onBranchClick={item.isFromBranch ? () => handleBranchIconClick(item.pair.request.branchId) : undefined}
+          onBranchClick={item.isFromBranch
+            ? () => handleBranchIconClick(item.pair.request.branchId)
+            : undefined}
         />
       {:else if item.type === 'branch'}
         {console.log('[ThreadChatView] Rendering ChatBranch:', {
@@ -865,8 +867,8 @@
           {fontSize}
           onCopyRequest={(content) => copyToInput(content)}
           onSelectLane={(laneIndex) => handleSelectLane(item.id, laneIndex)}
-          isViewMode={item.isViewMode ?? false}
-          onDismiss={item.isViewMode ? () => handleDismissBranch(item.position) : undefined}
+          isViewMode={item.isviewMode ?? false}
+          onDismiss={item.isviewMode ? () => handleDismissBranch(item.position) : undefined}
         />
       {/if}
     {/each}
