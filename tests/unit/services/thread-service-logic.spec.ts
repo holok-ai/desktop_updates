@@ -187,9 +187,11 @@ describe('calculateNextBranchId', () => {
   });
 
   it('defaults to "1.0.0" on error', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockThreadApi.getMessages.mockRejectedValue(new Error('network'));
     const result = await threadService.calculateNextBranchId('thread-1');
     expect(result).toBe('1.0.0');
+    spy.mockRestore();
   });
 
   it('handles malformed branchId (no dots) gracefully', async () => {

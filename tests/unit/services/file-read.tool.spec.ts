@@ -1,21 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FileReadTool } from '../../../src-electron/services/tool-calling/tools/file-read.tool';
 import type { ToolContext } from '../../../src-electron/services/tool-calling/tools/base-tool';
 import type { ToolExecutionContext } from '../../../src-electron/services/tool-calling/orchestrator-types';
-import * as fs from 'fs';
 
-// Mock fs
-vi.mock('fs', async () => {
-  const actual = await vi.importActual<typeof import('fs')>('fs');
-  return {
-    ...actual,
-    existsSync: vi.fn(),
-    promises: {
-      stat: vi.fn(),
-      readFile: vi.fn(),
-    },
-  };
-});
+const fsMocks = vi.hoisted(() => ({
+  existsSync: vi.fn(),
+  promises: {
+    stat: vi.fn(),
+    readFile: vi.fn(),
+  },
+}));
+
+vi.mock('fs', () => ({
+  default: fsMocks,
+  existsSync: fsMocks.existsSync,
+  promises: fsMocks.promises,
+}));
+
+import { FileReadTool } from '../../../src-electron/services/tool-calling/tools/file-read.tool';
 
 describe('FileReadTool', () => {
   let tool: FileReadTool;
@@ -66,14 +67,14 @@ describe('FileReadTool', () => {
   describe('execute', () => {
     it('should read file with relative path using working directory', async () => {
       const mockContent = 'file content';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const result = await tool.execute({ file_path: './test.txt' }, executionContext);
 
@@ -87,14 +88,14 @@ describe('FileReadTool', () => {
 
     it('should read file with absolute path', async () => {
       const mockContent = 'file content';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const result = await tool.execute({ file_path: '/absolute/path/file.txt' }, executionContext);
 
@@ -107,14 +108,14 @@ describe('FileReadTool', () => {
 
     it('should use different working directories for different contexts', async () => {
       const mockContent = 'file content';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const context1: ToolExecutionContext = {
         workingDirectory: '/dir1',
@@ -137,14 +138,14 @@ describe('FileReadTool', () => {
     it('should call status callback when provided', async () => {
       const mockContent = 'file content';
       const statusCallback = vi.fn();
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const contextWithCallback: ToolExecutionContext = {
         ...executionContext,
@@ -169,14 +170,14 @@ describe('FileReadTool', () => {
 
     it('should not call status callback when not provided', async () => {
       const mockContent = 'file content';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       await tool.execute({ file_path: './test.txt' }, executionContext);
 
@@ -185,7 +186,7 @@ describe('FileReadTool', () => {
     });
 
     it('should return error for non-existent file', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
+      fsMocks.existsSync.mockReturnValue(false);
 
       const result = await tool.execute({ file_path: './nonexistent.txt' }, executionContext);
 
@@ -194,8 +195,8 @@ describe('FileReadTool', () => {
     });
 
     it('should return error for directory instead of file', async () => {
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => false,
         isDirectory: () => true,
       });
@@ -220,14 +221,14 @@ describe('FileReadTool', () => {
 
     it('should support line range', async () => {
       const mockContent = 'line 1\nline 2\nline 3\nline 4\nline 5';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const result = await tool.execute(
         {
@@ -245,14 +246,14 @@ describe('FileReadTool', () => {
 
     it('should support different encodings', async () => {
       const mockContent = 'file content';
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.promises.stat as any).mockResolvedValue({
+      fsMocks.existsSync.mockReturnValue(true);
+      fsMocks.promises.stat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: mockContent.length,
         mtimeMs: 1234567890,
       });
-      (fs.promises.readFile as any).mockResolvedValue(mockContent);
+      fsMocks.promises.readFile.mockResolvedValue(mockContent);
 
       const result = await tool.execute(
         {
@@ -263,7 +264,7 @@ describe('FileReadTool', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(fs.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
+      expect(fsMocks.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
     });
   });
 });

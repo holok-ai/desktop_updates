@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// vi.hoisted runs before vi.mock factories, so fsMocks is available when the
+// hoisted vi.mock('fs') factory executes.
+const fsMocks = vi.hoisted(() => ({
+  existsSync: (() => false) as () => boolean,
+  readFileSync: (() => '{}') as () => string,
+  writeFileSync: ((_p?: any, _d?: any) => {}) as (p?: any, d?: any) => void,
+}));
+
 // Mock electron primitives used by AuthService (must be declared before importing the service)
 vi.mock('electron', () => {
   return {
@@ -25,23 +33,18 @@ vi.mock('../../../src-electron/ipc-handlers/settings-handler', () => ({
   }),
 }));
 
-describe('AuthService additional branch coverage', () => {
-  // Provide a configurable fs mock so tests can change behavior per-case
-  const fsMocks: {
-    existsSync: () => boolean;
-    readFileSync: () => string;
-    writeFileSync: (p?: any, d?: any) => void;
-  } = {
-    existsSync: () => false,
-    readFileSync: () => '{}',
-    writeFileSync: () => {},
-  };
+// Silence electron-log output during tests
+vi.mock('electron-log', () => ({
+  default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 
-  vi.mock('fs', () => ({
-    existsSync: () => fsMocks.existsSync(),
-    readFileSync: () => fsMocks.readFileSync(),
-    writeFileSync: (p: any, d: any) => fsMocks.writeFileSync(p, d),
-  }));
+vi.mock('fs', () => ({
+  existsSync: () => fsMocks.existsSync(),
+  readFileSync: () => fsMocks.readFileSync(),
+  writeFileSync: (p: any, d: any) => fsMocks.writeFileSync(p, d),
+}));
+
+describe('AuthService additional branch coverage', () => {
 
   beforeEach(() => {
     vi.resetModules();
