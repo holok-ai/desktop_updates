@@ -23,7 +23,7 @@
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
     if (!$isAuthenticated) {
-      toastStore.show('Please log in to view applications.', { variant: 'info' });
+      toastStore.show('Please login to view applications.', { variant: 'info' });
       push(ROUTE.LOGIN);
     }
   });

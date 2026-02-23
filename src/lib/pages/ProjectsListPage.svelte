@@ -40,7 +40,7 @@
   // Auth guard
   $effect(() => {
     if (!$isAuthenticated) {
-      toastStore.show('Please log in to access Projects.', { variant: 'info' });
+      toastStore.show('Please login to access Projects.', { variant: 'info' });
       push(ROUTE.LOGIN);
     }
   });

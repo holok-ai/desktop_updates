@@ -216,7 +216,10 @@
           bgStream.branchId,
           createTokenCallback(currentThreadId, bgStream),
         );
-        console.log('[ThreadChatView] Re-subscribed with fresh callback for thread:', currentThreadId);
+        console.log(
+          '[ThreadChatView] Re-subscribed with fresh callback for thread:',
+          currentThreadId,
+        );
       }
     }
 
@@ -360,7 +363,9 @@
 
   function setupTokenListener(forThreadId: string, branchId: string) {
     responseText = '';
-    addDebugLog(`[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`);
+    addDebugLog(
+      `[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`,
+    );
 
     // Create (or replace) background stream entry in the service
     const existingStream = threadService.getBackgroundStream(forThreadId);
@@ -594,7 +599,11 @@
 
       try {
         addDebugLog(`[sendMessageBranch] Sending message for ${branch.branchId}`);
-        const result = await threadService.sendChatMessage(capturedThreadId, branch.branchId, request);
+        const result = await threadService.sendChatMessage(
+          capturedThreadId,
+          branch.branchId,
+          request,
+        );
         addDebugLog(
           `[sendMessageBranch] Chat result for ${branch.branchId}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
         );
@@ -1026,16 +1035,6 @@
 
     {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
       {#if item.type === 'message'}
-        {console.log(
-          '[ThreadChatView] ChatMessage branchId:',
-          item.pair.request.branchId,
-          'lane:',
-          item.pair.request.branchId.split('.')[1],
-          'showBranchIcon:',
-          parseInt(item.pair.request.branchId.split('.')[1] ?? '0') !== 0,
-          'desktopOptions:',
-          item.pair.request.desktopOptions,
-        )}
         <ChatMessage
           requestContent={item.pair.request.content}
           requestCreatedAt={item.pair.request.createdAt}

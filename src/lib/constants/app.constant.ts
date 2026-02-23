@@ -48,8 +48,8 @@ export const CHAT_LAYOUT_LABELS = new Map<string, string>([
 ]);
 
 export const THEME_OPTIONS = [
-  { value: 'light', icon: '☀️', label: 'Light' },
-  { value: 'dark', icon: '🌙', label: 'Dark' },
+  { value: 'light', icon: 'pi-sun', label: 'Light' },
+  { value: 'dark', icon: 'pi-moon', label: 'Dark' },
 ] as const;
 
 export const STARTING_PAGE_OPTIONS = [

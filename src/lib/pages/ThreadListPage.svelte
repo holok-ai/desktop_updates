@@ -14,7 +14,7 @@
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
     if (!$isAuthenticated) {
-      toastStore.show('Please log in to access Threads.', { variant: 'info' });
+      toastStore.show('Please login to access Threads.', { variant: 'info' });
       push(ROUTE.LOGIN);
     }
   });
