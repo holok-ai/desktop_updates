@@ -6,7 +6,7 @@
   import ChatMessage from './ChatMessage.svelte';
   import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadService, type BackgroundStream } from '$lib/services/thread.service';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
@@ -50,16 +50,10 @@
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
 
   // ── Multi-stream support ──
-  // Each thread can have an independent background stream that survives thread switching.
-  // When the user navigates away, the stream keeps running and accumulating tokens.
-  // When the user returns, the UI re-attaches to the stream.
-  interface BackgroundStream {
-    threadId: string;
-    branchId: string;
-    accumulatedText: string;
-    unsubscribe: (() => void) | null;
-  }
-  const backgroundStreams = new Map<string, BackgroundStream>();
+  // Background streams live in threadService (singleton) so they survive component
+  // destruction (e.g., when ThreadPage sets loading=true). Each thread can have an
+  // independent background stream. When the user navigates away, the stream keeps
+  // running. When the component is re-created, it re-attaches from the service.
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -148,12 +142,9 @@
 
   onDestroy(() => {
     clearTimeouts();
-    // Clean up all background streams and streaming sessions
-    for (const stream of backgroundStreams.values()) {
-      stream.unsubscribe?.();
-      threadService.clearStreamingSession(stream.threadId);
-    }
-    backgroundStreams.clear();
+    // Background streams live in threadService — do NOT clean them up here.
+    // They must survive component destruction so tokens keep accumulating
+    // while the component is unmounted (e.g., during ThreadPage loading state).
   });
 
   // ── Detect thread switch during streaming ──
@@ -163,32 +154,37 @@
   let previousThreadId: string | null = null;
   $effect(() => {
     const currentThreadId = thread?.id ?? null;
+
     if (previousThreadId !== null && currentThreadId !== previousThreadId) {
+      // Thread switch while component is mounted
       if (isStreaming) {
         console.log('[ThreadChatView] Thread switched during streaming. Detaching UI.', {
           from: previousThreadId,
           to: currentThreadId,
         });
-        // Only reset UI-facing state. The background stream keeps running.
+        // Only reset UI-facing state. The background stream keeps running in threadService.
         isStreaming = false;
         responseText = '';
         clearTimeouts();
       }
+    }
 
-      // Check if the thread we're navigating TO has an active background stream
-      if (currentThreadId) {
-        const bgStream = backgroundStreams.get(currentThreadId);
-        if (bgStream) {
-          console.log('[ThreadChatView] Returning to thread with active stream. Re-attaching UI.', {
-            threadId: currentThreadId,
-            accumulatedLength: bgStream.accumulatedText.length,
-          });
-          // Restore the UI streaming state from the background accumulator
-          isStreaming = true;
-          responseText = bgStream.accumulatedText;
-        }
+    // Check if the current thread has an active background stream in the service.
+    // This handles both thread-switch navigation AND fresh component creation
+    // (e.g., after ThreadPage loading=true destroys and re-creates us).
+    if (currentThreadId && !isStreaming) {
+      const bgStream = threadService.getBackgroundStream(currentThreadId);
+      if (bgStream) {
+        console.log('[ThreadChatView] Re-attaching to active background stream.', {
+          threadId: currentThreadId,
+          accumulatedLength: bgStream.accumulatedText.length,
+          isFirstMount: previousThreadId === null,
+        });
+        isStreaming = true;
+        responseText = bgStream.accumulatedText;
       }
     }
+
     previousThreadId = currentThreadId;
   });
 
@@ -276,8 +272,8 @@
     responseText = '';
     addDebugLog(`[ThreadChatView] setupTokenListener for thread: ${forThreadId}, branchId: ${branchId}`);
 
-    // Create (or replace) background stream entry for this thread
-    const existingStream = backgroundStreams.get(forThreadId);
+    // Create (or replace) background stream entry in the service
+    const existingStream = threadService.getBackgroundStream(forThreadId);
     existingStream?.unsubscribe?.();
 
     const bgStream: BackgroundStream = {
@@ -286,7 +282,7 @@
       accumulatedText: '',
       unsubscribe: null,
     };
-    backgroundStreams.set(forThreadId, bgStream);
+    threadService.setBackgroundStream(forThreadId, bgStream);
 
     // Subscribe to stream for this thread + branch
     bgStream.unsubscribe = threadService.subscribeToStream(forThreadId, branchId, (token: string) => {
@@ -402,7 +398,7 @@
       accumulatedText: '',
       unsubscribe: null,
     };
-    backgroundStreams.set(capturedThreadId, bgStream);
+    threadService.setBackgroundStream(capturedThreadId, bgStream);
 
     // Note: streaming session for branch mode is registered after user messages are created
     // (see below) because we need the first user message for the session.
@@ -561,7 +557,7 @@
 
     // Clean up streaming and streaming session
     bgStream.unsubscribe?.();
-    backgroundStreams.delete(capturedThreadId);
+    threadService.deleteBackgroundStream(capturedThreadId);
     threadService.clearStreamingSession(capturedThreadId);
     if (isViewingThisThread) {
       isStreaming = false;
@@ -665,8 +661,8 @@
       }
 
       // Streaming complete — persist assistant response using the background accumulator.
-      // This survives thread switching because it's stored in the backgroundStreams map.
-      const bgStream = backgroundStreams.get(capturedThreadId);
+      // This survives thread switching because it's stored in threadService.
+      const bgStream = threadService.getBackgroundStream(capturedThreadId);
       const finalText = bgStream?.accumulatedText ?? '';
       if (finalText) {
         console.log('[ThreadChatView] Streaming complete. Final responseText:', {
@@ -701,7 +697,7 @@
 
       // Clean up this thread's background stream and streaming session — fully complete
       bgStream?.unsubscribe?.();
-      backgroundStreams.delete(capturedThreadId);
+      threadService.deleteBackgroundStream(capturedThreadId);
       threadService.clearStreamingSession(capturedThreadId);
       if (isViewingThisThread) {
         responseText = '';
@@ -715,9 +711,9 @@
       console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
       const isViewingThisThread = thread?.id === capturedThreadId;
       // Clean up this thread's background stream and streaming session
-      const bgStream = backgroundStreams.get(capturedThreadId);
+      const bgStream = threadService.getBackgroundStream(capturedThreadId);
       bgStream?.unsubscribe?.();
-      backgroundStreams.delete(capturedThreadId);
+      threadService.deleteBackgroundStream(capturedThreadId);
       threadService.clearStreamingSession(capturedThreadId);
       // Only update UI state if we're still on the same thread
       if (isViewingThisThread) {
@@ -819,9 +815,9 @@
     // Clean up the current thread's background stream and streaming session
     const currentId = thread?.id;
     if (currentId) {
-      const bgStream = backgroundStreams.get(currentId);
+      const bgStream = threadService.getBackgroundStream(currentId);
       bgStream?.unsubscribe?.();
-      backgroundStreams.delete(currentId);
+      threadService.deleteBackgroundStream(currentId);
       threadService.clearStreamingSession(currentId);
     }
     isStreaming = false;

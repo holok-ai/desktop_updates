@@ -37,6 +37,19 @@ export interface StreamingSession {
   modelId?: string;
 }
 
+/**
+ * Represents a background stream for a thread.
+ * Lives in the ThreadService singleton so it survives component destruction
+ * (e.g., when ThreadPage sets loading=true and the {#if loading} conditional
+ * removes ThreadChatView from the DOM).
+ */
+export interface BackgroundStream {
+  threadId: string;
+  branchId: string;
+  accumulatedText: string;
+  unsubscribe: (() => void) | null;
+}
+
 export class ThreadService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
   private streamCallbacks = new Map<string, Set<(token: string) => void>>();
@@ -48,6 +61,14 @@ export class ThreadService extends BaseElectronService {
    * Used by getMessages() to merge streaming data with API results.
    */
   private streamingSessions = new Map<string, StreamingSession>();
+
+  /**
+   * Background streams keyed by threadId.
+   * Each thread can have an independent background stream that survives
+   * component destruction. Tokens keep accumulating even when the UI
+   * component is torn down and re-created.
+   */
+  private backgroundStreams = new Map<string, BackgroundStream>();
 
   private constructor() {
     super();
@@ -423,6 +444,36 @@ export class ThreadService extends BaseElectronService {
    */
   getStreamingSession(threadId: string): StreamingSession | undefined {
     return this.streamingSessions.get(threadId);
+  }
+
+  // ── Background stream management ──
+
+  /**
+   * Get the background stream for a thread (if any).
+   */
+  getBackgroundStream(threadId: string): BackgroundStream | undefined {
+    return this.backgroundStreams.get(threadId);
+  }
+
+  /**
+   * Store a background stream for a thread.
+   */
+  setBackgroundStream(threadId: string, stream: BackgroundStream): void {
+    this.backgroundStreams.set(threadId, stream);
+  }
+
+  /**
+   * Remove a background stream for a thread.
+   */
+  deleteBackgroundStream(threadId: string): void {
+    this.backgroundStreams.delete(threadId);
+  }
+
+  /**
+   * Check if a thread has an active background stream.
+   */
+  hasBackgroundStream(threadId: string): boolean {
+    return this.backgroundStreams.has(threadId);
   }
 
   // ── Message loading with streaming merge ──
