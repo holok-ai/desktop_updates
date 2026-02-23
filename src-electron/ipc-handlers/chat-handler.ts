@@ -162,11 +162,11 @@ export function registerChatHandlers(auth?: AuthService): void {
    */
   ipcMain.handle(
     'chat:cancel',
-    async (
+    (
       _event: IpcMainInvokeEvent,
       threadId: string,
       branchId: string,
-    ): Promise<ApiResponse<void>> => {
+    ): ApiResponse<void> => {
       const serviceKey = buildServiceKey(threadId, branchId);
       const controller = activeAbortControllers.get(serviceKey);
       if (controller) {

@@ -53,7 +53,6 @@
   // Captured at stream-start so the completion handler always references the correct thread
   let streamingThreadId: string | null = null;
   let streamingBranchId: string | null = null;
-  let streamingModelName: string = '';
 
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
@@ -170,7 +169,7 @@
         responseText = '';
         streamingThreadId = null;
         streamingBranchId = null;
-        streamingModelName = '';
+
         clearTimeouts();
       }
     }
@@ -517,7 +516,6 @@
       isStreaming = false;
       streamingThreadId = null;
       streamingBranchId = null;
-      streamingModelName = '';
     }
 
     // Persist assistant responses using the captured threadId (not current thread)
@@ -570,7 +568,6 @@
     // always references the correct thread, even if the user navigates away
     streamingThreadId = threadId;
     streamingBranchId = branchId;
-    streamingModelName = modelName;
 
     // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
@@ -659,7 +656,7 @@
         unsubscribeStream = null;
         streamingThreadId = null;
         streamingBranchId = null;
-        streamingModelName = '';
+
       }
 
       await tick();
