@@ -30,6 +30,7 @@
   import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
   import { toastStore } from '$lib/services/toast.service';
+  import { settingsStore } from '$lib/stores/settings.store';
   import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
 
   type SettingsCategory =
@@ -243,6 +244,7 @@
         enabledTools: [...settings.enabledTools],
         avatar: { ...settings.avatar },
       };
+      settingsStore.set({ ...settings, avatar: { ...settings.avatar } });
       toastStore.show('Settings were saved successfully.', { variant: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';

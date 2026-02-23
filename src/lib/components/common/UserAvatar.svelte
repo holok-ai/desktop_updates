@@ -1,20 +1,33 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { currentUser, isAuthenticated, authStore } from '../../stores/auth.store';
   import { push } from 'svelte-spa-router';
   import { ROUTE } from '../../constants/route.constant';
   import { toastStore } from '../../services/toast.service';
+  import { AVATAR_COLORS, AVATAR_TYPE } from '../../constants/app.constant';
+  import { defaultUserAvatar } from '../../types/app.type';
+  import { settingsStore, avatarSettings } from '../../stores/settings.store';
 
   let showMenu = $state(false);
   let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Get user initials from name
-  function getInitials(name: string | undefined): string {
-    if (!name) return '';
-    const parts = name.trim().split(' ');
-    if (parts.length === 1) {
-      return parts[0].substring(0, 2).toUpperCase();
+  // Seed the store with persisted settings on first mount
+  onMount(async () => {
+    try {
+      const loaded = await window.electronAPI.settings.getAll();
+      if (loaded.avatar) {
+        settingsStore.setAvatar(loaded.avatar);
+      }
+    } catch {
+      // keep default
     }
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  });
+
+  // avatar is always in sync with the store
+  const avatar = $derived($avatarSettings ?? defaultUserAvatar);
+
+  function getAvatarBg(colorKey: string): string {
+    return AVATAR_COLORS.find((c) => c.value === colorKey)?.bg ?? '#4f46e5';
   }
 
   function handleClick() {
@@ -72,9 +85,18 @@
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
 >
-  <button class="avatar-circle" aria-label="User profile" onclick={handleClick}>
-    {#if $isAuthenticated && $currentUser}
-      {getInitials($currentUser.name)}
+  <button
+    class="avatar-circle"
+    aria-label="User profile"
+    onclick={handleClick}
+    style:background-color={getAvatarBg(avatar.bgColor)}
+  >
+    {#if avatar.type === AVATAR_TYPE.ICON}
+      <i class="pi {avatar.icon}"></i>
+    {:else if avatar.type === AVATAR_TYPE.LETTERS && avatar.letters}
+      {avatar.letters.toUpperCase()}
+    {:else if $isAuthenticated && $currentUser}
+      {$currentUser.name?.substring(0, 2).toUpperCase() ?? ''}
     {:else}
       <i class="pi pi-user"></i>
     {/if}
@@ -131,7 +153,6 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--primary-color, #4f46e5);
     color: rgba(255, 255, 255, 0.85);
     font-weight: 600;
     font-size: 14px;
