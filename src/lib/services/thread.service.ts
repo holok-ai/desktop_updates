@@ -110,6 +110,19 @@ export class ThreadService extends BaseElectronService {
   }
 
   /**
+   * Unsubscribe ALL stream callbacks for a given threadId.
+   * Useful for cleaning up when navigating away from a thread.
+   */
+  unsubscribeAllForThread(threadId: string): void {
+    const prefix = `${threadId}:`;
+    for (const key of Array.from(this.streamCallbacks.keys())) {
+      if (key.startsWith(prefix)) {
+        this.streamCallbacks.delete(key);
+      }
+    }
+  }
+
+  /**
    * Send chat message to specific thread + branch
    */
   /**

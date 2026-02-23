@@ -50,6 +50,11 @@
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
 
+  // Captured at stream-start so the completion handler always references the correct thread
+  let streamingThreadId: string | null = null;
+  let streamingBranchId: string | null = null;
+  let streamingModelName: string = '';
+
   // Model info resolved from thread metadata or user selection
   let modelId = $state('');
   let modelName = $state('');
@@ -138,6 +143,38 @@
   onDestroy(() => {
     clearTimeouts();
     unsubscribeStream?.();
+  });
+
+  // ── Detect thread switch during streaming and clean up ──
+  // When the thread prop changes (same-route navigation), the component stays mounted
+  // but we need to cancel any in-flight streaming for the old thread.
+  let previousThreadId: string | null = null;
+  $effect(() => {
+    const currentThreadId = thread?.id ?? null;
+    if (previousThreadId !== null && currentThreadId !== previousThreadId) {
+      // Thread changed while component stays mounted — clean up old streaming state
+      if (isStreaming) {
+        console.log('[ThreadChatView] Thread switched during streaming. Cleaning up old stream.', {
+          from: previousThreadId,
+          to: currentThreadId,
+        });
+        // Cancel the stream on the backend so tokens stop flowing
+        if (streamingThreadId && streamingBranchId) {
+          void window.electronAPI.chat.cancelStream(streamingThreadId, streamingBranchId);
+        }
+        // Unsubscribe the token listener
+        unsubscribeStream?.();
+        unsubscribeStream = null;
+        // Reset streaming state
+        isStreaming = false;
+        responseText = '';
+        streamingThreadId = null;
+        streamingBranchId = null;
+        streamingModelName = '';
+        clearTimeouts();
+      }
+    }
+    previousThreadId = currentThreadId;
   });
 
   function extractModelInfo() {
@@ -310,6 +347,9 @@
   ) {
     if (!thread) return;
 
+    // Capture the threadId at start so we persist to the correct thread
+    const capturedThreadId = threadId;
+
     addDebugLog(`[sendMessageBranch] Starting with ${modelIds.length} models`);
 
     // Extract base row from branchId (e.g., "5.0.0" -> 5)
@@ -327,6 +367,10 @@
       `[sendMessageBranch] Created branches: ${modelBranches.map((b) => b.branchId).join(', ')}`,
     );
 
+    // Set streaming context so the thread-switch $effect can clean up
+    streamingThreadId = capturedThreadId;
+    streamingBranchId = modelBranches[0]?.branchId ?? branchId;
+
     // Create user messages and placeholder assistant messages for each lane
     const userMessages: Message[] = [];
     const assistantMessages: Message[] = [];
@@ -336,7 +380,7 @@
       const userClientMessageId = crypto.randomUUID();
       const userMsg: Message = {
         id: userClientMessageId,
-        threadId: threadId,
+        threadId: capturedThreadId,
         clientMessageId: userClientMessageId,
         role: 'user',
         content: text,
@@ -350,7 +394,7 @@
       const assistantClientMessageId = crypto.randomUUID();
       const assistantMsg: Message = {
         id: assistantClientMessageId,
-        threadId: thread.id,
+        threadId: capturedThreadId,
         clientMessageId: assistantClientMessageId,
         role: 'assistant',
         content: '',
@@ -361,7 +405,7 @@
       assistantMessages.push(assistantMsg);
 
       // Persist user message
-      await threadService.appendMessage(thread.id, {
+      await threadService.appendMessage(capturedThreadId, {
         role: 'user',
         content: text,
         clientMessageId: userClientMessageId,
@@ -385,7 +429,7 @@
     // Set up token listeners for each branch
     const unsubscribers = modelBranches.map((branch) => {
       addDebugLog(`[sendMessageBranch] Setting up subscription for ${branch.branchId}`);
-      return threadService.subscribeToStream(thread!.id, branch.branchId, (token: string) => {
+      return threadService.subscribeToStream(capturedThreadId, branch.branchId, (token: string) => {
         addDebugLog(
           `[sendMessageBranch] Token received for ${branch.branchId} (${token.length} chars)`,
         );
@@ -448,7 +492,7 @@
 
       try {
         addDebugLog(`[sendMessageBranch] Sending message for ${branch.branchId}`);
-        const result = await threadService.sendChatMessage(thread!.id, branch.branchId, request);
+        const result = await threadService.sendChatMessage(capturedThreadId, branch.branchId, request);
         addDebugLog(
           `[sendMessageBranch] Chat result for ${branch.branchId}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
         );
@@ -463,23 +507,30 @@
     // Wait for all chats to complete
     const _results = await Promise.all(chatPromises);
 
+    const threadSwitchedAway = streamingThreadId !== capturedThreadId;
+
     addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
     // Clean up streaming
     unsubscribers.forEach((unsub) => unsub());
-    isStreaming = false;
+    if (!threadSwitchedAway) {
+      isStreaming = false;
+      streamingThreadId = null;
+      streamingBranchId = null;
+      streamingModelName = '';
+    }
 
-    // Persist assistant responses for successful results
+    // Persist assistant responses using the captured threadId (not current thread)
     for (const branch of modelBranches) {
-      if (branch.responseText && thread) {
+      if (branch.responseText) {
         const modelDetails = availableModels.find((m) => m.accessName === branch.modelId);
 
         addDebugLog(
           `[sendMessageBranch] Persisting response for ${branch.branchId} (${branch.responseText.length} chars)`,
         );
-        // Persist the assistant response
+        // Persist the assistant response to the correct thread
         await window.electronAPI.thread.addAssistantResponse(
-          thread.id,
+          capturedThreadId,
           branch.responseText,
           modelDetails?.accessName || branch.modelId,
         );
@@ -515,6 +566,12 @@
     await tick();
     scrollToBottom();
 
+    // Capture thread context at stream-start so the completion handler
+    // always references the correct thread, even if the user navigates away
+    streamingThreadId = threadId;
+    streamingBranchId = branchId;
+    streamingModelName = modelName;
+
     // Set up streaming for this specific branch BEFORE sending
     isStreaming = true;
     setupTokenListener(branchId);
@@ -535,61 +592,86 @@
       }
     }, STREAMING_IDLE_TIMEOUT_MS);
 
+    // Use captured values for the entire async lifetime of this send operation
+    const capturedThreadId = threadId;
+    const capturedBranchId = branchId;
+    const capturedModelName = modelName;
+
     try {
       const chatResult = await threadService.submitPromptToChat(
-        threadId,
-        branchId,
+        capturedThreadId,
+        capturedBranchId,
         modelId,
         messages,
       );
+
+      // If thread was switched while we were awaiting, the stream was already
+      // cleaned up by the $effect. Don't touch state — just persist if we can.
+      const threadSwitchedAway = streamingThreadId !== capturedThreadId;
+
       if (!chatResult.success) {
         const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
-        handleGuardError(errorMessage, branchId);
-        isStreaming = false;
+        if (!threadSwitchedAway) {
+          handleGuardError(errorMessage, capturedBranchId);
+          isStreaming = false;
+        }
         return;
       }
 
-      // Streaming complete — persist assistant response
-      if (thread && responseText) {
+      // Streaming complete — persist assistant response using captured IDs
+      if (responseText) {
         console.log('[ThreadChatView] Streaming complete. Final responseText:', {
           length: responseText.length,
           content: responseText,
+          persistToThread: capturedThreadId,
         });
         addDebugLog(
-          `[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars)`,
+          `[ThreadChatView] Streaming complete - persisting response (${responseText.length} chars) to thread ${capturedThreadId}`,
         );
-        await window.electronAPI.thread.addAssistantResponse(thread.id, responseText, modelName);
+        await window.electronAPI.thread.addAssistantResponse(
+          capturedThreadId,
+          responseText,
+          capturedModelName,
+        );
 
-        // Append assistant message to local list
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'assistant',
-          content: responseText,
-          createdAt: Date.now(),
-          branchId,
-          modelId: modelId,
-        };
-        messages = [...messages, assistantMsg];
-
-        // Wait for displayItems to recalculate with new message
-        await tick();
+        // Only update local messages if the user is still viewing the same thread
+        if (!threadSwitchedAway) {
+          const assistantMsg: Message = {
+            id: crypto.randomUUID(),
+            threadId: capturedThreadId,
+            role: 'assistant',
+            content: responseText,
+            createdAt: Date.now(),
+            branchId: capturedBranchId,
+            modelId: modelId,
+          };
+          messages = [...messages, assistantMsg];
+          await tick();
+        }
       }
 
-      // Clean up streaming state
-      responseText = '';
-      isStreaming = false;
-      unsubscribeStream?.();
-      unsubscribeStream = null;
+      // Clean up streaming state only if we haven't been cleaned up by thread switch
+      if (!threadSwitchedAway) {
+        responseText = '';
+        isStreaming = false;
+        unsubscribeStream?.();
+        unsubscribeStream = null;
+        streamingThreadId = null;
+        streamingBranchId = null;
+        streamingModelName = '';
+      }
 
       await tick();
       scrollToBottom();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
-      handleGuardError(errorMessage, branchId);
-      isStreaming = false;
+      // Only update UI state if we're still on the same thread
+      if (streamingThreadId === capturedThreadId) {
+        handleGuardError(errorMessage, capturedBranchId);
+        isStreaming = false;
+      }
     } finally {
       clearTimeouts();
     }
