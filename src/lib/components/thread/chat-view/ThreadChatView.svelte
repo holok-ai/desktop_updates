@@ -185,7 +185,11 @@
     // (e.g., after ThreadPage loading=true destroys and re-creates us).
     if (currentThreadId && !isStreaming) {
       const bgStream = threadService.getBackgroundStream(currentThreadId);
-      if (bgStream) {
+      // Only re-attach if the streaming session is still active. A background
+      // stream without a session means the chat request failed (e.g. 400 guard
+      // error) and no tokens will ever arrive — re-attaching would show the
+      // loading bubble forever.
+      if (bgStream && threadService.hasStreamingSession(currentThreadId)) {
         console.log('[ThreadChatView] Re-attaching to active background stream.', {
           threadId: currentThreadId,
           accumulatedLength: bgStream.accumulatedText.length,
@@ -720,6 +724,10 @@
       if (!chatResult.success) {
         const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
+        // Clear the streaming session — the chat request failed so no tokens
+        // will arrive. Without this, returning to the thread later would find
+        // the orphaned session and show an infinite loading state.
+        threadService.clearStreamingSession(capturedThreadId);
         if (isViewingThisThread) {
           handleGuardError(errorMessage, capturedBranchId);
           isStreaming = false;
