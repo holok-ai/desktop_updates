@@ -11,8 +11,9 @@
  *
  *  [x]  1. Successful user→assistant turn (basic)
  *  [x]  2. Multi-turn conversation (3+ turns)
- *  [x]  3. Guard passed  — { response: { passed: true } }  — NOT hidden
- *  [x]  4. Guard blocked — { response: { passed: false } }  — hides both msgs
+ *  [x]  3. Guard passed  — hides guard request + guard response, keeps user pair
+ *  [x] 3b. Guard passed (order 2) — guard request arrives first, same result
+ *  [x]  4. Guard blocked — hides guard request + guard response, keeps user request
  *  [x]  5. Guard double-encoded response (JSON string inside JSON)
  *  [x]  6. Error payload — { type:"error", status:400, ... } — hides message
  *  [x]  7. Orphan assistant (no preceding user) — placeholder inserted
@@ -46,6 +47,7 @@ import {
   successfulTurn,
   multiTurnConversation,
   guardPassedTurn,
+  guardPassedTurnOrder2,
   guardBlockedTurn,
   guardDoubleEncodedTurn,
   errorPayloadResponse,
@@ -166,6 +168,7 @@ describe('ThreadRepository — message handling scenarios', () => {
         ['successfulTurn', successfulTurn()],
         ['multiTurnConversation', multiTurnConversation()],
         ['guardPassedTurn', guardPassedTurn()],
+        ['guardPassedTurnOrder2', guardPassedTurnOrder2()],
         ['guardBlockedTurn', guardBlockedTurn()],
         ['guardDoubleEncodedTurn', guardDoubleEncodedTurn()],
         ['errorPayloadResponse', errorPayloadResponse()],
@@ -232,34 +235,82 @@ describe('ThreadRepository — message handling scenarios', () => {
   // ────────────────────────────────────────────────────────────────
 
   describe('guard inspector', () => {
-    it('scenario 3: guard passed — both messages remain visible', async () => {
+    it('scenario 3: guard passed — hides guard request + guard response, keeps user pair', async () => {
       const result = await loadWithMessages(repo, guardPassedTurn());
 
-      // Guard that passed is still detected as a guard response and hidden
-      // (GuardInspector hides ALL guard-shaped responses regardless of passed value)
-      const assistant = result.messages.find((m) => m.role === 'assistant');
-      expect(assistant).toBeDefined();
-      expect(assistant!.isHidden).toBe(true);
+      // 4 messages total: User Request, Guard Request, Guard Response, User Response
+      expect(result.messages).toHaveLength(4);
+
+      const visible = result.messages.filter((m) => !m.isHidden);
+      expect(visible).toHaveLength(2);
+
+      // Visible: user's original request + LLM response
+      expect(visible[0].role).toBe('user');
+      expect(visible[0].content).toBe('Benign request');
+      expect(visible[1].role).toBe('assistant');
+      expect(visible[1].content).toBe('Sure, that sounds benign!');
+
+      // Guard execution metadata on the kept user message
+      expect(visible[0].guardExecution).toBe('pass');
+      expect(visible[0].guardMessageId).toEqual(expect.any(String));
+
+      // Hidden: guard request + guard response
+      const hidden = result.messages.filter((m) => m.isHidden);
+      expect(hidden).toHaveLength(2);
+      expect(hidden.some((m) => m.role === 'user' && m.content.includes('Check the following'))).toBe(true);
+      expect(hidden.some((m) => m.role === 'assistant' && m.content.includes('passed'))).toBe(true);
     });
 
-    it('scenario 4: guard blocked — hides response AND preceding user message', async () => {
+    it('scenario 3b: guard passed order 2 — guard request arrives first, same result', async () => {
+      const result = await loadWithMessages(repo, guardPassedTurnOrder2());
+
+      expect(result.messages).toHaveLength(4);
+
+      const visible = result.messages.filter((m) => !m.isHidden);
+      expect(visible).toHaveLength(2);
+
+      expect(visible[0].role).toBe('user');
+      expect(visible[0].content).toBe('Benign request');
+      expect(visible[1].role).toBe('assistant');
+      expect(visible[1].content).toBe('Sure, that sounds benign!');
+
+      // Guard metadata present regardless of array order
+      expect(visible[0].guardExecution).toBe('pass');
+      expect(visible[0].guardMessageId).toEqual(expect.any(String));
+    });
+
+    it('scenario 4: guard blocked — hides guard request + guard response, keeps user request', async () => {
       const result = await loadWithMessages(repo, guardBlockedTurn());
 
-      const user = result.messages.find((m) => m.role === 'user');
-      const assistant = result.messages.find((m) => m.role === 'assistant');
+      // 3 messages: User Request, Guard Request, Guard Response
+      expect(result.messages).toHaveLength(3);
 
-      expect(user).toBeDefined();
-      expect(assistant).toBeDefined();
-      expect(user!.isHidden).toBe(true);
-      expect(assistant!.isHidden).toBe(true);
+      const visible = result.messages.filter((m) => !m.isHidden);
+      expect(visible).toHaveLength(1);
+
+      // Only the user's original request remains visible
+      expect(visible[0].role).toBe('user');
+      expect(visible[0].content).toBe('Blocked request');
+      expect(visible[0].guardExecution).toBe('fail');
+      expect(visible[0].guardMessageId).toEqual(expect.any(String));
+
+      // Guard request + guard response hidden
+      const hidden = result.messages.filter((m) => m.isHidden);
+      expect(hidden).toHaveLength(2);
     });
 
     it('scenario 5: guard double-encoded — still detected and hidden', async () => {
       const result = await loadWithMessages(repo, guardDoubleEncodedTurn());
 
-      const assistant = result.messages.find((m) => m.role === 'assistant');
-      expect(assistant).toBeDefined();
-      expect(assistant!.isHidden).toBe(true);
+      // 3 messages: User Request, Guard Request, Guard Response
+      expect(result.messages).toHaveLength(3);
+
+      const visible = result.messages.filter((m) => !m.isHidden);
+      expect(visible).toHaveLength(1);
+      expect(visible[0].role).toBe('user');
+      expect(visible[0].content).toBe('Double encoded guard');
+      expect(visible[0].guardExecution).toBe('fail');
+      expect(visible[0].guardMessageId).toEqual(expect.any(String));
     });
   });
 

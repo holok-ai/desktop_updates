@@ -539,6 +539,8 @@ export class ThreadService extends BaseElectronService {
         branchId,
         modelId: modelId ?? null,
         isLocal: true,
+        guardExecution: 'none',
+        guardMessageId: null,
       });
     }
 
@@ -633,6 +635,8 @@ export class ThreadService extends BaseElectronService {
       createdAt: Date.now(),
       branchId,
       modelId: modelId,
+      guardExecution: 'none',
+      guardMessageId: null,
     };
 
     try {
@@ -858,6 +862,8 @@ export class ThreadService extends BaseElectronService {
       clientMessageId,
       branchId: newBranchId,
       modelId: finalModelId,
+      guardExecution: 'none',
+      guardMessageId: null,
     };
 
     return { success: true, message, newBranchId };

@@ -138,6 +138,8 @@ export class ThreadMessageService {
       createdAt: Date.now(),
       branchId,
       modelId: modelId,
+      guardExecution: 'none',
+      guardMessageId: null,
     };
 
     try {
