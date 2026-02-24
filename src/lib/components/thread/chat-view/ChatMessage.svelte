@@ -41,9 +41,6 @@
     /** Font size in pixels from settings */
     fontSize?: number;
 
-    /** Gap between messages and command bars */
-    commandGap?: number;
-
     /** Branch ID for this message */
     branchId?: string;
 
@@ -77,7 +74,6 @@
     files = [],
     chatLayout,
     fontSize = 14,
-    commandGap = 4,
     branchId,
     guardStatus = 'none',
     guardError = '',
@@ -144,13 +140,7 @@
   />
 
   <!-- Request commands (hover-reveal) -->
-  <ChatRequestCommands
-    commands={requestCommands}
-    gapHeight={commandGap}
-    {chatLayout}
-    {showBranchIcon}
-    {onBranchClick}
-  />
+  <ChatRequestCommands commands={requestCommands} {chatLayout} {showBranchIcon} {onBranchClick} />
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
@@ -178,7 +168,7 @@
 
   <!-- Response commands (hover-reveal) - shown if there are any responses -->
   {#if responses.length > 0 && !isStreaming}
-    <ChatResponseCommands commands={responseCommands} gapHeight={commandGap} {chatLayout} />
+    <ChatResponseCommands commands={responseCommands} {chatLayout} />
   {/if}
 </div>
 

@@ -14,13 +14,11 @@
 
   interface Props {
     commands: CommandDef[];
-    /** Gap height in pixels between the message and the command bar */
-    gapHeight?: number;
     /** Chat layout to determine alignment */
     chatLayout?: ChatLayout;
   }
 
-  let { commands = [], gapHeight = 4, chatLayout = 'left-right' }: Props = $props();
+  let { commands = [], chatLayout = 'left-right' }: Props = $props();
   let hovered = $state(false);
 
   // Determine if commands should be right-aligned
@@ -31,7 +29,6 @@
   class="commands-row"
   class:visible={hovered}
   class:align-right={shouldAlignRight}
-  style="height: {gapHeight + 24}px; padding-top: {gapHeight}px;"
   role="toolbar"
   aria-label="Response commands"
   tabindex="-1"
@@ -50,6 +47,8 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    height: 28px;
+    padding-top: 4px;
     opacity: 0;
     transition: opacity 0.15s ease;
     overflow: hidden;
