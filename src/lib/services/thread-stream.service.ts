@@ -275,6 +275,8 @@ export class ThreadStreamService extends BaseElectronService {
         branchId,
         modelId: modelId ?? null,
         isLocal: true,
+        guardExecution: 'none',
+        guardMessageId: null,
       });
     }
 

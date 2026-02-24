@@ -34,6 +34,8 @@ export interface Message {
   versions?: MessageVersion[];
   isEdited?: boolean;
   isHidden?: boolean; // Hide from chat view (e.g., guard-blocked messages)
+  guardExecution: 'none' | 'pass' | 'fail';
+  guardMessageId: string | null;
   desktopOptions?: RequestOptionsDTO | null;
 }
 

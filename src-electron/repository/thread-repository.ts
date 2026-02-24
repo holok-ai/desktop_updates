@@ -288,6 +288,8 @@ export class ThreadRepository {
       branchId: branchId,
       modelId: payload.modelId ?? '',
       provider: payload.provider || '',
+      guardExecution: 'none',
+      guardMessageId: null,
     };
 
     // Check for duplicates before adding to cache
@@ -690,6 +692,8 @@ export class ThreadRepository {
       branchId,
       modelId: dto.model || '',
       provider: dto.provider || '',
+      guardExecution: 'none',
+      guardMessageId: null,
       desktopOptions,
     };
 

@@ -95,42 +95,123 @@ export function multiTurnConversation(): MessageDTO[] {
 }
 
 // ── Guard scenarios ─────────────────────────────────────────────────
+//
+// Real guard flow produces 3–4 messages sharing the same branchId:
+//   Passed: User Request → Guard Request → Guard Response → User Response
+//   Failed: User Request → Guard Request → Guard Response
+//
+// The Guard Request wraps the user's message with guard instructions,
+// so its content is always longer than the original user message.
 
-/** Guard passed — content is JSON with { response: { passed: true } }. Should NOT be hidden. */
+/**
+ * Guard passed — 4 messages (Order 1).
+ * User Request, Guard Request, Guard Response, User Response.
+ * Only User Request + User Response should be visible.
+ */
 export function guardPassedTurn(): MessageDTO[] {
+  const branch = '1.0.0';
   return [
-    fakeMessageDTO({ role: 'user', content: 'Benign request' }),
+    fakeMessageDTO({ role: 'user', content: 'Benign request', branchId: branch }),
     fakeMessageDTO({
-      role: 'assistant',
-      content: JSON.stringify({ response: { passed: true } }),
-      status: 'success',
+      role: 'user',
+      content: 'Check the following for PII: "Benign request"',
+      branchId: branch,
     }),
-  ];
-}
-
-/** Guard blocked — { response: { passed: false, reason } }. Should hide BOTH messages. */
-export function guardBlockedTurn(): MessageDTO[] {
-  return [
-    fakeMessageDTO({ role: 'user', content: 'Blocked request' }),
     fakeMessageDTO({
       role: 'assistant',
       content: JSON.stringify({
-        response: { passed: false, reason: 'Content policy violation' },
+        response: JSON.stringify({ passed: true, errors: [] }),
       }),
+      branchId: branch,
+      status: 'success',
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Sure, that sounds benign!',
+      branchId: branch,
       status: 'success',
     }),
   ];
 }
 
-/** Guard response where the inner response is a JSON string (double-encoded). */
-export function guardDoubleEncodedTurn(): MessageDTO[] {
+/**
+ * Guard passed — 4 messages (Order 2: guard request arrives first).
+ * Guard Request, User Request, Guard Response, User Response.
+ * Only User Request + User Response should be visible.
+ */
+export function guardPassedTurnOrder2(): MessageDTO[] {
+  const branch = '1.0.0';
   return [
-    fakeMessageDTO({ role: 'user', content: 'Double encoded guard' }),
+    fakeMessageDTO({
+      role: 'user',
+      content: 'Check the following for PII: "Benign request"',
+      branchId: branch,
+    }),
+    fakeMessageDTO({ role: 'user', content: 'Benign request', branchId: branch }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        response: JSON.stringify({ passed: true, errors: [] }),
+      }),
+      branchId: branch,
+      status: 'success',
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Sure, that sounds benign!',
+      branchId: branch,
+      status: 'success',
+    }),
+  ];
+}
+
+/**
+ * Guard blocked — 3 messages, no User Response.
+ * User Request, Guard Request, Guard Response.
+ * Only User Request should be visible.
+ */
+export function guardBlockedTurn(): MessageDTO[] {
+  const branch = '1.0.0';
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Blocked request', branchId: branch }),
+    fakeMessageDTO({
+      role: 'user',
+      content: 'Check the following for PII: "Blocked request"',
+      branchId: branch,
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        response: JSON.stringify({
+          passed: false,
+          errors: ['Content policy violation'],
+        }),
+      }),
+      branchId: branch,
+      status: 'success',
+    }),
+  ];
+}
+
+/**
+ * Guard double-encoded — guard response where the inner `response`
+ * value is a JSON string (double-encoded).  3-message blocked variant.
+ */
+export function guardDoubleEncodedTurn(): MessageDTO[] {
+  const branch = '1.0.0';
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Double encoded guard', branchId: branch }),
+    fakeMessageDTO({
+      role: 'user',
+      content: 'Check the following for PII: "Double encoded guard"',
+      branchId: branch,
+    }),
     fakeMessageDTO({
       role: 'assistant',
       content: JSON.stringify({
         response: JSON.stringify({ passed: false, reason: 'policy' }),
       }),
+      branchId: branch,
       status: 'success',
     }),
   ];
