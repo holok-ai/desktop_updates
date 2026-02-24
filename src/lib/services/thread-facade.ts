@@ -381,6 +381,7 @@ class ThreadFacade {
       modelId: finalModelId,
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
     };
 
     return { success: true, message, newBranchId };

@@ -541,6 +541,7 @@ export class ThreadService extends BaseElectronService {
         isLocal: true,
         guardExecution: 'none',
         guardMessageId: null,
+        guardError: '',
       });
     }
 
@@ -637,6 +638,7 @@ export class ThreadService extends BaseElectronService {
       modelId: modelId,
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
     };
 
     try {
@@ -864,6 +866,7 @@ export class ThreadService extends BaseElectronService {
       modelId: finalModelId,
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
     };
 
     return { success: true, message, newBranchId };

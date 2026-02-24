@@ -47,6 +47,11 @@
     /** Branch ID for this message */
     branchId?: string;
 
+    /** Guard execution status for this request */
+    guardStatus?: 'none' | 'pass' | 'fail';
+    /** Guard error reason when guardStatus is 'fail' */
+    guardError?: string;
+
     /** Callback when copy is clicked on request */
     onCopyRequest?: (content: string) => void;
     /** Callback when copy is clicked on response */
@@ -74,6 +79,8 @@
     fontSize = 14,
     commandGap = 4,
     branchId,
+    guardStatus = 'none',
+    guardError = '',
     onCopyRequest,
     onCopyResponse,
     onRetry,
@@ -132,6 +139,8 @@
     {attachments}
     {fontSize}
     {branchId}
+    {guardStatus}
+    {guardError}
   />
 
   <!-- Request commands (hover-reveal) -->

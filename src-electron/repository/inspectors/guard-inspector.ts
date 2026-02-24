@@ -63,14 +63,18 @@ export class GuardInspector implements IMessageInspector {
         }
       }
 
-      // Find the guard response entry for this branch (need its passed value and id)
+      // Find the guard response entry for this branch (need its passed value, id, and error text)
       let guardPassed = false;
       let guardResponseId: string | null = null;
+      let guardErrorText = '';
       for (const { msg, idx } of branchEntries) {
         if (guardResponsePassed.has(idx)) {
           msg.isHidden = true;
-          guardPassed = guardResponsePassed.get(idx)!;
+          guardPassed = guardResponsePassed.get(idx) ?? false;
           guardResponseId = msg.id;
+          if (!guardPassed) {
+            guardErrorText = this.extractGuardError(msg.content);
+          }
         }
       }
 
@@ -98,6 +102,7 @@ export class GuardInspector implements IMessageInspector {
       if (keptUser) {
         keptUser.guardExecution = guardPassed ? 'pass' : 'fail';
         keptUser.guardMessageId = guardResponseId;
+        keptUser.guardError = guardErrorText;
       }
     }
 
@@ -141,6 +146,37 @@ export class GuardInspector implements IMessageInspector {
     if (!response || typeof response !== 'object' || !('passed' in response)) return null;
 
     return !!(response as { passed: unknown }).passed;
+  }
+
+  /**
+   * Extract human-readable error text from a guard response message's content.
+   * Falls back to a generic message if parsing fails.
+   */
+  private extractGuardError(content: string): string {
+    try {
+      const parsed = this.parseContent(content);
+      if (!parsed || typeof parsed !== 'object' || !('response' in parsed)) {
+        return 'Request blocked by guard';
+      }
+
+      let response = (parsed as { response: unknown }).response;
+      if (typeof response === 'string') {
+        response = JSON.parse(response);
+      }
+
+      if (response && typeof response === 'object') {
+        const r = response as { errors?: string[]; reason?: string };
+        if (r.errors?.length) {
+          return r.errors.join('; ');
+        }
+        if (r.reason) {
+          return r.reason;
+        }
+      }
+    } catch {
+      // Content wasn't parseable
+    }
+    return 'Request blocked by guard';
   }
 
   private isErrorPayload(content: unknown): boolean {

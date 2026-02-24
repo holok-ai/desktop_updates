@@ -328,4 +328,5 @@ export class ThreadDisplay {
 
     return result;
   }
+
 }

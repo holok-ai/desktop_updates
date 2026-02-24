@@ -4,6 +4,7 @@
    * Represents the "request" half of a ChatMessage pair.
    */
   import ChatRequestInformation from './ChatRequestInformation.svelte';
+  import RedactedText from './RedactedText.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
 
   interface Props {
@@ -18,6 +19,10 @@
     fontSize?: number;
     /** Current branch ID for this request */
     branchId?: string;
+    /** Guard execution status for this request */
+    guardStatus?: 'none' | 'pass' | 'fail';
+    /** Guard error reason when guardStatus is 'fail' */
+    guardError?: string;
   }
 
   let {
@@ -29,6 +34,8 @@
     attachments = [],
     fontSize = 14,
     branchId: _branchId,
+    guardStatus = 'none',
+    guardError = '',
   }: Props = $props();
 
   let alignClass = $derived.by(() => {
@@ -45,7 +52,11 @@
 
 <div class="chat-request {alignClass}">
   <div class="request-bubble">
-    <div class="prompt-text" style="font-size: {fontSize}px">{content}</div>
+    {#if guardStatus === 'fail'}
+      <RedactedText {content} {guardError} {fontSize} />
+    {:else}
+      <div class="prompt-text" style="font-size: {fontSize}px">{content}</div>
+    {/if}
 
     {#if attachments.length > 0}
       <div class="attachments" role="list" aria-label="Attachments">

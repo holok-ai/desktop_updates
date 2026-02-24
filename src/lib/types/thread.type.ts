@@ -34,6 +34,7 @@ export interface Message {
   isHidden?: boolean;
   guardExecution: 'none' | 'pass' | 'fail';
   guardMessageId: string | null;
+  guardError: string;
   isLocal?: boolean;
   desktopOptions?: RequestOptionsDTO | null;
 }
