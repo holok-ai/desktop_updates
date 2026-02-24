@@ -29,6 +29,7 @@ import type { ApiResponse } from './types/api-response.js';
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
 export type { ApiResponse };
 export type { MessageDTO, RequestOptionsDTO };
+export type { ToolDefinition };
 
 /**
  * OLD Thread Interface (commented out - now imported from thread.types.ts)
@@ -254,13 +255,18 @@ export interface AppSettings {
   holoApiUrl: string;
   directoryWhitelist?: string[];
   theme?: AppThemeMode;
+  avatar?: { type: string; letters: string; icon: string; bgColor: string; imageData: string };
+  deleteConfirmationRequired?: boolean;
   startingPage?: string;
   showRecentList?: boolean;
+  showFavoritesList?: boolean;
   threadLayout?: string;
   chatFontSize?: number;
   chatLayout?: string;
   enabledTools?: string[];
   shellCommands?: string;
+  windowsCommands?: string;
+  unixCommands?: string;
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
   updateAvailable?: boolean;

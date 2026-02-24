@@ -30,6 +30,7 @@
     availableModels: ModelDetails[];
     chatLayout: ChatLayout;
     agentId?: string | null;
+    onThreadCreated?: (thread: Thread) => void;
   }
 
   let {
@@ -38,6 +39,7 @@
     availableModels = [],
     chatLayout,
     agentId = null,
+    onThreadCreated: _onThreadCreated,
   }: Props = $props();
 
   // ── State ──
@@ -486,6 +488,9 @@
         createdAt: Date.now(),
         branchId: branch.branchId,
         modelId: branch.modelId,
+        guardExecution: 'none',
+        guardMessageId: null,
+        guardError: '',
       };
       userMessages.push(userMsg);
 
@@ -500,6 +505,9 @@
         createdAt: Date.now(),
         branchId: branch.branchId,
         modelId: branch.modelId,
+        guardExecution: 'none',
+        guardMessageId: null,
+        guardError: '',
       };
       assistantMessages.push(assistantMsg);
 
@@ -764,6 +772,9 @@
             createdAt: Date.now(),
             branchId: capturedBranchId,
             modelId: modelId,
+            guardExecution: 'none',
+            guardMessageId: null,
+            guardError: '',
           };
           messages = [...messages, assistantMsg];
           await tick();

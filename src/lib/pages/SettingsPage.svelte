@@ -4,6 +4,7 @@
     AppSettings,
     AppThemeMode,
     AvatarType,
+    UserAvatar,
     StartingPage,
     ThreadLayout,
     ChatLayout,
@@ -132,7 +133,9 @@
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
       directoryWhitelist: [...(all.directoryWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
-      avatar: all.avatar ? { ...defaultUserAvatar, ...all.avatar } : { ...defaultUserAvatar },
+      avatar: all.avatar
+        ? ({ ...defaultUserAvatar, ...all.avatar } as UserAvatar)
+        : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
       deleteConfirmationRequired: all.deleteConfirmationRequired ?? false,
       showRecentList: all.showRecentList ?? true,

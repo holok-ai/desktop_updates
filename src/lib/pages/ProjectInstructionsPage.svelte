@@ -205,8 +205,6 @@ Describe what this project is about and what threads should focus on.
         threadId,
         '1.0.0',
         modelDetails.accessName,
-        modelDetails.provider,
-        { url: modelDetails.url, model: modelDetails.accessName },
       );
       if (!providerResult.success) {
         throw new Error(providerResult.errorText || 'Failed to initialize chat provider');

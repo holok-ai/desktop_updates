@@ -3,6 +3,7 @@
   import { querystring, push as _push } from 'svelte-spa-router';
   import { ROUTE as _ROUTE } from '$lib/constants/route.constant';
   import type { Project, UserSummaryDTO } from '$lib/types/project.type';
+  import type { GUID } from '$lib/types/app.type';
   import { projectService } from '$lib/services/project.service';
 
   let projectId = $state<string | null>(null);
@@ -35,7 +36,7 @@
     loading = true;
     error = '';
     try {
-      const result = await projectService.getProjectById(id);
+      const result = await projectService.getProjectById(id as GUID);
       project = result.success ? result.data : null;
       if (!result.success) {
         error = result.errorText || 'Failed to load project';

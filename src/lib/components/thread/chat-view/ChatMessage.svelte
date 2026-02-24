@@ -10,7 +10,6 @@
   import ChatRequestCommands from './ChatRequestCommands.svelte';
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
-  import type { Message } from '$lib/types/thread.type';
 
   interface Props {
     /** User prompt text */
@@ -25,7 +24,7 @@
     attachments?: string[];
 
     /** Assistant responses (array to support multiple consecutive responses) */
-    responses?: Message[];
+    responses?: Array<{ id: string; content: string }>;
     /** Streaming content for active streaming response */
     streamingContent?: string;
     /** Whether the response is still streaming */

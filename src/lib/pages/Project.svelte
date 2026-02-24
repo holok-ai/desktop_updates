@@ -8,6 +8,7 @@
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import { favorites } from '$lib/stores/favorite.store';
   import type { ModelDetails } from '../../../src-electron/preload';
+  import type { GUID } from '$lib/types/app.type';
   import { modelService } from '$lib/services/model.service';
 
   let projectId = $state<string | null>(null);
@@ -23,7 +24,12 @@
 
   function toggleFavorite() {
     if (projectId) {
-      favorites.toggleFavorite(projectId, 'project');
+      favorites.toggleFavorite(
+        projectId,
+        'project',
+        project?.title ?? '',
+        `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`,
+      );
     }
   }
 
@@ -94,7 +100,7 @@
     if (id && id !== projectId) {
       projectId = id;
       // Load full project with members and files
-      projects.loadProject(id).catch((error) => {
+      projects.loadProject(id as GUID).catch((error) => {
         console.error('Failed to load project:', error);
       });
     }
