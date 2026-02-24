@@ -846,28 +846,15 @@
         error = errorMessage;
       }
 
-      // Find the request message that triggered the guard
+      // Find the request message that triggered the guard and mark it as failed
       const requestMessage = messages.find((m) => m.branchId === branchId && m.role === 'user');
 
       if (requestMessage) {
-        // Replace the request message content with redacted text
-        requestMessage.content = '{text removed}';
+        requestMessage.guardExecution = 'fail';
+        requestMessage.guardError = error;
         messages = [...messages]; // Trigger reactivity
-
-        // Don't restore text to composer - it would trigger auto-submit
-        console.log('[ThreadChatView] Redacted blocked message');
+        console.log('[ThreadChatView] Marked message as guard-blocked');
       }
-
-      // Add a system message to the thread
-      const guardMessage: Message = {
-        id: crypto.randomUUID(),
-        threadId: thread?.id || '',
-        role: 'system',
-        content: 'Your prompt was intercepted by a Holokai security guard.',
-        createdAt: Date.now(),
-        branchId,
-      };
-      messages = [...messages, guardMessage];
 
       console.log('[ThreadChatView] Guard blocked message:', errorMessage);
     } else {
