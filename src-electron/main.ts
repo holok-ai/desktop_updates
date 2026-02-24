@@ -16,6 +16,7 @@ import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
+import { registerBackgroundPromptHandlers } from './ipc-handlers/background-prompt-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
 
@@ -289,6 +290,9 @@ function registerIpcHandlers(): void {
 
   // Register chat-related IPC handlers with auth service for token injection
   registerChatHandlers(authService);
+
+  // Register background prompt IPC handlers with auth service for token injection
+  registerBackgroundPromptHandlers(authService);
 
   // Register file upload/download IPC handlers
   registerFileHandlers();

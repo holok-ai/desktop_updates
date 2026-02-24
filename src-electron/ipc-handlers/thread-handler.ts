@@ -13,6 +13,12 @@ import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 import { CreateThreadCommand } from '../commands/thread.create.js';
 import { RenameThreadCommand } from '../commands/thread.rename.js';
+import { getBackgroundPromptService } from './background-prompt-handler.js';
+import { getSettingsService } from './settings-handler.js';
+import {
+  BackgroundPromptType,
+  BackgroundPromptPriority,
+} from '../../src-shared/types/background-prompt.types.js';
 
 const threadLog = createScopedLogger('thread');
 
@@ -87,40 +93,46 @@ export function registerThreadHandlers(): void {
     },
   );
 
-  ipcMain.handle('thread:getById', async (_event, id: string): Promise<ApiResponse<RendererThread | null>> => {
-    try {
-      const t = await threadRepository.loadThread(id);
-      return apiOk(toRendererThread(t));
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      threadLog.error('[thread:getById] Error:', message);
-      return apiFail(-1, message);
-    }
-  });
+  ipcMain.handle(
+    'thread:getById',
+    async (_event, id: string): Promise<ApiResponse<RendererThread | null>> => {
+      try {
+        const t = await threadRepository.loadThread(id);
+        return apiOk(toRendererThread(t));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        threadLog.error('[thread:getById] Error:', message);
+        return apiFail(-1, message);
+      }
+    },
+  );
 
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
-  ipcMain.handle('thread:getMessages', async (_event, id: string): Promise<ApiResponse<Message[]>> => {
-    try {
-      const t = await threadRepository.loadThread(id);
-      if (!t) return apiOk([]);
-      const items: Message[] = t.messages
-        .filter((m) => !m.deletedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((m) => ({ ...m }));
-      threadLog.info(
-        '[thread:getMessages] Loaded',
-        t.messages.length,
-        'total, returning',
-        items.length,
-        'after filtering',
-      );
-      return apiOk(items);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      threadLog.error('[thread:getMessages] Error:', message);
-      return apiFail(-1, message);
-    }
-  });
+  ipcMain.handle(
+    'thread:getMessages',
+    async (_event, id: string): Promise<ApiResponse<Message[]>> => {
+      try {
+        const t = await threadRepository.loadThread(id);
+        if (!t) return apiOk([]);
+        const items: Message[] = t.messages
+          .filter((m) => !m.deletedAt)
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map((m) => ({ ...m }));
+        threadLog.info(
+          '[thread:getMessages] Loaded',
+          t.messages.length,
+          'total, returning',
+          items.length,
+          'after filtering',
+        );
+        return apiOk(items);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        threadLog.error('[thread:getMessages] Error:', message);
+        return apiFail(-1, message);
+      }
+    },
+  );
 
   ipcMain.handle(
     'thread:create',
@@ -148,7 +160,11 @@ export function registerThreadHandlers(): void {
 
   ipcMain.handle(
     'thread:update',
-    async (_event, id: string, updates: Partial<RendererThread>): Promise<ApiResponse<RendererThread>> => {
+    async (
+      _event,
+      id: string,
+      updates: Partial<RendererThread>,
+    ): Promise<ApiResponse<RendererThread>> => {
       try {
         const existing = await threadRepository.loadThread(id);
         if (!existing) return apiFail(404, `Thread with id ${id} not found`);
@@ -180,11 +196,7 @@ export function registerThreadHandlers(): void {
   // Rename thread with validation and title history tracking
   ipcMain.handle(
     'thread:renameThread',
-    async (
-      _event,
-      threadId: string,
-      newTitle: string,
-    ): Promise<ApiResponse<RendererThread>> => {
+    async (_event, threadId: string, newTitle: string): Promise<ApiResponse<RendererThread>> => {
       const auth = getAuthService();
 
       // Authorization check
@@ -234,11 +246,7 @@ export function registerThreadHandlers(): void {
   // Delete a branch
   ipcMain.handle(
     'thread:deleteBranch',
-    async (
-      _event,
-      threadId: string,
-      branchId: string,
-    ): Promise<ApiResponse<void>> => {
+    async (_event, threadId: string, branchId: string): Promise<ApiResponse<void>> => {
       try {
         threadRepository.deleteBranch(threadId, branchId);
         // Broadcast thread update after branch deletion
@@ -270,7 +278,12 @@ export function registerThreadHandlers(): void {
         client_message_id?: string;
         branch_id?: string;
       },
-    ): Promise<ApiResponse<{ message: { id: string; role: string; content: string; createdAt: number }; thread: RendererThread }>> => {
+    ): Promise<
+      ApiResponse<{
+        message: { id: string; role: string; content: string; createdAt: number };
+        thread: RendererThread;
+      }>
+    > => {
       const auth = getAuthService();
 
       // Authorization check
@@ -329,7 +342,12 @@ export function registerThreadHandlers(): void {
   // Add assistant response
   ipcMain.handle(
     'thread:addAssistantResponse',
-    async (_event, threadId: string, response: string, model?: string): Promise<ApiResponse<{ id: string; role: string; content: string; createdAt: number }>> => {
+    async (
+      _event,
+      threadId: string,
+      response: string,
+      model?: string,
+    ): Promise<ApiResponse<{ id: string; role: string; content: string; createdAt: number }>> => {
       try {
         // Check if title generation will happen
         const threadBefore = await threadRepository.loadThread(threadId);
@@ -342,7 +360,9 @@ export function registerThreadHandlers(): void {
           willGenerateTitle = assistantCount === 0 && needsTitle;
 
           if (willGenerateTitle) {
-            threadLog.debug(`[thread-handler] Title generation will trigger for thread ${threadId}`);
+            threadLog.debug(
+              `[thread-handler] Title generation will trigger for thread ${threadId}`,
+            );
             broadcast('thread:titleGenerationStarted', { threadId });
           }
         }
@@ -354,7 +374,12 @@ export function registerThreadHandlers(): void {
         }
 
         // Add the assistant response (this may trigger auto-title generation)
-        const msg = await threadRepository.addAssistantResponse(threadId, response, branchId, model);
+        const msg = await threadRepository.addAssistantResponse(
+          threadId,
+          response,
+          branchId,
+          model,
+        );
         const threadObj = await threadRepository.loadThread(threadId);
         const thread = toRendererThread(threadObj);
         if (!thread) return apiFail(-1, 'Failed to convert thread after assistant response');
@@ -368,6 +393,45 @@ export function registerThreadHandlers(): void {
         }
 
         broadcast('thread:updated', thread);
+
+        // Submit auto-title background prompt after first assistant response
+        if (willGenerateTitle) {
+          const settings = getSettingsService();
+          const autoTitleEnabled = settings.getSetting('autoTitleEnabled') !== false;
+          const bgService = autoTitleEnabled ? getBackgroundPromptService() : null;
+          if (bgService) {
+            // Collect conversation context: the user message(s) and this first assistant response
+            const conversationMessages = (threadObj?.messages ?? [])
+              .filter((m) => !m.deletedAt)
+              .sort((a, b) => a.createdAt - b.createdAt)
+              .slice(0, 4) // First few messages for title context
+              .map((m) => ({ role: m.role, content: m.content }));
+
+            const taskId = `auto-title-${threadId}-${Date.now().toString(36)}`;
+            void bgService.submit({
+              taskId,
+              type: BackgroundPromptType.AutoTitle,
+              threadId,
+              priority: BackgroundPromptPriority.High,
+              maxTokens: 60,
+              temperature: 0.7,
+              system:
+                'Generate a short, descriptive title (3-8 words) for this conversation. ' +
+                'Return ONLY the title text, nothing else. No quotes, no punctuation at the end.',
+              messages: [
+                ...conversationMessages,
+                {
+                  role: 'user',
+                  content: 'Based on the conversation above, generate a concise title.',
+                },
+              ],
+            });
+            threadLog.debug(
+              `[thread-handler] Auto-title background prompt submitted for thread ${threadId}`,
+            );
+          }
+        }
+
         return apiOk({
           id: msg.id,
           role: msg.role,

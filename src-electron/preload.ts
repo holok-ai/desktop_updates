@@ -5,6 +5,10 @@ import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type {
+  BackgroundPromptRequest,
+  BackgroundPromptResult,
+} from '../src-shared/types/background-prompt.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
 
 import type {
@@ -261,6 +265,7 @@ export interface AppSettings {
   autoInstallUpdates?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
+  autoTitleEnabled?: boolean;
   /* ToolOrchestrator data need to load the UI  */
   config_windowsCommands: string;
   config_unixCommands: string;
@@ -462,6 +467,25 @@ export interface FileAPI {
 }
 
 /**
+ * Background Prompt API
+ *
+ * Manages background AI prompt tasks that run in a separate context from the user's chat.
+ */
+export interface BackgroundPromptAPI {
+  // Submit a background prompt task
+  submit: (request: BackgroundPromptRequest) => Promise<ApiResponse<void>>;
+
+  // Cancel a specific task by taskId
+  cancel: (taskId: string) => Promise<ApiResponse<void>>;
+
+  // Cancel all tasks for a given thread
+  cancelAllForThread: (threadId: string) => Promise<ApiResponse<void>>;
+
+  // Listen for task results (completed, failed, cancelled, running)
+  onResult: (callback: (result: BackgroundPromptResult) => void) => () => void;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
@@ -474,6 +498,7 @@ export interface ElectronAPI {
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
+  bgprompt: BackgroundPromptAPI;
   updater: UpdaterAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
@@ -759,6 +784,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     validate: (payload: { filename: string; mimeType: string; size: number }) =>
       ipcRenderer.invoke('file:validate', payload),
   } as FileAPI,
+
+  /**
+   * Background Prompt API Implementation
+   */
+  bgprompt: {
+    submit: (request: BackgroundPromptRequest) => ipcRenderer.invoke('bgprompt:submit', request),
+
+    cancel: (taskId: string) => ipcRenderer.invoke('bgprompt:cancel', taskId),
+
+    cancelAllForThread: (threadId: string) =>
+      ipcRenderer.invoke('bgprompt:cancelAllForThread', threadId),
+
+    onResult: (callback: (result: BackgroundPromptResult) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, result: BackgroundPromptResult): void =>
+        callback(result);
+      ipcRenderer.on('bgprompt:result', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('bgprompt:result', subscription);
+      };
+    },
+  } as BackgroundPromptAPI,
 
   /**
    * Project API Implementation

@@ -82,6 +82,7 @@
     shellCommands: '',
     windowsCommands: '',
     unixCommands: '',
+    autoTitleEnabled: true,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -106,6 +107,7 @@
     shellCommands: '',
     windowsCommands: '',
     unixCommands: '',
+    autoTitleEnabled: true,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -146,6 +148,7 @@
       autoInstallUpdates: all.autoInstallUpdates ?? false,
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
+      autoTitleEnabled: all.autoTitleEnabled ?? true,
     };
     savedSettings = {
       ...settings,
