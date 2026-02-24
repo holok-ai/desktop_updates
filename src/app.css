@@ -25,6 +25,12 @@
   --holokai-blue-hover: #5a6ed4;
   --holokai-light-text: rgba(255, 255, 255, 0.95);
 
+  /* Sidebar text intensity (sidebar is always dark) */
+  --sidebar-text-full: rgba(255, 255, 255, 1);
+  --sidebar-text-normal: rgba(255, 255, 255, 1);
+  --sidebar-text-muted: rgba(255, 255, 255, 0.8);
+  --sidebar-text-dim: rgba(255, 255, 255, 0.6);
+
   /* Holokai light theme variables */
   --holokai-sidebar-primary-light-color: #091320;
   --holokai-sidebar-item-hover-light-color: #33667e71;
