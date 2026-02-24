@@ -6,7 +6,10 @@
   import ChatMessage from './ChatMessage.svelte';
   import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadFacade as threadService, type BackgroundStream } from '$lib/services/thread-facade';
+  import {
+    threadFacade as threadService,
+    type BackgroundStream,
+  } from '$lib/services/thread-facade';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
@@ -411,10 +414,7 @@
     error = '';
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
-    const branchId = await threadService.calculateNextBranchId(
-      threadId,
-      lastMessageBranchId || '0.0.0',
-    );
+    const branchId = threadService.calculateNextBranchId(messages, lastMessageBranchId || '0.0.0');
 
     // Delegate to appropriate handler
     const multipleModels = modelIds.length > 1;
