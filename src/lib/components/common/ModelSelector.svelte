@@ -86,7 +86,7 @@
         availableModels = await modelService.getModelsForApplication(agentId);
       } else {
         console.log('[ModelSelector] Loading all models');
-        availableModels = await window.electronAPI.models.listAll();
+        availableModels = await modelService.getAvailableModels();
       }
 
       console.log('[ModelSelector] Loaded models:', availableModels.length);

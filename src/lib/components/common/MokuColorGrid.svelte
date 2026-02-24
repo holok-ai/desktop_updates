@@ -28,18 +28,18 @@
 
   // Color names for better accessibility
   const colorNames: Record<MokuColor, string> = {
-    '#3B82F6': 'Blue',
-    '#8B5CF6': 'Purple',
-    '#EC4899': 'Pink',
-    '#F59E0B': 'Amber',
-    '#10B981': 'Emerald',
-    '#14B8A6': 'Teal',
-    '#6366F1': 'Indigo',
-    '#EF4444': 'Red',
-    '#84CC16': 'Lime',
-    '#F97316': 'Orange',
-    '#06B6D4': 'Cyan',
-    '#A855F7': 'Violet',
+    '#7BA3E0': 'Blue',
+    '#A78BDB': 'Purple',
+    '#E893B8': 'Pink',
+    '#E8B567': 'Amber',
+    '#6BC9A3': 'Emerald',
+    '#66C7BC': 'Teal',
+    '#8B8FDB': 'Indigo',
+    '#E88484': 'Red',
+    '#A3D66E': 'Lime',
+    '#E89B68': 'Orange',
+    '#61C7DB': 'Cyan',
+    '#BB82E0': 'Violet',
   };
 </script>
 

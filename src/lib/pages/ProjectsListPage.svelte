@@ -83,7 +83,12 @@
 
   function handleMakeFavorite(project: Project, e: MouseEvent) {
     e.stopPropagation();
-    favorites.toggleFavorite(project.id, 'project');
+    favorites.toggleFavorite(
+      project.id,
+      'project',
+      project.title ?? '',
+      `${ROUTE.PROJECTS_VIEW}?projectId=${project.id}`,
+    );
     closeMenu();
   }
 

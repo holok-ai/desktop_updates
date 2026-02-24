@@ -8,6 +8,7 @@
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import EditableText from '$lib/components/common/EditableText.svelte';
   import { favorites } from '$lib/stores/favorite.store';
+  import type { GUID } from '$lib/types/app.type';
 
   let projectId = $state<string | null>(null);
   let localTitle = $state('');
@@ -21,7 +22,12 @@
 
   function toggleFavorite() {
     if (projectId) {
-      favorites.toggleFavorite(projectId, 'project');
+      favorites.toggleFavorite(
+        projectId,
+        'project',
+        project?.title ?? '',
+        `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`,
+      );
     }
   }
 
@@ -95,13 +101,13 @@
 
   async function handleTitleChange(newTitle: string) {
     if (!projectId || !project) return;
-    await projectService.updateProject(projectId, { title: newTitle });
+    await projectService.updateProject(projectId as GUID, { title: newTitle });
     projects.updateProject({ ...project, title: newTitle });
   }
 
   async function handleDescriptionChange(newDesc: string) {
     if (!projectId || !project) return;
-    await projectService.updateProject(projectId, { description: newDesc });
+    await projectService.updateProject(projectId as GUID, { description: newDesc });
     projects.updateProject({ ...project, description: newDesc });
   }
 
@@ -112,7 +118,7 @@
     if (id && id !== projectId) {
       projectId = id;
       // Load full project with members and files
-      projects.loadProject(id).catch((error) => {
+      projects.loadProject(id as GUID).catch((error) => {
         console.error('Failed to load project:', error);
       });
     }

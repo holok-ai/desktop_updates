@@ -270,7 +270,7 @@
 
       try {
         // Fetch file from backend
-        const result = await window.electronAPI.file.get({ threadId, fileId });
+        const result = await window.electronAPI.file.get({ threadId: threadId ?? '', fileId });
 
         if (result.success && result.buffer) {
           // Convert buffer to base64
