@@ -1,11 +1,8 @@
 <script lang="ts">
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { favorites } from '$lib/stores/favorite.store';
-  import {
-    pendingAutoTitle,
-    isThreadRunningBgTasks,
-    backgroundPromptStore,
-  } from '$lib/stores/backgroundPrompt.store';
+  import { observerStore, getSuggestion, isTaskRunning } from '$lib/observer/observer.store';
+  import { ObserverTaskType } from '../../../../src-shared/types/observer.types';
   import SuggestedText from '$lib/components/common/SuggestedText.svelte';
 
   interface Props {
@@ -23,10 +20,14 @@
   let showStatus = $state(false);
   let _hovered = $state(false);
 
-  // Background prompt derived state
-  const suggestedTitle = $derived(threadId ? $pendingAutoTitle(threadId) : undefined);
-  const hasBgTaskRunning = $derived(threadId ? $isThreadRunningBgTasks(threadId) : false);
-  const showSuggestion = $derived(!!suggestedTitle?.result && !isEditing);
+  // Observer-derived state for title suggestions
+  const suggestedTitleText = $derived(
+    threadId ? $getSuggestion(threadId, ObserverTaskType.RenameTitle) : undefined,
+  );
+  const hasBgTaskRunning = $derived(
+    threadId ? $isTaskRunning(threadId, ObserverTaskType.RenameTitle) : false,
+  );
+  const showSuggestion = $derived(suggestedTitleText !== undefined && !isEditing);
 
   // Favorite toggle for the current thread
   const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
@@ -39,8 +40,8 @@
 
   function startEditing() {
     // If there's a pending suggestion, dismiss it before editing
-    if (suggestedTitle) {
-      backgroundPromptStore.dismiss(suggestedTitle.taskId);
+    if (suggestedTitleText !== undefined && threadId) {
+      observerStore.dismissSuggestion(threadId, ObserverTaskType.RenameTitle);
     }
     editValue = title;
     isEditing = true;
@@ -79,9 +80,9 @@
   }
 
   async function handleKeepSuggestion() {
-    if (!suggestedTitle?.result || !threadId) return;
-    const newTitle = suggestedTitle.result.trim();
-    backgroundPromptStore.accept(suggestedTitle.taskId);
+    if (suggestedTitleText === undefined || !threadId) return;
+    const newTitle = suggestedTitleText.trim();
+    observerStore.acceptSuggestion(threadId, ObserverTaskType.RenameTitle);
     title = newTitle;
     onTitleChange?.(newTitle);
     try {
@@ -92,8 +93,8 @@
   }
 
   function handleDiscardSuggestion() {
-    if (!suggestedTitle) return;
-    backgroundPromptStore.dismiss(suggestedTitle.taskId);
+    if (suggestedTitleText === undefined || !threadId) return;
+    observerStore.dismissSuggestion(threadId, ObserverTaskType.RenameTitle);
   }
 </script>
 
@@ -116,7 +117,7 @@
         />
       {:else if showSuggestion}
         <SuggestedText
-          suggestion={suggestedTitle?.result?.trim() ?? ''}
+          suggestion={suggestedTitleText?.trim() ?? ''}
           onKeep={handleKeepSuggestion}
           onDiscard={handleDiscardSuggestion}
           autoAcceptMs={15000}
