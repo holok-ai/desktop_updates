@@ -30,15 +30,17 @@
         toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
         updateCheckState = null;
         downloadPercent = null;
+        isInstalling = false;
+        unsubscribeProgress();
       }
-      // On success quitAndInstall is called automatically — app will restart
+      // On success: keep isInstalling=true so the modal stays in progress state.
+      // quitAndInstall is called automatically and the app will restart shortly.
     } catch {
       toastStore.show('Failed to start update download.', { variant: 'error' });
       updateCheckState = null;
       downloadPercent = null;
-    } finally {
-      unsubscribeProgress();
       isInstalling = false;
+      unsubscribeProgress();
     }
   }
 

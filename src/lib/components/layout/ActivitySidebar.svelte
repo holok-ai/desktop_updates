@@ -464,7 +464,7 @@
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--sidebar-text-normal) !important;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -490,13 +490,15 @@
   }
 
   .nav-button:hover {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--sidebar-text-full) !important;
     background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
   }
 
   .nav-button.selected {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--sidebar-text-full) !important;
     background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
   }
 
   .nav-button.new-thread {
@@ -529,7 +531,7 @@
   }
 
   .recent-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--sidebar-text-muted);
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
@@ -537,7 +539,7 @@
   }
 
   .recent-toggle {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--sidebar-text-dim);
     font-size: 11px;
     background: transparent;
     border: 1px solid transparent;
