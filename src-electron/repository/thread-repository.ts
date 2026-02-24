@@ -290,6 +290,7 @@ export class ThreadRepository {
       provider: payload.provider || '',
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
     };
 
     // Check for duplicates before adding to cache
@@ -694,6 +695,7 @@ export class ThreadRepository {
       provider: dto.provider || '',
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
       desktopOptions,
     };
 

@@ -12,6 +12,8 @@
       content: string;
       createdAt: number;
       modelId?: string | null;
+      guardExecution?: 'none' | 'pass' | 'fail';
+      guardError?: string;
     };
     responses: Array<{
       id: string;

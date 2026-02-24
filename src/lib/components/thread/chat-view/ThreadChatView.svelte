@@ -1059,6 +1059,8 @@
           onBranchClick={item.isFromBranch
             ? () => handleBranchIconClick(item.pair.request.branchId)
             : undefined}
+          guardStatus={item.pair.request.guardExecution}
+          guardError={item.pair.request.guardError}
         />
       {:else if item.type === 'branch'}
         {console.log('[ThreadChatView] Rendering ChatBranch:', {

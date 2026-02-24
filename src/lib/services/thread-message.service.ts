@@ -140,6 +140,7 @@ export class ThreadMessageService {
       modelId: modelId,
       guardExecution: 'none',
       guardMessageId: null,
+      guardError: '',
     };
 
     try {

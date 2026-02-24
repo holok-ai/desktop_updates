@@ -53,7 +53,7 @@ export function registerBackgroundPromptHandlers(auth?: AuthService): void {
    */
   ipcMain.handle(
     'bgprompt:submit',
-    (_event, request: BackgroundPromptRequest): ApiResponse<void> => {
+    async (_event, request: BackgroundPromptRequest): Promise<ApiResponse<void>> => {
       try {
         if (!service) {
           return apiFail(-1, 'BackgroundPromptService not initialized');
@@ -65,7 +65,7 @@ export function registerBackgroundPromptHandlers(auth?: AuthService): void {
           threadId: request.threadId,
         });
 
-        service.submit(request);
+        await service.submit(request);
         return apiOk(undefined) as ApiResponse<void>;
       } catch (error) {
         log.error('[IPC] Error submitting background prompt:', error);

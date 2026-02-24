@@ -63,6 +63,7 @@ export class PlaceholderInspector implements IMessageInspector {
             deletedAt: null,
             guardExecution: 'none',
             guardMessageId: null,
+            guardError: '',
           };
 
           toInsert.push({ index: i, message: placeholder });

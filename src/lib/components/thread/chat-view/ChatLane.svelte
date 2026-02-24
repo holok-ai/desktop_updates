@@ -12,6 +12,8 @@
       content: string;
       createdAt: number;
       modelId?: string | null;
+      guardExecution?: 'none' | 'pass' | 'fail';
+      guardError?: string;
     };
     responses: Array<{
       id: string;
@@ -119,6 +121,8 @@
         {onCopyRequest}
         {onCopyResponse}
         {onRetry}
+        guardStatus={pair.request.guardExecution ?? 'none'}
+        guardError={pair.request.guardError ?? ''}
       />
     {/each}
   </div>
