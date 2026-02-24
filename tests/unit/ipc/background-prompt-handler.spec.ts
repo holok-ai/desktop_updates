@@ -107,11 +107,13 @@ describe('Background Prompt IPC Handlers', () => {
       expect(mockSubmit).toHaveBeenCalledWith(request);
     });
 
-    it('returns apiFail when service throws', async () => {
-      mockSubmit.mockRejectedValue(new Error('Queue full'));
+    it('returns apiFail when service throws', () => {
+      mockSubmit.mockImplementation(() => {
+        throw new Error('Queue full');
+      });
 
       const request = makeRequest();
-      const result = await handlers['bgprompt:submit'](null, request);
+      const result = handlers['bgprompt:submit'](null, request);
 
       expectApiFail(result, -1);
       expect(result.errorText).toBe('Queue full');
