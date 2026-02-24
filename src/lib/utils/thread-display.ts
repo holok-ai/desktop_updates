@@ -266,7 +266,7 @@ export class ThreadDisplay {
 
           // Inject image tags for attachments
           if (assistantMsg.attachments && assistantMsg.attachments.length > 0) {
-            formattedContent = ThreadDisplay.injectImageTags(
+            formattedContent = ThreadDisplay.injectAttachmentTags(
               formattedContent,
               assistantMsg.attachments,
             );
@@ -306,22 +306,23 @@ export class ThreadDisplay {
    * Inject markdown image tags for image attachments into content.
    * Non-image attachments and attachments missing base64 data are skipped.
    */
-  static injectImageTags(
+  static injectAttachmentTags(
     content: string,
     attachments: Array<{ mimeType: string; data?: string; filename: string }>,
   ): string {
     let result = content;
 
     for (const attachment of attachments) {
-      // Only process image attachments
-      if (!attachment.mimeType.startsWith('image/')) {
-        continue;
-      }
+      switch (true) {
+        case attachment.mimeType === 'application/pdf':
+          break;
 
-      // If we have base64 data, inject inline image
-      if (attachment.data) {
-        const imageTag = `\n\n![${attachment.filename}](data:${attachment.mimeType};base64,${attachment.data})`;
-        result += imageTag;
+        case attachment.mimeType.startsWith('image/'):
+          if (!attachment.data) {
+            break;
+          }
+          result += `\n\n![${attachment.filename}](data:${attachment.mimeType};base64,${attachment.data})`;
+          break;
       }
     }
 

@@ -24,7 +24,9 @@ function msg(
   };
 }
 
-function model(overrides: Partial<ModelDetails> & { id: string; accessName: string }): ModelDetails {
+function model(
+  overrides: Partial<ModelDetails> & { id: string; accessName: string },
+): ModelDetails {
   return {
     title: overrides.id,
     provider: 'test',
@@ -38,19 +40,19 @@ function model(overrides: Partial<ModelDetails> & { id: string; accessName: stri
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// injectImageTags
+// injectAttachmentTags
 // ═══════════════════════════════════════════════════════════════════
 
-describe('ThreadDisplay.injectImageTags', () => {
+describe('ThreadDisplay.injectAttachmentTags', () => {
   it('appends image markdown for image attachments with data', () => {
-    const result = ThreadDisplay.injectImageTags('Hello', [
+    const result = ThreadDisplay.injectAttachmentTags('Hello', [
       { mimeType: 'image/jpeg', data: 'abc123', filename: 'photo.jpg' },
     ]);
     expect(result).toBe('Hello\n\n![photo.jpg](data:image/jpeg;base64,abc123)');
   });
 
   it('handles multiple image attachments', () => {
-    const result = ThreadDisplay.injectImageTags('Content', [
+    const result = ThreadDisplay.injectAttachmentTags('Content', [
       { mimeType: 'image/png', data: 'data1', filename: 'a.png' },
       { mimeType: 'image/gif', data: 'data2', filename: 'b.gif' },
     ]);
@@ -59,26 +61,26 @@ describe('ThreadDisplay.injectImageTags', () => {
   });
 
   it('skips non-image mimeTypes', () => {
-    const result = ThreadDisplay.injectImageTags('Text', [
+    const result = ThreadDisplay.injectAttachmentTags('Text', [
       { mimeType: 'text/plain', data: 'txt', filename: 'readme.txt' },
     ]);
     expect(result).toBe('Text');
   });
 
   it('skips image attachments without data property', () => {
-    const result = ThreadDisplay.injectImageTags('Text', [
+    const result = ThreadDisplay.injectAttachmentTags('Text', [
       { mimeType: 'image/png', filename: 'nodata.png' },
     ]);
     expect(result).toBe('Text');
   });
 
   it('returns original content when attachments array is empty', () => {
-    const result = ThreadDisplay.injectImageTags('Original', []);
+    const result = ThreadDisplay.injectAttachmentTags('Original', []);
     expect(result).toBe('Original');
   });
 
   it('mixes image and non-image attachments correctly', () => {
-    const result = ThreadDisplay.injectImageTags('Body', [
+    const result = ThreadDisplay.injectAttachmentTags('Body', [
       { mimeType: 'application/pdf', data: 'pdfdata', filename: 'doc.pdf' },
       { mimeType: 'image/png', data: 'imgdata', filename: 'pic.png' },
     ]);
@@ -146,9 +148,7 @@ describe('ThreadDisplay.buildMessagePairs', () => {
   });
 
   it('user message with no response and streaming active gets streaming flag', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '1.0.0', role: 'user' })];
 
     const pairs = ThreadDisplay.buildMessagePairs(messages, true, 'streaming...');
     expect(pairs).toHaveLength(1);
@@ -237,9 +237,7 @@ describe('ThreadDisplay.buildMessagePairs', () => {
   });
 
   it('user message with no following messages and streaming=false is not streaming', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '1.0.0', role: 'user' })];
 
     const pairs = ThreadDisplay.buildMessagePairs(messages, false, '');
     expect(pairs).toHaveLength(1);
@@ -258,9 +256,7 @@ describe('ThreadDisplay.buildDisplayItems', () => {
   });
 
   it('returns empty array when all messages are hidden', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user', isHidden: true }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '1.0.0', role: 'user', isHidden: true })];
     expect(ThreadDisplay.buildDisplayItems(messages, false, '')).toEqual([]);
   });
 
@@ -393,9 +389,7 @@ describe('ThreadDisplay.buildDisplayItems', () => {
       msg({ id: 'a2', branchId: '2.2.0', role: 'assistant' }),
     ];
 
-    const models = [
-      model({ id: 'model-1', accessName: 'gpt-4', title: 'GPT-4' }),
-    ];
+    const models = [model({ id: 'model-1', accessName: 'gpt-4', title: 'GPT-4' })];
 
     const items = ThreadDisplay.buildDisplayItems(messages, false, '', models);
     if (items[0].type === 'branch') {
@@ -441,9 +435,7 @@ describe('ThreadDisplay.buildDisplayItems', () => {
   });
 
   it('streaming state passes through to message pairs', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '1.0.0', role: 'user' })];
 
     const items = ThreadDisplay.buildDisplayItems(messages, true, 'streaming...');
     expect(items).toHaveLength(1);

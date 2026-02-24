@@ -145,74 +145,64 @@ describe('getMessages', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('calculateNextBranchId', () => {
-  it('returns "1.0.0" when thread has no messages', async () => {
-    mockThreadApi.getMessages.mockResolvedValue(apiOk([]));
-    const result = await facade.calculateNextBranchId('thread-1');
+  it('returns "1.0.0" when messages array is empty', () => {
+    const result = facade.calculateNextBranchId([]);
     expect(result).toBe('1.0.0');
   });
 
-  it('increments row for main lane (lane 0)', async () => {
-    const result = await facade.calculateNextBranchId('thread-1', '3.0.0');
+  it('increments row for main lane (lane 0)', () => {
+    const result = facade.calculateNextBranchId([], '3.0.0');
     expect(result).toBe('4.0.0');
   });
 
-  it('increments iteration for branch lane (lane != 0)', async () => {
-    const result = await facade.calculateNextBranchId('thread-1', '2.1.0');
+  it('increments iteration for branch lane (lane != 0)', () => {
+    const result = facade.calculateNextBranchId([], '2.1.0');
     expect(result).toBe('2.1.1');
   });
 
-  it('increments iteration when already > 0', async () => {
-    const result = await facade.calculateNextBranchId('thread-1', '2.1.5');
+  it('increments iteration when already > 0', () => {
+    const result = facade.calculateNextBranchId([], '2.1.5');
     expect(result).toBe('2.1.6');
   });
 
-  it('finds last main lane message when no branchId provided', async () => {
+  it('finds last main lane message when no branchId provided', () => {
     const messages = [
       msg({ id: '1', branchId: '1.0.0', role: 'user' }),
       msg({ id: '2', branchId: '1.0.0', role: 'assistant' }),
       msg({ id: '3', branchId: '2.0.0', role: 'user' }),
       msg({ id: '4', branchId: '2.1.0', role: 'user' }),
     ];
-    mockThreadApi.getMessages.mockResolvedValue(apiOk(messages));
-
-    const result = await facade.calculateNextBranchId('thread-1');
+    const result = facade.calculateNextBranchId(messages);
     expect(result).toBe('3.0.0');
   });
 
-  it('falls back to last message when no main lane messages exist', async () => {
+  it('falls back to last message when no main lane messages exist', () => {
     const messages = [
       msg({ id: '1', branchId: '1.1.0', role: 'user' }),
       msg({ id: '2', branchId: '1.2.0', role: 'user' }),
     ];
-    mockThreadApi.getMessages.mockResolvedValue(apiOk(messages));
-
-    const result = await facade.calculateNextBranchId('thread-1');
+    const result = facade.calculateNextBranchId(messages);
     expect(result).toBe('1.2.1');
   });
 
-  it('handles whitespace-only branchId by looking up messages', async () => {
+  it('handles whitespace-only branchId by falling back to messages', () => {
     const messages = [msg({ id: '1', branchId: '1.0.0', role: 'user' })];
-    mockThreadApi.getMessages.mockResolvedValue(apiOk(messages));
-
-    const result = await facade.calculateNextBranchId('thread-1', '   ');
+    const result = facade.calculateNextBranchId(messages, '   ');
     expect(result).toBe('2.0.0');
   });
 
-  it('defaults to "1.0.0" on error', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockThreadApi.getMessages.mockRejectedValue(new Error('network'));
-    const result = await facade.calculateNextBranchId('thread-1');
-    expect(result).toBe('1.0.0');
-    spy.mockRestore();
-  });
-
-  it('handles malformed branchId (no dots) gracefully', async () => {
-    const result = await facade.calculateNextBranchId('thread-1', 'garbage');
+  it('returns "1.0.0" when messages empty and branchId is whitespace', () => {
+    const result = facade.calculateNextBranchId([], '   ');
     expect(result).toBe('1.0.0');
   });
 
-  it('handles branchId with only row part', async () => {
-    const result = await facade.calculateNextBranchId('thread-1', '5');
+  it('handles malformed branchId (no dots) gracefully', () => {
+    const result = facade.calculateNextBranchId([], 'garbage');
+    expect(result).toBe('1.0.0');
+  });
+
+  it('handles branchId with only row part', () => {
+    const result = facade.calculateNextBranchId([], '5');
     expect(result).toBe('6.0.0');
   });
 });
