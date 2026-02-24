@@ -13,13 +13,6 @@ import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 import { CreateThreadCommand } from '../commands/thread.create.js';
 import { RenameThreadCommand } from '../commands/thread.rename.js';
-import { getBackgroundPromptService } from './background-prompt-handler.js';
-import { getSettingsService } from './settings-handler.js';
-import {
-  BackgroundPromptType,
-  BackgroundPromptPriority,
-} from '../../src-shared/types/background-prompt.types.js';
-
 const threadLog = createScopedLogger('thread');
 
 /**
@@ -393,44 +386,6 @@ export function registerThreadHandlers(): void {
         }
 
         broadcast('thread:updated', thread);
-
-        // Submit auto-title background prompt after first assistant response
-        if (willGenerateTitle) {
-          const settings = getSettingsService();
-          const autoTitleEnabled = settings.getSetting('autoTitleEnabled') !== false;
-          const bgService = autoTitleEnabled ? getBackgroundPromptService() : null;
-          if (bgService) {
-            // Collect conversation context: the user message(s) and this first assistant response
-            const conversationMessages = (threadObj?.messages ?? [])
-              .filter((m) => !m.deletedAt)
-              .sort((a, b) => a.createdAt - b.createdAt)
-              .slice(0, 4) // First few messages for title context
-              .map((m) => ({ role: m.role, content: m.content }));
-
-            const taskId = `auto-title-${threadId}-${Date.now().toString(36)}`;
-            void bgService.submit({
-              taskId,
-              type: BackgroundPromptType.AutoTitle,
-              threadId,
-              priority: BackgroundPromptPriority.High,
-              maxTokens: 60,
-              temperature: 0.7,
-              system:
-                'Generate a short, descriptive title (3-8 words) for this conversation. ' +
-                'Return ONLY the title text, nothing else. No quotes, no punctuation at the end.',
-              messages: [
-                ...conversationMessages,
-                {
-                  role: 'user',
-                  content: 'Based on the conversation above, generate a concise title.',
-                },
-              ],
-            });
-            threadLog.debug(
-              `[thread-handler] Auto-title background prompt submitted for thread ${threadId}`,
-            );
-          }
-        }
 
         return apiOk({
           id: msg.id,
