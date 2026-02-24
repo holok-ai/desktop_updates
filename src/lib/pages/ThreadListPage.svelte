@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { threads } from '../stores/thread.store';
-  import { threadService } from '../services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
@@ -14,7 +14,7 @@
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
     if (!$isAuthenticated) {
-      toastStore.show('Please log in to access Threads.', { variant: 'info' });
+      toastStore.show('Please login to access Threads.', { variant: 'info' });
       push(ROUTE.LOGIN);
     }
   });

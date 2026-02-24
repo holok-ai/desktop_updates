@@ -20,6 +20,11 @@ import { CreateChatServiceCommand } from '../commands/chat.create-service.js';
 // Map of chat services per thread+branch (interim solution)
 // Key format: "${threadId}:${branchId}"
 const chatServices: Map<string, DesktopChatService> = new Map();
+
+// Map of active AbortControllers for in-flight streams
+// Key format: "${threadId}:${branchId}"
+const activeAbortControllers: Map<string, AbortController> = new Map();
+
 let authService: AuthService | null = null;
 
 /**
@@ -108,13 +113,20 @@ export function registerChatHandlers(auth?: AuthService): void {
         return apiFail(-1, errorMessage);
       }
 
+      // Create an AbortController for this stream so it can be cancelled
+      const abortController = new AbortController();
+      activeAbortControllers.set(serviceKey, abortController);
+
       try {
         await chatService.chat(
           request,
           (token: string) => {
+            // Don't send tokens if stream was cancelled
+            if (abortController.signal.aborted) return;
             event.sender.send('chat:token', { threadId, branchId, token });
           },
           (toolName, input, notification) => {
+            if (abortController.signal.aborted) return;
             event.sender.send('chat:toolUse', {
               threadId,
               toolName,
@@ -123,15 +135,48 @@ export function registerChatHandlers(auth?: AuthService): void {
             });
           },
           (status: ToolStatus) => {
+            if (abortController.signal.aborted) return;
             event.sender.send('chat:toolStatus', { threadId, ...status });
           },
+          abortController.signal,
         );
         log.info('[IPC] Chat message sent successfully');
         return apiOk(undefined) as ApiResponse<void>;
       } catch (error) {
+        // If the stream was cancelled, treat it as a successful (intentional) abort
+        if (abortController.signal.aborted) {
+          log.info('[IPC] Chat stream cancelled for:', serviceKey);
+          return apiOk(undefined) as ApiResponse<void>;
+        }
         log.error('[IPC] Error sending chat message:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return apiFail(-1, errorMessage);
+      } finally {
+        activeAbortControllers.delete(serviceKey);
+      }
+    },
+  );
+
+  /**
+   * Cancel Chat Stream - Abort an in-flight streaming response
+   */
+  ipcMain.handle(
+    'chat:cancel',
+    (
+      _event: IpcMainInvokeEvent,
+      threadId: string,
+      branchId: string,
+    ): ApiResponse<void> => {
+      const serviceKey = buildServiceKey(threadId, branchId);
+      const controller = activeAbortControllers.get(serviceKey);
+      if (controller) {
+        log.info('[IPC] Cancelling stream for:', serviceKey);
+        controller.abort();
+        activeAbortControllers.delete(serviceKey);
+        return apiOk(undefined) as ApiResponse<void>;
+      } else {
+        log.warn('[IPC] No active stream to cancel for:', serviceKey);
+        return apiOk(undefined) as ApiResponse<void>;
       }
     },
   );
@@ -171,7 +216,14 @@ export function registerChatHandlers(auth?: AuthService): void {
 export function unregisterChatHandlers(): void {
   ipcMain.removeHandler('chat:createServiceForThread');
   ipcMain.removeHandler('chat:send');
+  ipcMain.removeHandler('chat:cancel');
   ipcMain.removeHandler('chat:getAuditLogs');
+
+  // Abort all active streams
+  for (const controller of activeAbortControllers.values()) {
+    controller.abort();
+  }
+  activeAbortControllers.clear();
 
   // Clean up all service instances
   chatServices.clear();

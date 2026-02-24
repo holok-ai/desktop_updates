@@ -13,7 +13,7 @@
   import { projects } from '$lib/stores/project.store';
   import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
   import type { Thread } from '../../../../src-electron/preload';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -305,17 +305,16 @@
           }}
         >
           <span class="recent-label">Favorites</span>
-          {#if favoritesHovered}
-            <button
-              class="recent-toggle"
-              onclick={(e) => {
-                e.stopPropagation();
-                toggleFavorites();
-              }}
-            >
-              {showFavorites ? 'hide' : 'show'}
-            </button>
-          {/if}
+          <button
+            class="recent-toggle"
+            style="visibility: {favoritesHovered ? 'visible' : 'hidden'}"
+            onclick={(e) => {
+              e.stopPropagation();
+              toggleFavorites();
+            }}
+          >
+            {showFavorites ? 'hide' : 'show'}
+          </button>
         </div>
         <hr class="recent-divider" />
 
@@ -326,7 +325,7 @@
                 <button class="recent-thread-item" onclick={() => handleFavoriteClick(item)}>
                   <span class="thread-title">
                     {#if item.type === 'project'}
-                      <i class="pi pi-folder" style="font-size: 10px; margin-right: 4px;"></i>
+                      <i class="pi pi-folder" style="font-size: 10px;"></i>
                     {/if}
                     {item.label}
                   </span>
@@ -357,17 +356,16 @@
           }}
         >
           <span class="recent-label">Recent</span>
-          {#if recentHovered}
-            <button
-              class="recent-toggle"
-              onclick={(e) => {
-                e.stopPropagation();
-                void toggleRecentThreads();
-              }}
-            >
-              {showRecentThreads ? 'hide' : 'show'}
-            </button>
-          {/if}
+          <button
+            class="recent-toggle"
+            style="visibility: {recentHovered ? 'visible' : 'hidden'}"
+            onclick={(e) => {
+              e.stopPropagation();
+              void toggleRecentThreads();
+            }}
+          >
+            {showRecentThreads ? 'hide' : 'show'}
+          </button>
         </div>
         <hr class="recent-divider" />
 
@@ -415,7 +413,7 @@
   .collapse-tab {
     position: absolute;
     top: 20px;
-    right: -16px;
+    right: -24px;
     width: 24px;
     height: 32px;
     display: flex;
@@ -466,7 +464,7 @@
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--sidebar-text-normal) !important;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -492,13 +490,15 @@
   }
 
   .nav-button:hover {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--sidebar-text-full) !important;
     background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
   }
 
   .nav-button.selected {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--sidebar-text-full) !important;
     background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
   }
 
   .nav-button.new-thread {
@@ -531,7 +531,7 @@
   }
 
   .recent-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--sidebar-text-muted);
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
@@ -539,7 +539,7 @@
   }
 
   .recent-toggle {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--sidebar-text-dim);
     font-size: 11px;
     background: transparent;
     border: 1px solid transparent;
@@ -599,6 +599,9 @@
   }
 
   .thread-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 13px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);

@@ -40,9 +40,17 @@
           <div class="progress-bar">
             <div class="progress-fill" style="width: {downloadPercent ?? 0}%"></div>
           </div>
-          <span class="progress-label">{downloadPercent ?? 0}%</span>
+          {#if downloadPercent != null && downloadPercent >= 100}
+            <i class="pi pi-spin pi-spinner progress-spinner"></i>
+          {:else}
+            <span class="progress-label">{downloadPercent ?? 0}%</span>
+          {/if}
         </div>
-        <p class="progress-note">Downloading update — the app will restart when complete.</p>
+        {#if downloadPercent != null && downloadPercent >= 100}
+          <p class="progress-note">Preparing update — the app will restart shortly.</p>
+        {:else}
+          <p class="progress-note">Downloading update — the app will restart when complete.</p>
+        {/if}
       {:else}
         <div class="dialog-actions">
           <button type="button" class="btn-secondary" onclick={onDismiss}>Install Later</button>
@@ -84,6 +92,13 @@
   .progress-label {
     font-size: 0.8rem;
     color: var(--text-secondary, #666);
+    min-width: 2.5rem;
+    text-align: right;
+  }
+
+  .progress-spinner {
+    font-size: 0.8rem;
+    color: var(--primary-color, #646cff);
     min-width: 2.5rem;
     text-align: right;
   }

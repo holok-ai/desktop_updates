@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { querystring, push } from 'svelte-spa-router';
   import { projectService } from '$lib/services/project.service';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { toastStore } from '$lib/services/toast.service';
   import { ROUTE } from '$lib/constants/route.constant';
   import { THREAD_STATUS } from '$lib/constants/status.constant';

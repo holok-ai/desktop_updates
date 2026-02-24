@@ -30,6 +30,7 @@
   import { DEFAULT_HOLO_API_URL } from '../../../src-shared/constants/api.constant';
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
   import { toastStore } from '$lib/services/toast.service';
+  import { settingsStore } from '$lib/stores/settings.store';
   import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
   import InstallUpdateModal from '$lib/modals/InstallUpdateModal.svelte';
 
@@ -111,30 +112,8 @@
     latestVersion: '',
   });
 
-  // Hidden file input ref for avatar image upload
-  let avatarFileInput: HTMLInputElement | undefined = $state();
-
   function getAvatarBg(colorKey: string): string {
     return AVATAR_COLORS.find((c) => c.value === colorKey)?.bg ?? AVATAR_COLORS[0].bg;
-  }
-
-  function handleAvatarImageUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toastStore.show('Please select a PNG or image file', { variant: 'error' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      settings.avatar = {
-        ...settings.avatar,
-        type: AVATAR_TYPE.IMAGE as AvatarType,
-        imageData: reader.result as string,
-      };
-    };
-    reader.readAsDataURL(file);
   }
 
   onMount(async () => {
@@ -267,6 +246,7 @@
         enabledTools: [...settings.enabledTools],
         avatar: { ...settings.avatar },
       };
+      settingsStore.set({ ...settings, avatar: { ...settings.avatar } });
       toastStore.show('Settings were saved successfully.', { variant: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -450,6 +430,26 @@
 
                 <div class="subgroup-divider"></div>
 
+                <!-- Startup Page -->
+                <div class="subgroup-row">
+                  <div class="subgroup-label">Startup Page</div>
+                  <div class="subgroup-controls">
+                    <div class="card-grid card-grid-4">
+                      {#each STARTING_PAGE_OPTIONS as opt}
+                        <button
+                          class="option-card"
+                          class:active={settings.startingPage === opt.value}
+                          onclick={() => (settings.startingPage = opt.value as StartingPage)}
+                        >
+                          <span class="option-card-label">{opt.label}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
                 <!-- Avatar -->
                 <div class="subgroup-row">
                   <div class="subgroup-label">Avatar</div>
@@ -502,18 +502,6 @@
                         >
                           <i class="pi pi-user option-card-icon" style="font-size: 1rem"></i>
                           <span class="option-card-label">Icon</span>
-                        </button>
-                        <button
-                          class="option-card"
-                          class:active={settings.avatar.type === 'image'}
-                          onclick={() =>
-                            (settings.avatar = {
-                              ...settings.avatar,
-                              type: AVATAR_TYPE.IMAGE as AvatarType,
-                            })}
-                        >
-                          <span class="option-card-icon">🖼</span>
-                          <span class="option-card-label">Image</span>
                         </button>
                       </div>
                     </div>
@@ -574,23 +562,6 @@
                         </div>
                       </div>
                     {/if}
-
-                    <!-- Image upload (when type === image) -->
-                    {#if settings.avatar.type === 'image'}
-                      <div>
-                        <span class="control-label">Upload Image</span>
-                        <input
-                          bind:this={avatarFileInput}
-                          type="file"
-                          accept="image/png,image/jpeg,image/gif,image/webp"
-                          onchange={handleAvatarImageUpload}
-                          class="hidden"
-                        />
-                        <button class="btn-primary" onclick={() => avatarFileInput?.click()}>
-                          Choose File
-                        </button>
-                      </div>
-                    {/if}
                   </div>
                 </div>
 
@@ -615,27 +586,6 @@
             {#if activeCategory === 'appearance'}
               <h2 class="panel-title">Appearance</h2>
               <div class="category-card">
-                <!-- Startup Page -->
-                <div class="subgroup-row">
-                  <div class="subgroup-label">Startup Page</div>
-                  <div class="subgroup-controls">
-                    <div class="card-grid card-grid-4">
-                      {#each STARTING_PAGE_OPTIONS as opt}
-                        <button
-                          class="option-card"
-                          class:active={settings.startingPage === opt.value}
-                          onclick={() => (settings.startingPage = opt.value as StartingPage)}
-                        >
-                          <span class="option-card-icon">{opt.icon}</span>
-                          <span class="option-card-label">{opt.label}</span>
-                        </button>
-                      {/each}
-                    </div>
-                  </div>
-                </div>
-
-                <div class="subgroup-divider"></div>
-
                 <!-- Sidebar Options -->
                 <div class="subgroup-row">
                   <div class="subgroup-label">Sidebar Options</div>
@@ -664,7 +614,7 @@
                           class:active={settings.theme === opt.value}
                           onclick={() => (settings.theme = opt.value as AppThemeMode)}
                         >
-                          <span class="option-card-icon">{opt.icon}</span>
+                          <i class="pi {opt.icon} option-card-icon"></i>
                           <span class="option-card-label">{opt.label}</span>
                         </button>
                       {/each}
@@ -1185,6 +1135,7 @@
   .option-card-icon {
     font-size: 1rem;
     line-height: 1;
+    color: var(--text-primary, #111);
   }
 
   .option-card-label {
@@ -1311,6 +1262,7 @@
     border: 2px solid var(--input-border);
     border-radius: 0.375rem;
     background: transparent;
+    color: var(--text-primary, #111);
     cursor: pointer;
     font-size: 1rem;
     transition:
@@ -1337,6 +1289,8 @@
   .avatar-color-swatch {
     width: 28px;
     height: 28px;
+    padding: 0;
+    flex-shrink: 0;
     border-radius: 50%;
     border: 3px solid transparent;
     cursor: pointer;

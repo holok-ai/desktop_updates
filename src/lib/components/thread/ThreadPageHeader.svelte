@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { favorites } from '$lib/stores/favorite.store';
 
   interface Props {

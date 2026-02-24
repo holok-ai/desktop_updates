@@ -5,7 +5,7 @@
   import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
-  import { threadService } from '$lib/services/thread.service';
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
   import pRetry from 'p-retry';
 
   class EmptyAgentListError extends Error {
@@ -23,7 +23,7 @@
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
     if (!$isAuthenticated) {
-      toastStore.show('Please log in to view applications.', { variant: 'info' });
+      toastStore.show('Please login to view applications.', { variant: 'info' });
       push(ROUTE.LOGIN);
     }
   });

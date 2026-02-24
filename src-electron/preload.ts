@@ -416,6 +416,9 @@ export interface ChatAPI {
   // Send a chat message (with streaming support) for a specific thread
   chat: (threadId: string, request: DesktopChatRequest) => Promise<ApiResponse<void>>;
 
+  // Cancel an in-flight streaming response for a specific thread+branch
+  cancelStream: (threadId: string, branchId: string) => Promise<ApiResponse<void>>;
+
   // Listen for streaming tokens (event-based)
   onToken: (
     callback: (data: { threadId: string; branchId: string; token: string }) => void,
@@ -541,6 +544,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 2. Send a chat message (with streaming support) for a specific thread
     chat: (threadId: string, request: DesktopChatRequest) =>
       ipcRenderer.invoke('chat:send', threadId, request),
+
+    // 2b. Cancel an in-flight streaming response
+    cancelStream: (threadId: string, branchId: string) =>
+      ipcRenderer.invoke('chat:cancel', threadId, branchId),
 
     // 3. Listen for streaming tokens (event-based)
     onToken: (

@@ -139,12 +139,14 @@ export class DesktopChatService {
 
   /**
    * Send chat message with desktop-specific request handling
+   * @param abortSignal - Optional AbortSignal to cancel the in-flight stream
    */
   async chat(
     request: DesktopChatRequest,
     onToken: (token: string) => void,
     onToolUse?: ToolUseCallback,
     onToolStatus?: ToolStatusCallback,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     // Extract desktop-specific properties
     const { working_directory } = request;
@@ -162,6 +164,12 @@ export class DesktopChatService {
     }
     (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
       onToolStatus || undefined;
+
+    // If an abort signal is provided, attach it to the request so the underlying
+    // ChatService can honour cancellation (if it supports it).
+    if (abortSignal) {
+      (request as unknown as { abortSignal: AbortSignal }).abortSignal = abortSignal;
+    }
 
     try {
       await this.chatService.chat(request, onToken);

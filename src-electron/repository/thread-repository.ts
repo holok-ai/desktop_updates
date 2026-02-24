@@ -675,7 +675,6 @@ export class ThreadRepository {
 
     const opts = dto.options as { desktop_options?: RequestOptionsDTO } | null;
     const desktopOptions = opts?.desktop_options ?? null;
-    log.info('[ThreadRepository] mapDTOToMessage desktopOptions:', JSON.stringify(desktopOptions));
 
     const message: Message = {
       id: dto.id,
