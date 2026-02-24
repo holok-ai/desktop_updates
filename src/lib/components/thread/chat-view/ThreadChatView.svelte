@@ -16,6 +16,7 @@
   import type { Attachment } from '$shared/types/attachment.types';
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
+  import { ThreadObserver } from '$lib/observer/thread-observer';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -653,6 +654,11 @@
       }
     }
 
+    // Notify the thread observer to evaluate background tasks
+    if (thread) {
+      ThreadObserver.getInstance().observe(thread, messages);
+    }
+
     addDebugLog(`[sendMessageBranch] Complete`);
 
     await tick();
@@ -767,6 +773,11 @@
           };
           messages = [...messages, assistantMsg];
           await tick();
+        }
+
+        // Notify the thread observer to evaluate background tasks
+        if (thread) {
+          ThreadObserver.getInstance().observe(thread, messages);
         }
       }
 
