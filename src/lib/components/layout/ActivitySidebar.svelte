@@ -61,6 +61,7 @@
           return {
             id: f.id,
             type: f.type as FavoriteType,
+            route: f.route,
             label: thread.title || 'Untitled',
             sublabel: (thread.metadata?.modelTitle as string) || '',
           };
@@ -70,6 +71,7 @@
           return {
             id: f.id,
             type: f.type as FavoriteType,
+            route: f.route,
             label: project.title,
             sublabel: project.type,
           };
@@ -82,9 +84,11 @@
     showFavorites = !showFavorites;
   }
 
-  function handleFavoriteClick(item: { id: string; type: FavoriteType }) {
+  function handleFavoriteClick(item: { id: string; type: FavoriteType; route: string }) {
     const proceed = () => {
-      if (item.type === 'thread') {
+      if (item.route) {
+        push(item.route);
+      } else if (item.type === 'thread') {
         push(`${ROUTE.THREAD}?threadId=${item.id}`);
       } else {
         push(`${ROUTE.PROJECTS_VIEW}?projectId=${item.id}`);

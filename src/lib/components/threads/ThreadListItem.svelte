@@ -33,12 +33,11 @@
 
   function handleToggleFavorite(event: MouseEvent) {
     event.stopPropagation();
-    favorites.toggleFavorite(
-      thread.id,
-      'thread',
-      thread.title ?? '',
-      `${ROUTE.THREAD}?threadId=${thread.id}`,
-    );
+    const title = thread.title || 'Untitled Thread';
+    const route = projectId
+      ? `${ROUTE.PROJECT_THREAD}?threadId=${thread.id}&projectId=${projectId}`
+      : `${ROUTE.THREAD}?threadId=${thread.id}`;
+    favorites.toggleFavorite(thread.id, 'thread', title, route);
     showMenu = false;
   }
 
@@ -148,7 +147,10 @@
 
 <div class="thread-item-container">
   <button class="thread-item" onclick={handleClick}>
-    <div class="thread-item-title">{thread.title || 'Untitled Thread'}</div>
+    <div class="thread-item-title">
+      {thread.title || 'Untitled Thread'}
+      {#if isFav}<i class="pi pi-star-fill fav-indicator"></i>{/if}
+    </div>
     <div class="thread-item-info">
       <span class="thread-item-date">Last updated on {formatDateTime(thread.updatedAt)}</span>
       <span class="thread-item-model">{thread.metadata?.modelTitle || ''}</span>
@@ -228,9 +230,18 @@
   }
 
   .thread-item-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .fav-indicator {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    flex-shrink: 0;
   }
 
   .thread-item-info {

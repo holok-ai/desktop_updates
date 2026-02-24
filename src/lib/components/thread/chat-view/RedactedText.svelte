@@ -31,11 +31,18 @@
   }
 </script>
 
-<div class="redacted" class:expanded role="button" tabindex="0" onclick={toggle} onkeydown={(e) => e.key === 'Enter' && toggle()}>
+<div
+  class="redacted"
+  class:expanded
+  role="button"
+  tabindex="0"
+  onclick={toggle}
+  onkeydown={(e) => e.key === 'Enter' && toggle()}
+>
   <div class="redacted-header">
     <i class="pi pi-shield"></i>
     <span class="redacted-label">Message blocked by guard</span>
-    <i class="pi pi-chevron-{expanded ? 'up' : 'down'} chevron"></i>
+    <!-- <i class="pi pi-chevron-{expanded ? 'up' : 'down'} chevron"></i> -->
   </div>
 
   {#if expanded}
@@ -94,11 +101,6 @@
     flex: 1;
   }
 
-  .chevron {
-    font-size: 0.7rem;
-    opacity: 0.6;
-  }
-
   .redacted-body {
     margin-top: 0.625rem;
     display: flex;
@@ -154,7 +156,9 @@
     border-radius: 4px;
     color: var(--text-secondary, #666);
     font-size: 0.75rem;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
   }
 
   .copy-btn:hover {

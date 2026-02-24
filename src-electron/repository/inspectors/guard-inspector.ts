@@ -93,6 +93,7 @@ export class GuardInspector implements IMessageInspector {
 
         // Keep the first (shortest / earliest) — hide the rest
         for (let j = 1; j < userEntries.length; j++) {
+          // eslint-disable-next-line security/detect-object-injection
           userEntries[j].msg.isHidden = true;
         }
       }

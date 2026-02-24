@@ -3,18 +3,16 @@
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
+  import { projectService } from '$lib/services/project.service';
   import { ROUTE } from '$lib/constants/route.constant';
-  import ModelSelector from '$lib/components/common/ModelSelector.svelte';
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
+  import EditableText from '$lib/components/common/EditableText.svelte';
   import { favorites } from '$lib/stores/favorite.store';
-  import type { ModelDetails } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type';
-  import { modelService } from '$lib/services/model.service';
 
   let projectId = $state<string | null>(null);
-  let selectedModelId = $state<string | null>(null);
-  let prompt = $state('');
-  let isSubmitting = $state(false);
+  let localTitle = $state('');
+  let localDescription = $state('');
 
   // Get project from store
   const project = $derived(projectId ? $projects.find((p) => p.id === projectId) : null);
@@ -93,6 +91,26 @@
     return 'No instructions defined.';
   });
 
+  // Sync local editable fields from store when project changes
+  $effect(() => {
+    if (project) {
+      localTitle = project.title ?? '';
+      localDescription = project.description ?? '';
+    }
+  });
+
+  async function handleTitleChange(newTitle: string) {
+    if (!projectId || !project) return;
+    await projectService.updateProject(projectId as GUID, { title: newTitle });
+    projects.updateProject({ ...project, title: newTitle });
+  }
+
+  async function handleDescriptionChange(newDesc: string) {
+    if (!projectId || !project) return;
+    await projectService.updateProject(projectId as GUID, { description: newDesc });
+    projects.updateProject({ ...project, description: newDesc });
+  }
+
   // Extract projectId from query string and load full project
   $effect(() => {
     const params = new URLSearchParams($querystring);
@@ -121,73 +139,9 @@
     }
   }
 
-  function handleModelSelect(
-    e: CustomEvent<{
-      modelId: string;
-      modelDetails: ModelDetails;
-      appSlug: string;
-      modelSlug: string;
-    }>,
-  ) {
-    selectedModelId = e.detail.modelId;
-  }
-
-  async function handleSubmit() {
-    if (!projectId || !selectedModelId || !prompt.trim() || isSubmitting) return;
-
-    isSubmitting = true;
-    try {
-      // Get model details
-      const models = await modelService.getAvailableModels();
-      const modelDetails = models.find((m) => m.accessName === selectedModelId);
-
-      if (!modelDetails) {
-        throw new Error('Model not found');
-      }
-
-      // Get application by slug to get the agentId
-      const applications = await modelService.getAvailableApplications();
-      const application = applications.find((app) => app.slug === modelDetails.applicationSlug);
-
-      if (!application) {
-        throw new Error('Application not found for model');
-      }
-
-      console.log('[Project] Creating thread with model:', {
-        selectedModelId,
-        modelTitle: modelDetails.title,
-        modelId: modelDetails.id,
-        modelAccessName: modelDetails.accessName,
-        applicationSlug: modelDetails.applicationSlug,
-        agentId: application.id,
-      });
-
-      // Create thread with metadata
-      const createResult = await threadService.create(
-        prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        projectId,
-        application.id, // agentId
-        modelDetails.accessName, // initialModel
-      );
-
-      if (!createResult.success) {
-        throw new Error(createResult.errorText || 'Failed to create thread');
-      }
-
-      // Navigate to thread with prompt (ThreadChatView will auto-submit)
-      const params = new URLSearchParams();
-      params.set('threadId', createResult.data.id);
-      params.set('prompt', prompt);
-      params.set('projectId', projectId);
-      push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
-
-      // Clear prompt after navigation
-      prompt = '';
-    } catch (error) {
-      console.error('Failed to create thread:', error);
-    } finally {
-      isSubmitting = false;
-    }
+  function handleNewThread() {
+    if (!projectId) return;
+    push(`${ROUTE.NEW_THREAD}?projectId=${projectId}`);
   }
 
   function handleMembersClick() {
@@ -212,7 +166,13 @@
       <!-- Left Column -->
       <div class="left-column">
         <div class="title-row">
-          <h2>{project.title}</h2>
+          <EditableText
+            tag="h2"
+            class="project-title"
+            bind:value={localTitle}
+            onChange={handleTitleChange}
+            placeholder="Untitled Project"
+          />
           <button
             class="favorite-star"
             class:is-favorited={isFav}
@@ -223,31 +183,18 @@
             <i class="pi {isFav ? 'pi-star-fill' : 'pi-star'}"></i>
           </button>
         </div>
-        {#if project.description}
-          <p class="project-description">{project.description}</p>
-        {/if}
+        <EditableText
+          tag="p"
+          class="project-description"
+          bind:value={localDescription}
+          onChange={handleDescriptionChange}
+          placeholder="Add a description..."
+        />
 
-        <textarea
-          class="prompt-input"
-          bind:value={prompt}
-          placeholder="Type your message here..."
-          rows="6"
-        ></textarea>
-
-        <div class="submit-wrapper">
-          <ModelSelector
-            bind:selectedModelId
-            label=""
-            allowMultipleSelections={false}
-            on:select={handleModelSelect}
-          />
-          <button
-            class="btn-holokai submit-button"
-            onclick={handleSubmit}
-            aria-label="Send message"
-            data-tooltip="Enter to run prompt. Shift+Enter to insert a new line."
-          >
-            <i class="pi pi-arrow-up"></i>
+        <div class="thread-actions">
+          <button class="new-thread-button" onclick={handleNewThread}>
+            <i class="pi pi-plus"></i>
+            New Thread
           </button>
         </div>
 
@@ -263,7 +210,7 @@
           </div>
         {:else}
           <div class="empty-threads">
-            <p>No threads yet. Create your first thread above.</p>
+            <p>No threads yet. Click "+ New Thread" to get started.</p>
           </div>
         {/if}
       </div>
@@ -359,9 +306,11 @@
     margin-bottom: 1rem;
   }
 
-  h2 {
+  :global(.project-title) {
     margin: 0;
     text-align: left;
+    flex: 1;
+    min-width: 0;
   }
 
   .favorite-star {
@@ -409,7 +358,7 @@
     color: #d97706;
   }
 
-  .project-description {
+  :global(.project-description) {
     color: var(--text-primary);
     font-size: 1rem;
     line-height: 1.5;
@@ -417,48 +366,31 @@
     text-align: left;
   }
 
-  .prompt-input {
-    width: 100%;
-    padding: 14px;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 16px;
-    line-height: 1.5;
-    border: 1px solid var(--input-border);
-    background: var(--input-background);
-    color: var(--text-primary);
-    resize: vertical;
-    min-height: 140px;
-    margin-bottom: 1rem;
-  }
-
-  .prompt-input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
-  }
-
-  .prompt-input::placeholder {
-    color: var(--text-secondary);
-    opacity: 0.7;
-  }
-
-  .submit-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
+  .thread-actions {
     margin-bottom: 2rem;
   }
 
-  .submit-button {
-    width: 56px;
-    height: 40px;
-    padding: 0 !important;
+  .new-thread-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
   }
 
-  .submit-button i {
-    font-size: 18px;
+  .new-thread-button:hover {
+    background: var(--primary-color-hover);
+  }
+
+  .new-thread-button i {
+    font-size: 0.875rem;
   }
 
   .threads-section {
