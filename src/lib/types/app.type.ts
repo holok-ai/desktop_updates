@@ -57,6 +57,9 @@ export interface AppSettings {
   windowsCommands: string;
   unixCommands: string;
 
+  // Background Prompts
+  autoTitleEnabled: boolean;
+
   // Updates
   autoCheckUpdates: boolean;
   autoInstallUpdates: boolean;
@@ -91,6 +94,7 @@ export const defaultAppSettings: AppSettings = {
   shellCommands: '',
   windowsCommands: '',
   unixCommands: '',
+  autoTitleEnabled: true,
   autoCheckUpdates: true,
   autoInstallUpdates: false,
 };

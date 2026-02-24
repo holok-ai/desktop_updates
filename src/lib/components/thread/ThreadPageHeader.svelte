@@ -1,6 +1,12 @@
 <script lang="ts">
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { favorites } from '$lib/stores/favorite.store';
+  import {
+    pendingAutoTitle,
+    isThreadRunningBgTasks,
+    backgroundPromptStore,
+  } from '$lib/stores/backgroundPrompt.store';
+  import SuggestedText from '$lib/components/common/SuggestedText.svelte';
 
   interface Props {
     threadId: string | null;
@@ -17,16 +23,25 @@
   let showStatus = $state(false);
   let _hovered = $state(false);
 
+  // Background prompt derived state
+  const suggestedTitle = $derived(threadId ? $pendingAutoTitle(threadId) : undefined);
+  const hasBgTaskRunning = $derived(threadId ? $isThreadRunningBgTasks(threadId) : false);
+  const showSuggestion = $derived(!!suggestedTitle?.result && !isEditing);
+
   // Favorite toggle for the current thread
   const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
 
   function toggleFavorite() {
     if (threadId) {
-      favorites.toggleFavorite(threadId, 'thread');
+      favorites.toggleFavorite(threadId, 'thread', title, `/thread/${threadId}`);
     }
   }
 
   function startEditing() {
+    // If there's a pending suggestion, dismiss it before editing
+    if (suggestedTitle) {
+      backgroundPromptStore.dismiss(suggestedTitle.taskId);
+    }
     editValue = title;
     isEditing = true;
     setTimeout(() => inputRef?.focus(), 0);
@@ -62,6 +77,24 @@
       cancelEdit();
     }
   }
+
+  async function handleKeepSuggestion() {
+    if (!suggestedTitle?.result || !threadId) return;
+    const newTitle = suggestedTitle.result.trim();
+    backgroundPromptStore.accept(suggestedTitle.taskId);
+    title = newTitle;
+    onTitleChange?.(newTitle);
+    try {
+      await threadService.rename(threadId, newTitle);
+    } catch (err) {
+      console.error('[ThreadPageHeader] Failed to apply suggested title:', err);
+    }
+  }
+
+  function handleDiscardSuggestion() {
+    if (!suggestedTitle) return;
+    backgroundPromptStore.dismiss(suggestedTitle.taskId);
+  }
 </script>
 
 <header class="thread-page-header">
@@ -81,9 +114,21 @@
           onkeydown={handleKeydown}
           aria-label="Edit thread title"
         />
+      {:else if showSuggestion}
+        <SuggestedText
+          suggestion={suggestedTitle?.result?.trim() ?? ''}
+          onKeep={handleKeepSuggestion}
+          onDiscard={handleDiscardSuggestion}
+          autoAcceptMs={15000}
+        />
       {:else}
         <h1 class="thread-title" ondblclick={startEditing} title="Double-click to edit">
           {title || 'Untitled Thread'}
+          {#if hasBgTaskRunning}
+            <span class="bg-task-indicator" title="AI is analyzing your conversation...">
+              <i class="pi pi-spin pi-spinner"></i>
+            </span>
+          {/if}
         </h1>
       {/if}
     </div>
@@ -223,5 +268,14 @@
 
   .header-cmd.favorite-star.is-favorited:hover {
     color: #d97706;
+  }
+
+  .bg-task-indicator {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #888);
+    vertical-align: middle;
   }
 </style>

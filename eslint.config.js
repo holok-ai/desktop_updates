@@ -28,7 +28,6 @@ export default [
 
       // Ignore other source directories
       'packages/**',
-      'src-shared/**',
       'scripts/**',
       'e2e/**',
       'eslint-plugin-holokai/**',
