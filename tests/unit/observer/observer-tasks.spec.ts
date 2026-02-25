@@ -12,7 +12,7 @@ import type { Message } from '$lib/types/thread.type';
 function makeThread(overrides: Partial<ObserverThread> = {}): ObserverThread {
   return {
     id: 'thread-1',
-    title: '',
+    title: 'New Chat',
     messages: [],
     ...overrides,
   };
@@ -49,16 +49,25 @@ describe('Observer Tasks', () => {
     });
 
     describe('shouldRun', () => {
-      it('should return true when thread has no title and has assistant message', () => {
-        const thread = makeThread({ title: '' });
+      it('should return false when thread title starts with New and only 1 user message', () => {
+        const thread = makeThread({ title: 'New' });
         const messages = [
           makeMessage({ role: 'user', content: 'Hi' }),
           makeMessage({ id: 'msg-2', role: 'assistant', content: 'Hello!' }),
         ];
+        expect(renameTitleTask.shouldRun(thread, messages)).toBe(false);
+      });
+
+      it('should return true when thread title starts with New and 2 user messages', () => {
+        const thread = makeThread({ title: 'New' });
+        const messages = [
+          makeMessage({ role: 'user', content: 'Hi' }),
+          makeMessage({ role: 'user', content: 'Hello again' }),
+        ];
         expect(renameTitleTask.shouldRun(thread, messages)).toBe(true);
       });
 
-      it('should return false when thread already has a title', () => {
+      it('should return false when thread title does not start with New', () => {
         const thread = makeThread({ title: 'My Chat' });
         const messages = [
           makeMessage({ role: 'user', content: 'Hi' }),
@@ -68,7 +77,7 @@ describe('Observer Tasks', () => {
       });
 
       it('should return false when no assistant messages exist', () => {
-        const thread = makeThread({ title: '' });
+        const thread = makeThread({ title: 'New Chat' });
         const messages = [makeMessage({ role: 'user', content: 'Hi' })];
         expect(renameTitleTask.shouldRun(thread, messages)).toBe(false);
       });
@@ -89,10 +98,14 @@ describe('Observer Tasks', () => {
 
         expect(request.taskType).toBe(ObserverTaskType.RenameTitle);
         expect(request.threadId).toBe('thread-1');
-        expect(request.messages).toHaveLength(4); // Only first 4
+        // buildRequest now creates a single synthetic user message containing
+        // the instruction + first 2 user messages embedded as JSON
+        expect(request.messages).toHaveLength(1);
+        expect(request.messages[0].role).toBe('user');
+        expect(request.messages[0].content).toContain('Hi');
+        expect(request.messages[0].content).toContain('How are you?');
         expect(request.maxTokens).toBe(60);
         expect(request.temperature).toBe(0.7);
-        expect(request.system).toContain('title');
       });
     });
 
