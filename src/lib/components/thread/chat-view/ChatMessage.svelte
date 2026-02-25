@@ -10,7 +10,6 @@
   import ChatRequestCommands from './ChatRequestCommands.svelte';
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
-  import type { Message } from '$lib/types/thread.type';
 
   interface Props {
     /** User prompt text */
@@ -25,7 +24,7 @@
     attachments?: string[];
 
     /** Assistant responses (array to support multiple consecutive responses) */
-    responses?: Message[];
+    responses?: Array<{ id: string; content: string }>;
     /** Streaming content for active streaming response */
     streamingContent?: string;
     /** Whether the response is still streaming */
@@ -41,11 +40,13 @@
     /** Font size in pixels from settings */
     fontSize?: number;
 
-    /** Gap between messages and command bars */
-    commandGap?: number;
-
     /** Branch ID for this message */
     branchId?: string;
+
+    /** Guard execution status for this request */
+    guardStatus?: 'none' | 'pass' | 'fail';
+    /** Guard error reason when guardStatus is 'fail' */
+    guardError?: string;
 
     /** Callback when copy is clicked on request */
     onCopyRequest?: (content: string) => void;
@@ -72,8 +73,9 @@
     files = [],
     chatLayout,
     fontSize = 14,
-    commandGap = 4,
     branchId,
+    guardStatus = 'none',
+    guardError = '',
     onCopyRequest,
     onCopyResponse,
     onRetry,
@@ -132,16 +134,12 @@
     {attachments}
     {fontSize}
     {branchId}
+    {guardStatus}
+    {guardError}
   />
 
   <!-- Request commands (hover-reveal) -->
-  <ChatRequestCommands
-    commands={requestCommands}
-    gapHeight={commandGap}
-    {chatLayout}
-    {showBranchIcon}
-    {onBranchClick}
-  />
+  <ChatRequestCommands commands={requestCommands} {chatLayout} {showBranchIcon} {onBranchClick} />
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
@@ -169,7 +167,7 @@
 
   <!-- Response commands (hover-reveal) - shown if there are any responses -->
   {#if responses.length > 0 && !isStreaming}
-    <ChatResponseCommands commands={responseCommands} gapHeight={commandGap} {chatLayout} />
+    <ChatResponseCommands commands={responseCommands} {chatLayout} />
   {/if}
 </div>
 

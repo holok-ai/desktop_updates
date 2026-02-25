@@ -1,10 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { threadFacade as threadService } from '$lib/services/thread-facade';
+
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
   import { toastStore } from '$lib/services/toast.service';
-  import { formatCopyError } from '$lib/constants/thread-copy-errors';
   import type { Thread } from '../../../src-electron/preload';
   import type { GUID } from '$lib/types/app.type';
 
@@ -63,47 +62,8 @@
       if ($projects.length === 0) {
         void projectService.loadProjects();
       }
-
-      // Check for large files and duplicates
-      void checkLargeFiles();
     }
   });
-
-  async function checkLargeFiles() {
-    if (!thread) return;
-
-    try {
-      const result = await threadService.checkLargeFiles(thread.id);
-      if (result.needsConfirmation) {
-        largeFileInfo = {
-          totalSize: result.totalSize,
-          fileCount: result.fileCount,
-          estimatedTransferTime: result.estimatedTransferTime,
-        };
-      }
-    } catch (err) {
-      console.error('Failed to check large files:', err);
-    }
-  }
-
-  async function checkDuplicate() {
-    if (!thread || !selectedProjectId) return;
-
-    try {
-      const result = await threadService.checkDuplicate(thread.id, selectedProjectId);
-      if (result.isDuplicate && result.previousCopyDate && result.previousThreadId) {
-        duplicateInfo = {
-          previousCopyDate: result.previousCopyDate,
-          previousThreadId: result.previousThreadId,
-        };
-        showDuplicateWarning = true;
-        return true;
-      }
-    } catch (err) {
-      console.error('Failed to check duplicate:', err);
-    }
-    return false;
-  }
 
   function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
@@ -122,20 +82,6 @@
 
     const targetProjectId = selectedProjectId;
 
-    // Check for large files confirmation
-    if (largeFileInfo && !showLargeFileConfirmation) {
-      showLargeFileConfirmation = true;
-      return;
-    }
-
-    // Check for duplicates
-    if (!showDuplicateWarning) {
-      const isDuplicate = await checkDuplicate();
-      if (isDuplicate) {
-        return; // Show duplicate warning
-      }
-    }
-
     isProcessing = true;
     error = '';
 
@@ -144,10 +90,7 @@
       toastStore.info(`Copying thread...`);
 
       // Copy operation
-      const options = {
-        allowDuplicate: showDuplicateWarning, // If we're showing warning, user confirmed
-      };
-      const newThread = await threadService.copyThread(thread.id, targetProjectId, options);
+      //      const newThread = await threadService.copyThread(thread.id, targetProjectId, { allowDuplicate: showDuplicateWarning });
       show = false;
 
       // Get target project name for notification
@@ -157,7 +100,7 @@
       const destinationName = targetProject ? targetProject.title : 'My Thread List';
 
       dispatch('copied', {
-        threadId: newThread.id, // Return the NEW thread ID
+        threadId: thread.id, // Return the NEW thread ID
         projectId: targetProjectId,
         destinationName,
       });
@@ -166,7 +109,7 @@
       showLargeFileConfirmation = false;
       showDuplicateWarning = false;
     } catch (err) {
-      const errorMessage = formatCopyError(err);
+      const errorMessage = err as string;
       error = errorMessage;
 
       // Show error toast with specific message

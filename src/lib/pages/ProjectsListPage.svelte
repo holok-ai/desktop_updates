@@ -83,7 +83,12 @@
 
   function handleMakeFavorite(project: Project, e: MouseEvent) {
     e.stopPropagation();
-    favorites.toggleFavorite(project.id, 'project');
+    favorites.toggleFavorite(
+      project.id,
+      'project',
+      project.title ?? '',
+      `${ROUTE.PROJECTS_VIEW}?projectId=${project.id}`,
+    );
     closeMenu();
   }
 
@@ -192,7 +197,10 @@
           aria-label="Open project {project.title}"
         >
           <div class="project-card-header">
-            <h3 class="project-title">{project.title}</h3>
+            <h3 class="project-title">
+              {project.title}
+              {#if isFavorited(project.id)}<i class="pi pi-star-fill fav-indicator"></i>{/if}
+            </h3>
             <div class="project-menu-container">
               <button
                 class="project-menu-button"
@@ -343,6 +351,9 @@
   }
 
   .project-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -351,6 +362,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+  }
+
+  .fav-indicator {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    flex-shrink: 0;
   }
 
   .project-type-badge {

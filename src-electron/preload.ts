@@ -5,6 +5,7 @@ import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type { BackgroundChatRequest } from '../src-shared/types/observer.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
 
 import type {
@@ -25,6 +26,7 @@ import type { ApiResponse } from './types/api-response.js';
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
 export type { ApiResponse };
 export type { MessageDTO, RequestOptionsDTO };
+export type { ToolDefinition };
 
 /**
  * OLD Thread Interface (commented out - now imported from thread.types.ts)
@@ -250,17 +252,23 @@ export interface AppSettings {
   holoApiUrl: string;
   directoryWhitelist?: string[];
   theme?: AppThemeMode;
+  avatar?: { type: string; letters: string; icon: string; bgColor: string; imageData: string };
+  deleteConfirmationRequired?: boolean;
   startingPage?: string;
   showRecentList?: boolean;
+  showFavoritesList?: boolean;
   threadLayout?: string;
   chatFontSize?: number;
   chatLayout?: string;
   enabledTools?: string[];
   shellCommands?: string;
+  windowsCommands?: string;
+  unixCommands?: string;
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
   updateAvailable?: boolean;
   latestVersion?: string;
+  autoTitleEnabled?: boolean;
   /* ToolOrchestrator data need to load the UI  */
   config_windowsCommands: string;
   config_unixCommands: string;
@@ -429,6 +437,9 @@ export interface ChatAPI {
 
   // Get audit logs with detailed metrics for a thread+branch
   getAuditLogs: (threadId: string, branchId: string) => Promise<ApiResponse<unknown[]>>;
+
+  // Run a background chat task (non-streaming result, returns full response)
+  background: (request: BackgroundChatRequest) => Promise<ApiResponse<string>>;
 }
 
 /**
@@ -573,6 +584,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 5. Get audit logs with detailed metrics for a thread
     getAuditLogs: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('chat:getAuditLogs', threadId, branchId),
+
+    // 6. Run a background chat task (returns full accumulated response)
+    background: (request: BackgroundChatRequest) => ipcRenderer.invoke('chat:background', request),
   },
 
   /**

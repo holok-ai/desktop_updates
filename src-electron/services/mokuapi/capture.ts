@@ -24,6 +24,7 @@ function getCaptureDir(): string {
     // Resolve relative to the project root (two levels up from src-electron/services/mokuapi/)
     const projectRoot = resolve(__dirname, '..', '..', '..');
     captureDir = join(projectRoot, 'tests', 'fixtures', 'api-captures', 'raw');
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     mkdirSync(captureDir, { recursive: true });
   }
   return captureDir;
@@ -51,6 +52,7 @@ export function captureResponse(label: string, data: unknown): void {
     const filename = `${safeLabel}-${Date.now()}.json`;
     const filepath = join(dir, filename);
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     writeFileSync(filepath, JSON.stringify(data, null, 2), 'utf-8');
     log.info(`[Capture] Wrote ${filepath}`);
   } catch (err) {

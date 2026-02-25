@@ -4,6 +4,7 @@
     AppSettings,
     AppThemeMode,
     AvatarType,
+    UserAvatar,
     StartingPage,
     ThreadLayout,
     ChatLayout,
@@ -82,6 +83,7 @@
     shellCommands: '',
     windowsCommands: '',
     unixCommands: '',
+    autoTitleEnabled: true,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -106,6 +108,7 @@
     shellCommands: '',
     windowsCommands: '',
     unixCommands: '',
+    autoTitleEnabled: true,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -130,7 +133,9 @@
       holoApiUrl: all.holoApiUrl ?? DEFAULT_HOLO_API_URL,
       directoryWhitelist: [...(all.directoryWhitelist ?? [])],
       theme: (all.theme as AppThemeMode) || APP_THEME_MODE.LIGHT,
-      avatar: all.avatar ? { ...defaultUserAvatar, ...all.avatar } : { ...defaultUserAvatar },
+      avatar: all.avatar
+        ? ({ ...defaultUserAvatar, ...all.avatar } as UserAvatar)
+        : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
       deleteConfirmationRequired: all.deleteConfirmationRequired ?? false,
       showRecentList: all.showRecentList ?? true,
@@ -146,6 +151,7 @@
       autoInstallUpdates: all.autoInstallUpdates ?? false,
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
+      autoTitleEnabled: all.autoTitleEnabled ?? true,
     };
     savedSettings = {
       ...settings,

@@ -14,8 +14,6 @@
 
   interface Props {
     commands: CommandDef[];
-    /** Gap height in pixels between the message and the command bar */
-    gapHeight?: number;
     /** Chat layout to determine alignment */
     chatLayout?: ChatLayout;
     /** Whether to show the branch indicator icon */
@@ -26,7 +24,6 @@
 
   let {
     commands = [],
-    gapHeight = 4,
     chatLayout = 'left-right',
     showBranchIcon = false,
     onBranchClick,
@@ -41,7 +38,6 @@
   class="commands-row"
   class:visible={hovered}
   class:align-right={shouldAlignRight}
-  style="height: {gapHeight + 24}px; padding-top: {gapHeight}px;"
   role="toolbar"
   aria-label="Request commands"
   tabindex="-1"
@@ -76,6 +72,8 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    height: 28px;
+    padding-top: 4px;
     opacity: 0;
     transition: opacity 0.15s ease;
     overflow: hidden;

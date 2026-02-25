@@ -32,6 +32,9 @@ export interface Message {
   attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
 
   isHidden?: boolean;
+  guardExecution: 'none' | 'pass' | 'fail';
+  guardMessageId: string | null;
+  guardError: string;
   isLocal?: boolean;
   desktopOptions?: RequestOptionsDTO | null;
 }

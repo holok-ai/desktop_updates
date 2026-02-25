@@ -7,6 +7,7 @@ import { applyTheme } from '$lib/services/theme.service';
 import { APP_THEME_MODE } from '$lib/constants/app.constant';
 import type { AppThemeMode } from '$lib/types/app.type';
 import { initTitleGenerationListeners } from '$lib/stores/titleGeneration.store';
+import { initThreadObserver } from '$lib/observer/thread-observer';
 import App from './App.svelte';
 
 // Apply persisted theme before mounting to avoid flash
@@ -21,6 +22,9 @@ async function bootstrap(): Promise<void> {
 
   // Initialize title generation event listeners
   initTitleGenerationListeners();
+
+  // Initialize thread observer with background tasks
+  initThreadObserver();
 
   const appElement = document.getElementById('app');
   if (appElement === null) {

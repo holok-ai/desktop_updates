@@ -5,7 +5,7 @@
   import { ROUTE } from '../../constants/route.constant';
   import { toastStore } from '../../services/toast.service';
   import { AVATAR_COLORS, AVATAR_TYPE } from '../../constants/app.constant';
-  import { defaultUserAvatar } from '../../types/app.type';
+  import { defaultUserAvatar, type UserAvatar as UserAvatarType } from '../../types/app.type';
   import { settingsStore, avatarSettings } from '../../stores/settings.store';
 
   let showMenu = $state(false);
@@ -16,7 +16,7 @@
     try {
       const loaded = await window.electronAPI.settings.getAll();
       if (loaded.avatar) {
-        settingsStore.setAvatar(loaded.avatar);
+        settingsStore.setAvatar(loaded.avatar as UserAvatarType);
       }
     } catch {
       // keep default

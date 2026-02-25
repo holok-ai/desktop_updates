@@ -199,11 +199,15 @@ class ThreadFacade {
     return threadStreamService.hasStreamingSession(threadId);
   }
 
-  getStreamingSession(threadId: string): import('./thread-stream.service').StreamingSession | undefined {
+  getStreamingSession(
+    threadId: string,
+  ): import('./thread-stream.service').StreamingSession | undefined {
     return threadStreamService.getStreamingSession(threadId);
   }
 
-  getBackgroundStream(threadId: string): import('./thread-stream.service').BackgroundStream | undefined {
+  getBackgroundStream(
+    threadId: string,
+  ): import('./thread-stream.service').BackgroundStream | undefined {
     return threadStreamService.getBackgroundStream(threadId);
   }
 
@@ -262,14 +266,14 @@ class ThreadFacade {
   }
 
   /**
-   * Calculate the next branchId based on a given branchId or the last message in thread.
-   * Crosses Message + Branch logic (reads messages, computes branch numbering).
+   * Calculate the next branchId from the already-loaded messages array.
+   * Avoids any backend API call by operating entirely on in-memory data.
    *
-   * @param threadId - The thread ID
+   * @param messages - The current thread's messages (already loaded in the UI)
    * @param lastMessageBranchId - Optional branchId to base calculation on. If blank, uses last main lane message
    * @returns The calculated next branchId
    */
-  async calculateNextBranchId(threadId: string, lastMessageBranchId?: string): Promise<string> {
+  calculateNextBranchId(messages: Message[], lastMessageBranchId?: string): string {
     try {
       let baseBranchId: string;
 
@@ -278,15 +282,10 @@ class ThreadFacade {
         baseBranchId = lastMessageBranchId;
       } else {
         // Find last message in main lane (lane 0)
-        const messagesResult = await this.getMessages(threadId);
-        const messages = messagesResult.success ? messagesResult.data : [];
-
         if (messages.length === 0) {
-          // First message in thread
           return '1.0.0';
         }
 
-        // Find last message in main lane (where second part is 0)
         const mainLaneMessages = messages.filter((m) => {
           const parts = (m.branchId || '').split('.');
           const lane = parseInt(parts[1]) || 0;
@@ -307,17 +306,13 @@ class ThreadFacade {
       const lane = parseInt(parts[1]) || 0;
       const iteration = parseInt(parts[2]) || 0;
 
-      let nextBranchId: string;
-
       if (lane === 0) {
         // Main lane (no branch) - increment row, reset iteration to 0
-        nextBranchId = `${row + 1}.0.0`;
+        return `${row + 1}.0.0`;
       } else {
         // Branch lane - increment iteration, keep row and lane
-        nextBranchId = `${row}.${lane}.${iteration + 1}`;
+        return `${row}.${lane}.${iteration + 1}`;
       }
-
-      return nextBranchId;
     } catch (error) {
       console.error(
         '[ThreadFacade] Failed to calculate next branchId, using default: 1.0.0',
@@ -384,6 +379,9 @@ class ThreadFacade {
       clientMessageId,
       branchId: newBranchId,
       modelId: finalModelId,
+      guardExecution: 'none',
+      guardMessageId: null,
+      guardError: '',
     };
 
     return { success: true, message, newBranchId };

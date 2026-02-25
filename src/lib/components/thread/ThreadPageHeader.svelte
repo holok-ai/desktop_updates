@@ -1,6 +1,7 @@
 <script lang="ts">
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { favorites } from '$lib/stores/favorite.store';
+  import EditableText from '$lib/components/common/EditableText.svelte';
 
   interface Props {
     threadId: string | null;
@@ -10,82 +11,40 @@
 
   let { threadId = null, title = $bindable(''), onTitleChange }: Props = $props();
 
-  let isEditing = $state(false);
-  let editValue = $state('');
-  let inputRef: HTMLInputElement | undefined = $state();
   let showTokens = $state(false);
   let showStatus = $state(false);
-  let _hovered = $state(false);
 
-  // Favorite toggle for the current thread
   const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
 
   function toggleFavorite() {
     if (threadId) {
-      favorites.toggleFavorite(threadId, 'thread');
+      favorites.toggleFavorite(threadId, 'thread', title, `/thread/${threadId}`);
     }
   }
 
-  function startEditing() {
-    editValue = title;
-    isEditing = true;
-    setTimeout(() => inputRef?.focus(), 0);
-  }
-
-  async function commitEdit() {
-    isEditing = false;
-    const trimmed = editValue.trim();
-    if (!trimmed || trimmed === title) return;
-
-    title = trimmed;
-    onTitleChange?.(trimmed);
-
+  async function handleTitleChange(newTitle: string) {
+    title = newTitle;
+    onTitleChange?.(newTitle);
     if (threadId) {
       try {
-        await threadService.rename(threadId, trimmed);
+        await threadService.rename(threadId, newTitle);
       } catch (err) {
         console.error('[ThreadPageHeader] Failed to rename thread:', err);
       }
     }
   }
-
-  function cancelEdit() {
-    isEditing = false;
-    editValue = title;
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitEdit();
-    } else if (e.key === 'Escape') {
-      cancelEdit();
-    }
-  }
 </script>
 
 <header class="thread-page-header">
-  <div
-    class="header-content"
-    role="group"
-    onmouseenter={() => (_hovered = true)}
-    onmouseleave={() => (_hovered = false)}
-  >
+  <div class="header-content" role="group">
     <div class="header-left">
-      {#if isEditing}
-        <input
-          bind:this={inputRef}
-          bind:value={editValue}
-          class="title-input"
-          onblur={commitEdit}
-          onkeydown={handleKeydown}
-          aria-label="Edit thread title"
-        />
-      {:else}
-        <h1 class="thread-title" ondblclick={startEditing} title="Double-click to edit">
-          {title || 'Untitled Thread'}
-        </h1>
-      {/if}
+      <EditableText
+        tag="h1"
+        class="thread-title"
+        bind:value={title}
+        onChange={handleTitleChange}
+        placeholder="Untitled Thread"
+      />
     </div>
 
     <div class="header-commands">
@@ -140,7 +99,7 @@
     min-width: 0;
   }
 
-  .thread-title {
+  :global(.thread-title) {
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
@@ -148,20 +107,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    cursor: default;
-    line-height: 1.4;
-  }
-
-  .title-input {
-    width: 100%;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary, #111);
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid var(--primary-color, #646cff);
-    outline: none;
-    padding: 0;
     line-height: 1.4;
   }
 

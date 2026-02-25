@@ -57,6 +57,9 @@ export interface AppSettings {
   // General
   deleteConfirmationRequired?: boolean;
 
+  // Background Prompts
+  autoTitleEnabled?: boolean;
+
   // Updates
   autoCheckUpdates?: boolean;
   autoInstallUpdates?: boolean;
@@ -100,6 +103,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Tools
   enabledTools: [],
   shellCommands: '',
+
+  // Background Prompts
+  autoTitleEnabled: true,
 
   // Updates
   autoCheckUpdates: true,
@@ -178,6 +184,10 @@ export class SettingsService {
         shellCommands: {
           type: 'string',
           default: DEFAULT_SETTINGS.shellCommands,
+        },
+        autoTitleEnabled: {
+          type: 'boolean',
+          default: DEFAULT_SETTINGS.autoTitleEnabled,
         },
         autoCheckUpdates: {
           type: 'boolean',

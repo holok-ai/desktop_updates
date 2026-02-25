@@ -1,5 +1,5 @@
 <script lang="ts">
-  import HomePage from '$lib/pages/HomePage.svelte';
+  import ApplicationThread from '$lib/pages/ApplicationThread.svelte';
 </script>
 
-<HomePage />
+<ApplicationThread />

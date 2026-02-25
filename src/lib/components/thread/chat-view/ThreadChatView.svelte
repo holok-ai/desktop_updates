@@ -6,13 +6,17 @@
   import ChatMessage from './ChatMessage.svelte';
   import ChatBranch from './ChatBranch.svelte';
   import Composer from '$lib/components/Composer.svelte';
-  import { threadFacade as threadService, type BackgroundStream } from '$lib/services/thread-facade';
+  import {
+    threadFacade as threadService,
+    type BackgroundStream,
+  } from '$lib/services/thread-facade';
   import type { Thread, ModelDetails } from '../../../../../src-electron/preload';
   import type { Message } from '$lib/types/thread.type';
   import type { ChatLayout } from '$lib/types/app.type';
   import type { Attachment } from '$shared/types/attachment.types';
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
+  import { ThreadObserver } from '$lib/observer/thread-observer';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -27,6 +31,7 @@
     availableModels: ModelDetails[];
     chatLayout: ChatLayout;
     agentId?: string | null;
+    onThreadCreated?: (thread: Thread) => void;
   }
 
   let {
@@ -35,6 +40,7 @@
     availableModels = [],
     chatLayout,
     agentId = null,
+    onThreadCreated: _onThreadCreated,
   }: Props = $props();
 
   // ── State ──
@@ -198,7 +204,11 @@
     // (e.g., after ThreadPage loading=true destroys and re-creates us).
     if (currentThreadId && !isStreaming) {
       const bgStream = threadService.getBackgroundStream(currentThreadId);
-      if (bgStream) {
+      // Only re-attach if the streaming session is still active. A background
+      // stream without a session means the chat request failed (e.g. 400 guard
+      // error) and no tokens will ever arrive — re-attaching would show the
+      // loading bubble forever.
+      if (bgStream && threadService.hasStreamingSession(currentThreadId)) {
         console.log('[ThreadChatView] Re-attaching to active background stream.', {
           threadId: currentThreadId,
           accumulatedLength: bgStream.accumulatedText.length,
@@ -424,10 +434,7 @@
     error = '';
 
     // Calculate next branchId for user (prompt) and assistant (response) messages
-    const branchId = await threadService.calculateNextBranchId(
-      threadId,
-      lastMessageBranchId || '0.0.0',
-    );
+    const branchId = threadService.calculateNextBranchId(messages, lastMessageBranchId || '0.0.0');
 
     // Delegate to appropriate handler
     const multipleModels = modelIds.length > 1;
@@ -495,6 +502,9 @@
         createdAt: Date.now(),
         branchId: branch.branchId,
         modelId: branch.modelId,
+        guardExecution: 'none',
+        guardMessageId: null,
+        guardError: '',
       };
       userMessages.push(userMsg);
 
@@ -509,6 +519,9 @@
         createdAt: Date.now(),
         branchId: branch.branchId,
         modelId: branch.modelId,
+        guardExecution: 'none',
+        guardMessageId: null,
+        guardError: '',
       };
       assistantMessages.push(assistantMsg);
 
@@ -662,6 +675,11 @@
       }
     }
 
+    // Notify the thread observer to evaluate background tasks
+    if (thread) {
+      ThreadObserver.getInstance().observe(thread, messages);
+    }
+
     addDebugLog(`[sendMessageBranch] Complete`);
 
     await tick();
@@ -733,6 +751,10 @@
       if (!chatResult.success) {
         const errorMessage = chatResult.errorText ?? 'Chat failed';
         console.log('[ThreadChatView] Error check (result validation):', errorMessage);
+        // Clear the streaming session — the chat request failed so no tokens
+        // will arrive. Without this, returning to the thread later would find
+        // the orphaned session and show an infinite loading state.
+        threadService.clearStreamingSession(capturedThreadId);
         if (isViewingThisThread) {
           handleGuardError(errorMessage, capturedBranchId);
           isStreaming = false;
@@ -769,9 +791,17 @@
             createdAt: Date.now(),
             branchId: capturedBranchId,
             modelId: modelId,
+            guardExecution: 'none',
+            guardMessageId: null,
+            guardError: '',
           };
           messages = [...messages, assistantMsg];
           await tick();
+        }
+
+        // Notify the thread observer to evaluate background tasks
+        if (thread) {
+          ThreadObserver.getInstance().observe(thread, messages);
         }
       }
 
@@ -851,28 +881,15 @@
         error = errorMessage;
       }
 
-      // Find the request message that triggered the guard
+      // Find the request message that triggered the guard and mark it as failed
       const requestMessage = messages.find((m) => m.branchId === branchId && m.role === 'user');
 
       if (requestMessage) {
-        // Replace the request message content with redacted text
-        requestMessage.content = '{text removed}';
+        requestMessage.guardExecution = 'fail';
+        requestMessage.guardError = error;
         messages = [...messages]; // Trigger reactivity
-
-        // Don't restore text to composer - it would trigger auto-submit
-        console.log('[ThreadChatView] Redacted blocked message');
+        console.log('[ThreadChatView] Marked message as guard-blocked');
       }
-
-      // Add a system message to the thread
-      const guardMessage: Message = {
-        id: crypto.randomUUID(),
-        threadId: thread?.id || '',
-        role: 'system',
-        content: 'Your prompt was intercepted by a Holokai security guard.',
-        createdAt: Date.now(),
-        branchId,
-      };
-      messages = [...messages, guardMessage];
 
       console.log('[ThreadChatView] Guard blocked message:', errorMessage);
     } else {
@@ -1064,6 +1081,8 @@
           onBranchClick={item.isFromBranch
             ? () => handleBranchIconClick(item.pair.request.branchId)
             : undefined}
+          guardStatus={item.pair.request.guardExecution}
+          guardError={item.pair.request.guardError}
         />
       {:else if item.type === 'branch'}
         {console.log('[ThreadChatView] Rendering ChatBranch:', {

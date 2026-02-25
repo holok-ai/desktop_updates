@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { ApplicationSummary } from '../../../src-electron/preload';
   import { isAuthenticated } from '$lib/stores/auth.store';
@@ -19,6 +19,8 @@
   let isLoading = $state(true);
   let errorMessage = $state<string | null>(null);
   let noAgentsAvailable = $state(false);
+
+  const projectId = $derived(new URLSearchParams($querystring).get('projectId'));
 
   // Auth guard: redirect to login if not authenticated
   $effect(() => {
@@ -86,7 +88,7 @@
       // create a thread
       const createResult = await threadService.create(
         `New ${app.title} Chat`,
-        null, // projectId - no project context
+        projectId, // projectId - null for standalone, set for project context
         app.id, // agentId
         firstModel.accessName, // initialModel
       );
@@ -98,7 +100,12 @@
       // Navigate to the new thread page
       const params = new URLSearchParams();
       params.set('threadId', createResult.data.id);
-      push(`${ROUTE.THREAD}?${params.toString()}`);
+      if (projectId) {
+        params.set('projectId', projectId);
+        push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
+      } else {
+        push(`${ROUTE.THREAD}?${params.toString()}`);
+      }
     } catch (error) {
       console.error('[ApplicationThread] Failed to create thread:', error);
       const message = error instanceof Error ? error.message : 'Failed to create thread';

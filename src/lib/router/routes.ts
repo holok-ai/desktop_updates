@@ -28,6 +28,7 @@ export const routes = {
   '/projects': Projects,
   '/projects/view': ProjectView,
   '/project/members': ProjectMembers,
+  '/project/applications': ApplicationThread,
   '/project/files': ProjectFiles,
   '/project/instructions': ProjectInstructions,
   '/login': Login,

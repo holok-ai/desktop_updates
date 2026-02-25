@@ -84,7 +84,12 @@
 
   function handleToggleFavorite(e: MouseEvent) {
     e.stopPropagation();
-    favorites.toggleFavorite(thread.id, 'thread');
+    favorites.toggleFavorite(
+      thread.id,
+      'thread',
+      thread.title ?? '',
+      `${ROUTE.THREAD}?threadId=${thread.id}`,
+    );
     showMenu = false;
   }
 

@@ -4,6 +4,7 @@ export const ROUTE = {
   NEW_THREAD: '/threads/applications',
   THREAD: '/threads/view',
   PROJECT_THREAD: '/project/thread',
+  PROJECT_NEW_THREAD: '/project/applications',
   PROJECTS: '/projects',
   PROJECTS_VIEW: '/projects/view',
   PROJECT_MEMBERS: '/project/members',
