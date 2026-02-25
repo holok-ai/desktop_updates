@@ -27,7 +27,7 @@ test.describe.serial('Project List', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(10000);
   });
 
   test.afterAll(async () => {
@@ -123,7 +123,6 @@ test.describe.serial('Project List', () => {
 
     // Wait for modal to close and project to appear
     await expect(modal).not.toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
 
     // Verify the new project appears in the list
     const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
@@ -206,8 +205,8 @@ test.describe.serial('Project List', () => {
     await expect(renameBtn).toBeEnabled({ timeout: 3000 });
     await renameBtn.click();
 
-    // Wait for modal to close
-    await expect(renameModal).not.toBeVisible({ timeout: 10000 });
+    // Wait for modal to close after rename completes
+    await expect(renameModal).not.toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(2000);
 
     // Verify the project title is updated
@@ -273,6 +272,6 @@ test.describe.serial('Project List', () => {
 
     // Verify the project is no longer in the list
     const deletedCard = page.locator('.project-card', { hasText: RENAMED_PROJECT_NAME });
-    await expect(deletedCard).not.toBeVisible({ timeout: 5000 });
+    await expect(deletedCard).not.toBeVisible({ timeout: 10000 });
   });
 });

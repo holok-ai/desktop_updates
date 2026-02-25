@@ -1,0 +1,174 @@
+/**
+ * Thread Rename E2E Tests
+ *
+ * Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7 (Thread Rename)
+ * - Clicking Rename opens modal with current title pre-filled
+ * - Modifying title enables Rename button; clicking Rename updates title
+ * - Cancel / close button dismisses without changing title
+ * - Empty or unchanged title keeps Rename button disabled
+ */
+
+import { test, expect } from '@playwright/test';
+import type { ElectronApplication, Page } from 'playwright';
+import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import {
+  openFirstThreadContextMenu,
+  clickMenuItem,
+  navigateToThreads,
+} from '../fixtures/thread-context-menu-helpers';
+
+let app: ElectronApplication;
+let page: Page;
+
+test.describe.serial('Thread Rename', () => {
+  test.beforeAll(async () => {
+    app = await launchAuthenticatedApp();
+    page = await getFirstWindow(app);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+
+    await navigateToThreads(page);
+
+    const threadItems = page.locator('.thread-item-container');
+    const count = await threadItems.count();
+    if (count === 0) {
+      throw new Error('No threads available for rename tests');
+    }
+  });
+
+  test.afterAll(async () => {
+    await app?.close();
+  });
+
+  test('clicking Rename opens modal with current title pre-filled and input focused', async () => {
+    // Requirements 2.1, 2.2
+    const firstItem = page.locator('.thread-item-container').first();
+    const originalTitle = await firstItem.locator('.thread-item-title').textContent();
+
+    await openFirstThreadContextMenu(page);
+    await clickMenuItem(page, 'Rename');
+
+    const dialog = page.locator('[role="dialog"][aria-labelledby="rename-dialog-title"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await expect(dialog.locator('#rename-dialog-title')).toHaveText('Rename Thread');
+
+    const titleInput = dialog.locator('#thread-title');
+    await expect(titleInput).toBeVisible({ timeout: 5000 });
+    await expect(titleInput).toHaveValue(originalTitle!.trim());
+    await expect(titleInput).toBeFocused({ timeout: 3000 });
+
+    await dialog.locator('button.btn-secondary').click();
+    await page.waitForTimeout(300);
+  });
+
+  test('modifying title to valid value enables Rename button; clicking Rename updates title and shows toast', async () => {
+    // Requirements 2.3, 2.4
+    await openFirstThreadContextMenu(page);
+    await clickMenuItem(page, 'Rename');
+
+    const dialog = page.locator('[role="dialog"][aria-labelledby="rename-dialog-title"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    const titleInput = dialog.locator('#thread-title');
+    const renameButton = dialog.locator('button.btn-primary[type="submit"]');
+
+    await expect(renameButton).toBeDisabled({ timeout: 3000 });
+
+    const newTitle = `Renamed E2E ${Date.now()}`;
+    await titleInput.click({ clickCount: 3 });
+    await page.waitForTimeout(200);
+    await titleInput.pressSequentially(newTitle, { delay: 20 });
+    await page.waitForTimeout(500);
+
+    await expect(renameButton).toBeEnabled({ timeout: 5000 });
+    await renameButton.click();
+
+    await expect(dialog).not.toBeVisible({ timeout: 10000 });
+
+    const toast = page.locator('.toast[role="alert"]');
+    await expect(toast).toBeVisible({ timeout: 10000 });
+    await expect(toast).toContainText('Thread renamed', { timeout: 5000 });
+
+    const updatedItem = page.locator('.thread-item-container').first();
+    await expect(updatedItem.locator('.thread-item-title')).toContainText(newTitle, {
+      timeout: 5000,
+    });
+
+    await page.waitForTimeout(4000);
+  });
+
+  test('clicking Cancel in rename modal closes without changing title', async () => {
+    // Requirement 2.5
+    const firstItem = page.locator('.thread-item-container').first();
+    const originalTitle = await firstItem.locator('.thread-item-title').textContent();
+
+    await openFirstThreadContextMenu(page);
+    await clickMenuItem(page, 'Rename');
+
+    const dialog = page.locator('[role="dialog"][aria-labelledby="rename-dialog-title"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    const titleInput = dialog.locator('#thread-title');
+    await titleInput.clear();
+    await titleInput.fill('Should Not Be Saved');
+    await page.waitForTimeout(300);
+
+    await dialog.locator('button.btn-secondary').click();
+    await page.waitForTimeout(500);
+
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
+
+    const currentTitle = await firstItem.locator('.thread-item-title').textContent();
+    expect(currentTitle!.trim()).toBe(originalTitle!.trim());
+  });
+
+  test('closing rename modal via close button dismisses without changing title', async () => {
+    // Requirement 2.6
+    const firstItem = page.locator('.thread-item-container').first();
+    const originalTitle = await firstItem.locator('.thread-item-title').textContent();
+
+    await openFirstThreadContextMenu(page);
+    await clickMenuItem(page, 'Rename');
+
+    const dialog = page.locator('[role="dialog"][aria-labelledby="rename-dialog-title"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    const titleInput = dialog.locator('#thread-title');
+    await titleInput.clear();
+    await titleInput.fill('Should Not Be Saved Either');
+    await page.waitForTimeout(300);
+
+    await dialog.locator('button[aria-label="Close dialog"]').click();
+    await page.waitForTimeout(500);
+
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
+
+    const currentTitle = await firstItem.locator('.thread-item-title').textContent();
+    expect(currentTitle!.trim()).toBe(originalTitle!.trim());
+  });
+
+  test('empty or unchanged title keeps Rename button disabled', async () => {
+    // Requirement 2.7
+    await openFirstThreadContextMenu(page);
+    await clickMenuItem(page, 'Rename');
+
+    const dialog = page.locator('[role="dialog"][aria-labelledby="rename-dialog-title"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    const titleInput = dialog.locator('#thread-title');
+    const renameButton = dialog.locator('button.btn-primary[type="submit"]');
+
+    await expect(renameButton).toBeDisabled({ timeout: 3000 });
+
+    await titleInput.clear();
+    await page.waitForTimeout(300);
+    await expect(renameButton).toBeDisabled({ timeout: 3000 });
+
+    await titleInput.fill('   ');
+    await page.waitForTimeout(300);
+    await expect(renameButton).toBeDisabled({ timeout: 3000 });
+
+    await dialog.locator('button.btn-secondary').click();
+    await page.waitForTimeout(300);
+  });
+});

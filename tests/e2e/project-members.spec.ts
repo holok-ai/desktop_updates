@@ -49,7 +49,9 @@ test.describe.serial('Project Members', () => {
     await expect(modal).not.toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(2000);
 
-    // Re-navigate to projects page to ensure fresh list
+    // Navigate away and back to ensure fresh project list (SPA may cache the component)
+    await page.locator('button[aria-label="Threads"]').click();
+    await page.waitForTimeout(2000);
     await page.locator('button[aria-label="Projects"]').click();
     await page.waitForTimeout(3000);
 
@@ -158,10 +160,15 @@ test.describe.serial('Project Members', () => {
     if (hasResults) {
       // Click "Add Viewer" on the first result
       await addViewerBtn.click();
-      await page.waitForTimeout(3000);
+
+      // Wait for the loading state to finish and member cards to reappear
+      const loadingState = page.locator('.loading-state');
+      await loadingState.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(2000);
 
       // Verify the member was added — member count should increase
       const memberCards = page.locator('.member-card');
+      await expect(memberCards.first()).toBeVisible({ timeout: 10000 });
       const count = await memberCards.count();
       expect(count).toBeGreaterThanOrEqual(2);
 
@@ -174,6 +181,30 @@ test.describe.serial('Project Members', () => {
       // This can happen if the test environment has no other users
       test.skip();
     }
+  });
+
+  test('new member is reflected on the Members card in the project page', async () => {
+    // Navigate back to the project view
+    await page.goBack();
+    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/projectId=/, { timeout: 10000 });
+
+    // Verify the Members card shows the updated count (should include a viewer now)
+    const membersCard = page.locator('.info-card', { hasText: 'Members' });
+    await expect(membersCard).toBeVisible({ timeout: 5000 });
+
+    const memberCountLines = membersCard.locator('.member-count-line');
+    const lineCount = await memberCountLines.count();
+    expect(lineCount).toBeGreaterThanOrEqual(1);
+
+    // Should show at least "1 owner" and "1 viewer" if a member was added
+    const allText = await membersCard.textContent();
+    expect(allText).toContain('owner');
+
+    // Click Members card to go back to members page for remaining tests
+    await membersCard.click();
+    await page.waitForTimeout(2000);
+    await expect(page).toHaveURL(/\/project\/members\?projectId=/, { timeout: 10000 });
   });
 
   test('member role badge is displayed correctly', async () => {

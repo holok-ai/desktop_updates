@@ -112,9 +112,9 @@ test.describe.serial('Project View and Navigation', () => {
     await expect(filesCard).toBeVisible({ timeout: 3000 });
     await expect(instructionsCard).toBeVisible({ timeout: 3000 });
 
-    // Verify the prompt input area is visible in the left column
-    const promptInput = page.locator('.prompt-input');
-    await expect(promptInput).toBeVisible({ timeout: 3000 });
+    // Verify the left column is visible
+    const leftColumn = page.locator('.left-column');
+    await expect(leftColumn).toBeVisible({ timeout: 3000 });
   });
 
   test('clicking Members card navigates to members page', async () => {

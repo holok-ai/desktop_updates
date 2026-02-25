@@ -70,19 +70,6 @@
   // Model selector (shown when no thread — new-thread flow)
   let selectedModelKey = $state('');
 
-  function handleModelChange() {
-    if (!selectedModelKey) return;
-    const [provider, id] = selectedModelKey.split('::');
-    const detail = availableModels.find((m) => m.provider === provider && m.id === id);
-    if (detail) {
-      modelName = detail.accessName;
-      _modelProvider = detail.provider;
-      _modelUrl = detail.url;
-      modelAccessName = detail.accessName;
-      applicationSlug = detail.provider;
-    }
-  }
-
   // Timeout handles
   let streamingNoResponseTimeout: ReturnType<typeof setTimeout> | null = null;
   let streamingIdleTimeout: ReturnType<typeof setTimeout> | null = null;

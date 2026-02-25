@@ -90,12 +90,9 @@ test.describe.serial('Thread Creation', () => {
       return;
     }
 
-    // Click the first application card
+    // Click the first application card to create a thread via the UI
     await cards.first().click();
-    await page.waitForTimeout(2000);
-
-    // Should navigate away from /threads/applications to the thread view
-    await expect(page).not.toHaveURL(/\/threads\/applications/, { timeout: 30000 });
+    await page.waitForTimeout(3000);
 
     // Should now be on a thread view page with threadId parameter
     await expect(page).toHaveURL(/threadId=/, { timeout: 15000 });

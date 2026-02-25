@@ -246,7 +246,7 @@ export class ThreadService extends BaseElectronService {
       };
     }
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       ...request,
       // eslint-disable-next-line @typescript-eslint/naming-convention
       thread_id: threadId,

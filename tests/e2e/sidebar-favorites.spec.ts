@@ -18,8 +18,6 @@ import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-aut
 let app: ElectronApplication;
 let page: Page;
 
-const TEST_PROJECT_NAME = `E2E Fav Project ${Date.now()}`;
-
 test.describe.serial('Sidebar Favorites', () => {
   test.beforeAll(async () => {
     app = await launchAuthenticatedApp();
@@ -29,52 +27,36 @@ test.describe.serial('Sidebar Favorites', () => {
   });
 
   test.afterAll(async () => {
-    // Clean up: unfavorite and delete the test project
+    // Clean up: unfavorite the project we favorited during the test
     try {
       await page.locator('button[aria-label="Projects"]').click();
       await page.waitForTimeout(2000);
 
-      const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-      const exists = await projectCard.isVisible({ timeout: 5000 }).catch(() => false);
+      const projectCards = page.locator('.project-card');
+      const count = await projectCards.count();
 
-      if (exists) {
-        // Unfavorite first
-        const menuBtn = projectCard.locator('button.project-menu-button');
+      // Find the favorited project and unfavorite it
+      for (let i = 0; i < count; i++) {
+        const card = projectCards.nth(i);
+        const menuBtn = card.locator('button.project-menu-button');
         await menuBtn.click();
         await page.waitForTimeout(500);
 
-        const removeFavItem = projectCard.locator('.menu-item', { hasText: 'Remove Favorite' });
+        const removeFavItem = card.locator('.menu-item', { hasText: 'Remove Favorite' });
         const isFavorited = await removeFavItem.isVisible({ timeout: 2000 }).catch(() => false);
+
         if (isFavorited) {
           await removeFavItem.click();
           await page.waitForTimeout(1000);
+          break;
         } else {
-          // Close menu
+          // Close menu and try next card
           await page.locator('.projects-page').click({ position: { x: 10, y: 10 } });
           await page.waitForTimeout(500);
         }
-
-        // Delete the project
-        await menuBtn.click();
-        await page.waitForTimeout(500);
-
-        const deleteItem = projectCard.locator('.menu-item', { hasText: 'Delete Project' });
-        await deleteItem.click();
-        await page.waitForTimeout(1000);
-
-        const deleteModal = page.locator(
-          'div[role="dialog"][aria-labelledby="delete-dialog-title"]',
-        );
-        const modalVisible = await deleteModal.isVisible().catch(() => false);
-        if (modalVisible) {
-          const confirmBtn = deleteModal.locator('button.btn-danger');
-          await confirmBtn.click();
-          await expect(deleteModal).not.toBeVisible({ timeout: 10000 });
-        }
-        await page.waitForTimeout(2000);
       }
     } catch (e) {
-      console.error('[E2E Cleanup] Failed to clean up test project:', e);
+      console.error('[E2E Cleanup] Failed to clean up favorited project:', e);
     }
 
     await app?.close();
@@ -126,65 +108,15 @@ test.describe.serial('Sidebar Favorites', () => {
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects/, { timeout: 10000 });
 
-    // Check if any projects exist
+    // Use an existing project from the list — don't create a new one
     const projectCards = page.locator('.project-card');
-    const projectCount = await projectCards.count();
+    const count = await projectCards.count();
+    expect(count).toBeGreaterThan(0);
 
-    if (projectCount === 0) {
-      // Create a new project
-      const newProjectBtn = page.locator('.projects-header button.btn-holokai');
-      await expect(newProjectBtn).toBeVisible({ timeout: 5000 });
-      await newProjectBtn.click();
-      await page.waitForTimeout(1000);
-
-      const modal = page.locator(
-        'div[role="dialog"][aria-labelledby="create-project-dialog-title"]',
-      );
-      await expect(modal).toBeVisible({ timeout: 5000 });
-
-      const nameInput = modal.locator('input#project-name');
-      await nameInput.fill(TEST_PROJECT_NAME);
-
-      const submitBtn = modal.locator('button.btn-primary');
-      await expect(submitBtn).toBeEnabled({ timeout: 3000 });
-      await submitBtn.click();
-
-      await expect(modal).not.toBeVisible({ timeout: 15000 });
-      await page.waitForTimeout(2000);
-    } else {
-      // Use the first existing project — but we still need to track it for cleanup
-      // Check if our test project already exists
-      const testProjectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-      const testProjectExists = await testProjectCard
-        .isVisible({ timeout: 2000 })
-        .catch(() => false);
-
-      if (!testProjectExists) {
-        // Create our own test project so we can safely clean it up
-        const newProjectBtn = page.locator('.projects-header button.btn-holokai');
-        await newProjectBtn.click();
-        await page.waitForTimeout(1000);
-
-        const modal = page.locator(
-          'div[role="dialog"][aria-labelledby="create-project-dialog-title"]',
-        );
-        await expect(modal).toBeVisible({ timeout: 5000 });
-
-        const nameInput = modal.locator('input#project-name');
-        await nameInput.fill(TEST_PROJECT_NAME);
-
-        const submitBtn = modal.locator('button.btn-primary');
-        await expect(submitBtn).toBeEnabled({ timeout: 3000 });
-        await submitBtn.click();
-
-        await expect(modal).not.toBeVisible({ timeout: 15000 });
-        await page.waitForTimeout(2000);
-      }
-    }
-
-    // Now favorite the test project
-    const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-    await expect(projectCard).toBeVisible({ timeout: 10000 });
+    // Pick the first project and favorite it
+    const projectCard = projectCards.first();
+    const titleEl = projectCard.locator('h3.project-title');
+    const projectTitle = await titleEl.textContent();
 
     const menuBtn = projectCard.locator('button.project-menu-button');
     await menuBtn.click();
@@ -195,7 +127,6 @@ test.describe.serial('Sidebar Favorites', () => {
 
     // Check if already favorited
     const makeFavItem = dropdown.locator('.menu-item', { hasText: 'Make Favorite' });
-    const removeFavItem = dropdown.locator('.menu-item', { hasText: 'Remove Favorite' });
 
     if (await makeFavItem.isVisible({ timeout: 2000 }).catch(() => false)) {
       await makeFavItem.click();
