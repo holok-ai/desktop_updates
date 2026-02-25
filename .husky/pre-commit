@@ -3,6 +3,14 @@
 # Source common Windows workarounds
 . "$(dirname "$0")/common.sh"
 
+# Ensure npm (via nvm) is available for non-interactive Git shells
+export NVM_DIR="$HOME/.nvm"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$NVM_DIR/nvm.sh"
+  nvm use --silent >/dev/null 2>&1 || true
+fi
+
 # Exit on first error (fail-fast)
 set -e
 
@@ -19,7 +27,7 @@ npm run type-check
 # Phase 3: Security Scanning
 # Ignore it for now, it will be fixed in the next release
 # echo "🔒 Phase 3: Security scanning..."
-# npm run precommit:security
+npm run precommit:security
 
 # Phase 4: Advanced Security (Optional - graceful degradation)
 # Snyk: Runs if SNYK_ENABLED=1 or snyk is authenticated
