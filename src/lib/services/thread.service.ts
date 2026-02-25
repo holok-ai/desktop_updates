@@ -304,13 +304,6 @@ export class ThreadService extends BaseElectronService {
     agentId: string,
     initialModel?: string,
   ): Promise<ApiResponse<Thread>> {
-    console.warn('[ThreadService.create] Starting thread creation', {
-      title,
-      projectId,
-      agentId,
-      initialModel,
-    });
-
     let selectedModel: ModelDetails | undefined = undefined;
     const agentResult = await window.electronAPI.models.getAgent(agentId);
 

@@ -1,33 +1,65 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  /**
+   * SuggestedText — EditableText with an optional AI-suggested value.
+   *
+   * Renders exactly like EditableText until `suggestedText` is set, at which
+   * point a compact suggestion strip appears below with keep / discard actions.
+   * Keeping calls `onChange` with the suggestion and then `onKeep`; discarding
+   * calls `onDiscard` so the parent can clean up the backing store entry.
+   *
+   * @prop value        — Current text value (bindable).
+   * @prop suggestedText — AI-generated suggestion. Strip appears when set.
+   * @prop tag          — HTML element forwarded to EditableText.
+   * @prop class        — CSS class forwarded to EditableText.
+   * @prop placeholder  — Forwarded to EditableText.
+   * @prop readonly     — Forwarded to EditableText.
+   * @prop onChange     — Called when value is committed (manual edit or keep).
+   * @prop onKeep       — Called after the user accepts the suggestion.
+   * @prop onDiscard    — Called after the user discards the suggestion.
+   * @prop autoAcceptMs — Auto-accept after this many ms (0 = disabled).
+   */
+
+  import EditableText from './EditableText.svelte';
 
   interface Props {
-    suggestion: string;
-    onKeep: () => void;
-    onDiscard: () => void;
+    value: string;
+    suggestedText?: string | null;
+    tag?: string;
+    class?: string;
+    placeholder?: string;
+    readonly?: boolean;
+    onChange?: (value: string) => void;
+    onDiscard?: () => void;
     autoAcceptMs?: number;
   }
 
-  let { suggestion, onKeep, onDiscard, autoAcceptMs = 0 }: Props = $props();
+  let {
+    value = $bindable(''),
+    suggestedText = null,
+    tag = 'div',
+    class: className = '',
+    placeholder = '',
+    readonly = false,
+    onChange,
+    onDiscard,
+    autoAcceptMs = 0,
+  }: Props = $props();
 
   let timeRemaining = $state(0);
   let timerId: ReturnType<typeof setInterval> | null = null;
 
-  onMount(() => {
-    if (autoAcceptMs > 0) {
+  $effect(() => {
+    if (suggestedText && autoAcceptMs > 0) {
       timeRemaining = Math.ceil(autoAcceptMs / 1000);
       timerId = setInterval(() => {
         timeRemaining -= 1;
         if (timeRemaining <= 0) {
           clearTimer();
-          onKeep();
+          handleKeep();
         }
       }, 1000);
     }
-
-    return () => {
-      clearTimer();
-    };
+    return () => clearTimer();
   });
 
   function clearTimer() {
@@ -38,44 +70,57 @@
   }
 
   function handleKeep() {
+    if (!suggestedText) return;
     clearTimer();
-    onKeep();
+    value = suggestedText;
+    onChange?.(suggestedText);
   }
 
   function handleDiscard() {
     clearTimer();
-    onDiscard();
+    onDiscard?.();
   }
 </script>
 
-<div class="suggested-text">
-  <span class="suggestion-label">{suggestion}</span>
-  <div class="suggestion-actions">
-    <button
-      class="suggestion-btn keep"
-      onclick={handleKeep}
-      title="Keep this suggestion"
-      aria-label="Keep suggestion"
-    >
-      <i class="pi pi-check"></i>
-    </button>
-    <button
-      class="suggestion-btn discard"
-      onclick={handleDiscard}
-      title="Discard this suggestion"
-      aria-label="Discard suggestion"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-    {#if timeRemaining > 0}
-      <span class="auto-accept-countdown" title="Auto-accepting in {timeRemaining}s">
-        {timeRemaining}s
-      </span>
-    {/if}
-  </div>
+<div class="suggested-text-wrapper">
+  {#if !suggestedText}
+    <EditableText bind:value {tag} class={className} {placeholder} {readonly} {onChange} />
+  {/if}
+
+  {#if suggestedText}
+    <div class="suggested-text">
+      <span class="suggestion-label">{suggestedText}</span>
+      <div class="suggestion-actions">
+        <button
+          class="suggestion-btn keep"
+          onclick={handleKeep}
+          title="Keep this suggestion"
+          aria-label="Keep suggestion"
+        >
+          keep{#if timeRemaining > 0}
+            ({timeRemaining}s){/if}
+        </button>
+        <button
+          class="suggestion-btn discard"
+          onclick={handleDiscard}
+          title="Discard this suggestion"
+          aria-label="Discard suggestion"
+        >
+          discard
+        </button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
+  .suggested-text-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
   .suggested-text {
     display: flex;
     align-items: center;
@@ -107,46 +152,45 @@
   .suggestion-actions {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.25rem;
     flex-shrink: 0;
   }
 
   .suggestion-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    padding: 0.1rem 0.4rem;
     border: none;
-    background: transparent;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 8pt;
+    font-weight: 400;
+    font-style: italic;
+    color: #111;
+    line-height: 1.4;
+    outline: 1px solid #9ca3af;
     transition:
       background 0.15s,
-      color 0.15s;
+      filter 0.15s;
   }
 
   .suggestion-btn.keep {
-    color: #16a34a;
+    background: #a8d5b5;
+    color: #111;
   }
 
   .suggestion-btn.keep:hover {
-    background: color-mix(in srgb, #16a34a 15%, transparent);
+    filter: brightness(0.93);
   }
 
   .suggestion-btn.discard {
-    color: var(--text-secondary, #666);
+    background: #e0a8a8;
+    color: #111;
   }
 
   .suggestion-btn.discard:hover {
-    background: var(--surface-hover, #f0f0f0);
-    color: var(--text-primary, #111);
-  }
-
-  .auto-accept-countdown {
-    font-size: 0.7rem;
-    color: var(--text-secondary, #888);
-    min-width: 2rem;
-    text-align: center;
+    filter: brightness(0.93);
   }
 </style>

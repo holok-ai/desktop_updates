@@ -17,9 +17,10 @@
 import type { Message } from '$lib/types/thread.type';
 import type { ObserverTask, ObserverThread } from './observer-task.interface';
 import { observerStore } from './observer.store';
+import { modelService } from '$lib/services/model.service';
 import { renameTitleTask } from './tasks/rename-title';
 import { compressContextTask } from './tasks/compress-context';
-import { suggestPromptTask } from './tasks/suggest-prompt';
+import { suggestPromptTask as _suggestPromptTask } from './tasks/suggest-prompt';
 
 /** Maximum number of concurrently submitted background prompts */
 const MAX_Q_LENGTH = 10;
@@ -46,35 +47,38 @@ export class ThreadObserver {
    * Called by ThreadChatView after a response completes.
    * Evaluates all registered tasks and submits ready ones.
    */
-  observe(thread: ObserverThread, messages: Message[]): void {
-    for (const task of this.tasks) {
-      // Check setting if configured
-      if (task.settingKey !== undefined) {
-        // Check setting via stored value — skip if disabled
-        // Settings are loaded at app startup and cached; we access them synchronously
-        // via the window.electronAPI.settings.get() pattern.
-        // For now, we skip the check if electronAPI is unavailable (test env).
-        // The setting check is a best-effort optimization.
-      }
+  private async pickFirstModel(agentId: string): Promise<string | null> {
+    const models = await modelService.getModelsForApplication(agentId);
+    return models.length > 0 ? models[0].accessName : null;
+  }
 
+  observe(thread: ObserverThread, messages: Message[]): void {
+    console.warn(
+      `[ThreadObserver] observe — thread=${thread.id} tasks=${this.tasks.length} messages=${messages.length}`,
+    );
+
+    for (const task of this.tasks) {
       const key = `${thread.id}:${task.taskType}`;
 
-      // Dedup: skip if already running for this thread+type
       if (this.activeByKey.has(key)) {
+        console.warn(`[ThreadObserver] skip ${task.taskType} — already active`);
         continue;
       }
 
-      // Capacity: quietly skip if at limit
       if (this.submittedCount >= MAX_Q_LENGTH) {
+        console.warn(
+          `[ThreadObserver] skip ${task.taskType} — queue full (${this.submittedCount}/${MAX_Q_LENGTH})`,
+        );
         return;
       }
 
-      // Evaluate task
       if (!task.shouldRun(thread, messages)) {
+        console.warn(`[ThreadObserver] shouldRun ${task.taskType} = false`);
         continue;
       }
+      console.warn(`[ThreadObserver] shouldRun ${task.taskType} = true`);
 
-      // Execute
+      console.warn(`[ThreadObserver] executing ${task.taskType} for thread=${thread.id}`);
       void this.executeTask(task, thread, messages);
     }
   }
@@ -88,9 +92,21 @@ export class ThreadObserver {
     this.activeByKey.set(key, true);
     this.submittedCount++;
     observerStore.setRunning(thread.id, task.taskType, true);
+    console.warn(`[ThreadObserver] start ${task.taskType} thread=${thread.id}`);
 
     try {
       const request = task.buildRequest(thread, messages);
+
+      if (request.model === undefined || request.model === '') {
+        const agentId =
+          (thread as unknown as { metadata?: { agentId?: string } }).metadata?.agentId ?? '';
+        if (agentId !== '') {
+          const firstModel = await this.pickFirstModel(agentId);
+          if (firstModel !== null) {
+            request.model = firstModel;
+          }
+        }
+      }
 
       if (window.electronAPI?.chat?.background === undefined) {
         console.warn('[ThreadObserver] Electron API not available');
@@ -98,19 +114,23 @@ export class ThreadObserver {
       }
 
       const response = await window.electronAPI.chat.background(request);
+      console.warn(`[ThreadObserver] response ${task.taskType} success=${response.success}`);
 
       if (response.success) {
         await task.onResult(thread, response.data);
       } else {
+        console.warn(`[ThreadObserver] error ${task.taskType}: ${response.errorText}`);
         task.onError?.(thread, response.errorText);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[ThreadObserver] exception ${task.taskType}: ${errorMessage}`);
       task.onError?.(thread, errorMessage);
     } finally {
       this.activeByKey.delete(key);
       this.submittedCount--;
       observerStore.setRunning(thread.id, task.taskType, false);
+      console.warn(`[ThreadObserver] done ${task.taskType} thread=${thread.id}`);
     }
   }
 }
@@ -122,5 +142,5 @@ export function initThreadObserver(): void {
   const observer = ThreadObserver.getInstance();
   observer.register(renameTitleTask);
   observer.register(compressContextTask);
-  observer.register(suggestPromptTask);
+  // observer.register(suggestPromptTask);
 }

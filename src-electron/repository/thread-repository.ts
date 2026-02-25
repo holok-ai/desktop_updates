@@ -19,6 +19,7 @@ import {
   DuplicationInspector,
   PlaceholderInspector,
   GuardInspector,
+  ObserverPromptsInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -30,6 +31,7 @@ export class ThreadRepository {
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
 
   private readonly messageInspectors: IMessageInspector[] = [
+    new ObserverPromptsInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
     new GuardInspector(),
