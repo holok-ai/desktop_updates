@@ -137,6 +137,9 @@
     } else if (normalized.startsWith(ROUTE.THREADS)) {
       // If viewing a thread from a project, keep Projects activity selected
       next = hasProjectId ? 'projects' : 'threads';
+    } else if (normalized.startsWith(ROUTE.PROJECT_THREAD)) {
+      // Project thread route always belongs to Projects
+      next = 'projects';
     } else if (normalized.startsWith(ROUTE.PROJECTS)) {
       next = 'projects';
     } else if (normalized.startsWith(ROUTE.HOME)) {

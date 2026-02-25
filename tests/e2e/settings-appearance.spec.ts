@@ -2,9 +2,9 @@
  * Settings - Appearance E2E Tests
  *
  * Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5
- * - Appearance tab shows Startup Page, Sidebar Options, Theme, Thread Format
+ * - Appearance tab shows Sidebar Options, Theme, Thread Format
  * - Selecting theme immediately applies it
- * - Changing startup page reflects in UI
+ * - Changing startup page reflects in UI (navigates to General tab)
  * - Toggling sidebar options updates checkboxes
  * - Adjusting chat text size slider shows value
  */
@@ -39,15 +39,12 @@ test.describe.serial('Settings - Appearance', () => {
     await app?.close();
   });
 
-  test('appearance tab shows Startup Page, Sidebar Options, Theme, Thread Format', async () => {
+  test('appearance tab shows Sidebar Options, Theme, Thread Format', async () => {
     // Requirement 12.1: appearance tab displays all option groups
     const panelTitle = page.locator('h2.panel-title');
     await expect(panelTitle).toHaveText('Appearance');
 
     // Verify all subgroup labels are visible
-    const startupPage = page.locator('.subgroup-label', { hasText: 'Startup Page' });
-    await expect(startupPage).toBeVisible({ timeout: 5000 });
-
     const sidebarOptions = page.locator('.subgroup-label', { hasText: 'Sidebar Options' });
     await expect(sidebarOptions).toBeVisible({ timeout: 5000 });
 
@@ -93,6 +90,11 @@ test.describe.serial('Settings - Appearance', () => {
 
   test('changing startup page reflects in UI', async () => {
     // Requirement 12.3: changing startup page updates the selection
+    // Startup Page is on the General tab, navigate there first
+    const generalItem = page.locator('.sidebar-item', { hasText: 'General' });
+    await generalItem.click();
+    await page.waitForTimeout(500);
+
     const startupSection = page.locator('.subgroup-row', { hasText: 'Startup Page' });
     const startupCards = startupSection.locator('.option-card');
 
@@ -126,6 +128,11 @@ test.describe.serial('Settings - Appearance', () => {
     });
     const originalCard = startupSection.locator('.option-card', { hasText: activeLabel?.trim() });
     await originalCard.click();
+    await page.waitForTimeout(500);
+
+    // Navigate back to Appearance tab for subsequent tests
+    const appearanceItem = page.locator('.sidebar-item', { hasText: 'Appearance' });
+    await appearanceItem.click();
     await page.waitForTimeout(500);
   });
 
