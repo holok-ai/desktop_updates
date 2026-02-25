@@ -133,10 +133,16 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background: var(--surface-card);
-    border: 1px solid var(--surface-border);
+    background: var(--input-background);
+    border: 1px solid var(--input-border);
     border-radius: 6px;
     margin-bottom: 1.25rem;
+    transition: border-color 0.2s ease;
+  }
+
+  .search-bar:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
   }
 
   .search-bar i {

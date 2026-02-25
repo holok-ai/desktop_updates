@@ -172,6 +172,29 @@
       };
     }
 
+    // Handle Project New Thread: Projects → Project Name → New Thread
+    if (path === ROUTE.PROJECT_NEW_THREAD) {
+      const projectId = params.get('projectId');
+      const project = projectId ? $projects.find((p) => p.id === projectId) : null;
+
+      if (project) {
+        return {
+          items: [
+            { label: 'Projects', isLink: true },
+            { label: truncate(project.title, 47), isLink: true },
+            { label: 'New Thread', isLink: false },
+          ],
+        };
+      }
+
+      return {
+        items: [
+          { label: 'Projects', isLink: true },
+          { label: 'Loading...', isLink: false },
+        ],
+      };
+    }
+
     // Map other routes to single breadcrumb
     let label = null;
     if (path === ROUTE.NEW_THREAD || path === ROUTE.HOME) {
@@ -218,11 +241,12 @@
       return;
     }
 
-    // Handle project sub-pages (Members, Files, Instructions) breadcrumb navigation
+    // Handle project sub-pages (Members, Files, Instructions, New Thread) breadcrumb navigation
     if (
       path === ROUTE.PROJECT_MEMBERS ||
       path === ROUTE.PROJECT_FILES ||
-      path === ROUTE.PROJECT_INSTRUCTIONS
+      path === ROUTE.PROJECT_INSTRUCTIONS ||
+      path === ROUTE.PROJECT_NEW_THREAD
     ) {
       if (index === 0 && firstItem === 'Projects') {
         // Click on "Projects" → go to projects list

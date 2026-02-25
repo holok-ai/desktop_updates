@@ -141,7 +141,7 @@
 
   function handleNewThread() {
     if (!projectId) return;
-    push(`${ROUTE.NEW_THREAD}?projectId=${projectId}`);
+    push(`${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}`);
   }
 
   function handleMembersClick() {
@@ -191,17 +191,16 @@
           placeholder="Add a description..."
         />
 
-        <div class="thread-actions">
-          <button class="new-thread-button" onclick={handleNewThread}>
-            <i class="pi pi-plus"></i>
-            New Thread
-          </button>
-        </div>
-
         <!-- Threads Grid -->
         {#if projectThreads.length > 0}
           <div class="threads-section">
-            <h3>Threads</h3>
+            <div class="threads-section-header">
+              <h3>Threads</h3>
+              <button class="new-thread-button" onclick={handleNewThread}>
+                <i class="pi pi-plus"></i>
+                New Thread
+              </button>
+            </div>
             <div class="threads-list">
               {#each projectThreads as thread (thread.id)}
                 <ThreadListItem {thread} {projectId} />
@@ -210,6 +209,10 @@
           </div>
         {:else}
           <div class="empty-threads">
+            <button class="new-thread-button" onclick={handleNewThread}>
+              <i class="pi pi-plus"></i>
+              New Thread
+            </button>
             <p>No threads yet. Click "+ New Thread" to get started.</p>
           </div>
         {/if}
@@ -309,6 +312,10 @@
   :global(.project-title) {
     margin: 0;
     text-align: left;
+    max-width: 100%;
+  }
+
+  :global(.project-title.editable-editing) {
     flex: 1;
     min-width: 0;
   }
@@ -366,10 +373,6 @@
     text-align: left;
   }
 
-  .thread-actions {
-    margin-bottom: 2rem;
-  }
-
   .new-thread-button {
     display: flex;
     align-items: center;
@@ -397,7 +400,14 @@
     margin-top: 2rem;
   }
 
-  .threads-section h3 {
+  .threads-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .threads-section-header h3 {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary);

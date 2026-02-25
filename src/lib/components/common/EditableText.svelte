@@ -144,6 +144,8 @@
     cursor: default;
     border-radius: 4px;
     transition: background 0.15s ease;
+    width: fit-content;
+    max-width: 100%;
   }
 
   .editable-display.editable {
