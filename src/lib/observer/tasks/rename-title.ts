@@ -29,8 +29,8 @@ export const renameTitleTask: ObserverTask = {
       .slice(0, 2)
       .map((m) => m.content);
     const prompt =
-      'Generate a short, descriptive title (3-8 words) for this conversation. ' +
-      'Return ONLY the title text, nothing else. No quotes, no punctuation at the end. ' +
+      'Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.' +
+      'Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. ' +
       `Messages: ${JSON.stringify(userMessages)}`;
     return {
       taskType: ObserverTaskType.RenameTitle,
