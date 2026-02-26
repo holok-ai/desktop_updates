@@ -52,14 +52,10 @@ export class ThreadObserver {
    * no queue slot consumed, no dedup. Tasks that don't need initialization omit the method.
    */
   initializeThread(thread: ObserverThread, messages: Message[]): void {
-    console.warn(
-      `[ThreadObserver] initializeThread — thread=${thread.id} messages=${messages.length}`,
-    );
     for (const task of this.tasks) {
       if (task.initialize === undefined) {
         continue;
       }
-      console.warn(`[ThreadObserver] initialize ${task.taskType} thread=${thread.id}`);
       try {
         const result = task.initialize(thread, messages);
         if (result instanceof Promise) {
@@ -85,32 +81,20 @@ export class ThreadObserver {
   }
 
   observe(thread: ObserverThread, messages: Message[]): void {
-    console.warn(
-      `[ThreadObserver] observe — thread=${thread.id} tasks=${this.tasks.length} messages=${messages.length}`,
-    );
-
     for (const task of this.tasks) {
       const key = `${thread.id}:${task.taskType}`;
 
       if (this.activeByKey.has(key)) {
-        console.warn(`[ThreadObserver] skip ${task.taskType} — already active`);
         continue;
       }
 
       if (task.execute === undefined && this.submittedCount >= MAX_Q_LENGTH) {
-        console.warn(
-          `[ThreadObserver] skip ${task.taskType} — queue full (${this.submittedCount}/${MAX_Q_LENGTH})`,
-        );
         return;
       }
 
       if (!task.shouldRun(thread, messages)) {
-        console.warn(`[ThreadObserver] shouldRun ${task.taskType} = false`);
         continue;
       }
-      console.warn(`[ThreadObserver] shouldRun ${task.taskType} = true`);
-
-      console.warn(`[ThreadObserver] executing ${task.taskType} for thread=${thread.id}`);
 
       if (task.execute !== undefined) {
         void this.executeLocalTask(task, thread, messages);
@@ -127,17 +111,14 @@ export class ThreadObserver {
   forceTask(taskType: ObserverTaskType, thread: ObserverThread, messages: Message[]): void {
     const task = this.tasks.find((t) => t.taskType === taskType);
     if (task === undefined) {
-      console.warn(`[ThreadObserver] forceTask: task ${taskType} not found`);
       return;
     }
 
     const key = `${thread.id}:${task.taskType}`;
     if (this.activeByKey.has(key)) {
-      console.warn(`[ThreadObserver] forceTask skip ${task.taskType} — already active`);
       return;
     }
 
-    console.warn(`[ThreadObserver] forceTask ${task.taskType} for thread=${thread.id}`);
     if (task.execute !== undefined) {
       void this.executeLocalTask(task, thread, messages);
     } else {
@@ -161,7 +142,6 @@ export class ThreadObserver {
     const key = `${thread.id}:${task.taskType}`;
     this.activeByKey.set(key, true);
     observerStore.setRunning(thread.id, task.taskType, true);
-    console.warn(`[ThreadObserver] start local ${task.taskType} thread=${thread.id}`);
 
     try {
       await task.execute(thread, messages);
@@ -172,7 +152,6 @@ export class ThreadObserver {
     } finally {
       this.activeByKey.delete(key);
       observerStore.setRunning(thread.id, task.taskType, false);
-      console.warn(`[ThreadObserver] done local ${task.taskType} thread=${thread.id}`);
     }
   }
 
@@ -182,7 +161,6 @@ export class ThreadObserver {
     messages: Message[],
   ): Promise<void> {
     if (task.buildRequest === undefined) {
-      console.warn(`[ThreadObserver] executeTask: no buildRequest for ${task.taskType}`);
       return;
     }
 
@@ -190,7 +168,6 @@ export class ThreadObserver {
     this.activeByKey.set(key, true);
     this.submittedCount++;
     observerStore.setRunning(thread.id, task.taskType, true);
-    console.warn(`[ThreadObserver] start ${task.taskType} thread=${thread.id}`);
 
     try {
       const request = task.buildRequest(thread, messages);
@@ -207,19 +184,16 @@ export class ThreadObserver {
       }
 
       if (window.electronAPI?.chat?.background === undefined) {
-        console.warn('[ThreadObserver] Electron API not available');
         return;
       }
 
       const response = await window.electronAPI.chat.background(request);
-      console.warn(`[ThreadObserver] response ${task.taskType} success=${response.success}`);
 
       if (response.success) {
         if (task.onResult !== undefined) {
           await task.onResult(thread, response.data);
         }
       } else {
-        console.warn(`[ThreadObserver] error ${task.taskType}: ${response.errorText}`);
         task.onError?.(thread, response.errorText);
       }
     } catch (err) {
@@ -230,7 +204,6 @@ export class ThreadObserver {
       this.activeByKey.delete(key);
       this.submittedCount--;
       observerStore.setRunning(thread.id, task.taskType, false);
-      console.warn(`[ThreadObserver] done ${task.taskType} thread=${thread.id}`);
     }
   }
 }

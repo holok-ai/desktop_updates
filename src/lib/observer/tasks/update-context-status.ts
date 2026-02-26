@@ -20,17 +20,12 @@ import { getModelMaxTokens } from '$lib/services/model-token-limits';
 
 /**
  * Shared computation: calculates token usage for the thread and writes to the store.
- * Returns false (and logs) if there are no assistant messages to derive a model from.
+ * Returns without storing if there are no assistant messages to derive a model from.
  */
 function computeContextStatus(thread: ObserverThread, messages: Message[]): void {
-  console.warn(
-    `[UpdateContextStatus] compute — thread=${thread.id} messageCount=${messages.length}`,
-  );
-
   // Find the most recent assistant message to determine the active model
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   if (lastAssistant === undefined) {
-    console.warn('[UpdateContextStatus] no assistant message yet — skipping');
     return; // No responses yet — nothing to calculate
   }
 
@@ -40,38 +35,25 @@ function computeContextStatus(thread: ObserverThread, messages: Message[]): void
   // Use modelId when available; fall back to empty string (getModelMaxTokens handles it)
   const modelAccessName = lastAssistant.modelId ?? '';
 
-  console.warn(`[UpdateContextStatus] model="${modelAccessName}" provider="${provider}"`);
-
   const maximumTokenCount = getModelMaxTokens(modelAccessName, provider);
 
   // Sum token counts across all messages.
   // Use m.tokens when available; fall back to content.length / 4 for messages
   // created in the renderer (streamed responses) that haven't been persisted yet.
-  const tokenBreakdown = messages.map((m) => ({
-    role: m.role,
-    tokens: m.tokens,
-    estimated: m.tokens === undefined ? Math.ceil(m.content.length / 4) : null,
-    used: m.tokens ?? Math.ceil(m.content.length / 4),
-  }));
-  const currentTokenCount = tokenBreakdown.reduce((sum, t) => sum + t.used, 0);
-
-  console.warn(
-    `[UpdateContextStatus] tokens — current=${currentTokenCount} max=${maximumTokenCount} (${Math.round((currentTokenCount / maximumTokenCount) * 100)}%)`,
+  const currentTokenCount = messages.reduce(
+    (sum, m) => sum + (m.tokens ?? Math.ceil(m.content.length / 4)),
+    0,
   );
-  console.warn('[UpdateContextStatus] per-message breakdown:', tokenBreakdown);
 
   // Read configurable compact threshold
   const compactThresholdRatio = get(settingsStore).contextCompactThreshold ?? 0.75;
   const compactThresholdTokenCount = Math.floor(maximumTokenCount * compactThresholdRatio);
   const percentUsed = currentTokenCount / maximumTokenCount;
 
-  // Determine model title: prefer modelId, fall back to access name
-  const modelTitle = modelAccessName;
-
   observerStore.setContextStatus(thread.id, {
     threadId: thread.id,
     modelAccessName,
-    modelTitle,
+    modelTitle: modelAccessName,
     maximumTokenCount,
     currentTokenCount,
     compactThresholdRatio,
@@ -79,8 +61,6 @@ function computeContextStatus(thread: ObserverThread, messages: Message[]): void
     percentUsed,
     updatedAt: Date.now(),
   });
-
-  console.warn(`[UpdateContextStatus] store updated for thread=${thread.id}`);
 }
 
 export const updateContextStatusTask: ObserverTask = {
