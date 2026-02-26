@@ -245,7 +245,11 @@
   let lastInitializedThreadId: string | null = null;
   $effect(() => {
     const currentThreadId = thread?.id ?? null;
-    if (currentThreadId !== null && messages.length > 0 && currentThreadId !== lastInitializedThreadId) {
+    if (
+      currentThreadId !== null &&
+      messages.length > 0 &&
+      currentThreadId !== lastInitializedThreadId
+    ) {
       lastInitializedThreadId = currentThreadId;
       ThreadObserver.getInstance().initializeThread(thread!, messages);
     }
@@ -1125,9 +1129,6 @@
 
   <!-- Composer at the bottom -->
   <div class="composer-area">
-    <div class="context-status-row">
-      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
-    </div>
     <Composer
       {sendMessage}
       {isStreaming}
@@ -1138,6 +1139,9 @@
       {agentId}
       modelId={modelAccessName}
     />
+    <div class="context-status-row">
+      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
+    </div>
 
     <!-- Debug Activity Box -->
     {#if SHOW_DEBUG_ACTIVITY}
@@ -1330,9 +1334,11 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    /* Overlap the border-top of composer-area so the bar sits on the dividing line */
-    margin-top: -1.125rem;
-    margin-bottom: -0.25rem;
+    /* Sit just below the composer with a small visual gap.
+       Negative margin cancels most of the composer-area gap (0.75rem),
+       leaving ~4px between the composer bottom and the bar. */
+    margin-top: calc(4px - 0.75rem);
+    margin-bottom: -0.375rem;
   }
 
   .debug-area {
