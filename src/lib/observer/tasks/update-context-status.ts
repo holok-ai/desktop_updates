@@ -24,19 +24,20 @@ export const updateContextStatusTask: ObserverTask = {
   },
 
   execute(thread: ObserverThread, messages: Message[]): void {
+    console.warn(`[UpdateContextStatus] execute thread=${thread.id} messages=${messages.length}`);
+
     // Find the most recent assistant message to determine the active model
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     if (lastAssistant === undefined) {
+      console.warn('[UpdateContextStatus] no assistant message yet — skipping');
       return; // No responses yet — nothing to calculate
-    }
-
-    const modelAccessName = lastAssistant.modelId ?? '';
-    if (modelAccessName === '') {
-      return;
     }
 
     // Determine provider for the fallback lookup (may be empty string if unknown)
     const provider = (lastAssistant as unknown as { provider?: string }).provider ?? '';
+
+    // Use modelId when available; fall back to empty string (getModelMaxTokens handles it)
+    const modelAccessName = lastAssistant.modelId ?? '';
 
     const maximumTokenCount = getModelMaxTokens(modelAccessName, provider);
 

@@ -7,7 +7,7 @@
    *
    * On hover: shows a tooltip panel with token details and a Compact Now button.
    */
-  import { getContextStatus } from '$lib/observer/observer.store';
+  import { observerStore } from '$lib/observer/observer.store';
 
   interface Props {
     threadId: string | null;
@@ -18,8 +18,11 @@
 
   let { threadId, onCompactNow, width = 160, height = 10 }: Props = $props();
 
-  // Reactive context status from store — $getContextStatus auto-subscribes in runes mode
-  const status = $derived(threadId ? $getContextStatus(threadId) : undefined);
+  // Reactive context status — subscribe directly to observerStore so $derived
+  // picks up every setContextStatus() call without an intermediate derived layer.
+  const status = $derived(
+    threadId != null ? $observerStore.contextStatus.get(threadId) : undefined,
+  );
 
   let isHovered = $state(false);
 
