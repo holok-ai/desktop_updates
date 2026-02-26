@@ -40,7 +40,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { apiOk, apiFail } from '../../../src-electron/types/api-response';
-import { pagedMessages } from '../../fixtures/api-captures/loader';
+import { loadCapture, pagedCapture, pagedMessages } from '../../fixtures/api-captures/loader';
 import {
   fakeMessageDTO,
   resetSequence,
@@ -257,7 +257,9 @@ describe('ThreadRepository — message handling scenarios', () => {
       // Hidden: guard request + guard response
       const hidden = result.messages.filter((m) => m.isHidden);
       expect(hidden).toHaveLength(2);
-      expect(hidden.some((m) => m.role === 'user' && m.content.includes('Check the following'))).toBe(true);
+      expect(
+        hidden.some((m) => m.role === 'user' && m.content.includes('Check the following')),
+      ).toBe(true);
       expect(hidden.some((m) => m.role === 'assistant' && m.content.includes('passed'))).toBe(true);
     });
 
@@ -322,9 +324,7 @@ describe('ThreadRepository — message handling scenarios', () => {
     it('scenario 6: error payload in content — message is hidden', async () => {
       const result = await loadWithMessages(repo, errorPayloadResponse());
 
-      const errorMsg = result.messages.find(
-        (m) => m.role === 'assistant',
-      );
+      const errorMsg = result.messages.find((m) => m.role === 'assistant');
       expect(errorMsg).toBeDefined();
       expect(errorMsg!.isHidden).toBe(true);
     });
@@ -341,9 +341,7 @@ describe('ThreadRepository — message handling scenarios', () => {
       // PlaceholderInspector should insert a user message before the orphan
       expect(result.messages.length).toBeGreaterThanOrEqual(2);
 
-      const placeholder = result.messages.find(
-        (m) => m.role === 'user' && m.branchId === '2.0.0',
-      );
+      const placeholder = result.messages.find((m) => m.role === 'user' && m.branchId === '2.0.0');
       expect(placeholder).toBeDefined();
       expect(placeholder!.content).toBe('');
 
@@ -512,28 +510,31 @@ describe('ThreadRepository — message handling scenarios', () => {
 
   // TODO: Uncomment after capturing live data
   //
-  // describe('captured JSON fixtures', () => {
-  //   it.each([
-  //     ['scenario 20: successful OpenAI turn', 'turns/successful-openai-turn.json'],
-  //     ['scenario 21: successful Claude turn', 'turns/successful-claude-turn.json'],
-  //     ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
-  //     ['scenario 23: tool call response', 'tool-calls/tool-call-read-file.json'],
-  //     ['scenario 24: guard blocked', 'guard/guard-blocked.json'],
-  //     ['scenario 25: error response', 'errors/error-400-invalid-request.json'],
-  //   ])('%s', async (label, fixturePath) => {
-  //     const messages = loadCapture(fixturePath);
-  //
-  //     // Validate schema first
-  //     const schemaErrors = validateMessageDTOArray(messages);
-  //     expect(schemaErrors, `Schema drift in "${fixturePath}":\n${formatErrors(schemaErrors)}`).toHaveLength(0);
-  //
-  //     // Load through repository
-  //     mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
-  //     mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedMessages(fixturePath)));
-  //
-  //     const result = await repo.loadThread('thread-1');
-  //     expect(result).not.toBeNull();
-  //     expect(result!.messages.length).toBeGreaterThan(0);
-  //   });
-  // });
+  describe('captured JSON fixtures', () => {
+    it.each([
+      ['scenario 20: successful OpenAI turn', 'turns/successful-openai-turn.json'],
+      ['scenario 21: successful Claude turn', 'turns/successful-claude-turn.json'],
+      ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
+      ['scenario 23: tool call response', 'tool-calls/tool-call-read-file.json'],
+      ['scenario 24: guard blocked', 'guard/guard-blocked.json'],
+      ['scenario 25: error response', 'errors/error-400-invalid-request.json'],
+    ])('%s', async (label, fixturePath) => {
+      const messages = loadCapture(fixturePath);
+
+      // Validate schema first
+      const schemaErrors = validateMessageDTOArray(messages);
+      expect(
+        schemaErrors,
+        `Schema drift in "${fixturePath}":\n${formatErrors(schemaErrors)}`,
+      ).toHaveLength(0);
+
+      // Load through repository
+      mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
+      mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedCapture(fixturePath)));
+
+      const result = await repo.loadThread('thread-1');
+      expect(result).not.toBeNull();
+      expect(result!.messages.length).toBeGreaterThan(0);
+    });
+  });
 });

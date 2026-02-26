@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-error-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "user",
+    "content": "Trigger a 400 invalid request error.",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-05T12:20:01Z",
+    "updatedAt": "2025-06-05T12:20:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-error-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "{\"type\":\"error\",\"status\":400,\"requestId\":\"req-live-400\",\"seq\":1,\"error\":\"Invalid request payload\"}",
+    "rawData": null,
+    "status": "error",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-05T12:20:02Z",
+    "updatedAt": "2025-06-05T12:20:02Z"
+  }
+]

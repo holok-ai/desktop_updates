@@ -1,0 +1,59 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-gemini-1",
+    "branchId": "1.0.0",
+    "model": "gemini-2.0-pro",
+    "provider": "gemini",
+    "role": "user",
+    "content": "Generate an image of a simple wireframe layout.",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-06T10:00:01Z",
+    "updatedAt": "2025-06-06T10:00:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-gemini-1",
+    "branchId": "1.0.0",
+    "model": "gemini-2.0-pro",
+    "provider": "gemini",
+    "role": "assistant",
+    "content": "Here is a generated wireframe layout image.",
+    "rawData": {
+      "message": {
+        "usageMetadata": {
+          "candidatesTokensDetails": [
+            {
+              "modality": "IMAGE"
+            }
+          ]
+        },
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "A simple wireframe layout image."
+                },
+                {
+                  "inlineData": {
+                    "mimeType": "image/png",
+                    "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-06T10:00:03Z",
+    "updatedAt": "2025-06-06T10:00:03Z"
+  }
+]
