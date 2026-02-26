@@ -61,9 +61,20 @@
         "1112329",
         "1112659",
         "1113300",
-        "1113375"
+        "1113375",
+        "1113518",
+        "1113319",
+        "1113320",
+        "1109540",
+        "1096967",
+        "1113132",
+        "1096727",
+        "1113515",
+        "1089754",
+        "1097682",
+        "1088783"
       ],
-      "reason": "These advisories only affect transitive dev/build tooling (eslint, cylconedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
+      "reason": "These advisories only affect transitive dev/build tooling (eslint, cyclonedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, rollup, vite/devalue, basic-ftp, svg2png, request, etc.) and do not impact runtime code in the packaged Electron app.",
       "mitigation": [
         "All affected packages are only used during development, packaging, or static analysis, not at runtime in the Electron app.",
         "Electron production bundles do not ship npm tooling, node-gyp, app-builder-lib, or electron-builder internals.",
@@ -107,7 +118,7 @@
     }
   },
   "meta": {
-    "lastUpdated": "2026-02-25",
+    "lastUpdated": "2026-02-26",
     "nextReview": "2026-08-25",
     "documentVersion": "1.1.0"
   }
