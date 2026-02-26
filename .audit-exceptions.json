@@ -44,11 +44,71 @@
         "Re-evaluate before expiry date (2026-08-04)",
         "Consider migrating to exceljs if vulnerabilities escalate"
       ]
+    },
+    "build-and-dev-tooling": {
+      "ids": [
+        "1112954",
+        "1113428",
+        "1113429",
+        "1109842",
+        "1112714",
+        "1112715",
+        "1112455",
+        "1113459",
+        "1113461",
+        "1113465",
+        "1113466",
+        "1112329",
+        "1112659",
+        "1113300",
+        "1113375"
+      ],
+      "reason": "These advisories only affect transitive dev/build tooling (eslint, cylconedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
+      "mitigation": [
+        "All affected packages are only used during development, packaging, or static analysis, not at runtime in the Electron app.",
+        "Electron production bundles do not ship npm tooling, node-gyp, app-builder-lib, or electron-builder internals.",
+        "Electron auto-updates use signed artifacts; end users never execute npm or node-gyp directly.",
+        "Build and CI environments are treated as trusted and isolated.",
+        "We will upgrade tooling (electron-builder, eslint stack, cyclonedx-npm, etc.) as compatible patched versions become available."
+      ],
+      "vulnerabilities": [],
+      "reviewDate": "2026-02-25",
+      "expiryDate": "2026-08-25",
+      "reviewer": "Development Team",
+      "alternatives": [
+        "Track and adopt newer versions of electron-builder/app-builder-lib that pull in fixed tar/glob/minimatch.",
+        "Track and adopt newer versions of eslint and @develar/schema-utils that pull in patched ajv/js-yaml.",
+        "Reevaluate use of cyclonedx-npm and textlint once their dependency trees are fully patched."
+      ],
+      "actionItems": [
+        "Re-run npm audit monthly and attempt dependency upgrades that remove these transitive dev-time vulnerabilities.",
+        "Revisit this exception set before expiry date (2026-08-25)."
+      ]
+    },
+    "svelte-ssr-only": {
+      "ids": ["1113416", "1113418", "1113419", "1113420"],
+      "reason": "These Svelte advisories affect SSR-only code paths. Holokai Desktop uses Svelte exclusively in a client-side SPA rendered inside Electron; no Node SSR is used.",
+      "mitigation": [
+        "The app is bundled with Vite/Svelte for client-side rendering only.",
+        "No Svelte SSR APIs or Node-based rendering hooks are used in this project.",
+        "User input is additionally sanitized with dompurify and other existing frontend mitigations."
+      ],
+      "vulnerabilities": [],
+      "reviewDate": "2026-02-25",
+      "expiryDate": "2026-08-25",
+      "reviewer": "Development Team",
+      "alternatives": [
+        "Upgrade Svelte to a version where these SSR issues are fully resolved once it is confirmed compatible with the current codebase."
+      ],
+      "actionItems": [
+        "Monitor Svelte security advisories and changelogs and plan an upgrade path.",
+        "Reevaluate this exception set before expiry date (2026-08-25)."
+      ]
     }
   },
   "meta": {
-    "lastUpdated": "2026-02-04",
-    "nextReview": "2026-08-04",
-    "documentVersion": "1.0.0"
+    "lastUpdated": "2026-02-25",
+    "nextReview": "2026-08-25",
+    "documentVersion": "1.1.0"
   }
 }
