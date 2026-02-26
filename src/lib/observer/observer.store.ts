@@ -103,6 +103,19 @@ export const observerStore = {
     });
   },
 
+  /** Stamp the last compact timestamp on the existing context status for a thread */
+  setLastCompactTimestamp(threadId: string, timestamp: number): void {
+    update((state) => {
+      const existing = state.contextStatus.get(threadId);
+      if (existing === undefined) {
+        return state;
+      }
+      const newMap = new Map(state.contextStatus);
+      newMap.set(threadId, { ...existing, lastCompactTimestamp: timestamp });
+      return { ...state, contextStatus: newMap };
+    });
+  },
+
   /** Remove context status for a thread */
   clearContextStatus(threadId: string): void {
     update((state) => {
@@ -161,9 +174,7 @@ export const hasAnySuggestion: Readable<(threadId: string) => boolean> = derived
 /**
  * Derived store: get the context status for a thread
  */
-export const getContextStatus: Readable<
-  (threadId: string) => ContextStatus | undefined
-> = derived(
+export const getContextStatus: Readable<(threadId: string) => ContextStatus | undefined> = derived(
   observerStore,
   ($store) => (threadId: string) => $store.contextStatus.get(threadId),
 );

@@ -58,6 +58,9 @@ export const compressContextTask: ObserverTask = {
   },
 
   onResult(thread: ObserverThread, response: string): void {
+    // Stamp the compact timestamp immediately so the tooltip reflects it
+    observerStore.setLastCompactTimestamp(thread.id, Date.now());
+
     try {
       const parsed: unknown = JSON.parse(response);
       observerStore.setContextSummary(thread.id, parsed);
