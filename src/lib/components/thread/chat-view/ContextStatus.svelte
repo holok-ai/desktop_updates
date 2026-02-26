@@ -16,7 +16,7 @@
     height?: number;
   }
 
-  let { threadId, onCompactNow, width = 160, height = 10 }: Props = $props();
+  let { threadId, onCompactNow, width = 192, height = 12 }: Props = $props();
 
   // Reactive context status — subscribe directly to observerStore so $derived
   // picks up every setContextStatus() call without an intermediate derived layer.
