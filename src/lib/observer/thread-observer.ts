@@ -47,6 +47,35 @@ export class ThreadObserver {
   }
 
   /**
+   * Called by ThreadChatView when a thread is loaded and messages are available.
+   * Runs initialize() on every task that defines it — no shouldRun check,
+   * no queue slot consumed, no dedup. Tasks that don't need initialization omit the method.
+   */
+  initializeThread(thread: ObserverThread, messages: Message[]): void {
+    console.warn(
+      `[ThreadObserver] initializeThread — thread=${thread.id} messages=${messages.length}`,
+    );
+    for (const task of this.tasks) {
+      if (task.initialize === undefined) {
+        continue;
+      }
+      console.warn(`[ThreadObserver] initialize ${task.taskType} thread=${thread.id}`);
+      try {
+        const result = task.initialize(thread, messages);
+        if (result instanceof Promise) {
+          result.catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            console.error(`[ThreadObserver] initialize error ${task.taskType}: ${msg}`);
+          });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`[ThreadObserver] initialize error ${task.taskType}: ${msg}`);
+      }
+    }
+  }
+
+  /**
    * Called by ThreadChatView after a response completes.
    * Evaluates all registered tasks and submits ready ones.
    */

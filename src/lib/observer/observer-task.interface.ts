@@ -33,6 +33,14 @@ export interface ObserverTask {
   shouldRun(thread: ObserverThread, messages: Message[]): boolean;
 
   /**
+   * Called once when a thread is loaded and messages are available.
+   * Allows tasks to populate their initial state from existing messages
+   * (e.g. computing context status from a loaded thread's history).
+   * Tasks that don't need initialization can omit this method.
+   */
+  initialize?(thread: ObserverThread, messages: Message[]): void | Promise<void>;
+
+  /**
    * Local (no-LLM) execution path.
    * When defined, the observer calls this directly instead of the LLM pipeline.
    * Mutually exclusive with buildRequest / onResult.

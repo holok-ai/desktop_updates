@@ -238,6 +238,19 @@
     previousThreadId = currentThreadId;
   });
 
+  // ── Initialize observer tasks when a thread + its messages are first loaded ──
+  // Uses a plain variable (not $state) so writing it doesn't re-trigger the effect.
+  // The effect re-runs whenever thread?.id or messages changes; it only calls
+  // initializeThread the first time messages arrive for each distinct thread.
+  let lastInitializedThreadId: string | null = null;
+  $effect(() => {
+    const currentThreadId = thread?.id ?? null;
+    if (currentThreadId !== null && messages.length > 0 && currentThreadId !== lastInitializedThreadId) {
+      lastInitializedThreadId = currentThreadId;
+      ThreadObserver.getInstance().initializeThread(thread!, messages);
+    }
+  });
+
   function extractModelInfo() {
     if (!thread?.metadata) return;
 
