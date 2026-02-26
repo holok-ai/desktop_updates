@@ -26,7 +26,7 @@ npm run type-check
 
 # Phase 3: Svelte Check
 echo "🧡 Phase 3: Svelte checking..."
-npm run check
+npx svelte-check --tsconfig ./tsconfig.json
 
 # Phase 4: Security Scanning
 echo "🔒 Phase 4: Security scanning..."
