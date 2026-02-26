@@ -107,62 +107,57 @@
 
     <!-- Compact threshold line -->
     {#if status}
-      <div
-        class="threshold-line"
-        style="left: {thresholdPercent}%;"
-      ></div>
+      <div class="threshold-line" style="left: {thresholdPercent}%;"></div>
     {/if}
   </div>
 
-  <!-- Tooltip -->
-  {#if isHovered}
-    <div class="tooltip" role="tooltip">
-      {#if status}
-        <div class="tooltip-row model-row">
-          <span class="tooltip-label">Model</span>
-          <span class="tooltip-value model-name">{status.modelAccessName}</span>
-        </div>
-        <div class="tooltip-divider"></div>
-        <div class="tooltip-row">
-          <span class="tooltip-label">Max context</span>
-          <span class="tooltip-value">{formatTokens(status.maximumTokenCount)} tokens</span>
-        </div>
-        <div class="tooltip-row">
-          <span class="tooltip-label">Current usage</span>
-          <span class="tooltip-value">
-            {formatTokens(status.currentTokenCount)} tokens ({formatPercent(status.percentUsed)})
-          </span>
-        </div>
-        <div class="tooltip-row">
-          <span class="tooltip-label">Compact at</span>
-          <span class="tooltip-value">
-            {formatTokens(status.compactThresholdTokenCount)} tokens ({formatPercent(
-              status.compactThresholdRatio,
-            )})
-          </span>
-        </div>
-        <div class="tooltip-row">
-          <span class="tooltip-label">Last compact</span>
-          <span class="tooltip-value">{formatTimestamp(status.lastCompactTimestamp)}</span>
-        </div>
-        <div class="tooltip-divider"></div>
-        <button
-          class="compact-btn"
-          class:compact-btn-active={canCompact}
-          disabled={!canCompact}
-          onclick={() => canCompact && onCompactNow?.()}
-          type="button"
-        >
-          Compact Now
-        </button>
-      {:else}
-        <div class="tooltip-row">
-          <span class="tooltip-label">Context status unavailable</span>
-        </div>
-        <div class="tooltip-row muted">Send a message to enable context tracking.</div>
-      {/if}
-    </div>
-  {/if}
+  <!-- Tooltip — always in DOM so mouseleave doesn't fire when cursor crosses into it -->
+  <div class="tooltip" class:tooltip-visible={isHovered} role="tooltip">
+    {#if status}
+      <div class="tooltip-row model-row">
+        <span class="tooltip-label">Model</span>
+        <span class="tooltip-value model-name">{status.modelAccessName}</span>
+      </div>
+      <div class="tooltip-divider"></div>
+      <div class="tooltip-row">
+        <span class="tooltip-label">Max context</span>
+        <span class="tooltip-value">{formatTokens(status.maximumTokenCount)} tokens</span>
+      </div>
+      <div class="tooltip-row">
+        <span class="tooltip-label">Current usage</span>
+        <span class="tooltip-value">
+          {formatTokens(status.currentTokenCount)} tokens ({formatPercent(status.percentUsed)})
+        </span>
+      </div>
+      <div class="tooltip-row">
+        <span class="tooltip-label">Compact at</span>
+        <span class="tooltip-value">
+          {formatTokens(status.compactThresholdTokenCount)} tokens ({formatPercent(
+            status.compactThresholdRatio,
+          )})
+        </span>
+      </div>
+      <div class="tooltip-row">
+        <span class="tooltip-label">Last compact</span>
+        <span class="tooltip-value">{formatTimestamp(status.lastCompactTimestamp)}</span>
+      </div>
+      <div class="tooltip-divider"></div>
+      <button
+        class="compact-btn"
+        class:compact-btn-active={canCompact}
+        disabled={!canCompact}
+        onclick={() => canCompact && onCompactNow?.()}
+        type="button"
+      >
+        Compact Now
+      </button>
+    {:else}
+      <div class="tooltip-row">
+        <span class="tooltip-label">Context status unavailable</span>
+      </div>
+      <div class="tooltip-row muted">Send a message to enable context tracking.</div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -195,7 +190,9 @@
     top: 0;
     left: 0;
     height: 100%;
-    transition: width 0.4s ease, background-color 0.4s ease;
+    transition:
+      width 0.4s ease,
+      background-color 0.4s ease;
   }
 
   .threshold-line {
@@ -216,21 +213,33 @@
   /* ── Tooltip ── */
   .tooltip {
     position: absolute;
-    bottom: calc(100% + 10px);
+    /* Sit directly against the bar (no gap) so mouseleave doesn't fire
+       as the cursor transitions from the bar up into the tooltip. */
+    bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
-    min-width: 220px;
+    min-width: 300px;
     background: var(--surface-overlay, var(--surface-card, #fff));
     border: 1px solid var(--surface-border, #e0e0e0);
     border-radius: 8px;
-    padding: 0.625rem 0.75rem;
+    /* Use padding-bottom as the visual gap between tooltip content and bar */
+    padding: 0.625rem 0.75rem 0.875rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    /* Prevent tooltip from closing when cursor moves into it */
+    /* Hidden by default — shown via .tooltip-visible */
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+
+  .tooltip.tooltip-visible {
+    visibility: visible;
     pointer-events: auto;
+    opacity: 1;
   }
 
   .tooltip-row {
