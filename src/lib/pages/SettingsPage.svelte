@@ -84,6 +84,7 @@
     windowsCommands: '',
     unixCommands: '',
     autoTitleEnabled: true,
+    contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -109,6 +110,7 @@
     windowsCommands: '',
     unixCommands: '',
     autoTitleEnabled: true,
+    contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -152,6 +154,7 @@
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
       autoTitleEnabled: all.autoTitleEnabled ?? true,
+      contextCompactThreshold: all.contextCompactThreshold ?? 0.75,
     };
     savedSettings = {
       ...settings,

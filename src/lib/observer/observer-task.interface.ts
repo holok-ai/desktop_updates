@@ -3,8 +3,7 @@
  *
  * Each background task implements this interface to define:
  * - When it should run (shouldRun)
- * - What request to send (buildRequest)
- * - How to handle results (onResult)
+ * - What to do — either via local computation (execute) or an LLM call (buildRequest / onResult)
  */
 
 import type { Message } from '$lib/types/thread.type';
@@ -33,11 +32,24 @@ export interface ObserverTask {
   /** Evaluate whether this task should run given the current thread state */
   shouldRun(thread: ObserverThread, messages: Message[]): boolean;
 
-  /** Build the background chat request */
-  buildRequest(thread: ObserverThread, messages: Message[]): BackgroundChatRequest;
+  /**
+   * Local (no-LLM) execution path.
+   * When defined, the observer calls this directly instead of the LLM pipeline.
+   * Mutually exclusive with buildRequest / onResult.
+   */
+  execute?(thread: ObserverThread, messages: Message[]): void | Promise<void>;
 
-  /** Handle a successful response */
-  onResult(thread: ObserverThread, response: string): void | Promise<void>;
+  /**
+   * Build the background chat request (LLM path).
+   * Required when execute is not defined.
+   */
+  buildRequest?(thread: ObserverThread, messages: Message[]): BackgroundChatRequest;
+
+  /**
+   * Handle a successful LLM response (LLM path).
+   * Required when execute is not defined.
+   */
+  onResult?(thread: ObserverThread, response: string): void | Promise<void>;
 
   /** Handle an error (optional — defaults to silent) */
   onError?(thread: ObserverThread, error: string): void;

@@ -2,11 +2,12 @@
  * Observer Store
  *
  * Simple Svelte store for tracking Thread Observer UI state:
- * running tasks, suggestions, and context summaries.
+ * running tasks, suggestions, context summaries, and context status.
  */
 
 import { writable, derived, type Readable } from 'svelte/store';
 import { ObserverTaskType } from '../../../src-shared/types/observer.types';
+import type { ContextStatus } from '$lib/types/context.type';
 
 interface ObserverState {
   /** threadId → Set<ObserverTaskType> of currently running tasks */
@@ -15,12 +16,15 @@ interface ObserverState {
   suggestions: Map<string, string>;
   /** threadId → parsed context summary */
   contextSummaries: Map<string, unknown>;
+  /** threadId → computed context status (token usage, max, threshold) */
+  contextStatus: Map<string, ContextStatus>;
 }
 
 const initialState: ObserverState = {
   running: new Map(),
   suggestions: new Map(),
   contextSummaries: new Map(),
+  contextStatus: new Map(),
 };
 
 const { subscribe, update } = writable<ObserverState>(initialState);
@@ -90,12 +94,31 @@ export const observerStore = {
     });
   },
 
+  /** Store the computed context status for a thread */
+  setContextStatus(threadId: string, status: ContextStatus): void {
+    update((state) => {
+      const newMap = new Map(state.contextStatus);
+      newMap.set(threadId, status);
+      return { ...state, contextStatus: newMap };
+    });
+  },
+
+  /** Remove context status for a thread */
+  clearContextStatus(threadId: string): void {
+    update((state) => {
+      const newMap = new Map(state.contextStatus);
+      newMap.delete(threadId);
+      return { ...state, contextStatus: newMap };
+    });
+  },
+
   /** Reset all state */
   reset(): void {
     update(() => ({
       running: new Map(),
       suggestions: new Map(),
       contextSummaries: new Map(),
+      contextStatus: new Map(),
     }));
   },
 };
@@ -133,4 +156,14 @@ export const hasAnySuggestion: Readable<(threadId: string) => boolean> = derived
     }
     return false;
   },
+);
+
+/**
+ * Derived store: get the context status for a thread
+ */
+export const getContextStatus: Readable<
+  (threadId: string) => ContextStatus | undefined
+> = derived(
+  observerStore,
+  ($store) => (threadId: string) => $store.contextStatus.get(threadId),
 );

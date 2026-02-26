@@ -17,6 +17,8 @@
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
   import { ThreadObserver } from '$lib/observer/thread-observer';
+  import ContextStatus from './ContextStatus.svelte';
+  import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -827,6 +829,12 @@
     }
   }
 
+  // ── Context compaction ──
+  function handleCompactNow(): void {
+    if (!thread) return;
+    ThreadObserver.getInstance().forceTask(ObserverTaskType.CompressContext, thread, messages);
+  }
+
   // ── Helpers ──
   function handleGuardError(errorMessage: string, branchId: string) {
     // Prevent duplicate handling for the same branch
@@ -1104,6 +1112,9 @@
 
   <!-- Composer at the bottom -->
   <div class="composer-area">
+    <div class="context-status-row">
+      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
+    </div>
     <Composer
       {sendMessage}
       {isStreaming}
@@ -1300,6 +1311,15 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .context-status-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Overlap the border-top of composer-area so the bar sits on the dividing line */
+    margin-top: -1.125rem;
+    margin-bottom: -0.25rem;
   }
 
   .debug-area {

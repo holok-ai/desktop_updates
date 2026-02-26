@@ -7,7 +7,8 @@
  *
  * Features:
  * - Evaluates all registered ObserverTask.shouldRun() for each observation
- * - Calls window.electronAPI.chat.background() for ready tasks
+ * - Local tasks (execute defined): run directly without LLM call or queue slot
+ * - LLM tasks (buildRequest defined): calls window.electronAPI.chat.background()
  * - Tracks submitted prompt count vs MAX_Q_LENGTH, quietly skips beyond
  * - Dedup: one active task per thread+taskType
  * - Dispatches structured results to ObserverTask.onResult()
@@ -20,9 +21,11 @@ import { observerStore } from './observer.store';
 import { modelService } from '$lib/services/model.service';
 import { renameTitleTask } from './tasks/rename-title';
 import { compressContextTask } from './tasks/compress-context';
+import { updateContextStatusTask } from './tasks/update-context-status';
 import { suggestPromptTask as _suggestPromptTask } from './tasks/suggest-prompt';
+import { ObserverTaskType } from '../../../src-shared/types/observer.types';
 
-/** Maximum number of concurrently submitted background prompts */
+/** Maximum number of concurrently submitted background LLM prompts */
 const MAX_Q_LENGTH = 10;
 
 export class ThreadObserver {
@@ -65,7 +68,7 @@ export class ThreadObserver {
         continue;
       }
 
-      if (this.submittedCount >= MAX_Q_LENGTH) {
+      if (task.execute === undefined && this.submittedCount >= MAX_Q_LENGTH) {
         console.warn(
           `[ThreadObserver] skip ${task.taskType} — queue full (${this.submittedCount}/${MAX_Q_LENGTH})`,
         );
@@ -79,7 +82,68 @@ export class ThreadObserver {
       console.warn(`[ThreadObserver] shouldRun ${task.taskType} = true`);
 
       console.warn(`[ThreadObserver] executing ${task.taskType} for thread=${thread.id}`);
+
+      if (task.execute !== undefined) {
+        void this.executeLocalTask(task, thread, messages);
+      } else {
+        void this.executeTask(task, thread, messages);
+      }
+    }
+  }
+
+  /**
+   * Force-execute a specific task by type, bypassing shouldRun.
+   * Used for user-initiated actions like "Compact Now".
+   */
+  forceTask(taskType: ObserverTaskType, thread: ObserverThread, messages: Message[]): void {
+    const task = this.tasks.find((t) => t.taskType === taskType);
+    if (task === undefined) {
+      console.warn(`[ThreadObserver] forceTask: task ${taskType} not found`);
+      return;
+    }
+
+    const key = `${thread.id}:${task.taskType}`;
+    if (this.activeByKey.has(key)) {
+      console.warn(`[ThreadObserver] forceTask skip ${task.taskType} — already active`);
+      return;
+    }
+
+    console.warn(`[ThreadObserver] forceTask ${task.taskType} for thread=${thread.id}`);
+    if (task.execute !== undefined) {
+      void this.executeLocalTask(task, thread, messages);
+    } else {
       void this.executeTask(task, thread, messages);
+    }
+  }
+
+  /**
+   * Execute a local (no-LLM) task directly.
+   * Does not consume a queue slot.
+   */
+  private async executeLocalTask(
+    task: ObserverTask,
+    thread: ObserverThread,
+    messages: Message[],
+  ): Promise<void> {
+    if (task.execute === undefined) {
+      return;
+    }
+
+    const key = `${thread.id}:${task.taskType}`;
+    this.activeByKey.set(key, true);
+    observerStore.setRunning(thread.id, task.taskType, true);
+    console.warn(`[ThreadObserver] start local ${task.taskType} thread=${thread.id}`);
+
+    try {
+      await task.execute(thread, messages);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[ThreadObserver] exception (local) ${task.taskType}: ${errorMessage}`);
+      task.onError?.(thread, errorMessage);
+    } finally {
+      this.activeByKey.delete(key);
+      observerStore.setRunning(thread.id, task.taskType, false);
+      console.warn(`[ThreadObserver] done local ${task.taskType} thread=${thread.id}`);
     }
   }
 
@@ -88,6 +152,11 @@ export class ThreadObserver {
     thread: ObserverThread,
     messages: Message[],
   ): Promise<void> {
+    if (task.buildRequest === undefined) {
+      console.warn(`[ThreadObserver] executeTask: no buildRequest for ${task.taskType}`);
+      return;
+    }
+
     const key = `${thread.id}:${task.taskType}`;
     this.activeByKey.set(key, true);
     this.submittedCount++;
@@ -117,7 +186,9 @@ export class ThreadObserver {
       console.warn(`[ThreadObserver] response ${task.taskType} success=${response.success}`);
 
       if (response.success) {
-        await task.onResult(thread, response.data);
+        if (task.onResult !== undefined) {
+          await task.onResult(thread, response.data);
+        }
       } else {
         console.warn(`[ThreadObserver] error ${task.taskType}: ${response.errorText}`);
         task.onError?.(thread, response.errorText);
@@ -142,5 +213,6 @@ export function initThreadObserver(): void {
   const observer = ThreadObserver.getInstance();
   observer.register(renameTitleTask);
   observer.register(compressContextTask);
+  observer.register(updateContextStatusTask);
   // observer.register(suggestPromptTask);
 }
