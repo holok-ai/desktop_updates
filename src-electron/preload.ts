@@ -269,6 +269,8 @@ export interface AppSettings {
   updateAvailable?: boolean;
   latestVersion?: string;
   autoTitleEnabled?: boolean;
+  /** Compact threshold as a 0–1 ratio (default 0.75 = 75%) */
+  contextCompactThreshold?: number;
   /* ToolOrchestrator data need to load the UI  */
   config_windowsCommands: string;
   config_unixCommands: string;

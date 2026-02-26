@@ -11,6 +11,7 @@ export enum ObserverTaskType {
   RenameTitle = 'rename-title',
   CompressContext = 'compress-context',
   SuggestPrompt = 'suggest-prompt',
+  UpdateContextStatus = 'update-context-status',
 }
 
 /** Human-readable label for each task type */
@@ -19,6 +20,7 @@ export function getTaskTypeLabel(type: ObserverTaskType): string {
     [ObserverTaskType.RenameTitle]: 'Title Generation',
     [ObserverTaskType.CompressContext]: 'Context Compression',
     [ObserverTaskType.SuggestPrompt]: 'Prompt Suggestion',
+    [ObserverTaskType.UpdateContextStatus]: 'Context Status',
   };
   return labels[type];
 }

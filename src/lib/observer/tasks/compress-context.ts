@@ -1,16 +1,14 @@
 /**
  * Compress Context Task
  *
- * Summarizes conversation context when total token usage reaches 75%
- * of the model's maximum context window.
+ * Summarizes conversation context when total token usage reaches the
+ * configurable compact threshold (default 75%) of the model's maximum context window.
  *
- * Relies on two properties that will be added in a future PR:
- * - thread.maxModelTokens?: number — max token limit for the current model
- * - message.tokens?: number — token count for each message
- *
- * Until these properties are populated, shouldRun() returns false (graceful no-op).
+ * Token data comes from message.tokens (populated by mapDTOToMessage) and
+ * the model max tokens come from the static model-token-limits lookup.
  */
 
+import { get } from 'svelte/store';
 import {
   ObserverTaskType,
   type BackgroundChatRequest,
@@ -18,27 +16,31 @@ import {
 import type { ObserverTask, ObserverThread } from '../observer-task.interface';
 import type { Message } from '$lib/types/thread.type';
 import { observerStore } from '../observer.store';
-
-const TOKEN_THRESHOLD_RATIO = 0.75;
+import { settingsStore } from '$lib/stores/settings.store';
+import { getModelMaxTokens } from '$lib/services/model-token-limits';
 
 export const compressContextTask: ObserverTask = {
   taskType: ObserverTaskType.CompressContext,
 
-  shouldRun(thread: ObserverThread, messages: Message[]): boolean {
-    // Requires token data on thread and messages — not yet available
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-    const maxTokens = (thread as any).maxModelTokens as number | undefined;
-    if (maxTokens === undefined || maxTokens === null) {
+  shouldRun(_thread: ObserverThread, messages: Message[]): boolean {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (lastAssistant === undefined) {
       return false;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-    const totalTokens = messages.reduce((sum, m) => sum + (((m as any).tokens as number) ?? 0), 0);
-    if (totalTokens === 0) {
-      return false; // No token data populated yet
+    const modelAccessName = lastAssistant.modelId ?? '';
+    if (modelAccessName === '') {
+      return false;
     }
 
-    return totalTokens >= maxTokens * TOKEN_THRESHOLD_RATIO;
+    const maxTokens = getModelMaxTokens(modelAccessName);
+    const totalTokens = messages.reduce((sum, m) => sum + (m.tokens ?? 0), 0);
+    if (totalTokens === 0) {
+      return false;
+    }
+
+    const thresholdRatio = get(settingsStore).contextCompactThreshold ?? 0.75;
+    return totalTokens >= maxTokens * thresholdRatio;
   },
 
   buildRequest(thread: ObserverThread, messages: Message[]): BackgroundChatRequest {
@@ -56,6 +58,9 @@ export const compressContextTask: ObserverTask = {
   },
 
   onResult(thread: ObserverThread, response: string): void {
+    // Stamp the compact timestamp immediately so the tooltip reflects it
+    observerStore.setLastCompactTimestamp(thread.id, Date.now());
+
     try {
       const parsed: unknown = JSON.parse(response);
       observerStore.setContextSummary(thread.id, parsed);

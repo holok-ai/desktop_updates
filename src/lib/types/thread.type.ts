@@ -1,6 +1,7 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
 import type { MessageStatus, ThreadStatus } from './status.type.ts';
 import type { RequestOptionsDTO } from '../../../src-electron/preload.js';
+import type { MessageContext } from './context.type.js';
 
 export interface MessageVersion {
   content: string;
@@ -37,6 +38,10 @@ export interface Message {
   guardError: string;
   isLocal?: boolean;
   desktopOptions?: RequestOptionsDTO | null;
+  /** Token count for this message (input tokens for user, output tokens for assistant) */
+  tokens?: number;
+  /** Context metadata for turn tracking and future compression */
+  context?: MessageContext;
 }
 
 export interface Thread {
