@@ -74,18 +74,8 @@
       // Extract agentId from thread metadata
       agentId = (t.metadata?.agentId as string) || null;
 
-      console.log(
-        '[ThreadPage] Thread loaded - modelId:',
-        t.metadata?.modelId,
-        'modelAccessName:',
-        t.metadata?.modelAccessName,
-        'agentId:',
-        agentId,
-      );
-
       // Load models for the specific agent (if available)
       if (agentId) {
-        console.log('[ThreadPage] Loading models for agentId:', agentId);
         availableModels = await modelService.getModelsForApplication(agentId);
         console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
       } else {

@@ -285,12 +285,6 @@
     selectedModelId = e.detail.modelId;
     selectedModelIds = e.detail.selectedModelIds;
     selectedApplicationSlug = e.detail.appSlug;
-    console.log(
-      '[Composer] Model selected - appSlug:',
-      e.detail.appSlug,
-      'modelIds:',
-      e.detail.selectedModelIds,
-    );
   }
 </script>
 

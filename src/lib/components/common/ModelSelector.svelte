@@ -82,14 +82,10 @@
     try {
       // If agentId is provided, fetch models for that specific application
       if (agentId) {
-        console.log('[ModelSelector] Loading models for agentId:', agentId);
         availableModels = await modelService.getModelsForApplication(agentId);
       } else {
-        console.log('[ModelSelector] Loading all models');
         availableModels = await modelService.getAvailableModels();
       }
-
-      console.log('[ModelSelector] Loaded models:', availableModels.length);
 
       // Select first model by default ONLY if none selected AND no modelId bound from parent
       if (selectedModelIds.length === 0 && !selectedModelId && availableModels.length > 0) {

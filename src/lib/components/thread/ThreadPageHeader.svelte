@@ -1,7 +1,9 @@
 <script lang="ts">
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { favorites } from '$lib/stores/favorite.store';
-  import EditableText from '$lib/components/common/EditableText.svelte';
+  import SuggestedText from '$lib/components/common/SuggestedText.svelte';
+  import { observerStore } from '$lib/observer/observer.store';
+  import { ObserverTaskType } from '../../../../src-shared/types/observer.types';
 
   interface Props {
     threadId: string | null;
@@ -16,6 +18,12 @@
 
   const isFav = $derived(threadId ? $favorites.some((e) => e.id === threadId) : false);
 
+  const suggestedTitle = $derived(
+    threadId
+      ? ($observerStore.suggestions.get(`${threadId}:${ObserverTaskType.RenameTitle}`) ?? null)
+      : null,
+  );
+
   function toggleFavorite() {
     if (threadId) {
       favorites.toggleFavorite(threadId, 'thread', title, `/thread/${threadId}`);
@@ -26,6 +34,7 @@
     title = newTitle;
     onTitleChange?.(newTitle);
     if (threadId) {
+      observerStore.dismissSuggestion(threadId, ObserverTaskType.RenameTitle);
       try {
         await threadService.rename(threadId, newTitle);
       } catch (err) {
@@ -33,16 +42,24 @@
       }
     }
   }
+
+  function handleSuggestionDiscard() {
+    if (threadId) {
+      observerStore.dismissSuggestion(threadId, ObserverTaskType.RenameTitle);
+    }
+  }
 </script>
 
 <header class="thread-page-header">
   <div class="header-content" role="group">
     <div class="header-left">
-      <EditableText
+      <SuggestedText
         tag="h1"
         class="thread-title"
         bind:value={title}
+        suggestedText={suggestedTitle}
         onChange={handleTitleChange}
+        onDiscard={handleSuggestionDiscard}
         placeholder="Untitled Thread"
       />
     </div>

@@ -18,17 +18,24 @@ export const renameTitleTask: ObserverTask = {
   settingKey: 'autoTitleEnabled',
 
   shouldRun(thread: ObserverThread, messages: Message[]): boolean {
-    return messages.some((m) => m.role === 'assistant') && thread.title.trim() === '';
+    const shouldrenameTitle = thread.title.trim() === '' || thread.title.startsWith('New');
+    const userMessageCount = messages.filter((m) => m.role === 'user').length;
+    return shouldrenameTitle && userMessageCount >= 2 && userMessageCount < 5;
   },
 
   buildRequest(thread: ObserverThread, messages: Message[]): BackgroundChatRequest {
+    const userMessages = messages
+      .filter((m) => m.role === 'user')
+      .slice(0, 2)
+      .map((m) => m.content);
+    const prompt =
+      'Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.' +
+      'Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. ' +
+      `Messages: ${JSON.stringify(userMessages)}`;
     return {
       taskType: ObserverTaskType.RenameTitle,
       threadId: thread.id,
-      system:
-        'Generate a short, descriptive title (3-8 words) for this conversation. ' +
-        'Return ONLY the title text, nothing else. No quotes, no punctuation at the end.',
-      messages: messages.slice(0, 4).map((m) => ({ role: m.role, content: m.content })),
+      messages: [{ role: 'user', content: prompt }],
       maxTokens: 60,
       temperature: 0.7,
     };
@@ -36,6 +43,7 @@ export const renameTitleTask: ObserverTask = {
 
   onResult(thread: ObserverThread, response: string): void {
     const title = response.trim().replace(/^["']|["']$/g, '');
+    console.warn(`[rename-title] onResult thread=${thread.id} suggestedTitle="${title}"`);
     observerStore.setSuggestion(thread.id, ObserverTaskType.RenameTitle, title);
   },
 };
