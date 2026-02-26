@@ -40,8 +40,13 @@ export const updateContextStatusTask: ObserverTask = {
 
     const maximumTokenCount = getModelMaxTokens(modelAccessName, provider);
 
-    // Sum token counts across all messages
-    const currentTokenCount = messages.reduce((sum, m) => sum + (m.tokens ?? 0), 0);
+    // Sum token counts across all messages.
+    // Use m.tokens when available; fall back to content.length / 4 for messages
+    // created in the renderer (streamed responses) that haven't been persisted yet.
+    const currentTokenCount = messages.reduce(
+      (sum, m) => sum + (m.tokens ?? Math.ceil(m.content.length / 4)),
+      0,
+    );
 
     // Read configurable compact threshold
     const compactThresholdRatio = get(settingsStore).contextCompactThreshold ?? 0.75;
