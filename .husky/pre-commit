@@ -24,15 +24,18 @@ npx lint-staged
 echo "🔷 Phase 2: Type checking..."
 npm run type-check
 
-# Phase 3: Security Scanning
-# Ignore it for now, it will be fixed in the next release
-# echo "🔒 Phase 3: Security scanning..."
+# Phase 3: Svelte Check
+echo "🧡 Phase 3: Svelte checking..."
+npx svelte-check
+
+# Phase 4: Security Scanning
+echo "🔒 Phase 4: Security scanning..."
 npm run precommit:security
 
-# Phase 4: Advanced Security (Optional - graceful degradation)
+# Phase 5: Advanced Security (Optional - graceful degradation)
 # Snyk: Runs if SNYK_ENABLED=1 or snyk is authenticated
 if [ "$SNYK_ENABLED" = "1" ]; then
-  echo "🔐 Phase 4a: Snyk vulnerability scanning..."
+  echo "🔐 Phase 5a: Snyk vulnerability scanning..."
   npm run precommit:snyk
 fi
 
