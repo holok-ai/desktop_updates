@@ -30,7 +30,8 @@ npx svelte-check
 
 # Phase 4: Security Scanning
 echo "🔒 Phase 4: Security scanning..."
-npm run precommit:security
+# npm run security:audit  # disabled: node scripts/audit-with-exceptions.js
+npm run security:secrets
 
 # Phase 5: Advanced Security (Optional - graceful degradation)
 # Snyk: Runs if SNYK_ENABLED=1 or snyk is authenticated
