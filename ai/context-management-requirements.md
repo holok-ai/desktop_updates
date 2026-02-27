@@ -13,6 +13,7 @@ Context management defines how Holokai prepares and delivers conversation histor
 | Currency | Usage recalculates after every completed response and on thread open |
 | Breakdown | Tooltip shows percentage of tokens by category: user messages and response messages (future: tool definitions, tool calls, generated media, attached files); if compression has run, shows date/time of last run and tokens before/after with percentage reduction |
 | Architecture | Calculation runs as a background observer task; result held in reactive store keyed by thread ID; token counts sourced from moku API `tokens` field per message; model max sourced from static lookup on model name (future: dynamic lookup when provider API supports it) |
+| Message Analysis | Populate discrete token count fields per message for: request, response, code block, tool definition, and tool call. Set tags on each message to indicate: Guard message, Pass Guard, Error response, Code Block, Long Response. Assign one or more topics to each request using a non-LLM method (e.g. keyword/regex classification). |
 | Future | Desktop token histogram for current user, by provider, by topic, by model, by compression etc |
 | **Status** | **Implemented** |
 
@@ -32,9 +33,30 @@ Context management defines how Holokai prepares and delivers conversation histor
 | Quality Measurement | Required: compression ratio, policy depth, LLM calls per pass, compression latency, role alternation violation errors. Candidate: offline faithfulness scoring via judge model on sampled threads; encrypt and save context for offline judge evaluation |
 | **Status** | **Designing** |
 
+### Pipeline Design
+
+Policies execute in priority order, with early-exit when under budget:
+
+|Priority|Policy                 |LLM Call?        |Purpose                                             |
+|--------|-----------------------|-----------------|----------------------------------------------------|
+|0       |`KeepRecentTurns`      |No               |Marks last N turns as protected                     |
+|10      |`ProtectReferencedCode`|No               |Protects old messages whose code is still referenced|
+|150     |`DropRedundantMessages`|No               |Removes low-value messages ("ok", "thanks")         |
+|200     |`CompressLongResponses`|Yes (per message)|Summarizes individual oversized messages            |
+|300     |`SummarizeOldTurns`    |Yes (one call)   |Collapses old unprotected turns into a meta-summary |
+|400     |`AggressiveDropOldest` |No               |Last resort — drops oldest unprotected messages     |
+
+### Key Design Decisions
+
+- Policies operate on the **full message list**, not individual messages — enabling range-based operations
+- Earlier policies influence later ones (protection flags prevent compression)
+- Cheap regex-based policies run first; LLM-powered policies only run if still over budget
+- Pipeline stops early once under token budget
+- Messages are always dropped/summarized in user+assistant pairs to maintain role alternation
+
 ---
 
-## Context Assembly 
+## Context Assembly
 #### replace thread messages with compressed content prior to submitting prompt
 
 | Category | Requirements |
