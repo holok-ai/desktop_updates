@@ -1,0 +1,28 @@
+The Desktop application needs amechanism to calculate and display token size of the current context on a per thread basis. The thread chat view should present information to the user so they easily see the model maximum context size, the model it comes from, the current thread context size, the percent of maximum at which compacting will occur.
+
+Displaying Context
+
+A ContextStatus component will display information to the user. Context status will be displayed using a thermometer style approach. The maximum is the right end of the thermometer. A small line will indicate the point at which compacting will occur. And the thermometer color (or fill color) will indicate how far "up" the thermometer the current context is. This also depicts how close to the compacting line the current size is as  well. 
+
+The thermometer is styled discretely as a small horizontal rectangle with rounded edges. It would be roughly 8-12 pixels tall and 100 to 200 pixels wide though this should be adjustable at design time. It is placed over the bottom or top border of the prompt entry window, at the bottom of the ThreadChatView. The prompt entry (the Composer compononent) is where the user selects one or more models and where they type a prompt and press enter. The context status thermometer will be styled using subtle outline, background and fill colors so it is not overly high contrast. 
+
+The user can hover over the thermometer to see a "tooltip" information panel like token values, time of last compact, etc as well as a button to "Compact Now"
+
+All context values are in tokens (not words or letters). Maximum model tokens, compacting percent (which yields a token value) and current context size is also in tokens. 
+
+ContextStatus Behavior
+
+Iniitally, when the user first creates a thread, there is no context and nmone can be calculated becuase the user has not selected a model. The maximum token count depends on teh model, so initially the ContextStatus will be all background colored, essentially the same color as the Composer background. Once the user selects a model and issues a prompt, the observer will notice that there is a message and will calculate the maximum token size. Initially, this will be done with a static look function where providers and models names return a maximum token count value. After inital development, the observer will be modified to use the applicable SDK for models that can provide their maximum token size, though some providers do not and may not ever support this. For the ContextStatus, this means that it needs to be responsive to changes in its status data coming from the ObserverStore.
+
+Once the maximum token count is calculated by a task in the Observer class, the ContextStatus would receive an update. the control would then change from background color to a subtle green color which shows the context status (as a percent of total) with the compact point shown as a vertical line. Each time the user enters a prompt, the threadchatview receives a response and then calls the Observer to determine if any tasks need to be run. The UpdateContextStatus task would runWhen there are more than 0 messages and more than 1 responses and there is a value for maximum token size (for the model). ON the first run, if there was no associatedModel and maximumTokenCount, it would store and calculate this. It would add up the tokens in all the messages, calculate the percentages and then update the ObserverSTore which causes the ContextStatus to update. 
+
+
+Token Counting
+
+To simplify token counting, the Desktop will use the token counts provided by the model resposne, which are stored in the llm_request table and sent to the Desktop as Mesages in a Thread. The MessageDTO will be modified to include a token field (either a count or a JSONB) so that the Desktop can simply use the prompt token count (from request) and response token count (from response) provided by the model that ran the prompt and generated the response. The messageDTO should also include the model access name as the dekstop allows the user to select any model they want on any turn.
+
+Initally, the UpdateContextStatus will do the arithmetic for token counting. This involves going through the messages provided an counting the token value. The counting process should also update other values needed during compression (once that is implemented). So, the UI Message class should be augmented with a context class (as in "message.context") to store the turn index, a protected flag, a hasCodeBlock flag. For future purposes, it should contain fields related to compression results such as: compressedBy policy, originalTokenSize, the compressedTokenSize, the compressionTimestamp. 
+
+Next Steps
+
+After the COntextStatus development is complete, the next step will be to implement a true chat context which involves a context compression task which uses porioritized compression policies. These policies include: keep recent turns, summarize old turns, protect referenced code blocks, aggresively drop old turns, compress long responses, drop redundant messages. Some of these policies would be LLM-based while some/most are code based. The policies are executed starting with the highest priority until a trheshold is reached, at whihc point no more polciies are run. This attempts to avoid running LLM prompts when not needed. Context compression requires that the message stream for the current thread have a context generated for it, keeping track of each message and where it went/how do it get compressed. For example, a summary might contatin turn 1 through 20, long responses in messages 21 to 24 were shortened and turns 25 to 30 are kept intact. 
