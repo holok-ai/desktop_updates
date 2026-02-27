@@ -60,9 +60,6 @@ export class ModelRepository {
       }
 
       const agents = agentsResult.data;
-      if (agents.length === 0) {
-        log.warn('[ModelRepository] API returned 0 agents');
-      }
       log.info(`[ModelRepository] Read  ${agents.length} agents from Moku`);
 
       for (const thisAgent of agents) {
