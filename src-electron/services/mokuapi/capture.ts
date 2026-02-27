@@ -14,15 +14,15 @@
  * Then exercise scenarios in the app. Files appear under api-captures/raw/.
  */
 import { writeFileSync, mkdirSync } from 'fs';
-import { resolve, join } from 'path';
+import { join } from 'path';
 import log from 'electron-log';
 
 let captureDir: string | null = null;
 
 function getCaptureDir(): string {
   if (!captureDir) {
-    // Resolve relative to the project root (two levels up from src-electron/services/mokuapi/)
-    const projectRoot = resolve(__dirname, '..', '..', '..');
+    // Resolve relative to the current working directory (project root in dev)
+    const projectRoot = process.cwd();
     captureDir = join(projectRoot, 'tests', 'fixtures', 'api-captures', 'raw');
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     mkdirSync(captureDir, { recursive: true });
@@ -73,4 +73,31 @@ export function captureMessages(threadId: string, messages: unknown): void {
  */
 export function captureThread(threadId: string, thread: unknown): void {
   captureResponse(`thread-${threadId}`, thread);
+}
+
+/**
+ * Capture an error response together with minimal context.
+ *
+ * This is useful for recording provider / guard failures where we don't
+ * get a normal MessageDTO[] payload but still want to replay or inspect
+ * the failure shape in tests.
+ */
+export function captureError(params: {
+  provider: string;
+  model: string;
+  threadId?: string;
+  branchId?: string;
+  originalPrompt?: string;
+  error: unknown;
+}): void {
+  const { provider, model, threadId, branchId, originalPrompt, error } = params;
+
+  captureResponse(`error-${provider}-${model}-${threadId ?? 'unknown'}-${branchId ?? 'unknown'}`, {
+    provider,
+    model,
+    threadId,
+    branchId,
+    originalPrompt,
+    error,
+  });
 }
