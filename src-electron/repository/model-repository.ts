@@ -4,42 +4,6 @@ import log from 'electron-log';
 import type { ApplicationSummary, ModelDetails } from '../preload.js';
 import { apiOk, apiFail, type ApiResponse } from '../types/api-response.js';
 
-/** Check if running in Playwright E2E test mode (test tokens injected) */
-function isE2ETestMode(): boolean {
-  return !!process.env.PLAYWRIGHT_TEST_TOKENS;
-}
-
-/**
- * Return mock applications for E2E tests when API fails or returns empty.
- * Uses appSlugs from the test user's JWT when available.
- */
-function getE2EMockApplications(): ApplicationSummary[] {
-  const appSlugs = ['af8aec3c', 'f687b49f']; // From TEST_TOKENS JWT appSlugs
-  const slug = appSlugs[0];
-  const model: ModelDetails = {
-    id: 'e2e-mock-model',
-    title: 'E2E Mock Model',
-    accessName: 'claude-3-5-sonnet-20241022',
-    provider: 'anthropic',
-    applicationName: 'E2E Test Assistant',
-    applicationSlug: slug,
-    slug,
-    url: '',
-    isPublic: true,
-  };
-  return [
-    {
-      id: slug,
-      description: 'E2E test assistant for Playwright',
-      title: 'E2E Test Assistant',
-      provider: 'anthropic',
-      slug,
-      url: '',
-      models: [model],
-    },
-  ];
-}
-
 export class ModelRepository {
   private readonly agents: ApplicationSummary[] = [];
   private readonly models: ModelDetails[] = [];
@@ -91,33 +55,13 @@ export class ModelRepository {
 
       const agentsResult = await mokuService.getAllAgents();
       if (!agentsResult.success) {
-        if (isE2ETestMode()) {
-          log.warn(
-            '[ModelRepository] E2E mode: API failed, using mock applications for tests',
-            agentsResult.errorText,
-          );
-          const mockApps = getE2EMockApplications();
-          this.agents.length = 0;
-          this.models.length = 0;
-          mockApps.forEach((app) => {
-            this.agents.push(app);
-            app.models?.forEach((m) => this.models.push(m));
-          });
-          return apiOk(true);
-        }
         log.error('[ModelRepository] Failed to refresh models from Moku:', agentsResult.errorText);
         return apiFail(agentsResult.errorCode, agentsResult.errorText);
       }
 
       const agents = agentsResult.data;
-      if (agents.length === 0 && isE2ETestMode()) {
-        log.warn('[ModelRepository] E2E mode: API returned 0 agents, using mock applications');
-        const mockApps = getE2EMockApplications();
-        mockApps.forEach((app) => {
-          this.agents.push(app);
-          app.models?.forEach((m) => this.models.push(m));
-        });
-        return apiOk(true);
+      if (agents.length === 0) {
+        log.warn('[ModelRepository] API returned 0 agents');
       }
       log.info(`[ModelRepository] Read  ${agents.length} agents from Moku`);
 
