@@ -130,41 +130,42 @@ describe('Observer Tasks', () => {
     });
 
     describe('shouldRun', () => {
-      it('should return false when thread has no maxModelTokens', () => {
+      it('should return false when last assistant message has no modelId', () => {
         const thread = makeThread();
         const messages = Array.from({ length: 15 }, (_, i) =>
           makeMessage({ id: `msg-${i}`, role: i % 2 === 0 ? 'user' : 'assistant' }),
         );
+        // No modelId on assistant messages — shouldRun cannot determine max tokens
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
       });
 
       it('should return false when messages have no token counts', () => {
         const thread = makeThread();
-        // Add maxModelTokens to the thread (future property)
-        (thread as any).maxModelTokens = 4096;
-        const messages = [makeMessage()];
+        const messages = [
+          makeMessage({ role: 'user' }),
+          makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' } as any),
+        ];
+        // All tokens are 0 (undefined ?? 0) — shouldRun returns false
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
       });
 
       it('should return true when total tokens exceed 75% threshold', () => {
         const thread = makeThread();
-        (thread as any).maxModelTokens = 4096;
         const messages = [
-          { ...makeMessage({ id: 'msg-1' }), tokens: 2000 },
-          { ...makeMessage({ id: 'msg-2' }), tokens: 1100 },
+          { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 10000 },
+          { ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }), tokens: 4000 },
         ] as any[];
-        // Total: 3100, threshold: 4096 * 0.75 = 3072
+        // Total: 14000, gpt-3.5 max: 16385, threshold: 16385 * 0.75 = 12288 — 14000 > 12288
         expect(compressContextTask.shouldRun(thread, messages)).toBe(true);
       });
 
       it('should return false when total tokens below 75% threshold', () => {
         const thread = makeThread();
-        (thread as any).maxModelTokens = 4096;
         const messages = [
-          { ...makeMessage({ id: 'msg-1' }), tokens: 1000 },
-          { ...makeMessage({ id: 'msg-2' }), tokens: 1000 },
+          { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 5000 },
+          { ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }), tokens: 5000 },
         ] as any[];
-        // Total: 2000, threshold: 3072
+        // Total: 10000, gpt-3.5 max: 16385, threshold: 12288 — 10000 < 12288
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
       });
     });

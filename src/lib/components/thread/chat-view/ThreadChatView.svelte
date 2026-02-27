@@ -17,6 +17,8 @@
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
   import { ThreadObserver } from '$lib/observer/thread-observer';
+  import ContextStatus from './ContextStatus.svelte';
+  import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -234,6 +236,23 @@
     }
 
     previousThreadId = currentThreadId;
+  });
+
+  // ── Initialize observer tasks when a thread + its messages are first loaded ──
+  // Uses a plain variable (not $state) so writing it doesn't re-trigger the effect.
+  // The effect re-runs whenever thread?.id or messages changes; it only calls
+  // initializeThread the first time messages arrive for each distinct thread.
+  let lastInitializedThreadId: string | null = null;
+  $effect(() => {
+    const currentThreadId = thread?.id ?? null;
+    if (
+      currentThreadId !== null &&
+      messages.length > 0 &&
+      currentThreadId !== lastInitializedThreadId
+    ) {
+      lastInitializedThreadId = currentThreadId;
+      ThreadObserver.getInstance().initializeThread(thread!, messages);
+    }
   });
 
   function extractModelInfo() {
@@ -827,6 +846,12 @@
     }
   }
 
+  // ── Context compaction ──
+  function handleCompactNow(): void {
+    if (!thread) return;
+    ThreadObserver.getInstance().forceTask(ObserverTaskType.CompressContext, thread, messages);
+  }
+
   // ── Helpers ──
   function handleGuardError(errorMessage: string, branchId: string) {
     // Prevent duplicate handling for the same branch
@@ -1114,6 +1139,9 @@
       {agentId}
       modelId={modelAccessName}
     />
+    <div class="context-status-row">
+      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
+    </div>
 
     <!-- Debug Activity Box -->
     {#if SHOW_DEBUG_ACTIVITY}
@@ -1300,6 +1328,17 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .context-status-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Sit just below the composer with a small visual gap.
+       Negative margin cancels most of the composer-area gap (0.75rem),
+       leaving ~4px between the composer bottom and the bar. */
+    margin-top: calc(4px - 0.75rem);
+    margin-bottom: -0.375rem;
   }
 
   .debug-area {

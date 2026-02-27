@@ -48,6 +48,8 @@ export interface MessageDTO {
   rawData: unknown; // JSONB from llm_responses
   status: LLMStatus | null; // LLM execution status
   options: unknown; // JSONB from llm_requests
+  /** Token count for this message: input tokens for user messages, output tokens for assistant */
+  tokens?: number | null;
   createdUserId: string | null;
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string

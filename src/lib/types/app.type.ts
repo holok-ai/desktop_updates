@@ -59,6 +59,8 @@ export interface AppSettings {
 
   // Background Prompts
   autoTitleEnabled: boolean;
+  /** Compact threshold as a 0–1 ratio (default 0.75 = 75%) */
+  contextCompactThreshold: number;
 
   // Updates
   autoCheckUpdates: boolean;
@@ -95,6 +97,7 @@ export const defaultAppSettings: AppSettings = {
   windowsCommands: '',
   unixCommands: '',
   autoTitleEnabled: true,
+  contextCompactThreshold: 0.75,
   autoCheckUpdates: true,
   autoInstallUpdates: false,
 };
