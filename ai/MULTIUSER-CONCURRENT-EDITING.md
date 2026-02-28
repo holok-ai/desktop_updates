@@ -68,6 +68,18 @@ Desktop A                          Moku                         Desktop B
 
 ---
 
+## Desktop Multiuser Features
+
+- **Subscription lifecycle** — when a user navigates to a project page, the Desktop requests the start of asynchronous updates for that project ID. When the user navigates to any non-project route or exits the application, the Desktop requests to stop asynchronous updates, releasing the SSE connection.
+
+- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member completes entry and submits, the Desktop sends a "New Prompt" notification. When the assistant response is received, the Desktop sends a "New Response" notification.
+
+- **Watching member — thread view** — watching members receive the authoring sequence in order: a "Typing…" indicator appears first, followed by the new prompt, followed by the new response. All three are displayed inline within the current Thread View, whether that view is Chat, Prompt, or Graphic mode.
+
+- **Watching member — project-level updates** — watching members see a visual notification and then live updates when any of the following change: the member list, project instructions, files, or the thread list.
+
+---
+
 ## New Moku Endpoints — `DesktopMultiuserController`
 
 All endpoints require `Authorization: Bearer {jwt}` and validate that the authenticated user is a member of the specified project.
