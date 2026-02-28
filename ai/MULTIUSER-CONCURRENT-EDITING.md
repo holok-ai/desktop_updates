@@ -7,7 +7,7 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 ## Requirements
 
 - **Project subscription** — on opening a project, the desktop opens a persistent SSE connection to Moku and receives all events scoped to that project for as long as the connection is held.
-- **Message sync** — when any member's prompt or the resulting assistant response is saved, all other connected desktops receive a `message-created` event and render it in the appropriate thread and branch.
+- **Message sync** — when any member submits a prompt or receives an assistant response, that member's Desktop sends a `message-created` notification to Moku, which broadcasts it to all other connected desktops so they can render it in the appropriate thread and branch.
 - **File sync (metadata)** — when a file is added, updated, or deleted, all other desktops receive a `file-changed` event carrying only metadata; content is fetched lazily on demand using the stable `virtualFileId`.
 - **Instructions sync** — when project instructions are changed, all other desktops receive an `instructions-changed` event and update their local instructions view.
 - **Member presence** — when a member joins or is removed from the project, all connected desktops receive a `member-changed` event and update the member list accordingly.
@@ -29,14 +29,16 @@ Desktop A                          Moku                         Desktop B
     │                                │                               │
     │◄────────── event: ping ────────│──────────── event: ping ──────│  (every 30 seconds)
     │                                │                               │
-    │  Desktop A sends prompt:        │                               │
+    │  Desktop A notifies: new prompt:│                               │
     │── POST /threads/{threadId}/messages ──────────────────────────►│
-    │◄── 201 Created ────────────────│                               │
+    │◄── 204 No Content ─────────────│                               │
     │                                │──── event: message-created ───────►│
     │                                │    { threadId, branchId,      │
     │                                │      role: "user", content }  │
     │                                │                               │
-    │                                │  (assistant response saved)   │
+    │  Desktop A notifies: new response (received from Holo):        │
+    │── POST /threads/{threadId}/messages ──────────────────────────►│
+    │◄── 204 No Content ─────────────│                               │
     │                                │──── event: message-created ───────►│
     │                                │    { role: "assistant", ... } │
     │                                │                               │
@@ -73,7 +75,7 @@ Desktop A                          Moku                         Desktop B
 
 - **Subscription lifecycle** — when a user navigates to a project page, the Desktop requests the start of asynchronous updates for that project ID. When the user navigates to any non-project route or exits the application, the Desktop requests to stop asynchronous updates, releasing the SSE connection.
 
-- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member completes entry and submits, the Desktop sends a "New Prompt" notification. When the assistant response is saved by the backend, Moku broadcasts a "New Response" notification to all watching members.
+- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member completes entry and submits, the Desktop sends a "New Prompt" notification to Moku. When the Desktop receives the assistant response from Holo, the Desktop sends a "New Response" notification to Moku, which then broadcasts it to all other watching members. Moku does not save messages — persistence is handled by Holo.
 
 - **Watching member — thread view** — watching members receive the authoring sequence in order: a "Typing…" indicator appears first, followed by the new prompt, followed by the new response. All three are displayed inline within the current Thread View, whether that view is Chat, Prompt, or Graphic mode.
 
@@ -95,7 +97,7 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 
 | Event name | Broadcast trigger | Excludes author | Notes |
 |---|---|---|---|
-| `message-created` | User prompt or assistant response saved | Yes | |
+| `message-created` | Desktop notifies Moku of a new user prompt or assistant response | Yes | |
 | `file-changed` | File added, updated, or deleted | Yes | |
 | `instructions-changed` | Project instructions updated | Yes | |
 | `member-changed` | Member added to or removed from project | No | |
