@@ -1,6 +1,6 @@
 # Desktop Support for Concurrent Multiuser Editing
 
-Multiple desktop clients connected to the same Holokai project must stay in sync in real time — new messages, file changes, member events, and typing indicators should propagate to every observer without requiring a manual refresh. This document specifies the requirements, message exchange protocol, new Moku API surface, and the rationale for choosing SSE + REST over WebSockets.
+Multiple desktop clients connected to the same Holokai project must stay in sync in real time — new messages, file changes, member events, and typing indicators should propagate to every watching member without requiring a manual refresh. This document specifies the requirements, message exchange protocol, new Moku API surface, and the rationale for choosing SSE + REST over WebSockets.
 
 ---
 
@@ -19,17 +19,18 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 
 ## Desktop ↔ Moku Message Exchange
 
+> Paths are abbreviated for readability. All endpoints are prefixed `/api/v1/projects/{projectId}`.
+
 ```
 Desktop A                          Moku                         Desktop B
     │                                │                               │
-    │── GET /projects/{id}/subscribe ►│◄── GET /projects/{id}/subscribe──│
-    │   Authorization: Bearer {jwt}   │    Authorization: Bearer {jwt}   │
+    │── GET /subscribe ─────────────►│◄─────────── GET /subscribe ───│
+    │   Authorization: Bearer {jwt}  │    Authorization: Bearer {jwt}│
     │                                │                               │
-    │◄────────── event: ping ─────────│─────────── event: ping ──────────│  (every 30s)
-    │                                │                               │
+    │◄────────── event: ping ────────│──────────── event: ping ──────│  (every 30 seconds)
     │                                │                               │
     │  Desktop A sends prompt:        │                               │
-    │── POST /threads/{t}/messages ──►│                               │
+    │── POST /threads/{threadId}/messages ──────────────────────────►│
     │◄── 201 Created ────────────────│                               │
     │                                │──── event: message-created ───────►│
     │                                │    { threadId, branchId,      │
@@ -40,20 +41,20 @@ Desktop A                          Moku                         Desktop B
     │                                │    { role: "assistant", ... } │
     │                                │                               │
     │  Desktop A updates a file:      │                               │
-    │── POST /projects/{id}/files ───►│                               │
+    │── POST /files ─────────────────►│                               │
     │◄── 201 Created ────────────────│                               │
     │                                │──── event: file-changed ──────────►│
     │                                │    { virtualFileId, fileName, │
     │                                │      changeType: "added" }    │
     │                                │                               │
     │  Desktop A changes instructions:│                               │
-    │── PUT /projects/{id}/instructions►│                             │
+    │── PUT /instructions ───────────►│                               │
     │◄── 200 OK ─────────────────────│                               │
     │                                │──── event: instructions-changed───►│
     │                                │    { updatedAt, updatedBy }   │
     │                                │                               │
     │  [STRETCH] Desktop A typing:    │                               │
-    │── POST /threads/{t}/typing ────►│                               │
+    │── POST /threads/{threadId}/typing ────────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: member-typing ─────────►│
     │                                │    { threadId, branchId,      │
@@ -61,7 +62,7 @@ Desktop A                          Moku                         Desktop B
     │                                │                               │
     │  Connection drops and recovers: │                               │
     │── GET /subscribe ──────────────►│                               │
-    │   Last-Event-ID: {lastEventId}  │                               │
+    │   Last-Event-ID: {lastEventId} │                               │
     │◄── replayed missed events ──────│                               │
     │                                │                               │
 ```
@@ -72,7 +73,7 @@ Desktop A                          Moku                         Desktop B
 
 - **Subscription lifecycle** — when a user navigates to a project page, the Desktop requests the start of asynchronous updates for that project ID. When the user navigates to any non-project route or exits the application, the Desktop requests to stop asynchronous updates, releasing the SSE connection.
 
-- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member completes entry and submits, the Desktop sends a "New Prompt" notification. When the assistant response is received, the Desktop sends a "New Response" notification.
+- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member completes entry and submits, the Desktop sends a "New Prompt" notification. When the assistant response is saved by the backend, Moku broadcasts a "New Response" notification to all watching members.
 
 - **Watching member — thread view** — watching members receive the authoring sequence in order: a "Typing…" indicator appears first, followed by the new prompt, followed by the new response. All three are displayed inline within the current Thread View, whether that view is Chat, Prompt, or Graphic mode.
 
@@ -92,14 +93,14 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 
 ### SSE Event Reference
 
-| Event name | Broadcast trigger | Excludes author |
-|---|---|---|
-| `message-created` | User prompt or assistant response saved | Yes |
-| `file-changed` | File added, updated, or deleted | Yes |
-| `instructions-changed` | Project instructions updated | Yes |
-| `member-changed` | Member added to or removed from project | No |
-| `ping` | Every 30 s keepalive | N/A |
-| `member-typing` | Member typing signal received | Yes |
+| Event name | Broadcast trigger | Excludes author | Notes |
+|---|---|---|---|
+| `message-created` | User prompt or assistant response saved | Yes | |
+| `file-changed` | File added, updated, or deleted | Yes | |
+| `instructions-changed` | Project instructions updated | Yes | |
+| `member-changed` | Member added to or removed from project | No | |
+| `ping` | Every 30 seconds keepalive | N/A | |
+| `member-typing` | Member typing signal received | Yes | [STRETCH] |
 
 ### Spring Boot Controller Skeleton
 
