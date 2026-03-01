@@ -108,10 +108,28 @@ test.describe.serial('Sidebar Favorites', () => {
     await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects/, { timeout: 10000 });
 
-    // Use an existing project from the list — don't create a new one
     const projectCards = page.locator('.project-card');
-    const count = await projectCards.count();
-    expect(count).toBeGreaterThan(0);
+    let count = await projectCards.count();
+
+    // If no projects exist, create one so we can favorite it
+    if (count === 0) {
+      const newProjectBtn = page.locator('.projects-header button.btn-holokai');
+      await newProjectBtn.click();
+      await page.waitForTimeout(1000);
+
+      const modal = page.locator(
+        'div[role="dialog"][aria-labelledby="create-project-dialog-title"]',
+      );
+      await expect(modal).toBeVisible({ timeout: 5000 });
+
+      await modal.locator('input#project-name').fill(`E2E Favorites Project ${Date.now()}`);
+      await modal.locator('button.btn-primary').click();
+      await expect(modal).not.toBeVisible({ timeout: 15000 });
+      await page.waitForTimeout(2000);
+
+      count = await projectCards.count();
+      expect(count).toBeGreaterThan(0);
+    }
 
     // Pick the first project and favorite it
     const projectCard = projectCards.first();

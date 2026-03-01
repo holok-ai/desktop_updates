@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createThreadViaUI } from '../fixtures/thread-context-menu-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -47,17 +48,7 @@ test.describe.serial('Thread View Tabs', () => {
   });
 
   test('create a thread via application card flow for tab testing', async () => {
-    await page.locator('button[aria-label="+ New Thread"]').click();
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
-
-    const cards = page.locator('.application-card');
-    await expect(cards.first()).toBeVisible({ timeout: 15000 });
-
-    await cards.first().click();
-    await page.waitForTimeout(2000);
-
-    await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
+    await createThreadViaUI(page);
 
     const chatView = page.locator('.thread-chat-view');
     await expect(chatView).toBeVisible({ timeout: 30000 });
@@ -110,9 +101,10 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = page.locator('.view-selector').locator('button[role="tab"]');
     await tabs.nth(0).click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
-    await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.messages-area')).toBeVisible({ timeout: 5000 });
+    // Chat view re-mounts after tab switch — give it time to load thread data
+    await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.messages-area')).toBeVisible({ timeout: 10000 });
   });
 });

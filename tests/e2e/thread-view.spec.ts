@@ -16,32 +16,11 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createThreadViaUI } from '../fixtures/thread-context-menu-helpers';
+import { SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
 
 let app: ElectronApplication;
 let page: Page;
-
-/**
- * Helper: create a thread via the UI by clicking an application card.
- * Navigates to the new-thread page, clicks the first app card, and waits
- * for the thread view to load.
- */
-async function createThreadViaUI(page: Page) {
-  // Navigate to new thread page via sidebar
-  await page.locator('button[aria-label="+ New Thread"]').click();
-  await page.waitForTimeout(3000);
-
-  // Wait for application cards to load
-  const cards = page.locator('.application-card');
-  await expect(cards.first()).toBeVisible({ timeout: 15000 });
-
-  // Click the first application card to create a thread
-  await cards.first().click();
-  await page.waitForTimeout(5000);
-
-  // Wait for navigation to thread view
-  await expect(page).toHaveURL(/threadId=/, { timeout: 15000 });
-  await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 30000 });
-}
 
 test.describe.serial('Thread View and Chat', () => {
   test.beforeAll(async () => {
@@ -84,21 +63,7 @@ test.describe.serial('Thread View and Chat', () => {
 
     // Helper: if agent is unavailable, click "+ New Thread" to get a brand new working thread
     async function recoverViaNewThread() {
-      // Click "+ New Thread" sidebar button to go to application selection page
-      await page.locator('button[aria-label="+ New Thread"]').click();
-      await page.waitForTimeout(3000);
-
-      // Wait for application cards to load
-      const cards = page.locator('.application-card');
-      await expect(cards.first()).toBeVisible({ timeout: 15000 });
-
-      // Click the first application card to create a new thread via UI
-      await cards.first().click();
-      await page.waitForTimeout(5000);
-
-      // Should navigate to thread view
-      await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
-      await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 30000 });
+      await createThreadViaUI(page);
     }
 
     // If assistant is unavailable on current thread, create a new one via UI
@@ -112,7 +77,7 @@ test.describe.serial('Thread View and Chat', () => {
     await expect(messageInput).toBeVisible({ timeout: 10000 });
     await expect(messageInput).toBeEnabled({ timeout: 5000 });
 
-    await messageInput.fill('Just respond with OK');
+    await messageInput.fill(SIMPLE_TEST_PROMPT);
     await page.waitForTimeout(300);
 
     // Click send
@@ -134,7 +99,7 @@ test.describe.serial('Thread View and Chat', () => {
       const retryInput = page.locator('[data-testid="message-input"]');
       await expect(retryInput).toBeVisible({ timeout: 10000 });
       await expect(retryInput).toBeEnabled({ timeout: 5000 });
-      await retryInput.fill('Just respond with OK');
+      await retryInput.fill(SIMPLE_TEST_PROMPT);
       await page.waitForTimeout(300);
 
       const retrySend = page.locator('button.send-button');
@@ -144,7 +109,7 @@ test.describe.serial('Thread View and Chat', () => {
     }
 
     // Verify the user message contains our text
-    await expect(chatMessages.first()).toContainText('Just respond with OK', { timeout: 5000 });
+    await expect(chatMessages.first()).toContainText(SIMPLE_TEST_PROMPT, { timeout: 5000 });
 
     // Wait for AI response to complete
     const allResponses = page.locator('.chat-response .response-bubble');
@@ -196,69 +161,6 @@ test.describe.serial('Thread View and Chat', () => {
     // Toggle back to restore original state
     await favButton.click();
     await page.waitForTimeout(500);
-  });
-
-  test('switching between thread view tabs shows correct content', async () => {
-    // The view selector shows only the active tab until hovered
-    const viewSelector = page.locator('.view-selector');
-    await expect(viewSelector).toBeVisible({ timeout: 5000 });
-
-    // Hover to reveal all 5 tabs
-    await viewSelector.hover();
-    await page.waitForTimeout(500);
-
-    const tabs = viewSelector.locator('button[role="tab"]');
-    await expect(tabs).toHaveCount(5, { timeout: 5000 });
-
-    // Chat tab should be active by default
-    const chatTab = tabs.nth(0);
-    await expect(chatTab).toHaveAttribute('aria-selected', 'true');
-
-    // Click Prompt tab (2nd)
-    await viewSelector.hover();
-    await page.waitForTimeout(300);
-    await tabs.nth(1).click();
-    await page.waitForTimeout(500);
-
-    // Prompt view should be visible (has .thread-prompt-view)
-    await expect(page.locator('.thread-prompt-view')).toBeVisible({ timeout: 5000 });
-
-    // Click Graphic tab (3rd)
-    await viewSelector.hover();
-    await page.waitForTimeout(300);
-    await tabs.nth(2).click();
-    await page.waitForTimeout(500);
-
-    // Graphic view should be visible (has .thread-graphic-view)
-    await expect(page.locator('.thread-graphic-view')).toBeVisible({ timeout: 5000 });
-
-    // Click Execution tab (4th) — stub view
-    await viewSelector.hover();
-    await page.waitForTimeout(300);
-    await tabs.nth(3).click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('.stub-view h3', { hasText: 'Execution View' })).toBeVisible({
-      timeout: 5000,
-    });
-
-    // Click File tab (5th) — stub view
-    await viewSelector.hover();
-    await page.waitForTimeout(300);
-    await tabs.nth(4).click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('.stub-view h3', { hasText: 'File View' })).toBeVisible({
-      timeout: 5000,
-    });
-
-    // Switch back to Chat tab
-    await viewSelector.hover();
-    await page.waitForTimeout(300);
-    await tabs.nth(0).click();
-    await page.waitForTimeout(500);
-
-    await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 5000 });
   });
 
   test('editing thread title saves and reflects in UI', async () => {

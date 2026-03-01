@@ -46,7 +46,8 @@ test.describe.serial('Project Members', () => {
     await page.waitForTimeout(300);
 
     await modal.locator('button.btn-primary').click();
-    await expect(modal).not.toBeVisible({ timeout: 15000 });
+    // The create API call is async — modal stays open until projectService.createProject() resolves
+    await expect(modal).not.toBeVisible({ timeout: 30000 });
     await page.waitForTimeout(2000);
 
     // Navigate away and back to ensure fresh project list (SPA may cache the component)

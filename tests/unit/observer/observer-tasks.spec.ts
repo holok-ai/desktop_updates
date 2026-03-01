@@ -3,7 +3,8 @@ import { get } from 'svelte/store';
 import { renameTitleTask } from '$lib/observer/tasks/rename-title';
 import { compressContextTask } from '$lib/observer/tasks/compress-context';
 import { suggestPromptTask } from '$lib/observer/tasks/suggest-prompt';
-import { observerStore, getSuggestion } from '$lib/observer/observer.store';
+import { updateContextStatusTask } from '$lib/observer/tasks/update-context-status';
+import { observerStore, getSuggestion, getContextStatus } from '$lib/observer/observer.store';
 import { ObserverTaskType } from '../../../src-shared/types/observer.types';
 import type { ObserverThread } from '$lib/observer/observer-task.interface';
 import type { Message } from '$lib/types/thread.type';
@@ -153,7 +154,10 @@ describe('Observer Tasks', () => {
         const thread = makeThread();
         const messages = [
           { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 10000 },
-          { ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }), tokens: 4000 },
+          {
+            ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }),
+            tokens: 4000,
+          },
         ] as any[];
         // Total: 14000, gpt-3.5 max: 16385, threshold: 16385 * 0.75 = 12288 — 14000 > 12288
         expect(compressContextTask.shouldRun(thread, messages)).toBe(true);
@@ -163,7 +167,10 @@ describe('Observer Tasks', () => {
         const thread = makeThread();
         const messages = [
           { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 5000 },
-          { ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }), tokens: 5000 },
+          {
+            ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }),
+            tokens: 5000,
+          },
         ] as any[];
         // Total: 10000, gpt-3.5 max: 16385, threshold: 12288 — 10000 < 12288
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
@@ -284,6 +291,85 @@ describe('Observer Tasks', () => {
         expect(get(getSuggestion)('thread-1', ObserverTaskType.SuggestPrompt)).toBe(
           'Better phrased question',
         );
+      });
+    });
+  });
+
+  describe('updateContextStatusTask', () => {
+    it('should have correct taskType', () => {
+      expect(updateContextStatusTask.taskType).toBe(ObserverTaskType.UpdateContextStatus);
+    });
+
+    describe('shouldRun', () => {
+      it('should return true when messages exist', () => {
+        const thread = makeThread();
+        const messages = [makeMessage()];
+        expect(updateContextStatusTask.shouldRun(thread, messages)).toBe(true);
+      });
+
+      it('should return false for empty messages', () => {
+        const thread = makeThread();
+        expect(updateContextStatusTask.shouldRun(thread, [])).toBe(false);
+      });
+    });
+
+    describe('initialize', () => {
+      it('should be a no-op for empty messages', () => {
+        const thread = makeThread();
+        updateContextStatusTask.initialize(thread, []);
+        expect(get(getContextStatus)('thread-1')).toBeUndefined();
+      });
+
+      it('should compute and store context status for messages with assistant response', () => {
+        const thread = makeThread();
+        const messages = [
+          { ...makeMessage({ id: 'msg-1', role: 'user', content: 'Hello' }), tokens: 100 } as any,
+          {
+            ...makeMessage({ id: 'msg-2', role: 'assistant', content: 'Hi there!' }),
+            modelId: 'claude-3.5-sonnet',
+            tokens: 500,
+          } as any,
+        ];
+
+        updateContextStatusTask.initialize(thread, messages);
+
+        const status = get(getContextStatus)('thread-1');
+        expect(status).toBeDefined();
+        expect(status!.threadId).toBe('thread-1');
+        expect(status!.modelAccessName).toBe('claude-3.5-sonnet');
+        expect(status!.maximumTokenCount).toBe(200_000);
+        expect(status!.currentTokenCount).toBe(600);
+        expect(status!.percentUsed).toBeCloseTo(600 / 200_000);
+      });
+
+      it('should not store status when no assistant messages exist', () => {
+        const thread = makeThread();
+        const messages = [makeMessage({ id: 'msg-1', role: 'user', content: 'Hello' })];
+
+        updateContextStatusTask.initialize(thread, messages);
+
+        expect(get(getContextStatus)('thread-1')).toBeUndefined();
+      });
+    });
+
+    describe('execute', () => {
+      it('should compute and store context status', () => {
+        const thread = makeThread();
+        const messages = [
+          { ...makeMessage({ id: 'msg-1', role: 'user', content: 'Test' }), tokens: 50 } as any,
+          {
+            ...makeMessage({ id: 'msg-2', role: 'assistant', content: 'Response' }),
+            modelId: 'gpt-4o',
+            tokens: 200,
+          } as any,
+        ];
+
+        updateContextStatusTask.execute(thread, messages);
+
+        const status = get(getContextStatus)('thread-1');
+        expect(status).toBeDefined();
+        expect(status!.maximumTokenCount).toBe(128_000);
+        expect(status!.currentTokenCount).toBe(250);
       });
     });
   });

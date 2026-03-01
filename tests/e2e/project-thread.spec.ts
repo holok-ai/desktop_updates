@@ -5,14 +5,12 @@
  *
  * Tests project thread route navigation including:
  * - Navigating to a project thread renders the thread view with chat pane and sidebar keeps "Projects" selected
- *
- * NOTE: Thread creation uses direct IPC calls via page.evaluate to bypass
- * the ModelSelector UI component (which has a broken listAll → listAllModels mismatch).
  */
 
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createThreadViaUI } from '../fixtures/thread-context-menu-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -67,7 +65,7 @@ test.describe.serial('Project Thread Route', () => {
 
   // ─── Requirements 8.1, 8.2, 8.3: Navigate to project thread, verify chat pane and sidebar ───
 
-  test('creating a project thread via IPC and navigating renders the chat view with Projects selected', async () => {
+  test('creating a project thread via UI and navigating renders the chat view with Projects selected', async () => {
     test.setTimeout(90000);
 
     // Step 1: Navigate to Projects page
@@ -109,34 +107,18 @@ test.describe.serial('Project Thread Route', () => {
     expect(projectIdMatch).toBeTruthy();
     const projectId = projectIdMatch![1];
 
-    // Step 5: Create a thread via direct IPC calls (bypasses broken ModelSelector)
-    const threadId = await page.evaluate(async (pId: string) => {
-      const api = (window as any).electronAPI;
+    // Step 5: Navigate to threads first, then create a thread via the UI
+    // createThreadViaUI expects to start from a page where the "+ New Thread" button
+    // leads to the /threads/applications route with application cards visible.
+    await page.locator('button[aria-label="Threads"]').click();
+    await page.waitForTimeout(2000);
+    await createThreadViaUI(page);
 
-      // Get available applications
-      const appsResult = await api.models.listAllApplications();
-      if (!appsResult.success || !appsResult.data.length) {
-        throw new Error('No applications available');
-      }
-
-      const app = appsResult.data[0];
-
-      // Create a thread using the first application
-      const createResult = await api.thread.create({
-        title: 'E2E test thread',
-        projectId: pId,
-        agentId: app.id,
-        applicationSlug: app.slug,
-      });
-
-      if (!createResult.success) {
-        throw new Error(`Thread creation failed: ${JSON.stringify(createResult)}`);
-      }
-
-      return createResult.data.id;
-    }, projectId);
-
-    expect(threadId).toBeTruthy();
+    // Extract threadId from the URL after thread creation
+    const threadUrl = page.url();
+    const threadIdMatch = threadUrl.match(/threadId=([^&]+)/);
+    expect(threadIdMatch).toBeTruthy();
+    const threadId = threadIdMatch![1];
 
     // Step 6: Navigate to the project-thread route
     await page.evaluate(

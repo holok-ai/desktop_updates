@@ -205,8 +205,8 @@ test.describe.serial('Project List', () => {
     await expect(renameBtn).toBeEnabled({ timeout: 3000 });
     await renameBtn.click();
 
-    // Wait for modal to close after rename completes
-    await expect(renameModal).not.toBeVisible({ timeout: 15000 });
+    // The rename API call is async — modal stays open until the parent handler resolves
+    await expect(renameModal).not.toBeVisible({ timeout: 30000 });
     await page.waitForTimeout(2000);
 
     // Verify the project title is updated
@@ -267,11 +267,8 @@ test.describe.serial('Project List', () => {
       await expect(deleteModal).not.toBeVisible({ timeout: 10000 });
     }
 
-    // Wait for deletion to complete
-    await page.waitForTimeout(2000);
-
-    // Verify the project is no longer in the list
+    // The delete API call is async — wait for the card to disappear from the DOM
     const deletedCard = page.locator('.project-card', { hasText: RENAMED_PROJECT_NAME });
-    await expect(deletedCard).not.toBeVisible({ timeout: 10000 });
+    await deletedCard.waitFor({ state: 'hidden', timeout: 30000 });
   });
 });

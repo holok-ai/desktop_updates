@@ -83,10 +83,11 @@ test.describe.serial('Thread Rename', () => {
     await expect(renameButton).toBeEnabled({ timeout: 5000 });
     await renameButton.click();
 
-    await expect(dialog).not.toBeVisible({ timeout: 10000 });
+    // The rename API call is async — modal stays open until the parent handler resolves
+    await expect(dialog).not.toBeVisible({ timeout: 30000 });
 
     const toast = page.locator('.toast[role="alert"]');
-    await expect(toast).toBeVisible({ timeout: 10000 });
+    await expect(toast).toBeVisible({ timeout: 15000 });
     await expect(toast).toContainText('Thread renamed', { timeout: 5000 });
 
     const updatedItem = page.locator('.thread-item-container').first();

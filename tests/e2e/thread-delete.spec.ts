@@ -167,9 +167,8 @@ test.describe.serial('Thread Delete', () => {
     await expect(toast).toBeVisible({ timeout: 5000 });
     await expect(toast).toContainText('Thread deleted successfully', { timeout: 3000 });
 
-    await page.waitForTimeout(1000);
-    const countAfter = await threadItems.count();
-    expect(countAfter).toBe(countBefore - 1);
+    // Wait for the thread list to update after deletion
+    await expect(threadItems).toHaveCount(countBefore - 1, { timeout: 10000 });
 
     // Restore default setting
     await setDeleteConfirmation(page, false);
