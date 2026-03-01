@@ -7,7 +7,7 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 ## Requirements
 
 - **Subscribe to Project Changes** — When a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
-- **Desktop Unsubscription** — the Desktop calls `DELETE /api/v1/projects/{projectId}/unsubscribe` and then closes the SSE connection. Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop calls unsubscribe in any of these situations: the user navigates to a route outside a project, app start (clears any stale subscription from a previous session), app exit, user login, or user logout.
+- **Desktop Unsubscription** — the Desktop calls `POST /api/v1/projects/{projectId}/unsubscribe` and then closes the SSE connection. Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop calls unsubscribe in any of these situations: the user navigates to a route outside a project, app start (clears any stale subscription from a previous session), app exit, user login, or user logout.
 - **Desktop Project Change Events** — The existing `ProjectService` and `ProjectMemberService` in Moku will be extended to call the SSE service as a side-effect of processing each mutation. No separate notification endpoint is needed from the Desktop: when a project property update, instruction change, file operation, or member join/removal is committed by the relevant service, it calls the SSE service internally and the appropriate event (`project-changed`, `instructions-changed`, `file-changed`, or `member-changed`) is broadcast to all subscribers of that project.
 - **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.") that this is happening.  
 - **Desktop New Prompt and Response Events** — Two distinct events to capture: 1) once a user submits a new prompt, a `prompt-created` event is sent to all subscribed users; 2) once the response is complete, a `response-created` event is sent to all subscribed users. Two design options for how Moku learns of these events:
@@ -47,15 +47,15 @@ Desktop A                          Moku                         Desktop B
     │── POST /threads/{threadId}/messages ──────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: prompt-created ────────►│
-    │                                │    { threadId, branchId,      │
-    │                                │      content }                │
+    │                                │    { userId, threadId,        │
+    │                                │      branchId, content }      │
     │                                │                               │
     │  Desktop A notifies: new response [option a]:                  │
     │── POST /threads/{threadId}/messages ──────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: response-created ──────►│
-    │                                │    { threadId, branchId,      │
-    │                                │      content }                │
+    │                                │    { userId, threadId,        │
+    │                                │      branchId, content }      │
     │                                │                               │
     │  ── Project change events (ProjectService / ProjectMemberService broadcasts SSE internally) ─────
     │                                │                               │
@@ -63,38 +63,35 @@ Desktop A                          Moku                         Desktop B
     │── PATCH /projects/{projectId} ─►│  [ProjectService]             │
     │◄── 200 OK ─────────────────────│                               │
     │                                │──── event: project-changed ───────►│
-    │                                │    { title, description,      │
-    │                                │      updatedAt, updatedBy }   │
+    │                                │    { userId, projectId }      │
     │                                │                               │
     │  Desktop A adds or removes a member:                           │
     │── POST /members/{userId} ───────►│  [ProjectMemberService]       │
     │◄── 201 Created ────────────────│                               │
     │                                │──── event: member-changed ────────►│
-    │                                │    { userId, role,            │
-    │                                │      changeType: "added" }    │
+    │                                │    { userId, projectId }      │
     │                                │                               │
     │  Desktop A updates a file:      │                               │
     │── POST /files ─────────────────►│  [ProjectService]             │
     │◄── 201 Created ────────────────│                               │
     │                                │──── event: file-changed ──────────►│
-    │                                │    { virtualFileId, fileName, │
-    │                                │      changeType: "added" }    │
+    │                                │    { userId, projectId }      │
     │                                │                               │
     │  Desktop A changes instructions:│                               │
     │── PUT /instructions ───────────►│  [ProjectService]             │
     │◄── 200 OK ─────────────────────│                               │
     │                                │──── event: instructions-changed───►│
-    │                                │    { updatedAt, updatedBy }   │
+    │                                │    { userId, projectId }      │
     │                                │                               │
     │  [STRETCH] Desktop A typing:    │                               │
     │── POST /threads/{threadId}/typing ────────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: member-typing ─────────►│
-    │                                │    { threadId, branchId,      │
-    │                                │      userName, expiresAt }    │
+    │                                │    { userId, threadId,        │
+    │                                │      branchId }               │
     │                                │                               │
     │  Desktop navigates away / app exit / login / logout:           │
-    │── DELETE /unsubscribe ──────────►│                               │
+    │── POST /unsubscribe ────────────►│                               │
     │◄── 204 No Content ─────────────│                               │
     │   [Desktop closes SSE connection]│  [Moku cleans up emitter]    │
     │                                │                               │
@@ -109,7 +106,7 @@ Desktop A                          Moku                         Desktop B
 
 ## Desktop Multiuser Features
 
-- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `DELETE /unsubscribe` and then closes the SSE connection; Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop reconnects with a `Last-Event-ID` header so Moku can replay missed events.
+- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `POST /unsubscribe` and then closes the SSE connection; Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop reconnects with a `Last-Event-ID` header so Moku can replay missed events.
 
 - **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member submits the prompt, Moku broadcasts a `prompt-created` event to all other watching members. When the response is complete, Moku broadcasts a `response-created` event. How Moku learns of these two events is an open design choice (option a: Desktop notification call; option b: database trigger → RabbitMQ). Moku does not persist messages — persistence is handled by Holo.
 
@@ -128,7 +125,7 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 | Method | Path | Response | Description |
 |--------|------|----------|-------------|
 | `GET` | `/api/v1/projects/{projectId}/subscribe` | `text/event-stream` 200 | Opens a persistent SSE stream scoped to the project. Supports `Last-Event-ID` request header to replay events missed since the given ID. Connection held open until client disconnects. |
-| `DELETE` | `/api/v1/projects/{projectId}/unsubscribe` | `204 No Content` | Marks the subscription as intentionally closed and signals Moku to clean up the emitter. The Desktop calls this before closing the SSE connection on navigate-away, app start, app exit, user login, and user logout. |
+| `POST` | `/api/v1/projects/{projectId}/unsubscribe` | `204 No Content` | Marks the subscription as intentionally closed and signals Moku to clean up the emitter. The Desktop calls this before closing the SSE connection on navigate-away, app start, app exit, user login, and user logout. |
 | `GET` | `/api/v1/projects/{projectId}/members/active` | `application/json` 200 | Returns the list of members with an active SSE subscription at the time of the call. Used by the desktop on project open to populate the presence indicator. |
 | `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/typing` | `204 No Content` | **[STRETCH]** Signals that the authenticated user is actively typing in `threadId`. Body: `{ "branchId": "1.0" }`. Fire-and-forget — Moku broadcasts `member-typing` to all other subscribers and returns immediately. No persistence. |
 
@@ -151,6 +148,24 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 | `ping` | Every 30 seconds keepalive | N/A | |
 | `member-typing` | Member typing signal received | Yes | [STRETCH] |
 
+### SSE Event Payloads
+
+| Event | Payload fields |
+|---|---|
+| `prompt-created` | `userId`, `threadId`, `branchId`, `content` |
+| `response-created` | `userId`, `threadId`, `branchId`, `content` |
+| `member-typing` | `userId`, `threadId`, `branchId` |
+| `project-changed` | `userId`, `projectId` |
+| `member-changed` | `userId`, `projectId` |
+| `file-changed` | `userId`, `projectId` |
+| `instructions-changed` | `userId`, `projectId` |
+| `ping` | _(none)_ |
+
+Notes:
+- `userId` always identifies the member who triggered the event.
+- `prompt-created` and `response-created` carry `content` directly so watching members can display the text without a round-trip fetch.
+- For all project change events (`project-changed`, `member-changed`, `file-changed`, `instructions-changed`), the payload is intentionally minimal: the Desktop re-fetches the affected resource on receipt rather than relying on embedded data that could be stale.
+
 ### Spring Boot Controller Skeleton
 
 ```java
@@ -166,7 +181,7 @@ public class DesktopMultiuserController {
         // register emitter, replay missed events, return SseEmitter
     }
 
-    @DeleteMapping("/unsubscribe")
+    @PostMapping("/unsubscribe")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unsubscribe(
             @PathVariable String projectId,
