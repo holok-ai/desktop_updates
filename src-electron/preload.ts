@@ -253,7 +253,8 @@ export interface AppSettings {
   directoryWhitelist?: string[];
   theme?: AppThemeMode;
   avatar?: { type: string; letters: string; icon: string; bgColor: string; imageData: string };
-  deleteConfirmationRequired?: boolean;
+  deleteThreadConfirmationRequired?: boolean;
+  deleteProjectConfirmationRequired?: boolean;
   startingPage?: string;
   showRecentList?: boolean;
   showFavoritesList?: boolean;
