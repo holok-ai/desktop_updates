@@ -5,6 +5,24 @@ import type { ITool } from './tools/base-tool.js';
 import { TOOL_FACTORIES } from './tools/tool-list.js';
 import log from 'electron-log';
 
+function extractInputHint(toolName: string, input: Record<string, unknown>): string {
+  const label = toolName.replace(/_/g, ' ');
+
+  let param: string | undefined;
+  if (toolName === 'windows_shell' || toolName === 'unix_shell') {
+    const command = typeof input.command === 'string' ? input.command : '';
+    const args = typeof input.arguments === 'string' ? input.arguments : '';
+    param = args ? `${command} ${args}` : command || undefined;
+  } else {
+    const primary = input.file_path ?? input.folder_path ?? input.path;
+    param = typeof primary === 'string' ? primary : undefined;
+  }
+
+  if (!param) return label;
+  const truncated = param.length > 60 ? param.slice(0, 57) + '…' : param;
+  return `${label} (${truncated})`;
+}
+
 /**
  * Singleton Tool Orchestrator
  * Manages all tool execution with per-request context
@@ -84,7 +102,34 @@ export class ToolOrchestrator implements ToolOrchestra {
       return { success: false, error };
     }
 
-    return await tool.execute(input, executionContext);
+    const toolCallId = executionContext.currentToolCallId ?? '?';
+    const inputHint = extractInputHint(name, input);
+
+    executionContext.toolUseCallback?.(name, input, {
+      toolCallId,
+      stage: 'in_progress',
+      inputHint,
+      message: `Running ${inputHint}`,
+    });
+
+    try {
+      const result = await tool.execute(input, executionContext);
+      if (result.success) {
+        executionContext.toolUseCallback?.(name, input, { toolCallId, stage: 'complete', result });
+      } else {
+        executionContext.toolUseCallback?.(name, input, {
+          toolCallId,
+          stage: 'error',
+          error: result.error,
+        });
+      }
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log.error('[ToolOrchestrator] Tool execution threw:', name, error);
+      executionContext.toolUseCallback?.(name, input, { toolCallId, stage: 'error', error });
+      return { success: false, error };
+    }
   }
 
   /**

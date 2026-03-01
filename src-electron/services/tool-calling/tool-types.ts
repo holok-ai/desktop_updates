@@ -16,20 +16,6 @@ export interface ToolDefinition {
   };
 }
 
-/**
- * Tool status for UI feedback during long operations
- */
-export interface ToolStatus {
-  toolName: string;
-  state: 'in_progress' | 'complete';
-  message?: string;
-}
-
-/**
- * Callback for tool status updates
- */
-export type ToolStatusCallback = (status: ToolStatus) => void;
-
 // ============================================================================
 // Tool Result Types
 // ============================================================================

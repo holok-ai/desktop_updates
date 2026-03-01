@@ -11,7 +11,6 @@ import type {
   ToolUseCallback,
   ToolExecutionContext,
 } from '../tool-calling/orchestrator-types.js';
-import type { ToolStatusCallback } from '../tool-calling/tool-types.js';
 import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
 import { fileStorageService } from '../file-storage.service.js';
 import log from 'electron-log';
@@ -145,7 +144,6 @@ export class DesktopChatService {
     request: DesktopChatRequest,
     onToken: (token: string) => void,
     onToolUse?: ToolUseCallback,
-    onToolStatus?: ToolStatusCallback,
     abortSignal?: AbortSignal,
   ): Promise<void> {
     // Extract desktop-specific properties
@@ -162,8 +160,7 @@ export class DesktopChatService {
     if (working_directory) {
       (request as unknown as { workingDirectory: string }).workingDirectory = working_directory;
     }
-    (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
-      onToolStatus || undefined;
+    this.threadContext.toolUseCallback = onToolUse;
 
     // If an abort signal is provided, attach it to the request so the underlying
     // ChatService can honour cancellation (if it supports it).
@@ -174,8 +171,7 @@ export class DesktopChatService {
     try {
       await this.chatService.chat(request, onToken);
     } finally {
-      // Clear status callback after message completes
-      this.threadContext.statusCallback = undefined;
+      this.threadContext.toolUseCallback = undefined;
     }
   }
 
@@ -185,5 +181,4 @@ export class DesktopChatService {
   getAuditLogs(): unknown[] {
     return this.chatService.getAuditLogs();
   }
-
 }

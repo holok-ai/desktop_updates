@@ -135,56 +135,6 @@ describe('FileReadTool', () => {
       expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(2, './file.txt', '/dir2');
     });
 
-    it('should call status callback when provided', async () => {
-      const mockContent = 'file content';
-      const statusCallback = vi.fn();
-      fsMocks.existsSync.mockReturnValue(true);
-      fsMocks.promises.stat.mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      fsMocks.promises.readFile.mockResolvedValue(mockContent);
-
-      const contextWithCallback: ToolExecutionContext = {
-        ...executionContext,
-        statusCallback,
-      };
-
-      await tool.execute({ file_path: './test.txt' }, contextWithCallback);
-
-      expect(statusCallback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolName: 'read_file',
-          state: 'in_progress',
-        }),
-      );
-      expect(statusCallback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolName: 'read_file',
-          state: 'complete',
-        }),
-      );
-    });
-
-    it('should not call status callback when not provided', async () => {
-      const mockContent = 'file content';
-      fsMocks.existsSync.mockReturnValue(true);
-      fsMocks.promises.stat.mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      fsMocks.promises.readFile.mockResolvedValue(mockContent);
-
-      await tool.execute({ file_path: './test.txt' }, executionContext);
-
-      // Should not throw or error
-      expect(true).toBe(true);
-    });
-
     it('should return error for non-existent file', async () => {
       fsMocks.existsSync.mockReturnValue(false);
 
@@ -264,7 +214,9 @@ describe('FileReadTool', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(fsMocks.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
+      expect(fsMocks.promises.readFile).toHaveBeenCalledWith(expect.any(String), {
+        encoding: 'ascii',
+      });
     });
   });
 });

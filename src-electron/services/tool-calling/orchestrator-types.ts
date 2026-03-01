@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolStatusCallback, ToolResult } from './tool-types.js';
+import type { ToolDefinition, ToolResult } from './tool-types.js';
 
 /**
  * Tool use information from LLM response
@@ -14,8 +14,11 @@ export interface ToolUse {
  */
 export interface ToolUseNotification {
   toolCallId: string;
-  stage: 'start' | 'complete';
+  stage: 'in_progress' | 'complete' | 'error';
   result?: ToolResult;
+  message?: string;
+  inputHint?: string;
+  error?: string;
 }
 
 /**
@@ -41,8 +44,11 @@ export interface ToolExecutionContext {
   /** Branch ID for this execution (required) */
   branchId: string;
 
-  /** Status callback for this execution (optional) - called for progress updates */
-  statusCallback?: ToolStatusCallback;
+  /** Tool use callback for this execution (optional) - called for all stage updates */
+  toolUseCallback?: ToolUseCallback;
+
+  /** Tool call ID from the LLM (e.g. Anthropic tool_use block id) - forwarded into status events */
+  currentToolCallId?: string;
 }
 
 /**

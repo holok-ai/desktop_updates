@@ -46,15 +46,6 @@ export class ReadPdfTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_pdf',
-        state: 'in_progress',
-        message: `Reading PDF file: ${userPath}`,
-      });
-    }
-
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -122,14 +113,6 @@ export class ReadPdfTool implements ITool {
           format: 'pdf',
         },
       };
-
-      // Emit completion status
-      if (executionContext.statusCallback) {
-        executionContext.statusCallback({
-          toolName: 'read_pdf',
-          state: 'complete',
-        });
-      }
 
       return {
         success: true,

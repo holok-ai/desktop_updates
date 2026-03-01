@@ -65,15 +65,6 @@ export class FolderReadTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_folder',
-        state: 'in_progress',
-        message: `Reading folder: ${userPath}`,
-      });
-    }
-
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -129,14 +120,6 @@ export class FolderReadTool implements ITool {
       total_files: entries.filter((e) => e.type === 'file').length,
       total_directories: entries.filter((e) => e.type === 'directory').length,
     };
-
-    // Emit completion status
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_folder',
-        state: 'complete',
-      });
-    }
 
     return {
       success: true,
