@@ -2,7 +2,7 @@
 
 Multiple desktop clients connected to the same Holokai project must stay in sync in real time — new messages, file changes, member events, and typing indicators should propagate to every watching member without requiring a manual refresh. This document specifies the requirements, message exchange protocol, new Moku API surface, and the rationale for choosing SSE + REST over WebSockets.
 
-**Open Decision**: How Moku API learns of `prompt-created` (llm_request) and `response-created` (llm_response) events is still open. Option (a) Desktop uses new endpoints to call Moku API; option (b) database trigger on request or response insert → RabbitMQ -> Moku API. Both produce the same SSE events but have different ownership and latency trade-offs. If option (a) is chosen, the project-scoped notification endpoints are `/api/v1/projects/{projectId}/threads/{threadId}/prompt` and `/api/v1/projects/{projectId}/threads/{threadId}/response` (distinct from the existing non-project thread endpoint `POST /threads/{threadId}/messages`).
+**Open Decision**: How Moku API learns of `prompt-created` (llm_request) and `response-created` (llm_response) events is still open. Option (a) Desktop uses new endpoints to call Moku API; option (b) database trigger on request or response insert → RabbitMQ -> Moku API. Both produce the same SSE events but have different ownership and latency trade-offs. 
 
 ---
 
@@ -136,6 +136,8 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 | `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/prompt` | `204 No Content` | **Option (a)**: Desktop notification for a new prompt. Moku broadcasts `prompt-created` to subscribers. |
 | `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/response` | `204 No Content` | **Option (a)**: Desktop notification for a completed response. Moku broadcasts `response-created` to subscribers. |
 | `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/typing` | `204 No Content` | **[STRETCH]** Signals that the authenticated user is actively typing in `threadId`. Body: `{ "branchId": "1.0" }`. Fire-and-forget — Moku broadcasts `member-typing` to all other subscribers and returns immediately. No persistence. |
+
+If option (a) is chosen, the project-scoped notification endpoints are `/api/v1/projects/{projectId}/threads/{threadId}/prompt` (prompt-created event) and `/api/v1/projects/{projectId}/threads/{threadId}/response` (response-created event). Not needed if using option b. 
 
 ### Internal SSE Broadcasting
 
