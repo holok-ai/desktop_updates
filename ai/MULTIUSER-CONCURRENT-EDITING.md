@@ -10,7 +10,9 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 - **Desktop Unsubscription** - the Desktop will unsubscribe a subscribed user when the user navigates to a route outside a project. The desktop will also clear the current user subscriptions on: app start, app exit, user login, user logout. 
 - **Desktop Project Change Events** — The existing `ProjectService` and `ProjectMemberService` in Moku will be extended to call the SSE service as a side-effect of processing each mutation. No separate notification endpoint is needed from the Desktop: when a project property update, instruction change, file operation, or member join/removal is committed by the relevant service, it calls the SSE service internally and the appropriate event (`project-changed`, `instructions-changed`, `file-changed`, or `member-changed`) is broadcast to all subscribers of that project.
 - **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.") that this is happening.  
-- **Desktop New Prompt and Response Events** — Two events to capture: 1) once a user submits a new prompt, that prompt is shown in the chat of all subscribed users; 2) once the response is complete, the response is shown in the chat of all subscribed users. Because message persistence is owned by Holo (not Moku), the Desktop explicitly calls a Moku notification endpoint (`POST /threads/{threadId}/messages`) for each event. Moku broadcasts `message-created` to other subscribers and returns immediately; it does not store the message.
+- **Desktop New Prompt and Response Events** — Two distinct events to capture: 1) once a user submits a new prompt, a `prompt-created` event is sent to all subscribed users; 2) once the response is complete, a `response-created` event is sent to all subscribed users. Two design options for how Moku learns of these events:
+  - **Option a** — the Desktop explicitly calls a Moku notification endpoint for each event. Moku broadcasts `prompt-created` or `response-created` to other subscribers and returns immediately; it does not store the message.
+  - **Option b** — a trigger on the `llm_requests` / `llm_responses` tables detects new rows and sends a RabbitMQ message; the Moku SSE service consumes it and broadcasts the event. No Desktop notification call is needed.
 - **Keepalive** — Moku sends a `ping` event every 30 seconds to prevent proxies and OS networking stacks from closing idle connections.
 - **Reconnection safety** — the desktop passes a `Last-Event-ID` header on reconnect so Moku can replay any events missed during a dropped connection, preventing gaps in state.
 
@@ -28,7 +30,7 @@ Project Change Events include the following:
 > Paths are abbreviated for readability. All endpoints are prefixed `/api/v1/projects/{projectId}`.
 
 > **Two broadcast patterns:**
-> - **Message events** — the Desktop explicitly calls a Moku notification endpoint; Moku has no other way to learn of new messages because Holo owns persistence.
+> - **Prompt / response events** — shown below as option (a): the Desktop explicitly calls a Moku notification endpoint. Option (b) (database trigger → RabbitMQ) is an alternative; the SSE events emitted are the same either way.
 > - **Project change events** — `ProjectService` or `ProjectMemberService` broadcasts the SSE event internally as part of processing the normal REST call; the Desktop does nothing extra.
 
 ```
@@ -41,18 +43,19 @@ Desktop A                          Moku                         Desktop B
     │                                │                               │
     │  ── Message events (Desktop notifies Moku explicitly) ─────────────────────────────────
     │                                │                               │
-    │  Desktop A notifies: new prompt:│                               │
+    │  Desktop A notifies: new prompt [option a]:                    │
     │── POST /threads/{threadId}/messages ──────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
-    │                                │──── event: message-created ───────►│
+    │                                │──── event: prompt-created ────────►│
     │                                │    { threadId, branchId,      │
-    │                                │      role: "user", content }  │
+    │                                │      content }                │
     │                                │                               │
-    │  Desktop A notifies: new response (received from Holo):        │
+    │  Desktop A notifies: new response [option a]:                  │
     │── POST /threads/{threadId}/messages ──────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
-    │                                │──── event: message-created ───────►│
-    │                                │    { role: "assistant", ... } │
+    │                                │──── event: response-created ──────►│
+    │                                │    { threadId, branchId,      │
+    │                                │      content }                │
     │                                │                               │
     │  ── Project change events (ProjectService / ProjectMemberService broadcasts SSE internally) ─────
     │                                │                               │
@@ -103,7 +106,7 @@ Desktop A                          Moku                         Desktop B
 
 - **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection for that project. The Desktop closes the connection and unsubscribes when any of the following occur: the user navigates to a non-project route, the user logs out, the user logs in (clears any stale subscription from a previous session), app start (clears any stale subscription), or app exit.
 
-- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member submits the prompt, the Desktop calls `POST /threads/{threadId}/messages` on Moku with the prompt content; Moku broadcasts `message-created` (role: user) to all other watching members. When the Desktop receives the completed assistant response from Holo, it calls the same endpoint again; Moku broadcasts `message-created` (role: assistant). Moku does not persist messages — persistence is handled by Holo.
+- **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member submits the prompt, Moku broadcasts a `prompt-created` event to all other watching members. When the response is complete, Moku broadcasts a `response-created` event. How Moku learns of these two events is an open design choice (option a: Desktop notification call; option b: database trigger → RabbitMQ). Moku does not persist messages — persistence is handled by Holo.
 
 - **Project change events — internal broadcast** — `project-changed`, `instructions-changed`, `file-changed`, and `member-changed` are not triggered by a separate Desktop notification call. Instead, the existing `ProjectService` and `ProjectMemberService` broadcast the relevant SSE event internally as a side-effect of processing each mutation (property update, instruction update, file operation, member add/remove). The Desktop simply makes its normal REST call and receives the standard HTTP response; the SSE broadcast happens automatically server-side.
 
@@ -127,13 +130,14 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 
 `project-changed`, `instructions-changed`, `file-changed`, and `member-changed` are **not** triggered by a dedicated Desktop notification endpoint. They are broadcast by the existing `ProjectService` and `ProjectMemberService` as a side-effect of processing their normal mutations. The controller methods that handle `PATCH /projects/{projectId}`, `PUT /instructions`, `POST /files`, `POST /members/{userId}`, and `DELETE /members/{userId}` call the SSE service internally after committing the change.
 
-`message-created` is the exception: because Holo owns message persistence, Moku has no other way to learn of new messages. The Desktop explicitly calls `POST /threads/{threadId}/messages` as a notification-only call; Moku broadcasts the event and returns immediately without storing anything.
+`prompt-created` and `response-created` are the exception: because Holo owns message persistence, the mechanism by which Moku learns of these events is an open design choice (option a: Desktop notification call; option b: database trigger → RabbitMQ). The SSE event names are the same regardless of which option is chosen.
 
 ### SSE Event Reference
 
 | Event name | Broadcast trigger | Excludes author | Notes |
 |---|---|---|---|
-| `message-created` | Desktop notifies Moku of a new user prompt or assistant response | Yes | |
+| `prompt-created` | New user prompt submitted (option a: Desktop notification; option b: DB trigger) | Yes | |
+| `response-created` | Assistant response complete (option a: Desktop notification; option b: DB trigger) | Yes | |
 | `file-changed` | Project file added, updated, or deleted | Yes | |
 | `instructions-changed` | Project instructions updated | Yes | |
 | `project-changed` | Project title, description, or other properties updated | Yes | |
