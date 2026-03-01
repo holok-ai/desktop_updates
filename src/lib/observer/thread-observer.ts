@@ -77,7 +77,40 @@ export class ThreadObserver {
    */
   private async pickFirstModel(agentId: string): Promise<string | null> {
     const models = await modelService.getModelsForApplication(agentId);
-    return models.length > 0 ? models[0].accessName : null;
+    if (models.length === 0) {
+      return null;
+    }
+
+    const provider = models[0].provider.toLowerCase();
+    const nameOf = (m: (typeof models)[0]): string =>
+      `${m.accessName} ${m.title} ${m.slug}`.toLowerCase();
+
+    if (provider.includes('claude') || provider.includes('anthropic')) {
+      return models.find((m) => nameOf(m).includes('haiku'))?.accessName ?? models[0].accessName;
+    }
+
+    if (provider.includes('ollama')) {
+      return (
+        (
+          models.find((m) => nameOf(m).includes('qwen')) ??
+          models.find((m) => nameOf(m).includes('llama3')) ??
+          models.find((m) => nameOf(m).includes('phi'))
+        )?.accessName ?? models[0].accessName
+      );
+    }
+
+    if (provider.includes('openai')) {
+      return (
+        (
+          models.find((m) => nameOf(m).includes('-chat-latest')) ??
+          models.find((m) => nameOf(m).includes('-chat')) ??
+          models.find((m) => nameOf(m).includes('gpt-4')) ??
+          models.find((m) => nameOf(m).includes('gpt-3.5'))
+        )?.accessName ?? models[0].accessName
+      );
+    }
+
+    return models[0].accessName;
   }
 
   observe(thread: ObserverThread, messages: Message[]): void {
