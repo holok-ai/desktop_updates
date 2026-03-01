@@ -6,7 +6,7 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 
 ## Requirements
 
-- **Subscribe to Project Changes** — WHen a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
+- **Subscribe to Project Changes** — When a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
 - **Desktop Unsubscription** - the Desktop will unsubscribe a subscribed user when the user navigates to a route outside a project. The desktop will also clear the current user subscriptions on: app start, app exit, user login, user logout. 
 - **Desktop Project Change Events** — The existing `ProjectService` and `ProjectMemberService` in Moku will be extended to call the SSE service as a side-effect of processing each mutation. No separate notification endpoint is needed from the Desktop: when a project property update, instruction change, file operation, or member join/removal is committed by the relevant service, it calls the SSE service internally and the appropriate event (`project-changed`, `instructions-changed`, `file-changed`, or `member-changed`) is broadcast to all subscribers of that project.
 - **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.") that this is happening.  
@@ -16,7 +16,7 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 
 ### Project Change Events
 Project Change Events include the following:
-- **Project Properties Change**- — when project title, description, type or any future properties are changes, all subscribed desktops receive an `project-changed` event and update their local project view.
+- **Project Properties Change** — when project title, description, type or any future properties are changed, all subscribed desktops receive a `project-changed` event and update their local project view.
 - **Instructions Change** — when project instructions are changed, all subscribed desktops receive an `instructions-changed` event and update their local instructions view.
 - **Member Change** — when a member joins or is removed from the project, all connected desktops receive a `member-changed` event and update the member list accordingly.
 - **File (metadata) Change** — when a file is added, updated, or deleted, all other desktops receive a `file-changed` event carrying only metadata; content is fetched lazily on demand using the stable `virtualFileId`.
