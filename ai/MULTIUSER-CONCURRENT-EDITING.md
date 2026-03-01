@@ -98,8 +98,9 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 | Event name | Broadcast trigger | Excludes author | Notes |
 |---|---|---|---|
 | `message-created` | Desktop notifies Moku of a new user prompt or assistant response | Yes | |
-| `file-changed` | File added, updated, or deleted | Yes | |
+| `file-changed` | Project file added, updated, or deleted | Yes | |
 | `instructions-changed` | Project instructions updated | Yes | |
+| `project-changed` | Project title, description, or other properties updated | Yes | |
 | `member-changed` | Member added to or removed from project | No | |
 | `ping` | Every 30 seconds keepalive | N/A | |
 | `member-typing` | Member typing signal received | Yes | [STRETCH] |
