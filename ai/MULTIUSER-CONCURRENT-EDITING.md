@@ -2,7 +2,7 @@
 
 Multiple desktop clients connected to the same Holokai project must stay in sync in real time — new messages, file changes, member events, and typing indicators should propagate to every watching member without requiring a manual refresh. This document specifies the requirements, message exchange protocol, new Moku API surface, and the rationale for choosing SSE + REST over WebSockets.
 
-**Open Decision**: How Moku API learns of `prompt-created` (llm_request) and `response-created` (llm_response) events is still open. Option (a) Desktop uses new endpoints to call Moku API; option (b) database trigger on request or response insert → RabbitMQ -> Moku API. Both produce the same SSE events but have different ownership and latency trade-offs.
+**Open Decision**: How Moku API learns of `prompt-created` (llm_request) and `response-created` (llm_response) events is still open. Option (a) Desktop uses new endpoints to call Moku API; option (b) database trigger on request or response insert → RabbitMQ -> Moku API. Both produce the same SSE events but have different ownership and latency trade-offs. If option (a) is chosen, the project-scoped notification endpoints are `/api/v1/projects/{projectId}/threads/{threadId}/prompt` and `/api/v1/projects/{projectId}/threads/{threadId}/response` (distinct from the existing non-project thread endpoint `POST /threads/{threadId}/messages`).
 
 ---
 
@@ -10,7 +10,7 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 
 - **Desktop Subscribe to Project Changes** — When a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
 - **Desktop Unsubscription** — the Desktop calls `POST /api/v1/projects/{projectId}/unsubscribe` and then closes the SSE connection. Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop calls unsubscribe in any of these situations: the user navigates to a route outside a project, app start (clears any stale subscription from a previous session), app exit, user login, or user logout.
-- **Unintentional Disconnect Recovery** — if the SSE connection drops unexpectedly, the Desktop calls a Moku healthcheck endpoint and then reconnects to `/subscribe` with `Last-Event-ID` to replay missed events.
+- **Unintentional Disconnect Recovery** — if the SSE connection drops unexpectedly, the Desktop calls `GET /actuator/health` (no auth required) and then reconnects to `/subscribe` with `Last-Event-ID` to replay missed events.
 - **Desktop Project Change Events** — The existing `ProjectService` and `ProjectMemberService` in Moku will be extended to call the Moku SSE service as a side-effect of performing CRUD operations/mutations. No separate notification endpoint is needed for project changes (outside of thread changes) from the Desktop: when a project property update, instruction change, file operation, or member join/removal is committed by the relevant service, it calls the Moku API SSE service internally and the appropriate event (`project-changed`, `instructions-changed`, `file-changed`, or `member-changed`) is broadcast to subscribers of that project.
 - **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.").
 - **Desktop New Prompt and Response Events** — Two distinct events to capture: 1) once a user submits a new prompt, a `prompt-created` event is sent to all subscribed users; 2) once the response is complete, a `response-created` event is sent to all subscribed users. Two design options for how Moku learns of these events:
@@ -47,14 +47,14 @@ Desktop A                          Moku                         Desktop B
     │  ── Message events (Desktop notifies Moku explicitly) ─────────────────────────────────
     │                                │                               │
     │  Desktop A notifies: new prompt [option a]:                    │
-    │── POST /threads/{threadId}/messages ──────────────────────────►│
+    │── POST /threads/{threadId}/prompt ────────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: prompt-created ────────►│
     │                                │    { userId, threadId,        │
     │                                │      branchId, content }      │
     │                                │                               │
     │  Desktop A notifies: new response [option a]:                  │
-    │── POST /threads/{threadId}/messages ──────────────────────────►│
+    │── POST /threads/{threadId}/response ──────────────────────────►│
     │◄── 204 No Content ─────────────│                               │
     │                                │──── event: response-created ──────►│
     │                                │    { userId, threadId,        │
@@ -99,7 +99,7 @@ Desktop A                          Moku                         Desktop B
     │   [Desktop closes SSE connection]│  [Moku cleans up emitter]    │
     │                                │                               │
     │  Unintentional connection drop and recovery:                    │
-    │── GET /health ────────────────►│                               │
+    │── GET /actuator/health ───────►│                               │
     │◄── 200 OK ─────────────────────│                               │
     │── GET /subscribe ──────────────►│                               │
     │   Last-Event-ID: {lastEventId} │                               │
@@ -111,7 +111,7 @@ Desktop A                          Moku                         Desktop B
 
 ## Desktop Multiuser Features
 
-- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `POST /unsubscribe` and then closes the SSE connection; the Moku API manages the connection state so the Desktop can close immediately after unsubscribing. Unsubscribe keeps the subscriber list in the Moku SSE service as compact as practical. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop calls a Moku healthcheck endpoint and then reconnects with a `Last-Event-ID` header so Moku can replay missed events.
+- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `POST /unsubscribe` and then closes the SSE connection; the Moku API manages the connection state so the Desktop can close immediately after unsubscribing. Unsubscribe keeps the subscriber list in the Moku SSE service as compact as practical. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop calls `GET /actuator/health` (no auth required) and then reconnects with a `Last-Event-ID` header so Moku can replay missed events.
 
 - **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member submits the prompt, Moku broadcasts a `prompt-created` event to all other watching members. When the response is complete, Moku broadcasts a `response-created` event. How Moku learns of these two events is an open design choice (option a: Desktop notification call; option b: database trigger → RabbitMQ). Moku does not persist messages — persistence is handled by Holo.
 
@@ -131,7 +131,10 @@ All endpoints require `Authorization: Bearer {jwt}` and validate that the authen
 |--------|------|----------|-------------|
 | `GET` | `/api/v1/projects/{projectId}/subscribe` | `text/event-stream` 200 | Opens a persistent SSE stream scoped to the project. Supports `Last-Event-ID` request header to replay events missed since the given ID. Connection held open until client disconnects. |
 | `POST` | `/api/v1/projects/{projectId}/unsubscribe` | `204 No Content` | Marks the subscription as intentionally closed and signals Moku to clean up the emitter. The Desktop calls this before closing the SSE connection on navigate-away, app start, app exit, user login, and user logout. |
+| `GET` | `/actuator/health` | `application/json` 200 | Healthcheck endpoint used by the Desktop after an unintentional disconnect. No auth required. |
 | `GET` | `/api/v1/projects/{projectId}/members/active` | `application/json` 200 | Returns the list of members with an active SSE subscription at the time of the call. Used by the desktop on project open to populate the presence indicator. |
+| `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/prompt` | `204 No Content` | **Option (a)**: Desktop notification for a new prompt. Moku broadcasts `prompt-created` to subscribers. |
+| `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/response` | `204 No Content` | **Option (a)**: Desktop notification for a completed response. Moku broadcasts `response-created` to subscribers. |
 | `POST` | `/api/v1/projects/{projectId}/threads/{threadId}/typing` | `204 No Content` | **[STRETCH]** Signals that the authenticated user is actively typing in `threadId`. Body: `{ "branchId": "1.0" }`. Fire-and-forget — Moku broadcasts `member-typing` to all other subscribers and returns immediately. No persistence. |
 
 ### Internal SSE Broadcasting
@@ -251,3 +254,15 @@ WebSockets should be reconsidered only if a future requirement introduces truly 
 ### Typing Signal Nuance
 
 The one case where WebSockets offer a marginal advantage is the `[STRETCH]` typing signal — reusing the existing socket would save one TCP round-trip per signal. At the 1500 ms debounce interval, this saving is imperceptible to the user and does not justify changing the architecture.
+
+---
+
+## Event Format
+
+Events are provided to Desktop by Moku API SSE Service when subscribing after a disconnect. In the (re-)subscribe, Desktop will provide the last event id it received, if known. The Moku API response will contain events that occurred since the one provided. Event format is as follows:
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `string` | Monotonic per project. Used with `Last-Event-ID` for replay. |
+| `event` | `string` | SSE event name (for example `prompt-created`, `file-changed`). |
+| `data` | `json` | Event payload (see SSE Event Payloads). |
