@@ -95,15 +95,16 @@ export class ToolOrchestrator implements ToolOrchestra {
       JSON.stringify(executionContext),
     );
 
+    const toolCallId = executionContext.currentToolCallId ?? '?';
+    const inputHint = extractInputHint(name, input);
+
     const tool = this.tools.get(name);
     if (!tool) {
       const error = `Unknown tool: ${name}`;
       log.error('[ToolOrchestrator]', error);
+      executionContext.toolUseCallback?.(name, input, { toolCallId, stage: 'error', error });
       return { success: false, error };
     }
-
-    const toolCallId = executionContext.currentToolCallId ?? '?';
-    const inputHint = extractInputHint(name, input);
 
     executionContext.toolUseCallback?.(name, input, {
       toolCallId,

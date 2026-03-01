@@ -59,11 +59,14 @@ export class DesktopChatService {
     const onToolUse: ((toolUse: ChatComponentToolUse) => Promise<ToolResult>) | undefined =
       canUseTools
         ? async (toolUse: ChatComponentToolUse) => {
-            return await this.toolOrchestra.executeTool(
+            this.threadContext.currentToolCallId = toolUse.id;
+            const result = await this.toolOrchestra.executeTool(
               toolUse.name,
               toolUse.input,
               this.threadContext,
             );
+            this.threadContext.currentToolCallId = undefined;
+            return result;
           }
         : undefined;
 
