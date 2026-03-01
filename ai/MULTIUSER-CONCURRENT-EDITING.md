@@ -2,12 +2,15 @@
 
 Multiple desktop clients connected to the same Holokai project must stay in sync in real time — new messages, file changes, member events, and typing indicators should propagate to every watching member without requiring a manual refresh. This document specifies the requirements, message exchange protocol, new Moku API surface, and the rationale for choosing SSE + REST over WebSockets.
 
+**Open Decision**: How Moku learns of `prompt-created` and `response-created` events is still open. Option (a) is Desktop notification calls to Moku; option (b) is database triggers → RabbitMQ. Both produce the same SSE events but have different ownership and latency trade-offs.
+
 ---
 
 ## Requirements
 
 - **Subscribe to Project Changes** — When a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
 - **Desktop Unsubscription** — the Desktop calls `POST /api/v1/projects/{projectId}/unsubscribe` and then closes the SSE connection. Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop calls unsubscribe in any of these situations: the user navigates to a route outside a project, app start (clears any stale subscription from a previous session), app exit, user login, or user logout.
+- **Unintentional Disconnect Recovery** — if the SSE connection drops unexpectedly, the Desktop calls a Moku healthcheck endpoint and then reconnects to `/subscribe` with `Last-Event-ID` to replay missed events.
 - **Desktop Project Change Events** — The existing `ProjectService` and `ProjectMemberService` in Moku will be extended to call the SSE service as a side-effect of processing each mutation. No separate notification endpoint is needed from the Desktop: when a project property update, instruction change, file operation, or member join/removal is committed by the relevant service, it calls the SSE service internally and the appropriate event (`project-changed`, `instructions-changed`, `file-changed`, or `member-changed`) is broadcast to all subscribers of that project.
 - **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.") that this is happening.  
 - **Desktop New Prompt and Response Events** — Two distinct events to capture: 1) once a user submits a new prompt, a `prompt-created` event is sent to all subscribed users; 2) once the response is complete, a `response-created` event is sent to all subscribed users. Two design options for how Moku learns of these events:
@@ -16,8 +19,8 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 - **Keepalive** — Moku sends a `ping` event every 30 seconds to prevent proxies and OS networking stacks from closing idle connections.
 - **Reconnection safety** — the desktop passes a `Last-Event-ID` header on reconnect so Moku can replay any events missed during a dropped connection, preventing gaps in state.
 
-### Project Change Events
-Project Change Events include the following:
+### Project-scoped SSE Events
+Project-scoped SSE Events include the following:
 - **Project Properties Change** — when project title, description, type or any future properties are changed, all subscribed desktops receive a `project-changed` event and update their local project view.
 - **Instructions Change** — when project instructions are changed, all subscribed desktops receive an `instructions-changed` event and update their local instructions view.
 - **Member Change** — when a member joins or is removed from the project, all connected desktops receive a `member-changed` event and update the member list accordingly.
@@ -96,6 +99,8 @@ Desktop A                          Moku                         Desktop B
     │   [Desktop closes SSE connection]│  [Moku cleans up emitter]    │
     │                                │                               │
     │  Unintentional connection drop and recovery:                    │
+    │── GET /health ────────────────►│                               │
+    │◄── 200 OK ─────────────────────│                               │
     │── GET /subscribe ──────────────►│                               │
     │   Last-Event-ID: {lastEventId} │                               │
     │◄── replayed missed events ──────│                               │
@@ -106,7 +111,7 @@ Desktop A                          Moku                         Desktop B
 
 ## Desktop Multiuser Features
 
-- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `POST /unsubscribe` and then closes the SSE connection; Moku marks the subscription as intentionally closed and cleans up the emitter on disconnect. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop reconnects with a `Last-Event-ID` header so Moku can replay missed events.
+- **Subscription lifecycle** — when a user navigates to a project page, the Desktop opens an SSE connection via `GET /subscribe`. To unsubscribe, the Desktop calls `POST /unsubscribe` and then closes the SSE connection; the Moku API manages the connection state so the Desktop can close immediately after unsubscribing. Unsubscribe keeps the subscriber list in the Moku SSE service as compact as practical. The Desktop unsubscribes in any of these situations: navigating to a non-project route, app start (clears any stale subscription from a previous session), app exit, user login, or user logout. An unintentional connection drop is handled differently — the Desktop calls a Moku healthcheck endpoint and then reconnects with a `Last-Event-ID` header so Moku can replay missed events.
 
 - **Prompt authoring flow** — when a project member begins entering a new prompt, the Desktop sends a "Started Typing" notification to Moku. When the member submits the prompt, Moku broadcasts a `prompt-created` event to all other watching members. When the response is complete, Moku broadcasts a `response-created` event. How Moku learns of these two events is an open design choice (option a: Desktop notification call; option b: database trigger → RabbitMQ). Moku does not persist messages — persistence is handled by Holo.
 
