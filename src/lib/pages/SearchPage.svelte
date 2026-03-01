@@ -1,19 +1,55 @@
 <script lang="ts">
-  // Search page component
+  import { threadFacade as threadService } from '$lib/services/thread-facade';
+  import { projectService } from '$lib/services/project.service';
+  import type { Thread } from '../../../src-electron/preload.js';
+  import type { Project } from '$lib/types/project.type';
+  import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
+  import ProjectListItem from '$lib/components/projects/ProjectListItem.svelte';
+
   let searchQuery = $state('');
   let hasSearched = $state(false);
+  let isSearching = $state(false);
 
-  function handleSearch() {
+  let matchedThreads = $state<Thread[]>([]);
+  let matchedProjects = $state<Project[]>([]);
+
+  async function handleSearch() {
     if (!searchQuery.trim()) {
+      matchedThreads = [];
+      matchedProjects = [];
+      hasSearched = true;
       return;
     }
-    hasSearched = true;
-    // Search functionality will be implemented here
+
+    isSearching = true;
+    hasSearched = false;
+
+    try {
+      const term = searchQuery.trim().toLowerCase();
+
+      const [threadsResult, projectsResult] = await Promise.all([
+        threadService.getAll(),
+        projectService.loadProjects(),
+      ]);
+
+      const allThreads = threadsResult.success ? (threadsResult.data ?? []) : [];
+      const allProjects = projectsResult.success ? (projectsResult.data ?? []) : [];
+
+      matchedThreads = allThreads.filter((t) => t.title?.toLowerCase().includes(term));
+
+      matchedProjects = allProjects.filter(
+        (p) => p.title?.toLowerCase().includes(term) || p.description?.toLowerCase().includes(term),
+      );
+
+      hasSearched = true;
+    } finally {
+      isSearching = false;
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
-      handleSearch();
+      void handleSearch();
     }
   }
 </script>
@@ -21,31 +57,44 @@
 <div class="search-page">
   <div class="search-container">
     <div class="search-input-wrapper">
-      <div class="search-input-container">
-        <div class="search-icon">
-          <i class="pi pi-search"></i>
-        </div>
+      <div class="search-bar">
+        <i class="pi pi-search"></i>
         <input
           type="text"
           bind:value={searchQuery}
           onkeydown={handleKeydown}
           placeholder="Search threads, projects, and more..."
-          class="search-input"
         />
       </div>
-      <button class="btn-holokai search-button" onclick={handleSearch}>
+      <button class="btn-holokai search-button" onclick={handleSearch} disabled={isSearching}>
         <i class="pi pi-search"></i>
-        <span>Search</span>
+        <span>{isSearching ? 'Searching...' : 'Search'}</span>
       </button>
     </div>
     {#if hasSearched}
-      <div class="search-results">
-        {#if searchQuery}
-          <p class="no-results">Search functionality coming soon...</p>
+      <p class="results-summary">
+        {#if matchedThreads.length === 0 && matchedProjects.length === 0}
+          No search results.
         {:else}
-          <p class="no-results">Enter a search query</p>
+          Search found {matchedThreads.length}
+          {matchedThreads.length === 1 ? 'thread' : 'threads'} and {matchedProjects.length}
+          {matchedProjects.length === 1 ? 'project' : 'projects'}.
         {/if}
-      </div>
+      </p>
+      {#if matchedThreads.length > 0}
+        <div class="results-list">
+          {#each matchedThreads as thread (thread.id)}
+            <ThreadListItem {thread} />
+          {/each}
+        </div>
+      {/if}
+      {#if matchedProjects.length > 0}
+        <div class="results-list">
+          {#each matchedProjects as project (project.id)}
+            <ProjectListItem {project} />
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -61,7 +110,7 @@
   .search-container {
     max-width: 800px;
     margin: 0 auto;
-    padding: 1rem 2rem 2rem 2rem; /* Reduced top padding from 2rem to 1rem */
+    padding: 1rem 2rem 2rem 2rem;
     width: 100%;
   }
 
@@ -69,53 +118,57 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    margin-bottom: 2rem;
+    margin-bottom: 0.5rem;
   }
 
-  .search-input-container {
+  .search-bar {
     display: flex;
     align-items: center;
-    gap: 3px;
-  }
-
-  .search-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 16px;
-    background: var(--surface-main);
-    color: var(--text-primary);
-    font-size: 18px;
-  }
-
-  .search-input {
-    flex: 1;
-    padding: 12px 16px;
-    font-size: 16px;
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: var(--input-background);
-    color: var(--text-primary);
-    outline: none;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
     transition: border-color 0.2s ease;
   }
 
-  .search-input:focus {
+  .search-bar:focus-within {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px var(--input-focus-shadow);
+  }
+
+  .search-bar i {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    flex-shrink: 0;
+  }
+
+  .search-bar input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+  }
+
+  .search-bar input::placeholder {
+    color: var(--text-secondary);
   }
 
   .search-button {
     align-self: flex-end;
   }
 
-  .search-results {
-    margin-top: 2rem;
+  .results-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1rem;
   }
 
-  .no-results {
+  .results-summary {
+    font-size: 14px;
     color: var(--text-secondary);
-    text-align: center;
-    padding: 2rem;
+    margin: 0.5rem 0 0 0;
   }
 </style>

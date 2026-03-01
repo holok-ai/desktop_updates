@@ -1,6 +1,6 @@
 # Context Management Requirements
 
-Context management defines how Holokai prepares and delivers conversation history to AI models, ensuring responses remain coherent as threads grow beyond model token limits. It comprises three subareas: Context Display, Context Compression, and Context Assembly.
+Context management defines how Holokai prepares and delivers conversation history to AI models, ensuring responses remain coherent as threads grow beyond model token limits. It comprises three subareas: Context Display, Context Compression, and Context Assembly, where Context Compression and Context Assembly together form Context Generation.
 
 ---
 
@@ -19,13 +19,17 @@ Context management defines how Holokai prepares and delivers conversation histor
 
 ---
 
-## Context Compression  
+## Context Generation
+#### compress and assemble thread messages into a context for a user request
+
+### Context Compression
 #### policy-based compression of messages
 
 | Category | Requirements |
 |---|---|
 | Scope & Lifecycle | Thread-scoped; originals messages persisted in DB; compression output ephemeral (recomputed on thread load) |
 | Triggers | Triggered when compression task conditions are met: thread crosses token threshold OR individual response exceeds long-response threshold |
+| Task Queue | The observer supports a queue of N pending compression tasks; if the queue is full when a new compression is triggered, the new task is not queued — earlier queued compressions are favored over later ones |
 | Token Budget | Compression target: app setting, default 85% of model max; recent turns N: app setting, default 8 (always verbatim, never compressed) |
 | Pipeline | Policy-based pipeline; policies run in priority order with early exit when under budget; cheap/free policies run before LLM-powered policies; messages always dropped/summarized in user+assistant pairs |
 | Message Handling | Tool/function call pairs treated as assistant turns; files stripped and replaced with descriptive tag before pipeline; compression output tracks source message IDs for precise ID-based substitution during assembly |
@@ -54,14 +58,13 @@ Policies execute in priority order, with early-exit when under budget:
 - Pipeline stops early once under token budget
 - Messages are always dropped/summarized in user+assistant pairs to maintain role alternation
 
----
-
-## Context Assembly
+### Context Assembly
 #### replace thread messages with compressed content prior to submitting prompt
 
 | Category | Requirements |
 |---|---|
 | Assembly Purpose | Generates context for a user request that reduces the total tokens by replacing previous messages in a thread with compressed versions |
-| Substitute Using Message IDs | Original messages are replaced by compressed content based on message ID; compressed context will replace either one or multiple message IDs in the thread (e.g. a summary element replaces multiple thread messages); message compression includes summary element, long response summarization, pleasantry removal, and others |
+| Context States | A current context is maintained at all times; the initial current context is simply a copy of thread messages. Assembly is part of the compression task — when the compression task completes, the interim context is built and becomes the current context; the previous current context is disposed. Only one compression task runs at a time. If a user prompt is received while a compression task is running, the current (not interim) context is used. |
+| Substitute Using Message IDs | Original messages or compressed messages are referenced using the original message ids. compressed block will replace either one or multiple message IDs in the thread (e.g. a summary element replaces multiple thread messages);  |
 | Pre-send Validation | Final assembled token count validated against model max before sending; surfaces error if still over limit rather than silently truncating. Validate the following: no empty compressed content; no orphaned message IDs; no duplicate message IDs |
 | **Status** | **Not Started** |
