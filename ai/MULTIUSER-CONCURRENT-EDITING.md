@@ -6,14 +6,22 @@ Multiple desktop clients connected to the same Holokai project must stay in sync
 
 ## Requirements
 
-- **Project subscription** — on opening a project, the desktop opens a persistent SSE connection to Moku and receives all events scoped to that project for as long as the connection is held.
-- **Message sync** — when any member submits a prompt or receives an assistant response, that member's Desktop sends a `message-created` notification to Moku, which broadcasts it to all other connected desktops so they can render it in the appropriate thread and branch.
-- **File sync (metadata)** — when a file is added, updated, or deleted, all other desktops receive a `file-changed` event carrying only metadata; content is fetched lazily on demand using the stable `virtualFileId`.
-- **Instructions sync** — when project instructions are changed, all other desktops receive an `instructions-changed` event and update their local instructions view.
-- **Member presence** — when a member joins or is removed from the project, all connected desktops receive a `member-changed` event and update the member list accordingly.
-- **Reconnection safety** — the desktop passes a `Last-Event-ID` header on reconnect so Moku can replay any events missed during a dropped connection, preventing gaps in state.
+- **Subscribe to Project Changes** — WHen a user navigates to a project route, the desktop will call a subscribe Moku endpoint (opens a persistent SSE connection to Moku) for the current project and will receive project change events through SSE. Moku will broadcast project change events to users who have subscribed.
+- **Desktop Unsubscription** - the Desktop will unsubscribe a subscribed user when the user navigates to a route outside a project. The desktop will also clear the current user subscriptions on: app start, app exit, user login, user logout. 
+- **Desktop Project Change Events** - The current Project COntroller or Project Service in Moku API will be modified to send a "change notice" to the Moku API SSE service indicating that a project, project members, project files or project instructions have been modified. The Moku API SSE service would then send a change event to users (if any) subscribed to that project. 
+- **Desktop User Entering New Prompt Text Event** -- This event is used to show subscribed users that another user has started typing a new prompt in the thread.  The Desktop will call a Moku API endpoint with the event. Subscribed users see a little bubble in their thread ("Lauren has started typing a new prompt.") that this is happening.  
+- **Desktop New Prompt and Response Eventss** -- Two events to capture: 1) Once a user enters a new prompt and presses submit, the new prompt should be shown in the chat of (any) subscribed users. 2) Once the response is complete for the (previous) prompt, the response is shown in the chat of (any) subscribed users. Two design options for implementing this:
+a) as with the "Entering New Prompt Text", the Desktop makes Moku API calls for "Prompt Change" and "Response Change" events
+b) setup a trigger on the llm_requests and llm_responses table that looks for project thread changes and then sends a Rabbit MQ message that the Moku API SSE service would process.
 - **Keepalive** — Moku sends a `ping` event every 30 seconds to prevent proxies and OS networking stacks from closing idle connections.
-- **[STRETCH] Typing indicator** — when a member begins composing a prompt, all other desktops receive a `member-typing` event and display "X is typing…" in the relevant thread; the indicator auto-clears 3 seconds after the last signal or immediately when the member's `message-created` event arrives.
+- **Reconnection safety** — the desktop passes a `Last-Event-ID` header on reconnect so Moku can replay any events missed during a dropped connection, preventing gaps in state.
+
+###Project Change Events
+Project Change Events include the following:
+- **Project Properties Change**- — when project title, description, type or any future properties are changes, all subscribed desktops receive an `project-changed` event and update their local project view.
+- **Instructions Change** — when project instructions are changed, all subscribed desktops receive an `instructions-changed` event and update their local instructions view.
+- **Member Change** — when a member joins or is removed from the project, all connected desktops receive a `member-changed` event and update the member list accordingly.
+- **File (metadata) Change** — when a file is added, updated, or deleted, all other desktops receive a `file-changed` event carrying only metadata; content is fetched lazily on demand using the stable `virtualFileId`.
 
 ---
 
