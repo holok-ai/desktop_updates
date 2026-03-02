@@ -441,6 +441,10 @@ export class FileToolsService {
     // Check blacklist first
     for (const blacklisted of this.blacklistedPaths) {
       if (this.startsWithFolder(blacklisted, absolutePath)) {
+        log.warn('[FileToolsService] checkPathAccess: BLOCKED by blacklist', {
+          absolutePath,
+          matchedBlacklistEntry: blacklisted,
+        });
         return { allowed: false, reason: 'blacklist' };
       }
     }
@@ -448,15 +452,29 @@ export class FileToolsService {
     // If whitelist is configured, path must be within allowed paths
     if (this.allowedPaths.size > 0) {
       let isInAllowedPath = false;
+      let matchedEntry: string | undefined;
       for (const allowed of this.allowedPaths) {
         if (this.startsWithFolder(allowed, absolutePath)) {
           isInAllowedPath = true;
+          matchedEntry = allowed;
           break;
         }
       }
       if (!isInAllowedPath) {
+        log.warn('[FileToolsService] checkPathAccess: BLOCKED by whitelist', {
+          absolutePath,
+          allowedPaths: Array.from(this.allowedPaths),
+        });
         return { allowed: false, reason: 'whitelist' };
       }
+      log.info('[FileToolsService] checkPathAccess: allowed via whitelist', {
+        absolutePath,
+        matchedEntry,
+      });
+    } else {
+      log.info('[FileToolsService] checkPathAccess: allowed (no whitelist configured)', {
+        absolutePath,
+      });
     }
 
     return { allowed: true };

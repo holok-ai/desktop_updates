@@ -4,15 +4,17 @@
    * Includes ResponseText (MarkdownRenderer), ToolDetails, and Files sections.
    */
   import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
+  import ToolCallDetails from './ToolCallDetails.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { ToolCall } from '$lib/types/tool-call.type';
 
   interface Props {
     content: string;
     chatLayout: ChatLayout;
     /** Whether this response is still being streamed */
     isStreaming?: boolean;
-    /** Tool usage details (name → status) */
-    tools?: Array<{ name: string; status: string }>;
+    /** Tool calls during/after this response */
+    tools?: ToolCall[];
     /** File outputs from the response */
     files?: string[];
     /** Font size in pixels from settings */
@@ -27,6 +29,8 @@
     files = [],
     fontSize = 14,
   }: Props = $props();
+
+  let toolsExpanded = $state(false);
 
   let alignClass = $derived.by(() => {
     switch (chatLayout) {
@@ -57,17 +61,20 @@
       </div>
     {/if}
 
-    {#if tools.length > 0}
-      <div class="tool-details">
-        {#each tools as tool}
-          <div class="tool-item">
-            <i class="pi pi-wrench"></i>
-            <span class="tool-name">{tool.name}</span>
-            <span class="tool-status" class:complete={tool.status === 'complete'}>
-              {tool.status}
-            </span>
-          </div>
-        {/each}
+    {#if isStreaming && tools.length > 0}
+      <ToolCallDetails {tools} />
+    {/if}
+
+    {#if !isStreaming && tools.length > 0}
+      {#if toolsExpanded}
+        <ToolCallDetails {tools} />
+      {/if}
+      <div class="tools-chip-row">
+        <button class="tools-chip" onclick={() => (toolsExpanded = !toolsExpanded)}>
+          <i class="pi pi-cog"></i>
+          <span>{tools.length} call{tools.length !== 1 ? 's' : ''}</span>
+          <i class="pi {toolsExpanded ? 'pi-chevron-up' : 'pi-chevron-down'} chevron-icon"></i>
+        </button>
       </div>
     {/if}
 
@@ -158,40 +165,35 @@
     }
   }
 
-  /* Tool details */
-  .tool-details {
+  /* Tools chip (shown after streaming completes) */
+  .tools-chip-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding-top: 0.25rem;
-    border-top: 1px solid var(--surface-border, #e0e0e0);
-    font-size: 0.75rem;
   }
 
-  .tool-item {
-    display: flex;
+  .tools-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    background: color-mix(in srgb, var(--text-secondary, #666) 8%, transparent);
+    border: 1px solid var(--surface-border, #e0e0e0);
+    border-radius: 6px;
     color: var(--text-secondary, #666);
+    cursor: pointer;
+    transition: background 0.15s;
   }
 
-  .tool-item i {
-    font-size: 0.7rem;
+  .tools-chip:hover {
+    background: color-mix(in srgb, var(--text-secondary, #666) 14%, transparent);
   }
 
-  .tool-name {
-    font-weight: 500;
-  }
-
-  .tool-status {
-    margin-left: auto;
+  .tools-chip i {
     font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
   }
 
-  .tool-status.complete {
-    color: #10b981;
+  .chevron-icon {
+    opacity: 0.6;
   }
 
   /* File outputs */

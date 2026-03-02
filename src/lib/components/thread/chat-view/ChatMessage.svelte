@@ -10,6 +10,7 @@
   import ChatRequestCommands from './ChatRequestCommands.svelte';
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { ToolCall } from '$lib/types/tool-call.type';
 
   interface Props {
     /** User prompt text */
@@ -34,7 +35,7 @@
     /** Whether the response is still streaming */
     isStreaming?: boolean;
     /** Tool usage details */
-    tools?: Array<{ name: string; status: string }>;
+    tools?: ToolCall[];
     /** File outputs from the response */
     files?: string[];
 

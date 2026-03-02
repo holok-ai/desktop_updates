@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { DesktopChatRequest } from './services/chat/index.js';
+import type { DesktopChatRequest, ToolUseNotification } from './services/chat/index.js';
 import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
@@ -253,7 +253,8 @@ export interface AppSettings {
   directoryWhitelist?: string[];
   theme?: AppThemeMode;
   avatar?: { type: string; letters: string; icon: string; bgColor: string; imageData: string };
-  deleteConfirmationRequired?: boolean;
+  deleteThreadConfirmationRequired?: boolean;
+  deleteProjectConfirmationRequired?: boolean;
   startingPage?: string;
   showRecentList?: boolean;
   showFavoritesList?: boolean;
@@ -459,6 +460,18 @@ export interface ChatAPI {
   // Stop listening to token events
   offToken: () => void;
 
+  // Listen for tool use events (in_progress, complete, error stages)
+  onToolUse: (
+    callback: (
+      data: {
+        threadId: string;
+        branchId: string;
+        toolName: string;
+        input: unknown;
+      } & ToolUseNotification,
+    ) => void,
+  ) => () => void;
+
   // Get audit logs with detailed metrics for a thread+branch
   getAuditLogs: (threadId: string, branchId: string) => Promise<ApiResponse<unknown[]>>;
 
@@ -657,11 +670,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('chat:token');
     },
 
-    // 5. Get audit logs with detailed metrics for a thread
+    // 5. Listen for tool use events
+    onToolUse: (
+      callback: (
+        data: {
+          threadId: string;
+          branchId: string;
+          toolName: string;
+          input: unknown;
+        } & ToolUseNotification,
+      ) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          threadId: string;
+          branchId: string;
+          toolName: string;
+          input: unknown;
+        } & ToolUseNotification,
+      ): void => callback(data);
+      ipcRenderer.on('chat:toolUse', subscription);
+      return (): void => {
+        ipcRenderer.off('chat:toolUse', subscription);
+      };
+    },
+
+    // 6. Get audit logs with detailed metrics for a thread
     getAuditLogs: (threadId: string, branchId: string) =>
       ipcRenderer.invoke('chat:getAuditLogs', threadId, branchId),
 
-    // 6. Run a background chat task (returns full accumulated response)
+    // 7. Run a background chat task (returns full accumulated response)
     background: (request: BackgroundChatRequest) => ipcRenderer.invoke('chat:background', request),
   },
 
