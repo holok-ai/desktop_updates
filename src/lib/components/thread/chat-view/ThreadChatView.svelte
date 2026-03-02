@@ -56,6 +56,7 @@
   let debugActivity = $state(''); // Debug activity log
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
+  let lastToolBadgeReport = $state({ messages: -1, responses: -1 });
 
   // ── Multi-stream support ──
   // Background streams live in threadService (singleton) so they survive component
@@ -1079,6 +1080,35 @@
       availableModels,
       expandedBranchRows,
     );
+  });
+
+  $effect(() => {
+    const messageToolCount = messages.filter(
+      (m) => m.role === 'assistant' && (m.toolUses?.length ?? 0) > 0,
+    ).length;
+    const assistantMessageCount = messages.filter((m) => m.role === 'assistant').length;
+    const responseToolCount = displayItems.reduce((sum, item) => {
+      if (item.type !== 'message') return sum;
+      return sum + item.pair.responses.filter((r) => (r.tools?.length ?? 0) > 0).length;
+    }, 0);
+    const responseCount = displayItems.reduce((sum, item) => {
+      if (item.type !== 'message') return sum;
+      return sum + item.pair.responses.length;
+    }, 0);
+
+    if (
+      messageToolCount !== lastToolBadgeReport.messages ||
+      responseToolCount !== lastToolBadgeReport.responses
+    ) {
+      console.warn('[ToolBadgeDebug] Tool use counts', {
+        threadId,
+        messageToolCount,
+        assistantMessageCount,
+        responseToolCount,
+        responseCount,
+      });
+      lastToolBadgeReport = { messages: messageToolCount, responses: responseToolCount };
+    }
   });
 </script>
 

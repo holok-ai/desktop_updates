@@ -96,6 +96,11 @@ export class ThreadRepository {
   private async loadCachedThread(cachedThread: Thread): Promise<Thread | null> {
     const threadId: string = cachedThread.id;
     const cachedMessagesCount = cachedThread.messages.length;
+    log.info('[ThreadRepository.loadCachedThread] Start', {
+      threadId,
+      cachedMessagesCount,
+      stack: new Error().stack,
+    });
     const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
     if (messagesResult.success) {
@@ -104,10 +109,12 @@ export class ThreadRepository {
       );
       const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
       const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+      const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
       log.info('[ThreadRepository] Loaded cached thread messages with toolUses', {
         threadId,
         total: finalMessages.length,
         toolUseCount,
+        assistantCount,
       });
 
       // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
@@ -129,6 +136,10 @@ export class ThreadRepository {
   }
 
   private async loadUncachedThread(threadId: string): Promise<Thread | null> {
+    log.info('[ThreadRepository.loadUncachedThread] Start', {
+      threadId,
+      stack: new Error().stack,
+    });
     // Fetch from API
     const threadResult = await threadApiService.getThread(threadId);
     if (!threadResult.success) {
@@ -147,10 +158,12 @@ export class ThreadRepository {
       );
       thread.messages = MessageInspector.run(this.messageInspectors, mapped);
       const toolUseCount = thread.messages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+      const assistantCount = thread.messages.filter((m) => m.role === 'assistant').length;
       log.info('[ThreadRepository] Loaded uncached thread messages with toolUses', {
         threadId,
         total: thread.messages.length,
         toolUseCount,
+        assistantCount,
       });
     } else {
       log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
@@ -163,6 +176,10 @@ export class ThreadRepository {
   }
 
   public async loadThread(threadId: string): Promise<Thread | null> {
+    log.info('[ThreadRepository.loadThread] Start', {
+      threadId,
+      stack: new Error().stack,
+    });
     // Check cache first
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
