@@ -93,54 +93,17 @@ export class ThreadRepository {
     return this.cloneThread(toSave);
   }
 
-  private async loadCachedThread(cachedThread: Thread): Promise<Thread | null> {
-    const threadId: string = cachedThread.id;
-    const cachedMessagesCount = cachedThread.messages.length;
-    log.info('[ThreadRepository.loadCachedThread] Start', {
+  private async loadThreadMeta(threadId: string): Promise<Thread | null> {
+    log.info('[ThreadRepository.loadThreadMeta] Start', {
       threadId,
-      cachedMessagesCount,
       stack: new Error().stack,
     });
-    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
-    if (messagesResult.success) {
-      const mapped = messagesResult.data.content.map((dto) =>
-        this.mapDTOToMessage(dto, cachedThread.title),
-      );
-      const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
-      const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
-      const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
-      log.info('[ThreadRepository] Loaded cached thread messages with toolUses', {
-        threadId,
-        total: finalMessages.length,
-        toolUseCount,
-        assistantCount,
-      });
-
-      // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
-      if (finalMessages.length > 0) {
-        cachedThread.messages = finalMessages;
-        this.threadsById.set(threadId, cachedThread);
-      } else if (cachedMessagesCount > 0) {
-        // API returned empty but cache has messages - keep cached messages (likely local-only)
-      }
-    } else {
-      log.error(
-        '[ThreadRepository] Failed to refresh messages for cached thread:',
-        messagesResult.errorText,
-      );
-      // On error, keep cached messages if they exist
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      return this.cloneThread(cachedThread);
     }
 
-    return this.cloneThread(cachedThread);
-  }
-
-  private async loadUncachedThread(threadId: string): Promise<Thread | null> {
-    log.info('[ThreadRepository.loadUncachedThread] Start', {
-      threadId,
-      stack: new Error().stack,
-    });
-    // Fetch from API
     const threadResult = await threadApiService.getThread(threadId);
     if (!threadResult.success) {
       log.error('[ThreadRepository] Failed to load thread:', threadResult.errorText);
@@ -148,47 +111,45 @@ export class ThreadRepository {
     }
 
     const thread = this.mapDTOToThread(threadResult.data);
-
-    // Fetch messages for the thread
-    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
-
-    if (messagesResult.success) {
-      const mapped = messagesResult.data.content.map((dto) =>
-        this.mapDTOToMessage(dto, thread.title),
-      );
-      thread.messages = MessageInspector.run(this.messageInspectors, mapped);
-      const toolUseCount = thread.messages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
-      const assistantCount = thread.messages.filter((m) => m.role === 'assistant').length;
-      log.info('[ThreadRepository] Loaded uncached thread messages with toolUses', {
-        threadId,
-        total: thread.messages.length,
-        toolUseCount,
-        assistantCount,
-      });
-    } else {
-      log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
-    }
-
-    // Update cache
     this.threadsById.set(thread.id, thread);
-
     return this.cloneThread(thread);
   }
 
   public async loadThread(threadId: string): Promise<Thread | null> {
-    log.info('[ThreadRepository.loadThread] Start', {
+    return this.loadThreadMeta(threadId);
+  }
+
+  public async loadThreadMessages(threadId: string): Promise<Message[]> {
+    log.info('[ThreadRepository.loadThreadMessages] Start', {
       threadId,
       stack: new Error().stack,
     });
-    // Check cache first
-    const cachedThread = this.threadsById.get(threadId);
-    if (cachedThread) {
-      // we have a thread id in cache, so update the messages in it
-      return this.loadCachedThread(cachedThread);
-    } else {
-      // thread id is no longer in cache, so try to load it
-      return this.loadUncachedThread(threadId);
+    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
+
+    if (!messagesResult.success) {
+      log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
+      return [];
     }
+
+    const threadTitle = this.threadsById.get(threadId)?.title ?? '';
+    const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
+    const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
+    const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+    const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
+    log.info('[ThreadRepository] Loaded thread messages with toolUses', {
+      threadId,
+      total: finalMessages.length,
+      toolUseCount,
+      assistantCount,
+    });
+
+    const cached = this.threadsById.get(threadId);
+    if (cached) {
+      cached.messages = finalMessages;
+      this.threadsById.set(threadId, cached);
+    }
+
+    return finalMessages;
   }
 
   public async listThreads(options?: {

@@ -57,6 +57,10 @@
   async function loadThread(id: string) {
     loading = true;
     error = '';
+    window.electronAPI.log.warn('[ThreadPage.loadThread] Start', {
+      threadId: id,
+      stack: new Error().stack,
+    });
     try {
       // Load thread metadata
       const threadResult = await threadService.getThread(id);
@@ -86,6 +90,14 @@
       // Load messages for this thread
       const msgsResult = await threadService.getMessages(id);
       messages = msgsResult.success ? msgsResult.data : [];
+      const toolUseCount = messages.filter(
+        (m) => m.role === 'assistant' && (m.toolUses?.length ?? 0) > 0,
+      ).length;
+      window.electronAPI.log.warn('[ThreadPage.loadThread] Messages loaded', {
+        threadId: id,
+        messageCount: messages.length,
+        toolUseCount,
+      });
     } catch (e) {
       console.error('[ThreadPage] Failed to load thread:', e);
       error = e instanceof Error ? e.message : 'Failed to load thread';

@@ -7,7 +7,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiOk, apiFail } from '../../../src-electron/types/api-response';
-import { expectApiSuccess, expectApiFail, expectApiSuccessVoid } from '../../helpers/api-response.helpers';
+import {
+  expectApiSuccess,
+  expectApiFail,
+  expectApiSuccessVoid,
+} from '../../helpers/api-response.helpers';
 
 // ── Capture IPC handlers ──────────────────────────────────────────
 
@@ -20,7 +24,9 @@ const fakeWindow = { webContents: { send: sendSpy } };
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/mock'), on: vi.fn(), whenReady: () => Promise.resolve() },
   ipcMain: {
-    handle: (channel: string, fn: Function) => { handlers[channel] = fn; },
+    handle: (channel: string, fn: Function) => {
+      handlers[channel] = fn;
+    },
     removeHandler: vi.fn(),
   },
   BrowserWindow: {
@@ -51,6 +57,7 @@ vi.mock('electron-log', () => ({
 const mockThreadRepo = {
   listThreads: vi.fn(),
   loadThread: vi.fn(),
+  loadThreadMessages: vi.fn(),
   createThread: vi.fn(),
   saveThread: vi.fn(),
   deleteThread: vi.fn(),
@@ -170,12 +177,21 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
   describe('handler registration', () => {
     it('registers all expected channels', () => {
       const expected = [
-        'thread:getAll', 'thread:getById', 'thread:getMessages',
-        'thread:create', 'thread:update', 'thread:renameThread',
-        'thread:delete', 'thread:softDelete', 'thread:deleteBranch',
-        'thread:appendMessage', 'thread:addAssistantResponse',
-        'thread:moveToProject', 'thread:updateMessage',
-        'thread:updateMessageBranch', 'thread:updateMessageDesktopOptions',
+        'thread:getAll',
+        'thread:getById',
+        'thread:getMessages',
+        'thread:create',
+        'thread:update',
+        'thread:renameThread',
+        'thread:delete',
+        'thread:softDelete',
+        'thread:deleteBranch',
+        'thread:appendMessage',
+        'thread:addAssistantResponse',
+        'thread:moveToProject',
+        'thread:updateMessage',
+        'thread:updateMessageBranch',
+        'thread:updateMessageDesktopOptions',
       ];
       for (const channel of expected) {
         expect(handlers[channel], `missing handler for ${channel}`).toBeDefined();
@@ -256,13 +272,11 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
 
   describe('thread:getMessages', () => {
     it('returns ApiResponse<Message[]> on success', async () => {
-      const thread = fakeInternalThread({
-        messages: [
-          fakeMessage({ id: 'm1', createdAt: 100 }),
-          fakeMessage({ id: 'm2', createdAt: 200 }),
-        ],
-      });
-      mockThreadRepo.loadThread.mockResolvedValue(thread);
+      const messages = [
+        fakeMessage({ id: 'm1', createdAt: 100 }),
+        fakeMessage({ id: 'm2', createdAt: 200 }),
+      ];
+      mockThreadRepo.loadThreadMessages.mockResolvedValue(messages);
 
       const result = await handlers['thread:getMessages'](null, 'thread-1');
 
@@ -274,13 +288,11 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
     });
 
     it('filters out soft-deleted messages', async () => {
-      const thread = fakeInternalThread({
-        messages: [
-          fakeMessage({ id: 'm1' }),
-          fakeMessage({ id: 'm2', deletedAt: Date.now() }),
-        ],
-      });
-      mockThreadRepo.loadThread.mockResolvedValue(thread);
+      const messages = [
+        fakeMessage({ id: 'm1' }),
+        fakeMessage({ id: 'm2', deletedAt: Date.now() }),
+      ];
+      mockThreadRepo.loadThreadMessages.mockResolvedValue(messages);
 
       const result = await handlers['thread:getMessages'](null, 'thread-1');
 
@@ -290,7 +302,7 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
     });
 
     it('returns empty array when thread not found', async () => {
-      mockThreadRepo.loadThread.mockResolvedValue(null);
+      mockThreadRepo.loadThreadMessages.mockResolvedValue([]);
 
       const result = await handlers['thread:getMessages'](null, 'nonexistent');
 
@@ -313,26 +325,28 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
     });
 
     it('validates model when initalModel is provided', async () => {
-      mockModelRepo.listAllModels.mockResolvedValue(apiOk([
-        { id: 'model-1', accessName: 'gpt-4' },
-      ]));
+      mockModelRepo.listAllModels.mockResolvedValue(
+        apiOk([{ id: 'model-1', accessName: 'gpt-4' }]),
+      );
       const created = fakeInternalThread();
       mockThreadRepo.createThread.mockResolvedValue(created);
 
       const result = await handlers['thread:create'](null, {
-        title: 'Test', initalModel: 'gpt-4',
+        title: 'Test',
+        initalModel: 'gpt-4',
       });
 
       expectApiSuccess(result);
     });
 
     it('returns apiFail(400) when model unavailable', async () => {
-      mockModelRepo.listAllModels.mockResolvedValue(apiOk([
-        { id: 'model-1', accessName: 'gpt-4' },
-      ]));
+      mockModelRepo.listAllModels.mockResolvedValue(
+        apiOk([{ id: 'model-1', accessName: 'gpt-4' }]),
+      );
 
       const result = await handlers['thread:create'](null, {
-        title: 'Test', initalModel: 'nonexistent-model',
+        title: 'Test',
+        initalModel: 'nonexistent-model',
       });
 
       expectApiFail(result, 400);
@@ -343,7 +357,8 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockModelRepo.listAllModels.mockResolvedValue(apiFail(500, 'API error'));
 
       const result = await handlers['thread:create'](null, {
-        title: 'Test', initalModel: 'gpt-4',
+        title: 'Test',
+        initalModel: 'gpt-4',
       });
 
       expectApiFail(result, -1);
@@ -494,7 +509,9 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
     });
 
     it('returns apiFail when branch deletion throws', async () => {
-      mockThreadRepo.deleteBranch.mockImplementation(() => { throw new Error('Branch not found'); });
+      mockThreadRepo.deleteBranch.mockImplementation(() => {
+        throw new Error('Branch not found');
+      });
 
       const result = await handlers['thread:deleteBranch'](null, 'thread-1', 'bad-branch');
 
@@ -511,7 +528,8 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockThreadRepo.appendMessage.mockResolvedValue(msg);
 
       const result = await handlers['thread:appendMessage'](null, 'thread-1', {
-        role: 'user', content: 'Hello',
+        role: 'user',
+        content: 'Hello',
       });
 
       expectApiSuccess(result);
@@ -524,7 +542,8 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockAuth.isAuthenticated.mockReturnValue(false);
 
       const result = await handlers['thread:appendMessage'](null, 'thread-1', {
-        role: 'user', content: 'Hello',
+        role: 'user',
+        content: 'Hello',
       });
 
       expectApiFail(result, 403);
@@ -534,7 +553,8 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockThreadRepo.loadThread.mockResolvedValue(null);
 
       const result = await handlers['thread:appendMessage'](null, 'nonexistent', {
-        role: 'user', content: 'Hello',
+        role: 'user',
+        content: 'Hello',
       });
 
       expectApiFail(result, 404);
@@ -544,7 +564,8 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockThreadRepo.appendMessage.mockRejectedValue(new Error('MESSAGE_TOO_LARGE'));
 
       const result = await handlers['thread:appendMessage'](null, 'thread-1', {
-        role: 'user', content: 'x'.repeat(1000000),
+        role: 'user',
+        content: 'x'.repeat(1000000),
       });
 
       expectApiFail(result, 413);
@@ -556,7 +577,12 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       const msg = fakeMessage({ role: 'assistant', content: 'Hi there' });
       mockThreadRepo.addAssistantResponse.mockResolvedValue(msg);
 
-      const result = await handlers['thread:addAssistantResponse'](null, 'thread-1', 'Hi there', 'gpt-4');
+      const result = await handlers['thread:addAssistantResponse'](
+        null,
+        'thread-1',
+        'Hi there',
+        'gpt-4',
+      );
 
       expectApiSuccess(result);
       expect(result.data.role).toBe('assistant');
@@ -631,7 +657,12 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       const dto = { id: 'msg-1', branchId: '2.0.0' };
       mockThreadApi.updateRequestBranch.mockResolvedValue(apiOk(dto));
 
-      const result = await handlers['thread:updateMessageBranch'](null, 'thread-1', 'msg-1', '2.0.0');
+      const result = await handlers['thread:updateMessageBranch'](
+        null,
+        'thread-1',
+        'msg-1',
+        '2.0.0',
+      );
 
       expectApiSuccess(result);
       expect(result.data.branchId).toBe('2.0.0');
@@ -640,7 +671,12 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
     it('passes through apiFail from threadApiService', async () => {
       mockThreadApi.updateRequestBranch.mockResolvedValue(apiFail(404, 'Not found'));
 
-      const result = await handlers['thread:updateMessageBranch'](null, 'thread-1', 'msg-1', '2.0.0');
+      const result = await handlers['thread:updateMessageBranch'](
+        null,
+        'thread-1',
+        'msg-1',
+        '2.0.0',
+      );
 
       expectApiFail(result, 404);
     });
@@ -652,7 +688,10 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mockThreadApi.updateRequestDesktopOptions.mockResolvedValue(apiOk(dto));
 
       const result = await handlers['thread:updateMessageDesktopOptions'](
-        null, 'thread-1', 'msg-1', { key: 'value' },
+        null,
+        'thread-1',
+        'msg-1',
+        { key: 'value' },
       );
 
       expectApiSuccess(result);
@@ -669,9 +708,15 @@ describe('Thread IPC Handlers — ApiResponse<T> contract', () => {
       mod.unregisterThreadHandlers();
 
       const expected = [
-        'thread:getAll', 'thread:getById', 'thread:create', 'thread:update',
-        'thread:renameThread', 'thread:delete', 'thread:moveToProject',
-        'thread:updateMessage', 'thread:updateMessageBranch',
+        'thread:getAll',
+        'thread:getById',
+        'thread:create',
+        'thread:update',
+        'thread:renameThread',
+        'thread:delete',
+        'thread:moveToProject',
+        'thread:updateMessage',
+        'thread:updateMessageBranch',
         'thread:updateMessageDesktopOptions',
       ];
       for (const channel of expected) {

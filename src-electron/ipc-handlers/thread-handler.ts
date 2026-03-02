@@ -105,20 +105,20 @@ export function registerThreadHandlers(): void {
     'thread:getMessages',
     async (_event, id: string): Promise<ApiResponse<Message[]>> => {
       try {
-        const t = await threadRepository.loadThread(id);
-        if (!t) return apiOk([]);
-        const items: Message[] = t.messages
+        const senderUrl = _event?.senderFrame?.url;
+        const allMessages = await threadRepository.loadThreadMessages(id);
+        const items: Message[] = allMessages
           .filter((m) => !m.deletedAt)
           .sort((a, b) => a.createdAt - b.createdAt)
           .map((m) => ({ ...m }));
         const toolUseCount = items.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
         threadLog.info(
           '[thread:getMessages] Loaded',
-          t.messages.length,
+          allMessages.length,
           'total, returning',
           items.length,
-          'after filtering',
-          { threadId: id, toolUseCount },
+          'after filtering (api)',
+          { threadId: id, toolUseCount, senderUrl },
         );
         return apiOk(items);
       } catch (err: unknown) {
