@@ -6,7 +6,6 @@
 
 import { expect } from '@playwright/test';
 import type { Page } from 'playwright';
-import { refreshTokenViaElectron } from '../helpers/token-helpers';
 
 /**
  * Open the context menu on the first thread item in the list.
@@ -104,88 +103,15 @@ export async function navigateToThreads(page: Page) {
 }
 
 /**
- * Navigate away and back to force a token/data refresh.
- * Useful when the app shows auth-related errors like "No assistants".
- */
-async function forceRefreshViaNavigation(page: Page) {
-  await page.locator('button[aria-label="Search"]').click();
-  await expect(page).toHaveURL(/\/search/, { timeout: 10000 });
-
-  await page.locator('button[aria-label="Threads"]').click();
-  await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
-}
-
-/**
  * Create a thread via the UI by clicking an application card.
- * If the "New Thread" page shows an error (e.g. "No assistants"),
- * tries the Retry button first, then navigates away and retries
- * to force a token refresh. Returns on the thread view page.
+ * Clicks "+ New Thread", waits for application cards, and clicks the first one.
  */
 export async function createThreadViaUI(page: Page) {
-  const maxAttempts = 3;
+  await page.locator('button[aria-label="+ New Thread"]').click();
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    await page.locator('button[aria-label="+ New Thread"]').click();
+  const cards = page.locator('.application-card');
+  await expect(cards.first()).toBeVisible({ timeout: 15000 });
+  await cards.first().click();
 
-    // Wait for either application cards or the "No assistants" error
-    const cards = page.locator('.application-card');
-    const noAssistants = page.getByText('No assistants have been assigned');
-    const retryBtn = page.getByRole('button', { name: 'Retry' });
-
-    // Wait up to 15s for either cards or the error message to appear
-    await expect(cards.first().or(noAssistants))
-      .toBeVisible({ timeout: 15000 })
-      .catch(() => {});
-
-    const hasError = await noAssistants.isVisible().catch(() => false);
-    const hasCards = await cards
-      .first()
-      .isVisible()
-      .catch(() => false);
-
-    if (!hasCards && !hasError && attempt < maxAttempts) {
-      // Neither cards nor error appeared — still loading or timed out
-      // Navigate away and retry to force a fresh load
-      await forceRefreshViaNavigation(page);
-      continue;
-    }
-
-    if (hasError && attempt < maxAttempts) {
-      // Try the Retry button first
-      const canRetry = await retryBtn.isVisible().catch(() => false);
-      if (canRetry) {
-        // Programmatically refresh the token before retrying
-        await refreshTokenViaElectron(page).catch(() => {});
-        await retryBtn.click();
-
-        // Wait for cards to appear after retry
-        await expect(cards.first())
-          .toBeVisible({ timeout: 10000 })
-          .catch(() => {});
-
-        // Check if retry resolved the issue
-        const cardsNow = await cards
-          .first()
-          .isVisible()
-          .catch(() => false);
-        if (!cardsNow) {
-          // Retry button didn't help — navigate away to force full refresh
-          await forceRefreshViaNavigation(page);
-          continue;
-        }
-        // Cards appeared after retry — fall through to the click logic below
-      } else {
-        // No retry button — navigate away to force full refresh
-        await forceRefreshViaNavigation(page);
-        continue;
-      }
-    }
-
-    // Cards should be visible at this point
-    await expect(cards.first()).toBeVisible({ timeout: 15000 });
-    await cards.first().click();
-
-    await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
-    return;
-  }
+  await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
 }

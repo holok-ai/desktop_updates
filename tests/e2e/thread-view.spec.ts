@@ -127,8 +127,10 @@ test.describe.serial('Thread View and Chat', () => {
     const headerContent = page.locator('.header-content');
     await headerContent.hover();
 
+    // The favorite button uses CSS visibility (hidden by default, visible on hover)
     const favButton = page.locator('button.favorite-star');
-    await expect(favButton).toBeVisible({ timeout: 5000 });
+    const headerCommands = page.locator('.header-commands');
+    await expect(headerCommands).toHaveCSS('visibility', 'visible', { timeout: 5000 });
 
     // Check initial state via class
     const isAlreadyFav = await favButton.evaluate((el) => el.classList.contains('is-favorited'));
@@ -138,7 +140,7 @@ test.describe.serial('Thread View and Chat', () => {
 
     // Re-hover to keep commands visible
     await headerContent.hover();
-    await expect(favButton).toBeVisible({ timeout: 5000 });
+    await expect(headerCommands).toHaveCSS('visibility', 'visible', { timeout: 5000 });
 
     if (isAlreadyFav) {
       const stillFav = await favButton.evaluate((el) => el.classList.contains('is-favorited'));
