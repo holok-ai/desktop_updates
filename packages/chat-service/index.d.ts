@@ -126,7 +126,7 @@ export declare class ChatProviderUtils {
     /**
      * Maximum number of tool calling iterations to prevent infinite loops
      */
-    static readonly MAX_TOOL_ITERATIONS = 10;
+    static readonly MAX_TOOL_ITERATIONS = 50;
     /**
      * Sets the iteration value in a branch ID string
      * Format: row.lane.chat (3 parts) or row.lane.chat.iteration (4 parts)
