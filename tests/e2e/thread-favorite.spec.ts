@@ -43,7 +43,14 @@ test.describe.serial('Thread Favorite Toggle', () => {
 
     await navigateToThreads(page);
 
+    // Wait for thread items to appear after navigation (including workaround)
     const threadItems = page.locator('.thread-item-container');
+    try {
+      await threadItems.first().waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      throw new Error('No threads available for favorite tests');
+    }
+
     const count = await threadItems.count();
     if (count === 0) {
       throw new Error('No threads available for favorite tests');

@@ -35,9 +35,12 @@ test.describe.serial('Thread Context Menu', () => {
   test('navigate to threads page and verify thread list has items', async () => {
     await navigateToThreads(page);
 
+    // Wait for thread items to appear after navigation (including workaround)
     const threadItems = page.locator('.thread-item-container');
-    const count = await threadItems.count();
-    if (count === 0) {
+    try {
+      await threadItems.first().waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      // No threads available even after navigation workaround — skip remaining tests
       test.skip();
     }
   });

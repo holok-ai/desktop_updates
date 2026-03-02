@@ -31,7 +31,16 @@ test.describe.serial('Project Members', () => {
     await page.locator('button[aria-label="Projects"]').click();
     await page.waitForTimeout(2000);
 
+    // Wait for the projects page to fully render
     const newProjectBtn = page.locator('.projects-header button.btn-holokai');
+    await expect(newProjectBtn).toBeVisible({ timeout: 15000 });
+
+    // Dismiss any lingering toast before opening the modal
+    const toast = page.locator('.toast');
+    if (await toast.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
+    }
+
     await newProjectBtn.click();
     await page.waitForTimeout(1000);
 

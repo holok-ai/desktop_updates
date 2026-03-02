@@ -34,15 +34,34 @@ test.describe.serial('Settings - Connections', () => {
   });
 
   test.afterAll(async () => {
-    // Cancel any pending changes before closing
+    // Restore connection URLs to production values in case any test left test URLs behind
     try {
-      const cancelBtn = page.locator('.settings-footer .btn-secondary');
-      if (await cancelBtn.isEnabled()) {
-        await cancelBtn.click();
-        await page.waitForTimeout(500);
+      // Navigate to Settings > Connections to ensure we're on the right page
+      await page.evaluate(() => {
+        window.location.hash = '#/settings';
+      });
+      await page.waitForTimeout(2000);
+
+      const connectionsItem = page.locator('.sidebar-item', { hasText: 'Connections' });
+      await connectionsItem.click();
+      await page.waitForTimeout(500);
+
+      const mokuWebInput = page.locator('input#moku-web-url');
+      const mokuApiInput = page.locator('input#moku-api-url');
+      const holoApiInput = page.locator('input#holo-api-url');
+
+      await mokuWebInput.fill('https://moku.holokai.dev');
+      await mokuApiInput.fill('https://moku.holokai.dev');
+      await holoApiInput.fill('https://holo.holokai.dev');
+      await page.waitForTimeout(300);
+
+      const saveBtn = page.locator('.settings-footer .btn-primary');
+      if (await saveBtn.isEnabled({ timeout: 2000 }).catch(() => false)) {
+        await saveBtn.click();
+        await page.waitForTimeout(2000);
       }
     } catch {
-      // best-effort
+      // best-effort — if this fails, the user will need to manually reset URLs
     }
     await app?.close();
   });
@@ -129,16 +148,20 @@ test.describe.serial('Settings - Connections', () => {
     const toast = page.locator('.toast', { hasText: 'Settings were saved successfully' });
     await expect(toast).toBeVisible({ timeout: 5000 });
 
+    // Wait for toast to dismiss before restoring (toast auto-hides after 4s)
+    await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
+
     // Restore original URLs
     await mokuWebInput.fill(originalWeb);
     await mokuApiInput.fill(originalApi);
     await holoApiInput.fill(originalHolo);
     await page.waitForTimeout(300);
 
-    // Save restored values (only if there are changes)
-    if (await saveBtn.isEnabled()) {
-      await saveBtn.click();
-      await page.waitForTimeout(1000);
+    // Save restored values
+    const restoreSaveBtn = page.locator('.settings-footer .btn-primary');
+    if (await restoreSaveBtn.isEnabled({ timeout: 3000 }).catch(() => false)) {
+      await restoreSaveBtn.click();
+      await page.waitForTimeout(2000);
     }
   });
 });

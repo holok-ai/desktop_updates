@@ -61,15 +61,10 @@ test.describe.serial('Thread View and Chat', () => {
     // Requirement 5.2: sending message shows user message and streams response
     // We should be on an existing thread from previous tests
 
-    // Helper: if agent is unavailable, click "+ New Thread" to get a brand new working thread
-    async function recoverViaNewThread() {
-      await createThreadViaUI(page);
-    }
-
     // If assistant is unavailable on current thread, create a new one via UI
     const infoBanner = page.locator('.info-banner');
     if (await infoBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await recoverViaNewThread();
+      await createThreadViaUI(page);
     }
 
     // Type a message in the Composer
@@ -94,7 +89,7 @@ test.describe.serial('Thread View and Chat', () => {
 
     if (!messageAppeared) {
       // Agent may have become unavailable mid-send — recover via new thread and retry
-      await recoverViaNewThread();
+      await createThreadViaUI(page);
 
       const retryInput = page.locator('[data-testid="message-input"]');
       await expect(retryInput).toBeVisible({ timeout: 10000 });

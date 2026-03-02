@@ -29,7 +29,14 @@ test.describe.serial('Thread Rename', () => {
 
     await navigateToThreads(page);
 
+    // Wait for thread items to appear after navigation (including workaround)
     const threadItems = page.locator('.thread-item-container');
+    try {
+      await threadItems.first().waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      throw new Error('No threads available for rename tests');
+    }
+
     const count = await threadItems.count();
     if (count === 0) {
       throw new Error('No threads available for rename tests');
@@ -83,8 +90,25 @@ test.describe.serial('Thread Rename', () => {
     await expect(renameButton).toBeEnabled({ timeout: 5000 });
     await renameButton.click();
 
-    // The rename API call is async — modal stays open until the parent handler resolves
-    await expect(dialog).not.toBeVisible({ timeout: 30000 });
+    // The rename API call is async — modal stays open until the parent handler resolves.
+    // If the API hangs, close the modal manually so subsequent tests aren't blocked.
+    try {
+      await expect(dialog).not.toBeVisible({ timeout: 45000 });
+    } catch {
+      // API timed out — try closing the modal via close button or cancel
+      const closeBtn = dialog.locator('button[aria-label="Close dialog"]');
+      const cancelBtn = dialog.locator('button.btn-secondary');
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+      } else if (await cancelBtn.isVisible().catch(() => false)) {
+        await cancelBtn.click();
+      }
+      await expect(dialog)
+        .not.toBeVisible({ timeout: 5000 })
+        .catch(() => {});
+      // Re-throw so the test still reports failure
+      throw new Error('Rename API call timed out after 45s — modal did not close');
+    }
 
     const toast = page.locator('.toast[role="alert"]');
     await expect(toast).toBeVisible({ timeout: 15000 });

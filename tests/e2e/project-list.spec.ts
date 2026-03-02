@@ -49,9 +49,17 @@ test.describe.serial('Project List', () => {
     await expect(newProjectBtn).toBeVisible({ timeout: 5000 });
     await expect(newProjectBtn).toContainText('New Project');
 
+    // Wait for loading to complete before checking content
+    const loading = page.locator('.loading');
+    await loading.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+
     // Check if projects exist or empty state is shown
     const projectCards = page.locator('.project-card');
     const emptyState = page.locator('.empty-state');
+
+    // Wait for either project cards or empty state to appear
+    await expect(projectCards.first().or(emptyState)).toBeVisible({ timeout: 10000 });
+
     const count = await projectCards.count();
 
     if (count > 0) {
