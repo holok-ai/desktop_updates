@@ -84,24 +84,6 @@
   let streamingIdleTimeout: ReturnType<typeof setTimeout> | null = null;
   let streamingLastTokenAt = 0;
 
-  type ToolStatusEntry = {
-    id: string;
-    name: string;
-    status: 'in_progress' | 'complete' | 'error';
-  };
-
-  let toolStatusesById = $state<Record<string, ToolStatusEntry>>({});
-  let activeTools = $derived(
-    Object.values(toolStatusesById).map((tool) => ({ name: tool.name, status: tool.status })),
-  );
-
-  function resetToolStatuses() {
-    toolStatusesById = {};
-  }
-
-  let unsubToolUse: (() => void) | null = null;
-  let unsubToolStatus: (() => void) | null = null;
-
   // ── Derived ──
   //  let hasModel = $derived(Boolean(modelName && modelProvider));
   let isNewThread = $derived(!thread);
@@ -172,46 +154,6 @@
       }
     }
 
-    unsubToolUse = window.electronAPI.chat.onToolUse((data) => {
-      const currentThreadId = thread?.id ?? null;
-      if (!currentThreadId || data.threadId !== currentThreadId) return;
-
-      const toolCallId =
-        data.toolCallId ?? `${data.toolName}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const status = data.stage === 'complete' ? 'complete' : 'in_progress';
-
-      toolStatusesById = {
-        ...toolStatusesById,
-        [toolCallId]: {
-          id: toolCallId,
-          name: data.toolName,
-          status,
-        },
-      };
-    });
-
-    unsubToolStatus = window.electronAPI.chat.onToolStatus((data) => {
-      const currentThreadId = thread?.id ?? null;
-      if (!currentThreadId || data.threadId !== currentThreadId) return;
-
-      const existing = Object.values(toolStatusesById).filter(
-        (tool) => tool.name === data.toolName,
-      );
-      const target = existing[existing.length - 1];
-      const toolCallId =
-        target?.id ??
-        `status-${data.toolName}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const status = data.state === 'complete' ? 'complete' : 'in_progress';
-
-      toolStatusesById = {
-        ...toolStatusesById,
-        [toolCallId]: {
-          id: toolCallId,
-          name: data.toolName,
-          status,
-        },
-      };
-    });
   });
 
   onDestroy(() => {
@@ -221,8 +163,6 @@
       hasBgStream: thread?.id ? threadService.hasBackgroundStream(thread.id) : false,
     });
     clearTimeouts();
-    unsubToolUse?.();
-    unsubToolStatus?.();
     // Background streams live in threadService — do NOT clean them up here.
     // They must survive component destruction so tokens keep accumulating
     // while the component is unmounted (e.g., during ThreadPage loading state).
@@ -252,7 +192,6 @@
         // Only reset UI-facing state. The background stream keeps running in threadService.
         isStreaming = false;
         responseText = '';
-        resetToolStatuses();
         clearTimeouts();
       }
     }
@@ -642,7 +581,6 @@
     }
 
     // Set up streaming for all branches
-    resetToolStatuses();
     isStreaming = true;
 
     // Set up token listeners for each branch
@@ -744,7 +682,6 @@
     threadService.clearStreamingSession(capturedThreadId);
     if (isViewingThisThread) {
       isStreaming = false;
-      resetToolStatuses();
     }
 
     // Persist assistant responses using the captured threadId (not current thread)
@@ -804,7 +741,6 @@
 
     // Set up streaming for this specific branch BEFORE sending.
     // setupTokenListener creates a BackgroundStream entry in the map.
-    resetToolStatuses();
     isStreaming = true;
     setupTokenListener(threadId, branchId);
 
@@ -852,7 +788,6 @@
         if (isViewingThisThread) {
           handleGuardError(errorMessage, capturedBranchId);
           isStreaming = false;
-          resetToolStatuses();
         }
         return;
       }
@@ -878,7 +813,7 @@
 
         // Only update local messages if the user is still viewing the same thread
         if (isViewingThisThread) {
-          const completedTools = activeTools.map((tool) => ({
+          const completedTools = activeToolCalls.map((tool) => ({
             name: tool.name,
             status: 'complete' as const,
           }));
@@ -925,7 +860,6 @@
       if (isViewingThisThread) {
         responseText = '';
         isStreaming = false;
-        resetToolStatuses();
       }
 
       await tick();
@@ -945,7 +879,6 @@
       if (isViewingThisThread) {
         handleGuardError(errorMessage, capturedBranchId);
         isStreaming = false;
-        resetToolStatuses();
       }
     } finally {
       clearTimeouts();
@@ -1042,7 +975,6 @@
     }
     activeToolCalls = [];
     isStreaming = false;
-    resetToolStatuses();
     error = msg;
     clearTimeouts();
   }
@@ -1225,7 +1157,7 @@
           responses={item.pair.responses}
           isStreaming={item.pair.isStreamingResponse}
           streamingContent={item.pair.streamingContent}
-          tools={item.pair.isStreamingResponse ? activeTools : []}
+          tools={item.pair.isStreamingResponse ? activeToolCalls : (completedToolCalls.get(item.pair.request.branchId) ?? [])}
           onCopyRequest={(content) => copyToInput(content)}
           showBranchIcon={item.isFromBranch === true}
           onBranchClick={item.isFromBranch
@@ -1254,7 +1186,7 @@
     {/each}
 
     <!-- Loading indicator while waiting for first streaming token -->
-    {#if isStreaming && responseText === '' && activeTools.length === 0}
+    {#if isStreaming && responseText === '' && activeToolCalls.length === 0}
       <div class="waiting-indicator">
         <div class="waiting-dots">
           <span class="dot"></span>
