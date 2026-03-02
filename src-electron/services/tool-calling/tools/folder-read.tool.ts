@@ -72,8 +72,8 @@ export class FolderReadTool implements ITool {
         success: false,
         error:
           pathCheck.reason === 'blacklist'
-            ? `The folder ${userPath} is in a folder I cannot access. I am not allowed to access folders and files in system and sensitive folders.`
-            : `I cannot read folder ${userPath}. To allow this, add an entry to the allowed folder list in settings.`,
+            ? `ACCESS_DENIED (system blacklist): '${userPath}' is inside a protected system or sensitive directory. This cannot be overridden.`
+            : `ACCESS_DENIED (not in whitelist): '${userPath}' is not in the allowed folders list. The user must go to Settings → File Access and add this folder to the whitelist.`,
       };
     }
 

@@ -602,6 +602,57 @@ Without the overhead of a virtual DOM or runtime framework, Svelte applications 
 
 Built-in TypeScript support, excellent IDE integration, clear error messages, and a gentle learning curve make development more enjoyable and productive.
 
+## Troubleshooting
+
+### macOS: Wrong app opens when logging in (protocol handler conflict)
+
+**Symptom:** Clicking Login opens a different Electron instance (e.g. a PR review session) instead of your current dev instance. The wrong window shows an error page and never goes away.
+
+**Cause:** macOS persists the `holokai://` protocol registration in Launch Services. Whichever Electron instance ran last "wins" and macOS will keep launching it for protocol redirects, even after that instance is closed.
+
+**Fix — Option 1: Restart your dev instance**
+
+Simply stopping and restarting `npm run electron:dev` re-registers the current instance as the protocol handler.
+
+**Fix — Option 2: Unregister the stale instance manually**
+
+First, find the path to the stale Electron app. Run this in a terminal — it lists all running Electron processes and their paths:
+
+```bash
+ps aux | grep -E "Electron" | grep -v grep | grep -v "your-main-app-path"
+```
+
+Or to see all Electron instances at once:
+
+```bash
+ps aux | grep "[E]lectron" | awk '{print $11, $12}'
+```
+
+The stale instance will show a path you don't recognise as your current dev instance — for example a PR review checkout under `review/desktop/pr/NNN/`.
+
+If the stale instance is no longer running (the window just won't go away after a restart), you can find the last-registered path from macOS Launch Services:
+
+```bash
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -dump | grep -A2 "holokai"
+```
+
+Replace `<path-to-stale-electron>` with the full path shown in the output:
+
+```bash
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -u "<path-to-stale-electron>"
+```
+
+For example, if a PR review session at `pr/391` is the culprit:
+
+```bash
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -u "/Users/yourname/Documents/projects/holokai/review/desktop/pr/391/node_modules/electron/dist/Electron.app"
+```
+
+Then restart your dev instance to re-register it.
+
 ## License
 
 MIT

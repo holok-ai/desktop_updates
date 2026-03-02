@@ -105,6 +105,10 @@ export function registerSettingsHandlers(): void {
     (_event, key: keyof AppSettings, value: unknown): Promise<void> => {
       settingsLog.info('Set called', { key, value });
       settingsService.setSetting(key, value as AppSettings[keyof AppSettings]);
+      if (key === 'directoryWhitelist' && Array.isArray(value)) {
+        ToolOrchestrator.getInstance().setAllowedPaths(value as string[]);
+        settingsLog.info('Synced directoryWhitelist to ToolOrchestrator', { paths: value });
+      }
       return Promise.resolve();
     },
   );
@@ -117,6 +121,12 @@ export function registerSettingsHandlers(): void {
     (_event, settings: Partial<AppSettings>): Promise<void> => {
       settingsLog.info('SetMultiple called', { settings });
       settingsService.setSettings(settings);
+      if (settings.directoryWhitelist !== undefined) {
+        ToolOrchestrator.getInstance().setAllowedPaths(settings.directoryWhitelist);
+        settingsLog.info('Synced directoryWhitelist to ToolOrchestrator', {
+          paths: settings.directoryWhitelist,
+        });
+      }
       return Promise.resolve();
     },
   );
