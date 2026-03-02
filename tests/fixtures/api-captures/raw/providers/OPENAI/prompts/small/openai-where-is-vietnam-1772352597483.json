@@ -1,12 +1,12 @@
 [
   {
-    "id": "0ffcb4d8-a62e-4a9e-a868-bf5d9472465c",
-    "threadId": "1ea45e34-3ae5-43b8-8bd8-6d530174ac21",
+    "id": "1bddf863-38c0-4aeb-96c6-454ed10c810e",
+    "threadId": "a308680d-aa18-4ca9-8b9e-d348358763f2",
     "branchId": "1.0.0.0",
     "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "user",
-    "content": "just respond ok1",
+    "content": "where is Vietnam?",
     "rawData": {
       "model": "gpt-5.2-chat-latest",
       "tools": [
@@ -208,7 +208,7 @@
       "messages": [
         {
           "role": "user",
-          "content": "just respond ok1"
+          "content": "where is Vietnam?"
         }
       ]
     },
@@ -413,29 +413,29 @@
     "status": "chat",
     "createdUserId": "fynn.truong@nkk.com.vn",
     "tokens": 975,
-    "createdAt": "2026-02-26T15:48:29.479",
-    "updatedAt": "2026-02-26T15:48:29.479"
+    "createdAt": "2026-03-01T08:09:54.375",
+    "updatedAt": "2026-03-01T08:09:54.375"
   },
   {
-    "id": "d981a187-a4ce-481b-ac00-0d9a6af7912a",
-    "threadId": "1ea45e34-3ae5-43b8-8bd8-6d530174ac21",
+    "id": "eee0d182-b3f6-446b-99af-9ed691ef5526",
+    "threadId": "a308680d-aa18-4ca9-8b9e-d348358763f2",
     "branchId": "1.0.0.0",
     "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "assistant",
-    "content": "ok1",
+    "content": "Vietnam is a country in **Southeast Asia**.\n\nIt is located on the **eastern edge of the Indochina Peninsula** and borders:\n\n- **China** to the north  \n- **Laos** to the northwest  \n- **Cambodia** to the southwest  \n- The **South China Sea** to the east and south  \n\nIts capital city is **Hanoi**, and its largest city is **Ho Chi Minh City** (formerly Saigon).\n\nIf you'd like, I can show it on a map 😊",
     "rawData": {
-      "ts": 1772120910870,
-      "seq": 7,
-      "text": "ok1",
+      "ts": 1772352597186,
+      "seq": 215,
+      "text": "Vietnam is a country in **Southeast Asia**.\n\nIt is located on the **eastern edge of the Indochina Peninsula** and borders:\n\n- **China** to the north  \n- **Laos** to the northwest  \n- **Cambodia** to the southwest  \n- The **South China Sea** to the east and south  \n\nIts capital city is **Hanoi**, and its largest city is **Ho Chi Minh City** (formerly Saigon).\n\nIf you'd like, I can show it on a map 😊",
       "type": "done",
       "message": {
-        "id": "chatcmpl-DDXtFQjxwk8xboGV0WhRe2t2kNISu",
+        "id": "chatcmpl-DEWA7zMZ7b6pPrdOqF2zzaRQ5waWv",
         "model": "gpt-5.2-chat-latest",
         "usage": {
-          "total_tokens": 986,
+          "total_tokens": 1084,
           "prompt_tokens": 975,
-          "completion_tokens": 11,
+          "completion_tokens": 109,
           "prompt_tokens_details": {
             "audio_tokens": 0,
             "cached_tokens": 0
@@ -449,23 +449,23 @@
         },
         "object": "chat.completion.chunk",
         "choices": [],
-        "created": 1772120909,
-        "obfuscation": "uPLGe2",
+        "created": 1772352595,
+        "obfuscation": "W7KY",
         "service_tier": "default",
         "system_fingerprint": null
       },
       "metrics": {
         "inputTokens": 0,
         "outputTokens": 0,
-        "timeToFirstToken": 1355,
-        "totalProcessingTime": 1390
+        "timeToFirstToken": 1742,
+        "totalProcessingTime": 2810
       },
-      "requestId": "a4b321b0-9466-480b-8dcc-4d0d4b0c1b3b"
+      "requestId": "9a4509a4-aec1-4494-b316-ecd8fe865a11"
     },
     "status": "success",
     "createdUserId": "fynn.truong@nkk.com.vn",
-    "tokens": 11,
-    "createdAt": "2026-02-26T15:48:30.87",
-    "updatedAt": "2026-02-26T15:48:30.87"
+    "tokens": 109,
+    "createdAt": "2026-03-01T08:09:57.186",
+    "updatedAt": "2026-03-01T08:09:57.186"
   }
 ]

@@ -1,14 +1,14 @@
 [
   {
-    "id": "331799e8-18b4-41ac-8c78-7a80cfc06b80",
-    "threadId": "80b34351-4ee5-4763-b6a9-05ba81a75549",
+    "id": "0b53ecb5-07a0-4505-8219-ff92c7ea1cbe",
+    "threadId": "5b8334c6-9c26-4b0c-8f80-0ca036772c53",
     "branchId": "1.0.0.0",
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "user",
-    "content": "please read aaa.txt content",
+    "content": "could you read aaa.txt file?",
     "rawData": {
-      "model": "gpt-3.5-turbo",
+      "model": "gpt-5.2-chat-latest",
       "tools": [
         {
           "type": "function",
@@ -208,7 +208,7 @@
       "messages": [
         {
           "role": "user",
-          "content": "please read aaa.txt content"
+          "content": "could you read aaa.txt file?"
         }
       ]
     },
@@ -412,30 +412,30 @@
     },
     "status": "chat",
     "createdUserId": "fynn.truong@nkk.com.vn",
-    "tokens": 927,
-    "createdAt": "2026-02-27T09:23:30.734",
-    "updatedAt": "2026-02-27T09:23:30.734"
+    "tokens": 978,
+    "createdAt": "2026-03-01T14:38:06.208",
+    "updatedAt": "2026-03-01T14:38:06.208"
   },
   {
-    "id": "73e0cdd2-676b-438c-9010-02ff5dfb92d2",
-    "threadId": "80b34351-4ee5-4763-b6a9-05ba81a75549",
+    "id": "149db2ec-3e27-4b56-b851-b4d0432f0b2e",
+    "threadId": "5b8334c6-9c26-4b0c-8f80-0ca036772c53",
     "branchId": "1.0.0.0",
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "assistant",
-    "content": "{\"id\":\"chatcmpl-DDoMFWUBqUCJBDCZYycU1Lc79fDCj\",\"object\":\"chat.completion.chunk\",\"created\":1772184211,\"model\":\"gpt-3.5-turbo-0125\",\"service_tier\":\"default\",\"system_fingerprint\":null,\"choices\":[],\"usage\":{\"prompt_tokens\":927,\"completion_tokens\":16,\"total_tokens\":943,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"obfuscation\":\"2wwVWVs\"}",
+    "content": "{\"id\":\"chatcmpl-DEcDmc5HLQgGBw3N5wjFsb6qlmj5L\",\"object\":\"chat.completion.chunk\",\"created\":1772375886,\"model\":\"gpt-5.2-chat-latest\",\"service_tier\":\"default\",\"system_fingerprint\":null,\"choices\":[],\"usage\":{\"prompt_tokens\":978,\"completion_tokens\":25,\"total_tokens\":1003,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"obfuscation\":\"tUxzX\"}",
     "rawData": {
-      "ts": 1772184211704,
+      "ts": 1772375887125,
       "seq": 10,
-      "text": "{\"id\":\"chatcmpl-DDoMFWUBqUCJBDCZYycU1Lc79fDCj\",\"object\":\"chat.completion.chunk\",\"created\":1772184211,\"model\":\"gpt-3.5-turbo-0125\",\"service_tier\":\"default\",\"system_fingerprint\":null,\"choices\":[],\"usage\":{\"prompt_tokens\":927,\"completion_tokens\":16,\"total_tokens\":943,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"obfuscation\":\"2wwVWVs\"}",
+      "text": "{\"id\":\"chatcmpl-DEcDmc5HLQgGBw3N5wjFsb6qlmj5L\",\"object\":\"chat.completion.chunk\",\"created\":1772375886,\"model\":\"gpt-5.2-chat-latest\",\"service_tier\":\"default\",\"system_fingerprint\":null,\"choices\":[],\"usage\":{\"prompt_tokens\":978,\"completion_tokens\":25,\"total_tokens\":1003,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"obfuscation\":\"tUxzX\"}",
       "type": "done",
       "message": {
-        "id": "chatcmpl-DDoMFWUBqUCJBDCZYycU1Lc79fDCj",
-        "model": "gpt-3.5-turbo-0125",
+        "id": "chatcmpl-DEcDmc5HLQgGBw3N5wjFsb6qlmj5L",
+        "model": "gpt-5.2-chat-latest",
         "usage": {
-          "total_tokens": 943,
-          "prompt_tokens": 927,
-          "completion_tokens": 16,
+          "total_tokens": 1003,
+          "prompt_tokens": 978,
+          "completion_tokens": 25,
           "prompt_tokens_details": {
             "audio_tokens": 0,
             "cached_tokens": 0
@@ -449,8 +449,8 @@
         },
         "object": "chat.completion.chunk",
         "choices": [],
-        "created": 1772184211,
-        "obfuscation": "2wwVWVs",
+        "created": 1772375886,
+        "obfuscation": "tUxzX",
         "service_tier": "default",
         "system_fingerprint": null
       },
@@ -458,26 +458,26 @@
         "inputTokens": 0,
         "outputTokens": 0,
         "timeToFirstToken": 0,
-        "totalProcessingTime": 969
+        "totalProcessingTime": 916
       },
-      "requestId": "98b7c6fe-b12a-4499-adb8-3cb161541944"
+      "requestId": "435435cc-dc4c-4e2a-bc58-6492c9d16f15"
     },
     "status": "success",
     "createdUserId": "fynn.truong@nkk.com.vn",
-    "tokens": 16,
-    "createdAt": "2026-02-27T09:23:31.704",
-    "updatedAt": "2026-02-27T09:23:31.704"
+    "tokens": 25,
+    "createdAt": "2026-03-01T14:38:07.125",
+    "updatedAt": "2026-03-01T14:38:07.125"
   },
   {
-    "id": "d34e3f4f-33b3-4569-b9f7-616719c23fbc",
-    "threadId": "80b34351-4ee5-4763-b6a9-05ba81a75549",
+    "id": "5a6bd091-6af3-4d03-8b94-beb831cbddcf",
+    "threadId": "5b8334c6-9c26-4b0c-8f80-0ca036772c53",
     "branchId": "1.0.0.1",
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "user",
-    "content": "please read aaa.txt content",
+    "content": "could you read aaa.txt file?",
     "rawData": {
-      "model": "gpt-3.5-turbo",
+      "model": "gpt-5.2-chat-latest",
       "tools": [
         {
           "type": "function",
@@ -677,13 +677,13 @@
       "messages": [
         {
           "role": "user",
-          "content": "please read aaa.txt content"
+          "content": "could you read aaa.txt file?"
         },
         {
           "role": "assistant",
           "tool_calls": [
             {
-              "id": "call_CtX2sci7NvGTqQzFRRAa1WpB",
+              "id": "call_iGNfKgpAdz9dKJQdZTD9X5l5",
               "type": "function",
               "function": {
                 "name": "read_file",
@@ -694,8 +694,8 @@
         },
         {
           "role": "tool",
-          "content": "{\"success\":true,\"data\":{\"path\":\"/Users/nhandz/Documents/Work/desktop/aaa.txt\",\"content\":\"here is aaa content\",\"metadata\":{\"size\":19,\"lines\":1,\"modified\":1772121210804.5571,\"encoding\":\"utf-8\"},\"truncated\":false}}",
-          "tool_call_id": "call_CtX2sci7NvGTqQzFRRAa1WpB"
+          "content": "{\"success\":true,\"data\":{\"path\":\"/Users/nhandz/Documents/Work/desktop/aaa.txt\",\"content\":\"here is aaa content\",\"metadata\":{\"size\":19,\"lines\":1,\"modified\":1772352512179.2993,\"encoding\":\"utf-8\"},\"truncated\":false}}",
+          "tool_call_id": "call_iGNfKgpAdz9dKJQdZTD9X5l5"
         }
       ]
     },
@@ -899,30 +899,30 @@
     },
     "status": "chat",
     "createdUserId": "fynn.truong@nkk.com.vn",
-    "tokens": 1011,
-    "createdAt": "2026-02-27T09:23:31.95",
-    "updatedAt": "2026-02-27T09:23:31.95"
+    "tokens": 1071,
+    "createdAt": "2026-03-01T14:38:07.37",
+    "updatedAt": "2026-03-01T14:38:07.37"
   },
   {
-    "id": "6cb779c6-780a-4c8c-a816-565cfd9e83d1",
-    "threadId": "80b34351-4ee5-4763-b6a9-05ba81a75549",
+    "id": "afacb24f-b00c-4472-a752-a835ecb0b05e",
+    "threadId": "5b8334c6-9c26-4b0c-8f80-0ca036772c53",
     "branchId": "1.0.0.1",
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-5.2-chat-latest",
     "provider": "OPENAI",
     "role": "assistant",
-    "content": "The content of `aaa.txt` is:\n\n```\nhere is aaa content\n```",
+    "content": "Yes, here is the content of **aaa.txt**:\n\n```\nhere is aaa content\n```",
     "rawData": {
-      "ts": 1772184213362,
-      "seq": 37,
-      "text": "The content of `aaa.txt` is:\n\n```\nhere is aaa content\n```",
+      "ts": 1772375888035,
+      "seq": 43,
+      "text": "Yes, here is the content of **aaa.txt**:\n\n```\nhere is aaa content\n```",
       "type": "done",
       "message": {
-        "id": "chatcmpl-DDoMG1d3dHhMCRUZz1mclRj0X5zeA",
-        "model": "gpt-3.5-turbo-0125",
+        "id": "chatcmpl-DEcDnoBQU47vz7whjxKJVKNdIdusM",
+        "model": "gpt-5.2-chat-latest",
         "usage": {
-          "total_tokens": 1029,
-          "prompt_tokens": 1011,
-          "completion_tokens": 18,
+          "total_tokens": 1094,
+          "prompt_tokens": 1071,
+          "completion_tokens": 23,
           "prompt_tokens_details": {
             "audio_tokens": 0,
             "cached_tokens": 0
@@ -936,23 +936,23 @@
         },
         "object": "chat.completion.chunk",
         "choices": [],
-        "created": 1772184212,
-        "obfuscation": "kcgbI",
+        "created": 1772375887,
+        "obfuscation": "rqR2",
         "service_tier": "default",
         "system_fingerprint": null
       },
       "metrics": {
         "inputTokens": 0,
         "outputTokens": 0,
-        "timeToFirstToken": 1230,
-        "totalProcessingTime": 1412
+        "timeToFirstToken": 479,
+        "totalProcessingTime": 664
       },
-      "requestId": "d40e6c0c-11a4-430e-9fd2-fd2885724033"
+      "requestId": "1772c2bc-1c80-4ba9-9576-dee64a0a572a"
     },
     "status": "success",
     "createdUserId": "fynn.truong@nkk.com.vn",
-    "tokens": 18,
-    "createdAt": "2026-02-27T09:23:33.362",
-    "updatedAt": "2026-02-27T09:23:33.362"
+    "tokens": 23,
+    "createdAt": "2026-03-01T14:38:08.035",
+    "updatedAt": "2026-03-01T14:38:08.035"
   }
 ]

@@ -508,13 +508,13 @@ describe('ThreadRepository — message handling scenarios', () => {
   // captured via CAPTURE_API_DATA=true and placed in the fixture dir.
   // ────────────────────────────────────────────────────────────────
 
-  // TODO: Uncomment after capturing live data
+  // TODO: Uncomment Gemini once we have a Gemini captures
   //
   describe('captured JSON fixtures', () => {
     it.each([
       ['scenario 20: successful OpenAI turn', 'turns/successful-openai-turn.json'],
       ['scenario 21: successful Claude turn', 'turns/successful-claude-turn.json'],
-      ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
+      // ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
       ['scenario 23: tool call response', 'tool-calls/tool-call-read-file.json'],
       ['scenario 24: guard blocked', 'guard/guard-blocked.json'],
       ['scenario 25: error response', 'errors/error-400-invalid-request.json'],

@@ -1,0 +1,71 @@
+[
+  {
+    "id": "327c4deb-c8d7-44e0-aa93-fc21ea35f2c4",
+    "threadId": "f16f3f94-7d94-41ab-9391-f6d0afded810",
+    "branchId": "1.0.0",
+    "model": "devstral:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "read /Users/nhandz/Documents/Work/desktop/aaa.txt",
+    "rawData": {
+      "model": "devstral:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "read /Users/nhandz/Documents/Work/desktop/aaa.txt"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 1241,
+    "createdAt": "2026-03-01T15:46:27.234",
+    "updatedAt": "2026-03-01T15:46:27.234"
+  },
+  {
+    "id": "60629497-7c65-4915-b82b-d57cff305a43",
+    "threadId": "f16f3f94-7d94-41ab-9391-f6d0afded810",
+    "branchId": "1.0.0",
+    "model": "devstral:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "I'm unable to access or read files directly from your system. However, if you provide me with the contents of the file or describe what information you need, I'd be happy to help you with that!",
+    "rawData": {
+      "ts": 1772379989869,
+      "seq": 85,
+      "text": "I'm unable to access or read files directly from your system. However, if you provide me with the contents of the file or describe what information you need, I'd be happy to help you with that!",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "devstral:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:46:29.867047663Z",
+        "eval_count": 43,
+        "done_reason": "stop",
+        "eval_duration": 473580715,
+        "load_duration": 1837734227,
+        "total_duration": 2632359136,
+        "prompt_eval_count": 1241,
+        "prompt_eval_duration": 317004534
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 2162,
+        "totalProcessingTime": 2634
+      },
+      "requestId": "5b00cc70-460d-4e94-b535-14148cf0e849"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 43,
+    "createdAt": "2026-03-01T15:46:29.869",
+    "updatedAt": "2026-03-01T15:46:29.869"
+  }
+]

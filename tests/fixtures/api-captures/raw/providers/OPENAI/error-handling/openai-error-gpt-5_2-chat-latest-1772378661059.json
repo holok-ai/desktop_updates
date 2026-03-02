@@ -1,9 +1,9 @@
 {
   "provider": "openai",
-  "model": "claude-opus-4-6",
-  "threadId": "2dd86833-5ba3-45a4-b789-b7ba8b863446",
+  "model": "gpt-5.2-chat-latest",
+  "threadId": "522ff4e0-32f1-4330-ba13-6fb5b1b3ba5c",
   "branchId": "1.0.0",
-  "originalPrompt": "please read aaa.txt content",
+  "originalPrompt": "Check this for PII and tell me if it’s safe to store in logs: Full name: John Smith, DOB: 01/01/1990, SSN: 123-45-6789",
   "error": {
     "status": 400,
     "headers": {
@@ -11,7 +11,7 @@
       "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
       "access-control-allow-origin": "*",
       "content-type": "application/json",
-      "date": "Fri, 27 Feb 2026 08:23:18 GMT",
+      "date": "Sun, 01 Mar 2026 15:24:21 GMT",
       "transfer-encoding": "chunked",
       "x-powered-by": "Express"
     }

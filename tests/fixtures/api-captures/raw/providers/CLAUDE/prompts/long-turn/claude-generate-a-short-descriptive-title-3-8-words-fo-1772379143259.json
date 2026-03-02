@@ -1,0 +1,1165 @@
+[
+  {
+    "id": "350ca8a3-66b9-412c-b7e2-2cda603c5936",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "0.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "user",
+    "content": "Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. Messages: [\"what is the date today\",\"could you do an online search?\"]",
+    "rawData": {
+      "model": "claude-sonnet-4-6",
+      "tools": [
+        {
+          "name": "read_folder",
+          "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the folder (can be relative to working directory or absolute)"
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum recursion depth when recursive is true. Default: 3"
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "If true, list subdirectories recursively. Default: false"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Include hidden files (starting with .). Default: false"
+              },
+              "filter_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_file",
+          "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Read to this line number (1-indexed). Useful for large files."
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Read from this line number (1-indexed). Useful for large files."
+              }
+            }
+          }
+        },
+        {
+          "name": "write_file",
+          "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content to write to the file."
+              },
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+              }
+            }
+          }
+        },
+        {
+          "name": "windows_shell",
+          "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+              }
+            }
+          }
+        },
+        {
+          "name": "unix_shell",
+          "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_word",
+          "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files).",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .docx file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_excel",
+          "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+              },
+              "sheet_name": {
+                "type": "string",
+                "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+              }
+            }
+          }
+        },
+        {
+          "name": "read_pdf",
+          "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. Messages: [\"what is the date today\",\"could you do an online search?\"]"
+        }
+      ],
+      "max_tokens": 8096
+    },
+    "options": {
+      "stream": true,
+      "max_tokens": 8096
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 1943,
+    "createdAt": "2026-03-01T15:32:07.539",
+    "updatedAt": "2026-03-01T15:32:07.539"
+  },
+  {
+    "id": "a4b514cf-3699-4382-90f4-ec5ceebca893",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "0.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "Current Date and Online Search Capabilities",
+    "rawData": {
+      "ts": 1772379128516,
+      "seq": 17,
+      "text": "Current Date and Online Search Capabilities",
+      "type": "done",
+      "message": {
+        "id": "msg_01PqCsrcEHhd1yFWNLQpifed",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 1943,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 10,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "text": "Current Date and Online Search Capabilities",
+            "type": "text"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 606,
+        "totalProcessingTime": 976
+      },
+      "requestId": "8be307ee-d558-48a4-943d-4d89802a5d38"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 10,
+    "createdAt": "2026-03-01T15:32:08.516",
+    "updatedAt": "2026-03-01T15:32:08.516"
+  },
+  {
+    "id": "9c375efc-8182-4b45-988d-f83faadbea0d",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "1.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "user",
+    "content": "what is the date today",
+    "rawData": {
+      "model": "claude-sonnet-4-6",
+      "tools": [
+        {
+          "name": "read_folder",
+          "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the folder (can be relative to working directory or absolute)"
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum recursion depth when recursive is true. Default: 3"
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "If true, list subdirectories recursively. Default: false"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Include hidden files (starting with .). Default: false"
+              },
+              "filter_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_file",
+          "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Read to this line number (1-indexed). Useful for large files."
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Read from this line number (1-indexed). Useful for large files."
+              }
+            }
+          }
+        },
+        {
+          "name": "write_file",
+          "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content to write to the file."
+              },
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+              }
+            }
+          }
+        },
+        {
+          "name": "windows_shell",
+          "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+              }
+            }
+          }
+        },
+        {
+          "name": "unix_shell",
+          "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_word",
+          "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files).",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .docx file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_excel",
+          "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+              },
+              "sheet_name": {
+                "type": "string",
+                "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+              }
+            }
+          }
+        },
+        {
+          "name": "read_pdf",
+          "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is the date today"
+        }
+      ],
+      "max_tokens": 8096
+    },
+    "options": {
+      "stream": true,
+      "max_tokens": 8096
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 1870,
+    "createdAt": "2026-03-01T15:31:46.899",
+    "updatedAt": "2026-03-01T15:31:46.899"
+  },
+  {
+    "id": "8a74f7bd-f723-442a-8f07-e8b0eef46fbc",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "1.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01UQUZTSyitgNgkA37HF3Lrk\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01JgRwvyKkm6QEBgUhqgDZFn\",\"name\":\"unix_shell\",\"input\":{\"command\":\"date\"},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":1870,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":54,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"parsed_output\":null}",
+    "rawData": {
+      "ts": 1772379109034,
+      "seq": 11,
+      "text": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01UQUZTSyitgNgkA37HF3Lrk\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01JgRwvyKkm6QEBgUhqgDZFn\",\"name\":\"unix_shell\",\"input\":{\"command\":\"date\"},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":1870,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":54,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"parsed_output\":null}",
+      "type": "done",
+      "message": {
+        "id": "msg_01UQUZTSyitgNgkA37HF3Lrk",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 1870,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 54,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "id": "toolu_01JgRwvyKkm6QEBgUhqgDZFn",
+            "name": "unix_shell",
+            "type": "tool_use",
+            "input": {
+              "command": "date"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 0,
+        "totalProcessingTime": 2134
+      },
+      "requestId": "ed2e3f6a-82f1-4791-a82d-8c00c689d608"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 54,
+    "createdAt": "2026-03-01T15:31:49.034",
+    "updatedAt": "2026-03-01T15:31:49.034"
+  },
+  {
+    "id": "c54d1991-0402-4811-9989-e377a5f03e79",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "1.0.0.1",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01BCGtPXYUMG7wWU18EwhxMY\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_019T51njnkPwvKJm9vdvFo7g\",\"name\":\"unix_shell\",\"input\":{\"command\":\"echo\",\"arguments\":\"$(date)\"},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":2012,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":71,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"parsed_output\":null}",
+    "rawData": {
+      "ts": 1772379111187,
+      "seq": 14,
+      "text": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01BCGtPXYUMG7wWU18EwhxMY\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_019T51njnkPwvKJm9vdvFo7g\",\"name\":\"unix_shell\",\"input\":{\"command\":\"echo\",\"arguments\":\"$(date)\"},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":2012,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":71,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"parsed_output\":null}",
+      "type": "done",
+      "message": {
+        "id": "msg_01BCGtPXYUMG7wWU18EwhxMY",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 2012,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 71,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "id": "toolu_019T51njnkPwvKJm9vdvFo7g",
+            "name": "unix_shell",
+            "type": "tool_use",
+            "input": {
+              "command": "echo",
+              "arguments": "$(date)"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 0,
+        "totalProcessingTime": 1398
+      },
+      "requestId": "93d9f65a-75b4-4e40-bc6b-980c42fbe1d3"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 71,
+    "createdAt": "2026-03-01T15:31:51.187",
+    "updatedAt": "2026-03-01T15:31:51.187"
+  },
+  {
+    "id": "36b08097-a410-4915-a71c-eaa11add2c9a",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "1.0.0.2",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "Today's date is **Sunday, March 1, 2026**. The current time is **10:31 PM (UTC+7)**.",
+    "rawData": {
+      "ts": 1772379112824,
+      "seq": 27,
+      "text": "Today's date is **Sunday, March 1, 2026**. The current time is **10:31 PM (UTC+7)**.",
+      "type": "done",
+      "message": {
+        "id": "msg_01QWrkqukKmKafqWNDXU2rTX",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 2136,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 35,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "text": "Today's date is **Sunday, March 1, 2026**. The current time is **10:31 PM (UTC+7)**.",
+            "type": "text"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 838,
+        "totalProcessingTime": 1341
+      },
+      "requestId": "47673ecc-018d-4076-91bc-2a534b29cd2c"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 35,
+    "createdAt": "2026-03-01T15:31:52.824",
+    "updatedAt": "2026-03-01T15:31:52.824"
+  },
+  {
+    "id": "2e74af4d-a5cf-4a28-8621-a76424caf8b7",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "2.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "user",
+    "content": "could you do an online search?",
+    "rawData": {
+      "model": "claude-sonnet-4-6",
+      "tools": [
+        {
+          "name": "read_folder",
+          "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the folder (can be relative to working directory or absolute)"
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum recursion depth when recursive is true. Default: 3"
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "If true, list subdirectories recursively. Default: false"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Include hidden files (starting with .). Default: false"
+              },
+              "filter_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_file",
+          "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Read to this line number (1-indexed). Useful for large files."
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Read from this line number (1-indexed). Useful for large files."
+              }
+            }
+          }
+        },
+        {
+          "name": "write_file",
+          "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content to write to the file."
+              },
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+              }
+            }
+          }
+        },
+        {
+          "name": "windows_shell",
+          "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+              }
+            }
+          }
+        },
+        {
+          "name": "unix_shell",
+          "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_word",
+          "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files).",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .docx file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_excel",
+          "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+              },
+              "sheet_name": {
+                "type": "string",
+                "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+              }
+            }
+          }
+        },
+        {
+          "name": "read_pdf",
+          "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is the date today"
+        },
+        {
+          "role": "assistant",
+          "content": "Today's date is **Sunday, March 1, 2026**. The current time is **10:31 PM (UTC+7)**."
+        },
+        {
+          "role": "user",
+          "content": "could you do an online search?"
+        }
+      ],
+      "max_tokens": 8096
+    },
+    "options": {
+      "stream": true,
+      "max_tokens": 8096
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 1915,
+    "createdAt": "2026-03-01T15:32:01.961",
+    "updatedAt": "2026-03-01T15:32:01.961"
+  },
+  {
+    "id": "f997f73e-4c68-48df-ba62-dccd802d3d62",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "2.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "I'm sorry, but I **cannot perform online searches**. I don't have access to the internet or any web browsing tools in my current setup.\n\nHere's what I **can** do:\n- 📁 Read and write files on your local filesystem\n- 📄 Read Word, Excel, and PDF documents\n- 💻 Execute shell commands (Windows or Unix/Linux/macOS)\n- 🔧 Work with Git and other whitelisted command-line tools\n\nIf you need online information, I'd suggest:\n- Using a web browser to search manually\n- Using a tool like **ChatGPT with browsing**, **Perplexity AI**, or **Google**\n\nIs there anything else I can help you with using my available tools?",
+    "rawData": {
+      "ts": 1772379126017,
+      "seq": 137,
+      "text": "I'm sorry, but I **cannot perform online searches**. I don't have access to the internet or any web browsing tools in my current setup.\n\nHere's what I **can** do:\n- 📁 Read and write files on your local filesystem\n- 📄 Read Word, Excel, and PDF documents\n- 💻 Execute shell commands (Windows or Unix/Linux/macOS)\n- 🔧 Work with Git and other whitelisted command-line tools\n\nIf you need online information, I'd suggest:\n- Using a web browser to search manually\n- Using a tool like **ChatGPT with browsing**, **Perplexity AI**, or **Google**\n\nIs there anything else I can help you with using my available tools?",
+      "type": "done",
+      "message": {
+        "id": "msg_018EiB8YoxvJEnZvqVYMhnW6",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 1915,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 173,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "text": "I'm sorry, but I **cannot perform online searches**. I don't have access to the internet or any web browsing tools in my current setup.\n\nHere's what I **can** do:\n- 📁 Read and write files on your local filesystem\n- 📄 Read Word, Excel, and PDF documents\n- 💻 Execute shell commands (Windows or Unix/Linux/macOS)\n- 🔧 Work with Git and other whitelisted command-line tools\n\nIf you need online information, I'd suggest:\n- Using a web browser to search manually\n- Using a tool like **ChatGPT with browsing**, **Perplexity AI**, or **Google**\n\nIs there anything else I can help you with using my available tools?",
+            "type": "text"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 602,
+        "totalProcessingTime": 4055
+      },
+      "requestId": "431904ef-07c9-4288-9051-8c173586a802"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 173,
+    "createdAt": "2026-03-01T15:32:06.017",
+    "updatedAt": "2026-03-01T15:32:06.017"
+  },
+  {
+    "id": "511515af-ef69-4d42-baa2-332b912885f3",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "3.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "user",
+    "content": "what is the price of bitcoin",
+    "rawData": {
+      "model": "claude-sonnet-4-6",
+      "tools": [
+        {
+          "name": "read_folder",
+          "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the folder (can be relative to working directory or absolute)"
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum recursion depth when recursive is true. Default: 3"
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "If true, list subdirectories recursively. Default: false"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Include hidden files (starting with .). Default: false"
+              },
+              "filter_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_file",
+          "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Read to this line number (1-indexed). Useful for large files."
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Read from this line number (1-indexed). Useful for large files."
+              }
+            }
+          }
+        },
+        {
+          "name": "write_file",
+          "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content to write to the file."
+              },
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+              }
+            }
+          }
+        },
+        {
+          "name": "windows_shell",
+          "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+              }
+            }
+          }
+        },
+        {
+          "name": "unix_shell",
+          "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_word",
+          "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files).",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .docx file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_excel",
+          "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+              },
+              "sheet_name": {
+                "type": "string",
+                "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+              }
+            }
+          }
+        },
+        {
+          "name": "read_pdf",
+          "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is the date today"
+        },
+        {
+          "role": "assistant",
+          "content": "Today's date is **Sunday, March 1, 2026**. The current time is **10:31 PM (UTC+7)**."
+        },
+        {
+          "role": "user",
+          "content": "could you do an online search?"
+        },
+        {
+          "role": "assistant",
+          "content": "I'm sorry, but I **cannot perform online searches**. I don't have access to the internet or any web browsing tools in my current setup.\n\nHere's what I **can** do:\n- 📁 Read and write files on your local filesystem\n- 📄 Read Word, Excel, and PDF documents\n- 💻 Execute shell commands (Windows or Unix/Linux/macOS)\n- 🔧 Work with Git and other whitelisted command-line tools\n\nIf you need online information, I'd suggest:\n- Using a web browser to search manually\n- Using a tool like **ChatGPT with browsing**, **Perplexity AI**, or **Google**\n\nIs there anything else I can help you with using my available tools?"
+        },
+        {
+          "role": "user",
+          "content": "what is the price of bitcoin"
+        }
+      ],
+      "max_tokens": 8096
+    },
+    "options": {
+      "stream": true,
+      "max_tokens": 8096
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 2097,
+    "createdAt": "2026-03-01T15:32:18.606",
+    "updatedAt": "2026-03-01T15:32:18.606"
+  },
+  {
+    "id": "58f8ed6c-293d-4efb-b245-56288ffaa736",
+    "threadId": "b2d35126-a1c4-4abf-8358-e061c59b7b7c",
+    "branchId": "3.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "I'm sorry, but I **cannot look up the current price of Bitcoin** as I don't have access to the internet or any real-time data feeds.\n\nTo check the current Bitcoin price, you can visit these websites directly:\n\n- 🌐 **[CoinMarketCap](https://coinmarketcap.com)** - coinmarketcap.com\n- 🌐 **[CoinGecko](https://coingecko.com)** - coingecko.com\n- 🌐 **[Binance](https://binance.com)** - binance.com\n- 🌐 **[Google](https://google.com)** - Just search **\"Bitcoin price\"**\n\nThese will give you the most **up-to-date and accurate** Bitcoin price in real time. Is there anything else I can help you with?",
+    "rawData": {
+      "ts": 1772379142003,
+      "seq": 107,
+      "text": "I'm sorry, but I **cannot look up the current price of Bitcoin** as I don't have access to the internet or any real-time data feeds.\n\nTo check the current Bitcoin price, you can visit these websites directly:\n\n- 🌐 **[CoinMarketCap](https://coinmarketcap.com)** - coinmarketcap.com\n- 🌐 **[CoinGecko](https://coingecko.com)** - coingecko.com\n- 🌐 **[Binance](https://binance.com)** - binance.com\n- 🌐 **[Google](https://google.com)** - Just search **\"Bitcoin price\"**\n\nThese will give you the most **up-to-date and accurate** Bitcoin price in real time. Is there anything else I can help you with?",
+      "type": "done",
+      "message": {
+        "id": "msg_01QnQXhj6WzXv1BA3L7EC3aB",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 2097,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 203,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "text": "I'm sorry, but I **cannot look up the current price of Bitcoin** as I don't have access to the internet or any real-time data feeds.\n\nTo check the current Bitcoin price, you can visit these websites directly:\n\n- 🌐 **[CoinMarketCap](https://coinmarketcap.com)** - coinmarketcap.com\n- 🌐 **[CoinGecko](https://coingecko.com)** - coingecko.com\n- 🌐 **[Binance](https://binance.com)** - binance.com\n- 🌐 **[Google](https://google.com)** - Just search **\"Bitcoin price\"**\n\nThese will give you the most **up-to-date and accurate** Bitcoin price in real time. Is there anything else I can help you with?",
+            "type": "text"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 589,
+        "totalProcessingTime": 3396
+      },
+      "requestId": "d6b9fc5a-5972-4626-b822-6f09a455dae4"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 203,
+    "createdAt": "2026-03-01T15:32:22.003",
+    "updatedAt": "2026-03-01T15:32:22.003"
+  }
+]
