@@ -47,7 +47,8 @@
     "test:unit": "vitest run",
     "test:integration": "vitest run tests/integration",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npm run build:prod && playwright test"
+    "test:e2e": "npm run build:prod && playwright test",
+    "check:moku-assistants": "node scripts/check-moku-assistants.js \"dsk-ut-ollama,dsk-ut-claude,dsk-ut-openai,dsk-ut-openai-guard\""
   },
   "keywords": [
     "electron",
