@@ -708,9 +708,6 @@ export class ThreadRepository {
     }
 
     // Set token count: use API-provided value, fall back to content-length estimate
-    console.log(
-      `[mapDTOToMessage] id=${dto.id} role=${dto.role} dto.tokens=${String(dto.tokens)} → resolved=${String(dto.tokens ?? Math.ceil(message.content.length / 4))}`,
-    );
     message.tokens = dto.tokens ?? Math.ceil(message.content.length / 4);
 
     return message;
