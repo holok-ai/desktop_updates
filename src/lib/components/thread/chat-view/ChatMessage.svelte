@@ -24,7 +24,11 @@
     attachments?: string[];
 
     /** Assistant responses (array to support multiple consecutive responses) */
-    responses?: Array<{ id: string; content: string }>;
+    responses?: Array<{
+      id: string;
+      content: string;
+      tools?: Array<{ name: string; status: string }>;
+    }>;
     /** Streaming content for active streaming response */
     streamingContent?: string;
     /** Whether the response is still streaming */
@@ -147,7 +151,7 @@
       content={response.content}
       {chatLayout}
       isStreaming={false}
-      {tools}
+      tools={response.tools ?? []}
       {files}
       {fontSize}
     />

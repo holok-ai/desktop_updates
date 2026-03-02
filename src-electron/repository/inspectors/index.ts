@@ -4,3 +4,4 @@ export { PlaceholderInspector } from './placeholder-inspector.js';
 export { GuardInspector } from './guard-inspector.js';
 export { ObserverPromptsInspector } from './observer-prompts-inspector.js';
 export { ToolUseInspector } from './tooluse-inspector.js';
+export { ResponseCompletedInspector } from './response-completed-inspector.js';

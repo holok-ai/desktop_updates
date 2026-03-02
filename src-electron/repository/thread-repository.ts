@@ -21,6 +21,7 @@ import {
   GuardInspector,
   ObserverPromptsInspector,
   ToolUseInspector,
+  ResponseCompletedInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -33,6 +34,7 @@ export class ThreadRepository {
 
   private readonly messageInspectors: IMessageInspector[] = [
     new ObserverPromptsInspector(),
+    new ResponseCompletedInspector(),
     new ToolUseInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
@@ -672,13 +674,9 @@ export class ThreadRepository {
    * Converts ISO-8601 timestamps to epoch milliseconds.
    */
   private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
-    let branchId = dto.branchId;
-    if (!branchId) {
-      branchId = '1.0.0';
-    } else {
-      // Normalize/cap to 3-part format
-      branchId = this.normalizeBranchId(branchId);
-    }
+    const rawBranchId = dto.branchId || '1.0.0';
+    const normalizedBranchId = this.normalizeBranchId(rawBranchId);
+    const branchId = normalizedBranchId;
 
     const opts = dto.options as { desktop_options?: RequestOptionsDTO } | null;
     const desktopOptions = opts?.desktop_options ?? null;
@@ -695,6 +693,8 @@ export class ThreadRepository {
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId,
+      rawBranchId,
+      normalizedBranchId,
       modelId: dto.model || '',
       provider: dto.provider || '',
       guardExecution: 'none',
