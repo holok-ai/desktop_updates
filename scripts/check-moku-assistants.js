@@ -54,12 +54,28 @@ function buildErrorResult(errorMessage) {
 
 async function main() {
   const assistantsArg = process.argv[2];
-  const defaultAssistants = 'dsk-ut-ollama,dsk-ut-claude,dsk-ut-openai,dsk-ut-openai-guard';
+  if (!assistantsArg || assistantsArg.trim().length === 0) {
+    const result = buildErrorResult(
+      'Parameter containing comma separated list of assistants was not provided.',
+    );
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = 1;
+    return;
+  }
 
-  const assistantNames = (assistantsArg || defaultAssistants)
+  const assistantNames = assistantsArg
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+  if (assistantNames.length === 0) {
+    const result = buildErrorResult(
+      'Parameter containing comma separated list of assistants was not provided.',
+    );
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = 1;
+    return;
+  }
 
   const apiKey =
     process.env.TEST_API_KEY || process.env.MOKU_API_KEY || process.env.MOKU_TEST_API_KEY || '';
@@ -91,14 +107,14 @@ async function main() {
   const mokuWebUrl = settings.mokuWebUrl;
 
   if (!mokuApiUrl || typeof mokuApiUrl !== 'string') {
-    const result = buildErrorResult('Could not open settings');
+    const result = buildErrorResult('Moku Api URL was not found in settings or was empty');
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = 1;
     return;
   }
 
   if (isLocalhostUrl(mokuApiUrl) || isLocalhostUrl(mokuWebUrl)) {
-    const result = buildErrorResult('Connection URL is using localhost - not allowed');
+    const result = buildErrorResult('Moku Api URL is using localhost - not allowed');
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = 1;
     return;
@@ -107,7 +123,8 @@ async function main() {
   // Step 1: exchange apiKey for accessToken (same as MokuService.exchangeApiKeyForAccessToken)
   let accessToken;
   try {
-    const refreshResponse = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+    const refreshUrl = `${mokuApiUrl}/api/auth/token/refresh`;
+    const refreshResponse = await fetch(refreshUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -128,14 +145,14 @@ async function main() {
     const json = await refreshResponse.json();
     accessToken = json.accessToken;
     if (!accessToken || typeof accessToken !== 'string') {
-      const result = buildErrorResult('Could not authenticate with Moku API');
+      const result = buildErrorResult('Did not receive access token from refresh');
       console.log(JSON.stringify(result, null, 2));
       process.exitCode = 1;
       return;
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const result = buildErrorResult(`Could not connect to Moku API (${msg})`);
+    const refreshUrl = `${mokuApiUrl}/api/auth/token/refresh`;
+    const result = buildErrorResult(`Could not connect to Moku API (${refreshUrl})`);
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = 1;
     return;
@@ -144,7 +161,8 @@ async function main() {
   // Step 2: fetch assistants (agents) list
   let agents;
   try {
-    const agentsResponse = await fetch(`${mokuApiUrl}/api/v1/agents`, {
+    const agentsUrl = `${mokuApiUrl}/api/v1/agents`;
+    const agentsResponse = await fetch(agentsUrl, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -165,8 +183,8 @@ async function main() {
 
     agents = await agentsResponse.json();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const result = buildErrorResult(`Could not connect to Moku API (${msg})`);
+    const agentsUrl = `${mokuApiUrl}/api/v1/agents`;
+    const result = buildErrorResult(`Error getting list of agents (${agentsUrl})`);
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = 1;
     return;
@@ -232,6 +250,8 @@ async function main() {
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) {
     process.exitCode = 1;
+  } else {
+    console.log(`All ${assistantNames.length} assistants were found and contain at least 1 model.`);
   }
 }
 
