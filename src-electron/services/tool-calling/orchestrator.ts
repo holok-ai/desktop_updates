@@ -145,9 +145,6 @@ export class ToolOrchestrator implements ToolOrchestra {
       // List of Ollama models that support tool calling
       const toolSupportedModels = [
         'qwen2.5:7b',
-        'qwen3:latest',
-        'llama3.2:latest',
-        'devstral:latest',
         // Add more tool-supporting Ollama models here as needed
       ];
 
