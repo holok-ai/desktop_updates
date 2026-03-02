@@ -85,11 +85,12 @@ export class ResponseCompletedInspector implements IMessageInspector {
     branchId: string,
   ): Message | null {
     const targetBranch = this.normalizeBranchId(branchId);
-    for (let i = startIndex - 1; i >= 0; i--) {
+    for (let i = startIndex + 1; i < messages.length; i++) {
       // eslint-disable-next-line security/detect-object-injection
       const candidate = messages[i];
       if (candidate.threadId !== threadId) continue;
       if (candidate.role !== 'assistant') continue;
+      if (candidate.isHidden === true) continue;
 
       const candidateBranch = this.normalizeBranchId(candidate.branchId);
       if (candidateBranch === targetBranch) {
