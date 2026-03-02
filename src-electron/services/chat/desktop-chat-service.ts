@@ -167,11 +167,9 @@ export class DesktopChatService {
     if (working_directory) {
       (request as unknown as { workingDirectory: string }).workingDirectory = working_directory;
     }
-    (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
-      onToolStatus || undefined;
     this.threadContext.threadId = threadId;
     this.threadContext.branchId = branchId;
-    this.threadContext.statusCallback = onToolStatus || undefined;
+    this.threadContext.toolUseCallback = onToolUse;
     if (working_directory) {
       this.threadContext.workingDirectory = working_directory;
     }

@@ -152,7 +152,7 @@
       content={response.content}
       {chatLayout}
       isStreaming={false}
-      tools={response.tools ?? []}
+      {tools}
       {files}
       {fontSize}
     />
