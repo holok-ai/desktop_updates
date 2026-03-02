@@ -148,7 +148,7 @@ const te = class te {
 /**
  * Maximum number of tool calling iterations to prevent infinite loops
  */
-w(te, "MAX_TOOL_ITERATIONS", 10);
+w(te, "MAX_TOOL_ITERATIONS", 50);
 let Z = te;
 class Zo {
   constructor(e) {
