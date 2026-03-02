@@ -671,13 +671,15 @@ export class ThreadRepository {
     const opts = dto.options as { desktop_options?: RequestOptionsDTO } | null;
     const desktopOptions = opts?.desktop_options ?? null;
 
+    const { contentText, toolUsesFromContent } = this.extractContentBlocks(dto.content);
+
     const message: Message = {
       id: dto.id,
       threadId: dto.threadId,
       title: threadTitle,
       userId: dto.createdUserId || '',
       role: dto.role as MessageRole,
-      content: (dto.content as string) || '',
+      content: contentText,
       createdAt: this.parseApiTimeMs(dto.createdAt),
       rawData: (dto.rawData as JsonValue) ?? undefined,
       deletedAt: null,
@@ -707,10 +709,14 @@ export class ThreadRepository {
       message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
     }
 
-    if (message.role === 'assistant' && message.rawData) {
-      const toolUses = this.extractToolUsesFromRawData(message.rawData);
-      if (toolUses.length > 0) {
-        message.toolUses = toolUses;
+    if (message.role === 'assistant') {
+      const toolUses = [
+        ...toolUsesFromContent,
+        ...(message.rawData ? this.extractToolUsesFromRawData(message.rawData) : []),
+      ];
+      const merged = this.mergeToolUses(toolUses);
+      if (merged.length > 0) {
+        message.toolUses = merged;
       }
     }
 
@@ -755,6 +761,86 @@ export class ThreadRepository {
       .filter((name): name is string => typeof name === 'string' && name.length > 0);
 
     return names.map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  private extractContentBlocks(content: unknown): {
+    contentText: string;
+    toolUsesFromContent: Array<{ name: string; status: 'complete' }>;
+  } {
+    if (Array.isArray(content)) {
+      const textParts: string[] = [];
+      const toolUses: Array<{ name: string; status: 'complete' }> = [];
+
+      for (const block of content) {
+        if (!block || typeof block !== 'object') continue;
+        const record = block as Record<string, unknown>;
+        const type = record.type;
+
+        if (type === 'text') {
+          const text = record.text;
+          if (typeof text === 'string') {
+            textParts.push(text);
+          }
+          continue;
+        }
+
+        if (type === 'tool_use') {
+          const name = record.name;
+          if (typeof name === 'string' && name.length > 0) {
+            toolUses.push({ name, status: 'complete' as const });
+          }
+        }
+      }
+
+      return {
+        contentText: textParts.join('\n'),
+        toolUsesFromContent: toolUses,
+      };
+    }
+
+    if (typeof content === 'string') {
+      return { contentText: content, toolUsesFromContent: [] };
+    }
+
+    if (content === null || content === undefined) {
+      return { contentText: '', toolUsesFromContent: [] };
+    }
+
+    if (typeof content === 'object') {
+      try {
+        return { contentText: JSON.stringify(content), toolUsesFromContent: [] };
+      } catch {
+        return { contentText: '', toolUsesFromContent: [] };
+      }
+    }
+
+    if (
+      typeof content === 'number' ||
+      typeof content === 'boolean' ||
+      typeof content === 'bigint'
+    ) {
+      return { contentText: content.toString(), toolUsesFromContent: [] };
+    }
+
+    if (typeof content === 'symbol') {
+      return { contentText: '', toolUsesFromContent: [] };
+    }
+
+    return { contentText: '', toolUsesFromContent: [] };
+  }
+
+  private mergeToolUses(
+    toolUses: Array<{ name: string; status: 'complete' }>,
+  ): Array<{ name: string; status: 'complete' }> {
+    if (toolUses.length === 0) return toolUses;
+    const seen = new Set<string>();
+    const merged: Array<{ name: string; status: 'complete' }> = [];
+    for (const toolUse of toolUses) {
+      if (!toolUse?.name || seen.has(toolUse.name)) continue;
+      seen.add(toolUse.name);
+      merged.push({ name: toolUse.name, status: 'complete' });
+    }
+    return merged;
   }
 
   /**

@@ -61,6 +61,7 @@ import {
   overLongBranchId,
   nullContent,
   toolCallInRawData,
+  toolUseInContentBlocks,
   desktopOptionsBlocked,
   desktopOptionsSelectedBranch,
 } from '../../fixtures/api-captures/message-scenarios';
@@ -160,6 +161,7 @@ describe('ThreadRepository — message handling scenarios', () => {
         ['nullBranchId', nullBranchId()],
         ['overLongBranchId', overLongBranchId()],
         ['toolCallInRawData', toolCallInRawData()],
+        ['toolUseInContentBlocks', toolUseInContentBlocks()],
         ['desktopOptionsBlocked', desktopOptionsBlocked()],
         ['desktopOptionsSelectedBranch', desktopOptionsSelectedBranch()],
       ];
@@ -430,6 +432,19 @@ describe('ThreadRepository — message handling scenarios', () => {
       const raw = assistant!.rawData as Record<string, unknown>;
       expect(raw).toHaveProperty('tool_calls');
       expect(raw).toHaveProperty('tool_results');
+    });
+  });
+
+  describe('tool use in content blocks', () => {
+    it('captures tool uses from content array blocks', async () => {
+      const result = await loadWithMessages(repo, toolUseInContentBlocks());
+
+      const assistant = result.messages.find((m) => m.role === 'assistant');
+      expect(assistant).toBeDefined();
+      expect(assistant!.content).toContain("I'll check how many files are in that folder");
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_folder');
     });
   });
 
