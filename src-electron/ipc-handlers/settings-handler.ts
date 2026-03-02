@@ -121,7 +121,7 @@ export function registerSettingsHandlers(): void {
     (_event, settings: Partial<AppSettings>): Promise<void> => {
       settingsLog.info('SetMultiple called', { settings });
       settingsService.setSettings(settings);
-      if (settings.directoryWhitelist !== undefined) {
+      if (settings.directoryWhitelist !== undefined && Array.isArray(settings.directoryWhitelist)) {
         ToolOrchestrator.getInstance().setAllowedPaths(settings.directoryWhitelist);
         settingsLog.info('Synced directoryWhitelist to ToolOrchestrator', {
           paths: settings.directoryWhitelist,
