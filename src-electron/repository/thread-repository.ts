@@ -20,6 +20,7 @@ import {
   PlaceholderInspector,
   GuardInspector,
   ObserverPromptsInspector,
+  ToolUseInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -32,6 +33,7 @@ export class ThreadRepository {
 
   private readonly messageInspectors: IMessageInspector[] = [
     new ObserverPromptsInspector(),
+    new ToolUseInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
     new GuardInspector(),
