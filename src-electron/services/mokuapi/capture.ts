@@ -229,7 +229,10 @@ export function captureMessagesToProvider(threadId: string, messages: unknown): 
     );
 
     const providerPrefix = provider.toLowerCase();
-    const filename = `${providerPrefix}_${modelSlug}-${kind}-${testSlug}.json`;
+    const dedupedModelSlug = modelSlug.startsWith(`${providerPrefix}-`)
+      ? modelSlug.slice(providerPrefix.length + 1)
+      : modelSlug;
+    const filename = `${providerPrefix}_${dedupedModelSlug}-${kind}-${testSlug}.json`;
     const filepath = join(dir, filename);
 
     // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -282,7 +285,10 @@ export function captureErrorToProvider(params: {
     );
 
     const providerPrefix = provider.toLowerCase();
-    const filename = `${providerPrefix}_${modelSlug}-${kind}-${testSlug}.json`;
+    const dedupedModelSlug = modelSlug.startsWith(`${providerPrefix}-`)
+      ? modelSlug.slice(providerPrefix.length + 1)
+      : modelSlug;
+    const filename = `${providerPrefix}_${dedupedModelSlug}-${kind}-${testSlug}.json`;
     const filepath = join(dir, filename);
 
     // eslint-disable-next-line security/detect-non-literal-fs-filename
