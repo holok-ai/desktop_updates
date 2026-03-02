@@ -111,12 +111,14 @@ export function registerThreadHandlers(): void {
           .filter((m) => !m.deletedAt)
           .sort((a, b) => a.createdAt - b.createdAt)
           .map((m) => ({ ...m }));
+        const toolUseCount = items.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
         threadLog.info(
           '[thread:getMessages] Loaded',
           t.messages.length,
           'total, returning',
           items.length,
           'after filtering',
+          { threadId: id, toolUseCount },
         );
         return apiOk(items);
       } catch (err: unknown) {

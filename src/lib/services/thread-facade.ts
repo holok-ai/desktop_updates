@@ -247,6 +247,10 @@ class ThreadFacade {
    * Crosses Message + Stream domains.
    */
   async getMessages(id: string): Promise<ApiResponse<Message[]>> {
+    console.warn('[ThreadFacade.getMessages] Requesting messages', {
+      threadId: id,
+      stack: new Error().stack,
+    });
     const result = await window.electronAPI.thread.getMessages(id);
     if (!result.success) {
       return result;

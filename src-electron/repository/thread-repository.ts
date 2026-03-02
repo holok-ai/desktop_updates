@@ -103,6 +103,12 @@ export class ThreadRepository {
         this.mapDTOToMessage(dto, cachedThread.title),
       );
       const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
+      const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+      log.info('[ThreadRepository] Loaded cached thread messages with toolUses', {
+        threadId,
+        total: finalMessages.length,
+        toolUseCount,
+      });
 
       // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
       if (finalMessages.length > 0) {
@@ -140,6 +146,12 @@ export class ThreadRepository {
         this.mapDTOToMessage(dto, thread.title),
       );
       thread.messages = MessageInspector.run(this.messageInspectors, mapped);
+      const toolUseCount = thread.messages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+      log.info('[ThreadRepository] Loaded uncached thread messages with toolUses', {
+        threadId,
+        total: thread.messages.length,
+        toolUseCount,
+      });
     } else {
       log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
     }
