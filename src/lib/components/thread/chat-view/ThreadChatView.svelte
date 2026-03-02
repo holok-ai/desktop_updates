@@ -855,6 +855,10 @@
 
         // Only update local messages if the user is still viewing the same thread
         if (isViewingThisThread) {
+          const completedTools = activeTools.map((tool) => ({
+            name: tool.name,
+            status: 'complete' as const,
+          }));
           const assistantMsg: Message = {
             id: crypto.randomUUID(),
             threadId: capturedThreadId,
@@ -866,6 +870,7 @@
             guardExecution: 'none',
             guardMessageId: null,
             guardError: '',
+            toolUses: completedTools.length > 0 ? completedTools : undefined,
           };
           messages = [...messages, assistantMsg];
           await tick();
