@@ -47,15 +47,6 @@ export class ReadWordTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_word',
-        state: 'in_progress',
-        message: `Reading Word document: ${userPath}`,
-      });
-    }
-
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -137,14 +128,6 @@ export class ReadWordTool implements ITool {
         },
         warnings: result.messages.map((m) => m.message),
       };
-
-      // Emit completion status
-      if (executionContext.statusCallback) {
-        executionContext.statusCallback({
-          toolName: 'read_word',
-          state: 'complete',
-        });
-      }
 
       return {
         success: true,

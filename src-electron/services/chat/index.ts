@@ -12,4 +12,3 @@ export type {
   ToolUseNotification,
   ToolUseCallback,
 } from '../tool-calling/orchestrator-types.js';
-export type { ToolStatus, ToolStatusCallback } from '../tool-calling/tool-types.js';
