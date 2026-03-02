@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { navigateToSettings, clickSettingsTab } from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -19,18 +20,12 @@ test.describe.serial('Settings - Tools', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI (replaces window.location.hash)
+    await navigateToSettings(page);
 
-    // Click Tools tab
-    const toolsItem = page.locator('.sidebar-item', { hasText: 'Tools' });
-    await toolsItem.click();
-    await page.waitForTimeout(500);
+    // Click Tools tab using shared helper
+    await clickSettingsTab(page, 'Tools');
   });
 
   test.afterAll(async () => {
@@ -65,15 +60,13 @@ test.describe.serial('Settings - Tools', () => {
     // Get initial state
     const initialChecked = await checkbox.isChecked();
 
-    // Toggle
+    // Toggle and verify state changed
     await checkbox.click();
-    await page.waitForTimeout(300);
-    expect(await checkbox.isChecked()).toBe(!initialChecked);
+    await expect(checkbox).toBeChecked({ checked: !initialChecked, timeout: 3000 });
 
     // Toggle back to restore original state
     await checkbox.click();
-    await page.waitForTimeout(300);
-    expect(await checkbox.isChecked()).toBe(initialChecked);
+    await expect(checkbox).toBeChecked({ checked: initialChecked, timeout: 3000 });
   });
 
   test('file tools whitelist is displayed', async () => {

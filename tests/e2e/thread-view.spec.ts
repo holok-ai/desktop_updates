@@ -27,7 +27,8 @@ test.describe.serial('Thread View and Chat', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -73,7 +74,6 @@ test.describe.serial('Thread View and Chat', () => {
     await expect(messageInput).toBeEnabled({ timeout: 5000 });
 
     await messageInput.fill(SIMPLE_TEST_PROMPT);
-    await page.waitForTimeout(300);
 
     // Click send
     const sendButton = page.locator('button.send-button');
@@ -95,7 +95,6 @@ test.describe.serial('Thread View and Chat', () => {
       await expect(retryInput).toBeVisible({ timeout: 10000 });
       await expect(retryInput).toBeEnabled({ timeout: 5000 });
       await retryInput.fill(SIMPLE_TEST_PROMPT);
-      await page.waitForTimeout(300);
 
       const retrySend = page.locator('button.send-button');
       await retrySend.click();
@@ -113,9 +112,7 @@ test.describe.serial('Thread View and Chat', () => {
 
   test('after streaming completes, message input is re-enabled', async () => {
     // Requirement 5.4: after streaming, input is re-enabled
-    // Wait a moment for streaming to fully complete
-    await page.waitForTimeout(2000);
-
+    // Wait for streaming to fully complete by checking the input becomes enabled
     const messageInput = page.locator('[data-testid="message-input"]');
     await expect(messageInput).toBeVisible({ timeout: 10000 });
     await expect(messageInput).toBeEnabled({ timeout: 30000 });
@@ -129,7 +126,6 @@ test.describe.serial('Thread View and Chat', () => {
     // Header commands are hidden until hover — hover first to reveal buttons
     const headerContent = page.locator('.header-content');
     await headerContent.hover();
-    await page.waitForTimeout(500);
 
     const favButton = page.locator('button.favorite-star');
     await expect(favButton).toBeVisible({ timeout: 5000 });
@@ -139,11 +135,10 @@ test.describe.serial('Thread View and Chat', () => {
 
     // Toggle favorite
     await favButton.click();
-    await page.waitForTimeout(500);
 
     // Re-hover to keep commands visible
     await headerContent.hover();
-    await page.waitForTimeout(300);
+    await expect(favButton).toBeVisible({ timeout: 5000 });
 
     if (isAlreadyFav) {
       const stillFav = await favButton.evaluate((el) => el.classList.contains('is-favorited'));
@@ -155,7 +150,6 @@ test.describe.serial('Thread View and Chat', () => {
 
     // Toggle back to restore original state
     await favButton.click();
-    await page.waitForTimeout(500);
   });
 
   test('editing thread title saves and reflects in UI', async () => {
@@ -165,7 +159,6 @@ test.describe.serial('Thread View and Chat', () => {
 
     // Click to start editing (EditableText activates on single click)
     await threadTitle.click();
-    await page.waitForTimeout(500);
 
     // Title input should appear
     const titleInput = page.locator('input[aria-label="Edit text"]');
@@ -174,11 +167,9 @@ test.describe.serial('Thread View and Chat', () => {
     // Clear and type new title
     await titleInput.clear();
     await titleInput.fill('Renamed Thread E2E');
-    await page.waitForTimeout(300);
 
     // Press Enter to commit
     await titleInput.press('Enter');
-    await page.waitForTimeout(1000);
 
     // Verify the title updated
     await expect(threadTitle).toBeVisible({ timeout: 5000 });

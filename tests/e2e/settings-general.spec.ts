@@ -12,25 +12,74 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import {
+  navigateToSettings,
+  clickSettingsTab,
+  saveSettings,
+  cancelSettings,
+} from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+let originalAvatarType: 'Letters' | 'Icon' | 'Image' = 'Letters';
 
 test.describe.serial('Settings - General', () => {
   test.beforeAll(async () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI
+    await navigateToSettings(page);
+
+    // Detect the current avatar type so we can restore it in afterAll
+    const avatarPreview = page.locator('.avatar-preview');
+    await expect(avatarPreview).toBeVisible({ timeout: 5000 });
+    if (
+      await avatarPreview
+        .locator('.avatar-icon-display')
+        .isVisible({ timeout: 1000 })
+        .catch(() => false)
+    ) {
+      originalAvatarType = 'Icon';
+    } else if (
+      await avatarPreview
+        .locator('.avatar-image')
+        .isVisible({ timeout: 1000 })
+        .catch(() => false)
+    ) {
+      originalAvatarType = 'Image';
+    } else {
+      originalAvatarType = 'Letters';
+    }
   });
 
   test.afterAll(async () => {
+    // Restore avatar type to original value
+    try {
+      // Ensure we're on the General settings tab
+      const settingsPage = page.locator('.settings-page');
+      if (!(await settingsPage.isVisible({ timeout: 2000 }).catch(() => false))) {
+        await navigateToSettings(page);
+      }
+      await clickSettingsTab(page, 'General');
+
+      // Click the original avatar type card to restore it
+      const originalCard = page.locator('.card-grid-3 .option-card', {
+        hasText: originalAvatarType,
+      });
+      await originalCard.click();
+
+      // Save the restored setting
+      const saveBtn = page.locator('.settings-footer .btn-primary');
+      const isEnabled = await saveBtn.isEnabled({ timeout: 1000 }).catch(() => false);
+      if (isEnabled) {
+        await saveSettings(page);
+      }
+    } catch {
+      // Best-effort restoration — don't fail teardown
+    }
+
     await app?.close();
   });
 
@@ -60,7 +109,6 @@ test.describe.serial('Settings - General', () => {
 
   test('modifying avatar type updates preview', async () => {
     // Requirement 11.2: modifying avatar type updates the preview
-    // Default avatar type should be "Letters" with preview showing letters
     const avatarPreview = page.locator('.avatar-preview');
     await expect(avatarPreview).toBeVisible({ timeout: 5000 });
 
@@ -71,7 +119,6 @@ test.describe.serial('Settings - General', () => {
     // Click "Icon" avatar type card
     const iconCard = page.locator('.card-grid-3 .option-card', { hasText: 'Icon' });
     await iconCard.click();
-    await page.waitForTimeout(500);
 
     // Preview should now show icon
     const avatarIcon = avatarPreview.locator('.avatar-icon-display');
@@ -80,7 +127,6 @@ test.describe.serial('Settings - General', () => {
     // Click "Letters" to revert back
     const lettersCard = page.locator('.card-grid-3 .option-card', { hasText: 'Letters' });
     await lettersCard.click();
-    await page.waitForTimeout(500);
 
     // Preview should show letters again
     await expect(avatarPreview.locator('.avatar-letters')).toBeVisible({ timeout: 5000 });
@@ -91,22 +137,13 @@ test.describe.serial('Settings - General', () => {
     // Make a change: switch avatar to Icon type
     const iconCard = page.locator('.card-grid-3 .option-card', { hasText: 'Icon' });
     await iconCard.click();
-    await page.waitForTimeout(500);
 
-    // Save button should be enabled now
-    const saveBtn = page.locator('.settings-footer .btn-primary');
-    await expect(saveBtn).toBeEnabled({ timeout: 3000 });
+    // Wait for the Icon preview to confirm the UI reacted to the click
+    const avatarPreview = page.locator('.avatar-preview');
+    await expect(avatarPreview.locator('.avatar-icon-display')).toBeVisible({ timeout: 5000 });
 
-    // Click Save
-    await saveBtn.click();
-    await page.waitForTimeout(1000);
-
-    // Success toast should appear
-    const toast = page.locator('.toast', { hasText: 'Settings were saved successfully' });
-    await expect(toast).toBeVisible({ timeout: 5000 });
-
-    // Save button should be disabled again (no pending changes)
-    await expect(saveBtn).toBeDisabled({ timeout: 5000 });
+    // Save using shared helper (clicks Save, waits for toast, waits for button disabled)
+    await saveSettings(page);
   });
 
   test('canceling settings reverts changes', async () => {
@@ -115,38 +152,27 @@ test.describe.serial('Settings - General', () => {
     // Switch to "Letters"
     const lettersCard = page.locator('.card-grid-3 .option-card', { hasText: 'Letters' });
     await lettersCard.click();
-    await page.waitForTimeout(500);
 
-    // Cancel button should be enabled
-    const cancelBtn = page.locator('.settings-footer .btn-secondary');
-    await expect(cancelBtn).toBeEnabled({ timeout: 3000 });
+    // Wait for the Letters preview to confirm the UI reacted
+    const avatarPreview = page.locator('.avatar-preview');
+    await expect(avatarPreview.locator('.avatar-letters')).toBeVisible({ timeout: 5000 });
 
-    // Click Cancel
-    await cancelBtn.click();
-    await page.waitForTimeout(500);
+    // Cancel using shared helper (clicks Cancel, waits for button disabled)
+    await cancelSettings(page);
 
     // Avatar should revert to Icon (the last saved state)
-    const avatarPreview = page.locator('.avatar-preview');
-    const avatarIcon = avatarPreview.locator('.avatar-icon-display');
-    await expect(avatarIcon).toBeVisible({ timeout: 5000 });
-
-    // Cancel button should be disabled again
-    await expect(cancelBtn).toBeDisabled({ timeout: 3000 });
+    await expect(avatarPreview.locator('.avatar-icon-display')).toBeVisible({ timeout: 5000 });
 
     // Revert to Letters and save for clean state
     await lettersCard.click();
-    await page.waitForTimeout(500);
-    const saveBtn = page.locator('.settings-footer .btn-primary');
-    await saveBtn.click();
-    await page.waitForTimeout(2000);
+    await expect(avatarPreview.locator('.avatar-letters')).toBeVisible({ timeout: 5000 });
+    await saveSettings(page);
   });
 
   test('invalid URL shows validation error', async () => {
     // Requirement 11.5: invalid URL in connection fields shows validation error
-    // Navigate to Connections tab
-    const connectionsItem = page.locator('.sidebar-item', { hasText: 'Connections' });
-    await connectionsItem.click();
-    await page.waitForTimeout(500);
+    // Navigate to Connections tab using shared helper
+    await clickSettingsTab(page, 'Connections');
 
     // Verify Connections panel is shown
     const panelTitle = page.locator('h2.panel-title');
@@ -156,16 +182,13 @@ test.describe.serial('Settings - General', () => {
     const holoInput = page.locator('input#holo-api-url');
     await expect(holoInput).toBeVisible({ timeout: 5000 });
     await holoInput.fill('not-a-valid-url');
-    await page.waitForTimeout(500);
 
     // Validation error should appear
     const errorText = page.locator('.error-text');
     await expect(errorText).toBeVisible({ timeout: 5000 });
     await expect(errorText).toContainText('Invalid Holo API URL');
 
-    // Cancel to revert changes
-    const cancelBtn = page.locator('.settings-footer .btn-secondary');
-    await cancelBtn.click();
-    await page.waitForTimeout(500);
+    // Cancel to revert changes using shared helper
+    await cancelSettings(page);
   });
 });

@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { navigateToSettings, clickSettingsTab } from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -19,18 +20,12 @@ test.describe.serial('Settings - Updates', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI (replaces window.location.hash)
+    await navigateToSettings(page);
 
-    // Click Updates tab
-    const updatesItem = page.locator('.sidebar-item', { hasText: 'Updates' });
-    await updatesItem.click();
-    await page.waitForTimeout(500);
+    // Click Updates tab using shared helper
+    await clickSettingsTab(page, 'Updates');
   });
 
   test.afterAll(async () => {
@@ -64,7 +59,6 @@ test.describe.serial('Settings - Updates', () => {
     await expect(checkBtn).toBeEnabled();
 
     await checkBtn.click();
-    await page.waitForTimeout(2000);
 
     // A toast should appear (success or error depending on network)
     const toast = page.locator('.toast').first();
@@ -84,14 +78,12 @@ test.describe.serial('Settings - Updates', () => {
     // Get initial state
     const initialChecked = await autoCheckbox.isChecked();
 
-    // Toggle
+    // Toggle and verify state changed
     await autoCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await autoCheckbox.isChecked()).toBe(!initialChecked);
+    await expect(autoCheckbox).toBeChecked({ checked: !initialChecked, timeout: 3000 });
 
-    // Toggle back
+    // Toggle back to restore original state
     await autoCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await autoCheckbox.isChecked()).toBe(initialChecked);
+    await expect(autoCheckbox).toBeChecked({ checked: initialChecked, timeout: 3000 });
   });
 });

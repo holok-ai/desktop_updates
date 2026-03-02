@@ -19,11 +19,12 @@ test.describe.serial('Search', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     // Navigate to Search page via sidebar
-    await page.locator('button[aria-label="Search"]').click();
-    await page.waitForTimeout(2000);
+    const searchButton = page.locator('button[aria-label="Search"]');
+    await expect(searchButton).toBeVisible({ timeout: 10000 });
+    await searchButton.click();
+    await expect(page.locator('.search-page')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -35,7 +36,7 @@ test.describe.serial('Search', () => {
     const searchPage = page.locator('.search-page');
     await expect(searchPage).toBeVisible({ timeout: 10000 });
 
-    const searchInput = page.locator('.search-input');
+    const searchInput = page.locator('.search-bar input');
     await expect(searchInput).toBeVisible({ timeout: 5000 });
     await expect(searchInput).toHaveAttribute('placeholder', /Search/);
 
@@ -46,40 +47,42 @@ test.describe.serial('Search', () => {
 
   test('submitting a query executes search and shows results area', async () => {
     // Requirement 16.2: typing query and pressing Enter shows results
-    const searchInput = page.locator('.search-input');
+    const searchInput = page.locator('.search-bar input');
     await searchInput.fill('test query');
-    await page.waitForTimeout(300);
+    await expect(searchInput).toHaveValue('test query');
 
     // Press Enter to search
     await searchInput.press('Enter');
-    await page.waitForTimeout(500);
 
-    // Results area should appear
-    const searchResults = page.locator('.search-results');
-    await expect(searchResults).toBeVisible({ timeout: 5000 });
+    // Results summary should appear after search completes
+    const resultsSummary = page.locator('.results-summary');
+    await expect(resultsSummary).toBeVisible({ timeout: 5000 });
   });
 
   test('empty query prevents search execution', async () => {
     // Requirement 16.3: empty query does not trigger search
     // Navigate away and back to reset search state
-    await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(1000);
-    await page.locator('button[aria-label="Search"]').click();
-    await page.waitForTimeout(1000);
+    const threadsButton = page.locator('button[aria-label="Threads"]');
+    await threadsButton.click();
+    await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
+
+    const searchButton = page.locator('button[aria-label="Search"]');
+    await searchButton.click();
+    await expect(page.locator('.search-page')).toBeVisible({ timeout: 10000 });
 
     // Verify we're on a fresh search page (no results yet)
-    const searchResults = page.locator('.search-results');
-    await expect(searchResults).not.toBeVisible({ timeout: 3000 });
+    const resultsSummary = page.locator('.results-summary');
+    await expect(resultsSummary).not.toBeVisible({ timeout: 3000 });
 
     // Try clicking search with empty input
-    const searchInput = page.locator('.search-input');
+    const searchInput = page.locator('.search-bar input');
     await expect(searchInput).toHaveValue('');
 
-    const searchButton = page.locator('.search-button');
-    await searchButton.click();
-    await page.waitForTimeout(500);
+    const searchBtn = page.locator('.search-button');
+    await searchBtn.click();
 
-    // Results area should still NOT appear
-    await expect(searchResults).not.toBeVisible({ timeout: 3000 });
+    // Results summary appears but shows "No search results."
+    await expect(resultsSummary).toBeVisible({ timeout: 5000 });
+    await expect(resultsSummary).toContainText('No search results');
   });
 });

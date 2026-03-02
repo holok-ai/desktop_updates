@@ -15,6 +15,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createProject, deleteProject, openProject } from '../fixtures/project-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -27,71 +28,24 @@ test.describe.serial('Project Instructions', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Create a test project
-    await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(2000);
-
-    // Wait for the projects page to fully render (header with New Project button)
-    const newProjectBtn = page.locator('.projects-header button.btn-holokai');
-    await expect(newProjectBtn).toBeVisible({ timeout: 15000 });
-
-    // Dismiss any lingering toast from prior test runs before opening the modal
-    const toast = page.locator('.toast');
-    if (await toast.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
-    }
-
-    await newProjectBtn.click();
-    await page.waitForTimeout(1000);
-
-    const modal = page.locator('div[role="dialog"][aria-labelledby="create-project-dialog-title"]');
-    await expect(modal).toBeVisible({ timeout: 5000 });
-
-    await modal.locator('input#project-name').fill(TEST_PROJECT_NAME);
-    await modal.locator('button.btn-primary').click();
-    await expect(modal).not.toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(2000);
+    // Create a test project using shared helper
+    await createProject(page, TEST_PROJECT_NAME);
 
     // Navigate into the project
-    const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-    await expect(projectCard).toBeVisible({ timeout: 10000 });
-    await projectCard.click();
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(/projectId=/, { timeout: 15000 });
+    await openProject(page, TEST_PROJECT_NAME);
 
     // Click Instructions card
     const instructionsCard = page.locator('.right-column .info-card', { hasText: 'Instructions' });
+    await expect(instructionsCard).toBeVisible({ timeout: 10000 });
     await instructionsCard.click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/project\/instructions\?projectId=/, { timeout: 10000 });
   });
 
   test.afterAll(async () => {
-    // Clean up: delete the test project
+    // Clean up: delete the test project using shared helper (best-effort)
     try {
-      await page.locator('button[aria-label="Projects"]').click();
-      await page.waitForTimeout(2000);
-
-      const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-      if (await projectCard.isVisible()) {
-        const menuBtn = projectCard.locator('button.project-menu-button');
-        await menuBtn.click();
-        await page.waitForTimeout(500);
-
-        const deleteItem = projectCard.locator('.menu-item', { hasText: 'Delete Project' });
-        await deleteItem.click();
-        await page.waitForTimeout(1000);
-
-        const deleteModal = page.locator(
-          'div[role="dialog"][aria-labelledby="delete-dialog-title"]',
-        );
-        if (await deleteModal.isVisible()) {
-          await deleteModal.locator('button.btn-danger').click();
-          await page.waitForTimeout(2000);
-        }
-      }
+      await deleteProject(page, TEST_PROJECT_NAME);
     } catch {
       // Cleanup is best-effort
     }
@@ -128,7 +82,6 @@ test.describe.serial('Project Instructions', () => {
     // Requirement 10.2: clicking edit enables the instructions editor
     const editBtn = page.locator('.header-actions .btn-holokai', { hasText: 'Edit' });
     await editBtn.click();
-    await page.waitForTimeout(500);
 
     // Verify the textarea editor is now visible
     const textarea = page.locator('.instructions-textarea');
@@ -152,7 +105,6 @@ test.describe.serial('Project Instructions', () => {
     // Requirement 10.3: modifying and saving persists instructions
     const textarea = page.locator('.instructions-textarea');
     await textarea.fill(TEST_INSTRUCTIONS);
-    await page.waitForTimeout(500);
 
     // Save button should now be enabled
     const saveBtn = page.locator('.header-actions .btn-holokai', { hasText: 'Save' });
@@ -160,7 +112,6 @@ test.describe.serial('Project Instructions', () => {
 
     // Click Save
     await saveBtn.click();
-    await page.waitForTimeout(3000);
 
     // After saving, should exit edit mode and show the rendered instructions
     const instructionsDisplay = page.locator('.instructions-display');
@@ -176,14 +127,12 @@ test.describe.serial('Project Instructions', () => {
     // Enter edit mode again
     const editBtn = page.locator('.header-actions .btn-holokai', { hasText: 'Edit' });
     await editBtn.click();
-    await page.waitForTimeout(500);
 
     const textarea = page.locator('.instructions-textarea');
     await expect(textarea).toBeVisible({ timeout: 5000 });
 
     // Modify the content
     await textarea.fill(TEST_INSTRUCTIONS + ' Additional text.');
-    await page.waitForTimeout(500);
 
     // Verify the "Unsaved changes" indicator appears
     const unsavedIndicator = page.locator('.unsaved-indicator');
@@ -193,7 +142,6 @@ test.describe.serial('Project Instructions', () => {
     // Cancel to revert
     const cancelBtn = page.locator('.header-actions .btn-holokai', { hasText: 'Cancel' });
     await cancelBtn.click();
-    await page.waitForTimeout(500);
 
     // Should exit edit mode
     const instructionsDisplay = page.locator('.instructions-display');
@@ -206,7 +154,6 @@ test.describe.serial('Project Instructions', () => {
     const testToggle = page.locator('.test-toggle');
     await expect(testToggle).toBeVisible({ timeout: 5000 });
     await testToggle.click();
-    await page.waitForTimeout(500);
 
     // Verify the test panel is visible
     const testPanel = page.locator('.test-panel');
@@ -223,7 +170,6 @@ test.describe.serial('Project Instructions', () => {
 
     // Type a test prompt
     await testPrompt.fill('Hello, what are your instructions?');
-    await page.waitForTimeout(500);
 
     // The button may still be disabled if no model is selected — that's expected
     // We verify the UI elements are functional without requiring a full AI response

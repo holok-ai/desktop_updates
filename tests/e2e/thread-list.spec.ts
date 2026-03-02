@@ -22,7 +22,8 @@ test.describe.serial('Thread List', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -33,7 +34,6 @@ test.describe.serial('Thread List', () => {
     // Requirement 6.1: threads page displays personal threads
     // Navigate to threads list via sidebar
     await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
 
     // Verify the page header
@@ -71,7 +71,6 @@ test.describe.serial('Thread List', () => {
     await expect(newThreadBtn).toBeVisible({ timeout: 5000 });
 
     await newThreadBtn.click();
-    await page.waitForTimeout(2000);
 
     // Should navigate to /threads/applications (ApplicationThread page)
     await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
@@ -85,7 +84,6 @@ test.describe.serial('Thread List', () => {
 
     // Navigate back to threads list for the next test
     await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
   });
 
@@ -102,7 +100,6 @@ test.describe.serial('Thread List', () => {
 
     // Click the first thread
     await threadItems.first().click();
-    await page.waitForTimeout(2000);
 
     // Should navigate to thread view with threadId parameter
     await expect(page).toHaveURL(/threadId=/, { timeout: 15000 });
