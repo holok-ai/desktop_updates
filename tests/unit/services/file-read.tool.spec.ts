@@ -157,16 +157,33 @@ describe('FileReadTool', () => {
       expect(result.error).toContain('NOT_A_FILE');
     });
 
-    it('should return error when path access is denied', async () => {
+    it('should return blacklist error when path is in a system-protected directory', async () => {
       (mockContext.service.checkPathAccess as any).mockReturnValue({
         allowed: false,
         reason: 'blacklist',
       });
 
-      const result = await tool.execute({ file_path: './restricted.txt' }, executionContext);
+      const result = await tool.execute({ file_path: '/etc/passwd' }, executionContext);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('cannot access');
+      expect(result.error).toContain('ACCESS_DENIED (system blacklist)');
+      expect(result.error).toContain('cannot be overridden');
+    });
+
+    it('should return whitelist error when path is not in allowed folders', async () => {
+      (mockContext.service.checkPathAccess as any).mockReturnValue({
+        allowed: false,
+        reason: 'whitelist',
+      });
+
+      const result = await tool.execute(
+        { file_path: '/Users/peterbaxter/Documents/samples/file.txt' },
+        executionContext,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('ACCESS_DENIED (not in whitelist)');
+      expect(result.error).toContain('Settings');
     });
 
     it('should support line range', async () => {
