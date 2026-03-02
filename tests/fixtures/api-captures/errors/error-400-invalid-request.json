@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-error-1",
+    "branchId": "1.0.0",
+    "model": "claude-opus-4-6",
+    "provider": "openai",
+    "role": "user",
+    "content": "Trigger a 400 error for testing.",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:41:58Z",
+    "updatedAt": "2026-02-27T07:41:58Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-error-1",
+    "branchId": "1.0.0",
+    "model": "claude-opus-4-6",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "{\"type\":\"error\",\"status\":400,\"message\":\"400 status code (no body)\"}",
+    "rawData": null,
+    "status": "error",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:41:59Z",
+    "updatedAt": "2026-02-27T07:41:59Z"
+  }
+]

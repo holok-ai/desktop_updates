@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-claude-1",
+    "branchId": "1.0.0",
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "claude",
+    "role": "user",
+    "content": "Summarize the key differences between TypeScript and JavaScript.",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:45:01Z",
+    "updatedAt": "2026-02-27T07:45:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-claude-1",
+    "branchId": "1.0.0",
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "claude",
+    "role": "assistant",
+    "content": "TypeScript is a superset of JavaScript that adds a static type system and tooling such as better editor support and compile-time checks, while JavaScript is the underlying dynamic language executed by browsers and Node.js. TypeScript code is transpiled to JavaScript before it runs, so it can catch many issues during development without changing how code executes at runtime.",
+    "rawData": null,
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:45:03Z",
+    "updatedAt": "2026-02-27T07:45:03Z"
+  }
+]

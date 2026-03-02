@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-guard-1",
+    "branchId": "1.0.0",
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "claude",
+    "role": "user",
+    "content": "Full name: John Smith, DOB: 01/01/1990, SSN: 123-45-6789.",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:41:00Z",
+    "updatedAt": "2026-02-27T07:41:00Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-guard-1",
+    "branchId": "1.0.0",
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "claude",
+    "role": "assistant",
+    "content": "{\"request_id\":null,\"type\":\"error\",\"error\":{\"message\":\"Full name detected as PII.\\\\n\\\\nDate of birth (DOB) detected as PII.\\\\n\\\\nSocial Security Number (SSN) detected as PII.\"}}",
+    "rawData": null,
+    "status": "error",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2026-02-27T07:41:01Z",
+    "updatedAt": "2026-02-27T07:41:01Z"
+  }
+]
