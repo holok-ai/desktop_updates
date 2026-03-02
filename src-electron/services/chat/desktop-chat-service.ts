@@ -150,10 +150,12 @@ export class DesktopChatService {
   ): Promise<void> {
     // Extract desktop-specific properties
     const { working_directory } = request;
+    const threadId = (request as unknown as { thread_id?: string }).thread_id ?? '';
+    const branchId = request.branch_id ?? '';
 
     log.info('[DesktopChatService] chat called', {
-      thread_id: (request as unknown as { thread_id: string }).thread_id,
-      branch_id: (request as unknown as { branch_id: string }).branch_id,
+      thread_id: threadId,
+      branch_id: branchId,
       messageCount: request.messages.length,
       working_directory: working_directory || this.threadContext.workingDirectory,
     });
@@ -164,6 +166,12 @@ export class DesktopChatService {
     }
     (request as unknown as { statusCallback: ToolStatusCallback | undefined }).statusCallback =
       onToolStatus || undefined;
+    this.threadContext.threadId = threadId;
+    this.threadContext.branchId = branchId;
+    this.threadContext.statusCallback = onToolStatus || undefined;
+    if (working_directory) {
+      this.threadContext.workingDirectory = working_directory;
+    }
 
     // If an abort signal is provided, attach it to the request so the underlying
     // ChatService can honour cancellation (if it supports it).
@@ -185,5 +193,4 @@ export class DesktopChatService {
   getAuditLogs(): unknown[] {
     return this.chatService.getAuditLogs();
   }
-
 }

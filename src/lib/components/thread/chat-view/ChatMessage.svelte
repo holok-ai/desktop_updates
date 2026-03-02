@@ -154,7 +154,7 @@
   {/each}
 
   <!-- Render streaming response if applicable -->
-  {#if isStreaming && streamingContent}
+  {#if isStreaming && (streamingContent || tools.length > 0)}
     <ChatResponse
       content={streamingContent}
       {chatLayout}
