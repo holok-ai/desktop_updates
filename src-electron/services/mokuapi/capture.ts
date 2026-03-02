@@ -106,6 +106,28 @@ function labelFromMessages(messages: unknown[]): string {
     .toLowerCase();
 }
 
+function detectModel(messages: unknown[]): string {
+  const msg = messages.find((m) => (m as Record<string, unknown>)?.model);
+  const raw = (msg as Record<string, unknown>)?.model;
+  return typeof raw === 'string' ? raw : 'unknown-model';
+}
+
+function normalizeModel(model: string): string {
+  return model
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function resultTypeFromCategory(category: string): 'pass' | 'error' {
+  return category === 'error-handling' ? 'error' : 'pass';
+}
+
+function buildTestSlug(category: string, label: string, timestamp: number): string {
+  const cat = category.replace(/[\\/]/g, '-');
+  return `${cat}-${label}-${timestamp}`;
+}
+
 // ── Public API: original (raw/) ───────────────────────────────────────────────
 
 export function isCaptureEnabled(): boolean {
@@ -188,6 +210,11 @@ export function captureMessagesToProvider(threadId: string, messages: unknown): 
     if (provider === 'UNKNOWN' && arr.length === 0) return;
     const category = detectCategory(arr);
     const label = labelFromMessages(arr);
+    const modelRaw = detectModel(arr);
+    const modelSlug = normalizeModel(modelRaw);
+    const kind = resultTypeFromCategory(category);
+    const ts = Date.now();
+    const testSlug = buildTestSlug(category, label, ts);
 
     const dir = ensureDir(
       join(
@@ -202,7 +229,7 @@ export function captureMessagesToProvider(threadId: string, messages: unknown): 
     );
 
     const providerPrefix = provider.toLowerCase();
-    const filename = `${providerPrefix}-${label}-${Date.now()}.json`;
+    const filename = `${providerPrefix}_${modelSlug}-${kind}-${testSlug}.json`;
     const filepath = join(dir, filename);
 
     // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -229,6 +256,18 @@ export function captureErrorToProvider(params: {
   try {
     const { provider, model, threadId, branchId, originalPrompt, error } = params;
     const providerUpper = provider.toUpperCase();
+    const modelSlug = normalizeModel(model);
+    const kind: 'pass' | 'error' = 'error';
+    const label = originalPrompt
+      ? originalPrompt
+          .slice(0, 50)
+          .replace(/[^a-zA-Z0-9 ]/g, ' ')
+          .trim()
+          .replace(/\s+/g, '-')
+          .toLowerCase()
+      : 'error';
+    const ts = Date.now();
+    const testSlug = buildTestSlug('error-handling', label, ts);
 
     const dir = ensureDir(
       join(
@@ -242,8 +281,8 @@ export function captureErrorToProvider(params: {
       ),
     );
 
-    const safeModel = model.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${provider.toLowerCase()}-error-${safeModel}-${Date.now()}.json`;
+    const providerPrefix = provider.toLowerCase();
+    const filename = `${providerPrefix}_${modelSlug}-${kind}-${testSlug}.json`;
     const filepath = join(dir, filename);
 
     // eslint-disable-next-line security/detect-non-literal-fs-filename
