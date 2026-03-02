@@ -423,6 +423,9 @@ describe('ThreadRepository — message handling scenarios', () => {
       const assistant = result.messages.find((m) => m.role === 'assistant');
       expect(assistant).toBeDefined();
       expect(assistant!.rawData).toBeDefined();
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_file');
 
       const raw = assistant!.rawData as Record<string, unknown>;
       expect(raw).toHaveProperty('tool_calls');

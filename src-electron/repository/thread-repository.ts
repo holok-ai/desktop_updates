@@ -707,10 +707,54 @@ export class ThreadRepository {
       message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
     }
 
+    if (message.role === 'assistant' && message.rawData) {
+      const toolUses = this.extractToolUsesFromRawData(message.rawData);
+      if (toolUses.length > 0) {
+        message.toolUses = toolUses;
+      }
+    }
+
     // Set token count: use API-provided value, fall back to content-length estimate
     message.tokens = dto.tokens ?? Math.ceil(message.content.length / 4);
 
     return message;
+  }
+
+  private extractToolUsesFromRawData(
+    rawData: JsonValue,
+  ): Array<{ name: string; status: 'complete' }> {
+    if (!rawData || typeof rawData !== 'object') {
+      return [];
+    }
+
+    const data = rawData as Record<string, unknown>;
+    const toolCalls = data.tool_calls;
+    if (!Array.isArray(toolCalls)) {
+      return [];
+    }
+
+    const names = toolCalls
+      .map((toolCall) => {
+        if (!toolCall || typeof toolCall !== 'object') return null;
+        const call = toolCall as Record<string, unknown>;
+        const fn = call.function;
+        if (fn && typeof fn === 'object') {
+          const fnName = (fn as Record<string, unknown>).name;
+          if (typeof fnName === 'string') {
+            return fnName;
+          }
+        }
+
+        const name = call.name;
+        if (typeof name === 'string') {
+          return name;
+        }
+
+        return null;
+      })
+      .filter((name): name is string => typeof name === 'string' && name.length > 0);
+
+    return names.map((name) => ({ name, status: 'complete' as const }));
   }
 
   /**
