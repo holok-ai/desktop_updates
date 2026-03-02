@@ -29,22 +29,6 @@ export type { MessageDTO, RequestOptionsDTO };
 export type { ToolDefinition };
 
 /**
- * OLD Thread Interface (commented out - now imported from thread.types.ts)
- *
- * export interface Thread {
- *   messages: any;
- *   id: string;
- *   title: string;
- *   description: string;
- *   status: ThreadStatus;
- *   createdAt: Date;
- *   updatedAt: Date;
- *   metadata?: Record<string, unknown>;
- *   currentBranchId: string;
- * }
- */
-
-/**
  * Preload Script with Context Bridge
  *
  * This script runs before the renderer process loads and has access to both
