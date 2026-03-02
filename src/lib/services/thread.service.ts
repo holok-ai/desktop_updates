@@ -472,10 +472,6 @@ export class ThreadService extends BaseElectronService {
   // ── Message loading with streaming merge ──
 
   async getMessages(id: string): Promise<ApiResponse<Message[]>> {
-    window.electronAPI.log.warn('[ThreadService.getMessages] Requesting messages', {
-      threadId: id,
-      stack: new Error().stack,
-    });
     const result = await window.electronAPI.thread.getMessages(id);
     if (!result.success) {
       return result;

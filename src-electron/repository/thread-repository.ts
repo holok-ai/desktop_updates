@@ -94,11 +94,6 @@ export class ThreadRepository {
   }
 
   private async loadThreadMeta(threadId: string): Promise<Thread | null> {
-    log.info('[ThreadRepository.loadThreadMeta] Start', {
-      threadId,
-      stack: new Error().stack,
-    });
-
     const cachedThread = this.threadsById.get(threadId);
     if (cachedThread) {
       return this.cloneThread(cachedThread);
@@ -120,10 +115,6 @@ export class ThreadRepository {
   }
 
   public async loadThreadMessages(threadId: string): Promise<Message[]> {
-    log.info('[ThreadRepository.loadThreadMessages] Start', {
-      threadId,
-      stack: new Error().stack,
-    });
     const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
 
     if (!messagesResult.success) {
