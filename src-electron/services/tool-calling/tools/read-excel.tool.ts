@@ -53,15 +53,6 @@ export class ReadExcelTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_excel',
-        state: 'in_progress',
-        message: `Reading Excel file: ${userPath}`,
-      });
-    }
-
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -217,14 +208,6 @@ export class ReadExcelTool implements ITool {
           columnCount: s.columnCount,
         })),
       };
-
-      // Emit completion status
-      if (executionContext.statusCallback) {
-        executionContext.statusCallback({
-          toolName: 'read_excel',
-          state: 'complete',
-        });
-      }
 
       return {
         success: true,

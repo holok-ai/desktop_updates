@@ -55,7 +55,8 @@ export interface AppSettings {
   shellCommands?: string;
 
   // General
-  deleteConfirmationRequired?: boolean;
+  deleteThreadConfirmationRequired?: boolean;
+  deleteProjectConfirmationRequired?: boolean;
 
   // Background Prompts
   autoTitleEnabled?: boolean;
@@ -90,7 +91,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   directoryWhitelist: [],
 
   // General
-  deleteConfirmationRequired: false,
+  deleteThreadConfirmationRequired: false,
+  deleteProjectConfirmationRequired: false,
 
   // Appearance
   theme: 'light',

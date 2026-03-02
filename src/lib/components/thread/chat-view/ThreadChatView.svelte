@@ -19,6 +19,8 @@
   import { ThreadObserver } from '$lib/observer/thread-observer';
   import ContextStatus from './ContextStatus.svelte';
   import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
+  import type { ToolCall } from '$lib/types/tool-call.type';
+  import { threadStreamService } from '$lib/services/thread-stream.service';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -56,6 +58,10 @@
   let debugActivity = $state(''); // Debug activity log
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
+
+  // Tool calls accumulating for the active stream; snapshotted by branchId after completion
+  let activeToolCalls = $state<ToolCall[]>([]);
+  let completedToolCalls = $state(new Map<string, ToolCall[]>());
 
   // ── Multi-stream support ──
   // Background streams live in threadService (singleton) so they survive component
@@ -409,11 +415,23 @@
     threadService.setBackgroundStream(forThreadId, bgStream);
 
     // Subscribe to stream for this thread + branch
-    bgStream.unsubscribe = threadService.subscribeToStream(
+    const unsubStream = threadService.subscribeToStream(
       forThreadId,
       branchId,
       createTokenCallback(forThreadId, bgStream),
     );
+
+    // Subscribe to tool use events for this stream
+    const unsubToolUse = threadStreamService.subscribeToToolUse(forThreadId, branchId, (calls) => {
+      if (thread?.id === forThreadId) {
+        activeToolCalls = calls;
+      }
+    });
+
+    bgStream.unsubscribe = () => {
+      unsubStream();
+      unsubToolUse();
+    };
 
     addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${forThreadId}`);
   }
@@ -654,6 +672,8 @@
 
     addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
+    activeToolCalls = [];
+
     // Clean up streaming and streaming session
     bgStream.unsubscribe?.();
     threadService.deleteBackgroundStream(capturedThreadId);
@@ -761,6 +781,8 @@
         // will arrive. Without this, returning to the thread later would find
         // the orphaned session and show an infinite loading state.
         threadService.clearStreamingSession(capturedThreadId);
+        activeToolCalls = [];
+        threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
         if (isViewingThisThread) {
           handleGuardError(errorMessage, capturedBranchId);
           isStreaming = false;
@@ -811,6 +833,14 @@
         }
       }
 
+      // Snapshot tool calls before cleanup so the chip toggle works after streaming
+      const toolCallSnapshot = threadStreamService.getToolCalls(capturedThreadId, capturedBranchId);
+      if (toolCallSnapshot.length > 0) {
+        completedToolCalls = new Map(completedToolCalls).set(capturedBranchId, toolCallSnapshot);
+      }
+      activeToolCalls = [];
+      threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
+
       // Clean up this thread's background stream and streaming session — fully complete
       console.log('[ThreadChatView] Stream complete — cleaning up.', {
         capturedThreadId,
@@ -833,6 +863,8 @@
       const isViewingThisThread = thread?.id === capturedThreadId;
       // Clean up this thread's background stream and streaming session
       const bgStream = threadService.getBackgroundStream(capturedThreadId);
+      activeToolCalls = [];
+      threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
       bgStream?.unsubscribe?.();
       threadService.deleteBackgroundStream(capturedThreadId);
       threadService.clearStreamingSession(capturedThreadId);
@@ -934,6 +966,7 @@
       threadService.deleteBackgroundStream(currentId);
       threadService.clearStreamingSession(currentId);
     }
+    activeToolCalls = [];
     isStreaming = false;
     error = msg;
     clearTimeouts();
@@ -1088,6 +1121,9 @@
           responses={item.pair.responses}
           isStreaming={item.pair.isStreamingResponse}
           streamingContent={item.pair.streamingContent}
+          tools={item.pair.isStreamingResponse
+            ? activeToolCalls
+            : (completedToolCalls.get(item.pair.request.branchId ?? '') ?? [])}
           onCopyRequest={(content) => copyToInput(content)}
           showBranchIcon={item.isFromBranch === true}
           onBranchClick={item.isFromBranch

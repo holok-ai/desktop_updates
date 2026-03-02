@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import type { Message } from '$lib/types/thread.type.js';
+import type { ToolCall } from '$lib/types/tool-call.type.js';
 import { BaseElectronService } from './base-electron.service';
 
 /**
@@ -41,6 +42,12 @@ export interface BackgroundStream {
 export class ThreadStreamService extends BaseElectronService {
   // Map: "threadId:branchId" -> Set of callbacks for streaming tokens
   private streamCallbacks = new Map<string, Set<(token: string) => void>>();
+
+  // Map: "threadId:branchId" -> current list of tool calls for that stream
+  private activeToolCalls = new Map<string, ToolCall[]>();
+
+  // Map: "threadId:branchId" -> Set of callbacks notified on tool call updates
+  private toolUseCallbacks = new Map<string, Set<(calls: ToolCall[]) => void>>();
 
   /**
    * Active streaming sessions keyed by threadId.
@@ -89,6 +96,52 @@ export class ThreadStreamService extends BaseElectronService {
       },
     );
     this.registerCleanup(unsubTokens);
+
+    // Listen for tool use events
+    const unsubToolUse = window.electronAPI.chat.onToolUse((data) => {
+      if (!data.branchId) {
+        console.error(
+          '[ThreadStreamService] ToolUse event missing branchId - this is an error!',
+          data,
+        );
+        return;
+      }
+
+      const key = this.buildStreamKey(data.threadId, data.branchId);
+      const calls = this.activeToolCalls.get(key) ?? [];
+
+      if (data.stage === 'in_progress') {
+        const newCall: ToolCall = {
+          id: data.toolCallId,
+          name: data.toolName,
+          inputHint: data.inputHint ?? data.toolName.replace(/_/g, ' '),
+          status: 'in_progress',
+          message: data.message,
+          startedAt: Date.now(),
+        };
+        this.activeToolCalls.set(key, [...calls, newCall]);
+      } else {
+        const updated = calls.map((call) => {
+          if (call.id !== data.toolCallId) {
+            return call;
+          }
+          return {
+            ...call,
+            status: data.stage as 'complete' | 'error',
+            error: data.error,
+            completedAt: Date.now(),
+          };
+        });
+        this.activeToolCalls.set(key, updated);
+      }
+
+      const callbacks = this.toolUseCallbacks.get(key);
+      if (callbacks) {
+        const current = this.activeToolCalls.get(key) ?? [];
+        callbacks.forEach((cb) => cb(current));
+      }
+    });
+    this.registerCleanup(unsubToolUse);
   }
 
   // ── Stream subscription ──
@@ -127,6 +180,49 @@ export class ThreadStreamService extends BaseElectronService {
         }
       }
     };
+  }
+
+  /**
+   * Subscribe to tool use updates for a specific thread + branch.
+   * Callback is invoked whenever a tool call changes state.
+   * @returns Unsubscribe function
+   */
+  subscribeToToolUse(
+    threadId: string,
+    branchId: string,
+    callback: (calls: ToolCall[]) => void,
+  ): () => void {
+    const key = this.buildStreamKey(threadId, branchId);
+    if (!this.toolUseCallbacks.has(key)) {
+      this.toolUseCallbacks.set(key, new Set());
+    }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    this.toolUseCallbacks.get(key)!.add(callback);
+    return () => {
+      const callbacks = this.toolUseCallbacks.get(key);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.toolUseCallbacks.delete(key);
+        }
+      }
+    };
+  }
+
+  /**
+   * Get the current tool calls for a specific thread + branch.
+   */
+  getToolCalls(threadId: string, branchId: string): ToolCall[] {
+    return this.activeToolCalls.get(this.buildStreamKey(threadId, branchId)) ?? [];
+  }
+
+  /**
+   * Clear tool calls for a specific thread + branch (call when stream completes).
+   */
+  clearToolCalls(threadId: string, branchId: string): void {
+    const key = this.buildStreamKey(threadId, branchId);
+    this.activeToolCalls.delete(key);
+    this.toolUseCallbacks.delete(key);
   }
 
   /**

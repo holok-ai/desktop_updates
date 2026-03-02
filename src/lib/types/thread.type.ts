@@ -1,5 +1,5 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
-import type { MessageStatus, ThreadStatus } from './status.type.ts';
+import type { MessageStatus } from './status.type.ts';
 import type { RequestOptionsDTO } from '../../../src-electron/preload.js';
 import type { MessageContext } from './context.type.js';
 
@@ -42,18 +42,6 @@ export interface Message {
   tokens?: number;
   /** Context metadata for turn tracking and future compression */
   context?: MessageContext;
-}
-
-export interface Thread {
-  messages: Message[];
-  id: string;
-  title: string;
-  description: string;
-  status: ThreadStatus;
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: Record<string, unknown>;
-  currentBranchId: string;
 }
 
 export interface ModelDetails {
