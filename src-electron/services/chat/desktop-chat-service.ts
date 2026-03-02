@@ -60,13 +60,15 @@ export class DesktopChatService {
       canUseTools
         ? async (toolUse: ChatComponentToolUse) => {
             this.threadContext.currentToolCallId = toolUse.id;
-            const result = await this.toolOrchestra.executeTool(
-              toolUse.name,
-              toolUse.input,
-              this.threadContext,
-            );
-            this.threadContext.currentToolCallId = undefined;
-            return result;
+            try {
+              return await this.toolOrchestra.executeTool(
+                toolUse.name,
+                toolUse.input,
+                this.threadContext,
+              );
+            } finally {
+              this.threadContext.currentToolCallId = undefined;
+            }
           }
         : undefined;
 

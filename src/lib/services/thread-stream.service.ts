@@ -99,6 +99,14 @@ export class ThreadStreamService extends BaseElectronService {
 
     // Listen for tool use events
     const unsubToolUse = window.electronAPI.chat.onToolUse((data) => {
+      if (!data.branchId) {
+        console.error(
+          '[ThreadStreamService] ToolUse event missing branchId - this is an error!',
+          data,
+        );
+        return;
+      }
+
       const key = this.buildStreamKey(data.threadId, data.branchId);
       const calls = this.activeToolCalls.get(key) ?? [];
 
