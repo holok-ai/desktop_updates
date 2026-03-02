@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { ROUTE } from '../../constants/route.constant';
   import { push, location, querystring } from 'svelte-spa-router';
+  import { getSelectedActivity } from '../../utils/sidebar-route.util';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
   import type { AppThemeMode } from '$lib/types/app.type';
@@ -129,24 +130,7 @@
   }
 
   function syncSelectedWithLocation(path: string, qs?: string) {
-    const normalized = typeof path === 'string' && path.length > 0 ? path : ROUTE.HOME;
-    let next = 'search';
-
-    // Check if we're viewing a project thread (threads route with projectId param)
-    const params = new URLSearchParams(qs ?? '');
-    const hasProjectId = params.has('projectId');
-
-    if (normalized.startsWith('/search')) {
-      next = 'search';
-    } else if (normalized.startsWith(ROUTE.THREADS)) {
-      // If viewing a thread from a project, keep Projects activity selected
-      next = hasProjectId ? 'projects' : 'threads';
-    } else if (normalized.startsWith(ROUTE.PROJECTS)) {
-      next = 'projects';
-    } else if (normalized.startsWith(ROUTE.HOME)) {
-      // When on home page, default to search
-      next = 'search';
-    }
+    const next = getSelectedActivity(path, qs);
     if (selected !== next) {
       selected = next;
       const activity = activities.find((a) => a.id === next)!;

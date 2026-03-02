@@ -231,7 +231,10 @@ class ThreadApiService {
    * @returns Updated thread data
    * @throws Error if not authenticated, not found, or request fails
    */
-  async updateThread(threadId: string, request: UpdateThreadRequest): Promise<ApiResponse<ThreadDTO>> {
+  async updateThread(
+    threadId: string,
+    request: UpdateThreadRequest,
+  ): Promise<ApiResponse<ThreadDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       return apiFail(401, 'Not authenticated. Please log in.');

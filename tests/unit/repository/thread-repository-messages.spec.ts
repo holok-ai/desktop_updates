@@ -39,7 +39,7 @@
  * ══════════════════════════════════════════════════════════════════════
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiOk, apiFail } from '../../../src-electron/types/api-response';
+import { apiOk } from '../../../src-electron/types/api-response';
 import { pagedMessages } from '../../fixtures/api-captures/loader';
 import {
   fakeMessageDTO,
@@ -61,6 +61,7 @@ import {
   overLongBranchId,
   nullContent,
   toolCallInRawData,
+  toolUseInContentBlocks,
   desktopOptionsBlocked,
   desktopOptionsSelectedBranch,
 } from '../../fixtures/api-captures/message-scenarios';
@@ -110,27 +111,9 @@ vi.mock('../../../src-electron/services/mokuapi/thread-api.service', () => ({
 // ── Import after mocks ─────────────────────────────────────────────
 
 import { ThreadRepository } from '../../../src-electron/repository/thread-repository';
-import type { ThreadDTO } from '../../../src-electron/services/mokuapi/thread.types';
+import type { Message } from '../../../src-electron/types/thread.types';
 
 // ── Helpers ─────────────────────────────────────────────────────────
-
-function fakeThreadDTO(overrides: Partial<ThreadDTO> = {}): ThreadDTO {
-  return {
-    id: 'thread-1',
-    title: 'Test Thread',
-    description: '',
-    type: 'personal',
-    ownerId: 'user-1',
-    projectId: null,
-    createdUserId: 'user-1',
-    status: 'active',
-    createdAt: '2025-06-01T00:00:00Z',
-    updatedAt: '2025-06-01T00:00:00Z',
-    deletedAt: '',
-    metadata: {},
-    ...overrides,
-  };
-}
 
 /**
  * Load a thread through the uncached path with the given messages.
@@ -138,13 +121,10 @@ function fakeThreadDTO(overrides: Partial<ThreadDTO> = {}): ThreadDTO {
 async function loadWithMessages(
   repo: ThreadRepository,
   messages: ReturnType<typeof fakeMessageDTO>[],
-): Promise<NonNullable<Awaited<ReturnType<typeof repo.loadThread>>>> {
-  mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
+): Promise<{ messages: Message[] }> {
   mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedMessages(messages)));
-
-  const result = await repo.loadThread('thread-1');
-  expect(result).not.toBeNull();
-  return result!;
+  const loaded = await repo.loadThreadMessages('thread-1');
+  return { messages: loaded };
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -181,6 +161,7 @@ describe('ThreadRepository — message handling scenarios', () => {
         ['nullBranchId', nullBranchId()],
         ['overLongBranchId', overLongBranchId()],
         ['toolCallInRawData', toolCallInRawData()],
+        ['toolUseInContentBlocks', toolUseInContentBlocks()],
         ['desktopOptionsBlocked', desktopOptionsBlocked()],
         ['desktopOptionsSelectedBranch', desktopOptionsSelectedBranch()],
       ];
@@ -257,7 +238,9 @@ describe('ThreadRepository — message handling scenarios', () => {
       // Hidden: guard request + guard response
       const hidden = result.messages.filter((m) => m.isHidden);
       expect(hidden).toHaveLength(2);
-      expect(hidden.some((m) => m.role === 'user' && m.content.includes('Check the following'))).toBe(true);
+      expect(
+        hidden.some((m) => m.role === 'user' && m.content.includes('Check the following')),
+      ).toBe(true);
       expect(hidden.some((m) => m.role === 'assistant' && m.content.includes('passed'))).toBe(true);
     });
 
@@ -322,9 +305,7 @@ describe('ThreadRepository — message handling scenarios', () => {
     it('scenario 6: error payload in content — message is hidden', async () => {
       const result = await loadWithMessages(repo, errorPayloadResponse());
 
-      const errorMsg = result.messages.find(
-        (m) => m.role === 'assistant',
-      );
+      const errorMsg = result.messages.find((m) => m.role === 'assistant');
       expect(errorMsg).toBeDefined();
       expect(errorMsg!.isHidden).toBe(true);
     });
@@ -341,9 +322,7 @@ describe('ThreadRepository — message handling scenarios', () => {
       // PlaceholderInspector should insert a user message before the orphan
       expect(result.messages.length).toBeGreaterThanOrEqual(2);
 
-      const placeholder = result.messages.find(
-        (m) => m.role === 'user' && m.branchId === '2.0.0',
-      );
+      const placeholder = result.messages.find((m) => m.role === 'user' && m.branchId === '2.0.0');
       expect(placeholder).toBeDefined();
       expect(placeholder!.content).toBe('');
 
@@ -446,10 +425,26 @@ describe('ThreadRepository — message handling scenarios', () => {
       const assistant = result.messages.find((m) => m.role === 'assistant');
       expect(assistant).toBeDefined();
       expect(assistant!.rawData).toBeDefined();
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_file');
 
       const raw = assistant!.rawData as Record<string, unknown>;
       expect(raw).toHaveProperty('tool_calls');
       expect(raw).toHaveProperty('tool_results');
+    });
+  });
+
+  describe('tool use in content blocks', () => {
+    it('captures tool uses from content array blocks', async () => {
+      const result = await loadWithMessages(repo, toolUseInContentBlocks());
+
+      const assistant = result.messages.find((m) => m.role === 'assistant');
+      expect(assistant).toBeDefined();
+      expect(assistant!.content).toContain("I'll check how many files are in that folder");
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_folder');
     });
   });
 

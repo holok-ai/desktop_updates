@@ -398,9 +398,7 @@ export function nullContent(): MessageDTO[] {
 
 /** Role is null. */
 export function nullRole(): MessageDTO[] {
-  return [
-    fakeMessageDTO({ role: null as unknown as string, content: 'Hello' }),
-  ];
+  return [fakeMessageDTO({ role: null as unknown as string, content: 'Hello' })];
 }
 
 // ── Tool call scenarios ─────────────────────────────────────────────
@@ -432,6 +430,28 @@ export function toolCallInRawData(): MessageDTO[] {
           },
         ],
       },
+    }),
+  ];
+}
+
+/** Assistant response with tool_use blocks in content array (Anthropic style). */
+export function toolUseInContentBlocks(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Count files in /tmp' }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: "I'll check how many files are in that folder for you." },
+        {
+          type: 'tool_use',
+          id: 'toolu_123',
+          name: 'read_folder',
+          input: { path: '/tmp' },
+          caller: { type: 'direct' },
+        },
+      ] as unknown as string,
+      status: 'success',
+      rawData: null,
     }),
   ];
 }

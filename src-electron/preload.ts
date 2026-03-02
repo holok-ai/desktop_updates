@@ -435,6 +435,28 @@ export interface ChatAPI {
     callback: (data: { threadId: string; branchId: string; token: string }) => void,
   ) => () => void;
 
+  // Listen for tool use events (start/complete)
+  onToolUse: (
+    callback: (data: {
+      threadId: string;
+      toolName: string;
+      input: unknown;
+      toolCallId?: string;
+      stage?: 'start' | 'complete';
+      result?: unknown;
+    }) => void,
+  ) => () => void;
+
+  // Listen for tool status updates (in-progress/complete)
+  onToolStatus: (
+    callback: (data: {
+      threadId: string;
+      toolName: string;
+      state: 'in_progress' | 'complete';
+      message?: string;
+    }) => void,
+  ) => () => void;
+
   // Stop listening to token events
   offToken: () => void;
 
@@ -588,6 +610,58 @@ contextBridge.exposeInMainWorld('electronAPI', {
       // Return cleanup function
       return (): void => {
         ipcRenderer.off('chat:token', subscription);
+      };
+    },
+
+    onToolUse: (
+      callback: (data: {
+        threadId: string;
+        toolName: string;
+        input: unknown;
+        toolCallId?: string;
+        stage?: 'start' | 'complete';
+        result?: unknown;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          threadId: string;
+          toolName: string;
+          input: unknown;
+          toolCallId?: string;
+          stage?: 'start' | 'complete';
+          result?: unknown;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('chat:toolUse', subscription);
+
+      return (): void => {
+        ipcRenderer.off('chat:toolUse', subscription);
+      };
+    },
+
+    onToolStatus: (
+      callback: (data: {
+        threadId: string;
+        toolName: string;
+        state: 'in_progress' | 'complete';
+        message?: string;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          threadId: string;
+          toolName: string;
+          state: 'in_progress' | 'complete';
+          message?: string;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('chat:toolStatus', subscription);
+
+      return (): void => {
+        ipcRenderer.off('chat:toolStatus', subscription);
       };
     },
 
