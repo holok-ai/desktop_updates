@@ -22,6 +22,7 @@ import {
   ObserverPromptsInspector,
   ToolUseInspector,
   ResponseCompletedInspector,
+  ErrorResponseInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -38,6 +39,7 @@ export class ThreadRepository {
     new ToolUseInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
+    new ErrorResponseInspector(),
     new GuardInspector(),
   ];
 

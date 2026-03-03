@@ -1,6 +1,7 @@
 import log from 'electron-log';
 import type { Message } from '../../types/thread.types.js';
 import type { IMessageInspector } from './message-inspector.js';
+import { isGuardErrorPayload } from './guard-error-shape.js';
 
 /**
  * Detects guard messages and error payloads and hides them from the chat view.
@@ -181,8 +182,6 @@ export class GuardInspector implements IMessageInspector {
   }
 
   private isErrorPayload(content: unknown): boolean {
-    if (!content || typeof content !== 'object') return false;
-    const c = content as Record<string, unknown>;
-    return c.type === 'error' && c.status === 400 && 'requestId' in c && 'seq' in c && 'error' in c;
+    return isGuardErrorPayload(content);
   }
 }
