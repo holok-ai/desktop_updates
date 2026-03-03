@@ -65,15 +65,6 @@ export class FolderReadTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_folder',
-        state: 'in_progress',
-        message: `Reading folder: ${userPath}`,
-      });
-    }
-
     // Security check
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -81,8 +72,8 @@ export class FolderReadTool implements ITool {
         success: false,
         error:
           pathCheck.reason === 'blacklist'
-            ? `The folder ${userPath} is in a folder I cannot access. I am not allowed to access folders and files in system and sensitive folders.`
-            : `I cannot read folder ${userPath}. To allow this, add an entry to the allowed folder list in settings.`,
+            ? `ACCESS_DENIED (system blacklist): '${userPath}' is inside a protected system or sensitive directory. This cannot be overridden.`
+            : `ACCESS_DENIED (not in whitelist): '${userPath}' is not in the allowed folders list. The user must go to Settings → File Access and add this folder to the whitelist.`,
       };
     }
 
@@ -129,14 +120,6 @@ export class FolderReadTool implements ITool {
       total_files: entries.filter((e) => e.type === 'file').length,
       total_directories: entries.filter((e) => e.type === 'directory').length,
     };
-
-    // Emit completion status
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'read_folder',
-        state: 'complete',
-      });
-    }
 
     return {
       success: true,

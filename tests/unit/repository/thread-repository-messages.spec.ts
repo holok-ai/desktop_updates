@@ -61,6 +61,7 @@ import {
   overLongBranchId,
   nullContent,
   toolCallInRawData,
+  toolUseInContentBlocks,
   desktopOptionsBlocked,
   desktopOptionsSelectedBranch,
 } from '../../fixtures/api-captures/message-scenarios';
@@ -110,27 +111,10 @@ vi.mock('../../../src-electron/services/mokuapi/thread-api.service', () => ({
 // ── Import after mocks ─────────────────────────────────────────────
 
 import { ThreadRepository } from '../../../src-electron/repository/thread-repository';
+import type { Message } from '../../../src-electron/types/thread.types';
 import type { ThreadDTO } from '../../../src-electron/services/mokuapi/thread.types';
 
 // ── Helpers ─────────────────────────────────────────────────────────
-
-function fakeThreadDTO(overrides: Partial<ThreadDTO> = {}): ThreadDTO {
-  return {
-    id: 'thread-1',
-    title: 'Test Thread',
-    description: '',
-    type: 'personal',
-    ownerId: 'user-1',
-    projectId: null,
-    createdUserId: 'user-1',
-    status: 'active',
-    createdAt: '2025-06-01T00:00:00Z',
-    updatedAt: '2025-06-01T00:00:00Z',
-    deletedAt: '',
-    metadata: {},
-    ...overrides,
-  };
-}
 
 /**
  * Load a thread through the uncached path with the given messages.
@@ -138,13 +122,10 @@ function fakeThreadDTO(overrides: Partial<ThreadDTO> = {}): ThreadDTO {
 async function loadWithMessages(
   repo: ThreadRepository,
   messages: ReturnType<typeof fakeMessageDTO>[],
-): Promise<NonNullable<Awaited<ReturnType<typeof repo.loadThread>>>> {
-  mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
+): Promise<{ messages: Message[] }> {
   mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedMessages(messages)));
-
-  const result = await repo.loadThread('thread-1');
-  expect(result).not.toBeNull();
-  return result!;
+  const loaded = await repo.loadThreadMessages('thread-1');
+  return { messages: loaded };
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -181,6 +162,7 @@ describe('ThreadRepository — message handling scenarios', () => {
         ['nullBranchId', nullBranchId()],
         ['overLongBranchId', overLongBranchId()],
         ['toolCallInRawData', toolCallInRawData()],
+        ['toolUseInContentBlocks', toolUseInContentBlocks()],
         ['desktopOptionsBlocked', desktopOptionsBlocked()],
         ['desktopOptionsSelectedBranch', desktopOptionsSelectedBranch()],
       ];
@@ -444,10 +426,26 @@ describe('ThreadRepository — message handling scenarios', () => {
       const assistant = result.messages.find((m) => m.role === 'assistant');
       expect(assistant).toBeDefined();
       expect(assistant!.rawData).toBeDefined();
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_file');
 
       const raw = assistant!.rawData as Record<string, unknown>;
       expect(raw).toHaveProperty('tool_calls');
       expect(raw).toHaveProperty('tool_results');
+    });
+  });
+
+  describe('tool use in content blocks', () => {
+    it('captures tool uses from content array blocks', async () => {
+      const result = await loadWithMessages(repo, toolUseInContentBlocks());
+
+      const assistant = result.messages.find((m) => m.role === 'assistant');
+      expect(assistant).toBeDefined();
+      expect(assistant!.content).toContain("I'll check how many files are in that folder");
+      expect(assistant!.toolUses).toBeDefined();
+      expect(assistant!.toolUses).toHaveLength(1);
+      expect(assistant!.toolUses![0].name).toBe('read_folder');
     });
   });
 
@@ -529,7 +527,22 @@ describe('ThreadRepository — message handling scenarios', () => {
       ).toHaveLength(0);
 
       // Load through repository
-      mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
+      mockThreadApi.getThread.mockResolvedValue(
+        apiOk({
+          id: 'thread-1',
+          title: 'Test Thread',
+          description: '',
+          type: 'personal',
+          ownerId: 'user-1',
+          projectId: null,
+          createdUserId: 'user-1',
+          status: 'active',
+          createdAt: '2025-06-01T00:00:00Z',
+          updatedAt: '2025-06-01T00:00:00Z',
+          deletedAt: '',
+          metadata: {},
+        } as ThreadDTO),
+      );
       mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedCapture(fixturePath)));
 
       const result = await repo.loadThread('thread-1');

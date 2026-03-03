@@ -21,6 +21,7 @@ export class PlaceholderInspector implements IMessageInspector {
       return a.createdAt - b.createdAt;
     });
 
+    const placeholderByBranch = new Map<string, Message>();
     const toInsert: { index: number; message: Message }[] = [];
 
     for (let i = 0; i < sorted.length; i++) {
@@ -28,19 +29,28 @@ export class PlaceholderInspector implements IMessageInspector {
       const message = sorted[i];
 
       if (message.role === 'assistant') {
+        const shouldMatchHidden = message.isHidden === true;
         let hasUserMessage = false;
         for (let j = i - 1; j >= 0; j--) {
           // eslint-disable-next-line security/detect-object-injection
-          if (sorted[j].branchId === message.branchId) {
-            // eslint-disable-next-line security/detect-object-injection
-            if (sorted[j].role === 'user') {
-              hasUserMessage = true;
-              break;
-            }
+          const candidate = sorted[j];
+          if (candidate.branchId !== message.branchId) continue;
+          if (candidate.role !== 'user') continue;
+          const isHidden = candidate.isHidden === true;
+          if (isHidden === shouldMatchHidden) {
+            hasUserMessage = true;
+            break;
           }
         }
 
         if (!hasUserMessage) {
+          const existingPlaceholder = placeholderByBranch.get(message.branchId);
+          if (existingPlaceholder) {
+            if (message.isHidden) {
+              existingPlaceholder.isHidden = true;
+            }
+            continue;
+          }
           log.info(
             '[PlaceholderInspector] Creating placeholder user message for orphan assistant:',
             {
@@ -58,6 +68,8 @@ export class PlaceholderInspector implements IMessageInspector {
             content: '',
             createdAt: message.createdAt - 1,
             branchId: message.branchId,
+            rawBranchId: message.rawBranchId,
+            normalizedBranchId: message.normalizedBranchId,
             modelId: message.modelId,
             provider: message.provider,
             deletedAt: null,
@@ -66,6 +78,10 @@ export class PlaceholderInspector implements IMessageInspector {
             guardError: '',
           };
 
+          if (message.isHidden) {
+            placeholder.isHidden = true;
+          }
+          placeholderByBranch.set(message.branchId, placeholder);
           toInsert.push({ index: i, message: placeholder });
         }
       }

@@ -71,7 +71,7 @@ export class ModelRepository {
           description: thisAgent.description,
           slug: thisAgent.urlSlug,
           title: thisAgent.name,
-          provider: thisAgent.provider,
+          provider: mappedProvider, //thisAgent.provider,
           url: agentUrl,
           models: [],
         };
@@ -82,7 +82,7 @@ export class ModelRepository {
               id: model.id,
               title: model.name,
               accessName: model.accessModel,
-              provider: thisAgent.provider,
+              provider: mappedProvider, // thisAgent.provider,
               applicationName: appSummary.title,
               applicationSlug: appSummary.slug,
               slug: thisAgent.urlSlug,

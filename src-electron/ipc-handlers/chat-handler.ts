@@ -1,6 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { DesktopChatService, ToolOrchestrator } from '../services/chat/index.js';
-import type { DesktopChatRequest, ToolStatus } from '../services/chat/index.js';
+import type { DesktopChatRequest } from '../services/chat/index.js';
 import { AuthService } from '../services/auth.service.js';
 import { getSettingsService } from './settings-handler.js';
 import log from 'electron-log';
@@ -67,7 +67,13 @@ export function registerChatHandlers(auth?: AuthService): void {
         }
 
         const cmd = new CreateChatServiceCommand();
-        const result = await cmd.execute(threadId, branchId, modelAccessName, accessToken, workingDirectory);
+        const result = await cmd.execute(
+          threadId,
+          branchId,
+          modelAccessName,
+          accessToken,
+          workingDirectory,
+        );
         if (!result.success) return result as ApiResponse<void>;
 
         // Store in map with composite key (threadId:branchId)
@@ -129,14 +135,11 @@ export function registerChatHandlers(auth?: AuthService): void {
             if (abortController.signal.aborted) return;
             event.sender.send('chat:toolUse', {
               threadId,
+              branchId,
               toolName,
               input,
               ...notification,
             });
-          },
-          (status: ToolStatus) => {
-            if (abortController.signal.aborted) return;
-            event.sender.send('chat:toolStatus', { threadId, ...status });
           },
           abortController.signal,
         );
@@ -162,11 +165,7 @@ export function registerChatHandlers(auth?: AuthService): void {
    */
   ipcMain.handle(
     'chat:cancel',
-    (
-      _event: IpcMainInvokeEvent,
-      threadId: string,
-      branchId: string,
-    ): ApiResponse<void> => {
+    (_event: IpcMainInvokeEvent, threadId: string, branchId: string): ApiResponse<void> => {
       const serviceKey = buildServiceKey(threadId, branchId);
       const controller = activeAbortControllers.get(serviceKey);
       if (controller) {
@@ -184,28 +183,31 @@ export function registerChatHandlers(auth?: AuthService): void {
   /**
    * Get Audit Logs - Retrieve chat audit logs from thread+branch service
    */
-  ipcMain.handle('chat:getAuditLogs', (_event, threadId: string, branchId: string): ApiResponse<unknown[]> => {
-    log.info('[IPC] chat:getAuditLogs called for thread:', threadId, 'branch:', branchId);
-    if (!threadId || !branchId) {
-      return apiFail(-1, 'threadId and branchId are required');
-    }
+  ipcMain.handle(
+    'chat:getAuditLogs',
+    (_event, threadId: string, branchId: string): ApiResponse<unknown[]> => {
+      log.info('[IPC] chat:getAuditLogs called for thread:', threadId, 'branch:', branchId);
+      if (!threadId || !branchId) {
+        return apiFail(-1, 'threadId and branchId are required');
+      }
 
-    const serviceKey = buildServiceKey(threadId, branchId);
-    const chatService = chatServices.get(serviceKey);
-    if (!chatService) {
-      return apiFail(-1, `Chat service not found for key: ${serviceKey}`);
-    }
+      const serviceKey = buildServiceKey(threadId, branchId);
+      const chatService = chatServices.get(serviceKey);
+      if (!chatService) {
+        return apiFail(-1, `Chat service not found for key: ${serviceKey}`);
+      }
 
-    try {
-      const logs = chatService.getAuditLogs();
-      log.info('[IPC] Audit logs retrieved successfully');
-      return apiOk(logs);
-    } catch (error) {
-      log.error('[IPC] Error retrieving audit logs:', error);
-      const message = error instanceof Error ? error.message : String(error);
-      return apiFail(-1, message);
-    }
-  });
+      try {
+        const logs = chatService.getAuditLogs();
+        log.info('[IPC] Audit logs retrieved successfully');
+        return apiOk(logs);
+      } catch (error) {
+        log.error('[IPC] Error retrieving audit logs:', error);
+        const message = error instanceof Error ? error.message : String(error);
+        return apiFail(-1, message);
+      }
+    },
+  );
 
   log.info('[IPC] Chat handlers registered');
 }

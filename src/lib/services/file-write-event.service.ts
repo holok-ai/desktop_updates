@@ -21,9 +21,10 @@ export type FileWriteEvent = {
 export interface ToolUseData {
   toolName: string;
   input: unknown;
-  stage: 'start' | 'complete';
+  stage: 'in_progress' | 'complete' | 'error';
   toolCallId: string;
   result?: unknown;
+  error?: string;
 }
 
 export class FileWriteEventService {
@@ -55,7 +56,7 @@ export class FileWriteEventService {
     const baseContent = input.content ?? '';
     const isoverwriteRequested = input.overwrite === true;
 
-    if (data.stage === 'start') {
+    if (data.stage === 'in_progress') {
       const userMessages = messages.filter((m) => m.role === 'user');
       const targetMessage = userMessages[userMessages.length - 1];
       if (targetMessage === null || targetMessage === undefined) {
@@ -189,7 +190,7 @@ export class FileWriteEventService {
         status: 'complete' as const,
         bytesWritten: event.bytesWritten ?? 0,
         success: false,
-        error: result?.error ?? 'File write failed',
+        error: data.error ?? result?.error ?? 'File write failed',
       };
     });
 

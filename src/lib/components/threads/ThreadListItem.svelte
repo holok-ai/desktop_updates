@@ -18,14 +18,14 @@
   let showMenu = $state(false);
   let showRenameModal = $state(false);
   let showDeleteModal = $state(false);
-  let deleteConfirmationRequired = $state(true);
+  let deleteThreadConfirmationRequired = $state(true);
 
   onMount(async () => {
     try {
       const s = await window.electronAPI.settings.getAll();
-      deleteConfirmationRequired = s.deleteConfirmationRequired ?? true;
+      deleteThreadConfirmationRequired = s.deleteThreadConfirmationRequired ?? true;
     } catch {
-      deleteConfirmationRequired = true;
+      deleteThreadConfirmationRequired = true;
     }
   });
 
@@ -114,7 +114,7 @@
   function handleDelete(event: MouseEvent) {
     event.stopPropagation();
     showMenu = false;
-    if (deleteConfirmationRequired) {
+    if (deleteThreadConfirmationRequired) {
       showDeleteModal = true;
     } else {
       void handleDeleteConfirmed();

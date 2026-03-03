@@ -135,56 +135,6 @@ describe('FileReadTool', () => {
       expect(mockContext.service.resolvePath).toHaveBeenNthCalledWith(2, './file.txt', '/dir2');
     });
 
-    it('should call status callback when provided', async () => {
-      const mockContent = 'file content';
-      const statusCallback = vi.fn();
-      fsMocks.existsSync.mockReturnValue(true);
-      fsMocks.promises.stat.mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      fsMocks.promises.readFile.mockResolvedValue(mockContent);
-
-      const contextWithCallback: ToolExecutionContext = {
-        ...executionContext,
-        statusCallback,
-      };
-
-      await tool.execute({ file_path: './test.txt' }, contextWithCallback);
-
-      expect(statusCallback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolName: 'read_file',
-          state: 'in_progress',
-        }),
-      );
-      expect(statusCallback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolName: 'read_file',
-          state: 'complete',
-        }),
-      );
-    });
-
-    it('should not call status callback when not provided', async () => {
-      const mockContent = 'file content';
-      fsMocks.existsSync.mockReturnValue(true);
-      fsMocks.promises.stat.mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: mockContent.length,
-        mtimeMs: 1234567890,
-      });
-      fsMocks.promises.readFile.mockResolvedValue(mockContent);
-
-      await tool.execute({ file_path: './test.txt' }, executionContext);
-
-      // Should not throw or error
-      expect(true).toBe(true);
-    });
-
     it('should return error for non-existent file', async () => {
       fsMocks.existsSync.mockReturnValue(false);
 
@@ -207,16 +157,33 @@ describe('FileReadTool', () => {
       expect(result.error).toContain('NOT_A_FILE');
     });
 
-    it('should return error when path access is denied', async () => {
+    it('should return blacklist error when path is in a system-protected directory', async () => {
       (mockContext.service.checkPathAccess as any).mockReturnValue({
         allowed: false,
         reason: 'blacklist',
       });
 
-      const result = await tool.execute({ file_path: './restricted.txt' }, executionContext);
+      const result = await tool.execute({ file_path: '/etc/passwd' }, executionContext);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('cannot access');
+      expect(result.error).toContain('ACCESS_DENIED (system blacklist)');
+      expect(result.error).toContain('cannot be overridden');
+    });
+
+    it('should return whitelist error when path is not in allowed folders', async () => {
+      (mockContext.service.checkPathAccess as any).mockReturnValue({
+        allowed: false,
+        reason: 'whitelist',
+      });
+
+      const result = await tool.execute(
+        { file_path: '/Users/peterbaxter/Documents/samples/file.txt' },
+        executionContext,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('ACCESS_DENIED (not in whitelist)');
+      expect(result.error).toContain('Settings');
     });
 
     it('should support line range', async () => {
@@ -264,7 +231,9 @@ describe('FileReadTool', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(fsMocks.promises.readFile).toHaveBeenCalledWith(expect.any(String), { encoding: 'ascii' });
+      expect(fsMocks.promises.readFile).toHaveBeenCalledWith(expect.any(String), {
+        encoding: 'ascii',
+      });
     });
   });
 });

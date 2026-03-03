@@ -41,7 +41,8 @@ export interface AppSettings {
 
   // General
   avatar: UserAvatar;
-  deleteConfirmationRequired: boolean;
+  deleteThreadConfirmationRequired: boolean;
+  deleteProjectConfirmationRequired: boolean;
 
   // Appearance
   startingPage: StartingPage;
@@ -59,6 +60,8 @@ export interface AppSettings {
 
   // Background Prompts
   autoTitleEnabled: boolean;
+  /** Compact threshold as a 0–1 ratio (default 0.75 = 75%) */
+  contextCompactThreshold: number;
 
   // Updates
   autoCheckUpdates: boolean;
@@ -84,7 +87,8 @@ export const defaultAppSettings: AppSettings = {
   theme: APP_THEME_MODE.LIGHT as AppThemeMode,
   avatar: { ...defaultUserAvatar },
   startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
-  deleteConfirmationRequired: false,
+  deleteThreadConfirmationRequired: false,
+  deleteProjectConfirmationRequired: false,
   showRecentList: true,
   showFavoritesList: true,
   threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -95,6 +99,7 @@ export const defaultAppSettings: AppSettings = {
   windowsCommands: '',
   unixCommands: '',
   autoTitleEnabled: true,
+  contextCompactThreshold: 0.75,
   autoCheckUpdates: true,
   autoInstallUpdates: false,
 };

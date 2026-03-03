@@ -17,6 +17,10 @@
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
   import { ThreadObserver } from '$lib/observer/thread-observer';
+  import ContextStatus from './ContextStatus.svelte';
+  import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
+  import type { ToolCall } from '$lib/types/tool-call.type';
+  import { threadStreamService } from '$lib/services/thread-stream.service';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -54,6 +58,10 @@
   let debugActivity = $state(''); // Debug activity log
   let lastHandledErrorBranch = $state(''); // Prevent duplicate error handling
   let expandedBranchRows = $state<Set<number>>(new Set()); // Branch rows force-expanded for viewing
+
+  // Tool calls accumulating for the active stream; snapshotted by branchId after completion
+  let activeToolCalls = $state<ToolCall[]>([]);
+  let completedToolCalls = $state(new Map<string, ToolCall[]>());
 
   // ── Multi-stream support ──
   // Background streams live in threadService (singleton) so they survive component
@@ -120,7 +128,7 @@
       const settings = await window.electronAPI.settings.getAll();
       fontSize = settings.chatFontSize ?? 14;
     } catch (err) {
-      console.error('[ThreadChatView] Failed to load font size setting:', err);
+      window.electronAPI.log.error('[ThreadChatView] Failed to load font size setting:', err);
     }
 
     // Auto-select first model if no thread (new thread flow)
@@ -147,11 +155,6 @@
   });
 
   onDestroy(() => {
-    console.log('[ThreadChatView] onDestroy — component being torn down.', {
-      threadId: thread?.id,
-      isStreaming,
-      hasBgStream: thread?.id ? threadService.hasBackgroundStream(thread.id) : false,
-    });
     clearTimeouts();
     // Background streams live in threadService — do NOT clean them up here.
     // They must survive component destruction so tokens keep accumulating
@@ -165,20 +168,14 @@
   let previousThreadId: string | null = null;
   $effect(() => {
     const currentThreadId = thread?.id ?? null;
-    console.log('[ThreadChatView] $effect fired.', {
-      currentThreadId,
-      previousThreadId,
-      isStreaming,
-      hasBgStream: currentThreadId ? threadService.hasBackgroundStream(currentThreadId) : false,
-    });
 
     if (previousThreadId !== null && currentThreadId !== previousThreadId) {
       // Thread switch while component is mounted
       if (isStreaming) {
-        console.log('[ThreadChatView] Thread switched during streaming. Detaching UI.', {
-          from: previousThreadId,
-          to: currentThreadId,
-        });
+        window.electronAPI.log.info(
+          '[ThreadChatView] Thread switched during streaming. Detaching UI.',
+          { from: previousThreadId, to: currentThreadId },
+        );
         // Only reset UI-facing state. The background stream keeps running in threadService.
         isStreaming = false;
         responseText = '';
@@ -196,7 +193,7 @@
       // error) and no tokens will ever arrive — re-attaching would show the
       // loading bubble forever.
       if (bgStream && threadService.hasStreamingSession(currentThreadId)) {
-        console.log('[ThreadChatView] Re-attaching to active background stream.', {
+        window.electronAPI.log.info('[ThreadChatView] Re-attaching to active background stream.', {
           threadId: currentThreadId,
           accumulatedLength: bgStream.accumulatedText.length,
           isFirstMount: previousThreadId === null,
@@ -212,7 +209,10 @@
         const hadSynthetic = messages.some((m) => m.id === syntheticId);
         if (hadSynthetic) {
           messages = messages.filter((m) => m.id !== syntheticId);
-          console.log('[ThreadChatView] Stripped synthetic assistant message:', syntheticId);
+          window.electronAPI.log.debug(
+            '[ThreadChatView] Stripped synthetic assistant message:',
+            syntheticId,
+          );
         }
 
         // Re-subscribe with a fresh callback that closes over THIS component's
@@ -226,7 +226,7 @@
           bgStream.branchId,
           createTokenCallback(currentThreadId, bgStream),
         );
-        console.log(
+        window.electronAPI.log.debug(
           '[ThreadChatView] Re-subscribed with fresh callback for thread:',
           currentThreadId,
         );
@@ -234,6 +234,23 @@
     }
 
     previousThreadId = currentThreadId;
+  });
+
+  // ── Initialize observer tasks when a thread + its messages are first loaded ──
+  // Uses a plain variable (not $state) so writing it doesn't re-trigger the effect.
+  // The effect re-runs whenever thread?.id or messages changes; it only calls
+  // initializeThread the first time messages arrive for each distinct thread.
+  let lastInitializedThreadId: string | null = null;
+  $effect(() => {
+    const currentThreadId = thread?.id ?? null;
+    if (
+      currentThreadId !== null &&
+      messages.length > 0 &&
+      currentThreadId !== lastInitializedThreadId
+    ) {
+      lastInitializedThreadId = currentThreadId;
+      ThreadObserver.getInstance().initializeThread(thread!, messages);
+    }
   });
 
   function extractModelInfo() {
@@ -246,15 +263,11 @@
       modelName = detail.accessName;
       modelAccessName = detail.accessName;
       applicationSlug = detail.applicationSlug;
-
-      console.log('[ThreadChatView] extractModelInfo - found model:', {
-        modelId,
-        modelAccessName,
-        applicationSlug,
-        availableModelsCount: availableModels.length,
-      });
     } else {
-      console.log('[ThreadChatView] extractModelInfo - model NOT found in availableModels');
+      window.electronAPI.log.warn(
+        '[ThreadChatView] extractModelInfo - model NOT found in availableModels',
+        { modelId },
+      );
     }
   }
 
@@ -359,14 +372,7 @@
         addDebugLog(`[ThreadChatView] Accumulated responseText (length: ${responseText.length})`);
         scrollToBottom();
       } else {
-        // Background accumulation — log periodically (every 500 chars) to avoid spam
-        if (bgStream.accumulatedText.length % 500 < token.length) {
-          console.log('[ThreadChatView] Background token accumulation.', {
-            threadId: forThreadId,
-            accumulatedLength: bgStream.accumulatedText.length,
-            viewingThread: thread?.id,
-          });
-        }
+        // Background accumulation
       }
     };
   }
@@ -390,18 +396,30 @@
     threadService.setBackgroundStream(forThreadId, bgStream);
 
     // Subscribe to stream for this thread + branch
-    bgStream.unsubscribe = threadService.subscribeToStream(
+    const unsubStream = threadService.subscribeToStream(
       forThreadId,
       branchId,
       createTokenCallback(forThreadId, bgStream),
     );
+
+    // Subscribe to tool use events for this stream
+    const unsubToolUse = threadStreamService.subscribeToToolUse(forThreadId, branchId, (calls) => {
+      if (thread?.id === forThreadId) {
+        activeToolCalls = calls;
+      }
+    });
+
+    bgStream.unsubscribe = () => {
+      unsubStream();
+      unsubToolUse();
+    };
 
     addDebugLog(`[ThreadChatView] Stream subscription established for thread: ${forThreadId}`);
   }
 
   // ── Send message ──
   async function sendMessage(
-    appSlug: string,
+    _appSlug: string,
     modelIds: string[],
     text: string,
     _attachments?: Attachment[],
@@ -635,6 +653,8 @@
 
     addDebugLog(`[sendMessageBranch] All chats complete. Cleaning up.`);
 
+    activeToolCalls = [];
+
     // Clean up streaming and streaming session
     bgStream.unsubscribe?.();
     threadService.deleteBackgroundStream(capturedThreadId);
@@ -737,11 +757,16 @@
 
       if (!chatResult.success) {
         const errorMessage = chatResult.errorText ?? 'Chat failed';
-        console.log('[ThreadChatView] Error check (result validation):', errorMessage);
+        window.electronAPI.log.warn(
+          '[ThreadChatView] Error check (result validation):',
+          errorMessage,
+        );
         // Clear the streaming session — the chat request failed so no tokens
         // will arrive. Without this, returning to the thread later would find
         // the orphaned session and show an infinite loading state.
         threadService.clearStreamingSession(capturedThreadId);
+        activeToolCalls = [];
+        threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
         if (isViewingThisThread) {
           handleGuardError(errorMessage, capturedBranchId);
           isStreaming = false;
@@ -754,10 +779,9 @@
       const bgStream = threadService.getBackgroundStream(capturedThreadId);
       const finalText = bgStream?.accumulatedText ?? '';
       if (finalText) {
-        console.log('[ThreadChatView] Streaming complete. Final responseText:', {
+        window.electronAPI.log.info('[ThreadChatView] Streaming complete.', {
           length: finalText.length,
-          content: finalText,
-          persistToThread: capturedThreadId,
+          threadId: capturedThreadId,
         });
         addDebugLog(
           `[ThreadChatView] Streaming complete - persisting response (${finalText.length} chars) to thread ${capturedThreadId}`,
@@ -770,6 +794,10 @@
 
         // Only update local messages if the user is still viewing the same thread
         if (isViewingThisThread) {
+          const completedTools = activeToolCalls.map((tool) => ({
+            name: tool.name,
+            status: 'complete' as const,
+          }));
           const assistantMsg: Message = {
             id: crypto.randomUUID(),
             threadId: capturedThreadId,
@@ -781,6 +809,7 @@
             guardExecution: 'none',
             guardMessageId: null,
             guardError: '',
+            toolUses: completedTools.length > 0 ? completedTools : undefined,
           };
           messages = [...messages, assistantMsg];
           await tick();
@@ -792,9 +821,17 @@
         }
       }
 
+      // Snapshot tool calls before cleanup so the chip toggle works after streaming
+      const toolCallSnapshot = threadStreamService.getToolCalls(capturedThreadId, capturedBranchId);
+      if (toolCallSnapshot.length > 0) {
+        completedToolCalls = new Map(completedToolCalls).set(capturedBranchId, toolCallSnapshot);
+      }
+      activeToolCalls = [];
+      threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
+
       // Clean up this thread's background stream and streaming session — fully complete
-      console.log('[ThreadChatView] Stream complete — cleaning up.', {
-        capturedThreadId,
+      window.electronAPI.log.info('[ThreadChatView] Stream complete — cleaning up.', {
+        threadId: capturedThreadId,
         isViewingThisThread,
         finalTextLength: finalText.length,
       });
@@ -810,10 +847,15 @@
       scrollToBottom();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      console.log('[ThreadChatView] Catch block 2 (main error handler):', errorMessage);
+      window.electronAPI.log.error(
+        '[ThreadChatView] Catch block 2 (main error handler):',
+        errorMessage,
+      );
       const isViewingThisThread = thread?.id === capturedThreadId;
       // Clean up this thread's background stream and streaming session
       const bgStream = threadService.getBackgroundStream(capturedThreadId);
+      activeToolCalls = [];
+      threadStreamService.clearToolCalls(capturedThreadId, capturedBranchId);
       bgStream?.unsubscribe?.();
       threadService.deleteBackgroundStream(capturedThreadId);
       threadService.clearStreamingSession(capturedThreadId);
@@ -827,17 +869,26 @@
     }
   }
 
+  // ── Context compaction ──
+  function handleCompactNow(): void {
+    if (!thread) return;
+    ThreadObserver.getInstance().forceTask(ObserverTaskType.CompressContext, thread, messages);
+  }
+
   // ── Helpers ──
   function handleGuardError(errorMessage: string, branchId: string) {
     // Prevent duplicate handling for the same branch
-    console.log('[ThreadChatView] handleGuardError called', {
+    window.electronAPI.log.debug('[ThreadChatView] handleGuardError called', {
       branchId,
       lastHandledErrorBranch,
       willSkip: lastHandledErrorBranch === branchId,
     });
 
     if (lastHandledErrorBranch === branchId) {
-      console.log('[ThreadChatView] ✓ Skipping duplicate error handling for branch:', branchId);
+      window.electronAPI.log.debug(
+        '[ThreadChatView] Skipping duplicate error handling for branch:',
+        branchId,
+      );
       return;
     }
 
@@ -875,10 +926,10 @@
         requestMessage.guardExecution = 'fail';
         requestMessage.guardError = error;
         messages = [...messages]; // Trigger reactivity
-        console.log('[ThreadChatView] Marked message as guard-blocked');
+        window.electronAPI.log.debug('[ThreadChatView] Marked message as guard-blocked');
       }
 
-      console.log('[ThreadChatView] Guard blocked message:', errorMessage);
+      window.electronAPI.log.warn('[ThreadChatView] Guard blocked message:', errorMessage);
     } else {
       error = errorMessage;
     }
@@ -909,6 +960,7 @@
       threadService.deleteBackgroundStream(currentId);
       threadService.clearStreamingSession(currentId);
     }
+    activeToolCalls = [];
     isStreaming = false;
     error = msg;
     clearTimeouts();
@@ -1063,6 +1115,9 @@
           responses={item.pair.responses}
           isStreaming={item.pair.isStreamingResponse}
           streamingContent={item.pair.streamingContent}
+          tools={item.pair.isStreamingResponse
+            ? activeToolCalls
+            : (completedToolCalls.get(item.pair.request.branchId) ?? [])}
           onCopyRequest={(content) => copyToInput(content)}
           showBranchIcon={item.isFromBranch === true}
           onBranchClick={item.isFromBranch
@@ -1072,11 +1127,6 @@
           guardError={item.pair.request.guardError}
         />
       {:else if item.type === 'branch'}
-        {console.log('[ThreadChatView] Rendering ChatBranch:', {
-          branchId: item.id,
-          laneCount: item.lanes.length,
-          lanes: item.lanes,
-        })}
         <ChatBranch
           branchId={item.id}
           lanes={item.lanes}
@@ -1091,7 +1141,7 @@
     {/each}
 
     <!-- Loading indicator while waiting for first streaming token -->
-    {#if isStreaming && responseText === ''}
+    {#if isStreaming && responseText === '' && activeToolCalls.length === 0}
       <div class="waiting-indicator">
         <div class="waiting-dots">
           <span class="dot"></span>
@@ -1114,6 +1164,9 @@
       {agentId}
       modelId={modelAccessName}
     />
+    <div class="context-status-row">
+      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
+    </div>
 
     <!-- Debug Activity Box -->
     {#if SHOW_DEBUG_ACTIVITY}
@@ -1300,6 +1353,17 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .context-status-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Sit just below the composer with a small visual gap.
+       Negative margin cancels most of the composer-area gap (0.75rem),
+       leaving ~4px between the composer bottom and the bar. */
+    margin-top: calc(4px - 0.75rem);
+    margin-bottom: -0.375rem;
   }
 
   .debug-area {

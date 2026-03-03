@@ -15,7 +15,7 @@ import { formatResponseContent } from './response-formatter';
 
 export interface MessagePair {
   request: Message;
-  responses: Message[];
+  responses: Array<Message & { tools?: Array<{ name: string; status: string }> }>;
   isStreamingResponse: boolean;
   streamingContent: string;
 }
@@ -275,6 +275,7 @@ export class ThreadDisplay {
           const formattedResponse = {
             ...assistantMsg,
             content: formattedContent,
+            tools: assistantMsg.toolUses ?? [],
           };
 
           responses.push(formattedResponse);
@@ -328,5 +329,4 @@ export class ThreadDisplay {
 
     return result;
   }
-
 }

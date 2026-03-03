@@ -20,6 +20,8 @@ import {
   PlaceholderInspector,
   GuardInspector,
   ObserverPromptsInspector,
+  ToolUseInspector,
+  ResponseCompletedInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -32,6 +34,8 @@ export class ThreadRepository {
 
   private readonly messageInspectors: IMessageInspector[] = [
     new ObserverPromptsInspector(),
+    new ResponseCompletedInspector(),
+    new ToolUseInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
     new GuardInspector(),
@@ -89,37 +93,12 @@ export class ThreadRepository {
     return this.cloneThread(toSave);
   }
 
-  private async loadCachedThread(cachedThread: Thread): Promise<Thread | null> {
-    const threadId: string = cachedThread.id;
-    const cachedMessagesCount = cachedThread.messages.length;
-    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
-
-    if (messagesResult.success) {
-      const mapped = messagesResult.data.content.map((dto) =>
-        this.mapDTOToMessage(dto, cachedThread.title),
-      );
-      const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
-
-      // If API returned messages, use them. Otherwise, if cache has messages, keep them (local-only not yet synced)
-      if (finalMessages.length > 0) {
-        cachedThread.messages = finalMessages;
-        this.threadsById.set(threadId, cachedThread);
-      } else if (cachedMessagesCount > 0) {
-        // API returned empty but cache has messages - keep cached messages (likely local-only)
-      }
-    } else {
-      log.error(
-        '[ThreadRepository] Failed to refresh messages for cached thread:',
-        messagesResult.errorText,
-      );
-      // On error, keep cached messages if they exist
+  private async loadThreadMeta(threadId: string): Promise<Thread | null> {
+    const cachedThread = this.threadsById.get(threadId);
+    if (cachedThread) {
+      return this.cloneThread(cachedThread);
     }
 
-    return this.cloneThread(cachedThread);
-  }
-
-  private async loadUncachedThread(threadId: string): Promise<Thread | null> {
-    // Fetch from API
     const threadResult = await threadApiService.getThread(threadId);
     if (!threadResult.success) {
       log.error('[ThreadRepository] Failed to load thread:', threadResult.errorText);
@@ -127,35 +106,41 @@ export class ThreadRepository {
     }
 
     const thread = this.mapDTOToThread(threadResult.data);
-
-    // Fetch messages for the thread
-    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
-
-    if (messagesResult.success) {
-      const mapped = messagesResult.data.content.map((dto) =>
-        this.mapDTOToMessage(dto, thread.title),
-      );
-      thread.messages = MessageInspector.run(this.messageInspectors, mapped);
-    } else {
-      log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
-    }
-
-    // Update cache
     this.threadsById.set(thread.id, thread);
-
     return this.cloneThread(thread);
   }
 
   public async loadThread(threadId: string): Promise<Thread | null> {
-    // Check cache first
-    const cachedThread = this.threadsById.get(threadId);
-    if (cachedThread) {
-      // we have a thread id in cache, so update the messages in it
-      return this.loadCachedThread(cachedThread);
-    } else {
-      // thread id is no longer in cache, so try to load it
-      return this.loadUncachedThread(threadId);
+    return this.loadThreadMeta(threadId);
+  }
+
+  public async loadThreadMessages(threadId: string): Promise<Message[]> {
+    const messagesResult = await threadApiService.getMessages(threadId, { size: 1000 });
+
+    if (!messagesResult.success) {
+      log.error('[ThreadRepository] Failed to load messages for thread:', messagesResult.errorText);
+      return [];
     }
+
+    const threadTitle = this.threadsById.get(threadId)?.title ?? '';
+    const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
+    const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
+    const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+    const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
+    log.info('[ThreadRepository] Loaded thread messages with toolUses', {
+      threadId,
+      total: finalMessages.length,
+      toolUseCount,
+      assistantCount,
+    });
+
+    const cached = this.threadsById.get(threadId);
+    if (cached) {
+      cached.messages = finalMessages;
+      this.threadsById.set(threadId, cached);
+    }
+
+    return finalMessages;
   }
 
   public async listThreads(options?: {
@@ -670,16 +655,14 @@ export class ThreadRepository {
    * Converts ISO-8601 timestamps to epoch milliseconds.
    */
   private mapDTOToMessage(dto: MessageDTO, threadTitle: string): Message {
-    let branchId = dto.branchId;
-    if (!branchId) {
-      branchId = '1.0.0';
-    } else {
-      // Normalize/cap to 3-part format
-      branchId = this.normalizeBranchId(branchId);
-    }
+    const rawBranchId = dto.branchId || '1.0.0';
+    const normalizedBranchId = this.normalizeBranchId(rawBranchId);
+    const branchId = normalizedBranchId;
 
     const opts = dto.options as { desktop_options?: RequestOptionsDTO } | null;
     const desktopOptions = opts?.desktop_options ?? null;
+
+    const { contentText, toolUsesFromContent } = this.extractContentBlocks(dto.content);
 
     const message: Message = {
       id: dto.id,
@@ -687,12 +670,14 @@ export class ThreadRepository {
       title: threadTitle,
       userId: dto.createdUserId || '',
       role: dto.role as MessageRole,
-      content: (dto.content as string) || '',
+      content: contentText,
       createdAt: this.parseApiTimeMs(dto.createdAt),
       rawData: (dto.rawData as JsonValue) ?? undefined,
       deletedAt: null,
       editedAt: dto.updatedAt !== dto.createdAt ? this.parseApiTimeMs(dto.updatedAt) : undefined,
       branchId,
+      rawBranchId,
+      normalizedBranchId,
       modelId: dto.model || '',
       provider: dto.provider || '',
       guardExecution: 'none',
@@ -715,7 +700,138 @@ export class ThreadRepository {
       message.attachments = this.extractAttachmentsFromRawData(message.rawData, message.provider);
     }
 
+    if (message.role === 'assistant') {
+      const toolUses = [
+        ...toolUsesFromContent,
+        ...(message.rawData ? this.extractToolUsesFromRawData(message.rawData) : []),
+      ];
+      const merged = this.mergeToolUses(toolUses);
+      if (merged.length > 0) {
+        message.toolUses = merged;
+      }
+    }
+
+    // Set token count: use API-provided value, fall back to content-length estimate
+    message.tokens = dto.tokens ?? Math.ceil(message.content.length / 4);
+
     return message;
+  }
+
+  private extractToolUsesFromRawData(
+    rawData: JsonValue,
+  ): Array<{ name: string; status: 'complete' }> {
+    if (!rawData || typeof rawData !== 'object') {
+      return [];
+    }
+
+    const data = rawData as Record<string, unknown>;
+    const toolCalls = data.tool_calls;
+    if (!Array.isArray(toolCalls)) {
+      return [];
+    }
+
+    const names = toolCalls
+      .map((toolCall) => {
+        if (!toolCall || typeof toolCall !== 'object') return null;
+        const call = toolCall as Record<string, unknown>;
+        const fn = call.function;
+        if (fn && typeof fn === 'object') {
+          const fnName = (fn as Record<string, unknown>).name;
+          if (typeof fnName === 'string') {
+            return fnName;
+          }
+        }
+
+        const name = call.name;
+        if (typeof name === 'string') {
+          return name;
+        }
+
+        return null;
+      })
+      .filter((name): name is string => typeof name === 'string' && name.length > 0);
+
+    return names.map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  private extractContentBlocks(content: unknown): {
+    contentText: string;
+    toolUsesFromContent: Array<{ name: string; status: 'complete' }>;
+  } {
+    if (Array.isArray(content)) {
+      const textParts: string[] = [];
+      const toolUses: Array<{ name: string; status: 'complete' }> = [];
+
+      for (const block of content) {
+        if (!block || typeof block !== 'object') continue;
+        const record = block as Record<string, unknown>;
+        const type = record.type;
+
+        if (type === 'text') {
+          const text = record.text;
+          if (typeof text === 'string') {
+            textParts.push(text);
+          }
+          continue;
+        }
+
+        if (type === 'tool_use') {
+          const name = record.name;
+          if (typeof name === 'string' && name.length > 0) {
+            toolUses.push({ name, status: 'complete' as const });
+          }
+        }
+      }
+
+      return {
+        contentText: textParts.join('\n'),
+        toolUsesFromContent: toolUses,
+      };
+    }
+
+    if (typeof content === 'string') {
+      return { contentText: content, toolUsesFromContent: [] };
+    }
+
+    if (content === null || content === undefined) {
+      return { contentText: '', toolUsesFromContent: [] };
+    }
+
+    if (typeof content === 'object') {
+      try {
+        return { contentText: JSON.stringify(content), toolUsesFromContent: [] };
+      } catch {
+        return { contentText: '', toolUsesFromContent: [] };
+      }
+    }
+
+    if (
+      typeof content === 'number' ||
+      typeof content === 'boolean' ||
+      typeof content === 'bigint'
+    ) {
+      return { contentText: content.toString(), toolUsesFromContent: [] };
+    }
+
+    if (typeof content === 'symbol') {
+      return { contentText: '', toolUsesFromContent: [] };
+    }
+
+    return { contentText: '', toolUsesFromContent: [] };
+  }
+
+  private mergeToolUses(
+    toolUses: Array<{ name: string; status: 'complete' }>,
+  ): Array<{ name: string; status: 'complete' }> {
+    if (toolUses.length === 0) return toolUses;
+    const seen = new Set<string>();
+    const merged: Array<{ name: string; status: 'complete' }> = [];
+    for (const toolUse of toolUses) {
+      if (!toolUse?.name || seen.has(toolUse.name)) continue;
+      seen.add(toolUse.name);
+      merged.push({ name: toolUse.name, status: 'complete' });
+    }
+    return merged;
   }
 
   /**

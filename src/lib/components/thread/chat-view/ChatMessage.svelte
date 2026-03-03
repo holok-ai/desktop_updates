@@ -10,6 +10,7 @@
   import ChatRequestCommands from './ChatRequestCommands.svelte';
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { ToolCall } from '$lib/types/tool-call.type';
 
   interface Props {
     /** User prompt text */
@@ -24,13 +25,17 @@
     attachments?: string[];
 
     /** Assistant responses (array to support multiple consecutive responses) */
-    responses?: Array<{ id: string; content: string }>;
+    responses?: Array<{
+      id: string;
+      content: string;
+      tools?: Array<{ name: string; status: string }>;
+    }>;
     /** Streaming content for active streaming response */
     streamingContent?: string;
     /** Whether the response is still streaming */
     isStreaming?: boolean;
     /** Tool usage details */
-    tools?: Array<{ name: string; status: string }>;
+    tools?: ToolCall[];
     /** File outputs from the response */
     files?: string[];
 
@@ -154,7 +159,7 @@
   {/each}
 
   <!-- Render streaming response if applicable -->
-  {#if isStreaming && streamingContent}
+  {#if isStreaming && (streamingContent || tools.length > 0)}
     <ChatResponse
       content={streamingContent}
       {chatLayout}

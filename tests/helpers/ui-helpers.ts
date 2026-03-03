@@ -94,9 +94,10 @@ async function areModelsLoaded(page: Page): Promise<boolean> {
  * Just navigates to home and waits briefly for the page to load
  */
 export async function navigateToHome(page: Page): Promise<void> {
-  const homeMenuItem = page.getByRole('menuitem', { name: 'Home' });
-  await expect(homeMenuItem).toBeVisible({ timeout: 10000 });
-  await homeMenuItem.click();
+  // Sidebar has no "Home" button — navigate via hash route directly
+  const currentUrl = page.url();
+  const baseUrl = currentUrl.split('#')[0];
+  await page.goto(`${baseUrl}#/`);
 
   // Wait for home page to load
   await page.waitForLoadState('networkidle');
@@ -1124,5 +1125,63 @@ export async function forceThreadRefreshOld(page: Page): Promise<void> {
       .catch(() => {
         return page.waitForTimeout(2000);
       });
+  }
+}
+
+/**
+ * Navigate to the Search page via sidebar
+ */
+export async function navigateToSearch(page: Page): Promise<void> {
+  const searchMenuItem = page.getByRole('menuitem', { name: 'Search' });
+  await expect(searchMenuItem).toBeVisible({ timeout: 10000 });
+  await searchMenuItem.click();
+
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(/\/search/, { timeout: 10000 });
+}
+
+/**
+ * Select a settings category tab by label name
+ *
+ * @param page - Playwright page object
+ * @param tabName - The tab label: 'General', 'Appearance', 'Updates', 'Tools', 'Connections', or 'Diagnostics'
+ */
+export async function selectSettingsTab(
+  page: Page,
+  tabName: 'General' | 'Appearance' | 'Updates' | 'Tools' | 'Connections' | 'Diagnostics',
+): Promise<void> {
+  const tabButton = page.locator('button.sidebar-item', { hasText: tabName });
+  await expect(tabButton).toBeVisible({ timeout: 5000 });
+  await tabButton.click();
+  await page.waitForTimeout(500);
+}
+
+/**
+ * Wait for a toast notification to appear
+ *
+ * @param page - Playwright page object
+ * @param text - Optional text to match within the toast message
+ * @param timeout - Maximum time to wait (default 10s)
+ */
+export async function waitForToast(
+  page: Page,
+  text?: string | RegExp,
+  timeout: number = 10000,
+): Promise<void> {
+  const toastLocator = text ? page.locator('.toast', { hasText: text }) : page.locator('.toast');
+  await expect(toastLocator).toBeVisible({ timeout });
+}
+
+/**
+ * Dismiss the "Unsaved Changes" modal if it is currently visible.
+ * Safe to call at any time — does nothing if the modal isn't showing.
+ */
+export async function dismissUnsavedChangesIfPresent(page: Page): Promise<void> {
+  const modal = page.locator('text=Unsaved Changes');
+  const isVisible = await modal.isVisible({ timeout: 1000 }).catch(() => false);
+  if (isVisible) {
+    console.log('[dismissUnsavedChangesIfPresent] Dismissing unsaved changes modal...');
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.waitForTimeout(500);
   }
 }

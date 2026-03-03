@@ -20,7 +20,7 @@
   let projectToRename = $state<Project | null>(null);
   let projectToDelete = $state<Project | null>(null);
   let openMenuProjectId = $state<string | null>(null);
-  let deleteConfirmationRequired = $state(true);
+  let deleteProjectConfirmationRequired = $state(true);
 
   function formatDateTime(date: Date | number): string {
     const d = typeof date === 'number' ? new Date(date) : date;
@@ -51,7 +51,7 @@
         projectService.loadProjects(),
         window.electronAPI.settings.getAll(),
       ]);
-      deleteConfirmationRequired = s.deleteConfirmationRequired ?? true;
+      deleteProjectConfirmationRequired = s.deleteProjectConfirmationRequired ?? true;
     } catch (error) {
       console.error('Failed to load projects:', error);
       errorMessage = 'Failed to load projects';
@@ -133,7 +133,7 @@
   function handleDelete(project: Project, e: MouseEvent) {
     e.stopPropagation();
     closeMenu();
-    if (deleteConfirmationRequired) {
+    if (deleteProjectConfirmationRequired) {
       projectToDelete = project;
       showDeleteModal = true;
     } else {
@@ -459,6 +459,7 @@
     line-height: 1.5;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }

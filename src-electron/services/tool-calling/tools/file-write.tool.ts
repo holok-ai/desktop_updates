@@ -77,15 +77,6 @@ export class FileWriteTool implements ITool {
       executionContext.workingDirectory,
     );
 
-    // Emit status using executionContext callback (if provided)
-    if (executionContext.statusCallback) {
-      executionContext.statusCallback({
-        toolName: 'write_file',
-        state: 'in_progress',
-        message: `Writing file: ${userPath}`,
-      });
-    }
-
     // Security check - must be in allowed directories and not blacklisted
     const pathCheck = this.context.service.checkPathAccess(resolvedPath);
     if (!pathCheck.allowed) {
@@ -150,14 +141,6 @@ export class FileWriteTool implements ITool {
           previousSize: previousSize,
         },
       };
-
-      // Emit completion status
-      if (executionContext.statusCallback) {
-        executionContext.statusCallback({
-          toolName: 'write_file',
-          state: 'complete',
-        });
-      }
 
       return {
         success: true,

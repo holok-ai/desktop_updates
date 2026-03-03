@@ -73,7 +73,8 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
-    deleteConfirmationRequired: false,
+    deleteThreadConfirmationRequired: false,
+    deleteProjectConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -84,6 +85,7 @@
     windowsCommands: '',
     unixCommands: '',
     autoTitleEnabled: true,
+    contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -98,7 +100,8 @@
     theme: APP_THEME_MODE.LIGHT,
     avatar: { ...defaultUserAvatar },
     startingPage: STARTING_PAGE.CREATE_CHAT as StartingPage,
-    deleteConfirmationRequired: false,
+    deleteThreadConfirmationRequired: false,
+    deleteProjectConfirmationRequired: false,
     showRecentList: true,
     showFavoritesList: true,
     threadLayout: THREAD_LAYOUT.SINGLE_COL as ThreadLayout,
@@ -109,6 +112,7 @@
     windowsCommands: '',
     unixCommands: '',
     autoTitleEnabled: true,
+    contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
     updateAvailable: false,
@@ -137,7 +141,8 @@
         ? ({ ...defaultUserAvatar, ...all.avatar } as UserAvatar)
         : { ...defaultUserAvatar },
       startingPage: (all.startingPage as StartingPage) || STARTING_PAGE.CREATE_CHAT,
-      deleteConfirmationRequired: all.deleteConfirmationRequired ?? false,
+      deleteThreadConfirmationRequired: all.deleteThreadConfirmationRequired ?? false,
+      deleteProjectConfirmationRequired: all.deleteProjectConfirmationRequired ?? false,
       showRecentList: all.showRecentList ?? true,
       showFavoritesList: all.showFavoritesList ?? true,
       threadLayout: (all.threadLayout as ThreadLayout) || THREAD_LAYOUT.SINGLE_COL,
@@ -152,6 +157,7 @@
       updateAvailable: Boolean(all.updateAvailable ?? false),
       latestVersion: String(all.latestVersion ?? ''),
       autoTitleEnabled: all.autoTitleEnabled ?? true,
+      contextCompactThreshold: all.contextCompactThreshold ?? 0.75,
     };
     savedSettings = {
       ...settings,
@@ -230,7 +236,8 @@
         directoryWhitelist: [...settings.directoryWhitelist],
         avatar: { ...settings.avatar },
         startingPage: settings.startingPage,
-        deleteConfirmationRequired: settings.deleteConfirmationRequired,
+        deleteThreadConfirmationRequired: settings.deleteThreadConfirmationRequired,
+        deleteProjectConfirmationRequired: settings.deleteProjectConfirmationRequired,
         showRecentList: settings.showRecentList,
         showFavoritesList: settings.showFavoritesList,
         threadLayout: settings.threadLayout,
@@ -360,7 +367,8 @@
       directoryWhitelist: settings.directoryWhitelist,
       avatar: settings.avatar,
       startingPage: settings.startingPage,
-      deleteConfirmationRequired: settings.deleteConfirmationRequired,
+      deleteThreadConfirmationRequired: settings.deleteThreadConfirmationRequired,
+      deleteProjectConfirmationRequired: settings.deleteProjectConfirmationRequired,
       showRecentList: settings.showRecentList,
       showFavoritesList: settings.showFavoritesList,
       threadLayout: settings.threadLayout,
@@ -380,7 +388,8 @@
         directoryWhitelist: savedSettings.directoryWhitelist,
         avatar: savedSettings.avatar,
         startingPage: savedSettings.startingPage,
-        deleteConfirmationRequired: savedSettings.deleteConfirmationRequired,
+        deleteThreadConfirmationRequired: savedSettings.deleteThreadConfirmationRequired,
+        deleteProjectConfirmationRequired: savedSettings.deleteProjectConfirmationRequired,
         showRecentList: savedSettings.showRecentList,
         showFavoritesList: savedSettings.showFavoritesList,
         threadLayout: savedSettings.threadLayout,
@@ -578,10 +587,18 @@
                   <div class="subgroup-label">Confirmations</div>
                   <div class="subgroup-controls">
                     <label class="inline-flex items-center gap-2">
-                      <input type="checkbox" bind:checked={settings.deleteConfirmationRequired} />
-                      <span class="text-sm"
-                        >Require confirmation to delete threads and projects?</span
-                      >
+                      <input
+                        type="checkbox"
+                        bind:checked={settings.deleteThreadConfirmationRequired}
+                      />
+                      <span class="text-sm">Require confirmation to delete threads?</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        bind:checked={settings.deleteProjectConfirmationRequired}
+                      />
+                      <span class="text-sm">Require confirmation to delete projects?</span>
                     </label>
                   </div>
                 </div>

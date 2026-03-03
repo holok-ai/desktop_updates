@@ -19,6 +19,8 @@ export interface Message {
   id: UUID;
   threadId: string;
   branchId: string;
+  rawBranchId?: string;
+  normalizedBranchId?: string;
   provider: string;
   modelId: string;
   title: string;
@@ -38,6 +40,9 @@ export interface Message {
   guardMessageId: string | null;
   guardError: string;
   desktopOptions?: RequestOptionsDTO | null;
+  /** Token count for this message (input tokens for user, output tokens for assistant) */
+  tokens?: number;
+  toolUses?: Array<{ name: string; status: 'complete' }>;
 }
 
 export interface ThreadMetadata {
