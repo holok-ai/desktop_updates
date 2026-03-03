@@ -68,15 +68,9 @@ test.describe.serial('Thread Favorite Toggle', () => {
     // Requirement 4.1
     await ensureNotFavorited(page);
 
-    // Requirement 6.3: clicking a thread navigates to thread view
     const threadItems = page.locator('.thread-item');
     const count = await threadItems.count();
-
-    if (count === 0) {
-      // No threads — skip this test gracefully
-      test.skip();
-      return;
-    }
+    expect(count, 'Expected at least one thread; empty list may indicate a bug or missing setup').toBeGreaterThan(0);
 
     const firstItem = page.locator('.thread-item-container').first();
     const threadTitle = await firstItem.locator('.thread-item-title').textContent();
