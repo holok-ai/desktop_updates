@@ -703,7 +703,9 @@ export class ThreadRepository {
     if (message.role === 'assistant') {
       const toolUses = [
         ...toolUsesFromContent,
-        ...(message.rawData ? this.extractToolUsesFromRawData(message.rawData) : []),
+        ...(message.rawData
+          ? this.extractToolUsesFromRawData(message.rawData, message.provider)
+          : []),
       ];
       const merged = this.mergeToolUses(toolUses);
       if (merged.length > 0) {
@@ -719,39 +721,182 @@ export class ThreadRepository {
 
   private extractToolUsesFromRawData(
     rawData: JsonValue,
+    provider?: string,
   ): Array<{ name: string; status: 'complete' }> {
     if (!rawData || typeof rawData !== 'object') {
       return [];
     }
 
     const data = rawData as Record<string, unknown>;
-    const toolCalls = data.tool_calls;
-    if (!Array.isArray(toolCalls)) {
-      return [];
+    const normalized = (provider || '').toLowerCase();
+
+    switch (normalized) {
+      case 'claude':
+      case 'anthropic':
+        return this.extractClaudeToolUses(data);
+      case 'openai':
+      case 'azure open ai':
+        return this.extractOpenAIToolUses(data);
+      case 'ollama':
+        return this.extractOllamaToolUses(data);
+      case 'gemini':
+        return this.extractGeminiToolUses(data);
+      default:
+        return this.extractToolUsesFallback(data);
+    }
+  }
+
+  /**
+   * Claude/Anthropic: rawData.message.content[] → { type: "tool_use", name }
+   */
+  private extractClaudeToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ name: string; status: 'complete' }> {
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message) return [];
+
+    const content = message.content;
+    if (!Array.isArray(content)) return [];
+
+    return content
+      .filter(
+        (block) =>
+          block &&
+          typeof block === 'object' &&
+          (block as Record<string, unknown>).type === 'tool_use' &&
+          typeof (block as Record<string, unknown>).name === 'string',
+      )
+      .map((block) => ({
+        name: (block as Record<string, unknown>).name as string,
+        status: 'complete' as const,
+      }));
+  }
+
+  /**
+   * OpenAI Responses API: rawData.message.response.output[] → { type: "function_call", name }
+   */
+  private extractOpenAIToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ name: string; status: 'complete' }> {
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message) return [];
+
+    const response = message.response as Record<string, unknown> | undefined;
+    if (!response) return [];
+
+    const output = response.output;
+    if (!Array.isArray(output)) return [];
+
+    return output
+      .filter(
+        (item) =>
+          item &&
+          typeof item === 'object' &&
+          (item as Record<string, unknown>).type === 'function_call' &&
+          typeof (item as Record<string, unknown>).name === 'string',
+      )
+      .map((item) => ({
+        name: (item as Record<string, unknown>).name as string,
+        status: 'complete' as const,
+      }));
+  }
+
+  /**
+   * Ollama: rawData.message.message.tool_calls[] → { function: { name } }
+   */
+  private extractOllamaToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ name: string; status: 'complete' }> {
+    const outer = data.message as Record<string, unknown> | undefined;
+    if (!outer) return [];
+
+    const inner = outer.message as Record<string, unknown> | undefined;
+    if (!inner) return [];
+
+    const toolCalls = inner.tool_calls;
+    if (!Array.isArray(toolCalls)) return [];
+
+    return toolCalls
+      .map((call) => {
+        if (!call || typeof call !== 'object') return null;
+        const fn = (call as Record<string, unknown>).function;
+        if (fn && typeof fn === 'object') {
+          const name = (fn as Record<string, unknown>).name;
+          if (typeof name === 'string' && name.length > 0) return name;
+        }
+        return null;
+      })
+      .filter((name): name is string => name !== null)
+      .map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  /**
+   * Gemini: rawData.message.candidates[].content.parts[] → { functionCall: { name } }
+   */
+  private extractGeminiToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ name: string; status: 'complete' }> {
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message) return [];
+
+    const candidates = message.candidates as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(candidates)) return [];
+
+    const names: string[] = [];
+    for (const candidate of candidates) {
+      const content = candidate.content as Record<string, unknown> | undefined;
+      if (!content) continue;
+
+      const parts = content.parts;
+      if (!Array.isArray(parts)) continue;
+
+      for (const part of parts) {
+        if (!part || typeof part !== 'object') continue;
+        const functionCall = (part as Record<string, unknown>).functionCall as
+          | Record<string, unknown>
+          | undefined;
+        if (functionCall && typeof functionCall.name === 'string' && functionCall.name.length > 0) {
+          names.push(functionCall.name);
+        }
+      }
     }
 
-    const names = toolCalls
+    return names.map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  /**
+   * Fallback: tries all known patterns for unknown providers.
+   */
+  private extractToolUsesFallback(
+    data: Record<string, unknown>,
+  ): Array<{ name: string; status: 'complete' }> {
+    const results = [
+      ...this.extractClaudeToolUses(data),
+      ...this.extractOpenAIToolUses(data),
+      ...this.extractOllamaToolUses(data),
+      ...this.extractGeminiToolUses(data),
+    ];
+    if (results.length > 0) return results;
+
+    // Legacy: top-level tool_calls[] with function.name or name
+    const toolCalls = data.tool_calls;
+    if (!Array.isArray(toolCalls)) return [];
+
+    return toolCalls
       .map((toolCall) => {
         if (!toolCall || typeof toolCall !== 'object') return null;
         const call = toolCall as Record<string, unknown>;
         const fn = call.function;
         if (fn && typeof fn === 'object') {
           const fnName = (fn as Record<string, unknown>).name;
-          if (typeof fnName === 'string') {
-            return fnName;
-          }
+          if (typeof fnName === 'string') return fnName;
         }
-
         const name = call.name;
-        if (typeof name === 'string') {
-          return name;
-        }
-
+        if (typeof name === 'string') return name;
         return null;
       })
-      .filter((name): name is string => typeof name === 'string' && name.length > 0);
-
-    return names.map((name) => ({ name, status: 'complete' as const }));
+      .filter((name): name is string => typeof name === 'string' && name.length > 0)
+      .map((name) => ({ name, status: 'complete' as const }));
   }
 
   private extractContentBlocks(content: unknown): {
