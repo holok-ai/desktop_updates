@@ -63,6 +63,21 @@
   let activeToolCalls = $state<ToolCall[]>([]);
   let completedToolCalls = $state(new Map<string, ToolCall[]>());
 
+  /** Convert simplified tool uses from API-loaded messages into ToolCall objects */
+  function toolCallsFromResponses(
+    responses: Array<{ id: string; tools?: Array<{ name: string; status: string }> }>,
+  ): ToolCall[] {
+    return responses.flatMap((r) =>
+      (r.tools ?? []).map((t, i) => ({
+        id: `${r.id}-tool-${i}`,
+        name: t.name,
+        inputHint: t.name,
+        status: (t.status as ToolCall['status']) ?? 'complete',
+        startedAt: 0,
+      })),
+    );
+  }
+
   // ── Multi-stream support ──
   // Background streams live in threadService (singleton) so they survive component
   // destruction (e.g., when ThreadPage sets loading=true). Each thread can have an
@@ -1117,7 +1132,8 @@
           streamingContent={item.pair.streamingContent}
           tools={item.pair.isStreamingResponse
             ? activeToolCalls
-            : (completedToolCalls.get(item.pair.request.branchId) ?? [])}
+            : (completedToolCalls.get(item.pair.request.branchId) ??
+              toolCallsFromResponses(item.pair.responses))}
           onCopyRequest={(content) => copyToInput(content)}
           showBranchIcon={item.isFromBranch === true}
           onBranchClick={item.isFromBranch
