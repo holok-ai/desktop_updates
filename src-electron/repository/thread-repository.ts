@@ -125,12 +125,14 @@ export class ThreadRepository {
     const threadTitle = this.threadsById.get(threadId)?.title ?? '';
     const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
     const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
-    const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+    const totalToolCalls = finalMessages.reduce((sum, m) => sum + (m.toolUses?.length ?? 0), 0);
+    const messagesWithTools = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
     const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
     log.info('[ThreadRepository] Loaded thread messages with toolUses', {
       threadId,
       total: finalMessages.length,
-      toolUseCount,
+      totalToolCalls,
+      messagesWithTools,
       assistantCount,
     });
 
@@ -707,9 +709,8 @@ export class ThreadRepository {
           ? this.extractToolUsesFromRawData(message.rawData, message.provider)
           : []),
       ];
-      const merged = this.mergeToolUses(toolUses);
-      if (merged.length > 0) {
-        message.toolUses = merged;
+      if (toolUses.length > 0) {
+        message.toolUses = toolUses;
       }
     }
 
