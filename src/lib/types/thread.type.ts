@@ -42,7 +42,7 @@ export interface Message {
   desktopOptions?: RequestOptionsDTO | null;
   /** Token count for this message (input tokens for user, output tokens for assistant) */
   tokens?: number;
-  toolUses?: Array<{ name: string; status: 'complete' }>;
+  toolUses?: Array<{ id?: string; name: string; status: 'complete' | 'error' }>;
   /** Context metadata for turn tracking and future compression */
   context?: MessageContext;
 }
