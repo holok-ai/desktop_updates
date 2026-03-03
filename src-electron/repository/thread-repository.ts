@@ -796,7 +796,11 @@ export class ThreadRepository {
       } catch {
         // Not JSON — check for common error prefixes
         const lower = content.toLowerCase();
-        if (lower.includes('error') || lower.includes('access_denied') || lower.includes('failed')) {
+        if (
+          lower.includes('error') ||
+          lower.includes('access_denied') ||
+          lower.includes('failed')
+        ) {
           tool.status = 'error';
         }
       }
@@ -861,36 +865,62 @@ export class ThreadRepository {
   }
 
   /**
-   * OpenAI Responses API: rawData.message.response.output[] → { type: "function_call", name }
+   * OpenAI: handles both Responses API (rawData.message.response.output[]) and
+   * Chat Completions API (rawData.tool_calls[]).
    */
   private extractOpenAIToolUses(
     data: Record<string, unknown>,
   ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    // Responses API: data.message.response.output[] → { type: "function_call", name }
     const message = data.message as Record<string, unknown> | undefined;
-    if (!message) return [];
+    if (message) {
+      const response = message.response as Record<string, unknown> | undefined;
+      const output = response?.output;
+      if (Array.isArray(output)) {
+        const results = output
+          .filter(
+            (item) =>
+              item &&
+              typeof item === 'object' &&
+              (item as Record<string, unknown>).type === 'function_call' &&
+              typeof (item as Record<string, unknown>).name === 'string',
+          )
+          .map((item) => {
+            const rec = item as Record<string, unknown>;
+            return {
+              id: typeof rec.call_id === 'string' ? rec.call_id : undefined,
+              name: rec.name as string,
+              status: 'complete' as const,
+            };
+          });
+        if (results.length > 0) return results;
+      }
+    }
 
-    const response = message.response as Record<string, unknown> | undefined;
-    if (!response) return [];
+    // Chat Completions API: data.tool_calls[] → { function: { name } }
+    const toolCalls = data.tool_calls;
+    if (Array.isArray(toolCalls)) {
+      return toolCalls
+        .map((toolCall) => {
+          if (!toolCall || typeof toolCall !== 'object') return null;
+          const call = toolCall as Record<string, unknown>;
+          const fn = call.function;
+          if (fn && typeof fn === 'object') {
+            const fnName = (fn as Record<string, unknown>).name;
+            if (typeof fnName === 'string' && fnName.length > 0) {
+              return {
+                id: typeof call.id === 'string' ? call.id : undefined,
+                name: fnName,
+                status: 'complete' as const,
+              };
+            }
+          }
+          return null;
+        })
+        .filter((t): t is { id?: string; name: string; status: 'complete' } => t !== null);
+    }
 
-    const output = response.output;
-    if (!Array.isArray(output)) return [];
-
-    return output
-      .filter(
-        (item) =>
-          item &&
-          typeof item === 'object' &&
-          (item as Record<string, unknown>).type === 'function_call' &&
-          typeof (item as Record<string, unknown>).name === 'string',
-      )
-      .map((item) => {
-        const rec = item as Record<string, unknown>;
-        return {
-          id: typeof rec.call_id === 'string' ? rec.call_id : undefined,
-          name: rec.name as string,
-          status: 'complete' as const,
-        };
-      });
+    return [];
   }
 
   /**
@@ -997,7 +1027,7 @@ export class ThreadRepository {
   } {
     if (Array.isArray(content)) {
       const textParts: string[] = [];
-      const toolUses: Array<{ name: string; status: 'complete' }> = [];
+      const toolUses: Array<{ id?: string; name: string; status: 'complete' }> = [];
 
       for (const block of content) {
         if (!block || typeof block !== 'object') continue;
