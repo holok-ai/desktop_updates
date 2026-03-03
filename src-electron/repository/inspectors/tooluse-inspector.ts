@@ -102,9 +102,12 @@ export class ToolUseInspector implements IMessageInspector {
    * request, the `raw_request.messages[]` array contains the assistant's
    * message with `tool_calls: [{ id, type, function: { name, arguments } }]`.
    *
-   * This pass scans non-assistant messages for such entries and attaches
-   * the tool uses to the nearest prior assistant message (on the same
-   * branch) that has no `toolUses` yet.
+   * This pass identifies follow-up requests (those containing `role: "tool"`
+   * entries — i.e. tool result submissions) and extracts the **last**
+   * assistant `tool_calls` entry from their rawData.messages (which is the
+   * tool call for *this* turn, not history from earlier turns).  The tool
+   * uses are then attached to the **next** assistant message in the thread
+   * (the response to the follow-up request).
    */
   private backfillToolUsesFromRequests(messages: Message[]): void {
     let backfilledCount = 0;
@@ -115,24 +118,22 @@ export class ToolUseInspector implements IMessageInspector {
       const rawMessages = this.getRawMessages(msg);
       if (!rawMessages) continue;
 
-      for (const entry of rawMessages) {
-        if (!entry || typeof entry !== 'object') continue;
-        const rec = entry as Record<string, unknown>;
+      // Only process follow-up requests that contain tool results
+      if (!this.hasToolResultEntry(rawMessages)) continue;
 
-        if (rec.role !== 'assistant') continue;
-        const toolCalls = rec.tool_calls;
-        if (!Array.isArray(toolCalls) || toolCalls.length === 0) continue;
+      // Take the LAST assistant entry with tool_calls — that's the one
+      // from this turn.  Earlier entries are conversation history.
+      const lastToolCalls = this.findLastAssistantToolCalls(rawMessages);
+      if (!lastToolCalls || lastToolCalls.length === 0) continue;
 
-        const extracted = this.extractToolCallsFromEntry(toolCalls);
-        if (extracted.length === 0) continue;
+      const extracted = this.extractToolCallsFromEntry(lastToolCalls);
+      if (extracted.length === 0) continue;
 
-        // Find the nearest prior assistant message on the same branch
-        // that has no toolUses (or whose toolUses are empty)
-        const target = this.findAssistantWithoutTools(messages, msg);
-        if (target) {
-          target.toolUses = extracted;
-          backfilledCount += extracted.length;
-        }
+      // Attach to the next assistant message AFTER this user message
+      const target = this.findNextAssistantWithoutTools(messages, msg);
+      if (target) {
+        target.toolUses = extracted;
+        backfilledCount += extracted.length;
       }
     }
 
@@ -179,16 +180,62 @@ export class ToolUseInspector implements IMessageInspector {
   }
 
   /**
-   * Walk backwards from `anchor` to find the nearest assistant message
-   * (by createdAt) that has no toolUses.
+   * Returns true if rawData.messages contains at least one tool-result
+   * entry — OpenAI `role: "tool"` or Claude `type: "tool_result"` block.
    */
-  private findAssistantWithoutTools(messages: Message[], anchor: Message): Message | null {
+  private hasToolResultEntry(rawMessages: unknown[]): boolean {
+    for (const entry of rawMessages) {
+      if (!entry || typeof entry !== 'object') continue;
+      const rec = entry as Record<string, unknown>;
+
+      // OpenAI: { role: "tool", tool_call_id: "..." }
+      if (rec.role === 'tool') return true;
+
+      // Claude: content array containing { type: "tool_result" } blocks
+      if (Array.isArray(rec.content)) {
+        for (const block of rec.content) {
+          if (
+            block &&
+            typeof block === 'object' &&
+            (block as Record<string, unknown>).type === 'tool_result'
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Find the last assistant entry in rawData.messages that has `tool_calls`.
+   * This is the one from the current turn; earlier ones are history.
+   */
+  private findLastAssistantToolCalls(rawMessages: unknown[]): unknown[] | null {
+    let last: unknown[] | null = null;
+    for (const entry of rawMessages) {
+      if (!entry || typeof entry !== 'object') continue;
+      const rec = entry as Record<string, unknown>;
+      if (rec.role !== 'assistant') continue;
+      const toolCalls = rec.tool_calls;
+      if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+        last = toolCalls as unknown[];
+      }
+    }
+    return last;
+  }
+
+  /**
+   * Find the nearest assistant message AFTER `anchor` (by createdAt)
+   * that has no toolUses yet.
+   */
+  private findNextAssistantWithoutTools(messages: Message[], anchor: Message): Message | null {
     let best: Message | null = null;
     for (const m of messages) {
       if (m.role !== 'assistant') continue;
-      if (m.createdAt >= anchor.createdAt) continue;
+      if (m.createdAt <= anchor.createdAt) continue;
       if (m.toolUses && m.toolUses.length > 0) continue;
-      if (!best || m.createdAt > best.createdAt) {
+      if (!best || m.createdAt < best.createdAt) {
         best = m;
       }
     }
