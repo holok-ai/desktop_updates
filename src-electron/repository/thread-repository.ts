@@ -124,6 +124,7 @@ export class ThreadRepository {
 
     const threadTitle = this.threadsById.get(threadId)?.title ?? '';
     const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
+    this.correlateToolResultErrors(mapped);
     const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
     const totalToolCalls = finalMessages.reduce((sum, m) => sum + (m.toolUses?.length ?? 0), 0);
     const messagesWithTools = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
@@ -720,10 +721,92 @@ export class ThreadRepository {
     return message;
   }
 
+  /**
+   * Second pass: correlate tool_result errors from follow-up requests back to
+   * the assistant message that made the tool call.
+   *
+   * User messages whose rawData is a raw_request contain a `messages` array
+   * with `tool_result` blocks. If a result indicates failure, the matching
+   * tool_use on the preceding assistant message is marked as 'error'.
+   */
+  private correlateToolResultErrors(messages: Message[]): void {
+    // Build a map from tool_use id → tool entry for quick lookup
+    const toolById = new Map<string, { name: string; status: 'complete' | 'error' }>();
+    for (const msg of messages) {
+      if (msg.role !== 'assistant' || !msg.toolUses) continue;
+      for (const tool of msg.toolUses) {
+        if (tool.id) {
+          toolById.set(tool.id, tool);
+        }
+      }
+    }
+    if (toolById.size === 0) return;
+
+    // Scan user/system messages for tool_result blocks in their rawData
+    for (const msg of messages) {
+      if (msg.role === 'assistant') continue;
+      const rawData = msg.rawData;
+      if (!rawData || typeof rawData !== 'object') continue;
+
+      const data = rawData as Record<string, unknown>;
+      const rawMessages = data.messages;
+      if (!Array.isArray(rawMessages)) continue;
+
+      for (const entry of rawMessages) {
+        if (!entry || typeof entry !== 'object') continue;
+        const rec = entry as Record<string, unknown>;
+
+        // Direct tool_result message (role: user, content is array of tool_results)
+        if (Array.isArray(rec.content)) {
+          for (const block of rec.content) {
+            if (!block || typeof block !== 'object') continue;
+            this.checkToolResult(block as Record<string, unknown>, toolById);
+          }
+        }
+      }
+    }
+  }
+
+  private checkToolResult(
+    block: Record<string, unknown>,
+    toolById: Map<string, { name: string; status: 'complete' | 'error' }>,
+  ): void {
+    if (block.type !== 'tool_result') return;
+
+    const toolUseId = block.tool_use_id;
+    if (typeof toolUseId !== 'string') return;
+
+    const tool = toolById.get(toolUseId);
+    if (!tool) return;
+
+    // Check for error indicators
+    if (block.is_error === true) {
+      tool.status = 'error';
+      return;
+    }
+
+    // Parse content string for { success: false } or { error: "..." }
+    const content = block.content;
+    if (typeof content === 'string') {
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (parsed.success === false || typeof parsed.error === 'string') {
+          tool.status = 'error';
+        }
+      } catch {
+        // Not JSON — check for common error prefixes
+        const lower = content.toLowerCase();
+        if (lower.includes('error') || lower.includes('access_denied') || lower.includes('failed')) {
+          tool.status = 'error';
+        }
+      }
+    }
+  }
+
   private extractToolUsesFromRawData(
     rawData: JsonValue,
     provider?: string,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     if (!rawData || typeof rawData !== 'object') {
       return [];
     }
@@ -752,7 +835,7 @@ export class ThreadRepository {
    */
   private extractClaudeToolUses(
     data: Record<string, unknown>,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     const message = data.message as Record<string, unknown> | undefined;
     if (!message) return [];
 
@@ -767,10 +850,14 @@ export class ThreadRepository {
           (block as Record<string, unknown>).type === 'tool_use' &&
           typeof (block as Record<string, unknown>).name === 'string',
       )
-      .map((block) => ({
-        name: (block as Record<string, unknown>).name as string,
-        status: 'complete' as const,
-      }));
+      .map((block) => {
+        const rec = block as Record<string, unknown>;
+        return {
+          id: typeof rec.id === 'string' ? rec.id : undefined,
+          name: rec.name as string,
+          status: 'complete' as const,
+        };
+      });
   }
 
   /**
@@ -778,7 +865,7 @@ export class ThreadRepository {
    */
   private extractOpenAIToolUses(
     data: Record<string, unknown>,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     const message = data.message as Record<string, unknown> | undefined;
     if (!message) return [];
 
@@ -796,10 +883,14 @@ export class ThreadRepository {
           (item as Record<string, unknown>).type === 'function_call' &&
           typeof (item as Record<string, unknown>).name === 'string',
       )
-      .map((item) => ({
-        name: (item as Record<string, unknown>).name as string,
-        status: 'complete' as const,
-      }));
+      .map((item) => {
+        const rec = item as Record<string, unknown>;
+        return {
+          id: typeof rec.call_id === 'string' ? rec.call_id : undefined,
+          name: rec.name as string,
+          status: 'complete' as const,
+        };
+      });
   }
 
   /**
@@ -807,7 +898,7 @@ export class ThreadRepository {
    */
   private extractOllamaToolUses(
     data: Record<string, unknown>,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     const outer = data.message as Record<string, unknown> | undefined;
     if (!outer) return [];
 
@@ -836,7 +927,7 @@ export class ThreadRepository {
    */
   private extractGeminiToolUses(
     data: Record<string, unknown>,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     const message = data.message as Record<string, unknown> | undefined;
     if (!message) return [];
 
@@ -870,7 +961,7 @@ export class ThreadRepository {
    */
   private extractToolUsesFallback(
     data: Record<string, unknown>,
-  ): Array<{ name: string; status: 'complete' }> {
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     const results = [
       ...this.extractClaudeToolUses(data),
       ...this.extractOpenAIToolUses(data),
@@ -902,7 +993,7 @@ export class ThreadRepository {
 
   private extractContentBlocks(content: unknown): {
     contentText: string;
-    toolUsesFromContent: Array<{ name: string; status: 'complete' }>;
+    toolUsesFromContent: Array<{ id?: string; name: string; status: 'complete' | 'error' }>;
   } {
     if (Array.isArray(content)) {
       const textParts: string[] = [];
@@ -924,7 +1015,11 @@ export class ThreadRepository {
         if (type === 'tool_use') {
           const name = record.name;
           if (typeof name === 'string' && name.length > 0) {
-            toolUses.push({ name, status: 'complete' as const });
+            toolUses.push({
+              id: typeof record.id === 'string' ? record.id : undefined,
+              name,
+              status: 'complete' as const,
+            });
           }
         }
       }
