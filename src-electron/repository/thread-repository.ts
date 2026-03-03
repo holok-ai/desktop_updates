@@ -900,24 +900,23 @@ export class ThreadRepository {
     // Chat Completions API: data.tool_calls[] → { function: { name } }
     const toolCalls = data.tool_calls;
     if (Array.isArray(toolCalls)) {
-      return toolCalls
-        .map((toolCall) => {
-          if (!toolCall || typeof toolCall !== 'object') return null;
-          const call = toolCall as Record<string, unknown>;
-          const fn = call.function;
-          if (fn && typeof fn === 'object') {
-            const fnName = (fn as Record<string, unknown>).name;
-            if (typeof fnName === 'string' && fnName.length > 0) {
-              return {
-                id: typeof call.id === 'string' ? call.id : undefined,
-                name: fnName,
-                status: 'complete' as const,
-              };
-            }
+      const results: Array<{ id?: string; name: string; status: 'complete' | 'error' }> = [];
+      for (const toolCall of toolCalls) {
+        if (!toolCall || typeof toolCall !== 'object') continue;
+        const call = toolCall as Record<string, unknown>;
+        const fn = call.function;
+        if (fn && typeof fn === 'object') {
+          const fnName = (fn as Record<string, unknown>).name;
+          if (typeof fnName === 'string' && fnName.length > 0) {
+            results.push({
+              id: typeof call.id === 'string' ? call.id : undefined,
+              name: fnName,
+              status: 'complete',
+            });
           }
-          return null;
-        })
-        .filter((t): t is { id?: string; name: string; status: 'complete' } => t !== null);
+        }
+      }
+      return results;
     }
 
     return [];
