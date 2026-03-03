@@ -27,8 +27,9 @@ try {
     }
   }
 
-  // Build audit command arguments
-  const args = ['audit'];
+  // Build audit command arguments.
+  // --level high: block on high AND critical (both must be remediated or excepted).
+  const args = ['audit', '--level', 'high'];
   if (allIds.length > 0) {
     args.push('-x', allIds.join(','));
   }

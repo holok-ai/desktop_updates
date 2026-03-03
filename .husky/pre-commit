@@ -30,7 +30,7 @@ npx svelte-check
 
 # Phase 4: Security Scanning
 echo "🔒 Phase 4: Security scanning..."
-# npm run security:audit  # disabled: node scripts/audit-with-exceptions.js
+npm run security:audit
 npm run security:secrets
 
 # Phase 5: Advanced Security (Optional - graceful degradation)
