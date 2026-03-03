@@ -703,12 +703,12 @@ export class ThreadRepository {
     }
 
     if (message.role === 'assistant') {
-      // Prefer rawData extraction (per-response) over content-based extraction
-      // (which may contain accumulated tool calls from the full conversation)
-      const rawDataToolUses = message.rawData
-        ? this.extractToolUsesFromRawData(message.rawData, message.provider)
-        : [];
-      const toolUses = rawDataToolUses.length > 0 ? rawDataToolUses : toolUsesFromContent;
+      const toolUses = [
+        ...toolUsesFromContent,
+        ...(message.rawData
+          ? this.extractToolUsesFromRawData(message.rawData, message.provider)
+          : []),
+      ];
       if (toolUses.length > 0) {
         message.toolUses = toolUses;
       }
