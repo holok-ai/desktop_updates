@@ -16,6 +16,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createProject, deleteProject, openProject } from '../fixtures/project-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -27,65 +28,18 @@ test.describe.serial('Project View and Navigation', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Create a test project to navigate into
-    await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(2000);
+    // Create a test project using shared helper
+    await createProject(page, TEST_PROJECT_NAME);
 
-    // Wait for the projects page to fully render
-    const newProjectBtn = page.locator('.projects-header button.btn-holokai');
-    await expect(newProjectBtn).toBeVisible({ timeout: 15000 });
-
-    // Dismiss any lingering toast before opening the modal
-    const toast = page.locator('.toast');
-    if (await toast.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
-    }
-
-    await newProjectBtn.click();
-    await page.waitForTimeout(1000);
-
-    const modal = page.locator('div[role="dialog"][aria-labelledby="create-project-dialog-title"]');
-    await expect(modal).toBeVisible({ timeout: 5000 });
-
-    await modal.locator('input#project-name').fill(TEST_PROJECT_NAME);
-    await modal.locator('button.btn-primary').click();
-    await expect(modal).not.toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(2000);
-
-    // Click the newly created project to navigate to its view
-    const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-    await expect(projectCard).toBeVisible({ timeout: 10000 });
-    await projectCard.click();
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(/projectId=/, { timeout: 15000 });
+    // Navigate into the project using shared helper
+    await openProject(page, TEST_PROJECT_NAME);
   });
 
   test.afterAll(async () => {
-    // Clean up: delete the test project
+    // Clean up: delete the test project using shared helper (best-effort)
     try {
-      await page.locator('button[aria-label="Projects"]').click();
-      await page.waitForTimeout(2000);
-
-      const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-      if (await projectCard.isVisible()) {
-        const menuBtn = projectCard.locator('button.project-menu-button');
-        await menuBtn.click();
-        await page.waitForTimeout(500);
-
-        const deleteItem = projectCard.locator('.menu-item', { hasText: 'Delete Project' });
-        await deleteItem.click();
-        await page.waitForTimeout(1000);
-
-        const deleteModal = page.locator(
-          'div[role="dialog"][aria-labelledby="delete-dialog-title"]',
-        );
-        if (await deleteModal.isVisible()) {
-          await deleteModal.locator('button.btn-danger').click();
-          await page.waitForTimeout(2000);
-        }
-      }
+      await deleteProject(page, TEST_PROJECT_NAME);
     } catch {
       // Cleanup is best-effort
     }
@@ -130,13 +84,11 @@ test.describe.serial('Project View and Navigation', () => {
     // Requirement 8.3: clicking Members navigates to project members page
     const membersCard = page.locator('.right-column .info-card', { hasText: 'Members' });
     await membersCard.click();
-    await page.waitForTimeout(2000);
 
     await expect(page).toHaveURL(/\/project\/members\?projectId=/, { timeout: 10000 });
 
     // Navigate back to project view
     await page.goBack();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects\/view\?projectId=/, { timeout: 10000 });
     await expect(page.locator('.project-page')).toBeVisible({ timeout: 10000 });
   });
@@ -145,13 +97,11 @@ test.describe.serial('Project View and Navigation', () => {
     // Requirement 8.4: clicking Files navigates to project files page
     const filesCard = page.locator('.right-column .info-card', { hasText: 'Files' });
     await filesCard.click();
-    await page.waitForTimeout(2000);
 
     await expect(page).toHaveURL(/\/project\/files\?projectId=/, { timeout: 10000 });
 
     // Navigate back to project view
     await page.goBack();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects\/view\?projectId=/, { timeout: 10000 });
     await expect(page.locator('.project-page')).toBeVisible({ timeout: 10000 });
   });
@@ -160,13 +110,11 @@ test.describe.serial('Project View and Navigation', () => {
     // Requirement 8.5: clicking Instructions navigates to project instructions page
     const instructionsCard = page.locator('.right-column .info-card', { hasText: 'Instructions' });
     await instructionsCard.click();
-    await page.waitForTimeout(2000);
 
     await expect(page).toHaveURL(/\/project\/instructions\?projectId=/, { timeout: 10000 });
 
     // Navigate back to project view
     await page.goBack();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects\/view\?projectId=/, { timeout: 10000 });
     await expect(page.locator('.project-page')).toBeVisible({ timeout: 10000 });
   });

@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createThreadViaUI } from '../fixtures/thread-context-menu-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -27,7 +28,8 @@ test.describe.serial('Thread Creation', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -38,7 +40,6 @@ test.describe.serial('Thread Creation', () => {
     // Requirement 4.1: page shows available applications to start a thread
     // Navigate to new thread page via sidebar
     await page.locator('button[aria-label="+ New Thread"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
 
     // Verify the ApplicationThread page is visible
@@ -52,47 +53,33 @@ test.describe.serial('Thread Creation', () => {
     // Verify applications container is visible
     const container = page.locator('.applications-container');
     await expect(container).toBeVisible({ timeout: 10000 });
+
+    // Wait for applications to finish loading (grid or empty state)
+    const cards = page.locator('.application-card');
+    await expect(cards.first()).toBeVisible({ timeout: 20000 });
   });
 
   test('application cards display title, description, and chat action', async () => {
     // Requirement 4.2: application cards show relevant info
-    // Wait for applications to load (grid, loading, or empty state)
-    const grid = page.locator('.applications-grid');
-    const loading = page.locator('.loading-state');
-    const empty = page.locator('.empty-state');
+    const cards = page.locator('.application-card');
+    const count = await cards.count();
+    expect(count).toBeGreaterThan(0);
 
-    const hasGrid = await grid.isVisible({ timeout: 15000 }).catch(() => false);
-    const hasLoading = await loading.isVisible({ timeout: 2000 }).catch(() => false);
-    const hasEmpty = await empty.isVisible({ timeout: 2000 }).catch(() => false);
-
-    expect(hasGrid || hasLoading || hasEmpty).toBe(true);
-
-    if (hasGrid) {
-      const cards = page.locator('.application-card');
-      const count = await cards.count();
-      expect(count).toBeGreaterThan(0);
-
-      // Verify first card structure
-      const firstCard = cards.first();
-      await expect(firstCard.locator('.app-title')).toBeVisible({ timeout: 5000 });
-      await expect(firstCard.locator('.app-provider')).toBeVisible({ timeout: 5000 });
-      await expect(firstCard.locator('.card-footer')).toContainText('Chat');
-    }
+    // Verify first card structure
+    const firstCard = cards.first();
+    await expect(firstCard.locator('.app-title')).toBeVisible({ timeout: 5000 });
+    await expect(firstCard.locator('.app-provider')).toBeVisible({ timeout: 5000 });
+    await expect(firstCard.locator('.card-footer')).toContainText('Chat');
   });
 
   test('clicking an application card creates thread and shows chat view', async () => {
     // Requirement 4.3: clicking a card creates thread and navigates to chat
-    const cards = page.locator('.application-card');
-    const count = await cards.count();
+    // Navigate back to threads first, then use the robust createThreadViaUI helper
+    // which handles retries and token refresh
+    await page.locator('button[aria-label="Threads"]').click();
+    await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
 
-    if (count === 0) {
-      test.skip();
-      return;
-    }
-
-    // Click the first application card to create a thread via the UI
-    await cards.first().click();
-    await page.waitForTimeout(3000);
+    await createThreadViaUI(page);
 
     // Should now be on a thread view page with threadId parameter
     await expect(page).toHaveURL(/threadId=/, { timeout: 15000 });

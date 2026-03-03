@@ -22,7 +22,8 @@ test.describe('Sidebar Navigation', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for sidebar to be visible and ready instead of arbitrary timeout
+    await expect(page.locator('nav[aria-label="Main sidebar"]')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -44,28 +45,24 @@ test.describe('Sidebar Navigation', () => {
   test('clicking Threads navigates to threads list', async () => {
     // Requirement 3.3
     await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
   });
 
   test('clicking Projects navigates to projects list', async () => {
     // Requirement 3.4
     await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/projects/, { timeout: 10000 });
   });
 
   test('clicking Search navigates to search page', async () => {
     // Requirement 3.5
     await page.locator('button[aria-label="Search"]').click();
-    await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/search/, { timeout: 10000 });
   });
 
   test('clicking New Thread navigates to thread creation', async () => {
     // Requirement 3.6
     await page.locator('button[aria-label="+ New Thread"]').click();
-    await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/threads\/applications/, { timeout: 10000 });
   });
 
@@ -80,7 +77,6 @@ test.describe('Sidebar Navigation', () => {
     const collapseBtn = page.locator('button[aria-label="Collapse sidebar"]');
     await expect(collapseBtn).toBeVisible({ timeout: 5000 });
     await collapseBtn.click();
-    await page.waitForTimeout(500);
 
     // Sidebar should now have collapsed class
     await expect(sidebar).toHaveClass(/collapsed/, { timeout: 5000 });
@@ -95,7 +91,6 @@ test.describe('Sidebar Navigation', () => {
     const expandBtn = page.locator('button[aria-label="Expand sidebar"]');
     await expect(expandBtn).toBeVisible({ timeout: 5000 });
     await expandBtn.click();
-    await page.waitForTimeout(500);
 
     // Should be expanded again
     await expect(sidebar).not.toHaveClass(/collapsed/, { timeout: 5000 });

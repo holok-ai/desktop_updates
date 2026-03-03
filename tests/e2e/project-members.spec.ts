@@ -14,6 +14,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { createProject, deleteProject, openProject } from '../fixtures/project-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -25,84 +26,24 @@ test.describe.serial('Project Members', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Create a SHARED project (search is only available for shared projects)
-    await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(2000);
-
-    // Wait for the projects page to fully render
-    const newProjectBtn = page.locator('.projects-header button.btn-holokai');
-    await expect(newProjectBtn).toBeVisible({ timeout: 15000 });
-
-    // Dismiss any lingering toast before opening the modal
-    const toast = page.locator('.toast');
-    if (await toast.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
-    }
-
-    await newProjectBtn.click();
-    await page.waitForTimeout(1000);
-
-    const modal = page.locator('div[role="dialog"][aria-labelledby="create-project-dialog-title"]');
-    await expect(modal).toBeVisible({ timeout: 5000 });
-
-    await modal.locator('input#project-name').fill(TEST_PROJECT_NAME);
-
-    // Select "Shared" type
-    const sharedBtn = modal.locator('.type-button').filter({ hasText: 'Shared' });
-    await sharedBtn.click();
-    await page.waitForTimeout(300);
-
-    await modal.locator('button.btn-primary').click();
-    // The create API call is async — modal stays open until projectService.createProject() resolves
-    await expect(modal).not.toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(2000);
-
-    // Navigate away and back to ensure fresh project list (SPA may cache the component)
-    await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(2000);
-    await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(3000);
+    // Create a SHARED project using shared helper (search is only available for shared projects)
+    await createProject(page, TEST_PROJECT_NAME, 'Shared');
 
     // Navigate into the project
-    const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-    await expect(projectCard).toBeVisible({ timeout: 15000 });
-    await projectCard.click();
-    await page.waitForTimeout(2000);
-    await expect(page).toHaveURL(/projectId=/, { timeout: 15000 });
+    await openProject(page, TEST_PROJECT_NAME);
 
     // Click Members card to navigate to members page
     const membersCard = page.locator('.right-column .info-card', { hasText: 'Members' });
+    await expect(membersCard).toBeVisible({ timeout: 10000 });
     await membersCard.click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/project\/members\?projectId=/, { timeout: 10000 });
   });
 
   test.afterAll(async () => {
-    // Clean up: delete the test project
+    // Clean up: delete the test project using shared helper (best-effort)
     try {
-      await page.locator('button[aria-label="Projects"]').click();
-      await page.waitForTimeout(2000);
-
-      const projectCard = page.locator('.project-card', { hasText: TEST_PROJECT_NAME });
-      if (await projectCard.isVisible()) {
-        const menuBtn = projectCard.locator('button.project-menu-button');
-        await menuBtn.click();
-        await page.waitForTimeout(500);
-
-        const deleteItem = projectCard.locator('.menu-item', { hasText: 'Delete Project' });
-        await deleteItem.click();
-        await page.waitForTimeout(1000);
-
-        const deleteModal = page.locator(
-          'div[role="dialog"][aria-labelledby="delete-dialog-title"]',
-        );
-        if (await deleteModal.isVisible()) {
-          await deleteModal.locator('button.btn-danger').click();
-          await page.waitForTimeout(2000);
-        }
-      }
+      await deleteProject(page, TEST_PROJECT_NAME);
     } catch {
       // Cleanup is best-effort
     }
@@ -138,9 +79,8 @@ test.describe.serial('Project Members', () => {
 
     // Type a search term
     await searchInput.fill('a');
-    await page.waitForTimeout(2000);
 
-    // The dropdown should appear
+    // The dropdown should appear with results
     const dropdown = page.locator('.search-dropdown');
     await expect(dropdown).toBeVisible({ timeout: 10000 });
 
@@ -149,54 +89,39 @@ test.describe.serial('Project Members', () => {
     const itemCount = await dropdownItems.count();
     expect(itemCount).toBeGreaterThanOrEqual(1);
 
-    // Clear search
+    // Clear search and wait for dropdown to disappear
     await searchInput.clear();
-    await page.waitForTimeout(500);
+    await expect(dropdown).not.toBeVisible({ timeout: 5000 });
   });
 
   test('selecting a user adds them with default viewer role', async () => {
     // Requirement 9.3: selecting a user adds them as viewer
     const searchInput = page.locator('input#user-search');
     await searchInput.fill('a');
-    await page.waitForTimeout(2000);
 
     const dropdown = page.locator('.search-dropdown');
     await expect(dropdown).toBeVisible({ timeout: 10000 });
 
-    // Check if there are actual user results (not "No users found")
+    // Wait for the "Add Viewer" button to appear (search results loaded)
     const addViewerBtn = dropdown.locator('.add-button.add-viewer').first();
-    const hasResults = await addViewerBtn.isVisible().catch(() => false);
+    await expect(addViewerBtn).toBeVisible({ timeout: 10000 });
 
-    if (hasResults) {
-      // Click "Add Viewer" on the first result
-      await addViewerBtn.click();
+    // Click "Add Viewer" on the first result
+    await addViewerBtn.click();
 
-      // Wait for the loading state to finish and member cards to reappear
-      const loadingState = page.locator('.loading-state');
-      await loadingState.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(2000);
+    // Wait for the member list to update — the page reloads members after adding
+    const memberCards = page.locator('.member-card');
+    await expect(memberCards).toHaveCount(2, { timeout: 15000 });
 
-      // Verify the member was added — member count should increase
-      const memberCards = page.locator('.member-card');
-      await expect(memberCards.first()).toBeVisible({ timeout: 10000 });
-      const count = await memberCards.count();
-      expect(count).toBeGreaterThanOrEqual(2);
-
-      // The new member should have a viewer role badge
-      const viewerBadges = page.locator('.role-badge.role-viewer');
-      const viewerCount = await viewerBadges.count();
-      expect(viewerCount).toBeGreaterThanOrEqual(1);
-    } else {
-      // No search results available — skip gracefully
-      // This can happen if the test environment has no other users
-      test.skip();
-    }
+    // The new member should have a viewer role badge
+    const viewerBadges = page.locator('.role-badge.role-viewer');
+    const viewerCount = await viewerBadges.count();
+    expect(viewerCount).toBeGreaterThanOrEqual(1);
   });
 
   test('new member is reflected on the Members card in the project page', async () => {
     // Navigate back to the project view
     await page.goBack();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/projectId=/, { timeout: 10000 });
 
     // Verify the Members card shows the updated count (should include a viewer now)
@@ -213,19 +138,23 @@ test.describe.serial('Project Members', () => {
 
     // Click Members card to go back to members page for remaining tests
     await membersCard.click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/project\/members\?projectId=/, { timeout: 10000 });
   });
 
   test('member role badge is displayed correctly', async () => {
     // Requirement 9.4: role assignment is visible
-    // Verify the owner has an owner role badge
+    // Wait for member cards to be rendered first
+    const memberCards = page.locator('.member-card');
+    await expect(memberCards.first()).toBeVisible({ timeout: 10000 });
+
+    // Wait for at least one owner badge to appear
     const ownerBadge = page.locator('.role-badge.role-owner');
+    await expect(ownerBadge.first()).toBeVisible({ timeout: 5000 });
+
     const ownerCount = await ownerBadge.count();
     expect(ownerCount).toBeGreaterThanOrEqual(1);
 
     // Verify all member cards have a role badge
-    const memberCards = page.locator('.member-card');
     const count = await memberCards.count();
 
     for (let i = 0; i < count; i++) {

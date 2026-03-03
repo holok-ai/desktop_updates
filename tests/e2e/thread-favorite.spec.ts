@@ -28,7 +28,9 @@ async function ensureNotFavorited(page: Page) {
 
   if (firstMenuText!.includes('Remove Favorite')) {
     await menuItems.first().click();
-    await page.waitForTimeout(1000);
+    // Wait for the favorite state to update in the sidebar
+    const favoritesSection = page.locator('.favorites-section');
+    await favoritesSection.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
   } else {
     await closeContextMenu(page);
   }
@@ -39,7 +41,8 @@ test.describe.serial('Thread Favorite Toggle', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
 
     await navigateToThreads(page);
 
@@ -65,12 +68,15 @@ test.describe.serial('Thread Favorite Toggle', () => {
     // Requirement 4.1
     await ensureNotFavorited(page);
 
+    const threadItems = page.locator('.thread-item');
+    const count = await threadItems.count();
+    expect(count, 'Expected at least one thread; empty list may indicate a bug or missing setup').toBeGreaterThan(0);
+
     const firstItem = page.locator('.thread-item-container').first();
     const threadTitle = await firstItem.locator('.thread-item-title').textContent();
 
     await openFirstThreadContextMenu(page);
     await clickMenuItem(page, 'Make Favorite');
-    await page.waitForTimeout(500);
 
     // Verify thread appears in sidebar Favorites section
     const favoritesSection = page.locator('.favorites-section');
@@ -78,9 +84,8 @@ test.describe.serial('Thread Favorite Toggle', () => {
 
     const favHeader = favoritesSection.locator('.recent-header');
     await favHeader.hover();
-    await page.waitForTimeout(300);
+    await expect(favHeader).toBeVisible({ timeout: 3000 });
     await favHeader.click();
-    await page.waitForTimeout(500);
 
     const favoriteItems = favoritesSection.locator('.recent-thread-item');
     const favTexts = await favoriteItems.allTextContents();
@@ -104,7 +109,6 @@ test.describe.serial('Thread Favorite Toggle', () => {
 
     await openFirstThreadContextMenu(page);
     await clickMenuItem(page, 'Remove Favorite');
-    await page.waitForTimeout(500);
 
     // Verify thread is no longer in sidebar Favorites section
     const favoritesSection = page.locator('.favorites-section');
@@ -112,9 +116,8 @@ test.describe.serial('Thread Favorite Toggle', () => {
     if (await favoritesSection.isVisible({ timeout: 2000 }).catch(() => false)) {
       const favHeader = favoritesSection.locator('.recent-header');
       await favHeader.hover();
-      await page.waitForTimeout(300);
+      await expect(favHeader).toBeVisible({ timeout: 3000 });
       await favHeader.click();
-      await page.waitForTimeout(500);
 
       const favoriteItems = favoritesSection.locator('.recent-thread-item');
       const favCount = await favoriteItems.count();

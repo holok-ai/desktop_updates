@@ -25,7 +25,8 @@ test.describe.serial('Thread Context Menu', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -35,14 +36,9 @@ test.describe.serial('Thread Context Menu', () => {
   test('navigate to threads page and verify thread list has items', async () => {
     await navigateToThreads(page);
 
-    // Wait for thread items to appear after navigation (including workaround)
+    // Wait for thread items to appear — if none, test fails (indicates code/data issue)
     const threadItems = page.locator('.thread-item-container');
-    try {
-      await threadItems.first().waitFor({ state: 'visible', timeout: 10000 });
-    } catch {
-      // No threads available even after navigation workaround — skip remaining tests
-      test.skip();
-    }
+    await expect(threadItems.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('clicking the ellipsis button opens the context menu with expected items', async () => {
@@ -77,17 +73,15 @@ test.describe.serial('Thread Context Menu', () => {
     // Requirement 1.4
     const firstItem = page.locator('.thread-item-container').first();
     await firstItem.hover();
-    await page.waitForTimeout(300);
 
     const menuTrigger = firstItem.locator('.menu-trigger');
+    await expect(menuTrigger).toBeVisible({ timeout: 5000 });
     await menuTrigger.click();
-    await page.waitForTimeout(300);
 
     const contextMenu = page.locator('.context-menu[role="menu"]');
     await expect(contextMenu).toBeVisible({ timeout: 5000 });
 
     await menuTrigger.click();
-    await page.waitForTimeout(300);
 
     await expect(contextMenu).not.toBeVisible({ timeout: 5000 });
   });

@@ -17,32 +17,27 @@ import {
   navigateToThreads,
   createThreadViaUI,
 } from '../fixtures/thread-context-menu-helpers';
+import { navigateToSettings, clickSettingsTab, saveSettings } from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
 
 /** Enable or disable the delete confirmation setting via the Settings UI. */
-async function setDeleteConfirmation(page: Page, enabled: boolean) {
-  await page.evaluate(() => {
-    window.location.hash = '#/settings';
-  });
-  await page.waitForTimeout(2000);
+async function setDeleteConfirmation(pg: Page, enabled: boolean) {
+  await navigateToSettings(pg);
+  await clickSettingsTab(pg, 'General');
 
-  const generalItem = page.locator('.sidebar-item', { hasText: 'General' });
-  await generalItem.click();
-  await page.waitForTimeout(1000);
-
-  const confirmationLabel = page.locator('label', {
-    hasText: 'Require confirmation to delete threads and projects',
+  // The UI has separate checkboxes for threads and projects
+  const threadLabel = pg.locator('label', {
+    hasText: 'Require confirmation to delete threads?',
   });
-  const checkbox = confirmationLabel.locator('input[type="checkbox"]');
+  const checkbox = threadLabel.locator('input[type="checkbox"]');
   await expect(checkbox).toBeVisible({ timeout: 5000 });
 
   const isChecked = await checkbox.isChecked();
   const needsChange = (enabled && !isChecked) || (!enabled && isChecked);
 
   if (!needsChange) {
-    // Already in desired state, nothing to save
     return;
   }
 
@@ -51,25 +46,20 @@ async function setDeleteConfirmation(page: Page, enabled: boolean) {
   } else {
     await checkbox.uncheck();
   }
-  await page.waitForTimeout(500);
 
-  const saveButton = page.locator('button.btn-primary', { hasText: 'Save' });
-  await saveButton.click();
-  await page.waitForTimeout(1000);
+  await saveSettings(pg);
 
-  // Wait for toast to clear
-  const toast = page.locator('.toast[role="alert"]');
-  if (await toast.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await page.waitForTimeout(3000);
-  }
+  // Wait for toast to auto-dismiss before continuing
+  const toast = pg.locator('.toast[role="alert"]');
+  await toast.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
 }
 
 /** Open the delete modal on the first thread item. */
-async function openDeleteModal(page: Page) {
-  await openFirstThreadContextMenu(page);
-  await clickDangerMenuItem(page, 'Delete Thread');
+async function openDeleteModal(pg: Page) {
+  await openFirstThreadContextMenu(pg);
+  await clickDangerMenuItem(pg, 'Delete Thread');
 
-  const dialog = page.locator('[role="dialog"][aria-labelledby="delete-dialog-title"]');
+  const dialog = pg.locator('[role="dialog"][aria-labelledby="delete-dialog-title"]');
   await expect(dialog).toBeVisible({ timeout: 5000 });
   return dialog;
 }
@@ -79,10 +69,21 @@ test.describe.serial('Thread Delete', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+
+    // Wait for the app shell to be fully rendered
+    const sidebar = page.locator('button[aria-label="Threads"]');
+    await expect(sidebar).toBeVisible({ timeout: 15000 });
   });
 
   test.afterAll(async () => {
+    // Restore deleteConfirmation to default (off) so other tests aren't affected
+    try {
+      if (page && !page.isClosed()) {
+        await setDeleteConfirmation(page, false);
+      }
+    } catch {
+      // Best-effort restoration — don't fail teardown
+    }
     await app?.close();
   });
 
@@ -95,9 +96,7 @@ test.describe.serial('Thread Delete', () => {
     await navigateToThreads(page);
 
     const threadItems = page.locator('.thread-item-container');
-    const count = await threadItems.count();
-    expect(count).toBeGreaterThan(0);
-    await page.waitForTimeout(2000);
+    await expect(threadItems.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('clicking Delete Thread opens delete modal with thread title and warning', async () => {
@@ -114,8 +113,9 @@ test.describe.serial('Thread Delete', () => {
     await expect(warningText).toContainText(threadTitle!.trim(), { timeout: 3000 });
     await expect(dialog.locator('.warning-subtext')).toBeVisible({ timeout: 3000 });
 
+    // Close the modal via Cancel
     await dialog.locator('button.btn-secondary').click();
-    await page.waitForTimeout(300);
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
   });
 
   test('clicking Cancel in delete modal closes without deleting', async () => {
@@ -126,8 +126,6 @@ test.describe.serial('Thread Delete', () => {
     const dialog = await openDeleteModal(page);
 
     await dialog.locator('button.btn-secondary').click();
-    await page.waitForTimeout(500);
-
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
 
     const countAfter = await threadItems.count();
@@ -142,7 +140,6 @@ test.describe.serial('Thread Delete', () => {
     await openDeleteModal(page);
 
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
 
     const dialog = page.locator('[role="dialog"][aria-labelledby="delete-dialog-title"]');
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
@@ -159,8 +156,6 @@ test.describe.serial('Thread Delete', () => {
     const dialog = await openDeleteModal(page);
 
     await dialog.locator('button.btn-danger').click();
-    await page.waitForTimeout(1000);
-
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
 
     const toast = page.locator('.toast[role="alert"]');
@@ -169,9 +164,5 @@ test.describe.serial('Thread Delete', () => {
 
     // Wait for the thread list to update after deletion
     await expect(threadItems).toHaveCount(countBefore - 1, { timeout: 10000 });
-
-    // Restore default setting
-    await setDeleteConfirmation(page, false);
-    await navigateToThreads(page);
   });
 });

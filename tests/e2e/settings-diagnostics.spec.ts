@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { navigateToSettings, clickSettingsTab } from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -16,13 +17,9 @@ test.describe.serial('Settings Diagnostics', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page (same pattern as other settings tests)
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI (replaces window.location.hash)
+    await navigateToSettings(page);
   });
 
   test.afterAll(async () => {
@@ -34,11 +31,8 @@ test.describe.serial('Settings Diagnostics', () => {
     const settingsPage = page.locator('.settings-page');
     await expect(settingsPage).toBeVisible({ timeout: 10000 });
 
-    // Click the Diagnostics sidebar item
-    const diagnosticsItem = page.locator('.sidebar-item', { hasText: 'Diagnostics' });
-    await expect(diagnosticsItem).toBeVisible({ timeout: 5000 });
-    await diagnosticsItem.click();
-    await page.waitForTimeout(1000);
+    // Click the Diagnostics tab using shared helper
+    await clickSettingsTab(page, 'Diagnostics');
 
     // Verify the panel title shows "Diagnostics"
     const panelTitle = page.locator('h2.panel-title');
@@ -59,7 +53,6 @@ test.describe.serial('Settings Diagnostics', () => {
     await expect(viewLogButton).toBeEnabled({ timeout: 5000 });
 
     await viewLogButton.click();
-    await page.waitForTimeout(1000);
 
     // Verify the settings page is still visible (no crash)
     const settingsPage = page.locator('.settings-page');
