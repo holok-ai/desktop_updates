@@ -10,12 +10,12 @@ export function getSelectedActivity(path: string, querystring?: string): string 
   let next = 'search';
 
   const params = new URLSearchParams(querystring ?? '');
-  const hasProjectId = params.has('projectId');
+  const hasprojectId = params.has('projectId');
 
   if (normalized.startsWith('/search')) {
     next = 'search';
   } else if (normalized.startsWith(ROUTE.THREADS)) {
-    next = hasProjectId ? 'projects' : 'threads';
+    next = hasprojectId ? 'projects' : 'threads';
   } else if (normalized.startsWith('/project/')) {
     // All /project/* routes belong to Projects
     next = 'projects';
