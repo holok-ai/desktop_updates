@@ -61,7 +61,9 @@
         "1112329",
         "1112659",
         "1113300",
-        "1113375"
+        "1113375",
+        "1113545",
+        "1113553"
       ],
       "reason": "These advisories only affect transitive dev/build tooling (eslint, cylconedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
       "mitigation": [

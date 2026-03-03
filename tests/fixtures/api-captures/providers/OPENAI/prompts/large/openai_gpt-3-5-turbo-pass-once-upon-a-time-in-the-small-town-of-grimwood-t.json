@@ -1,0 +1,471 @@
+[
+  {
+    "id": "aa209123-d1ff-4807-aa67-fc0964d1ff56",
+    "threadId": "46e0487b-d77a-4c2e-a4cd-3973c697e6f4",
+    "branchId": "1.0.0.0",
+    "model": "gpt-3.5-turbo",
+    "provider": "OPENAI",
+    "role": "user",
+    "content": "Once upon a time, in the small town of Grimwood, there lived a group of friends who called themselves the Misfits. They were a peculiar bunch, each with their own quirks and eccentricities. There was Max, the fearless leader with a twisted sense of humor, Sarah, the quick-witted and sarcastic one, Jack, the lovable goofball, and Emily, the quiet and mysterious artist.\n\nOne fateful evening, the Misfits gathered at their favorite haunt, The Raven’s Nest, a dimly lit pub known for its eerie atmosphere. As they sat around a creaky wooden table, nursing their drinks, a stranger approached them. He was a tall man with a sinister grin, introducing himself as Mr. Mortis.\n\nMr. Mortis claimed to be a collector of rare artifacts and offered the Misfits the opportunity of a lifetime. He spoke of a cursed relic, hidden deep within the nearby haunted mansion, said to grant unimaginable power to its possessor. Intrigued by the prospect of adventure and riches, the Misfits agreed to accompany Mr. Mortis on this perilous quest.\n\nAs they ventured into the mansion’s dark corridors, the air grew heavy with an otherworldly presence. The Misfits couldn’t help but crack a few jokes to lighten the tension, their adult humor providing brief moments of comic relief amidst the encroaching horror.\n\nOne by one, the Misfits began to meet their gruesome demise. Jack, always the curious one, stumbled upon a room filled with man-eating plants that devoured him whole. Sarah, known for her sharp tongue, found herself trapped in a room where every word she spoke turned into a swarm of venomous snakes, leaving her lifeless on the floor.\n\nEmily, the artist with a penchant for the macabre, discovered a gallery of haunted paintings. As she admired the twisted artwork, the figures within the frames came to life, dragging her into their nightmarish world. Max, the fearless leader, faced a room filled with mirrors that distorted reality. Unable to distinguish between illusion and truth, he met a tragic end, impaled by shards of glass.\n\nAs the Misfits dwindled in number, the remaining survivor, Emily, realized the true nature of their predicament. Mr. Mortis was not a collector but a malevolent being, orchestrating their deaths for his own sadistic pleasure. Emily, armed with her artistic intuition, managed to outsmart Mr. Mortis, trapping him within one of her own paintings.\n\nWith the curse broken and the mansion crumbling around her, Emily emerged as the sole survivor. She returned to Grimwood, scarred by the horrors she had witnessed, but determined to tell the world of the Misfits’ tragic fate.\n\nYears later, Emily published a book recounting their harrowing experience, a chilling tale that sent shivers down readers’ spines. The plot twist, however, lay within the final pages. It was revealed that Emily herself had succumbed to the curse, her soul forever trapped within the haunted mansion, doomed to relive the horrors over and over again.\n\nAnd so, the story of the Misfits ended with a twist that left readers stunned, a reminder that sometimes the true horror lies not in the monsters we face, but within ourselves.\n\nSummary it",
+    "rawData": {
+      "model": "gpt-3.5-turbo",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "read_folder",
+            "parameters": {
+              "type": "object",
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the folder (can be relative to working directory or absolute)"
+                },
+                "max_depth": {
+                  "type": "integer",
+                  "description": "Maximum recursion depth when recursive is true. Default: 3"
+                },
+                "recursive": {
+                  "type": "boolean",
+                  "description": "If true, list subdirectories recursively. Default: false"
+                },
+                "include_hidden": {
+                  "type": "boolean",
+                  "description": "Include hidden files (starting with .). Default: false"
+                },
+                "filter_extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+                }
+              }
+            },
+            "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "end_line": {
+                  "type": "integer",
+                  "description": "Read to this line number (1-indexed). Useful for large files."
+                },
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "start_line": {
+                  "type": "integer",
+                  "description": "Read from this line number (1-indexed). Useful for large files."
+                }
+              }
+            },
+            "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "parameters": {
+              "type": "object",
+              "required": ["path", "content"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The content to write to the file."
+                },
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "overwrite": {
+                  "type": "boolean",
+                  "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+                }
+              }
+            },
+            "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "windows_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+                }
+              }
+            },
+            "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "unix_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+                }
+              }
+            },
+            "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_word",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .docx file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files)."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_excel",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+                },
+                "sheet_name": {
+                  "type": "string",
+                  "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_pdf",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files."
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Once upon a time, in the small town of Grimwood, there lived a group of friends who called themselves the Misfits. They were a peculiar bunch, each with their own quirks and eccentricities. There was Max, the fearless leader with a twisted sense of humor, Sarah, the quick-witted and sarcastic one, Jack, the lovable goofball, and Emily, the quiet and mysterious artist.\n\nOne fateful evening, the Misfits gathered at their favorite haunt, The Raven’s Nest, a dimly lit pub known for its eerie atmosphere. As they sat around a creaky wooden table, nursing their drinks, a stranger approached them. He was a tall man with a sinister grin, introducing himself as Mr. Mortis.\n\nMr. Mortis claimed to be a collector of rare artifacts and offered the Misfits the opportunity of a lifetime. He spoke of a cursed relic, hidden deep within the nearby haunted mansion, said to grant unimaginable power to its possessor. Intrigued by the prospect of adventure and riches, the Misfits agreed to accompany Mr. Mortis on this perilous quest.\n\nAs they ventured into the mansion’s dark corridors, the air grew heavy with an otherworldly presence. The Misfits couldn’t help but crack a few jokes to lighten the tension, their adult humor providing brief moments of comic relief amidst the encroaching horror.\n\nOne by one, the Misfits began to meet their gruesome demise. Jack, always the curious one, stumbled upon a room filled with man-eating plants that devoured him whole. Sarah, known for her sharp tongue, found herself trapped in a room where every word she spoke turned into a swarm of venomous snakes, leaving her lifeless on the floor.\n\nEmily, the artist with a penchant for the macabre, discovered a gallery of haunted paintings. As she admired the twisted artwork, the figures within the frames came to life, dragging her into their nightmarish world. Max, the fearless leader, faced a room filled with mirrors that distorted reality. Unable to distinguish between illusion and truth, he met a tragic end, impaled by shards of glass.\n\nAs the Misfits dwindled in number, the remaining survivor, Emily, realized the true nature of their predicament. Mr. Mortis was not a collector but a malevolent being, orchestrating their deaths for his own sadistic pleasure. Emily, armed with her artistic intuition, managed to outsmart Mr. Mortis, trapping him within one of her own paintings.\n\nWith the curse broken and the mansion crumbling around her, Emily emerged as the sole survivor. She returned to Grimwood, scarred by the horrors she had witnessed, but determined to tell the world of the Misfits’ tragic fate.\n\nYears later, Emily published a book recounting their harrowing experience, a chilling tale that sent shivers down readers’ spines. The plot twist, however, lay within the final pages. It was revealed that Emily herself had succumbed to the curse, her soul forever trapped within the haunted mansion, doomed to relive the horrors over and over again.\n\nAnd so, the story of the Misfits ended with a twist that left readers stunned, a reminder that sometimes the true horror lies not in the monsters we face, but within ourselves.\n\nSummary it"
+        }
+      ]
+    },
+    "options": {
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "read_folder",
+            "parameters": {
+              "type": "object",
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the folder (can be relative to working directory or absolute)"
+                },
+                "max_depth": {
+                  "type": "integer",
+                  "description": "Maximum recursion depth when recursive is true. Default: 3"
+                },
+                "recursive": {
+                  "type": "boolean",
+                  "description": "If true, list subdirectories recursively. Default: false"
+                },
+                "include_hidden": {
+                  "type": "boolean",
+                  "description": "Include hidden files (starting with .). Default: false"
+                },
+                "filter_extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+                }
+              }
+            },
+            "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "end_line": {
+                  "type": "integer",
+                  "description": "Read to this line number (1-indexed). Useful for large files."
+                },
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "start_line": {
+                  "type": "integer",
+                  "description": "Read from this line number (1-indexed). Useful for large files."
+                }
+              }
+            },
+            "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "parameters": {
+              "type": "object",
+              "required": ["path", "content"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The content to write to the file."
+                },
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "overwrite": {
+                  "type": "boolean",
+                  "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+                }
+              }
+            },
+            "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "windows_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+                }
+              }
+            },
+            "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "unix_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+                }
+              }
+            },
+            "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_word",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .docx file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files)."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_excel",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+                },
+                "sheet_name": {
+                  "type": "string",
+                  "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_pdf",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files."
+          }
+        }
+      ],
+      "stream": true
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 1591,
+    "createdAt": "2026-03-01T15:12:54.471",
+    "updatedAt": "2026-03-01T15:12:54.471"
+  },
+  {
+    "id": "39054caa-712f-4703-97a4-1ee3a36d6299",
+    "threadId": "46e0487b-d77a-4c2e-a4cd-3973c697e6f4",
+    "branchId": "1.0.0.0",
+    "model": "gpt-3.5-turbo",
+    "provider": "OPENAI",
+    "role": "assistant",
+    "content": "The story of the Misfits in the town of Grimwood unfolds with a group of friends embarking on a quest led by a sinister stranger, Mr. Mortis, to find a cursed relic in a haunted mansion. Each member of the Misfits meets a gruesome demise, with Jack devoured by man-eating plants, Sarah killed by venomous snakes from her words, Max impaled by glass in a room of mirrors, and Emily dragged into a nightmarish world by haunted paintings. The only survivor, Emily, outsmarts Mr. Mortis and traps him in one of her paintings, breaking the curse on the mansion. However, a chilling twist reveals that Emily is doomed to be trapped within the haunted mansion, perpetually reliving the horrors. Years later, Emily's account of the Misfits' tragedy is published, ending with a shocking revelation of her own fate, emphasizing the true horror within ourselves.",
+    "rawData": {
+      "ts": 1772377976222,
+      "seq": 373,
+      "text": "The story of the Misfits in the town of Grimwood unfolds with a group of friends embarking on a quest led by a sinister stranger, Mr. Mortis, to find a cursed relic in a haunted mansion. Each member of the Misfits meets a gruesome demise, with Jack devoured by man-eating plants, Sarah killed by venomous snakes from her words, Max impaled by glass in a room of mirrors, and Emily dragged into a nightmarish world by haunted paintings. The only survivor, Emily, outsmarts Mr. Mortis and traps him in one of her paintings, breaking the curse on the mansion. However, a chilling twist reveals that Emily is doomed to be trapped within the haunted mansion, perpetually reliving the horrors. Years later, Emily's account of the Misfits' tragedy is published, ending with a shocking revelation of her own fate, emphasizing the true horror within ourselves.",
+      "type": "done",
+      "message": {
+        "id": "chatcmpl-DEclSGNgFYZedbUU1yO8xVhCnp8Td",
+        "model": "gpt-3.5-turbo-0125",
+        "usage": {
+          "total_tokens": 1777,
+          "prompt_tokens": 1591,
+          "completion_tokens": 186,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          },
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "object": "chat.completion.chunk",
+        "choices": [],
+        "created": 1772377974,
+        "obfuscation": "QL7b",
+        "service_tier": "default",
+        "system_fingerprint": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 434,
+        "totalProcessingTime": 1750
+      },
+      "requestId": "dc5c0c59-e4b6-4d72-9123-c29bb3a869d5"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 186,
+    "createdAt": "2026-03-01T15:12:56.222",
+    "updatedAt": "2026-03-01T15:12:56.222"
+  }
+]

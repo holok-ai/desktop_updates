@@ -1,0 +1,71 @@
+[
+  {
+    "id": "b638ebb0-54a7-4e10-be22-d987f5158a70",
+    "threadId": "5478ba45-be4b-4a37-b276-f5eb24d0db5d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "Once upon a time, in the small town of Grimwood, there lived a group of friends who called themselves the Misfits. They were a peculiar bunch, each with their own quirks and eccentricities. There was Max, the fearless leader with a twisted sense of humor, Sarah, the quick-witted and sarcastic one, Jack, the lovable goofball, and Emily, the quiet and mysterious artist.\n\nOne fateful evening, the Misfits gathered at their favorite haunt, The Raven’s Nest, a dimly lit pub known for its eerie atmosphere. As they sat around a creaky wooden table, nursing their drinks, a stranger approached them. He was a tall man with a sinister grin, introducing himself as Mr. Mortis.\n\nMr. Mortis claimed to be a collector of rare artifacts and offered the Misfits the opportunity of a lifetime. He spoke of a cursed relic, hidden deep within the nearby haunted mansion, said to grant unimaginable power to its possessor. Intrigued by the prospect of adventure and riches, the Misfits agreed to accompany Mr. Mortis on this perilous quest.\n\nAs they ventured into the mansion’s dark corridors, the air grew heavy with an otherworldly presence. The Misfits couldn’t help but crack a few jokes to lighten the tension, their adult humor providing brief moments of comic relief amidst the encroaching horror.\n\nOne by one, the Misfits began to meet their gruesome demise. Jack, always the curious one, stumbled upon a room filled with man-eating plants that devoured him whole. Sarah, known for her sharp tongue, found herself trapped in a room where every word she spoke turned into a swarm of venomous snakes, leaving her lifeless on the floor.\n\nEmily, the artist with a penchant for the macabre, discovered a gallery of haunted paintings. As she admired the twisted artwork, the figures within the frames came to life, dragging her into their nightmarish world. Max, the fearless leader, faced a room filled with mirrors that distorted reality. Unable to distinguish between illusion and truth, he met a tragic end, impaled by shards of glass.\n\nAs the Misfits dwindled in number, the remaining survivor, Emily, realized the true nature of their predicament. Mr. Mortis was not a collector but a malevolent being, orchestrating their deaths for his own sadistic pleasure. Emily, armed with her artistic intuition, managed to outsmart Mr. Mortis, trapping him within one of her own paintings.\n\nWith the curse broken and the mansion crumbling around her, Emily emerged as the sole survivor. She returned to Grimwood, scarred by the horrors she had witnessed, but determined to tell the world of the Misfits’ tragic fate.\n\nYears later, Emily published a book recounting their harrowing experience, a chilling tale that sent shivers down readers’ spines. The plot twist, however, lay within the final pages. It was revealed that Emily herself had succumbed to the curse, her soul forever trapped within the haunted mansion, doomed to relive the horrors over and over again.\n\nAnd so, the story of the Misfits ended with a twist that left readers stunned, a reminder that sometimes the true horror lies not in the monsters we face, but within ourselves.\nsummary it",
+    "rawData": {
+      "model": "phi4:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "Once upon a time, in the small town of Grimwood, there lived a group of friends who called themselves the Misfits. They were a peculiar bunch, each with their own quirks and eccentricities. There was Max, the fearless leader with a twisted sense of humor, Sarah, the quick-witted and sarcastic one, Jack, the lovable goofball, and Emily, the quiet and mysterious artist.\n\nOne fateful evening, the Misfits gathered at their favorite haunt, The Raven’s Nest, a dimly lit pub known for its eerie atmosphere. As they sat around a creaky wooden table, nursing their drinks, a stranger approached them. He was a tall man with a sinister grin, introducing himself as Mr. Mortis.\n\nMr. Mortis claimed to be a collector of rare artifacts and offered the Misfits the opportunity of a lifetime. He spoke of a cursed relic, hidden deep within the nearby haunted mansion, said to grant unimaginable power to its possessor. Intrigued by the prospect of adventure and riches, the Misfits agreed to accompany Mr. Mortis on this perilous quest.\n\nAs they ventured into the mansion’s dark corridors, the air grew heavy with an otherworldly presence. The Misfits couldn’t help but crack a few jokes to lighten the tension, their adult humor providing brief moments of comic relief amidst the encroaching horror.\n\nOne by one, the Misfits began to meet their gruesome demise. Jack, always the curious one, stumbled upon a room filled with man-eating plants that devoured him whole. Sarah, known for her sharp tongue, found herself trapped in a room where every word she spoke turned into a swarm of venomous snakes, leaving her lifeless on the floor.\n\nEmily, the artist with a penchant for the macabre, discovered a gallery of haunted paintings. As she admired the twisted artwork, the figures within the frames came to life, dragging her into their nightmarish world. Max, the fearless leader, faced a room filled with mirrors that distorted reality. Unable to distinguish between illusion and truth, he met a tragic end, impaled by shards of glass.\n\nAs the Misfits dwindled in number, the remaining survivor, Emily, realized the true nature of their predicament. Mr. Mortis was not a collector but a malevolent being, orchestrating their deaths for his own sadistic pleasure. Emily, armed with her artistic intuition, managed to outsmart Mr. Mortis, trapping him within one of her own paintings.\n\nWith the curse broken and the mansion crumbling around her, Emily emerged as the sole survivor. She returned to Grimwood, scarred by the horrors she had witnessed, but determined to tell the world of the Misfits’ tragic fate.\n\nYears later, Emily published a book recounting their harrowing experience, a chilling tale that sent shivers down readers’ spines. The plot twist, however, lay within the final pages. It was revealed that Emily herself had succumbed to the curse, her soul forever trapped within the haunted mansion, doomed to relive the horrors over and over again.\n\nAnd so, the story of the Misfits ended with a twist that left readers stunned, a reminder that sometimes the true horror lies not in the monsters we face, but within ourselves.\nsummary it"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 679,
+    "createdAt": "2026-03-01T15:49:33.175",
+    "updatedAt": "2026-03-01T15:49:33.175"
+  },
+  {
+    "id": "d80b157a-0f51-4033-9fbd-ed0b3c9ba9a2",
+    "threadId": "5478ba45-be4b-4a37-b276-f5eb24d0db5d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "In the eerie town of Grimwood, the group known as the Misfits—Max, Sarah, Jack, and Emily—embark on an adventure at the behest of Mr. Mortis, a mysterious man who entices them with promises of power from a cursed relic in a haunted mansion. As they navigate through the mansion's sinister corridors filled with supernatural dangers, each member meets a grisly end: Jack is consumed by carnivorous plants, Sarah is killed by venomous snakes spawned from her own words, Emily is dragged into living paintings, and Max perishes at the hands of distorted mirrors.\n\nDespite these horrors, Emily survives by using her artistic skills to trap Mr. Mortis in one of her paintings, breaking the curse. However, in a chilling twist revealed at the end of her book recounting their journey, Emily herself becomes trapped within the haunted mansion's confines, doomed to relive the horror eternally. The story ends on a haunting note, underscoring that true terror often lies within oneself rather than external monsters.",
+    "rawData": {
+      "ts": 1772380176039,
+      "seq": 421,
+      "text": "In the eerie town of Grimwood, the group known as the Misfits—Max, Sarah, Jack, and Emily—embark on an adventure at the behest of Mr. Mortis, a mysterious man who entices them with promises of power from a cursed relic in a haunted mansion. As they navigate through the mansion's sinister corridors filled with supernatural dangers, each member meets a grisly end: Jack is consumed by carnivorous plants, Sarah is killed by venomous snakes spawned from her own words, Emily is dragged into living paintings, and Max perishes at the hands of distorted mirrors.\n\nDespite these horrors, Emily survives by using her artistic skills to trap Mr. Mortis in one of her paintings, breaking the curse. However, in a chilling twist revealed at the end of her book recounting their journey, Emily herself becomes trapped within the haunted mansion's confines, doomed to relive the horror eternally. The story ends on a haunting note, underscoring that true terror often lies within oneself rather than external monsters.",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "phi4:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:49:36.03681905Z",
+        "eval_count": 211,
+        "done_reason": "stop",
+        "eval_duration": 1663697850,
+        "load_duration": 1047925527,
+        "total_duration": 2861569913,
+        "prompt_eval_count": 679,
+        "prompt_eval_duration": 149440925
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1202,
+        "totalProcessingTime": 2864
+      },
+      "requestId": "a49f8b7e-3d5a-4918-8c8c-33ecfe4b45d2"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 211,
+    "createdAt": "2026-03-01T15:49:36.039",
+    "updatedAt": "2026-03-01T15:49:36.039"
+  }
+]

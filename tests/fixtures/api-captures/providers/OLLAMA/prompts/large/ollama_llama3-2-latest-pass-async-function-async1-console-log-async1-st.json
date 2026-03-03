@@ -1,0 +1,148 @@
+[
+  {
+    "id": "5090ccd9-5fea-4e7d-94b0-d93503a3d1de",
+    "threadId": "7ea76a7f-2843-4344-869f-1966c5862805",
+    "branchId": "1.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "async function async1() {\n  console.log('async1 start');\n  await async2();\n  console.log('async1 end')\n}\n\nasync function async2() {\n  console.log('async2');\n}\n\nconsole.log('script start');\n\nsetTimeout(function () {\n  console.log('setTimeout');\n}, 0);\n\nasync1();\n\nnew Promise(function (resolve) {\n  console.log('promise1');\n  resolve();\n}).then(function () {\n  console.log('promise2');\n});\n\nconsole.log('script end');\nwhat is the result",
+    "rawData": {
+      "model": "llama3.2:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "async function async1() {\n  console.log('async1 start');\n  await async2();\n  console.log('async1 end')\n}\n\nasync function async2() {\n  console.log('async2');\n}\n\nconsole.log('script start');\n\nsetTimeout(function () {\n  console.log('setTimeout');\n}, 0);\n\nasync1();\n\nnew Promise(function (resolve) {\n  console.log('promise1');\n  resolve();\n}).then(function () {\n  console.log('promise2');\n});\n\nconsole.log('script end');\nwhat is the result"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 130,
+    "createdAt": "2026-03-01T15:48:32.937",
+    "updatedAt": "2026-03-01T15:48:32.937"
+  },
+  {
+    "id": "88c70672-8071-4e5c-82df-baca14c7d4f5",
+    "threadId": "7ea76a7f-2843-4344-869f-1966c5862805",
+    "branchId": "1.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "The result of this code snippet will be:\n\n```\nscript start\nasync2\nasync1 start\nscript end\nsetTimeout\nasync1 end\npromise1\npromise2\n```\n\nExplanation:\n\n- The script starts and logs \"script start\".\n- The `async1` function is called. It logs \"async1 start\" and then calls `async2`.\n- The `async2` function logs \"async2\".\n- After the call to `async2`, `async1` continues executing, but because of the `await async2()`, it pauses execution until `async2` completes.\n- Once `async2` finishes logging its message, execution resumes in `async1`.\n- However, before `async1` can log \"async1 end\", the `setTimeout` function kicks in and logs \"setTimeout\".\n- Finally, after the timeout is resolved (which happens immediately because it's called with a 0 delay), `async1` logs \"async1 end\" and then continues.\n- The promise is resolved, but its resolution doesn't affect the execution order of asynchronous code in this case. It simply resolves to `undefined`, as there is no return value specified when resolving the promise.\n\nNote that due to the non-deterministic nature of JavaScript's asynchronous operations (like `setTimeout` and promises), the actual output may vary between runs, but it should always follow a similar order: \"script start\", \"async2\" (or the promise resolution in other cases), followed by either the timeout or the \"async1 end\".",
+    "rawData": {
+      "ts": 1772380113907,
+      "seq": 627,
+      "text": "The result of this code snippet will be:\n\n```\nscript start\nasync2\nasync1 start\nscript end\nsetTimeout\nasync1 end\npromise1\npromise2\n```\n\nExplanation:\n\n- The script starts and logs \"script start\".\n- The `async1` function is called. It logs \"async1 start\" and then calls `async2`.\n- The `async2` function logs \"async2\".\n- After the call to `async2`, `async1` continues executing, but because of the `await async2()`, it pauses execution until `async2` completes.\n- Once `async2` finishes logging its message, execution resumes in `async1`.\n- However, before `async1` can log \"async1 end\", the `setTimeout` function kicks in and logs \"setTimeout\".\n- Finally, after the timeout is resolved (which happens immediately because it's called with a 0 delay), `async1` logs \"async1 end\" and then continues.\n- The promise is resolved, but its resolution doesn't affect the execution order of asynchronous code in this case. It simply resolves to `undefined`, as there is no return value specified when resolving the promise.\n\nNote that due to the non-deterministic nature of JavaScript's asynchronous operations (like `setTimeout` and promises), the actual output may vary between runs, but it should always follow a similar order: \"script start\", \"async2\" (or the promise resolution in other cases), followed by either the timeout or the \"async1 end\".",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "llama3.2:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:48:33.905425561Z",
+        "eval_count": 314,
+        "done_reason": "stop",
+        "eval_duration": 947632702,
+        "load_duration": 7188228,
+        "total_duration": 966884160,
+        "prompt_eval_count": 130,
+        "prompt_eval_duration": 11835879
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 31,
+        "totalProcessingTime": 969
+      },
+      "requestId": "407abc5d-1605-478c-bfbc-fec7f8e51530"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 314,
+    "createdAt": "2026-03-01T15:48:33.907",
+    "updatedAt": "2026-03-01T15:48:33.907"
+  },
+  {
+    "id": "e0a377da-4470-4c45-822a-0ac987613d52",
+    "threadId": "7ea76a7f-2843-4344-869f-1966c5862805",
+    "branchId": "2.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "write it into a file and give me the path",
+    "rawData": {
+      "model": "llama3.2:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "async function async1() {\n  console.log('async1 start');\n  await async2();\n  console.log('async1 end')\n}\n\nasync function async2() {\n  console.log('async2');\n}\n\nconsole.log('script start');\n\nsetTimeout(function () {\n  console.log('setTimeout');\n}, 0);\n\nasync1();\n\nnew Promise(function (resolve) {\n  console.log('promise1');\n  resolve();\n}).then(function () {\n  console.log('promise2');\n});\n\nconsole.log('script end');\nwhat is the result"
+        },
+        {
+          "role": "assistant",
+          "content": "The result of this code snippet will be:\n\n```\nscript start\nasync2\nasync1 start\nscript end\nsetTimeout\nasync1 end\npromise1\npromise2\n```\n\nExplanation:\n\n- The script starts and logs \"script start\".\n- The `async1` function is called. It logs \"async1 start\" and then calls `async2`.\n- The `async2` function logs \"async2\".\n- After the call to `async2`, `async1` continues executing, but because of the `await async2()`, it pauses execution until `async2` completes.\n- Once `async2` finishes logging its message, execution resumes in `async1`.\n- However, before `async1` can log \"async1 end\", the `setTimeout` function kicks in and logs \"setTimeout\".\n- Finally, after the timeout is resolved (which happens immediately because it's called with a 0 delay), `async1` logs \"async1 end\" and then continues.\n- The promise is resolved, but its resolution doesn't affect the execution order of asynchronous code in this case. It simply resolves to `undefined`, as there is no return value specified when resolving the promise.\n\nNote that due to the non-deterministic nature of JavaScript's asynchronous operations (like `setTimeout` and promises), the actual output may vary between runs, but it should always follow a similar order: \"script start\", \"async2\" (or the promise resolution in other cases), followed by either the timeout or the \"async1 end"
+        },
+        {
+          "role": "user",
+          "content": "write it into a file and give me the path"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 462,
+    "createdAt": "2026-03-01T15:48:52.43",
+    "updatedAt": "2026-03-01T15:48:52.43"
+  },
+  {
+    "id": "382b2349-ef4a-4711-a964-10e3953dea3a",
+    "threadId": "7ea76a7f-2843-4344-869f-1966c5862805",
+    "branchId": "2.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "Here's how you can write this code into a file:\n\n```javascript\n// Create a new file named \"asyncOperations.js\"\nconst fs = require('fs');\n\nfunction writeToFile(fileContent) {\n  // Write the content to the file.\n  fs.writeFileSync(\"asyncOperations.js\", fileContent);\n}\n\nlet fileContent = `\nasync function async1() {\n  console.log('async1 start');\n  await async2();\n  console.log('async1 end')\n}\n\nasync function async2() {\n  console.log('async2');\n}\n\nconsole.log('script start');\n\nsetTimeout(function () {\n  console.log('setTimeout');\n}, 0);\n\nasync1();\n\nnew Promise(function (resolve) {\n  console.log('promise1');\n  resolve();\n}).then(function () {\n  console.log('promise2');\n});\n\nconsole.log('script end');\n`;\n\nwriteToFile(fileContent);\n```\n\nThis script will create a new file named \"asyncOperations.js\" in the same directory where you run it.\n\nTo get the path of this new file:\n\n```bash\nnode asyncOperations.js\n# Outputs:\n/your/path/to/asyncOperations.js\n```\n\nOr use `path` module for absolute and relative paths.\n\n```javascript\nconst path = require('path');\n\nlet filePath = path.resolve(__dirname, 'asyncOperations.js');\nconsole.log(filePath);\n```\n\nThe code above will output: `/your/path/to/asyncOperations.js`.",
+    "rawData": {
+      "ts": 1772380133314,
+      "seq": 569,
+      "text": "Here's how you can write this code into a file:\n\n```javascript\n// Create a new file named \"asyncOperations.js\"\nconst fs = require('fs');\n\nfunction writeToFile(fileContent) {\n  // Write the content to the file.\n  fs.writeFileSync(\"asyncOperations.js\", fileContent);\n}\n\nlet fileContent = `\nasync function async1() {\n  console.log('async1 start');\n  await async2();\n  console.log('async1 end')\n}\n\nasync function async2() {\n  console.log('async2');\n}\n\nconsole.log('script start');\n\nsetTimeout(function () {\n  console.log('setTimeout');\n}, 0);\n\nasync1();\n\nnew Promise(function (resolve) {\n  console.log('promise1');\n  resolve();\n}).then(function () {\n  console.log('promise2');\n});\n\nconsole.log('script end');\n`;\n\nwriteToFile(fileContent);\n```\n\nThis script will create a new file named \"asyncOperations.js\" in the same directory where you run it.\n\nTo get the path of this new file:\n\n```bash\nnode asyncOperations.js\n# Outputs:\n/your/path/to/asyncOperations.js\n```\n\nOr use `path` module for absolute and relative paths.\n\n```javascript\nconst path = require('path');\n\nlet filePath = path.resolve(__dirname, 'asyncOperations.js');\nconsole.log(filePath);\n```\n\nThe code above will output: `/your/path/to/asyncOperations.js`.",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "llama3.2:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:48:53.312270369Z",
+        "eval_count": 285,
+        "done_reason": "stop",
+        "eval_duration": 861858104,
+        "load_duration": 7277997,
+        "total_duration": 881510891,
+        "prompt_eval_count": 462,
+        "prompt_eval_duration": 11679888
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 27,
+        "totalProcessingTime": 883
+      },
+      "requestId": "4b2ff53a-6978-4eed-8a44-18cd3cd087fb"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 285,
+    "createdAt": "2026-03-01T15:48:53.314",
+    "updatedAt": "2026-03-01T15:48:53.314"
+  }
+]

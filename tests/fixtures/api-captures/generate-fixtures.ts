@@ -36,33 +36,36 @@ const BASE = resolve(__dirname);
 
 const fixtures: [string, () => unknown][] = [
   // Successful turns
-  ['turns/01-successful-turn.json', successfulTurn],
-  ['turns/02-multi-turn-conversation.json', multiTurnConversation],
+  ['turns/openai_gpt-4-pass-successful-turn-1.json', successfulTurn],
+  ['turns/openai_gpt-4-pass-multi-turn-conversation-1.json', multiTurnConversation],
 
   // Guard scenarios
-  ['guard/03-guard-passed.json', guardPassedTurn],
-  ['guard/04-guard-blocked.json', guardBlockedTurn],
-  ['guard/05-guard-double-encoded.json', guardDoubleEncodedTurn],
+  ['guard/openai_gpt-4-pass-guard-passed-1.json', guardPassedTurn],
+  ['guard/openai_gpt-4-pass-guard-blocked-1.json', guardBlockedTurn],
+  ['guard/openai_gpt-4-pass-guard-double-encoded-1.json', guardDoubleEncodedTurn],
 
   // Error scenarios
-  ['errors/06-error-payload-400.json', errorPayloadResponse],
-  ['errors/17-timeout.json', timeoutResponse],
-  ['errors/18-rate-limited.json', rateLimitedResponse],
-  ['errors/19-invalid-request.json', invalidRequestResponse],
+  ['errors/openai_gpt-4-error-error-payload-400-1.json', errorPayloadResponse],
+  ['errors/openai_gpt-4-error-timeout-1.json', timeoutResponse],
+  ['errors/openai_gpt-4-error-rate-limited-1.json', rateLimitedResponse],
+  ['errors/openai_claude-opus-4-6-error-invalid-request-400-1.json', invalidRequestResponse],
 
   // Edge cases
-  ['edge-cases/07-orphan-assistant.json', orphanAssistant],
-  ['edge-cases/08-duplicate-audit-records.json', duplicateAuditRecords],
-  ['edge-cases/09-empty-content-with-rawdata.json', emptyContentWithRawData],
-  ['edge-cases/10-null-branch-id.json', nullBranchId],
-  ['edge-cases/11-two-part-branch-id.json', twoPartBranchId],
-  ['edge-cases/12-over-long-branch-id.json', overLongBranchId],
-  ['edge-cases/13-null-content.json', nullContent],
-  ['edge-cases/15-desktop-options-blocked.json', desktopOptionsBlocked],
-  ['edge-cases/16-desktop-options-selected-branch.json', desktopOptionsSelectedBranch],
+  ['edge-cases/openai_gpt-4-pass-orphan-assistant-1.json', orphanAssistant],
+  ['edge-cases/openai_gpt-4-pass-duplicate-audit-records-1.json', duplicateAuditRecords],
+  ['edge-cases/openai_gpt-4-pass-empty-content-with-rawdata-1.json', emptyContentWithRawData],
+  ['edge-cases/openai_gpt-4-pass-null-branch-id-1.json', nullBranchId],
+  ['edge-cases/openai_gpt-4-pass-two-part-branch-id-1.json', twoPartBranchId],
+  ['edge-cases/openai_gpt-4-pass-over-long-branch-id-1.json', overLongBranchId],
+  ['edge-cases/openai_gpt-4-pass-null-content-1.json', nullContent],
+  ['edge-cases/openai_gpt-4-pass-desktop-options-blocked-1.json', desktopOptionsBlocked],
+  [
+    'edge-cases/openai_gpt-4-pass-desktop-options-selected-branch-1.json',
+    desktopOptionsSelectedBranch,
+  ],
 
   // Tool calls
-  ['tool-calls/14-tool-call-in-rawdata.json', toolCallInRawData],
+  ['tool-calls/openai_gpt-4-pass-tool-call-in-rawdata-1.json', toolCallInRawData],
 ];
 
 let generated = 0;

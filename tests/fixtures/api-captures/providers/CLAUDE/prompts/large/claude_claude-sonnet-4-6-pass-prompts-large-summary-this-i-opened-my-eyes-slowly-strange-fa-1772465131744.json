@@ -1,0 +1,256 @@
+[
+  {
+    "id": "1e1f800b-ce2e-46f4-a876-798528879b55",
+    "threadId": "334e55f7-d98c-4370-8292-a0da15010096",
+    "branchId": "1.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "user",
+    "content": "Summary this: I opened my eyes. Slowly, strange faces came into focus. There were bright lights everywhere. Someone was holding my hand. I pulled my hand away.\n\nThere were doctors and nurses. They helped me get into a wheelchair. The man who looked like a surgeon pushed me out of the room. There were other people following us. I must have asked what was happening.\n\n“She’s disoriented,” said the surgeon. “She’ll feel better in a few minutes.”\n\nAfter a few hours, my parents realised something was wrong. I couldn’t remember them. I couldn’t remember anything from before the brain surgery. It was terrifying.\n\nI was in a strange house with strange people. They said they were my parents. I didn’t recognise them, but I couldn’t remember what my parents looked like, either.\n\nThey showed me my bedroom. There was a woolly jumper hanging over a chair. “This was a present for your fourteenth birthday,” said my mum. “Do you remember asking for it? It was only a few weeks ago.” I picked it up. It was a hideous orange and it felt scratchy. I threw it on the bed.\n\n“I’ll make your favourite meal tonight,” said my dad. “Maybe that will help.”\n\nIn the kitchen, I watched him put a pink blob into a metal box. After thirty minutes, it had turned brown. I wanted to smell it, so I opened the glass door. The heat rushed over my face and I shrieked. I didn’t know it was an oven, and I didn’t remember that ovens were hot.\n\nThe doctors told me that I had been very unlucky. It’s common for people to struggle with some memories after brain surgery. But losing all your memories – everything – is extremely rare.\n\nMy parents showed me photos. They told stories and laughed and smiled, but I felt nothing. After a few weeks, I asked them to stop. I hated feeling nothing.\n\nI had to start my life again. Over the next few years, I built a new relationship with my parents, made new friends and developed new interests. I never remembered anything.\n\nI didn’t like the same things, or even the same people, as before. I was a different person.\n\nThe doctors continued to monitor my health. The tumour wasn’t growing back. I could carry on with my life. I finished school, I started work, and every year I raised money for brain tumour research.",
+    "rawData": {
+      "model": "claude-sonnet-4-6",
+      "tools": [
+        {
+          "name": "read_folder",
+          "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the folder (can be relative to working directory or absolute)"
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum recursion depth when recursive is true. Default: 3"
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "If true, list subdirectories recursively. Default: false"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Include hidden files (starting with .). Default: false"
+              },
+              "filter_extensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_file",
+          "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Read to this line number (1-indexed). Useful for large files."
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Read from this line number (1-indexed). Useful for large files."
+              }
+            }
+          }
+        },
+        {
+          "name": "write_file",
+          "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the file (can be relative to working directory or absolute)"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content to write to the file."
+              },
+              "encoding": {
+                "enum": ["utf-8", "ascii", "latin1"],
+                "type": "string",
+                "description": "Text encoding. Default: utf-8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+              }
+            }
+          }
+        },
+        {
+          "name": "windows_shell",
+          "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+              }
+            }
+          }
+        },
+        {
+          "name": "unix_shell",
+          "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string.",
+          "input_schema": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+              },
+              "arguments": {
+                "type": "string",
+                "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_word",
+          "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files).",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .docx file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        },
+        {
+          "name": "read_excel",
+          "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+              },
+              "sheet_name": {
+                "type": "string",
+                "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+              }
+            }
+          }
+        },
+        {
+          "name": "read_pdf",
+          "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files.",
+          "input_schema": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+              }
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Summary this: I opened my eyes. Slowly, strange faces came into focus. There were bright lights everywhere. Someone was holding my hand. I pulled my hand away.\n\nThere were doctors and nurses. They helped me get into a wheelchair. The man who looked like a surgeon pushed me out of the room. There were other people following us. I must have asked what was happening.\n\n“She’s disoriented,” said the surgeon. “She’ll feel better in a few minutes.”\n\nAfter a few hours, my parents realised something was wrong. I couldn’t remember them. I couldn’t remember anything from before the brain surgery. It was terrifying.\n\nI was in a strange house with strange people. They said they were my parents. I didn’t recognise them, but I couldn’t remember what my parents looked like, either.\n\nThey showed me my bedroom. There was a woolly jumper hanging over a chair. “This was a present for your fourteenth birthday,” said my mum. “Do you remember asking for it? It was only a few weeks ago.” I picked it up. It was a hideous orange and it felt scratchy. I threw it on the bed.\n\n“I’ll make your favourite meal tonight,” said my dad. “Maybe that will help.”\n\nIn the kitchen, I watched him put a pink blob into a metal box. After thirty minutes, it had turned brown. I wanted to smell it, so I opened the glass door. The heat rushed over my face and I shrieked. I didn’t know it was an oven, and I didn’t remember that ovens were hot.\n\nThe doctors told me that I had been very unlucky. It’s common for people to struggle with some memories after brain surgery. But losing all your memories – everything – is extremely rare.\n\nMy parents showed me photos. They told stories and laughed and smiled, but I felt nothing. After a few weeks, I asked them to stop. I hated feeling nothing.\n\nI had to start my life again. Over the next few years, I built a new relationship with my parents, made new friends and developed new interests. I never remembered anything.\n\nI didn’t like the same things, or even the same people, as before. I was a different person.\n\nThe doctors continued to monitor my health. The tumour wasn’t growing back. I could carry on with my life. I finished school, I started work, and every year I raised money for brain tumour research."
+        }
+      ],
+      "max_tokens": 8096
+    },
+    "options": {
+      "stream": true,
+      "max_tokens": 8096
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 2390,
+    "createdAt": "2026-03-02T15:24:50.815",
+    "updatedAt": "2026-03-02T15:24:50.815"
+  },
+  {
+    "id": "7a6dc745-e37d-48f7-91b6-659cbf4d9d4b",
+    "threadId": "334e55f7-d98c-4370-8292-a0da15010096",
+    "branchId": "1.0.0.0",
+    "model": "claude-sonnet-4-6",
+    "provider": "CLAUDE",
+    "role": "assistant",
+    "content": "## Summary\n\nA teenager wakes up after brain surgery with **complete memory loss** — an extremely rare outcome. She doesn't recognize her parents, her home, or even basic things like an oven. Despite her parents' efforts to help her remember through photos and stories, nothing comes back to her.\n\nOver time, she **rebuilds her life from scratch**, forming new relationships, new interests, and a new identity. She acknowledges she became a **different person** from who she was before. Medically, she recovers well — the brain tumour doesn't return — and she moves forward, finishing school, starting work, and fundraising for brain tumour research each year.",
+    "rawData": {
+      "ts": 1772465095289,
+      "seq": 133,
+      "text": "## Summary\n\nA teenager wakes up after brain surgery with **complete memory loss** — an extremely rare outcome. She doesn't recognize her parents, her home, or even basic things like an oven. Despite her parents' efforts to help her remember through photos and stories, nothing comes back to her.\n\nOver time, she **rebuilds her life from scratch**, forming new relationships, new interests, and a new identity. She acknowledges she became a **different person** from who she was before. Medically, she recovers well — the brain tumour doesn't return — and she moves forward, finishing school, starting work, and fundraising for brain tumour research each year.",
+      "type": "done",
+      "message": {
+        "id": "msg_0179GvmhpJK6oRtopGkvqGM8",
+        "role": "assistant",
+        "type": "message",
+        "model": "claude-sonnet-4-6",
+        "usage": {
+          "input_tokens": 2390,
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "output_tokens": 145,
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0
+        },
+        "content": [
+          {
+            "text": "## Summary\n\nA teenager wakes up after brain surgery with **complete memory loss** — an extremely rare outcome. She doesn't recognize her parents, her home, or even basic things like an oven. Despite her parents' efforts to help her remember through photos and stories, nothing comes back to her.\n\nOver time, she **rebuilds her life from scratch**, forming new relationships, new interests, and a new identity. She acknowledges she became a **different person** from who she was before. Medically, she recovers well — the brain tumour doesn't return — and she moves forward, finishing school, starting work, and fundraising for brain tumour research each year.",
+            "type": "text"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "parsed_output": null,
+        "stop_sequence": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1029,
+        "totalProcessingTime": 4473
+      },
+      "requestId": "4573173f-4cfd-4ef9-b99b-93ad1cffeae0"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 145,
+    "createdAt": "2026-03-02T15:24:55.289",
+    "updatedAt": "2026-03-02T15:24:55.289"
+  }
+]
