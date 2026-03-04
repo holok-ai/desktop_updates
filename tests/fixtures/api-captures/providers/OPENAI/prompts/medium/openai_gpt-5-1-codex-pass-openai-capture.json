@@ -1,0 +1,306 @@
+[
+  {
+    "id": "46a5b28c-4374-4f9b-b47e-88c8243ed8fe",
+    "threadId": "93041cb1-752f-45d6-a00f-a10be63a4d5f",
+    "branchId": "1.0.0.0",
+    "model": "gpt-5.1-codex",
+    "provider": "OPENAI",
+    "role": "assistant",
+    "content": "Senior front-end developers in the United States typically earn anywhere from about **$130,000 to $170,000 per year**, with the national average hovering around **$150,000**. Total compensation can be higher when factoring in bonuses, stock/options, and location-based adjustments—major tech hubs (e.g., San Francisco, Seattle, New York) often push salaries toward the upper end of that range or beyond.\n\nVariables such as company size, tech stack, years of experience, and specialization (e.g., performance optimization, accessibility expertise) can influence where an individual offer falls within that spectrum.",
+    "rawData": {
+      "ts": 1772378346823,
+      "seq": 252,
+      "text": "Senior front-end developers in the United States typically earn anywhere from about **$130,000 to $170,000 per year**, with the national average hovering around **$150,000**. Total compensation can be higher when factoring in bonuses, stock/options, and location-based adjustments—major tech hubs (e.g., San Francisco, Seattle, New York) often push salaries toward the upper end of that range or beyond.\n\nVariables such as company size, tech stack, years of experience, and specialization (e.g., performance optimization, accessibility expertise) can influence where an individual offer falls within that spectrum.",
+      "type": "done",
+      "message": {
+        "type": "response.completed",
+        "response": {
+          "id": "resp_0425b67ae357bec20069a458e8b7a88191a23cbc4d52322888",
+          "text": {
+            "format": {
+              "type": "text"
+            },
+            "verbosity": "medium"
+          },
+          "user": null,
+          "error": null,
+          "model": "gpt-5.1-codex",
+          "store": true,
+          "tools": [
+            {
+              "name": "read_folder",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "recursive",
+                  "max_depth",
+                  "include_hidden",
+                  "filter_extensions"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the folder (can be relative to working directory or absolute)"
+                  },
+                  "max_depth": {
+                    "type": "integer",
+                    "description": "Maximum recursion depth when recursive is true. Default: 3"
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "description": "If true, list subdirectories recursively. Default: false"
+                  },
+                  "include_hidden": {
+                    "type": "boolean",
+                    "description": "Include hidden files (starting with .). Default: false"
+                  },
+                  "filter_extensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times."
+            },
+            {
+              "name": "read_file",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["file_path", "encoding", "start_line", "end_line"],
+                "properties": {
+                  "encoding": {
+                    "enum": ["utf-8", "ascii", "latin1"],
+                    "type": "string",
+                    "description": "Text encoding. Default: utf-8"
+                  },
+                  "end_line": {
+                    "type": "integer",
+                    "description": "Read to this line number (1-indexed). Useful for large files."
+                  },
+                  "file_path": {
+                    "type": "string",
+                    "description": "Path to the file (can be relative to working directory or absolute)"
+                  },
+                  "start_line": {
+                    "type": "integer",
+                    "description": "Read from this line number (1-indexed). Useful for large files."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files."
+            },
+            {
+              "name": "write_file",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["path", "content", "overwrite", "encoding"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file (can be relative to working directory or absolute)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "The content to write to the file."
+                  },
+                  "encoding": {
+                    "enum": ["utf-8", "ascii", "latin1"],
+                    "type": "string",
+                    "description": "Text encoding. Default: utf-8"
+                  },
+                  "overwrite": {
+                    "type": "boolean",
+                    "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files."
+            },
+            {
+              "name": "windows_shell",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["command", "arguments"],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+                  },
+                  "arguments": {
+                    "type": "string",
+                    "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+            },
+            {
+              "name": "unix_shell",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["command", "arguments"],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+                  },
+                  "arguments": {
+                    "type": "string",
+                    "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+            },
+            {
+              "name": "read_word",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["file_path"],
+                "properties": {
+                  "file_path": {
+                    "type": "string",
+                    "description": "Path to the .docx file (can be relative to working directory or absolute)"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files)."
+            },
+            {
+              "name": "read_excel",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["file_path", "sheet_name"],
+                "properties": {
+                  "file_path": {
+                    "type": "string",
+                    "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+                  },
+                  "sheet_name": {
+                    "type": "string",
+                    "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format."
+            },
+            {
+              "name": "read_pdf",
+              "type": "function",
+              "strict": true,
+              "parameters": {
+                "type": "object",
+                "required": ["file_path"],
+                "properties": {
+                  "file_path": {
+                    "type": "string",
+                    "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files."
+            }
+          ],
+          "top_p": 1,
+          "usage": {
+            "input_tokens": 899,
+            "total_tokens": 1048,
+            "output_tokens": 149,
+            "input_tokens_details": {
+              "cached_tokens": 0
+            },
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          "object": "response",
+          "output": [
+            {
+              "id": "rs_0425b67ae357bec20069a458e96fe0819191f90e73e932e00c",
+              "type": "reasoning",
+              "summary": []
+            },
+            {
+              "id": "msg_0425b67ae357bec20069a458e9b2c88191b4386ae21b8161ae",
+              "role": "assistant",
+              "type": "message",
+              "status": "completed",
+              "content": [
+                {
+                  "text": "Senior front-end developers in the United States typically earn anywhere from about **$130,000 to $170,000 per year**, with the national average hovering around **$150,000**. Total compensation can be higher when factoring in bonuses, stock/options, and location-based adjustments—major tech hubs (e.g., San Francisco, Seattle, New York) often push salaries toward the upper end of that range or beyond.\n\nVariables such as company size, tech stack, years of experience, and specialization (e.g., performance optimization, accessibility expertise) can influence where an individual offer falls within that spectrum.",
+                  "type": "output_text",
+                  "logprobs": [],
+                  "annotations": []
+                }
+              ]
+            }
+          ],
+          "status": "completed",
+          "metadata": {},
+          "reasoning": {
+            "effort": "medium",
+            "summary": null
+          },
+          "background": false,
+          "created_at": 1772378344,
+          "truncation": "disabled",
+          "temperature": 1,
+          "tool_choice": "auto",
+          "completed_at": 1772378346,
+          "instructions": null,
+          "service_tier": "default",
+          "top_logprobs": 0,
+          "max_tool_calls": null,
+          "presence_penalty": 0,
+          "prompt_cache_key": null,
+          "frequency_penalty": 0,
+          "max_output_tokens": null,
+          "safety_identifier": null,
+          "incomplete_details": null,
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt_cache_retention": null
+        },
+        "sequence_number": 130
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1689,
+        "totalProcessingTime": 2796
+      },
+      "requestId": "9ef2969d-389c-4395-af27-28fb0c452175"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 149,
+    "createdAt": "2026-03-01T15:19:06.823",
+    "updatedAt": "2026-03-01T15:19:06.823"
+  }
+]

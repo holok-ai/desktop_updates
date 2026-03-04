@@ -12,30 +12,74 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { navigateToSettings, clickSettingsTab } from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+let originalTheme: string = 'Light';
+let originalStartupPage: string = '';
 
 test.describe.serial('Settings - Appearance', () => {
   test.beforeAll(async () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI
+    await navigateToSettings(page);
 
-    // Click Appearance tab
-    const appearanceItem = page.locator('.sidebar-item', { hasText: 'Appearance' });
-    await appearanceItem.click();
-    await page.waitForTimeout(500);
+    // Click Appearance tab via shared helper
+    await clickSettingsTab(page, 'Appearance');
+
+    // Store original theme for restoration in afterAll
+    const themeSection = page.locator('.subgroup-row', { hasText: 'Theme' });
+    const activeThemeCard = themeSection.locator('.option-card.active');
+    await expect(activeThemeCard).toBeVisible({ timeout: 5000 });
+    const themeLabel = await activeThemeCard.locator('.option-card-label').textContent();
+    originalTheme = themeLabel?.trim() || 'Light';
+
+    // Store original startup page for restoration in afterAll
+    await clickSettingsTab(page, 'General');
+    const startupSection = page.locator('.subgroup-row', { hasText: 'Startup Page' });
+    const activeStartupCard = startupSection.locator('.option-card.active');
+    await expect(activeStartupCard).toBeVisible({ timeout: 5000 });
+    const startupLabel = await activeStartupCard.locator('.option-card-label').textContent();
+    originalStartupPage = startupLabel?.trim() || '';
+
+    // Navigate back to Appearance tab for the tests
+    await clickSettingsTab(page, 'Appearance');
   });
 
   test.afterAll(async () => {
+    // Restore theme and startup page to original values
+    try {
+      // Ensure we're on the settings page
+      const settingsPage = page.locator('.settings-page');
+      if (!(await settingsPage.isVisible({ timeout: 2000 }).catch(() => false))) {
+        await navigateToSettings(page);
+      }
+
+      // Restore theme on Appearance tab
+      await clickSettingsTab(page, 'Appearance');
+      const themeSection = page.locator('.subgroup-row', { hasText: 'Theme' });
+      const originalThemeCard = themeSection.locator('.option-card', { hasText: originalTheme });
+      await originalThemeCard.click();
+      await expect(originalThemeCard).toHaveClass(/active/, { timeout: 3000 });
+
+      // Restore startup page on General tab
+      if (originalStartupPage) {
+        await clickSettingsTab(page, 'General');
+        const startupSection = page.locator('.subgroup-row', { hasText: 'Startup Page' });
+        const originalStartupCard = startupSection.locator('.option-card', {
+          hasText: originalStartupPage,
+        });
+        await originalStartupCard.click();
+        await expect(originalStartupCard).toHaveClass(/active/, { timeout: 3000 });
+      }
+    } catch {
+      // Best-effort restoration — don't fail teardown
+    }
+
     await app?.close();
   });
 
@@ -57,9 +101,7 @@ test.describe.serial('Settings - Appearance', () => {
 
   test('selecting theme immediately applies it', async () => {
     // Requirement 12.2: theme applies immediately without save
-    // Find the theme option cards in the card-grid-2
     const themeSection = page.locator('.subgroup-row', { hasText: 'Theme' });
-    const themeCards = themeSection.locator('.option-card');
 
     // Get current active theme
     const activeTheme = themeSection.locator('.option-card.active');
@@ -69,7 +111,6 @@ test.describe.serial('Settings - Appearance', () => {
     const targetTheme = activeLabel?.trim() === 'Light' ? 'Dark' : 'Light';
     const targetCard = themeSection.locator('.option-card', { hasText: targetTheme });
     await targetCard.click();
-    await page.waitForTimeout(500);
 
     // The clicked card should now be active
     await expect(targetCard).toHaveClass(/active/, { timeout: 3000 });
@@ -85,15 +126,13 @@ test.describe.serial('Settings - Appearance', () => {
     // Revert to original theme
     const revertCard = themeSection.locator('.option-card', { hasText: activeLabel?.trim() });
     await revertCard.click();
-    await page.waitForTimeout(500);
+    await expect(revertCard).toHaveClass(/active/, { timeout: 3000 });
   });
 
   test('changing startup page reflects in UI', async () => {
     // Requirement 12.3: changing startup page updates the selection
-    // Startup Page is on the General tab, navigate there first
-    const generalItem = page.locator('.sidebar-item', { hasText: 'General' });
-    await generalItem.click();
-    await page.waitForTimeout(500);
+    // Startup Page is on the General tab, navigate there via shared helper
+    await clickSettingsTab(page, 'General');
 
     const startupSection = page.locator('.subgroup-row', { hasText: 'Startup Page' });
     const startupCards = startupSection.locator('.option-card');
@@ -108,7 +147,7 @@ test.describe.serial('Settings - Appearance', () => {
 
     // Click a different option (the second one if first is active, else first)
     const targetIndex =
-      (await activeCard.evaluate((el, cards) => {
+      (await activeCard.evaluate((el) => {
         const parent = el.closest('.card-grid');
         const allCards = parent?.querySelectorAll('.option-card') || [];
         return Array.from(allCards).indexOf(el);
@@ -117,23 +156,17 @@ test.describe.serial('Settings - Appearance', () => {
         : 0;
 
     await startupCards.nth(targetIndex).click();
-    await page.waitForTimeout(500);
 
     // The clicked card should now be active
     await expect(startupCards.nth(targetIndex)).toHaveClass(/active/, { timeout: 3000 });
 
     // Revert to original
-    await activeCard.click().catch(() => {
-      // If original card reference is stale, find it by label
-    });
     const originalCard = startupSection.locator('.option-card', { hasText: activeLabel?.trim() });
     await originalCard.click();
-    await page.waitForTimeout(500);
+    await expect(originalCard).toHaveClass(/active/, { timeout: 3000 });
 
     // Navigate back to Appearance tab for subsequent tests
-    const appearanceItem = page.locator('.sidebar-item', { hasText: 'Appearance' });
-    await appearanceItem.click();
-    await page.waitForTimeout(500);
+    await clickSettingsTab(page, 'Appearance');
   });
 
   test('toggling sidebar options updates checkboxes', async () => {
@@ -147,25 +180,21 @@ test.describe.serial('Settings - Appearance', () => {
     const recentInitial = await recentCheckbox.isChecked();
     const favoritesInitial = await favoritesCheckbox.isChecked();
 
-    // Toggle recent list
+    // Toggle recent list and verify state changed
     await recentCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await recentCheckbox.isChecked()).toBe(!recentInitial);
+    await expect(recentCheckbox).toBeChecked({ checked: !recentInitial, timeout: 3000 });
 
-    // Toggle back
+    // Toggle back and verify restored
     await recentCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await recentCheckbox.isChecked()).toBe(recentInitial);
+    await expect(recentCheckbox).toBeChecked({ checked: recentInitial, timeout: 3000 });
 
-    // Toggle favorites list
+    // Toggle favorites list and verify state changed
     await favoritesCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await favoritesCheckbox.isChecked()).toBe(!favoritesInitial);
+    await expect(favoritesCheckbox).toBeChecked({ checked: !favoritesInitial, timeout: 3000 });
 
-    // Toggle back
+    // Toggle back and verify restored
     await favoritesCheckbox.click();
-    await page.waitForTimeout(300);
-    expect(await favoritesCheckbox.isChecked()).toBe(favoritesInitial);
+    await expect(favoritesCheckbox).toBeChecked({ checked: favoritesInitial, timeout: 3000 });
   });
 
   test('adjusting chat text size slider shows value', async () => {

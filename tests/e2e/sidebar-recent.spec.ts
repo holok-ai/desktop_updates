@@ -22,7 +22,8 @@ test.describe.serial('Sidebar Recent', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for sidebar to be fully loaded
+    await expect(page.locator('.recent-section')).toBeVisible({ timeout: 15000 });
   });
 
   test.afterAll(async () => {
@@ -48,10 +49,11 @@ test.describe.serial('Sidebar Recent', () => {
 
     // Hover over the header to reveal the toggle
     await header.hover();
-    await page.waitForTimeout(300);
 
+    // The toggle uses inline visibility controlled by mouseenter/mouseleave.
+    // Use toHaveCSS to wait for the visibility transition after hover.
     const toggle = recentSection.locator('.recent-toggle');
-    await expect(toggle).toBeVisible({ timeout: 5000 });
+    await expect(toggle).toHaveCSS('visibility', 'visible', { timeout: 5000 });
   });
 
   // ─── Requirement 6.3, 6.4: Clicking header expands section with up to 10 threads ───
@@ -60,18 +62,12 @@ test.describe.serial('Sidebar Recent', () => {
     const recentSection = page.locator('.recent-section');
     const header = recentSection.locator('.recent-header');
 
-    // Click the header to expand (toggle)
+    // Click the header to expand — toggleRecentThreads() loads threads async
     await header.click();
-    await page.waitForTimeout(500);
 
-    // Check if items are visible — if collapsed, click again to expand
+    // Wait for the recent threads list to appear (async thread loading may take time)
     const itemsList = recentSection.locator('.recent-threads');
-    if (!(await itemsList.isVisible({ timeout: 2000 }).catch(() => false))) {
-      await header.click();
-      await page.waitForTimeout(500);
-    }
-
-    await expect(itemsList).toBeVisible({ timeout: 5000 });
+    await expect(itemsList).toBeVisible({ timeout: 15000 });
 
     const items = recentSection.locator('.recent-thread-item');
     const count = await items.count();
@@ -94,24 +90,27 @@ test.describe.serial('Sidebar Recent', () => {
 
   test('clicking a recent thread navigates to thread view', async () => {
     const recentSection = page.locator('.recent-section');
+
+    // Ensure the section is expanded before checking items
+    const itemsList = recentSection.locator('.recent-threads');
+    if (!(await itemsList.isVisible({ timeout: 2000 }).catch(() => false))) {
+      const header = recentSection.locator('.recent-header');
+      await header.click();
+      await expect(itemsList).toBeVisible({ timeout: 5000 });
+    }
+
     const items = recentSection.locator('.recent-thread-item');
     const count = await items.count();
-
-    if (count === 0) {
-      test.skip();
-      return;
-    }
+    expect(count, 'Expected at least one recent thread; empty list may indicate a bug in recent-threads loading').toBeGreaterThan(0);
 
     const firstItem = items.first();
     await firstItem.click();
-    await page.waitForTimeout(2000);
 
     // Should navigate to thread view
     await expect(page).toHaveURL(/\/threads\/view\?threadId=/, { timeout: 10000 });
 
     // Navigate back to threads list for subsequent tests
     await page.locator('button[aria-label="Threads"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
   });
 
@@ -125,20 +124,18 @@ test.describe.serial('Sidebar Recent', () => {
     const itemsList = recentSection.locator('.recent-threads');
     if (!(await itemsList.isVisible({ timeout: 2000 }).catch(() => false))) {
       await header.click();
-      await page.waitForTimeout(500);
+      await expect(itemsList).toBeVisible({ timeout: 5000 });
     }
     await expect(itemsList).toBeVisible({ timeout: 5000 });
 
     // Hover to reveal the toggle
     await header.hover();
-    await page.waitForTimeout(300);
 
     const toggle = recentSection.locator('.recent-toggle');
-    await expect(toggle).toBeVisible({ timeout: 5000 });
+    await expect(toggle).toHaveCSS('visibility', 'visible', { timeout: 5000 });
 
     // Click the toggle to collapse
     await toggle.click();
-    await page.waitForTimeout(500);
 
     // Items should no longer be visible
     await expect(itemsList).not.toBeVisible({ timeout: 5000 });

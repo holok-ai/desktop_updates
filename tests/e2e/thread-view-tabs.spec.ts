@@ -27,6 +27,7 @@ async function hoverAndWaitForTabs(pg: Page): Promise<void> {
     } catch {
       // Move mouse away and retry
       await pg.mouse.move(0, 0);
+      // Brief pause before retry — hover didn't reveal tabs, no observable state to wait on
       await pg.waitForTimeout(300);
     }
   }
@@ -40,7 +41,8 @@ test.describe.serial('Thread View Tabs', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
   });
 
   test.afterAll(async () => {
@@ -61,7 +63,6 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = viewSelector.locator('button[role="tab"]');
     await tabs.nth(1).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.thread-prompt-view')).toBeVisible({ timeout: 5000 });
   });
@@ -70,7 +71,6 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = page.locator('.view-selector').locator('button[role="tab"]');
     await tabs.nth(2).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.thread-graphic-view')).toBeVisible({ timeout: 5000 });
   });
@@ -79,7 +79,6 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = page.locator('.view-selector').locator('button[role="tab"]');
     await tabs.nth(3).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.stub-view h3', { hasText: 'Execution View' })).toBeVisible({
       timeout: 5000,
@@ -90,7 +89,6 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = page.locator('.view-selector').locator('button[role="tab"]');
     await tabs.nth(4).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.stub-view h3', { hasText: 'File View' })).toBeVisible({
       timeout: 5000,
@@ -101,7 +99,6 @@ test.describe.serial('Thread View Tabs', () => {
     await hoverAndWaitForTabs(page);
     const tabs = page.locator('.view-selector').locator('button[role="tab"]');
     await tabs.nth(0).click();
-    await page.waitForTimeout(1000);
 
     // Chat view re-mounts after tab switch — give it time to load thread data
     await expect(page.locator('.thread-chat-view')).toBeVisible({ timeout: 15000 });

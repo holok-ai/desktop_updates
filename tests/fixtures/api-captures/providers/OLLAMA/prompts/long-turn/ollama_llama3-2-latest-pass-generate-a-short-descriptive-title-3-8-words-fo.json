@@ -1,0 +1,308 @@
+[
+  {
+    "id": "060e2cdc-05a6-421e-bf71-e2eaf03b3bbf",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "0.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. Messages: [\"could you read file?\",\"what is your model name?\"]",
+    "rawData": {
+      "model": "llama3.2:latest",
+      "stream": true,
+      "options": {
+        "num_predict": 60,
+        "temperature": 0.7
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "Generate a short, descriptive title (3-8 words) for this conversation. Generate a title that generalizes or summarizes the messages.Avoid titles of the format: this and that. Return ONLY the title text, nothing else. No quotes, no punctuation at the end. Messages: [\"could you read file?\",\"what is your model name?\"]"
+        }
+      ]
+    },
+    "options": {
+      "num_predict": 60,
+      "temperature": 0.7
+    },
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 96,
+    "createdAt": "2026-03-01T15:44:01.216",
+    "updatedAt": "2026-03-01T15:44:01.216"
+  },
+  {
+    "id": "edb09396-8f49-412b-a483-8fa096274a4d",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "0.0.0",
+    "model": "llama3.2:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "Requesting Information from an Unspecified Source",
+    "rawData": {
+      "ts": 1772379841265,
+      "seq": 17,
+      "text": "Requesting Information from an Unspecified Source",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "llama3.2:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:44:01.263601752Z",
+        "eval_count": 9,
+        "done_reason": "stop",
+        "eval_duration": 32563819,
+        "load_duration": 7084467,
+        "total_duration": 45579160,
+        "prompt_eval_count": 96,
+        "prompt_eval_duration": 5632814
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 24,
+        "totalProcessingTime": 48
+      },
+      "requestId": "b53efc0a-720d-4fde-b827-2bf46639a30e"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 9,
+    "createdAt": "2026-03-01T15:44:01.265",
+    "updatedAt": "2026-03-01T15:44:01.265"
+  },
+  {
+    "id": "a33484e7-f27d-4488-b27f-1acafb6c56d0",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "could you read file?",
+    "rawData": {
+      "model": "phi4:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "could you read file?"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 15,
+    "createdAt": "2026-03-01T15:43:36.95",
+    "updatedAt": "2026-03-01T15:43:36.95"
+  },
+  {
+    "id": "316e2e52-752d-4240-884e-32d2ad4a567f",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!",
+    "rawData": {
+      "ts": 1772379818606,
+      "seq": 149,
+      "text": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "phi4:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:43:38.60435743Z",
+        "eval_count": 75,
+        "done_reason": "stop",
+        "eval_duration": 555291255,
+        "load_duration": 1046918624,
+        "total_duration": 1653259984,
+        "prompt_eval_count": 15,
+        "prompt_eval_duration": 50569034
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1101,
+        "totalProcessingTime": 1655
+      },
+      "requestId": "2c2a2298-96e5-451a-bdf6-082728bd9d35"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 75,
+    "createdAt": "2026-03-01T15:43:38.606",
+    "updatedAt": "2026-03-01T15:43:38.606"
+  },
+  {
+    "id": "520924f1-3651-4e14-a4ce-1fabe79f4f9e",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "2.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "what is your model name?",
+    "rawData": {
+      "model": "phi4:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "could you read file?"
+        },
+        {
+          "role": "assistant",
+          "content": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!"
+        },
+        {
+          "role": "user",
+          "content": "what is your model name?"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 107,
+    "createdAt": "2026-03-01T15:43:59.575",
+    "updatedAt": "2026-03-01T15:43:59.575"
+  },
+  {
+    "id": "64b0f2e6-231b-46f3-a18c-6848f02d3333",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "2.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "I am based on OpenAI's language models. As of the latest update in 2023, similar models include GPT-3 and its successors like GPT-4. My specific version or iteration might not be named directly, as I'm tailored for particular platforms to provide assistance aligned with their guidelines. If you have questions about what I can do, feel free to ask!",
+    "rawData": {
+      "ts": 1772379840190,
+      "seq": 155,
+      "text": "I am based on OpenAI's language models. As of the latest update in 2023, similar models include GPT-3 and its successors like GPT-4. My specific version or iteration might not be named directly, as I'm tailored for particular platforms to provide assistance aligned with their guidelines. If you have questions about what I can do, feel free to ask!",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "phi4:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:44:00.188217588Z",
+        "eval_count": 78,
+        "done_reason": "stop",
+        "eval_duration": 592617366,
+        "load_duration": 4654691,
+        "total_duration": 611731571,
+        "prompt_eval_count": 107,
+        "prompt_eval_duration": 13746093
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 30,
+        "totalProcessingTime": 614
+      },
+      "requestId": "ab9ed304-c97e-4629-876d-2fb775e95956"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 78,
+    "createdAt": "2026-03-01T15:44:00.19",
+    "updatedAt": "2026-03-01T15:44:00.19"
+  },
+  {
+    "id": "c05b7653-a09f-4dad-a576-8df9f4e16c83",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "3.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "could you do an online research?",
+    "rawData": {
+      "model": "phi4:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "could you read file?"
+        },
+        {
+          "role": "assistant",
+          "content": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!"
+        },
+        {
+          "role": "user",
+          "content": "what is your model name?"
+        },
+        {
+          "role": "assistant",
+          "content": "I am based on OpenAI's language models. As of the latest update in 2023, similar models include GPT-3 and its successors like GPT-4. My specific version or iteration might not be named directly, as I'm tailored for particular platforms to provide assistance aligned with their guidelines. If you have questions about what I can do, feel free to ask!"
+        },
+        {
+          "role": "user",
+          "content": "could you do an online research?"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 203,
+    "createdAt": "2026-03-01T15:44:12.317",
+    "updatedAt": "2026-03-01T15:44:12.317"
+  },
+  {
+    "id": "96689f64-c72d-451e-aab0-d56f45da7e19",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "3.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "I don't have the capability to browse the internet or access real-time data beyond my training cut-off in October 2023. However, I can provide information and answer questions based on what I've been trained on up until that point. If you're looking for general knowledge or guidance on a topic, feel free to ask!",
+    "rawData": {
+      "ts": 1772379852844,
+      "seq": 133,
+      "text": "I don't have the capability to browse the internet or access real-time data beyond my training cut-off in October 2023. However, I can provide information and answer questions based on what I've been trained on up until that point. If you're looking for general knowledge or guidance on a topic, feel free to ask!",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "phi4:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:44:12.842609508Z",
+        "eval_count": 67,
+        "done_reason": "stop",
+        "eval_duration": 513629123,
+        "load_duration": 4742671,
+        "total_duration": 524731710,
+        "prompt_eval_count": 203,
+        "prompt_eval_duration": 5400813
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 22,
+        "totalProcessingTime": 526
+      },
+      "requestId": "b307b121-62b5-4629-963a-31d99609e157"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 67,
+    "createdAt": "2026-03-01T15:44:12.844",
+    "updatedAt": "2026-03-01T15:44:12.844"
+  }
+]

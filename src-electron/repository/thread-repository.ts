@@ -22,6 +22,7 @@ import {
   ObserverPromptsInspector,
   ToolUseInspector,
   ResponseCompletedInspector,
+  ErrorResponseInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -38,6 +39,7 @@ export class ThreadRepository {
     new ToolUseInspector(),
     new DuplicationInspector(),
     new PlaceholderInspector(),
+    new ErrorResponseInspector(),
     new GuardInspector(),
   ];
 
@@ -125,12 +127,14 @@ export class ThreadRepository {
     const threadTitle = this.threadsById.get(threadId)?.title ?? '';
     const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
     const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
-    const toolUseCount = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+    const totalToolCalls = finalMessages.reduce((sum, m) => sum + (m.toolUses?.length ?? 0), 0);
+    const messagesWithTools = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
     const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
     log.info('[ThreadRepository] Loaded thread messages with toolUses', {
       threadId,
       total: finalMessages.length,
-      toolUseCount,
+      totalToolCalls,
+      messagesWithTools,
       assistantCount,
     });
 
@@ -703,11 +707,12 @@ export class ThreadRepository {
     if (message.role === 'assistant') {
       const toolUses = [
         ...toolUsesFromContent,
-        ...(message.rawData ? this.extractToolUsesFromRawData(message.rawData) : []),
+        ...(message.rawData
+          ? this.extractToolUsesFromRawData(message.rawData, message.provider)
+          : []),
       ];
-      const merged = this.mergeToolUses(toolUses);
-      if (merged.length > 0) {
-        message.toolUses = merged;
+      if (toolUses.length > 0) {
+        message.toolUses = toolUses;
       }
     }
 
@@ -719,48 +724,224 @@ export class ThreadRepository {
 
   private extractToolUsesFromRawData(
     rawData: JsonValue,
-  ): Array<{ name: string; status: 'complete' }> {
+    provider?: string,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
     if (!rawData || typeof rawData !== 'object') {
       return [];
     }
 
     const data = rawData as Record<string, unknown>;
-    const toolCalls = data.tool_calls;
-    if (!Array.isArray(toolCalls)) {
-      return [];
+    const normalized = (provider || '').toLowerCase();
+
+    switch (normalized) {
+      case 'claude':
+      case 'anthropic':
+        return this.extractClaudeToolUses(data);
+      case 'openai':
+      case 'azure open ai':
+        return this.extractOpenAIToolUses(data);
+      case 'ollama':
+        return this.extractOllamaToolUses(data);
+      case 'gemini':
+        return this.extractGeminiToolUses(data);
+      default:
+        return this.extractToolUsesFallback(data);
+    }
+  }
+
+  /**
+   * Claude/Anthropic: rawData.message.content[] → { type: "tool_use", name }
+   */
+  private extractClaudeToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message) return [];
+
+    const content = message.content;
+    if (!Array.isArray(content)) return [];
+
+    return content
+      .filter(
+        (block) =>
+          block &&
+          typeof block === 'object' &&
+          (block as Record<string, unknown>).type === 'tool_use' &&
+          typeof (block as Record<string, unknown>).name === 'string',
+      )
+      .map((block) => {
+        const rec = block as Record<string, unknown>;
+        return {
+          id: typeof rec.id === 'string' ? rec.id : undefined,
+          name: rec.name as string,
+          status: 'complete' as const,
+        };
+      });
+  }
+
+  /**
+   * OpenAI: handles both Responses API (rawData.message.response.output[]) and
+   * Chat Completions API (rawData.tool_calls[]).
+   */
+  private extractOpenAIToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    // Responses API: data.message.response.output[] → { type: "function_call", name }
+    const message = data.message as Record<string, unknown> | undefined;
+    if (message) {
+      const response = message.response as Record<string, unknown> | undefined;
+      const output = response?.output;
+      if (Array.isArray(output)) {
+        const results = output
+          .filter(
+            (item) =>
+              item &&
+              typeof item === 'object' &&
+              (item as Record<string, unknown>).type === 'function_call' &&
+              typeof (item as Record<string, unknown>).name === 'string',
+          )
+          .map((item) => {
+            const rec = item as Record<string, unknown>;
+            return {
+              id: typeof rec.call_id === 'string' ? rec.call_id : undefined,
+              name: rec.name as string,
+              status: 'complete' as const,
+            };
+          });
+        if (results.length > 0) return results;
+      }
     }
 
-    const names = toolCalls
+    // Chat Completions API: data.tool_calls[] → { function: { name } }
+    const toolCalls = data.tool_calls;
+    if (Array.isArray(toolCalls)) {
+      const results: Array<{ id?: string; name: string; status: 'complete' | 'error' }> = [];
+      for (const toolCall of toolCalls) {
+        if (!toolCall || typeof toolCall !== 'object') continue;
+        const call = toolCall as Record<string, unknown>;
+        const fn = call.function;
+        if (fn && typeof fn === 'object') {
+          const fnName = (fn as Record<string, unknown>).name;
+          if (typeof fnName === 'string' && fnName.length > 0) {
+            results.push({
+              id: typeof call.id === 'string' ? call.id : undefined,
+              name: fnName,
+              status: 'complete',
+            });
+          }
+        }
+      }
+      return results;
+    }
+
+    return [];
+  }
+
+  /**
+   * Ollama: rawData.message.message.tool_calls[] → { function: { name } }
+   */
+  private extractOllamaToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    const outer = data.message as Record<string, unknown> | undefined;
+    if (!outer) return [];
+
+    const inner = outer.message as Record<string, unknown> | undefined;
+    if (!inner) return [];
+
+    const toolCalls = inner.tool_calls;
+    if (!Array.isArray(toolCalls)) return [];
+
+    return toolCalls
+      .map((call) => {
+        if (!call || typeof call !== 'object') return null;
+        const fn = (call as Record<string, unknown>).function;
+        if (fn && typeof fn === 'object') {
+          const name = (fn as Record<string, unknown>).name;
+          if (typeof name === 'string' && name.length > 0) return name;
+        }
+        return null;
+      })
+      .filter((name): name is string => name !== null)
+      .map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  /**
+   * Gemini: rawData.message.candidates[].content.parts[] → { functionCall: { name } }
+   */
+  private extractGeminiToolUses(
+    data: Record<string, unknown>,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message) return [];
+
+    const candidates = message.candidates as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(candidates)) return [];
+
+    const names: string[] = [];
+    for (const candidate of candidates) {
+      const content = candidate.content as Record<string, unknown> | undefined;
+      if (!content) continue;
+
+      const parts = content.parts;
+      if (!Array.isArray(parts)) continue;
+
+      for (const part of parts) {
+        if (!part || typeof part !== 'object') continue;
+        const functionCall = (part as Record<string, unknown>).functionCall as
+          | Record<string, unknown>
+          | undefined;
+        if (functionCall && typeof functionCall.name === 'string' && functionCall.name.length > 0) {
+          names.push(functionCall.name);
+        }
+      }
+    }
+
+    return names.map((name) => ({ name, status: 'complete' as const }));
+  }
+
+  /**
+   * Fallback: tries all known patterns for unknown providers.
+   */
+  private extractToolUsesFallback(
+    data: Record<string, unknown>,
+  ): Array<{ id?: string; name: string; status: 'complete' | 'error' }> {
+    const results = [
+      ...this.extractClaudeToolUses(data),
+      ...this.extractOpenAIToolUses(data),
+      ...this.extractOllamaToolUses(data),
+      ...this.extractGeminiToolUses(data),
+    ];
+    if (results.length > 0) return results;
+
+    // Legacy: top-level tool_calls[] with function.name or name
+    const toolCalls = data.tool_calls;
+    if (!Array.isArray(toolCalls)) return [];
+
+    return toolCalls
       .map((toolCall) => {
         if (!toolCall || typeof toolCall !== 'object') return null;
         const call = toolCall as Record<string, unknown>;
         const fn = call.function;
         if (fn && typeof fn === 'object') {
           const fnName = (fn as Record<string, unknown>).name;
-          if (typeof fnName === 'string') {
-            return fnName;
-          }
+          if (typeof fnName === 'string') return fnName;
         }
-
         const name = call.name;
-        if (typeof name === 'string') {
-          return name;
-        }
-
+        if (typeof name === 'string') return name;
         return null;
       })
-      .filter((name): name is string => typeof name === 'string' && name.length > 0);
-
-    return names.map((name) => ({ name, status: 'complete' as const }));
+      .filter((name): name is string => typeof name === 'string' && name.length > 0)
+      .map((name) => ({ name, status: 'complete' as const }));
   }
 
   private extractContentBlocks(content: unknown): {
     contentText: string;
-    toolUsesFromContent: Array<{ name: string; status: 'complete' }>;
+    toolUsesFromContent: Array<{ id?: string; name: string; status: 'complete' | 'error' }>;
   } {
     if (Array.isArray(content)) {
       const textParts: string[] = [];
-      const toolUses: Array<{ name: string; status: 'complete' }> = [];
+      const toolUses: Array<{ id?: string; name: string; status: 'complete' }> = [];
 
       for (const block of content) {
         if (!block || typeof block !== 'object') continue;
@@ -778,7 +959,11 @@ export class ThreadRepository {
         if (type === 'tool_use') {
           const name = record.name;
           if (typeof name === 'string' && name.length > 0) {
-            toolUses.push({ name, status: 'complete' as const });
+            toolUses.push({
+              id: typeof record.id === 'string' ? record.id : undefined,
+              name,
+              status: 'complete' as const,
+            });
           }
         }
       }

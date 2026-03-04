@@ -34,9 +34,9 @@ async (toolUse: ChatComponentToolUse) => {
   return await this.toolOrchestra.executeTool(
     toolUse.name,
     toolUse.input,
-    this.threadContext,  // ← statusCallback is always undefined here
+    this.threadContext, // ← statusCallback is always undefined here
   );
-}
+};
 ```
 
 In `chat()`, the incoming `onToolStatus` is attached to the `request` object instead of `this.threadContext`:
@@ -77,7 +77,7 @@ if (!fs.existsSync(resolvedPath)) {
 ```typescript
 export interface ToolStatus {
   toolName: string;
-  state: 'in_progress' | 'complete';  // no 'error'
+  state: 'in_progress' | 'complete'; // no 'error'
   message?: string;
 }
 ```
@@ -155,16 +155,16 @@ All errors funnel through `handleGuardError()`. It distinguishes PII/guard error
 
 ## Summary Table
 
-| # | Issue | Location | Severity |
-|---|-------|----------|----------|
-| 1 | `statusCallback` never set on `ToolExecutionContext` | `desktop-chat-service.ts:165` | High — blocks all status events |
-| 2 | Error paths in tools emit no status update | `file-read.tool.ts`, others | High — tools stay 'in_progress' on error |
-| 3 | `ToolStatus.state` has no `'error'` value | `tool-types.ts:24` | Medium — type gap |
-| 4 | `chat:toolUse`/`chat:toolStatus` not in preload | `preload.ts` | High — renderer can't receive events |
-| 5 | `onToolUse` IPC callback silently ignored | `desktop-chat-service.ts:147` | Medium — telemetry gap |
-| 6 | `ChatResponse` has no error styling for tools | `ChatResponse.svelte:66` | Low — visual gap |
-| 7 | Orchestrator lacks try/catch on `tool.execute()` | `orchestrator.ts:87` | Medium — unhandled exceptions |
-| 8 | All errors treated as guard errors in UI | `ThreadChatView.svelte:856` | Medium — poor UX for tool errors |
+| #   | Issue                                                | Location                      | Severity                                 |
+| --- | ---------------------------------------------------- | ----------------------------- | ---------------------------------------- |
+| 1   | `statusCallback` never set on `ToolExecutionContext` | `desktop-chat-service.ts:165` | High — blocks all status events          |
+| 2   | Error paths in tools emit no status update           | `file-read.tool.ts`, others   | High — tools stay 'in_progress' on error |
+| 3   | `ToolStatus.state` has no `'error'` value            | `tool-types.ts:24`            | Medium — type gap                        |
+| 4   | `chat:toolUse`/`chat:toolStatus` not in preload      | `preload.ts`                  | High — renderer can't receive events     |
+| 5   | `onToolUse` IPC callback silently ignored            | `desktop-chat-service.ts:147` | Medium — telemetry gap                   |
+| 6   | `ChatResponse` has no error styling for tools        | `ChatResponse.svelte:66`      | Low — visual gap                         |
+| 7   | Orchestrator lacks try/catch on `tool.execute()`     | `orchestrator.ts:87`          | Medium — unhandled exceptions            |
+| 8   | All errors treated as guard errors in UI             | `ThreadChatView.svelte:856`   | Medium — poor UX for tool errors         |
 
 ---
 

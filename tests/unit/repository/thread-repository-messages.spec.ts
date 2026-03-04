@@ -39,8 +39,8 @@
  * ══════════════════════════════════════════════════════════════════════
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiOk } from '../../../src-electron/types/api-response';
-import { pagedMessages } from '../../fixtures/api-captures/loader';
+import { apiOk, apiFail } from '../../../src-electron/types/api-response';
+import { loadCapture, pagedCapture, pagedMessages } from '../../fixtures/api-captures/loader';
 import {
   fakeMessageDTO,
   resetSequence,
@@ -112,6 +112,7 @@ vi.mock('../../../src-electron/services/mokuapi/thread-api.service', () => ({
 
 import { ThreadRepository } from '../../../src-electron/repository/thread-repository';
 import type { Message } from '../../../src-electron/types/thread.types';
+import type { ThreadDTO } from '../../../src-electron/services/mokuapi/thread.types';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -505,30 +506,48 @@ describe('ThreadRepository — message handling scenarios', () => {
   // captured via CAPTURE_API_DATA=true and placed in the fixture dir.
   // ────────────────────────────────────────────────────────────────
 
-  // TODO: Uncomment after capturing live data
+  // TODO: Uncomment Gemini once we have a Gemini captures
   //
-  // describe('captured JSON fixtures', () => {
-  //   it.each([
-  //     ['scenario 20: successful OpenAI turn', 'turns/successful-openai-turn.json'],
-  //     ['scenario 21: successful Claude turn', 'turns/successful-claude-turn.json'],
-  //     ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
-  //     ['scenario 23: tool call response', 'tool-calls/tool-call-read-file.json'],
-  //     ['scenario 24: guard blocked', 'guard/guard-blocked.json'],
-  //     ['scenario 25: error response', 'errors/error-400-invalid-request.json'],
-  //   ])('%s', async (label, fixturePath) => {
-  //     const messages = loadCapture(fixturePath);
-  //
-  //     // Validate schema first
-  //     const schemaErrors = validateMessageDTOArray(messages);
-  //     expect(schemaErrors, `Schema drift in "${fixturePath}":\n${formatErrors(schemaErrors)}`).toHaveLength(0);
-  //
-  //     // Load through repository
-  //     mockThreadApi.getThread.mockResolvedValue(apiOk(fakeThreadDTO()));
-  //     mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedMessages(fixturePath)));
-  //
-  //     const result = await repo.loadThread('thread-1');
-  //     expect(result).not.toBeNull();
-  //     expect(result!.messages.length).toBeGreaterThan(0);
-  //   });
-  // });
+  describe('captured JSON fixtures', () => {
+    it.each([
+      ['scenario 20: successful OpenAI turn', 'turns/successful-openai-turn.json'],
+      ['scenario 21: successful Claude turn', 'turns/successful-claude-turn.json'],
+      // ['scenario 22: Gemini response with image', 'turns/successful-gemini-with-image.json'],
+      ['scenario 23: tool call response', 'tool-calls/tool-call-read-file.json'],
+      ['scenario 24: guard blocked', 'guard/guard-blocked.json'],
+      ['scenario 25: error response', 'errors/error-400-invalid-request.json'],
+    ])('%s', async (label, fixturePath) => {
+      const messages = loadCapture(fixturePath);
+
+      // Validate schema first
+      const schemaErrors = validateMessageDTOArray(messages);
+      expect(
+        schemaErrors,
+        `Schema drift in "${fixturePath}":\n${formatErrors(schemaErrors)}`,
+      ).toHaveLength(0);
+
+      // Load through repository
+      mockThreadApi.getThread.mockResolvedValue(
+        apiOk({
+          id: 'thread-1',
+          title: 'Test Thread',
+          description: '',
+          type: 'personal',
+          ownerId: 'user-1',
+          projectId: null,
+          createdUserId: 'user-1',
+          status: 'active',
+          createdAt: '2025-06-01T00:00:00Z',
+          updatedAt: '2025-06-01T00:00:00Z',
+          deletedAt: '',
+          metadata: {},
+        } as ThreadDTO),
+      );
+      mockThreadApi.getMessages.mockResolvedValue(apiOk(pagedCapture(fixturePath)));
+
+      const result = await repo.loadThread('thread-1');
+      expect(result).not.toBeNull();
+      expect(result!.messages.length).toBeGreaterThan(0);
+    });
+  });
 });

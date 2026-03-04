@@ -1,0 +1,71 @@
+[
+  {
+    "id": "a33484e7-f27d-4488-b27f-1acafb6c56d0",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "user",
+    "content": "could you read file?",
+    "rawData": {
+      "model": "phi4:latest",
+      "stream": true,
+      "options": {},
+      "messages": [
+        {
+          "role": "user",
+          "content": "could you read file?"
+        }
+      ]
+    },
+    "options": {},
+    "status": "chat",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 15,
+    "createdAt": "2026-03-01T15:43:36.95",
+    "updatedAt": "2026-03-01T15:43:36.95"
+  },
+  {
+    "id": "316e2e52-752d-4240-884e-32d2ad4a567f",
+    "threadId": "6e85ccdc-555a-46d3-ac6f-9b9e11a6ca2d",
+    "branchId": "1.0.0",
+    "model": "phi4:latest",
+    "provider": "OLLAMA",
+    "role": "assistant",
+    "content": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!",
+    "rawData": {
+      "ts": 1772379818606,
+      "seq": 149,
+      "text": "I can't directly access or read files on your device. However, I can help guide you on how to handle and process files if you provide the content here. If you have a specific text or data from a file that you'd like assistance with, feel free to share it (while ensuring no sensitive information is included), and I'll do my best to assist!",
+      "type": "done",
+      "message": {
+        "done": true,
+        "model": "phi4:latest",
+        "message": {
+          "role": "assistant",
+          "content": ""
+        },
+        "created_at": "2026-03-01T15:43:38.60435743Z",
+        "eval_count": 75,
+        "done_reason": "stop",
+        "eval_duration": 555291255,
+        "load_duration": 1046918624,
+        "total_duration": 1653259984,
+        "prompt_eval_count": 15,
+        "prompt_eval_duration": 50569034
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1101,
+        "totalProcessingTime": 1655
+      },
+      "requestId": "2c2a2298-96e5-451a-bdf6-082728bd9d35"
+    },
+    "status": "success",
+    "createdUserId": "fynn.truong@nkk.com.vn",
+    "tokens": 75,
+    "createdAt": "2026-03-01T15:43:38.606",
+    "updatedAt": "2026-03-01T15:43:38.606"
+  }
+]

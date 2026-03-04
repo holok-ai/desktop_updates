@@ -15,6 +15,7 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import { handleDeleteModal } from '../fixtures/delete-modal-helpers';
 
 let app: ElectronApplication;
 let page: Page;
@@ -27,7 +28,10 @@ test.describe.serial('Project List', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(10000);
+
+    // Wait for the sidebar Projects button to be visible and ready
+    const projectsBtn = page.locator('button[aria-label="Projects"]');
+    await expect(projectsBtn).toBeVisible({ timeout: 30000 });
   });
 
   test.afterAll(async () => {
@@ -37,7 +41,6 @@ test.describe.serial('Project List', () => {
   test('projects page shows list of projects with titles and timestamps', async () => {
     // Requirement 7.1: projects page displays projects
     await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects/, { timeout: 10000 });
 
     // Verify the projects page is loaded
@@ -79,9 +82,8 @@ test.describe.serial('Project List', () => {
     // Requirement 7.2: Create Project button shows modal
     const newProjectBtn = page.locator('.projects-header button.btn-holokai');
     await newProjectBtn.click();
-    await page.waitForTimeout(1000);
 
-    // Verify the create modal is visible
+    // Wait for the create modal to appear
     const modal = page.locator('div[role="dialog"][aria-labelledby="create-project-dialog-title"]');
     await expect(modal).toBeVisible({ timeout: 5000 });
 
@@ -100,10 +102,9 @@ test.describe.serial('Project List', () => {
     const submitBtn = modal.locator('button.btn-primary');
     await expect(submitBtn).toBeDisabled();
 
-    // Close the modal
+    // Close the modal and wait for it to disappear
     const cancelBtn = modal.locator('button.btn-secondary');
     await cancelBtn.click();
-    await page.waitForTimeout(500);
     await expect(modal).not.toBeVisible({ timeout: 3000 });
   });
 
@@ -111,7 +112,6 @@ test.describe.serial('Project List', () => {
     // Requirement 7.3: creating a project adds it to the list
     const newProjectBtn = page.locator('.projects-header button.btn-holokai');
     await newProjectBtn.click();
-    await page.waitForTimeout(1000);
 
     const modal = page.locator('div[role="dialog"][aria-labelledby="create-project-dialog-title"]');
     await expect(modal).toBeVisible({ timeout: 5000 });
@@ -144,14 +144,10 @@ test.describe.serial('Project List', () => {
     await expect(projectCard).toBeVisible({ timeout: 5000 });
 
     await projectCard.click();
-    await page.waitForTimeout(2000);
-
-    // Should navigate to project view with projectId parameter
     await expect(page).toHaveURL(/projectId=/, { timeout: 15000 });
 
     // Navigate back to projects list
     await page.locator('button[aria-label="Projects"]').click();
-    await page.waitForTimeout(2000);
     await expect(page).toHaveURL(/\/projects/, { timeout: 10000 });
   });
 
@@ -163,9 +159,8 @@ test.describe.serial('Project List', () => {
     // Open context menu
     const menuBtn = projectCard.locator('button.project-menu-button');
     await menuBtn.click();
-    await page.waitForTimeout(500);
 
-    // Verify dropdown is visible with all options
+    // Wait for dropdown to be visible
     const dropdown = projectCard.locator('.project-menu-dropdown');
     await expect(dropdown).toBeVisible({ timeout: 3000 });
 
@@ -179,9 +174,9 @@ test.describe.serial('Project List', () => {
     await expect(renameItem).toBeVisible({ timeout: 3000 });
     await expect(deleteItem).toBeVisible({ timeout: 3000 });
 
-    // Close menu by clicking elsewhere
+    // Close menu by clicking elsewhere and wait for it to disappear
     await page.locator('.projects-page').click({ position: { x: 10, y: 10 } });
-    await page.waitForTimeout(500);
+    await expect(dropdown).not.toBeVisible({ timeout: 3000 });
   });
 
   test('renaming a project updates the title', async () => {
@@ -192,11 +187,12 @@ test.describe.serial('Project List', () => {
     // Open context menu and click Rename
     const menuBtn = projectCard.locator('button.project-menu-button');
     await menuBtn.click();
-    await page.waitForTimeout(500);
+
+    const dropdown = projectCard.locator('.project-menu-dropdown');
+    await expect(dropdown).toBeVisible({ timeout: 3000 });
 
     const renameItem = projectCard.locator('.menu-item', { hasText: 'Rename' });
     await renameItem.click();
-    await page.waitForTimeout(1000);
 
     // Verify rename modal is visible
     const renameModal = page.locator('div[role="dialog"][aria-labelledby="rename-dialog-title"]');
@@ -215,7 +211,6 @@ test.describe.serial('Project List', () => {
 
     // The rename API call is async — modal stays open until the parent handler resolves
     await expect(renameModal).not.toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(2000);
 
     // Verify the project title is updated
     const renamedCard = page.locator('.project-card', { hasText: RENAMED_PROJECT_NAME });
@@ -230,22 +225,26 @@ test.describe.serial('Project List', () => {
     // Open context menu and click Make Favorite
     const menuBtn = projectCard.locator('button.project-menu-button');
     await menuBtn.click();
-    await page.waitForTimeout(500);
+
+    const dropdown = projectCard.locator('.project-menu-dropdown');
+    await expect(dropdown).toBeVisible({ timeout: 3000 });
 
     const favoriteItem = projectCard.locator('.menu-item', { hasText: 'Make Favorite' });
     await favoriteItem.click();
-    await page.waitForTimeout(1000);
+
+    // Wait for menu to close after clicking favorite
+    await expect(dropdown).not.toBeVisible({ timeout: 3000 });
 
     // Open context menu again to verify it now says "Remove Favorite"
     await menuBtn.click();
-    await page.waitForTimeout(500);
+    await expect(dropdown).toBeVisible({ timeout: 3000 });
 
     const removeFavoriteItem = projectCard.locator('.menu-item', { hasText: 'Remove Favorite' });
     await expect(removeFavoriteItem).toBeVisible({ timeout: 3000 });
 
     // Toggle it back off
     await removeFavoriteItem.click();
-    await page.waitForTimeout(500);
+    await expect(dropdown).not.toBeVisible({ timeout: 3000 });
   });
 
   test('deleting a project removes it from the list', async () => {
@@ -256,24 +255,15 @@ test.describe.serial('Project List', () => {
     // Open context menu and click Delete
     const menuBtn = projectCard.locator('button.project-menu-button');
     await menuBtn.click();
-    await page.waitForTimeout(500);
+
+    const dropdown = projectCard.locator('.project-menu-dropdown');
+    await expect(dropdown).toBeVisible({ timeout: 3000 });
 
     const deleteItem = projectCard.locator('.menu-item', { hasText: 'Delete Project' });
     await deleteItem.click();
-    await page.waitForTimeout(1000);
 
-    // deleteConfirmationRequired defaults to false, so the app may delete directly
-    // without showing a confirmation modal. Handle both cases.
-    const deleteModal = page.locator('div[role="dialog"][aria-labelledby="delete-dialog-title"]');
-    const modalVisible = await deleteModal.isVisible().catch(() => false);
-
-    if (modalVisible) {
-      // Confirmation modal is shown — confirm deletion
-      await expect(deleteModal).toContainText(RENAMED_PROJECT_NAME);
-      const confirmBtn = deleteModal.locator('button.btn-danger');
-      await confirmBtn.click();
-      await expect(deleteModal).not.toBeVisible({ timeout: 10000 });
-    }
+    // Handle the delete confirmation modal (may or may not appear)
+    await handleDeleteModal(page, 'confirm');
 
     // The delete API call is async — wait for the card to disappear from the DOM
     const deletedCard = page.locator('.project-card', { hasText: RENAMED_PROJECT_NAME });

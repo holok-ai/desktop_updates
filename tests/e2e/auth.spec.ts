@@ -26,7 +26,8 @@ test.describe('Authentication Flow', () => {
     page = await getFirstWindow(app);
     // Wait for the app to fully load
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for sidebar to confirm app is fully rendered and authenticated
+    await expect(page.locator('nav[aria-label="Main sidebar"]')).toBeVisible({ timeout: 15000 });
   });
 
   test.afterAll(async () => {

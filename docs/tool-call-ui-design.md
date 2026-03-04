@@ -12,13 +12,13 @@ Show each tool call that occurs during an assistant turn as a live status indica
 
 ## UI Behaviour Summary
 
-| Phase | What the user sees |
-|---|---|
-| Tool starts | Inline status row appears below streaming text: wrench icon + tool name + input hint + spinner |
-| Tool succeeds | Row updates to green ✓ check + `complete` |
-| Tool fails | Row updates to red ✗ + brief error code |
-| Response complete | All tool rows disappear; a small chip `⚙ 3 calls` appears at bottom of response bubble |
-| Chip clicked | Tool detail rows re-expand inline (toggle) |
+| Phase             | What the user sees                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Tool starts       | Inline status row appears below streaming text: wrench icon + tool name + input hint + spinner |
+| Tool succeeds     | Row updates to green ✓ check + `complete`                                                      |
+| Tool fails        | Row updates to red ✗ + brief error code                                                        |
+| Response complete | All tool rows disappear; a small chip `⚙ 3 calls` appears at bottom of response bubble        |
+| Chip clicked      | Tool detail rows re-expand inline (toggle)                                                     |
 
 ---
 
@@ -95,18 +95,19 @@ Add to `src-electron/services/tool-calling/tool-types.ts` (and export from chat 
 
 ```typescript
 export interface ToolCall {
-  id: string;          // tool_use_id from the LLM request (Anthropic: block.id)
-  name: string;        // e.g. 'read_file', 'read_folder'
-  inputHint: string;   // short human-readable hint, e.g. '/src/App.ts'
+  id: string; // tool_use_id from the LLM request (Anthropic: block.id)
+  name: string; // e.g. 'read_file', 'read_folder'
+  inputHint: string; // short human-readable hint, e.g. '/src/App.ts'
   status: 'in_progress' | 'complete' | 'error';
-  message?: string;    // progress message, e.g. 'Reading file: /src/App.ts'
-  error?: string;      // error string if status === 'error'
+  message?: string; // progress message, e.g. 'Reading file: /src/App.ts'
+  error?: string; // error string if status === 'error'
   startedAt: number;
   completedAt?: number;
 }
 ```
 
 `inputHint` is derived by each tool from its primary input param:
+
 - `read_file` → `file_path` value
 - `read_folder` → `folder_path` value
 - `write_file` → `file_path` value
@@ -117,12 +118,12 @@ export interface ToolCall {
 ```typescript
 // tool-types.ts
 export interface ToolStatus {
-  toolCallId: string;            // NEW — ties status to a specific tool_use block
+  toolCallId: string; // NEW — ties status to a specific tool_use block
   toolName: string;
-  state: 'in_progress' | 'complete' | 'error';  // 'error' added
+  state: 'in_progress' | 'complete' | 'error'; // 'error' added
   message?: string;
-  error?: string;                // NEW — error detail when state === 'error'
-  inputHint?: string;            // NEW — forwarded from tool execution
+  error?: string; // NEW — error detail when state === 'error'
+  inputHint?: string; // NEW — forwarded from tool execution
 }
 ```
 
@@ -178,6 +179,7 @@ export interface ToolStatus {
 Location: `src/lib/components/thread/chat-view/ToolCallDetails.svelte`
 
 Props:
+
 ```typescript
 interface Props {
   tools: ToolCall[];
@@ -186,16 +188,25 @@ interface Props {
 ```
 
 Renders a list of tool call rows. Each row:
+
 - Status icon: `pi-spinner pi-spin` (in_progress) · `pi-check` green (complete) · `pi-times` red (error)
 - Tool name
 - Input hint (greyed, smaller)
 - If `error`: expand to show error text in red
 
 Follows design tokens from `ChatResponse.svelte`:
+
 ```css
-.tool-details { border-top: 1px solid var(--surface-border, #e0e0e0); font-size: 0.75rem; }
-.tool-item.error { color: var(--error-color, #dc2626); }
-.tool-item.complete .status-icon { color: #10b981; }
+.tool-details {
+  border-top: 1px solid var(--surface-border, #e0e0e0);
+  font-size: 0.75rem;
+}
+.tool-item.error {
+  color: var(--error-color, #dc2626);
+}
+.tool-item.complete .status-icon {
+  color: #10b981;
+}
 ```
 
 ---
@@ -214,9 +225,11 @@ after streaming:    render toggle chip; <ToolCallDetails> only when expanded
 New local state: `let toolsExpanded = $state(false);`
 
 Toggle chip rendered at bottom of `.response-bubble` when `!isStreaming && tools.length > 0`:
+
 ```
 ⚙  N call(s)
 ```
+
 Clicking sets `toolsExpanded = !toolsExpanded`.
 
 ---
@@ -232,6 +245,7 @@ The tools are already passed to both the streaming response and completed respon
 ### 4. Modified: `ThreadChatView.svelte`
 
 #### New state:
+
 ```typescript
 // Tool calls accumulating for the currently active stream
 let activeToolCalls = $state<ToolCall[]>([]);
@@ -242,13 +256,16 @@ let completedToolCalls = $state(new Map<string, ToolCall[]>());
 ```
 
 #### In `setupTokenListener()` / streaming setup:
+
 Subscribe to `chat:toolStatus` via `threadService.subscribeToToolStatus(threadId, branchId, callback)`.
 
 Callback updates `activeToolCalls`:
+
 - `in_progress`: push new `ToolCall` entry
 - `complete` / `error`: find by `id` and update status, error, completedAt
 
 #### When stream completes (after `apiOk`):
+
 ```typescript
 // Snapshot the accumulated tool calls, keyed by the active branchId
 if (activeToolCalls.length > 0) {
@@ -259,6 +276,7 @@ activeToolCalls = [];
 ```
 
 #### When rendering `<ChatMessage>`:
+
 ```svelte
 <ChatMessage
   tools={isStreaming && pair.request.branchId === activeStreamBranchId
@@ -463,8 +481,8 @@ To keep tools simple, extract `inputHint` in the orchestrator from the `input` o
 ```typescript
 function extractInputHint(toolName: string, input: Record<string, unknown>): string {
   // First param named after the tool's primary input
-  const primary = input.file_path ?? input.folder_path ?? input.path
-    ?? input.command ?? input.query;
+  const primary =
+    input.file_path ?? input.folder_path ?? input.path ?? input.command ?? input.query;
   if (!primary) return '';
   const s = String(primary);
   return s.length > 60 ? s.slice(0, 57) + '…' : s;
@@ -492,6 +510,7 @@ No changes to individual tools needed.
 ## Implementation Phases
 
 ### Phase 1 — Fix the wiring (backend + IPC, no visible UI change)
+
 1. `tool-types.ts` — add `'error'` state, `toolCallId`, `error`, `inputHint` to `ToolStatus`
 2. `orchestrator.ts` — try/catch + emit `in_progress` before execute, `error` on catch
 3. `desktop-chat-service.ts` — fix `statusCallback` wiring into `this.threadContext`
@@ -499,31 +518,34 @@ No changes to individual tools needed.
 5. `preload.ts` — expose `chat.onToolStatus` listener
 
 ### Phase 2 — New `ToolCall` type + streaming service
+
 6. Define `ToolCall` interface in shared types
 7. `thread-stream.service.ts` — add `subscribeToToolStatus`, listen to IPC event
 
 ### Phase 3 — UI components
+
 8. New `ToolCallDetails.svelte` — renders tool call rows (in_progress/complete/error)
 9. `ChatResponse.svelte` — use `ToolCall[]`, inline during streaming, chip + toggle after
 10. `ChatMessage.svelte` — update `tools` prop type
 
 ### Phase 4 — ThreadChatView wiring
+
 11. `ThreadChatView.svelte` — `activeToolCalls` state, subscribe to toolStatus, snapshot on complete, pass to ChatMessage
 
 ---
 
 ## Files Touched
 
-| File | Change type | Phase |
-|---|---|---|
-| `src-electron/services/tool-calling/tool-types.ts` | Extend types | 1 |
-| `src-electron/services/tool-calling/orchestrator.ts` | Try/catch + status emit | 1 |
-| `src-electron/services/chat/desktop-chat-service.ts` | Fix statusCallback wiring | 1 |
-| `src-electron/ipc-handlers/chat-handler.ts` | Add branchId to payload | 1 |
-| `src-electron/preload.ts` | Expose onToolStatus | 1 |
-| `src/lib/types/tool-call.type.ts` | New ToolCall type | 2 |
-| `src/lib/services/thread-stream.service.ts` | Add tool status subscription | 2 |
-| `src/lib/components/thread/chat-view/ToolCallDetails.svelte` | New component | 3 |
-| `src/lib/components/thread/chat-view/ChatResponse.svelte` | Chip toggle + inline detail | 3 |
-| `src/lib/components/thread/chat-view/ChatMessage.svelte` | Update tools prop type | 3 |
-| `src/lib/components/thread/chat-view/ThreadChatView.svelte` | State + subscription wiring | 4 |
+| File                                                         | Change type                  | Phase |
+| ------------------------------------------------------------ | ---------------------------- | ----- |
+| `src-electron/services/tool-calling/tool-types.ts`           | Extend types                 | 1     |
+| `src-electron/services/tool-calling/orchestrator.ts`         | Try/catch + status emit      | 1     |
+| `src-electron/services/chat/desktop-chat-service.ts`         | Fix statusCallback wiring    | 1     |
+| `src-electron/ipc-handlers/chat-handler.ts`                  | Add branchId to payload      | 1     |
+| `src-electron/preload.ts`                                    | Expose onToolStatus          | 1     |
+| `src/lib/types/tool-call.type.ts`                            | New ToolCall type            | 2     |
+| `src/lib/services/thread-stream.service.ts`                  | Add tool status subscription | 2     |
+| `src/lib/components/thread/chat-view/ToolCallDetails.svelte` | New component                | 3     |
+| `src/lib/components/thread/chat-view/ChatResponse.svelte`    | Chip toggle + inline detail  | 3     |
+| `src/lib/components/thread/chat-view/ChatMessage.svelte`     | Update tools prop type       | 3     |
+| `src/lib/components/thread/chat-view/ThreadChatView.svelte`  | State + subscription wiring  | 4     |

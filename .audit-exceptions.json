@@ -54,7 +54,9 @@
         "1112329",
         "1112659",
         "1113300",
-        "1113375"
+        "1113375",
+        "1113545",
+        "1113553"
       ],
       "reason": "All advisories in this group affect dev-only transitive dependencies that are never included in the packaged Electron application. Two dependency chains are covered: (1) minimatch via eslint-plugin-sonarjs (static analysis only); (2) libxmljs2 and its tar transitive deps via @cyclonedx/cyclonedx-npm (SBOM generation only, dev optional). No patched versions exist for any affected package.",
       "mitigation": [

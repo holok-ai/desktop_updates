@@ -25,7 +25,8 @@ test.describe.serial('Thread Rename', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    // Wait for the app shell to be fully rendered after launch
+    await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
 
     await navigateToThreads(page);
 
@@ -65,7 +66,7 @@ test.describe.serial('Thread Rename', () => {
     await expect(titleInput).toBeFocused({ timeout: 3000 });
 
     await dialog.locator('button.btn-secondary').click();
-    await page.waitForTimeout(300);
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
   });
 
   test('modifying title to valid value enables Rename button; clicking Rename updates title and shows toast', async () => {
@@ -83,9 +84,7 @@ test.describe.serial('Thread Rename', () => {
 
     const newTitle = `Renamed E2E ${Date.now()}`;
     await titleInput.click({ clickCount: 3 });
-    await page.waitForTimeout(200);
     await titleInput.pressSequentially(newTitle, { delay: 20 });
-    await page.waitForTimeout(500);
 
     await expect(renameButton).toBeEnabled({ timeout: 5000 });
     await renameButton.click();
@@ -119,7 +118,10 @@ test.describe.serial('Thread Rename', () => {
       timeout: 5000,
     });
 
-    await page.waitForTimeout(4000);
+    await page
+      .locator('.toast[role="alert"]')
+      .waitFor({ state: 'hidden', timeout: 10000 })
+      .catch(() => {});
   });
 
   test('clicking Cancel in rename modal closes without changing title', async () => {
@@ -136,10 +138,8 @@ test.describe.serial('Thread Rename', () => {
     const titleInput = dialog.locator('#thread-title');
     await titleInput.clear();
     await titleInput.fill('Should Not Be Saved');
-    await page.waitForTimeout(300);
 
     await dialog.locator('button.btn-secondary').click();
-    await page.waitForTimeout(500);
 
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
 
@@ -161,10 +161,8 @@ test.describe.serial('Thread Rename', () => {
     const titleInput = dialog.locator('#thread-title');
     await titleInput.clear();
     await titleInput.fill('Should Not Be Saved Either');
-    await page.waitForTimeout(300);
 
     await dialog.locator('button[aria-label="Close dialog"]').click();
-    await page.waitForTimeout(500);
 
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
 
@@ -186,14 +184,12 @@ test.describe.serial('Thread Rename', () => {
     await expect(renameButton).toBeDisabled({ timeout: 3000 });
 
     await titleInput.clear();
-    await page.waitForTimeout(300);
     await expect(renameButton).toBeDisabled({ timeout: 3000 });
 
     await titleInput.fill('   ');
-    await page.waitForTimeout(300);
     await expect(renameButton).toBeDisabled({ timeout: 3000 });
 
     await dialog.locator('button.btn-secondary').click();
-    await page.waitForTimeout(300);
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
   });
 });

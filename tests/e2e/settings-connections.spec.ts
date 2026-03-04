@@ -10,59 +10,69 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
+import {
+  navigateToSettings,
+  clickSettingsTab,
+  saveSettings,
+  cancelSettings,
+} from '../fixtures/settings-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+
+// Store original connection URLs dynamically so afterAll can restore them
+let originalWebUrl = '';
+let originalApiUrl = '';
+let originalHoloUrl = '';
 
 test.describe.serial('Settings - Connections', () => {
   test.beforeAll(async () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    // Navigate to Settings page
-    await page.evaluate(() => {
-      window.location.hash = '#/settings';
-    });
-    await page.waitForTimeout(2000);
+    // Navigate to Settings page via UI
+    await navigateToSettings(page);
 
-    // Click Connections tab
-    const connectionsItem = page.locator('.sidebar-item', { hasText: 'Connections' });
-    await connectionsItem.click();
-    await page.waitForTimeout(500);
+    // Click Connections tab via shared helper
+    await clickSettingsTab(page, 'Connections');
+
+    // Read and store original connection URLs for restoration in afterAll
+    const mokuWebInput = page.locator('input#moku-web-url');
+    const mokuApiInput = page.locator('input#moku-api-url');
+    const holoApiInput = page.locator('input#holo-api-url');
+
+    await expect(mokuWebInput).toBeVisible({ timeout: 5000 });
+    originalWebUrl = await mokuWebInput.inputValue();
+    originalApiUrl = await mokuApiInput.inputValue();
+    originalHoloUrl = await holoApiInput.inputValue();
   });
 
   test.afterAll(async () => {
-    // Restore connection URLs to production values in case any test left test URLs behind
+    // Restore connection URLs to their original values
     try {
-      // Navigate to Settings > Connections to ensure we're on the right page
-      await page.evaluate(() => {
-        window.location.hash = '#/settings';
-      });
-      await page.waitForTimeout(2000);
-
-      const connectionsItem = page.locator('.sidebar-item', { hasText: 'Connections' });
-      await connectionsItem.click();
-      await page.waitForTimeout(500);
+      const settingsPage = page.locator('.settings-page');
+      if (!(await settingsPage.isVisible({ timeout: 2000 }).catch(() => false))) {
+        await navigateToSettings(page);
+      }
+      await clickSettingsTab(page, 'Connections');
 
       const mokuWebInput = page.locator('input#moku-web-url');
       const mokuApiInput = page.locator('input#moku-api-url');
       const holoApiInput = page.locator('input#holo-api-url');
 
-      await mokuWebInput.fill('https://moku.holokai.dev');
-      await mokuApiInput.fill('https://moku.holokai.dev');
-      await holoApiInput.fill('https://holo.holokai.dev');
-      await page.waitForTimeout(300);
+      await mokuWebInput.fill(originalWebUrl);
+      await mokuApiInput.fill(originalApiUrl);
+      await holoApiInput.fill(originalHoloUrl);
 
       const saveBtn = page.locator('.settings-footer .btn-primary');
       if (await saveBtn.isEnabled({ timeout: 2000 }).catch(() => false)) {
-        await saveBtn.click();
-        await page.waitForTimeout(2000);
+        await saveSettings(page);
       }
     } catch {
-      // best-effort — if this fails, the user will need to manually reset URLs
+      // Best-effort restoration — don't fail teardown
     }
+
     await app?.close();
   });
 
@@ -87,11 +97,6 @@ test.describe.serial('Settings - Connections', () => {
     const mokuApiInput = page.locator('input#moku-api-url');
     const holoApiInput = page.locator('input#holo-api-url');
 
-    // Store original values to restore later
-    const originalWeb = await mokuWebInput.inputValue();
-    const originalApi = await mokuApiInput.inputValue();
-    const originalHolo = await holoApiInput.inputValue();
-
     // Simulate multi-line paste via clipboard API
     const pasteText = 'https://web.example.com\nhttps://api.example.com\nhttps://holo.example.com';
 
@@ -106,17 +111,14 @@ test.describe.serial('Settings - Connections', () => {
       });
       document.querySelector('#moku-web-url')?.dispatchEvent(pasteEvent);
     }, pasteText);
-    await page.waitForTimeout(500);
 
-    // All three fields should be populated
-    await expect(mokuWebInput).toHaveValue('https://web.example.com');
-    await expect(mokuApiInput).toHaveValue('https://api.example.com');
-    await expect(holoApiInput).toHaveValue('https://holo.example.com');
+    // All three fields should be populated with the pasted URLs
+    await expect(mokuWebInput).toHaveValue('https://web.example.com', { timeout: 3000 });
+    await expect(mokuApiInput).toHaveValue('https://api.example.com', { timeout: 3000 });
+    await expect(holoApiInput).toHaveValue('https://holo.example.com', { timeout: 3000 });
 
-    // Cancel to restore original values
-    const cancelBtn = page.locator('.settings-footer .btn-secondary');
-    await cancelBtn.click();
-    await page.waitForTimeout(500);
+    // Cancel to restore original values using shared helper
+    await cancelSettings(page);
   });
 
   test('saving valid URLs shows success toast', async () => {
@@ -125,43 +127,22 @@ test.describe.serial('Settings - Connections', () => {
     const mokuApiInput = page.locator('input#moku-api-url');
     const holoApiInput = page.locator('input#holo-api-url');
 
-    // Store originals
-    const originalWeb = await mokuWebInput.inputValue();
-    const originalApi = await mokuApiInput.inputValue();
-    const originalHolo = await holoApiInput.inputValue();
-
-    // Fill with valid URLs
+    // Fill with valid test URLs
     await mokuWebInput.fill('https://test-web.example.com');
     await mokuApiInput.fill('https://test-api.example.com');
     await holoApiInput.fill('https://test-holo.example.com');
-    await page.waitForTimeout(500);
 
-    // Save button should be enabled
+    // Save using shared helper (clicks Save, waits for toast, waits for button disabled)
+    await saveSettings(page);
+
+    // Restore original URLs so afterAll doesn't need to do extra work
+    await mokuWebInput.fill(originalWebUrl);
+    await mokuApiInput.fill(originalApiUrl);
+    await holoApiInput.fill(originalHoloUrl);
+
     const saveBtn = page.locator('.settings-footer .btn-primary');
-    await expect(saveBtn).toBeEnabled({ timeout: 3000 });
-
-    // Click Save
-    await saveBtn.click();
-    await page.waitForTimeout(1000);
-
-    // Success toast should appear
-    const toast = page.locator('.toast', { hasText: 'Settings were saved successfully' });
-    await expect(toast).toBeVisible({ timeout: 5000 });
-
-    // Wait for toast to dismiss before restoring (toast auto-hides after 4s)
-    await toast.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
-
-    // Restore original URLs
-    await mokuWebInput.fill(originalWeb);
-    await mokuApiInput.fill(originalApi);
-    await holoApiInput.fill(originalHolo);
-    await page.waitForTimeout(300);
-
-    // Save restored values
-    const restoreSaveBtn = page.locator('.settings-footer .btn-primary');
-    if (await restoreSaveBtn.isEnabled({ timeout: 3000 }).catch(() => false)) {
-      await restoreSaveBtn.click();
-      await page.waitForTimeout(2000);
+    if (await saveBtn.isEnabled({ timeout: 2000 }).catch(() => false)) {
+      await saveSettings(page);
     }
   });
 });
