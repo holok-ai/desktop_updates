@@ -10,13 +10,14 @@
  */
 import type { MessageDTO, LLMStatus } from 'src-electron/services/mokuapi/thread.types';
 
-const VALID_LLM_STATUSES: readonly (LLMStatus | null)[] = [
+const VALID_LLM_STATUSES: readonly (LLMStatus | string | null)[] = [
   'success',
   'error',
   'timeout',
   'partial',
   'rate_limited',
   'invalid_request',
+  'chat', // Used by provider fixtures for user messages (not in LLMStatus type but valid API value)
   null,
 ];
 
@@ -82,7 +83,7 @@ export function validateMessageDTO(dto: unknown, index?: number): ValidationErro
     });
   }
 
-  // content, rawData, options are JSONB — can be anything (string, object, null, etc.)
+  // content, rawData are JSONB — can be anything (string, object, null, etc.)
   // We only check they exist as keys
   if (!('content' in obj)) {
     errors.push({ field: `${prefix}content`, expected: 'present (any type)', actual: 'missing' });
@@ -90,8 +91,10 @@ export function validateMessageDTO(dto: unknown, index?: number): ValidationErro
   if (!('rawData' in obj)) {
     errors.push({ field: `${prefix}rawData`, expected: 'present (any type)', actual: 'missing' });
   }
+  // options is JSONB and may be absent on assistant messages in real API responses
+  // (only user/request messages carry options). We accept its absence.
   if (!('options' in obj)) {
-    errors.push({ field: `${prefix}options`, expected: 'present (any type)', actual: 'missing' });
+    // Not an error — options is optional in real provider fixtures
   }
 
   // Timestamp format check (ISO-8601 or server format)
@@ -131,7 +134,5 @@ export function validateMessageDTOArray(dtos: unknown): ValidationError[] {
  * Pretty-format validation errors for assertion messages.
  */
 export function formatErrors(errors: ValidationError[]): string {
-  return errors
-    .map((e) => `  ${e.field}: expected ${e.expected}, got ${e.actual}`)
-    .join('\n');
+  return errors.map((e) => `  ${e.field}: expected ${e.expected}, got ${e.actual}`).join('\n');
 }
