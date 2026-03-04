@@ -65,39 +65,34 @@
 </script>
 
 <div class="whitelist-section">
-  <div class="mb-4">
-    <h3 class="text-base font-semibold mb-1">Allow Access To Directories</h3>
-    <p class="help-text">
-      Select directories where the Desktop application can read and write folders and files.
-    </p>
+  <p class="help-text">
+    Select directories where the Desktop application can read and write folders and files.
+  </p>
+
+  <div class="add-row">
+    <input
+      type="text"
+      bind:value={newPath}
+      onkeydown={handleKeydown}
+      placeholder="Enter folder path (e.g., /home/user/projects)"
+      class="flex-1 p-2 rounded border bg-transparent text-sm"
+    />
+    <button onclick={addPath} class="btn-primary">
+      <i class="pi pi-plus"></i>
+      <span>Add</span>
+    </button>
+    <button onclick={selectFolder} class="btn-primary">
+      <i class="pi pi-folder"></i>
+      <span>Browse...</span>
+    </button>
   </div>
 
-  <div class="mb-4">
-    <div class="flex gap-2">
-      <input
-        type="text"
-        bind:value={newPath}
-        onkeydown={handleKeydown}
-        placeholder="Enter folder path (e.g., /home/user/projects)"
-        class="flex-1 p-2 rounded border bg-transparent text-sm"
-      />
-      <button onclick={addPath} class="btn-primary">
-        <i class="pi pi-plus"></i>
-        <span>Add</span>
-      </button>
-      <button onclick={selectFolder} class="btn-primary">
-        <i class="pi pi-folder"></i>
-        <span>Browse...</span>
-      </button>
-    </div>
-
-    {#if errorMessage}
-      <div class="error-message">{errorMessage}</div>
-    {/if}
-  </div>
+  {#if errorMessage}
+    <div class="error-message">{errorMessage}</div>
+  {/if}
 
   {#if paths.length === 0}
-    <div class="empty-state">No allowed folders. Add folders using Add or Browse.</div>
+    <div class="no-folders-message">No allowed folders. Add folders using Add or Browse.</div>
   {:else}
     <ul class="space-y-2">
       {#each paths as path}
@@ -114,10 +109,21 @@
 </div>
 
 <style>
+  .whitelist-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .add-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
   .help-text {
     font-size: 0.75rem;
     color: var(--text-secondary);
-    margin-bottom: 0.25rem;
+    margin: 0;
   }
 
   .error-message {
@@ -126,12 +132,9 @@
     color: var(--error-color);
   }
 
-  .empty-state {
+  .no-folders-message {
     font-size: 0.875rem;
     color: var(--text-secondary);
-    padding: 1rem;
-    border-radius: 0.375rem;
-    border: 1px dashed var(--input-border);
   }
 
   .path-item {
