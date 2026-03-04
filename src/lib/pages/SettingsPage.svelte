@@ -32,7 +32,7 @@
   import { applyTheme, persistTheme } from '$lib/services/theme.service';
   import { toastStore } from '$lib/services/toast.service';
   import { settingsStore } from '$lib/stores/settings.store';
-  import FileToolsWhitelist from '$lib/components/settings/FileToolsWhitelist.svelte';
+  import AllowedFoldersList from '$lib/components/settings/AllowedFolders.svelte';
   import InstallUpdateModal from '$lib/modals/InstallUpdateModal.svelte';
 
   type SettingsCategory =
@@ -64,6 +64,16 @@
 
   // Tools list from ToolOrchestrator
   let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
+
+  // Diagnostics log viewer
+  let logLines: string[] = $state([]);
+  $effect(() => {
+    if (activeCategory === 'diagnostics') {
+      void window.electronAPI.settings.getRecentLogs().then((lines) => {
+        logLines = lines;
+      });
+    }
+  });
 
   let settings: AppSettings = $state({
     mokuWebUrl: '',
@@ -790,7 +800,7 @@
                 <div class="subgroup-row">
                   <div class="subgroup-label">Allowed Directories</div>
                   <div class="subgroup-controls">
-                    <FileToolsWhitelist bind:paths={settings.directoryWhitelist} />
+                    <AllowedFoldersList bind:paths={settings.directoryWhitelist} />
                   </div>
                 </div>
 
@@ -921,6 +931,22 @@
                         View Log
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                <div class="subgroup-divider"></div>
+
+                <!-- Recent Log Entries -->
+                <div class="log-viewer-section">
+                  <div class="subgroup-label">Recent Entries</div>
+                  <div class="log-viewer">
+                    {#if logLines.length === 0}
+                      <span class="log-empty">No log entries found</span>
+                    {:else}
+                      {#each logLines as line}
+                        <div class="log-line">{line}</div>
+                      {/each}
+                    {/if}
                   </div>
                 </div>
               </div>
@@ -1202,7 +1228,7 @@
   .tools-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.125rem;
     padding: 0.5rem;
     border: 1px solid var(--input-border);
     border-radius: 0.375rem;
@@ -1217,6 +1243,37 @@
 
   .tool-item:hover {
     background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+  }
+
+  /* ── Log viewer ── */
+  .log-viewer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .log-viewer {
+    font-family: monospace;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    height: calc(40 * 0.7rem * 1.4);
+    overflow-y: auto;
+    border: 1px solid var(--input-border);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    background: var(--input-background);
+    color: var(--text-primary);
+  }
+
+  .log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .log-empty {
+    color: var(--text-secondary);
+    font-style: italic;
   }
 
   /* ── Avatar editor ── */

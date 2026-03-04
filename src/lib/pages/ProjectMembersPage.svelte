@@ -205,9 +205,9 @@
           <div class="members-list">
             {#each project.members as member (member.id)}
               <div class="member-card">
-                <div class="member-avatar">
-                  <i class="pi pi-user"></i>
-                </div>
+                <span class="role-badge role-{member.memberRole.toLowerCase()}"
+                  >{member.memberRole}</span
+                >
                 <div class="member-info">
                   <div class="member-name">{member.userName}</div>
                   <div class="member-email">{member.email}</div>
@@ -222,11 +222,6 @@
                     <i class="pi pi-trash"></i>
                   </button>
                 {/if}
-                <div class="member-role">
-                  <span class="role-badge role-{member.memberRole.toLowerCase()}"
-                    >{member.memberRole}</span
-                  >
-                </div>
               </div>
             {/each}
           </div>
@@ -350,19 +345,6 @@
     background: var(--surface-hover);
   }
 
-  .member-avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
   .member-info {
     flex: 1;
     min-width: 0;
@@ -384,10 +366,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .member-role {
-    flex-shrink: 0;
   }
 
   .delete-member-btn {

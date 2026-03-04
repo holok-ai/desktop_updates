@@ -224,6 +224,7 @@ export interface SettingsAPI {
 
   // Diagnostics
   openLogInVSCode: () => Promise<{ success: boolean; error?: string }>;
+  getRecentLogs: () => Promise<string[]>;
 }
 
 /**
@@ -632,6 +633,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
 
     openLogInVSCode: () => ipcRenderer.invoke('settings:openLogInVSCode'),
+    getRecentLogs: () => ipcRenderer.invoke('settings:getRecentLogs'),
   } as SettingsAPI,
 
   /**
