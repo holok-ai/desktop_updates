@@ -1,29 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "description": "NPM Audit Exception Configuration - Documents accepted security vulnerabilities with mitigation strategies",
-  "exceptions": {
-    "build-and-dev-tooling": {
-      "ids": ["1113545", "1113553"],
-      "reason": "These advisories only affect transitive dev/build tooling (eslint, cyclonedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
+  "moduleIgnore": {
+    "dev-tooling": {
+      "modules": ["minimatch"],
+      "reason": "These modules are transitive dev/build dependencies (eslint-plugin-sonarjs>minimatch) that do not impact runtime code in the packaged Electron app. Module-level ignore is used instead of advisory IDs because IDs change across npm versions.",
       "mitigation": [
         "All affected packages are only used during development, packaging, or static analysis, not at runtime in the Electron app.",
-        "Electron production bundles do not ship npm tooling, node-gyp, app-builder-lib, or electron-builder internals.",
-        "Electron auto-updates use signed artifacts; end users never execute npm or node-gyp directly.",
+        "Electron production bundles do not ship npm tooling or eslint internals.",
         "Build and CI environments are treated as trusted and isolated.",
-        "We will upgrade tooling (electron-builder, eslint stack, cyclonedx-npm, etc.) as compatible patched versions become available."
+        "We will upgrade tooling (eslint stack, sonarjs plugin, etc.) as compatible patched versions become available."
       ],
+      "reviewDate": "2026-03-04",
+      "expiryDate": "2026-09-04",
+      "reviewer": "Development Team"
+    }
+  },
+  "exceptions": {
+    "build-and-dev-tooling": {
+      "ids": [],
+      "reason": "ID-based exceptions for advisories that cannot be covered by module-ignore (e.g., app-level dependencies). Keep empty when all current advisories are handled by moduleIgnore.",
+      "mitigation": [],
       "vulnerabilities": [],
-      "reviewDate": "2026-02-25",
-      "expiryDate": "2026-08-25",
+      "reviewDate": "2026-03-04",
+      "expiryDate": "2026-09-04",
       "reviewer": "Development Team",
-      "alternatives": [
-        "Track and adopt newer versions of electron-builder/app-builder-lib that pull in fixed tar/glob/minimatch.",
-        "Track and adopt newer versions of eslint and @develar/schema-utils that pull in patched ajv/js-yaml.",
-        "Reevaluate use of cyclonedx-npm and textlint once their dependency trees are fully patched."
-      ],
+      "alternatives": [],
       "actionItems": [
-        "Re-run npm audit monthly and attempt dependency upgrades that remove these transitive dev-time vulnerabilities.",
-        "Revisit this exception set before expiry date (2026-08-25)."
+        "Re-run npm audit monthly and attempt dependency upgrades.",
+        "Revisit this exception set before expiry date (2026-09-04)."
       ]
     },
     "svelte-ssr-only": {
@@ -40,7 +45,7 @@
   },
   "meta": {
     "lastUpdated": "2026-03-04",
-    "nextReview": "2026-09-01",
-    "documentVersion": "1.2.0"
+    "nextReview": "2026-09-04",
+    "documentVersion": "2.0.0"
   }
 }
