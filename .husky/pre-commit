@@ -25,7 +25,7 @@ echo "🔷 Phase 2: Type checking..."
 npm run type-check
 
 # Phase 3: Svelte Check
-echo "🧡 Phase 3: Svelte checking...."
+echo "🧡 Phase 3: Svelte checking..."
 npx svelte-check
 
 # Phase 4: Security Scanning
