@@ -89,11 +89,25 @@ test.describe.serial('Thread List', () => {
 
   test('clicking a thread navigates to thread view', async () => {
     // Requirement 6.3: clicking a thread navigates to thread view
-    const threadItems = page.locator('.thread-item');
-    const count = await threadItems.count();
-    expect(count, 'Expected at least one thread to click; empty list may indicate a bug or missing setup').toBeGreaterThan(0);
+    await page.locator('button[aria-label="Threads"]').click();
+    await expect(page).toHaveURL(/\/threads/, { timeout: 10000 });
 
-    // Click the first thread
+    let threadItems = page.locator('.thread-item');
+    let count = await threadItems.count();
+    if (count === 0) {
+      const { createThreadViaUI, navigateToThreads } = await import(
+        '../fixtures/thread-context-menu-helpers'
+      );
+      await createThreadViaUI(page);
+      await navigateToThreads(page);
+      threadItems = page.locator('.thread-item');
+      count = await threadItems.count();
+    }
+    expect(
+      count,
+      'Expected at least one thread to click; create failed or list empty',
+    ).toBeGreaterThan(0);
+
     await threadItems.first().click();
 
     // Should navigate to thread view with threadId parameter
