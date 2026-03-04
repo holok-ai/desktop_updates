@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { push } from 'svelte-spa-router';
   import { ROUTE } from '../../constants/route.constant';
   import UserAvatar from '../common/UserAvatar.svelte';
   import * as Breadcrumb from '$lib/components/ui/breadcrumb';
@@ -8,8 +7,7 @@
   import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
 
   function handleLogoClick() {
-    breadcrumbStore.clearAndPush({ label: 'New Thread', route: ROUTE.HOME });
-    push(ROUTE.HOME);
+    breadcrumbStore.navigatePrimary({ label: 'New Thread', route: ROUTE.HOME });
   }
 
   function truncate(text: string, maxLength: number): string {
@@ -42,10 +40,7 @@
   function handleBreadcrumbClick(index: number) {
     const queue = breadcrumbStore.get();
     if (index >= queue.length - 1) return; // Last item is current page, not clickable
-
-    const entry = queue[index];
-    breadcrumbStore.popTo(index);
-    push(entry.route);
+    breadcrumbStore.navigateBack(index);
   }
 </script>
 

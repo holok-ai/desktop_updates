@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { ROUTE } from '../../constants/route.constant';
-  import { push, location, querystring } from 'svelte-spa-router';
+  import { location, querystring } from 'svelte-spa-router';
   import { getSelectedActivity } from '../../utils/sidebar-route.util';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
@@ -108,25 +108,23 @@
         const params = new URLSearchParams(targetRoute.split('?')[1] ?? '');
         const projectId = params.get('projectId');
         if (projectId) {
-          breadcrumbStore.clearAndSet([
+          breadcrumbStore.navigateWithTrail([
             { label: 'Projects', route: ROUTE.PROJECTS },
             { label: 'Loading...', route: `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`, projectId },
             { label: 'Loading...', route: targetRoute, threadId: item.id },
           ]);
         } else {
-          breadcrumbStore.clearAndSet([
+          breadcrumbStore.navigateWithTrail([
             { label: 'Threads', route: ROUTE.THREADS },
             { label: item.label, route: targetRoute, threadId: item.id },
           ]);
         }
       } else {
-        breadcrumbStore.clearAndSet([
+        breadcrumbStore.navigateWithTrail([
           { label: 'Projects', route: ROUTE.PROJECTS },
           { label: item.label, route: targetRoute, projectId: item.id },
         ]);
       }
-
-      push(targetRoute);
     };
     if (requestNavigation(proceed)) {
       proceed();
@@ -147,11 +145,10 @@
   function handleThreadClick(thread: Thread) {
     const proceed = () => {
       const targetRoute = `${ROUTE.THREAD}?threadId=${thread.id}`;
-      breadcrumbStore.clearAndSet([
+      breadcrumbStore.navigateWithTrail([
         { label: 'Threads', route: ROUTE.THREADS },
         { label: thread.title || 'Untitled', route: targetRoute, threadId: thread.id },
       ]);
-      push(targetRoute);
     };
     if (requestNavigation(proceed)) {
       proceed();
@@ -273,11 +270,10 @@
 
       // Primary routes clear the breadcrumb queue and push their own entry
       if (activity.route) {
-        breadcrumbStore.clearAndPush({
+        breadcrumbStore.navigatePrimary({
           label: activityLabel(activity.id),
           route: activity.route,
         });
-        push(activity.route);
       }
     };
 

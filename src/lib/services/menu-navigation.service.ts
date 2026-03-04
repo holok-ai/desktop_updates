@@ -29,17 +29,16 @@ export class MenuNavigationService {
       {
         channel: 'menu:new-thread',
         handler: () => {
-          // Navigate to threads create using the existing navigate helper so tests
-          // can intercept via `globalThis.__routerPush` without requiring the
-          // SPA router to be present during unit tests.
-          breadcrumbStore.clearAndPush({ label: 'New Thread', route: routePaths.NEW_THREAD });
+          // breadcrumbStore.navigatePrimary handles the route push; the navigate()
+          // call below is kept only so tests can intercept via `globalThis.__routerPush`.
+          breadcrumbStore.navigatePrimary({ label: 'New Thread', route: routePaths.NEW_THREAD });
           this.navigate(routePaths.THREADS, { createThread: '' });
         },
       },
       {
         channel: 'menu:new-project',
         handler: () => {
-          breadcrumbStore.clearAndPush({ label: 'Projects', route: routePaths.PROJECTS });
+          breadcrumbStore.navigatePrimary({ label: 'Projects', route: routePaths.PROJECTS });
           this.navigate(routePaths.PROJECTS, { createProject: '' });
         },
       },
@@ -54,14 +53,14 @@ export class MenuNavigationService {
       {
         channel: 'menu:settings',
         handler: () => {
-          breadcrumbStore.clearAndPush({ label: 'Settings', route: routePaths.SETTINGS });
+          breadcrumbStore.navigatePrimary({ label: 'Settings', route: routePaths.SETTINGS });
           this.navigate(routePaths.SETTINGS);
         },
       },
       {
         channel: 'menu:getting-started',
         handler: () => {
-          breadcrumbStore.clearAndPush({ label: 'New Thread', route: routePaths.HOME });
+          breadcrumbStore.navigatePrimary({ label: 'New Thread', route: routePaths.HOME });
           this.navigate(routePaths.HOME);
         },
       },

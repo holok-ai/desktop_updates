@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Thread } from '../../../../src-electron/preload';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
@@ -64,22 +63,18 @@
     if (projectId) {
       // Project thread context: use PROJECT_THREAD route
       params.set('projectId', projectId);
-      const targetRoute = `${ROUTE.PROJECT_THREAD}?${params.toString()}`;
-      breadcrumbStore.push({
+      breadcrumbStore.navigateForward({
         label: thread.title || 'Untitled',
-        route: targetRoute,
+        route: `${ROUTE.PROJECT_THREAD}?${params.toString()}`,
         threadId: thread.id,
       });
-      push(targetRoute);
     } else {
       // General thread context: use THREAD route (new ThreadPage)
-      const targetRoute = `${ROUTE.THREAD}?${params.toString()}`;
-      breadcrumbStore.push({
+      breadcrumbStore.navigateForward({
         label: thread.title || 'Untitled',
-        route: targetRoute,
+        route: `${ROUTE.THREAD}?${params.toString()}`,
         threadId: thread.id,
       });
-      push(targetRoute);
     }
   }
 

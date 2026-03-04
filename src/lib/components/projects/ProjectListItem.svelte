@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { push } from 'svelte-spa-router';
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Project } from '$lib/types/project.type';
   import { favorites } from '$lib/stores/favorite.store';
@@ -23,13 +22,11 @@
   const isFav = $derived($favorites.some((e) => e.id === project.id));
 
   function handleClick() {
-    const targetRoute = `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`;
-    breadcrumbStore.push({
+    breadcrumbStore.navigateForward({
       label: project.title || 'Untitled',
-      route: targetRoute,
+      route: `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`,
       projectId: project.id,
     });
-    push(targetRoute);
   }
 
   function handleMenuClick(e: MouseEvent) {

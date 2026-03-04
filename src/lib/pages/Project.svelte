@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { querystring, push } from 'svelte-spa-router';
+  import { querystring } from 'svelte-spa-router';
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
@@ -142,30 +142,22 @@
 
   function handleNewThread() {
     if (!projectId) return;
-    const targetRoute = `${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}`;
-    breadcrumbStore.push({ label: 'New Thread', route: targetRoute });
-    push(targetRoute);
+    breadcrumbStore.navigateForward({ label: 'New Thread', route: `${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}` });
   }
 
   function handleMembersClick() {
     if (!projectId) return;
-    const targetRoute = `${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}`;
-    breadcrumbStore.push({ label: 'Members', route: targetRoute });
-    push(targetRoute);
+    breadcrumbStore.navigateForward({ label: 'Members', route: `${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}` });
   }
 
   function handleFilesClick() {
     if (!projectId) return;
-    const targetRoute = `${ROUTE.PROJECT_FILES}?projectId=${projectId}`;
-    breadcrumbStore.push({ label: 'Files', route: targetRoute });
-    push(targetRoute);
+    breadcrumbStore.navigateForward({ label: 'Files', route: `${ROUTE.PROJECT_FILES}?projectId=${projectId}` });
   }
 
   function handleInstructionsClick() {
     if (!projectId) return;
-    const targetRoute = `${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}`;
-    breadcrumbStore.push({ label: 'Instructions', route: targetRoute });
-    push(targetRoute);
+    breadcrumbStore.navigateForward({ label: 'Instructions', route: `${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}` });
   }
 </script>
 

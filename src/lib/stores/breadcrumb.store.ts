@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { push } from 'svelte-spa-router';
 
 export interface BreadcrumbEntry {
   label: string;
@@ -11,10 +12,15 @@ export interface BreadcrumbEntry {
 
 interface BreadcrumbStore {
   subscribe: (run: (value: BreadcrumbEntry[]) => void) => () => void;
-  clearAndPush: (entry: BreadcrumbEntry) => void;
-  clearAndSet: (entries: BreadcrumbEntry[]) => void;
-  push: (entry: BreadcrumbEntry) => void;
-  popTo: (index: number) => void;
+  /** Primary nav (sidebar buttons, menu commands): clear queue, push entry, navigate. */
+  navigatePrimary: (entry: BreadcrumbEntry) => void;
+  /** Secondary nav (clicking a thread/project): push entry onto existing trail, navigate. */
+  navigateForward: (entry: BreadcrumbEntry) => void;
+  /** Full-trail nav (favorites/recent with known ancestry): clear queue, set all entries, navigate to last. */
+  navigateWithTrail: (entries: BreadcrumbEntry[]) => void;
+  /** Breadcrumb click: pop queue back to index, navigate to that entry's route. */
+  navigateBack: (index: number) => void;
+  /** Get the current queue snapshot. */
   get: () => BreadcrumbEntry[];
 }
 
@@ -24,27 +30,30 @@ function createBreadcrumbStore(): BreadcrumbStore {
   return {
     subscribe,
 
-    /** Clear the queue and push a single entry (for primary routes). */
-    clearAndPush(entry: BreadcrumbEntry): void {
+    navigatePrimary(entry: BreadcrumbEntry): void {
       set([entry]);
+      void push(entry.route);
     },
 
-    /** Clear the queue and set multiple entries at once. */
-    clearAndSet(entries: BreadcrumbEntry[]): void {
-      set(entries);
-    },
-
-    /** Push an entry onto the end of the queue. */
-    push(entry: BreadcrumbEntry): void {
+    navigateForward(entry: BreadcrumbEntry): void {
       update((q) => [...q, entry]);
+      void push(entry.route);
     },
 
-    /** Pop everything after the given index (navigate back to that breadcrumb). */
-    popTo(index: number): void {
-      update((q) => q.slice(0, index + 1));
+    navigateWithTrail(entries: BreadcrumbEntry[]): void {
+      set(entries);
+      void push(entries[entries.length - 1].route);
     },
 
-    /** Get the current queue snapshot. */
+    navigateBack(index: number): void {
+      const q = get({ subscribe });
+      // index is always bounds-checked by the caller (Header breadcrumb click)
+      // eslint-disable-next-line security/detect-object-injection
+      const entry = q[index];
+      update((current) => current.slice(0, index + 1));
+      void push(entry.route);
+    },
+
     get(): BreadcrumbEntry[] {
       return get({ subscribe });
     },

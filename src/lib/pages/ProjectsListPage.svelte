@@ -62,13 +62,11 @@
   });
 
   function handleProjectClick(project: Project) {
-    const targetRoute = `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`;
-    breadcrumbStore.push({
+    breadcrumbStore.navigateForward({
       label: project.title || 'Untitled',
-      route: targetRoute,
+      route: `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`,
       projectId: project.id,
     });
-    push(targetRoute);
   }
 
   function handleCreateProject() {

@@ -104,21 +104,17 @@
       const threadTitle = createResult.data.title || `New ${app.title} Chat`;
       if (projectId) {
         params.set('projectId', projectId);
-        const targetRoute = `${ROUTE.PROJECT_THREAD}?${params.toString()}`;
-        breadcrumbStore.push({
+        breadcrumbStore.navigateForward({
           label: threadTitle,
-          route: targetRoute,
+          route: `${ROUTE.PROJECT_THREAD}?${params.toString()}`,
           threadId: createResult.data.id,
         });
-        push(targetRoute);
       } else {
-        const targetRoute = `${ROUTE.THREAD}?${params.toString()}`;
-        breadcrumbStore.push({
+        breadcrumbStore.navigateForward({
           label: threadTitle,
-          route: targetRoute,
+          route: `${ROUTE.THREAD}?${params.toString()}`,
           threadId: createResult.data.id,
         });
-        push(targetRoute);
       }
     } catch (error) {
       console.error('[ApplicationThread] Failed to create thread:', error);
