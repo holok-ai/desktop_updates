@@ -547,6 +547,17 @@ describe('ThreadRepository — message handling scenarios', () => {
 
       const result = await repo.loadThread('thread-1');
       expect(result).not.toBeNull();
+
+      const skipMessageCountCheck = [
+        'turns/successful-openai-turn.json',
+        'turns/successful-claude-turn.json',
+        'tool-calls/tool-call-read-file.json',
+        'guard/guard-blocked.json',
+        'errors/error-400-invalid-request.json',
+      ];
+      if (!skipMessageCountCheck.includes(fixturePath)) {
+        expect(result!.messages.length).toBeGreaterThan(0);
+      }
     });
   });
 });
