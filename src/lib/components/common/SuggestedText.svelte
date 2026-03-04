@@ -45,6 +45,10 @@
     autoAcceptMs = 0,
   }: Props = $props();
 
+  const MAX_DISPLAY = 60;
+
+  const displaySuggested = $derived(suggestedText ? suggestedText.slice(0, MAX_DISPLAY) : null);
+
   let timeRemaining = $state(0);
   let timerId: ReturnType<typeof setInterval> | null = null;
 
@@ -70,10 +74,10 @@
   }
 
   function handleKeep() {
-    if (!suggestedText) return;
+    if (!displaySuggested) return;
     clearTimer();
-    value = suggestedText;
-    onChange?.(suggestedText);
+    value = displaySuggested;
+    onChange?.(displaySuggested);
   }
 
   function handleDiscard() {
@@ -84,12 +88,22 @@
 
 <div class="suggested-text-wrapper">
   {#if !suggestedText}
-    <EditableText bind:value {tag} class={className} {placeholder} {readonly} {onChange} />
+    <EditableText
+      value={value.slice(0, MAX_DISPLAY)}
+      {tag}
+      class={className}
+      {placeholder}
+      {readonly}
+      onChange={(v) => {
+        value = v;
+        onChange?.(v);
+      }}
+    />
   {/if}
 
-  {#if suggestedText}
+  {#if displaySuggested}
     <div class="suggested-text">
-      <span class="suggestion-label">{suggestedText}</span>
+      <span class="suggestion-label">{displaySuggested}</span>
       <div class="suggestion-actions">
         <button
           class="suggestion-btn keep"

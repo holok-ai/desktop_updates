@@ -149,6 +149,23 @@ export function registerSettingsHandlers(): void {
   });
 
   /**
+   * Get recent log lines
+   */
+  ipcMain.handle('settings:getRecentLogs', async (): Promise<string[]> => {
+    try {
+      const logPath = path.join(app.getPath('userData'), 'logs', 'main.log');
+      const fs = await import('node:fs');
+      if (!fs.existsSync(logPath)) return [];
+      const content = fs.readFileSync(logPath, 'utf-8');
+      const lines = content.split('\n').filter((l: string) => l.trim().length > 0);
+      return lines.slice(-250).reverse();
+    } catch (error) {
+      settingsLog.error('getRecentLogs failed', { error });
+      return [];
+    }
+  });
+
+  /**
    * Open log file in default application
    */
   ipcMain.handle(
@@ -201,6 +218,7 @@ export function unregisterSettingsHandlers(): void {
   ipcMain.removeHandler('settings:setMultiple');
   ipcMain.removeHandler('settings:selectFolder');
   ipcMain.removeHandler('settings:openLogInVSCode');
+  ipcMain.removeHandler('settings:getRecentLogs');
 
   settingsLog.info('Handlers unregistered');
 }
