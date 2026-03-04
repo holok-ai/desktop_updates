@@ -4,6 +4,9 @@
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
+  "engines": {
+    "node": ">=25.0.0"
+  },
   "scripts": {
     "prepare": "husky",
     "prepare:icons": "node scripts/prepare-icons.js",
