@@ -2,154 +2,45 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "description": "NPM Audit Exception Configuration - Documents accepted security vulnerabilities with mitigation strategies",
   "exceptions": {
-    "xlsx": {
-      "ids": ["1108110", "1108111"],
-      "reason": "No fix available on npm. Latest version 0.18.5 has known vulnerabilities. Fixes exist in 0.19.3+ but SheetJS does not publish to npm (only available via CDN). Kept as a documented runtime exception pending migration to exceljs.",
+    "build-and-dev-tooling": {
+      "ids": ["1113465", "1113544", "1113552"],
+      "reason": "These advisories only affect transitive dev/build tooling (eslint, cyclonedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
       "mitigation": [
-        "xlsx only used in read-excel.tool.ts for controlled Excel file reading",
-        "Path validation and access control checks enforce security boundaries",
-        "File size limits (100MB max) prevent DoS attacks",
-        "Only processes user-provided files with explicit permission",
-        "No arbitrary code execution paths exposed",
-        "Running in Electron main process with sandboxed renderer"
+        "All affected packages are only used during development, packaging, or static analysis, not at runtime in the Electron app.",
+        "Electron production bundles do not ship npm tooling, node-gyp, app-builder-lib, or electron-builder internals.",
+        "Electron auto-updates use signed artifacts; end users never execute npm or node-gyp directly.",
+        "Build and CI environments are treated as trusted and isolated.",
+        "We will upgrade tooling (electron-builder, eslint stack, cyclonedx-npm, etc.) as compatible patched versions become available."
       ],
-      "vulnerabilities": [
-        {
-          "id": "1108110",
-          "advisory": "GHSA-4r6h-8v6p-xvw6",
-          "cve": "CVE-2023-30533",
-          "title": "Prototype Pollution in sheetJS",
-          "severity": "high",
-          "url": "https://github.com/advisories/GHSA-4r6h-8v6p-xvw6"
-        },
-        {
-          "id": "1108111",
-          "advisory": "GHSA-5pgg-2g8v-p4x9",
-          "cve": "CVE-2024-22363",
-          "title": "SheetJS Regular Expression Denial of Service (ReDoS)",
-          "severity": "high",
-          "url": "https://github.com/advisories/GHSA-5pgg-2g8v-p4x9"
-        }
-      ],
-      "reviewDate": "2026-03-03",
-      "expiryDate": "2026-09-03",
+      "vulnerabilities": [],
+      "reviewDate": "2026-02-25",
+      "expiryDate": "2026-08-25",
       "reviewer": "Development Team",
       "alternatives": [
-        "exceljs - More actively maintained, better security track record (preferred migration target)",
-        "node-xlsx - Simpler library with fewer features but fewer vulnerabilities",
-        "SheetJS Pro - Commercial version with security fixes (not published to npm)"
+        "Track and adopt newer versions of electron-builder/app-builder-lib that pull in fixed tar/glob/minimatch.",
+        "Track and adopt newer versions of eslint and @develar/schema-utils that pull in patched ajv/js-yaml.",
+        "Reevaluate use of cyclonedx-npm and textlint once their dependency trees are fully patched."
       ],
       "actionItems": [
-        "Plan migration from xlsx to exceljs — tracked as follow-up task",
-        "Re-evaluate before expiry date (2026-09-03)",
-        "No new xlsx exceptions will be added; this exception exists only because no npm fix is available"
+        "Re-run npm audit monthly and attempt dependency upgrades that remove these transitive dev-time vulnerabilities.",
+        "Revisit this exception set before expiry date (2026-08-25)."
       ]
     },
-    "build-and-dev-tooling": {
-      "ids": [
-        "1113466",
-        "1113545",
-        "1113553",
-        "1100657",
-        "1112329",
-        "1112659",
-        "1113300",
-        "1113375"
-      ],
-      "reason": "All advisories in this group affect dev-only transitive dependencies that are never included in the packaged Electron application. Two dependency chains are covered: (1) minimatch via eslint-plugin-sonarjs (static analysis only); (2) libxmljs2 and its tar transitive deps via @cyclonedx/cyclonedx-npm (SBOM generation only, dev optional). No patched versions exist for any affected package. Note: libxmljs2 is an optional peer dep — some machines may not have it installed, causing 'not found' warnings for IDs 1100657/1112329/1112659/1113300/1113375. This is expected and harmless.",
-      "mitigation": [
-        "minimatch (1113466, 1113545, 1113553): ReDoS vulnerabilities pulled in only by eslint-plugin-sonarjs during lint-time static analysis. No network or untrusted input exposure in this context.",
-        "libxmljs2 (1100657): Type confusion vulnerability in an XML parsing library. Installed as a peerOptional dep of @cyclonedx/cyclonedx-library. Confirmed optional: true — the SBOM tool operates fully without it. No patched libxmljs2 release exists on npm. Never present in the production Electron bundle.",
-        "tar (1112329, 1112659, 1113300, 1113375): Path traversal and hardlink escape vulnerabilities in node-tar, pulled in transitively via libxmljs2>tar. Same dev-optional scope as libxmljs2.",
-        "Electron production bundles do not ship eslint, sonarjs, cyclonedx-npm, libxmljs2, or their transitive dependencies.",
-        "Build and CI environments are treated as trusted and isolated."
-      ],
-      "vulnerabilities": [
-        {
-          "id": "1113466",
-          "advisory": "GHSA-3ppc-4f35-3m26",
-          "title": "minimatch ReDoS via repeated wildcards with non-matching literal in pattern",
-          "severity": "high",
-          "via": "eslint-plugin-sonarjs > minimatch",
-          "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26"
-        },
-        {
-          "id": "1113545",
-          "advisory": "GHSA-7r86-cg39-jmmj",
-          "title": "minimatch ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
-          "severity": "high",
-          "via": "eslint-plugin-sonarjs > minimatch",
-          "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj"
-        },
-        {
-          "id": "1113553",
-          "advisory": "GHSA-23c5-xmqv-rm74",
-          "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
-          "severity": "high",
-          "via": "eslint-plugin-sonarjs > minimatch",
-          "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74"
-        },
-        {
-          "id": "1100657",
-          "advisory": "GHSA-78h3-pg4x-j8cv",
-          "title": "libxmljs2 vulnerable to type confusion when parsing specially crafted XML",
-          "severity": "critical",
-          "via": "@cyclonedx/cyclonedx-npm > @cyclonedx/cyclonedx-library (peerOptional) > libxmljs2",
-          "url": "https://github.com/advisories/GHSA-78h3-pg4x-j8cv",
-          "notes": "dev optional — present on some machines, absent on others depending on npm install behavior for optional peers"
-        },
-        {
-          "id": "1112329",
-          "advisory": "GHSA-r6q2-hw4h-h46w",
-          "title": "Race Condition in node-tar Path Reservations via Unicode Ligature Collisions on macOS APFS",
-          "severity": "high",
-          "via": "@cyclonedx/cyclonedx-npm > libxmljs2 > tar",
-          "url": "https://github.com/advisories/GHSA-r6q2-hw4h-h46w"
-        },
-        {
-          "id": "1112659",
-          "advisory": "GHSA-34x7-hfp2-rc4v",
-          "title": "node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal",
-          "severity": "high",
-          "via": "@cyclonedx/cyclonedx-npm > libxmljs2 > tar",
-          "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v"
-        },
-        {
-          "id": "1113300",
-          "advisory": "GHSA-8qq5-rm4j-mr97",
-          "title": "node-tar is Vulnerable to Arbitrary File Overwrite and Symlink Poisoning via Insufficient Path Sanitization",
-          "severity": "high",
-          "via": "@cyclonedx/cyclonedx-npm > libxmljs2 > tar",
-          "url": "https://github.com/advisories/GHSA-8qq5-rm4j-mr97"
-        },
-        {
-          "id": "1113375",
-          "advisory": "GHSA-83g3-92jg-28cx",
-          "title": "Arbitrary File Read/Write via Hardlink Target Escape Through Symlink Chain in node-tar Extraction",
-          "severity": "high",
-          "via": "@cyclonedx/cyclonedx-npm > libxmljs2 > tar",
-          "url": "https://github.com/advisories/GHSA-83g3-92jg-28cx"
-        }
-      ],
-      "reviewDate": "2026-03-03",
-      "expiryDate": "2026-09-03",
+    "svelte-ssr-only": {
+      "ids": [],
+      "reason": "Previously tracked Svelte SSR-only advisories; all fixed or no longer reported for current toolchain. Keeping the bucket for future dev-only SSR issues if they reappear.",
+      "mitigation": [],
+      "vulnerabilities": [],
+      "reviewDate": "2026-03-01",
+      "expiryDate": "2026-09-01",
       "reviewer": "Development Team",
-      "alternatives": [
-        "Upgrade eslint-plugin-sonarjs once it ships with a patched minimatch dependency tree.",
-        "Investigate preventing libxmljs2 optional peer dep installation (e.g. npm overrides) to eliminate the critical advisory without removing @cyclonedx/cyclonedx-npm.",
-        "Monitor @cyclonedx/cyclonedx-npm releases for a version that drops or patches the libxmljs2 peer dep."
-      ],
-      "actionItems": [
-        "Monitor eslint-plugin-sonarjs and @cyclonedx/cyclonedx-npm releases for patched dependency trees.",
-        "Re-run npm audit after any relevant tooling upgrades to verify advisories are cleared.",
-        "Revisit this exception set before expiry date (2026-09-03)."
-      ]
+      "alternatives": [],
+      "actionItems": []
     }
   },
   "meta": {
     "lastUpdated": "2026-03-04",
-    "nextReview": "2026-09-03",
-    "documentVersion": "1.4.0",
-    "changeLog": "v1.4.0 (2026-03-04): Deduplicated build-and-dev-tooling IDs (removed duplicate 1113545/1113553 entries). Restored libxmljs2/tar IDs (1100657/1112329/1112659/1113300/1113375) — still present on machines where optional peer dep is installed. Added note about cross-machine variance for optional deps. v1.3.0 (2026-03-03): Added 5 IDs for libxmljs2 (critical, 1100657) and its tar transitive deps (high, 1112329/1112659/1113300/1113375) — all dev-optional via @cyclonedx/cyclonedx-npm; no patched npm release exists. v1.2.0 (2026-03-03): Removed 18 stale advisory IDs (npm rotated IDs). Removed svelte-ssr-only group (all 4 IDs stale). Pruned build-and-dev-tooling from 15 to 3 active IDs (kept 1113466, added 1113545 and 1113553 for new minimatch ReDoS advisories via eslint-plugin-sonarjs). Policy: only dev-tool transitive exceptions permitted going forward; xlsx retained as documented runtime exception pending exceljs migration."
+    "nextReview": "2026-09-01",
+    "documentVersion": "1.2.0"
   }
 }
