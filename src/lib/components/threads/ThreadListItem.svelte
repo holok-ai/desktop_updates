@@ -145,7 +145,7 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<div class="thread-item-container">
+<div class="thread-item-container" data-thread-id={thread.id}>
   <button class="thread-item" onclick={handleClick}>
     <div class="thread-item-title">
       {thread.title || 'Untitled Thread'}

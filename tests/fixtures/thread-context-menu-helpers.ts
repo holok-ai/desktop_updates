@@ -26,6 +26,26 @@ export async function openFirstThreadContextMenu(page: Page) {
 }
 
 /**
+ * Open the context menu on the thread with the given id.
+ * Use this to target a specific thread (e.g. one created during the test) so
+ * cleanup does not affect other threads.
+ */
+export async function openThreadContextMenuByThreadId(page: Page, threadId: string) {
+  const item = page.locator(`.thread-item-container[data-thread-id="${threadId}"]`);
+  await expect(item).toBeVisible({ timeout: 10000 });
+  await item.hover();
+
+  const menuTrigger = item.locator('.menu-trigger');
+  await expect(menuTrigger).toBeVisible({ timeout: 5000 });
+  await menuTrigger.click();
+
+  const contextMenu = page.locator('.context-menu[role="menu"]');
+  await expect(contextMenu).toBeVisible({ timeout: 5000 });
+
+  return item;
+}
+
+/**
  * Close any open context menu by clicking on the page body.
  */
 export async function closeContextMenu(page: Page) {

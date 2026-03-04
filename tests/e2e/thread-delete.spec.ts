@@ -12,15 +12,24 @@ import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import {
-  openFirstThreadContextMenu,
+  openThreadContextMenuByThreadId,
   clickDangerMenuItem,
   navigateToThreads,
   createThreadViaUI,
 } from '../fixtures/thread-context-menu-helpers';
 import { navigateToSettings, clickSettingsTab, saveSettings } from '../fixtures/settings-helpers';
+import {
+  getAppStateCounts,
+  expectAppStateUnchanged,
+  type AppStateCounts,
+} from '../fixtures/state-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+
+/** Thread id of the thread created in "create a fresh thread for delete tests" — used so we only delete that thread. */
+let createdThreadId: string | null = null;
+let initialCounts: AppStateCounts | null = null;
 
 /** Enable or disable the delete confirmation setting via the Settings UI. */
 async function setDeleteConfirmation(pg: Page, enabled: boolean) {
@@ -54,9 +63,9 @@ async function setDeleteConfirmation(pg: Page, enabled: boolean) {
   await toast.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
 }
 
-/** Open the delete modal on the first thread item. */
-async function openDeleteModal(pg: Page) {
-  await openFirstThreadContextMenu(pg);
+/** Open the delete modal on the thread with the given id (only removes that thread). */
+async function openDeleteModalForThread(pg: Page, threadId: string) {
+  await openThreadContextMenuByThreadId(pg, threadId);
   await clickDangerMenuItem(pg, 'Delete Thread');
 
   const dialog = pg.locator('[role="dialog"][aria-labelledby="delete-dialog-title"]');
@@ -73,6 +82,9 @@ test.describe.serial('Thread Delete', () => {
     // Wait for the app shell to be fully rendered
     const sidebar = page.locator('button[aria-label="Threads"]');
     await expect(sidebar).toBeVisible({ timeout: 15000 });
+
+    // Capture initial global state snapshot for sanity check
+    initialCounts = await getAppStateCounts(page);
   });
 
   test.afterAll(async () => {
@@ -84,6 +96,14 @@ test.describe.serial('Thread Delete', () => {
     } catch {
       // Best-effort restoration — don't fail teardown
     }
+
+    // Sanity check: suites that create + delete their own thread should
+    // leave global counts unchanged.
+    if (page && !page.isClosed() && initialCounts) {
+      const finalCounts = await getAppStateCounts(page);
+      expectAppStateUnchanged(initialCounts, finalCounts, 'Thread Delete suite');
+    }
+
     await app?.close();
   });
 
@@ -93,6 +113,9 @@ test.describe.serial('Thread Delete', () => {
 
   test('create a fresh thread for delete tests', async () => {
     await createThreadViaUI(page);
+    const url = page.url();
+    const match = /threadId=([^&]+)/.exec(url);
+    if (match) createdThreadId = match[1];
     await navigateToThreads(page);
 
     const threadItems = page.locator('.thread-item-container');
@@ -100,11 +123,12 @@ test.describe.serial('Thread Delete', () => {
   });
 
   test('clicking Delete Thread opens delete modal with thread title and warning', async () => {
-    // Requirement 3.1
-    const firstItem = page.locator('.thread-item-container').first();
-    const threadTitle = await firstItem.locator('.thread-item-title').textContent();
+    // Requirement 3.1 — target only the thread we created
+    expect(createdThreadId).toBeTruthy();
+    const item = page.locator(`.thread-item-container[data-thread-id="${createdThreadId}"]`);
+    const threadTitle = await item.locator('.thread-item-title').textContent();
 
-    const dialog = await openDeleteModal(page);
+    const dialog = await openDeleteModalForThread(page, createdThreadId!);
 
     await expect(dialog.locator('#delete-dialog-title')).toHaveText('Delete Thread');
 
@@ -119,11 +143,12 @@ test.describe.serial('Thread Delete', () => {
   });
 
   test('clicking Cancel in delete modal closes without deleting', async () => {
-    // Requirement 3.3
+    // Requirement 3.3 — target only the thread we created
+    expect(createdThreadId).toBeTruthy();
     const threadItems = page.locator('.thread-item-container');
     const countBefore = await threadItems.count();
 
-    const dialog = await openDeleteModal(page);
+    const dialog = await openDeleteModalForThread(page, createdThreadId!);
 
     await dialog.locator('button.btn-secondary').click();
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
@@ -133,11 +158,12 @@ test.describe.serial('Thread Delete', () => {
   });
 
   test('pressing Escape in delete modal closes without deleting', async () => {
-    // Requirement 3.4
+    // Requirement 3.4 — target only the thread we created
+    expect(createdThreadId).toBeTruthy();
     const threadItems = page.locator('.thread-item-container');
     const countBefore = await threadItems.count();
 
-    await openDeleteModal(page);
+    await openDeleteModalForThread(page, createdThreadId!);
 
     await page.keyboard.press('Escape');
 
@@ -149,11 +175,12 @@ test.describe.serial('Thread Delete', () => {
   });
 
   test('clicking Delete Thread in modal removes thread from list and shows toast', async () => {
-    // Requirement 3.2
+    // Requirement 3.2 — delete only the thread we created
+    expect(createdThreadId).toBeTruthy();
     const threadItems = page.locator('.thread-item-container');
     const countBefore = await threadItems.count();
 
-    const dialog = await openDeleteModal(page);
+    const dialog = await openDeleteModalForThread(page, createdThreadId!);
 
     await dialog.locator('button.btn-danger').click();
     await expect(dialog).not.toBeVisible({ timeout: 5000 });

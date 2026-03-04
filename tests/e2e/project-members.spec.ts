@@ -15,9 +15,15 @@ import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import { createProject, deleteProject, openProject } from '../fixtures/project-helpers';
+import {
+  getAppStateCounts,
+  expectAppStateUnchanged,
+  type AppStateCounts,
+} from '../fixtures/state-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+let initialCounts: AppStateCounts | null = null;
 
 const TEST_PROJECT_NAME = `E2E Members Project ${Date.now()}`;
 
@@ -26,6 +32,9 @@ test.describe.serial('Project Members', () => {
     app = await launchAuthenticatedApp();
     page = await getFirstWindow(app);
     await page.waitForLoadState('networkidle');
+
+    // Capture initial global state snapshot for sanity check
+    initialCounts = await getAppStateCounts(page);
 
     // Create a SHARED project using shared helper (search is only available for shared projects)
     await createProject(page, TEST_PROJECT_NAME, 'Shared');
@@ -47,6 +56,14 @@ test.describe.serial('Project Members', () => {
     } catch {
       // Cleanup is best-effort
     }
+
+    // Sanity check: suite creates and then deletes a project, so
+    // global counts should end where they started.
+    if (page && !page.isClosed() && initialCounts) {
+      const finalCounts = await getAppStateCounts(page);
+      expectAppStateUnchanged(initialCounts, finalCounts, 'Project Members suite');
+    }
+
     await app?.close();
   });
 
