@@ -3,7 +3,7 @@
   "description": "NPM Audit Exception Configuration - Documents accepted security vulnerabilities with mitigation strategies",
   "exceptions": {
     "build-and-dev-tooling": {
-      "ids": ["1113465", "1113544", "1113552"],
+      "ids": ["1113545", "1113553"],
       "reason": "These advisories only affect transitive dev/build tooling (eslint, cyclonedx, electron-builder, electron-node-gyp, app-builder-lib, cacache, etc.) and do not impact runtime code in the packaged Electron app.",
       "mitigation": [
         "All affected packages are only used during development, packaging, or static analysis, not at runtime in the Electron app.",
