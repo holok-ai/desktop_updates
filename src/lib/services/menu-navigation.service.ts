@@ -1,5 +1,6 @@
 import { ROUTE } from '../constants/route.constant';
 import type { RoutePath } from '../types/route.type';
+import { breadcrumbStore } from '../stores/breadcrumb.store';
 
 export class MenuNavigationService {
   private static instance: MenuNavigationService | null = null;
@@ -31,12 +32,14 @@ export class MenuNavigationService {
           // Navigate to threads create using the existing navigate helper so tests
           // can intercept via `globalThis.__routerPush` without requiring the
           // SPA router to be present during unit tests.
+          breadcrumbStore.clearAndPush({ label: 'New Thread', route: routePaths.NEW_THREAD });
           this.navigate(routePaths.THREADS, { createThread: '' });
         },
       },
       {
         channel: 'menu:new-project',
         handler: () => {
+          breadcrumbStore.clearAndPush({ label: 'Projects', route: routePaths.PROJECTS });
           this.navigate(routePaths.PROJECTS, { createProject: '' });
         },
       },
@@ -51,12 +54,14 @@ export class MenuNavigationService {
       {
         channel: 'menu:settings',
         handler: () => {
+          breadcrumbStore.clearAndPush({ label: 'Settings', route: routePaths.SETTINGS });
           this.navigate(routePaths.SETTINGS);
         },
       },
       {
         channel: 'menu:getting-started',
         handler: () => {
+          breadcrumbStore.clearAndPush({ label: 'New Thread', route: routePaths.HOME });
           this.navigate(routePaths.HOME);
         },
       },

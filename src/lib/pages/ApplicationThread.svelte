@@ -6,6 +6,7 @@
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import pRetry from 'p-retry';
 
   class EmptyAgentListError extends Error {
@@ -100,11 +101,24 @@
       // Navigate to the new thread page
       const params = new URLSearchParams();
       params.set('threadId', createResult.data.id);
+      const threadTitle = createResult.data.title || `New ${app.title} Chat`;
       if (projectId) {
         params.set('projectId', projectId);
-        push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
+        const targetRoute = `${ROUTE.PROJECT_THREAD}?${params.toString()}`;
+        breadcrumbStore.push({
+          label: threadTitle,
+          route: targetRoute,
+          threadId: createResult.data.id,
+        });
+        push(targetRoute);
       } else {
-        push(`${ROUTE.THREAD}?${params.toString()}`);
+        const targetRoute = `${ROUTE.THREAD}?${params.toString()}`;
+        breadcrumbStore.push({
+          label: threadTitle,
+          route: targetRoute,
+          threadId: createResult.data.id,
+        });
+        push(targetRoute);
       }
     } catch (error) {
       console.error('[ApplicationThread] Failed to create thread:', error);

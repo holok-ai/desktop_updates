@@ -8,6 +8,7 @@
   import { isAuthenticated } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { favorites } from '$lib/stores/favorite.store';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import ProjectCreateModal from '$lib/modals/ProjectCreateModal.svelte';
   import ProjectRename from '$lib/modals/ProjectRename.svelte';
   import ProjectDelete from '$lib/modals/ProjectDelete.svelte';
@@ -61,7 +62,13 @@
   });
 
   function handleProjectClick(project: Project) {
-    push(`${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`);
+    const targetRoute = `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`;
+    breadcrumbStore.push({
+      label: project.title || 'Untitled',
+      route: targetRoute,
+      projectId: project.id,
+    });
+    push(targetRoute);
   }
 
   function handleCreateProject() {

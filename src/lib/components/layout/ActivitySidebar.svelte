@@ -13,6 +13,7 @@
   import { threads } from '$lib/stores/thread.store';
   import { projects } from '$lib/stores/project.store';
   import { favorites, type FavoriteType } from '$lib/stores/favorite.store';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import type { Thread } from '../../../../src-electron/preload';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
 
@@ -85,15 +86,47 @@
     showFavorites = !showFavorites;
   }
 
-  function handleFavoriteClick(item: { id: string; type: FavoriteType; route: string }) {
+  function handleFavoriteClick(item: {
+    id: string;
+    type: FavoriteType;
+    route: string;
+    label: string;
+  }) {
     const proceed = () => {
+      let targetRoute: string;
       if (item.route) {
-        push(item.route);
+        targetRoute = item.route;
       } else if (item.type === 'thread') {
-        push(`${ROUTE.THREAD}?threadId=${item.id}`);
+        targetRoute = `${ROUTE.THREAD}?threadId=${item.id}`;
       } else {
-        push(`${ROUTE.PROJECTS_VIEW}?projectId=${item.id}`);
+        targetRoute = `${ROUTE.PROJECTS_VIEW}?projectId=${item.id}`;
       }
+
+      // Set breadcrumb trail: parent route -> item
+      if (item.type === 'thread') {
+        // Check if this is a project thread (route contains projectId)
+        const params = new URLSearchParams(targetRoute.split('?')[1] ?? '');
+        const projectId = params.get('projectId');
+        if (projectId) {
+          breadcrumbStore.clearAndSet([
+            { label: 'Projects', route: ROUTE.PROJECTS },
+            { label: 'Loading...', route: `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`, projectId },
+            { label: 'Loading...', route: targetRoute, threadId: item.id },
+          ]);
+        } else {
+          breadcrumbStore.clearAndSet([
+            { label: 'Threads', route: ROUTE.THREADS },
+            { label: item.label, route: targetRoute, threadId: item.id },
+          ]);
+        }
+      } else {
+        breadcrumbStore.clearAndSet([
+          { label: 'Projects', route: ROUTE.PROJECTS },
+          { label: item.label, route: targetRoute, projectId: item.id },
+        ]);
+      }
+
+      push(targetRoute);
     };
     if (requestNavigation(proceed)) {
       proceed();
@@ -113,7 +146,12 @@
 
   function handleThreadClick(thread: Thread) {
     const proceed = () => {
-      push(`${ROUTE.THREAD}?threadId=${thread.id}`);
+      const targetRoute = `${ROUTE.THREAD}?threadId=${thread.id}`;
+      breadcrumbStore.clearAndSet([
+        { label: 'Threads', route: ROUTE.THREADS },
+        { label: thread.title || 'Untitled', route: targetRoute, threadId: thread.id },
+      ]);
+      push(targetRoute);
     };
     if (requestNavigation(proceed)) {
       proceed();
@@ -207,6 +245,22 @@
     return unsubscribe;
   });
 
+  /** Map sidebar activity id to breadcrumb label */
+  function activityLabel(id: string): string {
+    switch (id) {
+      case 'new-thread':
+        return 'New Thread';
+      case 'search':
+        return 'Search';
+      case 'projects':
+        return 'Projects';
+      case 'threads':
+        return 'Threads';
+      default:
+        return id;
+    }
+  }
+
   function handleNavigate(activity: SidebarActivity) {
     const proceed = () => {
       // For new thread, keep threads selected in sidebar
@@ -216,7 +270,15 @@
         selected = activity.id;
       }
       dispatch('select', activity);
-      if (activity.route) push(activity.route);
+
+      // Primary routes clear the breadcrumb queue and push their own entry
+      if (activity.route) {
+        breadcrumbStore.clearAndPush({
+          label: activityLabel(activity.id),
+          route: activity.route,
+        });
+        push(activity.route);
+      }
     };
 
     // If no unsaved changes, requestNavigation returns true and we proceed immediately

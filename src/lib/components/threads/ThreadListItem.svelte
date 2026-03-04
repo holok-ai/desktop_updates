@@ -6,6 +6,7 @@
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { toastStore } from '$lib/services/toast.service';
   import { favorites } from '$lib/stores/favorite.store';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import ThreadRenameModal from '$lib/modals/ThreadRenameModal.svelte';
   import ThreadDeleteModal from '$lib/modals/ThreadDeleteModal.svelte';
 
@@ -63,10 +64,22 @@
     if (projectId) {
       // Project thread context: use PROJECT_THREAD route
       params.set('projectId', projectId);
-      push(`${ROUTE.PROJECT_THREAD}?${params.toString()}`);
+      const targetRoute = `${ROUTE.PROJECT_THREAD}?${params.toString()}`;
+      breadcrumbStore.push({
+        label: thread.title || 'Untitled',
+        route: targetRoute,
+        threadId: thread.id,
+      });
+      push(targetRoute);
     } else {
       // General thread context: use THREAD route (new ThreadPage)
-      push(`${ROUTE.THREAD}?${params.toString()}`);
+      const targetRoute = `${ROUTE.THREAD}?${params.toString()}`;
+      breadcrumbStore.push({
+        label: thread.title || 'Untitled',
+        route: targetRoute,
+        threadId: thread.id,
+      });
+      push(targetRoute);
     }
   }
 

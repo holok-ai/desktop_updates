@@ -8,6 +8,7 @@
   import ThreadListItem from '$lib/components/threads/ThreadListItem.svelte';
   import EditableText from '$lib/components/common/EditableText.svelte';
   import { favorites } from '$lib/stores/favorite.store';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import type { GUID } from '$lib/types/app.type';
 
   let projectId = $state<string | null>(null);
@@ -141,22 +142,30 @@
 
   function handleNewThread() {
     if (!projectId) return;
-    push(`${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}`);
+    const targetRoute = `${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}`;
+    breadcrumbStore.push({ label: 'New Thread', route: targetRoute });
+    push(targetRoute);
   }
 
   function handleMembersClick() {
     if (!projectId) return;
-    push(`${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}`);
+    const targetRoute = `${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}`;
+    breadcrumbStore.push({ label: 'Members', route: targetRoute });
+    push(targetRoute);
   }
 
   function handleFilesClick() {
     if (!projectId) return;
-    push(`${ROUTE.PROJECT_FILES}?projectId=${projectId}`);
+    const targetRoute = `${ROUTE.PROJECT_FILES}?projectId=${projectId}`;
+    breadcrumbStore.push({ label: 'Files', route: targetRoute });
+    push(targetRoute);
   }
 
   function handleInstructionsClick() {
     if (!projectId) return;
-    push(`${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}`);
+    const targetRoute = `${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}`;
+    breadcrumbStore.push({ label: 'Instructions', route: targetRoute });
+    push(targetRoute);
   }
 </script>
 

@@ -3,6 +3,7 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import type { Project } from '$lib/types/project.type';
   import { favorites } from '$lib/stores/favorite.store';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import { toastStore } from '$lib/services/toast.service';
   import { projectService } from '$lib/services/project.service';
   import ProjectRename from '$lib/modals/ProjectRename.svelte';
@@ -22,7 +23,13 @@
   const isFav = $derived($favorites.some((e) => e.id === project.id));
 
   function handleClick() {
-    push(`${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`);
+    const targetRoute = `${ROUTE.PROJECTS_VIEW}?projectId=${encodeURIComponent(project.id)}`;
+    breadcrumbStore.push({
+      label: project.title || 'Untitled',
+      route: targetRoute,
+      projectId: project.id,
+    });
+    push(targetRoute);
   }
 
   function handleMenuClick(e: MouseEvent) {
