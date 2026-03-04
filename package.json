@@ -76,7 +76,7 @@
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^4.1.0",
@@ -109,7 +109,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-security": "^3.0.1",
-    "eslint-plugin-sonarjs": "^4.0.0",
+    "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-svelte": "^3.12.5",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
