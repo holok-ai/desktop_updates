@@ -201,29 +201,29 @@
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-electron/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-shared/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "tests/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.svelte": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "scripts/**/*.js": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ]
   }
 }
