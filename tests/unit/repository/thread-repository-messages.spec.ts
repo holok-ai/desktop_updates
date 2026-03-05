@@ -3,9 +3,7 @@
  *
  * See also:
  *   - thread-repository-messages-captured.spec.ts  (scenarios 20–25)
- *   - thread-repository-messages-generated.spec.ts (generated fixture coverage)
- *   - thread-repository-messages-providers.spec.ts (provider fixture coverage)
- *   - thread-repository-messages-invariants.spec.ts (property-based invariants)
+ *   - fixture-{turns,guard,errors,tool-calls,edge-cases,providers}.spec.ts (fixture-driven coverage)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
