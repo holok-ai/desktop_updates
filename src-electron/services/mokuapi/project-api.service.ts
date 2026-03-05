@@ -177,7 +177,10 @@ class ProjectApiService {
    * Update an existing project.
    * Requires owner role.
    */
-  async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ApiResponse<ProjectDetailDTO>> {
+  async updateProject(
+    projectId: string,
+    request: ProjectUpdateRequest,
+  ): Promise<ApiResponse<ProjectDetailDTO>> {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
       return apiFail(401, 'Not authenticated. Please log in.');

@@ -91,7 +91,10 @@ test.describe.serial('Thread List', () => {
     // Requirement 6.3: clicking a thread navigates to thread view
     const threadItems = page.locator('.thread-item');
     const count = await threadItems.count();
-    expect(count, 'Expected at least one thread to click; empty list may indicate a bug or missing setup').toBeGreaterThan(0);
+    expect(
+      count,
+      'Expected at least one thread to click; empty list may indicate a bug or missing setup',
+    ).toBeGreaterThan(0);
 
     // Click the first thread
     await threadItems.first().click();

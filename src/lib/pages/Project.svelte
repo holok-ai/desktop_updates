@@ -142,22 +142,34 @@
 
   function handleNewThread() {
     if (!projectId) return;
-    breadcrumbStore.navigateForward({ label: 'New Thread', route: `${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}` });
+    breadcrumbStore.navigateForward({
+      label: 'New Thread',
+      route: `${ROUTE.PROJECT_NEW_THREAD}?projectId=${projectId}`,
+    });
   }
 
   function handleMembersClick() {
     if (!projectId) return;
-    breadcrumbStore.navigateForward({ label: 'Members', route: `${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}` });
+    breadcrumbStore.navigateForward({
+      label: 'Members',
+      route: `${ROUTE.PROJECT_MEMBERS}?projectId=${projectId}`,
+    });
   }
 
   function handleFilesClick() {
     if (!projectId) return;
-    breadcrumbStore.navigateForward({ label: 'Files', route: `${ROUTE.PROJECT_FILES}?projectId=${projectId}` });
+    breadcrumbStore.navigateForward({
+      label: 'Files',
+      route: `${ROUTE.PROJECT_FILES}?projectId=${projectId}`,
+    });
   }
 
   function handleInstructionsClick() {
     if (!projectId) return;
-    breadcrumbStore.navigateForward({ label: 'Instructions', route: `${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}` });
+    breadcrumbStore.navigateForward({
+      label: 'Instructions',
+      route: `${ROUTE.PROJECT_INSTRUCTIONS}?projectId=${projectId}`,
+    });
   }
 </script>
 

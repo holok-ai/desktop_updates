@@ -32,6 +32,7 @@
     "lint": "eslint . --ext .ts,.js,.svelte",
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
     "format": "prettier --write --config .prettierrc.json \"**/*.{ts,js,svelte,json,css,md}\"",
+    "format:check": "prettier --check --config .prettierrc.json \"**/*.{ts,js,svelte,json,css,md}\"",
     "type-check": "tsc --noEmit",
     "security": "node scripts/security-scan.js",
     "security:audit": "node scripts/audit-with-exceptions.js",
@@ -201,29 +202,29 @@
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-electron/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-shared/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "tests/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.svelte": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "scripts/**/*.js": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ]
   }
 }

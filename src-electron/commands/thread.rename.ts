@@ -14,11 +14,7 @@ import { createScopedLogger } from '../utils/logger.js';
 const log = createScopedLogger('cmd:thread:rename');
 
 export class RenameThreadCommand {
-  async execute(
-    threadId: string,
-    newTitle: string,
-    userId?: string,
-  ): Promise<ApiResponse<Thread>> {
+  async execute(threadId: string, newTitle: string, userId?: string): Promise<ApiResponse<Thread>> {
     const internal = await threadRepository.loadThread(threadId);
     if (!internal) {
       return apiFail(404, 'THREAD_NOT_FOUND');

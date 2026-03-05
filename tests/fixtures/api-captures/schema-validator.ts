@@ -131,7 +131,5 @@ export function validateMessageDTOArray(dtos: unknown): ValidationError[] {
  * Pretty-format validation errors for assertion messages.
  */
 export function formatErrors(errors: ValidationError[]): string {
-  return errors
-    .map((e) => `  ${e.field}: expected ${e.expected}, got ${e.actual}`)
-    .join('\n');
+  return errors.map((e) => `  ${e.field}: expected ${e.expected}, got ${e.actual}`).join('\n');
 }
