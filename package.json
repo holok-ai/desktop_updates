@@ -24,6 +24,7 @@
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
     "package:win": "npm run build:prod && electron-builder --win --x64",
+    "package:linux": "npm run build:prod && electron-builder --linux",
     "package:all": "npm run build:prod && electron-builder --mac --win --x64",
     "package:publish": "npm run build:prod && electron-builder --publish=always",
     "package:publish:all": "npm run build:prod && electron-builder --mac --win --x64 --publish=always",
