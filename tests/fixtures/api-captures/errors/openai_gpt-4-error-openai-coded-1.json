@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "user",
+    "content": "OpenAI coded error trigger",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:01Z",
+    "updatedAt": "2025-06-01T00:00:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "{\"type\":\"error\",\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}",
+    "rawData": null,
+    "status": "error",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:02Z",
+    "updatedAt": "2025-06-01T00:00:02Z"
+  }
+]

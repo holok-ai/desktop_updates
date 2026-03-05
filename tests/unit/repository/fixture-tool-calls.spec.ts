@@ -168,4 +168,118 @@ describe('Fixture-driven: tool-calls', () => {
       },
     );
   });
+
+  // ── toolUse.status is always a valid value ───────────────────────
+
+  describe('toolUse.status is valid', () => {
+    it.each(toolCallFixtures)(
+      'every toolUse has status "complete" or "error": %s',
+      async (fixturePath) => {
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        const withTools = messages.filter((m) => m.toolUses && m.toolUses.length > 0);
+        for (const msg of withTools) {
+          for (const toolUse of msg.toolUses!) {
+            expect(
+              ['complete', 'error'],
+              `${fixturePath}: toolUse.status should be "complete" or "error"`,
+            ).toContain(toolUse.status);
+          }
+        }
+      },
+    );
+  });
+
+  // ── ToolUseInspector: streaming chunks filtered ──────────────────
+
+  describe('streaming chunk filtering', () => {
+    it.each(toolCallFixtures)(
+      'chat.completion.chunk messages are removed or hidden: %s',
+      async (fixturePath) => {
+        if (!fixturePath.includes('streaming')) return;
+
+        const dtos = loadCapture(fixturePath);
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        // Count chunk DTOs in input
+        const chunkDtos = dtos.filter((d) => {
+          if (typeof d.content !== 'string') return false;
+          try {
+            const parsed = JSON.parse(d.content);
+            return parsed?.object === 'chat.completion.chunk';
+          } catch {
+            return false;
+          }
+        });
+
+        if (chunkDtos.length === 0) return;
+
+        // Empty-choices chunks should be removed entirely
+        for (const dto of chunkDtos) {
+          const parsed = JSON.parse(dto.content as string);
+          const msg = messages.find((m) => m.id === dto.id);
+          if (Array.isArray(parsed.choices) && parsed.choices.length === 0) {
+            expect(
+              msg,
+              `${fixturePath}: empty-choices chunk ${dto.id} should be removed`,
+            ).toBeUndefined();
+          } else {
+            // Non-empty chunks should be hidden
+            expect(msg, `${fixturePath}: non-empty chunk ${dto.id} should exist`).toBeDefined();
+            expect(
+              msg!.isHidden,
+              `${fixturePath}: non-empty chunk ${dto.id} should be hidden`,
+            ).toBe(true);
+          }
+        }
+
+        // At least one visible non-chunk assistant should remain
+        const visibleAssistants = messages.filter((m) => m.role === 'assistant' && !m.isHidden);
+        expect(
+          visibleAssistants.length,
+          `${fixturePath}: at least one visible assistant after chunk filtering`,
+        ).toBeGreaterThan(0);
+      },
+    );
+  });
+
+  // ── ToolUseInspector: backfill from follow-up request ────────────
+
+  describe('tool use backfill from follow-up request', () => {
+    it.each(toolCallFixtures)(
+      'assistant gets toolUses backfilled from rawData.messages: %s',
+      async (fixturePath) => {
+        if (!fixturePath.includes('backfill')) return;
+
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        // The last assistant should have toolUses backfilled
+        const assistants = messages.filter((m) => m.role === 'assistant' && !m.isHidden);
+        const withTools = assistants.filter((m) => m.toolUses && m.toolUses.length > 0);
+        expect(
+          withTools.length,
+          `${fixturePath}: at least one assistant should have backfilled toolUses`,
+        ).toBeGreaterThan(0);
+
+        for (const msg of withTools) {
+          for (const tool of msg.toolUses!) {
+            expect(tool.name).toBeTruthy();
+            expect(['complete', 'error']).toContain(tool.status);
+          }
+        }
+      },
+    );
+  });
 });

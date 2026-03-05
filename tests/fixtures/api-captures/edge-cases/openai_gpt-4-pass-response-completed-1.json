@@ -1,0 +1,47 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "user",
+    "content": "Use tools to help me",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:01Z",
+    "updatedAt": "2025-06-01T00:00:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "{\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"function_call\",\"name\":\"read_file\"},{\"type\":\"function_call\",\"name\":\"write_file\"},{\"type\":\"message\",\"content\":\"some text\"}]}}",
+    "rawData": null,
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:02Z",
+    "updatedAt": "2025-06-01T00:00:02Z"
+  },
+  {
+    "id": "msg-3",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "I read and wrote the file for you.",
+    "rawData": null,
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:03Z",
+    "updatedAt": "2025-06-01T00:00:03Z"
+  }
+]

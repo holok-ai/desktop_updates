@@ -77,14 +77,8 @@ describe('Fixture-driven: edge-cases', () => {
           mockThreadApi as MockThreadApi,
           fixturePath,
         );
-
-        // Property 1: non-zero output
         expect(messages.length, `${fixturePath}: expected non-zero output`).toBeGreaterThan(0);
-
-        // Property 3: valid 3-part branchIds
         assertValidBranchIds(messages, fixturePath);
-
-        // Property 4: no duplicate IDs
         assertNoDuplicateIds(messages, fixturePath);
       },
     );
@@ -222,6 +216,130 @@ describe('Fixture-driven: edge-cases', () => {
             msg!.desktopOptions,
             `${fixturePath}: message ${dto.id} should have desktopOptions extracted`,
           ).toBeDefined();
+        }
+      },
+    );
+  });
+
+  // ── DuplicationInspector: duplicate messages reduced ──────────────
+
+  describe('DuplicationInspector reduces duplicate messages', () => {
+    it.each(edgeCaseFixtures)(
+      'duplicate DTOs produce fewer output messages: %s',
+      async (fixturePath) => {
+        if (!fixturePath.includes('duplicate')) return;
+
+        const dtos = loadCapture(fixturePath);
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        // Duplicate fixture has 3 DTOs (1 user + 2 identical assistants)
+        // DuplicationInspector should keep only the earliest, so output < input
+        expect(
+          messages.length,
+          `${fixturePath}: output should have fewer messages than input due to dedup`,
+        ).toBeLessThan(dtos.length);
+
+        // No two visible messages should share the same (role, content, branchId)
+        const keys = messages.map((m) => `${m.role}:${m.content}:${m.branchId}`);
+        const uniqueKeys = new Set(keys);
+        expect(uniqueKeys.size, `${fixturePath}: no duplicate (role,content,branch) keys`).toBe(
+          keys.length,
+        );
+      },
+    );
+  });
+
+  // ── ObserverPromptsInspector: observer messages filtered out ──────
+
+  describe('ObserverPromptsInspector removes observer messages', () => {
+    it.each(edgeCaseFixtures)(
+      'messages with branchId 0.0.0 are removed from output: %s',
+      async (fixturePath) => {
+        if (!fixturePath.includes('observer')) return;
+
+        const dtos = loadCapture(fixturePath);
+        const observerDtos = dtos.filter((d) => d.branchId === '0.0.0' || d.branchId === '0.0.0.0');
+        if (observerDtos.length === 0) return;
+
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        // Observer messages should be completely removed (not just hidden)
+        for (const dto of observerDtos) {
+          const found = messages.find((m) => m.id === dto.id);
+          expect(
+            found,
+            `${fixturePath}: observer message ${dto.id} should be removed entirely`,
+          ).toBeUndefined();
+        }
+
+        // Output count should be less than input count
+        expect(
+          messages.length,
+          `${fixturePath}: output should have fewer messages after observer removal`,
+        ).toBeLessThan(dtos.length);
+
+        // Non-observer messages should still be present
+        const normalDtos = dtos.filter((d) => d.branchId !== '0.0.0' && d.branchId !== '0.0.0.0');
+        expect(messages.length).toBe(normalDtos.length);
+      },
+    );
+  });
+
+  // ── ResponseCompletedInspector: response.completed hidden + toolUses attached
+
+  describe('ResponseCompletedInspector hides payload and attaches toolUses', () => {
+    it.each(edgeCaseFixtures)(
+      'response.completed messages hidden, toolUses on assistant: %s',
+      async (fixturePath) => {
+        if (!fixturePath.includes('response-completed')) return;
+
+        const dtos = loadCapture(fixturePath);
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        // Find DTOs with response.completed content
+        const completedDtos = dtos.filter((d) => {
+          if (typeof d.content !== 'string') return false;
+          try {
+            const parsed = JSON.parse(d.content);
+            return parsed?.type === 'response.completed';
+          } catch {
+            return false;
+          }
+        });
+
+        // response.completed messages should be hidden
+        for (const dto of completedDtos) {
+          const msg = messages.find((m) => m.id === dto.id);
+          expect(msg, `${fixturePath}: response.completed msg should exist`).toBeDefined();
+          expect(msg!.isHidden, `${fixturePath}: response.completed should be hidden`).toBe(true);
+        }
+
+        // The visible assistant should have toolUses attached
+        const visibleAssistants = messages.filter((m) => m.role === 'assistant' && !m.isHidden);
+        const withTools = visibleAssistants.filter((m) => m.toolUses && m.toolUses.length > 0);
+        expect(
+          withTools.length,
+          `${fixturePath}: at least one visible assistant should have toolUses`,
+        ).toBeGreaterThan(0);
+
+        // Verify tool names are valid strings
+        for (const msg of withTools) {
+          for (const tool of msg.toolUses!) {
+            expect(tool.name).toBeTruthy();
+            expect(tool.status).toBe('complete');
+          }
         }
       },
     );

@@ -73,6 +73,41 @@ function isErrorPayloadContent(content: unknown): boolean {
   }
 }
 
+/**
+ * Check if a DTO's content is a non-guard error JSON that ErrorResponseInspector
+ * would format (has type=error but NOT the guard error shape with requestId/seq).
+ */
+function isFormattableErrorContent(content: unknown): boolean {
+  if (typeof content !== 'string') return false;
+  const trimmed = (content as string).trim();
+  if (!trimmed.startsWith('{')) return false;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (parsed.type !== 'error') return false;
+    // Guard error payloads have requestId + seq + error + status=400
+    if (parsed.status === 400) {
+      for (const field of GUARD_ERROR_REQUIRED_FIELDS) {
+        if (!(field in parsed)) return false;
+      }
+      return false; // It IS a guard error — skip it
+    }
+    // Must have an error field for ErrorResponseInspector to extract a message
+    return 'error' in parsed;
+  } catch {
+    return false;
+  }
+}
+
+// Separate formattable error fixtures from guard-error fixtures
+const formattableErrorFixtures = errorFixtures.filter((f) => {
+  try {
+    const dtos = loadCapture(f);
+    return dtos.some((d) => d.role === 'assistant' && isFormattableErrorContent(d.content));
+  } catch {
+    return false;
+  }
+});
+
 // ── Tests ──────────────────────────────────────────────────────────
 
 describe('Fixture-driven: errors', () => {
@@ -138,5 +173,45 @@ describe('Fixture-driven: errors', () => {
         }
       },
     );
+  });
+
+  // ── ErrorResponseInspector: JSON errors formatted to readable text ─
+
+  describe('ErrorResponseInspector formats error JSON to readable text', () => {
+    if (formattableErrorFixtures.length > 0) {
+      it.each(formattableErrorFixtures)(
+        'assistant error content starts with "Error" after formatting: %s',
+        async (fixturePath) => {
+          const dtos = loadCapture(fixturePath);
+          const errorDtos = dtos.filter(
+            (d) => d.role === 'assistant' && isFormattableErrorContent(d.content),
+          );
+
+          const messages = await loadFixtureThroughPipeline(
+            repo,
+            mockThreadApi as MockThreadApi,
+            fixturePath,
+          );
+
+          for (const dto of errorDtos) {
+            const msg = messages.find((m) => m.id === dto.id);
+            expect(msg, `${fixturePath}: message ${dto.id} should exist`).toBeDefined();
+
+            // ErrorResponseInspector replaces JSON with "Error: ...", "Error (<type>): ...",
+            // or "Error [<code>]: ..."
+            expect(
+              msg!.content,
+              `${fixturePath}: formatted error should start with "Error"`,
+            ).toMatch(/^Error/);
+
+            // Content should no longer be raw JSON
+            expect(
+              msg!.content.startsWith('{'),
+              `${fixturePath}: content should not be raw JSON after formatting`,
+            ).toBe(false);
+          }
+        },
+      );
+    }
   });
 });

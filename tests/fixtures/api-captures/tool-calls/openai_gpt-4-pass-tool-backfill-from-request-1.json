@@ -1,0 +1,83 @@
+[
+  {
+    "id": "msg-1",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "user",
+    "content": "Search for files",
+    "rawData": null,
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:01Z",
+    "updatedAt": "2025-06-01T00:00:01Z"
+  },
+  {
+    "id": "msg-2",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "I found the files.",
+    "rawData": null,
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:02Z",
+    "updatedAt": "2025-06-01T00:00:02Z"
+  },
+  {
+    "id": "msg-3",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "user",
+    "content": "Continue",
+    "rawData": {
+      "messages": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "call_search_1",
+              "type": "function",
+              "function": {
+                "name": "search_files",
+                "arguments": "{\"query\":\"*.ts\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_search_1",
+          "content": "[\"file1.ts\",\"file2.ts\"]"
+        }
+      ]
+    },
+    "status": null,
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:03Z",
+    "updatedAt": "2025-06-01T00:00:03Z"
+  },
+  {
+    "id": "msg-4",
+    "threadId": "thread-1",
+    "branchId": "1.0.0",
+    "model": "gpt-4",
+    "provider": "openai",
+    "role": "assistant",
+    "content": "Here are the results.",
+    "rawData": null,
+    "status": "success",
+    "options": null,
+    "createdUserId": "user-1",
+    "createdAt": "2025-06-01T00:00:04Z",
+    "updatedAt": "2025-06-01T00:00:04Z"
+  }
+]

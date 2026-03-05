@@ -165,6 +165,61 @@ describe('Fixture-driven: guard', () => {
     );
   });
 
+  // ── Guard error text on blocked fixtures ──────────────────────────
+
+  describe('guard error text on blocked fixtures', () => {
+    it.each(guardInspectorBlockedFixtures)(
+      'visible user has non-empty guardError string: %s',
+      async (fixturePath) => {
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        const blockedUser = messages.find(
+          (m) => !m.isHidden && m.role === 'user' && m.guardExecution === 'fail',
+        );
+        expect(blockedUser, `${fixturePath}: expected a blocked user message`).toBeDefined();
+        expect(
+          blockedUser!.guardError,
+          `${fixturePath}: guardError should be a non-empty string`,
+        ).toBeTruthy();
+        expect(typeof blockedUser!.guardError).toBe('string');
+      },
+    );
+  });
+
+  // ── guardMessageId points to hidden guard response ────────────────
+
+  describe('guardMessageId points to hidden guard response', () => {
+    it.each(guardInspectorFixtures)(
+      'guardMessageId references a hidden assistant message: %s',
+      async (fixturePath) => {
+        const messages = await loadFixtureThroughPipeline(
+          repo,
+          mockThreadApi as MockThreadApi,
+          fixturePath,
+        );
+
+        const annotatedUser = messages.find(
+          (m) => !m.isHidden && m.role === 'user' && m.guardMessageId !== null,
+        );
+        expect(annotatedUser, `${fixturePath}: expected annotated user`).toBeDefined();
+
+        const guardResponse = messages.find((m) => m.id === annotatedUser!.guardMessageId);
+        expect(
+          guardResponse,
+          `${fixturePath}: guardMessageId should reference an existing message`,
+        ).toBeDefined();
+        expect(
+          guardResponse!.isHidden,
+          `${fixturePath}: guard response message should be hidden`,
+        ).toBe(true);
+      },
+    );
+  });
+
   // ── Property 10: guard message visibility ────────────────────────
 
   describe('guard message visibility', () => {
