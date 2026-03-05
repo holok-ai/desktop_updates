@@ -3,9 +3,6 @@ name: Build Desktop
 on:
   pull_request:
     types: [opened, synchronize]
-  push:
-    branches: [main]
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       platform:
