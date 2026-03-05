@@ -121,14 +121,6 @@ export class PlaceholderInspector implements IMessageInspector {
       if (msg.role !== 'user') continue;
       if (msg.content && msg.content.trim().length > 0) continue;
 
-      const rawDataKeys =
-        msg.rawData && typeof msg.rawData === 'object' ? Object.keys(msg.rawData) : null;
-      log.info(
-        '[PlaceholderInspector] empty user msg branchId=%s rawDataKeys=%s',
-        msg.branchId,
-        JSON.stringify(rawDataKeys),
-      );
-
       const recovered = this.extractLastUserInputText(msg.rawData);
       if (recovered) {
         msg.content = recovered;
