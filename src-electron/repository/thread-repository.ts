@@ -32,6 +32,8 @@ export class ThreadRepository {
   // Threads are fetched from Moku API on demand
   private readonly threadsById: Map<string, Thread> = new Map();
   private readonly idempotencyIndex: Map<string, Map<string, string>> = new Map();
+  private readonly requestIdIndex: Map<string, string> = new Map();
+  private lastLoadedThreadId: string | null = null;
 
   private readonly messageInspectors: IMessageInspector[] = [
     new ObserverPromptsInspector(),
@@ -140,7 +142,39 @@ export class ThreadRepository {
       this.threadsById.set(threadId, cached);
     }
 
+    this.recordLoadedThreadMessages(threadId, finalMessages);
+
     return finalMessages;
+  }
+
+  /**
+   * Record the last-loaded thread and index requestIds for quick lookup.
+   */
+  public recordLoadedThreadMessages(threadId: string, messages: Message[]): void {
+    this.lastLoadedThreadId = threadId;
+    for (const message of messages) {
+      const requestIds = this.extractRequestIds(message.rawData);
+      for (const requestId of requestIds) {
+        this.requestIdIndex.set(requestId, threadId);
+      }
+    }
+  }
+
+  /**
+   * Validate that a requestId belongs to the last-loaded thread.
+   * Falls back to lastLoadedThreadId when the requestId is unknown.
+   */
+  public isRequestForLastLoadedThread(requestId: string, threadId: string): boolean {
+    if (!requestId) {
+      return false;
+    }
+
+    const mappedThreadId = this.requestIdIndex.get(requestId);
+    if (mappedThreadId && mappedThreadId !== threadId) {
+      return false;
+    }
+
+    return this.lastLoadedThreadId === threadId;
   }
 
   public async listThreads(options?: {
@@ -716,6 +750,38 @@ export class ThreadRepository {
     message.tokens = dto.tokens ?? Math.ceil(message.content.length / 4);
 
     return message;
+  }
+
+  private extractRequestIds(value: unknown): string[] {
+    if (!value) return [];
+
+    const found = new Set<string>();
+    const stack: unknown[] = [value];
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+
+      if (Array.isArray(current)) {
+        for (const item of current) {
+          stack.push(item);
+        }
+        continue;
+      }
+
+      if (typeof current === 'object') {
+        const obj = current as Record<string, unknown>;
+        for (const [key, val] of Object.entries(obj)) {
+          if ((key === 'requestId' || key === 'request_id') && typeof val === 'string') {
+            found.add(val);
+          } else if (val && (typeof val === 'object' || Array.isArray(val))) {
+            stack.push(val);
+          }
+        }
+      }
+    }
+
+    return [...found];
   }
 
   private extractToolUsesFromRawData(

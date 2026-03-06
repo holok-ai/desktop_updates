@@ -13,6 +13,7 @@ import { createScopedLogger, logPerformance } from '../utils/logger.js';
 import { getAuthService } from './auth-handler.js';
 import { CreateThreadCommand } from '../commands/thread.create.js';
 import { RenameThreadCommand } from '../commands/thread.rename.js';
+import { notificationService, type NotificationEvent } from '../services/notification.service.js';
 const threadLog = createScopedLogger('thread');
 
 /**
@@ -52,7 +53,54 @@ function generateId(): string {
 // Export helpers for tests
 export { broadcast, generateId };
 
+let notificationUnsubscribe: (() => void) | null = null;
+
+function normalizeMessages(
+  allMessages: Message[],
+  threadId: string,
+  senderUrl?: string,
+): Message[] {
+  const items: Message[] = allMessages
+    .filter((m) => !m.deletedAt)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((m) => ({ ...m }));
+  const toolUseCount = items.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
+  threadLog.info(
+    '[thread:getMessages] Loaded',
+    allMessages.length,
+    'total, returning',
+    items.length,
+    'after filtering (api)',
+    { threadId, toolUseCount, senderUrl },
+  );
+  return items;
+}
+
+async function handleNotificationEvent(event: NotificationEvent): Promise<void> {
+  if (event.type !== 'provider_response_completed') return;
+  if (!event.threadId || !event.requestId) return;
+
+  if (!threadRepository.isRequestForLastLoadedThread(event.requestId, event.threadId)) {
+    return;
+  }
+
+  // Reload messages for the currently active thread to capture the new response.
+  const allMessages = await threadRepository.loadThreadMessages(event.threadId);
+  const items = normalizeMessages(allMessages, event.threadId);
+  broadcast('thread:messagesUpdated', {
+    threadId: event.threadId,
+    requestId: event.requestId,
+    messages: items,
+  });
+}
+
 export function registerThreadHandlers(): void {
+  if (!notificationUnsubscribe) {
+    notificationUnsubscribe = notificationService.onNotification((event) => {
+      void handleNotificationEvent(event);
+    });
+  }
+
   ipcMain.handle(
     'thread:getAll',
     async (
@@ -103,23 +151,19 @@ export function registerThreadHandlers(): void {
   // List messages for a thread (createdAt ascending, excluding soft-deleted)
   ipcMain.handle(
     'thread:getMessages',
-    async (_event, id: string): Promise<ApiResponse<Message[]>> => {
+    async (
+      _event,
+      id: string,
+      options?: { isSharedProject?: boolean },
+    ): Promise<ApiResponse<Message[]>> => {
       try {
         const senderUrl = _event?.senderFrame?.url;
         const allMessages = await threadRepository.loadThreadMessages(id);
-        const items: Message[] = allMessages
-          .filter((m) => !m.deletedAt)
-          .sort((a, b) => a.createdAt - b.createdAt)
-          .map((m) => ({ ...m }));
-        const toolUseCount = items.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
-        threadLog.info(
-          '[thread:getMessages] Loaded',
-          allMessages.length,
-          'total, returning',
-          items.length,
-          'after filtering (api)',
-          { threadId: id, toolUseCount, senderUrl },
-        );
+        const items = normalizeMessages(allMessages, id, senderUrl);
+
+        const isSharedProject = options?.isSharedProject === true;
+        notificationService.setActiveThread(isSharedProject ? id : null, isSharedProject);
+
         return apiOk(items);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -511,5 +555,9 @@ export function unregisterThreadHandlers(): void {
   ipcMain.removeHandler('thread:updateMessage');
   ipcMain.removeHandler('thread:updateMessageBranch');
   ipcMain.removeHandler('thread:updateMessageDesktopOptions');
+  if (notificationUnsubscribe) {
+    notificationUnsubscribe();
+    notificationUnsubscribe = null;
+  }
   threadLog.info('Handlers unregistered');
 }

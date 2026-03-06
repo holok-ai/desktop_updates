@@ -124,7 +124,6 @@
     "postcss": "^8.5.6",
     "prettier": "3.6.2",
     "prettier-plugin-svelte": "3.4.0",
-    "retire": "^5.1.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "secretlint": "^11.2.5",
     "sharp": "^0.34.5",
