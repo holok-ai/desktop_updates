@@ -110,11 +110,7 @@
         if (projectId) {
           breadcrumbStore.navigateWithTrail([
             { label: 'Projects', route: ROUTE.PROJECTS },
-            {
-              label: 'Loading...',
-              route: `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`,
-              projectId,
-            },
+            { label: 'Loading...', route: `${ROUTE.PROJECTS_VIEW}?projectId=${projectId}`, projectId },
             { label: 'Loading...', route: targetRoute, threadId: item.id },
           ]);
         } else {
