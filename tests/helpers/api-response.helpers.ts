@@ -10,7 +10,9 @@ import { expect } from 'vitest';
 /**
  * Assert that a value is a successful ApiResponse and narrow the type.
  */
-export function expectApiSuccess<T = unknown>(result: unknown): asserts result is {
+export function expectApiSuccess<T = unknown>(
+  result: unknown,
+): asserts result is {
   success: true;
   data: T;
   errorCode: 0;

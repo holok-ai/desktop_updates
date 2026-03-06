@@ -45,7 +45,6 @@ vi.mock('fs', () => ({
 }));
 
 describe('AuthService additional branch coverage', () => {
-
   beforeEach(() => {
     vi.resetModules();
     // reset default fs mock behavior

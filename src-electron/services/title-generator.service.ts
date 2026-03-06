@@ -249,7 +249,6 @@ export class TitleGeneratorService {
 
     return candidate;
   }
-
 }
 
 /**

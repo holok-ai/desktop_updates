@@ -299,7 +299,6 @@ export class FileValidationService {
       mimeToExtensions,
     };
   }
-
 }
 
 // Export singleton instance

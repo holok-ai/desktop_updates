@@ -90,7 +90,11 @@ export class ProjectRepository {
     if (membersResult.success) {
       members = membersResult.data;
     } else {
-      log.warn('[ProjectRepository] Failed to load members for project:', projectId, membersResult.errorText);
+      log.warn(
+        '[ProjectRepository] Failed to load members for project:',
+        projectId,
+        membersResult.errorText,
+      );
     }
 
     const project = this.mapDetailDTOToProject(result.data, members);
@@ -182,7 +186,11 @@ export class ProjectRepository {
     if (membersResult.success) {
       members = membersResult.data;
     } else {
-      log.warn('[ProjectRepository] Failed to load members for new project:', result.data.id, membersResult.errorText);
+      log.warn(
+        '[ProjectRepository] Failed to load members for new project:',
+        result.data.id,
+        membersResult.errorText,
+      );
     }
 
     const project = this.mapDetailDTOToProject(result.data, members);
@@ -378,7 +386,10 @@ export class ProjectRepository {
    * Check if current user has permission for a project action
    * Returns ApiResponse with void on success, or error if no permission
    */
-  public async hasPermission(projectId: string, permission: ProjectPermission): Promise<ApiResponse<void>> {
+  public async hasPermission(
+    projectId: string,
+    permission: ProjectPermission,
+  ): Promise<ApiResponse<void>> {
     const projectResult = await this.getProject(projectId as GUID);
     if (!projectResult.success) {
       return apiFail(projectResult.errorCode, projectResult.errorText);
@@ -390,7 +401,10 @@ export class ProjectRepository {
     }
 
     if (!roleHasPermission(project.userRole, permission)) {
-      return apiFail(403, `Access denied. ${project.userRole} role does not have '${permission}' permission`);
+      return apiFail(
+        403,
+        `Access denied. ${project.userRole} role does not have '${permission}' permission`,
+      );
     }
 
     return apiOk(undefined) as ApiResponse<void>;
@@ -443,7 +457,10 @@ export class ProjectRepository {
    * Add a member to a project
    * Requires invite_members permission (owner only)
    */
-  public async addMember(projectId: string, input: AddMemberInput): Promise<ApiResponse<ProjectMember>> {
+  public async addMember(
+    projectId: string,
+    input: AddMemberInput,
+  ): Promise<ApiResponse<ProjectMember>> {
     // Check permission
     const permResult = await this.hasPermission(projectId, 'invite_members' as ProjectPermission);
     if (!permResult.success) {
@@ -455,7 +472,11 @@ export class ProjectRepository {
       return apiFail(-1, 'User ID is required');
     }
 
-    const result = await projectMemberApiService.addProjectMember(projectId, input.userId, input.role);
+    const result = await projectMemberApiService.addProjectMember(
+      projectId,
+      input.userId,
+      input.role,
+    );
 
     if (!result.success) {
       log.error('[ProjectRepository] Failed to add member:', result.errorText);
@@ -507,7 +528,10 @@ export class ProjectRepository {
     _input: UpdateMemberRoleInput,
   ): Promise<ApiResponse<ProjectMember>> {
     // Check permission
-    const permResult = await this.hasPermission(projectId, 'change_member_roles' as ProjectPermission);
+    const permResult = await this.hasPermission(
+      projectId,
+      'change_member_roles' as ProjectPermission,
+    );
     if (!permResult.success) {
       return apiFail(permResult.errorCode, permResult.errorText);
     }

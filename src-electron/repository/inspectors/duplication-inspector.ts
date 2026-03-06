@@ -29,7 +29,7 @@ export class DuplicationInspector implements IMessageInspector {
           seen.set(key, message);
         }
 
-        log.info('[DuplicationInspector] Skipping duplicate message:', {
+        log.debug('[DuplicationInspector] Skipping duplicate message:', {
           role: message.role,
           branchId: message.branchId,
           contentPreview: message.content ? message.content.substring(0, 50) : '(empty)',

@@ -16,7 +16,9 @@ let handlers: Record<string, Function> = {};
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/mock'), on: vi.fn(), whenReady: () => Promise.resolve() },
   ipcMain: {
-    handle: (channel: string, fn: Function) => { handlers[channel] = fn; },
+    handle: (channel: string, fn: Function) => {
+      handlers[channel] = fn;
+    },
     removeHandler: vi.fn(),
     on: vi.fn(),
   },
@@ -154,7 +156,9 @@ describe('Models IPC Handlers — ApiResponse<T> contract', () => {
     });
 
     it('returns apiFail when application not found', async () => {
-      mockModelRepo.getModelsForApplication.mockResolvedValue(apiFail(404, 'Application not found'));
+      mockModelRepo.getModelsForApplication.mockResolvedValue(
+        apiFail(404, 'Application not found'),
+      );
 
       const result = await handlers['models:getModelsForApplication'](null, 'nonexistent');
 

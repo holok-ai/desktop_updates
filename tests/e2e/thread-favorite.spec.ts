@@ -70,7 +70,10 @@ test.describe.serial('Thread Favorite Toggle', () => {
 
     const threadItems = page.locator('.thread-item');
     const count = await threadItems.count();
-    expect(count, 'Expected at least one thread; empty list may indicate a bug or missing setup').toBeGreaterThan(0);
+    expect(
+      count,
+      'Expected at least one thread; empty list may indicate a bug or missing setup',
+    ).toBeGreaterThan(0);
 
     const firstItem = page.locator('.thread-item-container').first();
     const threadTitle = await firstItem.locator('.thread-item-title').textContent();

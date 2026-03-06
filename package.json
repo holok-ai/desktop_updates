@@ -4,6 +4,9 @@
   "description": "Holokai Desktop - dekstop application for chat workflows",
   "main": "dist-electron/src-electron/main.js",
   "type": "module",
+  "engines": {
+    "node": ">=25.0.0"
+  },
   "scripts": {
     "prepare": "husky",
     "prepare:icons": "node scripts/prepare-icons.js",
@@ -21,6 +24,7 @@
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
     "package:win": "npm run build:prod && electron-builder --win --x64",
+    "package:linux": "npm run build:prod && electron-builder --linux",
     "package:all": "npm run build:prod && electron-builder --mac --win --x64",
     "package:publish": "npm run build:prod && electron-builder --publish=always",
     "package:publish:all": "npm run build:prod && electron-builder --mac --win --x64 --publish=always",
@@ -76,7 +80,7 @@
     "prismjs": "^1.30.0",
     "svelte-spa-router": "4.0.1",
     "vitest": "^4.0.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^4.1.0",
@@ -109,7 +113,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-security": "^3.0.1",
-    "eslint-plugin-sonarjs": "^3.0.5",
+    "eslint-plugin-sonarjs": "^4.0.0",
     "eslint-plugin-svelte": "^3.12.5",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
@@ -198,29 +202,29 @@
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-electron/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-shared/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "tests/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.svelte": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "scripts/**/*.js": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ]
   }
 }

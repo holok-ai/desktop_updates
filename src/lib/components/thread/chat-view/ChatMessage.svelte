@@ -148,13 +148,16 @@
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
-    {@const responseTools = (response.tools ?? []).map((t, i) => ({
-      id: `${response.id}-tool-${i}`,
-      name: t.name,
-      inputHint: t.name,
-      status: (t.status as ToolCall['status']) ?? 'complete',
-      startedAt: 0,
-    } satisfies ToolCall))}
+    {@const responseTools = (response.tools ?? []).map(
+      (t, i) =>
+        ({
+          id: `${response.id}-tool-${i}`,
+          name: t.name,
+          inputHint: t.name,
+          status: (t.status as ToolCall['status']) ?? 'complete',
+          startedAt: 0,
+        }) satisfies ToolCall,
+    )}
     <ChatResponse
       content={response.content}
       {chatLayout}
