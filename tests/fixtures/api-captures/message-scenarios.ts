@@ -1,4 +1,8 @@
 /**
+ * @deprecated — Peter's Rule: all fixture JSON must come from live Desktop
+ * session captures. Use CAPTURE_API_DATA=true npm run dev instead.
+ * See .kiro/specs/replace-synthetic-fixtures/requirements.md.
+ *
  * Typed scenario builders for MessageDTO test data.
  *
  * These produce MessageDTO[] arrays representing specific API scenarios.
@@ -490,6 +494,220 @@ export function desktopOptionsSelectedBranch(): MessageDTO[] {
           isSelectedBranch: true,
         },
       },
+    }),
+  ];
+}
+
+// ── Inspector-specific scenarios ────────────────────────────────────
+
+/**
+ * Ollama-style error response — ErrorResponseInspector should format this
+ * from JSON `{ type: "error", error: { error: "<msg>" } }` into "Error: <msg>".
+ */
+export function ollamaErrorResponse(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Ollama error trigger' }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        type: 'error',
+        error: { error: 'model not found: llama99' },
+      }),
+      status: 'error',
+    }),
+  ];
+}
+
+/**
+ * Claude nested error response — ErrorResponseInspector should unwrap
+ * deeply nested `error.error.error` to find the leaf message.
+ */
+export function claudeNestedErrorResponse(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Claude nested error trigger' }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        type: 'error',
+        error: {
+          type: 'error',
+          error: {
+            type: 'not_found_error',
+            message: 'model: invalid_model_id',
+          },
+        },
+      }),
+      status: 'error',
+    }),
+  ];
+}
+
+/**
+ * OpenAI-style error with code field — ErrorResponseInspector should
+ * produce "Error [<code>]: <message>".
+ */
+export function openaiCodedErrorResponse(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'OpenAI coded error trigger' }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        type: 'error',
+        error: {
+          message: 'Rate limit exceeded',
+          type: 'tokens',
+          code: 'rate_limit_exceeded',
+        },
+      }),
+      status: 'error',
+    }),
+  ];
+}
+
+/**
+ * Observer prompt messages — branchId 0.0.0 should be completely removed
+ * by ObserverPromptsInspector.
+ */
+export function observerPromptMessages(): MessageDTO[] {
+  return [
+    // Normal conversation on branch 1.0.0
+    fakeMessageDTO({ role: 'user', content: 'Normal user message', branchId: '1.0.0' }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Normal assistant response',
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+    // Observer messages on branch 0.0.0 — should be filtered out
+    fakeMessageDTO({
+      role: 'user',
+      content: 'Observer background task prompt',
+      branchId: '0.0.0',
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Observer background task result',
+      branchId: '0.0.0',
+      status: 'success',
+    }),
+  ];
+}
+
+/**
+ * Response.completed payload — ResponseCompletedInspector should hide
+ * the response.completed message and attach toolUses to the assistant.
+ */
+export function responseCompletedPayload(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Use tools to help me', branchId: '1.0.0' }),
+    // The response.completed message arrives BEFORE the assistant in createdAt
+    // (it's the raw event), and the inspector looks forward for the assistant.
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        type: 'response.completed',
+        response: {
+          output: [
+            { type: 'function_call', name: 'read_file' },
+            { type: 'function_call', name: 'write_file' },
+            { type: 'message', content: 'some text' },
+          ],
+        },
+      }),
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'I read and wrote the file for you.',
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+  ];
+}
+
+/**
+ * Streaming chunk messages — ToolUseInspector should remove empty-choices
+ * chunks and hide non-empty ones.
+ */
+export function streamingChunkMessages(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Stream a response', branchId: '1.0.0' }),
+    // Empty choices chunk — should be removed entirely
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        object: 'chat.completion.chunk',
+        choices: [],
+      }),
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+    // Non-empty choices chunk — should be hidden (isHidden = true)
+    fakeMessageDTO({
+      role: 'assistant',
+      content: JSON.stringify({
+        object: 'chat.completion.chunk',
+        choices: [{ delta: { content: 'partial' } }],
+      }),
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+    // Final assistant message — should remain visible
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Complete streamed response',
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+  ];
+}
+
+/**
+ * Tool call with backfill from follow-up request — ToolUseInspector
+ * should extract tool_calls from the user message's rawData.messages
+ * and attach them to the next assistant.
+ */
+export function toolCallBackfillFromRequest(): MessageDTO[] {
+  return [
+    fakeMessageDTO({ role: 'user', content: 'Search for files', branchId: '1.0.0' }),
+    // First assistant — has no toolUses initially (streaming lost them)
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'I found the files.',
+      branchId: '1.0.0',
+      status: 'success',
+    }),
+    // Follow-up user message with tool results in rawData.messages
+    fakeMessageDTO({
+      role: 'user',
+      content: 'Continue',
+      branchId: '1.0.0',
+      rawData: {
+        messages: [
+          {
+            role: 'assistant',
+            tool_calls: [
+              {
+                id: 'call_search_1',
+                type: 'function',
+                function: { name: 'search_files', arguments: '{"query":"*.ts"}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            tool_call_id: 'call_search_1',
+            content: '["file1.ts","file2.ts"]',
+          },
+        ],
+      },
+    }),
+    fakeMessageDTO({
+      role: 'assistant',
+      content: 'Here are the results.',
+      branchId: '1.0.0',
+      status: 'success',
     }),
   ];
 }

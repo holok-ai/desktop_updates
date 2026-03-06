@@ -1,4 +1,8 @@
 /**
+ * @deprecated — Peter's Rule: all fixture JSON must come from live Desktop
+ * session captures. Use CAPTURE_API_DATA=true npm run dev instead.
+ * See .kiro/specs/replace-synthetic-fixtures/requirements.md.
+ *
  * One-shot script to generate JSON fixture files from the typed scenario builders.
  * Run with: npx tsx tests/fixtures/api-captures/generate-fixtures.ts
  *
@@ -28,6 +32,13 @@ import {
   toolCallInRawData,
   desktopOptionsBlocked,
   desktopOptionsSelectedBranch,
+  ollamaErrorResponse,
+  claudeNestedErrorResponse,
+  openaiCodedErrorResponse,
+  observerPromptMessages,
+  responseCompletedPayload,
+  streamingChunkMessages,
+  toolCallBackfillFromRequest,
 } from './message-scenarios';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,6 +77,17 @@ const fixtures: [string, () => unknown][] = [
 
   // Tool calls
   ['tool-calls/openai_gpt-4-pass-tool-call-in-rawdata-1.json', toolCallInRawData],
+  ['tool-calls/openai_gpt-4-pass-tool-backfill-from-request-1.json', toolCallBackfillFromRequest],
+  ['tool-calls/openai_gpt-4-pass-streaming-chunks-1.json', streamingChunkMessages],
+
+  // Error formatting (ErrorResponseInspector)
+  ['errors/openai_gpt-4-error-ollama-style-1.json', ollamaErrorResponse],
+  ['errors/openai_gpt-4-error-claude-nested-1.json', claudeNestedErrorResponse],
+  ['errors/openai_gpt-4-error-openai-coded-1.json', openaiCodedErrorResponse],
+
+  // Inspector-specific edge cases
+  ['edge-cases/openai_gpt-4-pass-observer-prompts-1.json', observerPromptMessages],
+  ['edge-cases/openai_gpt-4-pass-response-completed-1.json', responseCompletedPayload],
 ];
 
 let generated = 0;
