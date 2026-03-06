@@ -35,7 +35,7 @@ export interface Message {
   attachments?: Array<{ mimeType: string; data?: string; filename: string; size: number }>;
 
   isHidden?: boolean;
-  guardExecution: 'none' | 'pass' | 'fail';
+  guardExecution: 'none' | 'pass' | 'fail' | 'fail-context';
   guardMessageId: string | null;
   guardError: string;
   isLocal?: boolean;

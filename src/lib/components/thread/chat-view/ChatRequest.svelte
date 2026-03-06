@@ -20,8 +20,8 @@
     /** Current branch ID for this request */
     branchId?: string;
     /** Guard execution status for this request */
-    guardStatus?: 'none' | 'pass' | 'fail';
-    /** Guard error reason when guardStatus is 'fail' */
+    guardStatus?: 'none' | 'pass' | 'fail' | 'fail-context';
+    /** Guard error reason when guardStatus is 'fail' or 'fail-context' */
     guardError?: string;
   }
 

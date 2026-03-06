@@ -76,22 +76,91 @@ function normalizeMessages(
   return items;
 }
 
-async function handleNotificationEvent(event: NotificationEvent): Promise<void> {
-  if (event.type !== 'provider_response_completed') return;
-  if (!event.threadId || !event.requestId) return;
+/**
+ * Broadcast a notification event to all renderer windows.
+ */
+function broadcastNotificationEvent(
+  eventType: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed',
+  event: NotificationEvent,
+): void {
+  broadcast('thread:notificationEvent', {
+    event: eventType,
+    threadId: event.threadId ?? null,
+    branchId: event.branchId ?? null,
+    userId: event.userId,
+    requestId: event.requestId ?? null,
+    message: event.message ?? null,
+  });
+}
 
-  if (!threadRepository.isRequestForLastLoadedThread(event.requestId, event.threadId)) {
+async function handleNotificationEvent(event: NotificationEvent): Promise<void> {
+  threadLog.info('[handleNotificationEvent] received', {
+    type: event.type,
+    threadId: event.threadId,
+    userId: event.userId,
+    requestId: event.requestId,
+  });
+
+  if (!event.threadId) {
+    threadLog.info('[handleNotificationEvent] skipped: no threadId');
     return;
   }
 
-  // Reload messages for the currently active thread to capture the new response.
-  const allMessages = await threadRepository.loadThreadMessages(event.threadId);
-  const items = normalizeMessages(allMessages, event.threadId);
-  broadcast('thread:messagesUpdated', {
-    threadId: event.threadId,
-    requestId: event.requestId,
-    messages: items,
+  const auth = getAuthService();
+  const currentUser = auth.getUser();
+  const isSelf = Boolean(
+    currentUser && (event.userId === currentUser.id || event.userId === currentUser.email),
+  );
+  threadLog.info('[handleNotificationEvent] user check', {
+    eventUserId: event.userId,
+    currentUserId: currentUser?.id,
+    currentUserEmail: currentUser?.email,
+    isSelf,
   });
+
+  // Guard events: only show for the current user (your own request's guard result)
+  if (
+    event.type === 'guard_started' ||
+    event.type === 'guard_passed' ||
+    event.type === 'guard_failed'
+  ) {
+    if (!isSelf) return;
+    threadLog.info(`[handleNotificationEvent] broadcasting ${event.type}`);
+    broadcastNotificationEvent(
+      event.type as 'guard_started' | 'guard_passed' | 'guard_failed',
+      event,
+    );
+    return;
+  }
+
+  // Collaborator events: only show for other users
+  if (isSelf) return;
+
+  if (event.type === 'provider_request_started') {
+    threadLog.info('[handleNotificationEvent] broadcasting collaborator started');
+    broadcastNotificationEvent('started', event);
+    return;
+  }
+
+  if (event.type === 'provider_response_completed') {
+    if (!event.requestId) return;
+
+    // Notify renderer that collaborator activity finished
+    broadcastNotificationEvent('completed', event);
+
+    if (!threadRepository.isRequestForLastLoadedThread(event.requestId, event.threadId)) {
+      return;
+    }
+
+    // Reload messages for the currently active thread to capture the new response.
+    const allMessages = await threadRepository.loadThreadMessages(event.threadId);
+    const items = normalizeMessages(allMessages, event.threadId);
+    broadcast('thread:messagesUpdated', {
+      threadId: event.threadId,
+      requestId: event.requestId,
+      messages: items,
+    });
+  }
 }
 
 export function registerThreadHandlers(): void {
@@ -162,7 +231,7 @@ export function registerThreadHandlers(): void {
         const items = normalizeMessages(allMessages, id, senderUrl);
 
         const isSharedProject = options?.isSharedProject === true;
-        notificationService.setActiveThread(isSharedProject ? id : null, isSharedProject);
+        notificationService.setActiveThread(id, isSharedProject);
 
         return apiOk(items);
       } catch (err: unknown) {

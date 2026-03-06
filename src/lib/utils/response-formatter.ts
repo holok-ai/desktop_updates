@@ -84,6 +84,8 @@ export function formatResponseContent(
   const normalizedProvider = provider.toLowerCase();
   const normalizedModelId = (modelId ?? '').toLowerCase();
 
+  let result: string;
+
   // Check if this is a Claude/Anthropic model
   const isclaudeModel =
     normalizedProvider === 'claude' ||
@@ -91,23 +93,16 @@ export function formatResponseContent(
     normalizedModelId.includes('claude-');
 
   if (isclaudeModel) {
-    return formatAnthropicResponse(content);
+    result = formatAnthropicResponse(content);
+  } else if (typeof content === 'string') {
+    result = content;
+  } else if (content === null || content === undefined) {
+    result = '';
+  } else if (typeof content === 'object') {
+    result = JSON.stringify(content);
+  } else {
+    result = String(content as string | number | boolean);
   }
 
-  // Default: pass through as-is (convert to string if needed)
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  // Handle non-string primitives and objects
-  if (content === null || content === undefined) {
-    return '';
-  }
-
-  if (typeof content === 'object') {
-    return JSON.stringify(content);
-  }
-
-  // Content must be a number or boolean at this point
-  return String(content as string | number | boolean);
+  return result;
 }

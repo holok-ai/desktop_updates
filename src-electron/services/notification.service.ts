@@ -98,7 +98,7 @@ export class NotificationService {
   }
 
   private shouldListen(): boolean {
-    return Boolean(this.context.isSharedProject && this.context.threadId);
+    return Boolean(this.context.threadId);
   }
 
   private getHoloApiUrl(): string {
@@ -156,12 +156,15 @@ export class NotificationService {
     }
 
     const holoApiUrl: string = this.getHoloApiUrl();
-    const url = `${holoApiUrl}/api/notifications/stream`;
+    const threadId = this.context.threadId;
+    const url = threadId
+      ? `${holoApiUrl}/api/notifications/stream?threadId=${encodeURIComponent(threadId)}`
+      : `${holoApiUrl}/api/notifications/stream`;
 
     this.connecting = true;
     this.abortController = new AbortController();
 
-    log.info('[NotificationService] Connecting SSE stream', { url });
+    log.info('[NotificationService] Connecting SSE stream', { url, threadId });
 
     try {
       const response = await fetch(url, {
@@ -180,6 +183,10 @@ export class NotificationService {
 
       this.connected = true;
       this.connecting = false;
+      log.info('[NotificationService] SSE connected', {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+      });
 
       await this.readEventStream(response.body);
     } catch (err) {
@@ -208,7 +215,12 @@ export class NotificationService {
         break;
       }
 
-      buffer += decoder.decode(value, { stream: true });
+      const chunk = decoder.decode(value, { stream: true });
+      log.info('[NotificationService] raw chunk received', {
+        length: chunk.length,
+        preview: chunk.slice(0, 200),
+      });
+      buffer += chunk;
 
       // Process complete SSE events (delimited by double newline)
       while (true) {
@@ -312,14 +324,29 @@ export class NotificationService {
   }
 
   private dispatch(ev: NotificationEvent): void {
+    log.info('[NotificationService] dispatch received', {
+      type: ev.type,
+      threadId: ev.threadId,
+      userId: ev.userId,
+      requestId: ev.requestId,
+      branchId: ev.branchId,
+    });
+
     if (!this.shouldListen()) {
+      log.info('[NotificationService] dispatch skipped: shouldListen=false');
       return;
     }
 
     const threadId = this.context.threadId;
     if (threadId && ev.threadId !== threadId) {
+      log.info('[NotificationService] dispatch skipped: threadId mismatch', {
+        expected: threadId,
+        got: ev.threadId,
+      });
       return;
     }
+
+    log.info('[NotificationService] dispatch forwarding to', this.listeners.size, 'listeners');
 
     for (const cb of this.listeners) {
       try {

@@ -246,8 +246,11 @@ class ThreadFacade {
    * Fetch messages for a thread, merging in any active streaming session data.
    * Crosses Message + Stream domains.
    */
-  async getMessages(id: string): Promise<ApiResponse<Message[]>> {
-    const result = await window.electronAPI.thread.getMessages(id);
+  async getMessages(
+    id: string,
+    options?: { isSharedProject?: boolean },
+  ): Promise<ApiResponse<Message[]>> {
+    const result = await window.electronAPI.thread.getMessages(id, options);
     if (!result.success) {
       return result;
     }

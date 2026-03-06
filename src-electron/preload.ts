@@ -91,6 +91,16 @@ export interface ThreadAPI {
   onThreadMessagesUpdated: (
     callback: (data: { threadId: string; requestId: string; messages: Message[] }) => void,
   ) => () => void;
+  onNotificationEvent: (
+    callback: (data: {
+      event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+      threadId: string | null;
+      branchId: string | null;
+      userId: string;
+      requestId: string | null;
+      message: string | null;
+    }) => void,
+  ) => () => void;
   // Listen to title generation events
   onTitleGenerationStarted: (callback: (data: { threadId: string }) => void) => () => void;
   onTitleGenerationFinished: (
@@ -724,6 +734,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
       return (): void => {
         ipcRenderer.removeListener('thread:messagesUpdated', subscription);
+      };
+    },
+
+    onNotificationEvent: (
+      callback: (data: {
+        event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+        threadId: string | null;
+        branchId: string | null;
+        userId: string;
+        requestId: string | null;
+        message: string | null;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+          threadId: string | null;
+          branchId: string | null;
+          userId: string;
+          requestId: string | null;
+          message: string | null;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('thread:notificationEvent', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:notificationEvent', subscription);
       };
     },
 

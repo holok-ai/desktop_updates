@@ -49,8 +49,8 @@
     branchId?: string;
 
     /** Guard execution status for this request */
-    guardStatus?: 'none' | 'pass' | 'fail';
-    /** Guard error reason when guardStatus is 'fail' */
+    guardStatus?: 'none' | 'pass' | 'fail' | 'fail-context';
+    /** Guard error reason when guardStatus is 'fail' or 'fail-context' */
     guardError?: string;
 
     /** Callback when copy is clicked on request */
@@ -148,13 +148,16 @@
 
   <!-- Render all responses -->
   {#each responses as response (response.id)}
-    {@const responseTools = (response.tools ?? []).map((t, i) => ({
-      id: `${response.id}-tool-${i}`,
-      name: t.name,
-      inputHint: t.name,
-      status: (t.status as ToolCall['status']) ?? 'complete',
-      startedAt: 0,
-    } satisfies ToolCall))}
+    {@const responseTools = (response.tools ?? []).map(
+      (t, i) =>
+        ({
+          id: `${response.id}-tool-${i}`,
+          name: t.name,
+          inputHint: t.name,
+          status: (t.status as ToolCall['status']) ?? 'complete',
+          startedAt: 0,
+        }) satisfies ToolCall,
+    )}
     <ChatResponse
       content={response.content}
       {chatLayout}
@@ -162,6 +165,8 @@
       tools={responseTools}
       {files}
       {fontSize}
+      {guardStatus}
+      {guardError}
     />
   {/each}
 

@@ -12,7 +12,7 @@
       content: string;
       createdAt: number;
       modelId?: string | null;
-      guardExecution?: 'none' | 'pass' | 'fail';
+      guardExecution?: 'none' | 'pass' | 'fail' | 'fail-context';
       guardError?: string;
     };
     responses: Array<{

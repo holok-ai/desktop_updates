@@ -109,7 +109,7 @@ export default [
         {
           selector: 'variable',
           types: ['boolean'],
-          format: ['camelCase'],
+          format: ['camelCase', 'PascalCase'],
           prefix: ['is', 'has', 'should', 'can', 'did', 'will', 'was', 'were'],
         },
         {

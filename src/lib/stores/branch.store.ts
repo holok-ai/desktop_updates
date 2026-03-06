@@ -132,7 +132,6 @@ function createBranchStore(): {
     toggleCollapsed(threadId: string, forkPointId: string): void {
       update((states) => {
         const state = getState(states, threadId);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
         const wasCollapsed = state.collapsed.get(forkPointId) ?? false;
         state.collapsed.set(forkPointId, !wasCollapsed);
         save(states);
