@@ -130,13 +130,9 @@ export class ThreadRepository {
     const totalToolCalls = finalMessages.reduce((sum, m) => sum + (m.toolUses?.length ?? 0), 0);
     const messagesWithTools = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
     const assistantCount = finalMessages.filter((m) => m.role === 'assistant').length;
-    log.info('[ThreadRepository] Loaded thread messages with toolUses', {
-      threadId,
-      total: finalMessages.length,
-      totalToolCalls,
-      messagesWithTools,
-      assistantCount,
-    });
+    log.info(
+      `[ThreadRepository] Loaded thread messages with toolUses threadId=${threadId} total=${finalMessages.length} totalToolCalls=${totalToolCalls} messagesWithTools=${messagesWithTools} assistantCount=${assistantCount}`,
+    );
 
     const cached = this.threadsById.get(threadId);
     if (cached) {

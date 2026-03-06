@@ -24,6 +24,7 @@
     "package": "npm run build:prod && electron-builder",
     "package:mac": "npm run build:prod && electron-builder --mac",
     "package:win": "npm run build:prod && electron-builder --win --x64",
+    "package:linux": "npm run build:prod && electron-builder --linux",
     "package:all": "npm run build:prod && electron-builder --mac --win --x64",
     "package:publish": "npm run build:prod && electron-builder --publish=always",
     "package:publish:all": "npm run build:prod && electron-builder --mac --win --x64 --publish=always",
@@ -201,29 +202,29 @@
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-electron/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "src-shared/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "tests/**/*.{ts,tsx,js}": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.svelte": [
       "eslint --fix --max-warnings=0",
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ],
     "scripts/**/*.js": [
-      "prettier --write"
+      "prettier --write --config .prettierrc.json"
     ]
   }
 }
