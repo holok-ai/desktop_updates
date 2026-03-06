@@ -1,0 +1,471 @@
+[
+  {
+    "id": "dabb6ab4-eadb-45e9-9c5f-14beee530bfb",
+    "threadId": "610545d1-3f9a-4722-84e4-8b911e4c888c",
+    "branchId": "1.0.0.0",
+    "model": "gpt-5.2-chat-latest",
+    "provider": "OPENAI",
+    "role": "user",
+    "content": "What is 2+2?",
+    "rawData": {
+      "model": "gpt-5.2-chat-latest",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "read_folder",
+            "parameters": {
+              "type": "object",
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the folder (can be relative to working directory or absolute)"
+                },
+                "max_depth": {
+                  "type": "integer",
+                  "description": "Maximum recursion depth when recursive is true. Default: 3"
+                },
+                "recursive": {
+                  "type": "boolean",
+                  "description": "If true, list subdirectories recursively. Default: false"
+                },
+                "include_hidden": {
+                  "type": "boolean",
+                  "description": "Include hidden files (starting with .). Default: false"
+                },
+                "filter_extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+                }
+              }
+            },
+            "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "end_line": {
+                  "type": "integer",
+                  "description": "Read to this line number (1-indexed). Useful for large files."
+                },
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "start_line": {
+                  "type": "integer",
+                  "description": "Read from this line number (1-indexed). Useful for large files."
+                }
+              }
+            },
+            "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "parameters": {
+              "type": "object",
+              "required": ["path", "content"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The content to write to the file."
+                },
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "overwrite": {
+                  "type": "boolean",
+                  "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+                }
+              }
+            },
+            "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "windows_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+                }
+              }
+            },
+            "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "unix_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+                }
+              }
+            },
+            "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_word",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .docx file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files)."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_excel",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+                },
+                "sheet_name": {
+                  "type": "string",
+                  "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_pdf",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files."
+          }
+        }
+      ],
+      "stream": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2+2?"
+        }
+      ]
+    },
+    "options": {
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "read_folder",
+            "parameters": {
+              "type": "object",
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the folder (can be relative to working directory or absolute)"
+                },
+                "max_depth": {
+                  "type": "integer",
+                  "description": "Maximum recursion depth when recursive is true. Default: 3"
+                },
+                "recursive": {
+                  "type": "boolean",
+                  "description": "If true, list subdirectories recursively. Default: false"
+                },
+                "include_hidden": {
+                  "type": "boolean",
+                  "description": "Include hidden files (starting with .). Default: false"
+                },
+                "filter_extensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only include files with these extensions (e.g., [\".js\", \".ts\"])"
+                }
+              }
+            },
+            "description": "List files and subdirectories in a folder on the local filesystem. Returns metadata including names, paths, types, sizes, and modification times."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "end_line": {
+                  "type": "integer",
+                  "description": "Read to this line number (1-indexed). Useful for large files."
+                },
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "start_line": {
+                  "type": "integer",
+                  "description": "Read from this line number (1-indexed). Useful for large files."
+                }
+              }
+            },
+            "description": "Read the contents of a text file from the local filesystem. Supports encoding options and line ranges for large files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "parameters": {
+              "type": "object",
+              "required": ["path", "content"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the file (can be relative to working directory or absolute)"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The content to write to the file."
+                },
+                "encoding": {
+                  "enum": ["utf-8", "ascii", "latin1"],
+                  "type": "string",
+                  "description": "Text encoding. Default: utf-8"
+                },
+                "overwrite": {
+                  "type": "boolean",
+                  "description": "This flags describes whether an existing file will be overwritten. If the file does not exist, this flag has no effect. If the file exists, this flag must be TRUE to over-write the file. If the file exists and this flag is FALSE, the tool function will not write the contents and will return an error. Default is FALSE."
+                }
+              }
+            },
+            "description": "Create a new file or update an existing file with the specified content. Use overwrite=true to replace existing files."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "windows_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Windows command to execute. Allowed commands: dir, del, move, rename, type, echo, cd, tree, findstr, where, ver, hostname, ipconfig, ping, tracert, nslookup, systeminfo, tasklist, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"/s /b\" for dir, \"C:\" for cd)"
+                }
+              }
+            },
+            "description": "Execute Windows command prompt commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "unix_shell",
+            "parameters": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The Unix shell command to execute. Allowed commands: ls, cat, echo, pwd, cd, tree, grep, find, which, uname, hostname, ifconfig, ip, ping, traceroute, nslookup, dig, ps, whoami, git, gh, slack"
+                },
+                "arguments": {
+                  "type": "string",
+                  "description": "Arguments to pass to the command (e.g., \"-la\" for ls, \"/etc/hosts\" for cat)"
+                }
+              }
+            },
+            "description": "Execute Unix/Linux/macOS shell commands. Only specific whitelisted commands are allowed for security. Returns the command output as a string."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_word",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .docx file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Word (.docx) file and extract plain text. Only supports .docx format (not legacy .doc files)."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_excel",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .xlsx file (can be relative to working directory or absolute)"
+                },
+                "sheet_name": {
+                  "type": "string",
+                  "description": "Optional: Specific sheet name to read. If not provided, all sheets will be read."
+                }
+              }
+            },
+            "description": "Read the contents of a Microsoft Excel (.xlsx) file and extract data as text. Only supports .xlsx format (not legacy .xls files). Returns data from all sheets in CSV format."
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_pdf",
+            "parameters": {
+              "type": "object",
+              "required": ["file_path"],
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Path to the .pdf file (can be relative to working directory or absolute)"
+                }
+              }
+            },
+            "description": "Read the contents of a PDF file and extract plain text. Works with standard PDF files."
+          }
+        }
+      ],
+      "stream": true
+    },
+    "status": "chat",
+    "createdUserId": "kong.pham@nkktech.com",
+    "tokens": 978,
+    "createdAt": "2026-03-06T07:59:13.425",
+    "updatedAt": "2026-03-06T07:59:13.425"
+  },
+  {
+    "id": "a9d46307-156a-4804-8580-10480d9a844c",
+    "threadId": "610545d1-3f9a-4722-84e4-8b911e4c888c",
+    "branchId": "1.0.0.0",
+    "model": "gpt-5.2-chat-latest",
+    "provider": "OPENAI",
+    "role": "assistant",
+    "content": "2 + 2 = **4** ✅",
+    "rawData": {
+      "ts": 1772783954810,
+      "seq": 21,
+      "text": "2 + 2 = **4** ✅",
+      "type": "done",
+      "message": {
+        "id": "chatcmpl-DGKNW8T2QFLRkRdmxmtLywuSBkijf",
+        "model": "gpt-5.2-chat-latest",
+        "usage": {
+          "total_tokens": 996,
+          "prompt_tokens": 978,
+          "completion_tokens": 18,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          },
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "object": "chat.completion.chunk",
+        "choices": [],
+        "created": 1772783954,
+        "obfuscation": "7qa9Pr",
+        "service_tier": "default",
+        "system_fingerprint": null
+      },
+      "metrics": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "timeToFirstToken": 1297,
+        "totalProcessingTime": 1384
+      },
+      "requestId": "64c3740f-d9d2-4826-9d19-8bdd0a2349fa"
+    },
+    "status": "success",
+    "createdUserId": "kong.pham@nkktech.com",
+    "tokens": 18,
+    "createdAt": "2026-03-06T07:59:14.81",
+    "updatedAt": "2026-03-06T07:59:14.81"
+  }
+]
