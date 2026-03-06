@@ -27,6 +27,7 @@
   import type { Message } from '$lib/types/thread.type';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { modelService } from '$lib/services/model.service';
+  import { projects } from '$lib/stores/project.store';
 
   // ── State ──
   let threadId = $state<string | null>(null);
@@ -54,7 +55,7 @@
   }
 
   // ── Load thread and messages when threadId changes ──
-  async function loadThread(id: string) {
+  async function loadThread(id: string, projectId?: string | null) {
     loading = true;
     error = '';
     try {
@@ -83,8 +84,15 @@
         availableModels = await modelService.getAvailableModels();
       }
 
-      // Load messages for this thread
-      const msgsResult = await threadService.getMessages(id);
+      // Determine if thread belongs to a shared project
+      let isShared = false;
+      if (projectId) {
+        const project = await projects.loadProject(projectId as import('$lib/types/app.type').GUID);
+        isShared = project?.type === 'shared';
+      }
+
+      // Load messages (notifies backend to start SSE listener if shared project)
+      const msgsResult = await threadService.getMessages(id, { isSharedProject: isShared });
       messages = msgsResult.success ? msgsResult.data : [];
     } catch (e) {
       console.error('[ThreadPage] Failed to load thread:', e);
@@ -103,10 +111,11 @@
     if (qs) {
       const params = new URLSearchParams(qs);
       const id = params.get('threadId');
+      const projectIdParam = params.get('projectId');
 
       if (id && id !== threadId) {
         threadId = id;
-        void loadThread(id);
+        void loadThread(id, projectIdParam);
       } else if (!id) {
         // No threadId - reset to new thread state
         threadId = null;

@@ -99,12 +99,42 @@ export class GuardInspector implements IMessageInspector {
         }
       }
 
+      // Check if any assistant response in this branch contains an embedded
+      // PII Check Result that overrides the guard model's verdict.
+      // This handles the case where the guard model incorrectly passes but
+      // the main LLM detects PII and appends a failing check result.
+      // Uses 'fail-context' so the UI keeps the response visible.
+      let piiOverride = false;
+      if (guardPassed) {
+        for (const { msg } of branchEntries) {
+          if (msg.role === 'assistant' && !msg.isHidden && typeof msg.content === 'string') {
+            const piiResult = this.extractPiiCheckResult(msg.content);
+            if (piiResult !== null && !piiResult.passed) {
+              guardPassed = false;
+              piiOverride = true;
+              guardErrorText =
+                piiResult.errors.length > 0
+                  ? piiResult.errors.join('; ')
+                  : 'PII detected in response';
+              break;
+            }
+          }
+        }
+      }
+
       // Annotate the kept user message with guard outcome
       const keptUser = userEntries[0]?.msg;
       if (keptUser) {
-        keptUser.guardExecution = guardPassed ? 'pass' : 'fail';
+        keptUser.guardExecution = guardPassed ? 'pass' : piiOverride ? 'fail-context' : 'fail';
         keptUser.guardMessageId = guardResponseId;
         keptUser.guardError = guardErrorText;
+      }
+
+      // Strip PII Check Result annotation from visible assistant responses
+      for (const { msg } of branchEntries) {
+        if (msg.role === 'assistant' && !msg.isHidden && typeof msg.content === 'string') {
+          msg.content = this.stripGuardAnnotation(msg.content);
+        }
       }
     }
 
@@ -129,45 +159,73 @@ export class GuardInspector implements IMessageInspector {
   /**
    * If content is a guard response, return whether the guard passed.
    * Returns `null` when content is not a guard response.
-   * Supports both object and double-encoded (JSON-string) `response` values,
-   * and both `errors` (array) and `reason` (string) variants.
+   * Supports:
+   *   - Wrapped format: `{ response: { passed, errors?, reason? } }`
+   *   - Double-encoded: `{ response: "{ \"passed\": ... }" }`
+   *   - Top-level format: `{ passed, errors? }` (no `response` wrapper)
    */
   private getGuardPassed(content: unknown): boolean | null {
-    if (!content || typeof content !== 'object' || !('response' in content)) return null;
+    if (!content || typeof content !== 'object') return null;
 
-    let response = (content as { response: unknown }).response;
+    // Try wrapped format first (e.g. Ollama wrapper with `response` key)
+    if ('response' in content) {
+      let response = (content as { response: unknown }).response;
 
-    if (typeof response === 'string') {
-      try {
-        response = JSON.parse(response);
-      } catch {
-        return null;
+      if (typeof response === 'string') {
+        try {
+          response = JSON.parse(response);
+        } catch {
+          return null;
+        }
+      }
+
+      if (response && typeof response === 'object' && 'passed' in response) {
+        return !!(response as { passed: unknown }).passed;
       }
     }
 
-    if (!response || typeof response !== 'object' || !('passed' in response)) return null;
+    // Try top-level format: { passed: boolean, errors?: string[] }
+    // Require both `passed` and `errors` keys to avoid false positives.
+    if ('passed' in content && 'errors' in content) {
+      const obj = content as { passed: unknown };
+      if (typeof obj.passed === 'boolean') {
+        return obj.passed;
+      }
+    }
 
-    return !!(response as { passed: unknown }).passed;
+    return null;
   }
 
   /**
    * Extract human-readable error text from a guard response message's content.
+   * Supports both wrapped (`{ response: { errors } }`) and top-level (`{ errors }`) formats.
    * Falls back to a generic message if parsing fails.
    */
   private extractGuardError(content: string): string {
     try {
       const parsed = this.parseContent(content);
-      if (!parsed || typeof parsed !== 'object' || !('response' in parsed)) {
+      if (!parsed || typeof parsed !== 'object') {
         return 'Request blocked by guard';
       }
 
-      let response = (parsed as { response: unknown }).response;
-      if (typeof response === 'string') {
-        response = JSON.parse(response);
+      let target: unknown = null;
+
+      // Try wrapped format first
+      if ('response' in parsed) {
+        let response = (parsed as { response: unknown }).response;
+        if (typeof response === 'string') {
+          response = JSON.parse(response);
+        }
+        target = response;
       }
 
-      if (response && typeof response === 'object') {
-        const r = response as { errors?: string[]; reason?: string };
+      // Fall back to top-level format
+      if (!target && 'passed' in parsed) {
+        target = parsed;
+      }
+
+      if (target && typeof target === 'object') {
+        const r = target as { errors?: string[]; reason?: string };
         if (r.errors?.length) {
           return r.errors.join('; ');
         }
@@ -179,6 +237,46 @@ export class GuardInspector implements IMessageInspector {
       // Content wasn't parseable
     }
     return 'Request blocked by guard';
+  }
+
+  /**
+   * Extract an embedded PII Check Result from an assistant response's text content.
+   * The server may append a block like:
+   *   **PII Check Result:**
+   *   ```json
+   *   { "passed": false, "errors": ["Social Security Number"] }
+   *   ```
+   * Returns the parsed result or null if not found.
+   */
+  private extractPiiCheckResult(content: string): { passed: boolean; errors: string[] } | null {
+    // Match the JSON code block following "PII Check Result"
+    const match = /\*\*PII Check Result:?\*\*[\s\S]*?```json\s*([\s\S]*?)```/.exec(content);
+    if (!match?.[1]) return null;
+
+    try {
+      const parsed = JSON.parse(match[1]) as unknown;
+      if (parsed && typeof parsed === 'object' && 'passed' in parsed) {
+        const obj = parsed as { passed: unknown; errors?: unknown[] };
+        return {
+          passed: !!obj.passed,
+          errors: Array.isArray(obj.errors)
+            ? obj.errors.filter((e): e is string => typeof e === 'string')
+            : [],
+        };
+      }
+    } catch {
+      // JSON in the code block wasn't parseable
+    }
+    return null;
+  }
+
+  /**
+   * Strip guard annotation text (e.g. PII Check Result) appended by the server
+   * to assistant response content. Removes the `**PII Check Result:**` block
+   * and its fenced JSON code block.
+   */
+  private stripGuardAnnotation(text: string): string {
+    return text.replace(/\s*\*\*PII Check Result:?\*\*[\s\S]*?```[\s\S]*?```/g, '').trim();
   }
 
   private isErrorPayload(content: unknown): boolean {

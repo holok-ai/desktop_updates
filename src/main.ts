@@ -8,6 +8,7 @@ import { APP_THEME_MODE } from '$lib/constants/app.constant';
 import type { AppThemeMode } from '$lib/types/app.type';
 import { initTitleGenerationListeners } from '$lib/stores/titleGeneration.store';
 import { initThreadObserver } from '$lib/observer/thread-observer';
+import { initNotificationActivityListeners } from '$lib/services/notification-activity.service';
 import App from './App.svelte';
 
 // Apply persisted theme before mounting to avoid flash
@@ -25,6 +26,9 @@ async function bootstrap(): Promise<void> {
 
   // Initialize thread observer with background tasks
   initThreadObserver();
+
+  // Initialize notification activity listeners for shared projects
+  initNotificationActivityListeners();
 
   const appElement = document.getElementById('app');
   if (appElement === null) {

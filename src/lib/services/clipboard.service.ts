@@ -125,7 +125,6 @@ export async function copyResponse(content: string, format?: CopyFormat): Promis
 
 /** Copy code block (raw code without backticks) */
 export async function copyCode(code: string): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   const didSucceed = await copyToClipboard(code, false);
   if (didSucceed) {
     toastStore.show('Code copied', { variant: 'success' });

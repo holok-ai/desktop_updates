@@ -79,12 +79,28 @@ export interface ThreadAPI {
   ) => Promise<ApiResponse<Thread>>;
 
   // Get messages for a thread (persisted)
-  getMessages: (id: string) => Promise<ApiResponse<Message[]>>;
+  getMessages: (
+    id: string,
+    options?: { isSharedProject?: boolean },
+  ) => Promise<ApiResponse<Message[]>>;
 
   // Listen to thread events
   onThreadCreated: (callback: (thread: Thread) => void) => () => void;
   onThreadUpdated: (callback: (thread: Thread) => void) => () => void;
   onThreadDeleted: (callback: (threadId: string) => void) => () => void;
+  onThreadMessagesUpdated: (
+    callback: (data: { threadId: string; requestId: string; messages: Message[] }) => void,
+  ) => () => void;
+  onNotificationEvent: (
+    callback: (data: {
+      event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+      threadId: string | null;
+      branchId: string | null;
+      userId: string;
+      requestId: string | null;
+      message: string | null;
+    }) => void,
+  ) => () => void;
   // Listen to title generation events
   onTitleGenerationStarted: (callback: (data: { threadId: string }) => void) => () => void;
   onTitleGenerationFinished: (
@@ -675,7 +691,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     softDelete: (id: string) => ipcRenderer.invoke('thread:softDelete', id),
 
-    getMessages: (id: string) => ipcRenderer.invoke('thread:getMessages', id),
+    getMessages: (id: string, options?: { isSharedProject?: boolean }) =>
+      ipcRenderer.invoke('thread:getMessages', id, options),
 
     // Event listeners with cleanup function
     onThreadCreated: (callback: (thread: Thread) => void): (() => void) => {
@@ -703,6 +720,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
       return (): void => {
         ipcRenderer.removeListener('thread:deleted', subscription);
+      };
+    },
+
+    onThreadMessagesUpdated: (
+      callback: (data: { threadId: string; requestId: string; messages: Message[] }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: { threadId: string; requestId: string; messages: Message[] },
+      ): void => callback(data);
+      ipcRenderer.on('thread:messagesUpdated', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:messagesUpdated', subscription);
+      };
+    },
+
+    onNotificationEvent: (
+      callback: (data: {
+        event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+        threadId: string | null;
+        branchId: string | null;
+        userId: string;
+        requestId: string | null;
+        message: string | null;
+      }) => void,
+    ): (() => void) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        data: {
+          event: 'started' | 'completed' | 'guard_started' | 'guard_passed' | 'guard_failed';
+          threadId: string | null;
+          branchId: string | null;
+          userId: string;
+          requestId: string | null;
+          message: string | null;
+        },
+      ): void => callback(data);
+      ipcRenderer.on('thread:notificationEvent', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('thread:notificationEvent', subscription);
       };
     },
 

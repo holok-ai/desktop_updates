@@ -19,6 +19,10 @@
     files?: string[];
     /** Font size in pixels from settings */
     fontSize?: number;
+    /** Guard execution status for the request that produced this response */
+    guardStatus?: 'none' | 'pass' | 'fail' | 'fail-context';
+    /** Guard error reason when guardStatus is 'fail' or 'fail-context' */
+    guardError?: string;
   }
 
   let {
@@ -28,9 +32,12 @@
     tools = [],
     files = [],
     fontSize = 14,
+    guardStatus = 'none',
+    guardError = '',
   }: Props = $props();
 
   let toolsExpanded = $state(false);
+  let guardExpanded = $state(false);
 
   let alignClass = $derived.by(() => {
     switch (chatLayout) {
@@ -65,16 +72,39 @@
       <ToolCallDetails {tools} />
     {/if}
 
-    {#if !isStreaming && tools.length > 0}
-      {#if toolsExpanded}
+    {#if !isStreaming && (guardStatus !== 'none' || tools.length > 0)}
+      {#if toolsExpanded && tools.length > 0}
         <ToolCallDetails {tools} />
       {/if}
+      {#if guardExpanded && (guardStatus === 'fail' || guardStatus === 'fail-context') && guardError}
+        <div class="guard-error-detail">
+          <span class="guard-error-text">{guardError}</span>
+        </div>
+      {/if}
       <div class="tools-chip-row">
-        <button class="tools-chip" onclick={() => (toolsExpanded = !toolsExpanded)}>
-          <i class="pi pi-cog"></i>
-          <span>{tools.length} call{tools.length !== 1 ? 's' : ''}</span>
-          <i class="pi {toolsExpanded ? 'pi-chevron-up' : 'pi-chevron-down'} chevron-icon"></i>
-        </button>
+        {#if guardStatus === 'pass'}
+          <span class="guard-chip guard-pass">
+            <i class="pi pi-shield"></i>
+            <span>Guard: Pass</span>
+          </span>
+        {:else if guardStatus === 'fail' || guardStatus === 'fail-context'}
+          <button
+            class="guard-chip guard-fail"
+            title={guardError || 'Guard failed'}
+            onclick={() => (guardExpanded = !guardExpanded)}
+          >
+            <i class="pi pi-shield"></i>
+            <span>Guard: Fail</span>
+            <i class="pi {guardExpanded ? 'pi-chevron-up' : 'pi-chevron-down'} chevron-icon"></i>
+          </button>
+        {/if}
+        {#if tools.length > 0}
+          <button class="tools-chip" onclick={() => (toolsExpanded = !toolsExpanded)}>
+            <i class="pi pi-cog"></i>
+            <span>{tools.length} call{tools.length !== 1 ? 's' : ''}</span>
+            <i class="pi {toolsExpanded ? 'pi-chevron-up' : 'pi-chevron-down'} chevron-icon"></i>
+          </button>
+        {/if}
       </div>
     {/if}
 
@@ -168,6 +198,7 @@
   /* Tools chip (shown after streaming completes) */
   .tools-chip-row {
     display: flex;
+    gap: 0.375rem;
   }
 
   .tools-chip {
@@ -194,6 +225,54 @@
 
   .chevron-icon {
     opacity: 0.6;
+  }
+
+  /* Guard status chip */
+  .guard-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    border-radius: 6px;
+    border: 1px solid;
+  }
+
+  .guard-chip i {
+    font-size: 0.65rem;
+  }
+
+  .guard-pass {
+    background: color-mix(in srgb, rgb(34, 197, 94) 10%, transparent);
+    border-color: color-mix(in srgb, rgb(34, 197, 94) 30%, transparent);
+    color: rgb(22, 163, 74);
+  }
+
+  .guard-fail {
+    background: color-mix(in srgb, rgb(239, 68, 68) 10%, transparent);
+    border-color: color-mix(in srgb, rgb(239, 68, 68) 30%, transparent);
+    color: rgb(220, 38, 38);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .guard-fail:hover {
+    background: color-mix(in srgb, rgb(239, 68, 68) 18%, transparent);
+  }
+
+  /* Guard error detail (expandable) */
+  .guard-error-detail {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    background: color-mix(in srgb, rgb(239, 68, 68) 6%, transparent);
+    border: 1px solid color-mix(in srgb, rgb(239, 68, 68) 20%, transparent);
+    border-radius: 6px;
+    color: rgb(220, 38, 38);
+  }
+
+  .guard-error-text {
+    word-break: break-word;
   }
 
   /* File outputs */

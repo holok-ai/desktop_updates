@@ -21,6 +21,12 @@
   import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
   import type { ToolCall } from '$lib/types/tool-call.type';
   import { threadStreamService } from '$lib/services/thread-stream.service';
+  import {
+    collaboratorActivityStore,
+    getCollaboratorActivities,
+  } from '$lib/stores/collaborator-activity.store';
+  import { notificationEventStore } from '$lib/stores/notification-event.store';
+  import CollaboratorActivityIndicator from './CollaboratorActivityIndicator.svelte';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -102,6 +108,19 @@
   //  let hasModel = $derived(Boolean(modelName && modelProvider));
   let isNewThread = $derived(!thread);
   let threadId = $derived(thread?.id ?? null);
+
+  // Collaborator activity for the current thread (reactive via store subscription)
+  let collaboratorActivities = $derived.by(() => {
+    // Read store to establish reactive dependency
+    void $collaboratorActivityStore;
+    return threadId ? getCollaboratorActivities(threadId) : [];
+  });
+
+  // Notification events (guard passed/failed) for the current thread
+  let notificationEvents = $derived.by(() => {
+    const events = $notificationEventStore;
+    return threadId ? events.filter((e) => e.threadId === threadId) : [];
+  });
 
   // Get the branchId of the last displayed message
   let lastMessageBranchId = $derived.by(() => {
@@ -1155,6 +1174,20 @@
         />
       {/if}
     {/each}
+
+    <!-- Collaborator activity indicators for shared project threads -->
+    {#if !isStreaming && collaboratorActivities.length > 0}
+      {#each collaboratorActivities as activity (activity.userId)}
+        <CollaboratorActivityIndicator userId={activity.userId} />
+      {/each}
+    {/if}
+
+    <!-- Guard / notification event indicators -->
+    {#if notificationEvents.length > 0}
+      {#each notificationEvents as event (event.id)}
+        <CollaboratorActivityIndicator variant={event.type} message={event.message} />
+      {/each}
+    {/if}
 
     <!-- Loading indicator while waiting for first streaming token -->
     {#if isStreaming && responseText === '' && activeToolCalls.length === 0}
