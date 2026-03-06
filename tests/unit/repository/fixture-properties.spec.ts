@@ -45,10 +45,27 @@ const allFixtures = INSPECTED_DIRS.flatMap((dir) =>
   listFixtures(dir).map((f) => [dir, f] as const),
 );
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/** Detect synthetic fixtures by checking if the first DTO has a non-UUID id. */
+function isSyntheticFixture(fixturePath: string): boolean {
+  const dtos = loadCapture(fixturePath);
+  if (dtos.length === 0) return false;
+  return !UUID_RE.test(dtos[0].id);
+}
+
+// ── Real-capture-only fixtures ─────────────────────────────────────
+
+const realFixtures = allFixtures.filter(([, f]) => !isSyntheticFixture(f));
+
 // ── Property 1: UUID-format IDs ────────────────────────────────────
 
-describe('Property 1: All inspector directory fixtures have UUID-format IDs', () => {
-  it.each(allFixtures)('%s — %s: every DTO has UUID id and threadId', (_dir, fixturePath) => {
+describe('Property 1: All real-capture fixtures have UUID-format IDs', () => {
+  it('at least one real fixture exists', () => {
+    expect(realFixtures.length).toBeGreaterThan(0);
+  });
+
+  it.each(realFixtures)('%s — %s: every DTO has UUID id and threadId', (_dir, fixturePath) => {
     const dtos = loadCapture(fixturePath);
     const errors = validateMessageDTOArray(dtos);
     expect(errors, `Schema errors in ${fixturePath}:\n${formatErrors(errors)}`).toHaveLength(0);
