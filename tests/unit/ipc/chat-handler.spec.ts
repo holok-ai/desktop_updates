@@ -6,7 +6,11 @@
  * Verifies every handler returns ApiResponse<T>.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { expectApiSuccessVoid, expectApiFail, expectApiSuccess } from '../../helpers/api-response.helpers';
+import {
+  expectApiSuccessVoid,
+  expectApiFail,
+  expectApiSuccess,
+} from '../../helpers/api-response.helpers';
 
 // ── Capture IPC handlers ──────────────────────────────────────────
 
@@ -15,7 +19,9 @@ let handlers: Record<string, Function> = {};
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/mock'), on: vi.fn(), whenReady: () => Promise.resolve() },
   ipcMain: {
-    handle: (channel: string, fn: Function) => { handlers[channel] = fn; },
+    handle: (channel: string, fn: Function) => {
+      handlers[channel] = fn;
+    },
     removeHandler: vi.fn(),
   },
   BrowserWindow: { getAllWindows: vi.fn(() => []) },
@@ -103,7 +109,12 @@ beforeEach(async () => {
 
   // Default mocks for successful createServiceForThread
   mockThreadRepo.loadThread.mockResolvedValue(fakeThread);
-  mockModelRepo.getAgentById.mockResolvedValue({ success: true, data: fakeAgent, errorCode: 0, errorText: '' });
+  mockModelRepo.getAgentById.mockResolvedValue({
+    success: true,
+    data: fakeAgent,
+    errorCode: 0,
+    errorText: '',
+  });
   mockChatFn.mockResolvedValue(undefined);
 
   const mod = await import('../../../src-electron/ipc-handlers/chat-handler');
@@ -130,7 +141,11 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
   describe('chat:createServiceForThread', () => {
     it('returns ApiResponse<void> on success', async () => {
       const result = await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4', '/work/dir',
+        null,
+        'thread-1',
+        'branch-1',
+        'gpt-4',
+        '/work/dir',
       );
 
       expectApiSuccessVoid(result);
@@ -140,7 +155,10 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
       mockThreadRepo.loadThread.mockResolvedValue(null);
 
       const result = await handlers['chat:createServiceForThread'](
-        null, 'nonexistent', 'branch-1', 'gpt-4',
+        null,
+        'nonexistent',
+        'branch-1',
+        'gpt-4',
       );
 
       expectApiFail(result, -1);
@@ -149,11 +167,17 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
 
     it('returns apiFail when agent not found', async () => {
       mockModelRepo.getAgentById.mockResolvedValue({
-        success: false, data: null, errorCode: -1, errorText: 'Agent not found',
+        success: false,
+        data: null,
+        errorCode: -1,
+        errorText: 'Agent not found',
       });
 
       const result = await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4',
+        null,
+        'thread-1',
+        'branch-1',
+        'gpt-4',
       );
 
       expectApiFail(result, -1);
@@ -164,9 +188,7 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
   describe('chat:send', () => {
     it('returns ApiResponse<void> on success', async () => {
       // First create the service
-      await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
-      );
+      await handlers['chat:createServiceForThread'](null, 'thread-1', 'branch-1', 'gpt-4', '/work');
 
       const event = { sender: { send: vi.fn() } };
       const request = { branch_id: 'branch-1', messages: [], model: 'gpt-4' };
@@ -203,9 +225,7 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
         onToken(' world');
       });
 
-      await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
-      );
+      await handlers['chat:createServiceForThread'](null, 'thread-1', 'branch-1', 'gpt-4', '/work');
 
       const sendSpy = vi.fn();
       const event = { sender: { send: sendSpy } };
@@ -214,19 +234,21 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
       await handlers['chat:send'](event, 'thread-1', request);
 
       expect(sendSpy).toHaveBeenCalledWith('chat:token', {
-        threadId: 'thread-1', branchId: 'branch-1', token: 'hello',
+        threadId: 'thread-1',
+        branchId: 'branch-1',
+        token: 'hello',
       });
       expect(sendSpy).toHaveBeenCalledWith('chat:token', {
-        threadId: 'thread-1', branchId: 'branch-1', token: ' world',
+        threadId: 'thread-1',
+        branchId: 'branch-1',
+        token: ' world',
       });
     });
 
     it('returns apiFail when chat throws', async () => {
       mockChatFn.mockRejectedValue(new Error('Provider timeout'));
 
-      await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
-      );
+      await handlers['chat:createServiceForThread'](null, 'thread-1', 'branch-1', 'gpt-4', '/work');
 
       const event = { sender: { send: vi.fn() } };
       const request = { branch_id: 'branch-1', messages: [] };
@@ -241,9 +263,7 @@ describe('Chat IPC Handlers — ApiResponse<T> contract', () => {
   describe('chat:getAuditLogs', () => {
     it('returns ApiResponse<unknown[]> on success', async () => {
       // Create service first
-      await handlers['chat:createServiceForThread'](
-        null, 'thread-1', 'branch-1', 'gpt-4', '/work',
-      );
+      await handlers['chat:createServiceForThread'](null, 'thread-1', 'branch-1', 'gpt-4', '/work');
 
       const result = handlers['chat:getAuditLogs'](null, 'thread-1', 'branch-1');
 

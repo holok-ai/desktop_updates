@@ -71,9 +71,7 @@ describe('DesktopChatService', () => {
     vi.clearAllMocks();
     mockSupportsToolCalling.mockReturnValue(false);
 
-    const mod = await import(
-      '../../../src-electron/services/chat/desktop-chat-service'
-    );
+    const mod = await import('../../../src-electron/services/chat/desktop-chat-service');
     DesktopChatService = mod.DesktopChatService;
     service = new DesktopChatService('ollama', defaultConfig);
   });
@@ -88,11 +86,7 @@ describe('DesktopChatService', () => {
     });
 
     it('calls setTools with empty tools when tool calling is not supported', () => {
-      expect(mockSetTools).toHaveBeenCalledWith(
-        [],
-        expect.any(Function),
-        expect.any(Function),
-      );
+      expect(mockSetTools).toHaveBeenCalledWith([], expect.any(Function), expect.any(Function));
     });
 
     it('calls setTools with tool definitions when tool calling is supported', async () => {
@@ -101,9 +95,7 @@ describe('DesktopChatService', () => {
       const toolDefs = [{ name: 'read_file', description: 'Read a file', inputSchema: {} }];
       mockGetToolDefinitions.mockReturnValue(toolDefs);
 
-      const mod = await import(
-        '../../../src-electron/services/chat/desktop-chat-service'
-      );
+      const mod = await import('../../../src-electron/services/chat/desktop-chat-service');
       new mod.DesktopChatService('openai', {
         url: 'https://api.openai.com',
         apiKey: 'sk-test',
@@ -119,9 +111,7 @@ describe('DesktopChatService', () => {
 
     it('uses provided working directory', async () => {
       vi.clearAllMocks();
-      const mod = await import(
-        '../../../src-electron/services/chat/desktop-chat-service'
-      );
+      const mod = await import('../../../src-electron/services/chat/desktop-chat-service');
       const svc = new mod.DesktopChatService('ollama', defaultConfig, '/custom/path');
 
       // Service was constructed without error — working directory stored internally

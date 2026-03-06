@@ -93,7 +93,10 @@ class ProjectMemberApiService {
       // Check if response is actually JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        return apiFail(-1, `API returned non-JSON response (${contentType}). Check if endpoint exists.`);
+        return apiFail(
+          -1,
+          `API returned non-JSON response (${contentType}). Check if endpoint exists.`,
+        );
       }
 
       const data = (await response.json()) as MemberDTO[];
@@ -145,7 +148,10 @@ class ProjectMemberApiService {
       // Check if response is actually JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        return apiFail(-1, `API returned non-JSON response (${contentType}). Check if endpoint exists.`);
+        return apiFail(
+          -1,
+          `API returned non-JSON response (${contentType}). Check if endpoint exists.`,
+        );
       }
 
       const data = (await response.json()) as MemberDTO;
@@ -159,7 +165,10 @@ class ProjectMemberApiService {
   /**
    * Remove a member from a project
    */
-  public async removeProjectMember(projectId: string, memberId: string): Promise<ApiResponse<void>> {
+  public async removeProjectMember(
+    projectId: string,
+    memberId: string,
+  ): Promise<ApiResponse<void>> {
     const authService = getAuthServiceInternal();
     const settingsService = getSettingsServiceInternal();
 

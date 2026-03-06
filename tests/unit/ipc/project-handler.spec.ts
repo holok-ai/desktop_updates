@@ -8,7 +8,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiOk, apiFail } from '../../../src-electron/types/api-response';
-import { expectApiSuccess, expectApiFail, expectApiSuccessVoid } from '../../helpers/api-response.helpers';
+import {
+  expectApiSuccess,
+  expectApiFail,
+  expectApiSuccessVoid,
+} from '../../helpers/api-response.helpers';
 import type { Project } from '../../../src-electron/types/project.types';
 
 // ── Capture IPC handlers ──────────────────────────────────────────
@@ -22,7 +26,9 @@ const fakeWindow = { webContents: { send: sendSpy } };
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/mock'), on: vi.fn(), whenReady: () => Promise.resolve() },
   ipcMain: {
-    handle: (channel: string, fn: Function) => { handlers[channel] = fn; },
+    handle: (channel: string, fn: Function) => {
+      handlers[channel] = fn;
+    },
     removeHandler: vi.fn(),
   },
   BrowserWindow: {
@@ -108,10 +114,17 @@ describe('Project IPC Handlers — ApiResponse<T> contract', () => {
   describe('handler registration', () => {
     it('registers all expected channels', () => {
       const expected = [
-        'project:create', 'project:list', 'project:loadProjects',
-        'project:listPersonalProjects', 'project:listSharedProjects',
-        'project:get', 'project:getThreads', 'project:update',
-        'project:delete', 'project:searchUsers', 'project:addMember',
+        'project:create',
+        'project:list',
+        'project:loadProjects',
+        'project:listPersonalProjects',
+        'project:listSharedProjects',
+        'project:get',
+        'project:getThreads',
+        'project:update',
+        'project:delete',
+        'project:searchUsers',
+        'project:addMember',
         'project:removeMember',
       ];
       for (const channel of expected) {
@@ -314,7 +327,9 @@ describe('Project IPC Handlers — ApiResponse<T> contract', () => {
     it('returns apiFail when repository fails', async () => {
       mockProjectRepo.deleteProject.mockResolvedValue(apiFail(404, 'Not found'));
 
-      const result = await handlers['project:delete'](null, 'nonexistent', { deleteThreads: false });
+      const result = await handlers['project:delete'](null, 'nonexistent', {
+        deleteThreads: false,
+      });
 
       expectApiFail(result, 404);
     });
@@ -383,7 +398,10 @@ describe('Project IPC Handlers — ApiResponse<T> contract', () => {
       const member = { id: 'm1', userId: 'u1', role: 'editor' };
       mockProjectRepo.addMember.mockResolvedValue(apiOk(member));
 
-      const result = await handlers['project:addMember'](null, 'proj-1', { userId: 'u1', role: 'editor' });
+      const result = await handlers['project:addMember'](null, 'proj-1', {
+        userId: 'u1',
+        role: 'editor',
+      });
 
       expectApiSuccess(result);
       expect(result.data.userId).toBe('u1');
@@ -400,7 +418,10 @@ describe('Project IPC Handlers — ApiResponse<T> contract', () => {
     it('returns apiFail on permission error', async () => {
       mockProjectRepo.addMember.mockResolvedValue(apiFail(403, 'Forbidden'));
 
-      const result = await handlers['project:addMember'](null, 'proj-1', { userId: 'u1', role: 'editor' });
+      const result = await handlers['project:addMember'](null, 'proj-1', {
+        userId: 'u1',
+        role: 'editor',
+      });
 
       expectApiFail(result, 403);
     });
@@ -441,10 +462,17 @@ describe('Project IPC Handlers — ApiResponse<T> contract', () => {
       mod.unregisterProjectHandlers();
 
       const expectedChannels = [
-        'project:create', 'project:list', 'project:loadProjects',
-        'project:listPersonalProjects', 'project:listSharedProjects',
-        'project:get', 'project:getThreads', 'project:update',
-        'project:delete', 'project:searchUsers', 'project:addMember',
+        'project:create',
+        'project:list',
+        'project:loadProjects',
+        'project:listPersonalProjects',
+        'project:listSharedProjects',
+        'project:get',
+        'project:getThreads',
+        'project:update',
+        'project:delete',
+        'project:searchUsers',
+        'project:addMember',
         'project:removeMember',
       ];
       for (const channel of expectedChannels) {

@@ -177,7 +177,6 @@ export class TitleValidationService {
 
     return sanitized;
   }
-
 }
 
 // Export singleton instance

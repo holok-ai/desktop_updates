@@ -101,7 +101,10 @@ test.describe.serial('Sidebar Recent', () => {
 
     const items = recentSection.locator('.recent-thread-item');
     const count = await items.count();
-    expect(count, 'Expected at least one recent thread; empty list may indicate a bug in recent-threads loading').toBeGreaterThan(0);
+    expect(
+      count,
+      'Expected at least one recent thread; empty list may indicate a bug in recent-threads loading',
+    ).toBeGreaterThan(0);
 
     const firstItem = items.first();
     await firstItem.click();

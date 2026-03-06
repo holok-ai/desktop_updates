@@ -57,9 +57,7 @@ describe('ThreadContext.normalizeBranchId', () => {
 
 describe('ThreadContext.getNextVariationBranchId', () => {
   it('returns first variation when no existing variations', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '1.0.0', role: 'user' }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '1.0.0', role: 'user' })];
     expect(ThreadContext.getNextVariationBranchId('1.0.0', messages)).toBe('1.1.0');
   });
 
@@ -80,9 +78,7 @@ describe('ThreadContext.getNextVariationBranchId', () => {
   });
 
   it('works with 2-part base branchId (normalizes first)', () => {
-    const messages = [
-      msg({ id: 'u1', branchId: '2.0', role: 'user' }),
-    ];
+    const messages = [msg({ id: 'u1', branchId: '2.0', role: 'user' })];
     expect(ThreadContext.getNextVariationBranchId('2.0', messages)).toBe('2.1.0');
   });
 
