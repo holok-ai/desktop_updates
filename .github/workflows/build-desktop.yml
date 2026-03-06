@@ -1,0 +1,211 @@
+name: Build Desktop
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options:
+          - all
+          - mac
+          - win
+          - linux
+
+# Cancel in-progress runs for the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write  # OIDC for AWS
+
+jobs:
+  build-check:
+    name: Build Check
+    # Skip for manual dispatch builds (packaging only)
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+
+      - run: npm install
+
+      - run: npm run build:prod
+
+  determine-matrix:
+    name: Determine Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should-package: ${{ steps.set-matrix.outputs.should-package }}
+    steps:
+      - id: set-matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ALL_PLATFORMS='{"os":"macos-latest","platform":"mac","cmd":"package:mac"},{"os":"windows-latest","platform":"win","cmd":"package:win"},{"os":"ubuntu-latest","platform":"linux","cmd":"package:linux"}'
+
+          # workflow_dispatch: use the selected platform input
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            PLATFORM="${{ inputs.platform }}"
+            case "$PLATFORM" in
+              all) INCLUDES="$ALL_PLATFORMS" ;;
+              mac) INCLUDES='{"os":"macos-latest","platform":"mac","cmd":"package:mac"}' ;;
+              win) INCLUDES='{"os":"windows-latest","platform":"win","cmd":"package:win"}' ;;
+              linux) INCLUDES='{"os":"ubuntu-latest","platform":"linux","cmd":"package:linux"}' ;;
+            esac
+            echo "matrix={\"include\":[${INCLUDES}]}" >> "$GITHUB_OUTPUT"
+            echo "should-package=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Always build all platforms on main push or tag
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "matrix={\"include\":[${ALL_PLATFORMS}]}" >> "$GITHUB_OUTPUT"
+            echo "should-package=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For pull_request events, no packaging (build-check only)
+          echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo "should-package=false" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package (${{ matrix.platform }})
+    needs: [determine-matrix]
+    if: needs.determine-matrix.outputs.should-package == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.determine-matrix.outputs.matrix) }}
+    outputs:
+      artifacts-mac: ${{ steps.list-artifacts.outputs.artifacts-mac }}
+      artifacts-win: ${{ steps.list-artifacts.outputs.artifacts-win }}
+      artifacts-linux: ${{ steps.list-artifacts.outputs.artifacts-linux }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+
+      - name: Install dependencies
+        shell: bash
+        run: npm install
+
+      # TODO: Uncomment to enable macOS code signing
+      # - name: Import Apple signing certificate
+      #   if: matrix.platform == 'mac'
+      #   env:
+      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      #   run: |
+      #     echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+      #     security create-keychain -p "" build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p "" build.keychain
+      #     security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+      - name: Build and package
+        shell: bash
+        run: npm run "$BUILD_CMD"
+        env:
+          BUILD_CMD: ${{ matrix.cmd }}
+          # TODO: Uncomment to enable macOS notarization
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # TODO: Uncomment to enable per-platform E2E tests
+      # - name: Run E2E tests
+      #   shell: bash
+      #   run: npm run test:e2e
+      #   env:
+      #     CI: true
+
+      - name: List artifacts
+        id: list-artifacts
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          cd release
+          FILES=$(find . -maxdepth 1 -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" \) | sed 's|^\./||' | tr '\n' ',')
+          echo "artifacts-${PLATFORM}=${FILES}" >> "$GITHUB_OUTPUT"
+          echo "Found artifacts: $FILES"
+
+      - name: Determine S3 destination
+        id: s3-dest
+        shell: bash
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            echo "bucket=artifacts.holokai.ai" >> "$GITHUB_OUTPUT"
+            echo "prefix=release/desktop/${GIT_REF_NAME}" >> "$GITHUB_OUTPUT"
+          elif [[ "$GIT_REF" == "refs/heads/main" ]]; then
+            SHORT_COMMIT="${GIT_SHA:0:7}"
+            echo "bucket=artifacts.holokai.dev" >> "$GITHUB_OUTPUT"
+            echo "prefix=build/desktop/main/${SHORT_COMMIT}" >> "$GITHUB_OUTPUT"
+          else
+            SHORT_COMMIT="${GIT_SHA:0:7}"
+            BRANCH="${GIT_REF_NAME}"
+            echo "bucket=artifacts.holokai.dev" >> "$GITHUB_OUTPUT"
+            echo "prefix=build/desktop/${BRANCH}/${SHORT_COMMIT}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.AWS_GITHUB_ARTIFACTS_PUBLISHER_RELEASE_ARN || secrets.AWS_GITHUB_ARTIFACTS_PUBLISHER_DEV_ARN }}
+          aws-region: us-east-1
+
+      - name: Upload to S3
+        shell: bash
+        env:
+          BUCKET: ${{ steps.s3-dest.outputs.bucket }}
+          PREFIX: ${{ steps.s3-dest.outputs.prefix }}
+        run: |
+          set -euo pipefail
+          cd release || { echo "ERROR: release directory not found"; exit 1; }
+          for file in *.dmg *.zip *.exe *.AppImage; do
+            [ -f "$file" ] || continue
+            echo "Uploading $file to s3://${BUCKET}/${PREFIX}/${file}"
+            aws s3 cp "$file" "s3://${BUCKET}/${PREFIX}/${file}"
+          done
+
+      - name: Print download URLs
+        shell: bash
+        env:
+          BUCKET: ${{ steps.s3-dest.outputs.bucket }}
+          PREFIX: ${{ steps.s3-dest.outputs.prefix }}
+        run: |
+          set -euo pipefail
+          BASE_URL="https://${BUCKET}/${PREFIX}"
+
+          echo "### Download URLs" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          cd release
+          for file in *.dmg *.zip *.exe *.AppImage; do
+            [ -f "$file" ] || continue
+            ENCODED=$(printf '%s' "$file" | sed 's/ /%20/g')
+            echo "- [${file}](${BASE_URL}/${ENCODED})" >> "$GITHUB_STEP_SUMMARY"
+          done
