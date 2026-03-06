@@ -32,7 +32,8 @@ export type LLMStatus =
   | 'timeout'
   | 'partial'
   | 'rate_limited'
-  | 'invalid_request';
+  | 'invalid_request'
+  | 'responses';
 
 /**
  * Message DTO from Moku API

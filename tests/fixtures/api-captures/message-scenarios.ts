@@ -1,4 +1,8 @@
 /**
+ * @deprecated — Peter's Rule: all fixture JSON must come from live Desktop
+ * session captures. Use CAPTURE_API_DATA=true npm run dev instead.
+ * See .kiro/specs/replace-synthetic-fixtures/requirements.md.
+ *
  * Typed scenario builders for MessageDTO test data.
  *
  * These produce MessageDTO[] arrays representing specific API scenarios.

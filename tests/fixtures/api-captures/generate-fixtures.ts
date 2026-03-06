@@ -1,4 +1,8 @@
 /**
+ * @deprecated — Peter's Rule: all fixture JSON must come from live Desktop
+ * session captures. Use CAPTURE_API_DATA=true npm run dev instead.
+ * See .kiro/specs/replace-synthetic-fixtures/requirements.md.
+ *
  * One-shot script to generate JSON fixture files from the typed scenario builders.
  * Run with: npx tsx tests/fixtures/api-captures/generate-fixtures.ts
  *

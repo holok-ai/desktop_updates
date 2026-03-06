@@ -81,6 +81,34 @@ function dtoHasToolCalls(dto: { rawData: unknown; content: unknown }): boolean {
   return false;
 }
 
+// ── Content-based detection helpers ─────────────────────────────────
+
+/** Detect streaming chunk messages in DTOs by content, not filename. */
+function hasStreamingChunks(dtos: Array<{ content: unknown }>): boolean {
+  return dtos.some((d) => {
+    if (typeof d.content !== 'string') return false;
+    try {
+      return JSON.parse(d.content)?.object === 'chat.completion.chunk';
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Detect tool call backfill from rawData.messages with tool_calls arrays. */
+function hasToolCallBackfill(dtos: Array<{ rawData: unknown }>): boolean {
+  return dtos.some((d) => {
+    const rd = d.rawData as Record<string, unknown> | null;
+    if (!rd || !Array.isArray(rd.messages)) return false;
+    return (rd.messages as unknown[]).some(
+      (m: unknown) =>
+        typeof m === 'object' &&
+        m !== null &&
+        Array.isArray((m as Record<string, unknown>).tool_calls),
+    );
+  });
+}
+
 // ── Tests ──────────────────────────────────────────────────────────
 
 describe('Fixture-driven: tool-calls', () => {
@@ -200,9 +228,8 @@ describe('Fixture-driven: tool-calls', () => {
     it.each(toolCallFixtures)(
       'chat.completion.chunk messages are removed or hidden: %s',
       async (fixturePath) => {
-        if (!fixturePath.includes('streaming')) return;
-
         const dtos = loadCapture(fixturePath);
+        if (!hasStreamingChunks(dtos)) return;
         const messages = await loadFixtureThroughPipeline(
           repo,
           mockThreadApi as MockThreadApi,
@@ -257,7 +284,7 @@ describe('Fixture-driven: tool-calls', () => {
     it.each(toolCallFixtures)(
       'assistant gets toolUses backfilled from rawData.messages: %s',
       async (fixturePath) => {
-        if (!fixturePath.includes('backfill')) return;
+        if (!hasToolCallBackfill(loadCapture(fixturePath))) return;
 
         const messages = await loadFixtureThroughPipeline(
           repo,

@@ -8,7 +8,7 @@
  * No external dependencies — uses plain runtime type checks against the
  * MessageDTO contract defined in src-electron/services/mokuapi/thread.types.ts.
  */
-import type { MessageDTO, LLMStatus } from 'src-electron/services/mokuapi/thread.types';
+import type { LLMStatus } from 'src-electron/services/mokuapi/thread.types';
 
 const VALID_LLM_STATUSES: readonly (LLMStatus | string | null)[] = [
   'success',
@@ -17,6 +17,7 @@ const VALID_LLM_STATUSES: readonly (LLMStatus | string | null)[] = [
   'partial',
   'rate_limited',
   'invalid_request',
+  'responses', // OpenAI Responses API status
   'chat', // Used by provider fixtures for user messages (not in LLMStatus type but valid API value)
   null,
 ];

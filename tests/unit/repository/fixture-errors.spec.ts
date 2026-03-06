@@ -178,7 +178,9 @@ describe('Fixture-driven: errors', () => {
   // ── ErrorResponseInspector: JSON errors formatted to readable text ─
 
   describe('ErrorResponseInspector formats error JSON to readable text', () => {
-    if (formattableErrorFixtures.length > 0) {
+    if (formattableErrorFixtures.length === 0) {
+      it.skip('no formattable error fixtures found', () => {});
+    } else {
       it.each(formattableErrorFixtures)(
         'assistant error content starts with "Error" after formatting: %s',
         async (fixturePath) => {
