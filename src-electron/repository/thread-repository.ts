@@ -24,10 +24,6 @@ import {
   ResponseCompletedInspector,
   ErrorResponseInspector,
 } from './inspectors/index.js';
-import {
-  captureMessagesToProvider,
-  captureMessagesToInspectorDir,
-} from '../services/mokuapi/capture.js';
 
 export class ThreadRepository {
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -130,11 +126,6 @@ export class ThreadRepository {
 
     const threadTitle = this.threadsById.get(threadId)?.title ?? '';
     const mapped = messagesResult.data.content.map((dto) => this.mapDTOToMessage(dto, threadTitle));
-
-    // Capture raw DTOs for fixture-driven tests (dev-only, no-op in production)
-    captureMessagesToProvider(threadId, messagesResult.data.content);
-    captureMessagesToInspectorDir(threadId, messagesResult.data.content);
-
     const finalMessages = MessageInspector.run(this.messageInspectors, mapped);
     const totalToolCalls = finalMessages.reduce((sum, m) => sum + (m.toolUses?.length ?? 0), 0);
     const messagesWithTools = finalMessages.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
