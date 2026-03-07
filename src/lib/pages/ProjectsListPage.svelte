@@ -190,6 +190,7 @@
       {#each $projects as project (project.id)}
         <div
           class="project-card"
+          data-project-id={project.id}
           onclick={() => handleProjectClick(project)}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
