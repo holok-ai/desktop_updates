@@ -51,7 +51,9 @@ export class ThreadObserver {
    * Initial behavior is pass-through; compression pipeline will replace this payload over time.
    */
   updateCurrentContext(thread: ObserverThread, messages: Message[]): void {
-    observerStore.setCurrentContext(thread.id, messages);
+    if (observerStore.getCurrentContext(thread.id) === undefined) {
+      observerStore.setCurrentContext(thread.id, messages);
+    }
   }
 
   /**

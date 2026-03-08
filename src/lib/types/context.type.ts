@@ -18,6 +18,7 @@ export interface MessageContext {
   originalTokenSize?: number;
   compressedTokenSize?: number;
   compressionTimestamp?: number;
+  sourceMessageIds?: string[];
 }
 
 /**
