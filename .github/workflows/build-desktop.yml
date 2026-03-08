@@ -3,6 +3,8 @@ name: Build Desktop
 on:
   pull_request:
     types: [opened, synchronize]
+    branches-ignore:
+      - development
   workflow_dispatch:
     inputs:
       platform:
