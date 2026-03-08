@@ -70,6 +70,10 @@ export interface AppSettings {
 
   // Static tool list from ToolOrchestrator (added at runtime)
   static_toolList?: ToolDefinition[];
+
+  // Artifact Editing
+  unresolvedChangesBehavior?: 'include' | 'remove' | 'ask';
+  maxDocumentSizeBytes?: number;
 }
 
 /**
@@ -114,6 +118,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoInstallUpdates: false,
   updateAvailable: false,
   latestVersion: '',
+
+  // Artifact Editing
+  unresolvedChangesBehavior: 'ask',
+  maxDocumentSizeBytes: 2 * 1024 * 1024, // 2 MB
 };
 
 /**
@@ -211,6 +219,17 @@ export class SettingsService {
           type: 'array',
           items: { type: 'string' },
           default: DEFAULT_SETTINGS.directoryWhitelist,
+        },
+        unresolvedChangesBehavior: {
+          type: 'string',
+          enum: ['include', 'remove', 'ask'],
+          default: DEFAULT_SETTINGS.unresolvedChangesBehavior,
+        },
+        maxDocumentSizeBytes: {
+          type: 'number',
+          minimum: 1024,
+          maximum: 50 * 1024 * 1024, // 50 MB upper bound
+          default: DEFAULT_SETTINGS.maxDocumentSizeBytes,
         },
       },
     } as any); // TODO: Reason to put any in here to pass the unit test since it require passing projectName. Will need define real type in future
