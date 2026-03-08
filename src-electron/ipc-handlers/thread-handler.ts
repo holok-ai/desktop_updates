@@ -55,23 +55,14 @@ export { broadcast, generateId };
 
 let notificationUnsubscribe: (() => void) | null = null;
 
-function normalizeMessages(
-  allMessages: Message[],
-  threadId: string,
-  senderUrl?: string,
-): Message[] {
+function normalizeMessages(allMessages: Message[], threadId: string): Message[] {
   const items: Message[] = allMessages
     .filter((m) => !m.deletedAt)
     .sort((a, b) => a.createdAt - b.createdAt)
     .map((m) => ({ ...m }));
   const toolUseCount = items.filter((m) => (m.toolUses?.length ?? 0) > 0).length;
   threadLog.info(
-    '[thread:getMessages] Loaded',
-    allMessages.length,
-    'total, returning',
-    items.length,
-    'after filtering (api)',
-    { threadId, toolUseCount, senderUrl },
+    `[thread:getMessages] Loaded ${allMessages.length} total, returning ${items.length} after filtering (api) toolUseCount=${toolUseCount} threadId=${threadId}`,
   );
   return items;
 }
@@ -226,9 +217,8 @@ export function registerThreadHandlers(): void {
       options?: { isSharedProject?: boolean },
     ): Promise<ApiResponse<Message[]>> => {
       try {
-        const senderUrl = _event?.senderFrame?.url;
         const allMessages = await threadRepository.loadThreadMessages(id);
-        const items = normalizeMessages(allMessages, id, senderUrl);
+        const items = normalizeMessages(allMessages, id);
 
         const isSharedProject = options?.isSharedProject === true;
         notificationService.setActiveThread(id, isSharedProject);

@@ -1,14 +1,9 @@
 <script lang="ts">
-  import { ROUTE } from '../../constants/route.constant';
-  import UserAvatar from '../common/UserAvatar.svelte';
+  import StatusBadge from '../common/StatusBadge.svelte';
   import * as Breadcrumb from '$lib/components/ui/breadcrumb';
   import { projects } from '$lib/stores/project.store';
   import { threads } from '$lib/stores/thread.store';
   import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
-
-  function handleLogoClick() {
-    breadcrumbStore.navigatePrimary({ label: 'New Thread', route: ROUTE.HOME });
-  }
 
   function truncate(text: string, maxLength: number): string {
     if (text.length <= maxLength) return text;
@@ -45,8 +40,6 @@
 </script>
 
 <header>
-  <button class="logo" onclick={handleLogoClick}>Holokai</button>
-
   {#if breadcrumbItems}
     <div class="breadcrumb-wrapper">
       <Breadcrumb.Breadcrumb>
@@ -70,7 +63,9 @@
     </div>
   {/if}
 
-  <UserAvatar />
+  <div class="header-right">
+    <StatusBadge />
+  </div>
 </header>
 
 <style>
@@ -78,43 +73,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 56px;
+    height: 42px;
     padding: 0 24px;
     background: var(--surface-sidebar-primary);
     border-bottom: 1px solid var(--surface-border);
     gap: 2rem;
   }
 
-  .logo {
-    font-size: 18px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: color 0.2s ease;
-    outline: none;
-    flex-shrink: 0;
-  }
-
-  .logo:hover {
-    color: rgba(255, 255, 255, 1);
-  }
-
-  .logo:focus {
-    outline: none;
-  }
-
-  .logo:focus:not(:focus-visible) {
-    outline: none;
-  }
-
   .breadcrumb-wrapper {
     flex: 1;
     display: flex;
     align-items: center;
-    margin-left: 50px;
   }
 
   .breadcrumb-wrapper :global([data-slot='breadcrumb-page']) {
@@ -144,5 +113,12 @@
   .breadcrumb-wrapper :global([data-slot='breadcrumb-separator']) {
     color: var(--sidebar-text-dim);
     margin: 0 0.5rem;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
   }
 </style>

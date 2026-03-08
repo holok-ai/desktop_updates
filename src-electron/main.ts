@@ -23,7 +23,10 @@ import {
 } from './ipc-handlers/reliability-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
-import { initializeReliabilityMonitors } from './services/reliability/interface-status-registry.js';
+import {
+  initializeReliabilityMonitors,
+  interfaceStatusRegistry,
+} from './services/reliability/interface-status-registry.js';
 import { getSettingsService } from './ipc-handlers/settings-handler.js';
 
 // ESM equivalent of __dirname
@@ -325,11 +328,19 @@ function registerIpcHandlers(): void {
     async () => {
       try {
         const holoApiUrl = getSettingsService().getHoloApiUrl();
-        const response = await fetch(`${holoApiUrl}/api/health`, {
+        const url = `${holoApiUrl}/health`;
+        protocolLog.info(`[ReliabilityHealthCheck] holo-api: fetching ${url}`);
+        const response = await fetch(url, {
           signal: AbortSignal.timeout(5000),
         });
+        protocolLog.info(
+          `[ReliabilityHealthCheck] holo-api: ${response.status} ${response.statusText}`,
+        );
         return response.ok;
-      } catch {
+      } catch (err) {
+        protocolLog.warn('[ReliabilityHealthCheck] holo-api: fetch failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
         return false;
       }
     },
@@ -337,11 +348,19 @@ function registerIpcHandlers(): void {
     async () => {
       try {
         const holoApiUrl = getSettingsService().getHoloApiUrl();
-        const response = await fetch(`${holoApiUrl}/api/health`, {
+        const url = `${holoApiUrl}/health`;
+        protocolLog.info(`[ReliabilityHealthCheck] holo-notifications: fetching ${url}`);
+        const response = await fetch(url, {
           signal: AbortSignal.timeout(5000),
         });
+        protocolLog.info(
+          `[ReliabilityHealthCheck] holo-notifications: ${response.status} ${response.statusText}`,
+        );
         return response.ok;
-      } catch {
+      } catch (err) {
+        protocolLog.warn('[ReliabilityHealthCheck] holo-notifications: fetch failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
         return false;
       }
     },
@@ -349,6 +368,11 @@ function registerIpcHandlers(): void {
 
   // Subscribe to monitor status changes and broadcast to renderer
   subscribeToStatusChanges();
+
+  // Fire non-blocking startup health checks for Holo interfaces so they
+  // move out of "unknown" without waiting for user interaction.
+  void interfaceStatusRegistry.getMonitor('holo-api').healthcheck();
+  void interfaceStatusRegistry.getMonitor('holo-notifications').healthcheck();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {

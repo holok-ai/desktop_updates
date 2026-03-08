@@ -209,7 +209,7 @@
           <div class="threads-section">
             <div class="threads-section-header">
               <h3>Threads</h3>
-              <button class="new-thread-button" onclick={handleNewThread}>
+              <button class="btn-holokai" onclick={handleNewThread}>
                 <i class="pi pi-plus"></i>
                 New Thread
               </button>
@@ -222,7 +222,7 @@
           </div>
         {:else}
           <div class="empty-threads">
-            <button class="new-thread-button" onclick={handleNewThread}>
+            <button class="btn-holokai" onclick={handleNewThread}>
               <i class="pi pi-plus"></i>
               New Thread
             </button>
@@ -384,29 +384,6 @@
     line-height: 1.5;
     margin: 0 0 1.5rem 0;
     text-align: left;
-  }
-
-  .new-thread-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .new-thread-button:hover {
-    background: var(--primary-color-hover);
-  }
-
-  .new-thread-button i {
-    font-size: 0.875rem;
   }
 
   .threads-section {

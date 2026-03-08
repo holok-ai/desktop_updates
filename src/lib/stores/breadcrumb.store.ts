@@ -12,6 +12,8 @@ export interface BreadcrumbEntry {
 
 interface BreadcrumbStore {
   subscribe: (run: (value: BreadcrumbEntry[]) => void) => () => void;
+  /** Seed the breadcrumb on startup without triggering navigation. */
+  seed: (entry: BreadcrumbEntry) => void;
   /** Primary nav (sidebar buttons, menu commands): clear queue, push entry, navigate. */
   navigatePrimary: (entry: BreadcrumbEntry) => void;
   /** Secondary nav (clicking a thread/project): push entry onto existing trail, navigate. */
@@ -29,6 +31,10 @@ function createBreadcrumbStore(): BreadcrumbStore {
 
   return {
     subscribe,
+
+    seed(entry: BreadcrumbEntry): void {
+      set([entry]);
+    },
 
     navigatePrimary(entry: BreadcrumbEntry): void {
       set([entry]);
