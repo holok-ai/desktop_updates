@@ -30,6 +30,7 @@ Requirements Summary
 | R13 | Export | The document edit view provides export to Markdown, DOCX, or PDF with or without markup. A full change history export option produces a document containing each version's summary and annotated content. |
 | R14 | Format Pipeline | DOCX and PDF imports are converted to canonical Markdown on document mode activation. Minimum preserved structures are headings, lists, inline emphasis, and links. |
 | R15 | Document Size Limit | Maximum editable document size is configurable in desktop settings (default 2 MB). Operations on files exceeding the configured limit are blocked with a clear error message. |
+| R16 | Tool-Call File Activation | When the AI uses the `write_file` tool to create or overwrite a Markdown file, the desktop displays a "Document Mode" badge on the tool-call output. Clicking it activates document mode with the written file as version 1, following the same flow as attachment-based activation. |
 
 Problem
 Users edit documents iteratively via chat prompts, but cannot reliably see what changed between prompts, review/resolve individual edits, or manage version history with clear comparison modes.
@@ -54,9 +55,9 @@ Reviewer validating exactly what AI changed before publishing.
 User importing DOCX/PDF, editing in chat, exporting final deliverable.
 Core User Flows
 
-User attaches a document or AI returns a response with an attachment.
-System displays a "Document Mode" command badge on the attachment.
-User clicks the badge to activate document mode; the attachment becomes the active artifact.
+User attaches a document, AI returns a response with an attachment, or AI uses `write_file` to create a Markdown file.
+System displays a "Document Mode" command badge on the attachment or tool-call output.
+User clicks the badge to activate document mode; the file becomes the active artifact.
 User prompts edits in chat.
 If assistant response includes an attachment while in document mode, system treats it as an edit and auto-creates next version.
 User opens Changes pane and:
@@ -70,9 +71,9 @@ Functional Requirements
 
 Artifact Definition
 
-An artifact is a single named document that is either uploaded by the user or returned as an attachment by the AI.
+An artifact is a single named document that is either uploaded by the user, returned as an attachment by the AI, or created via an AI tool call (e.g. `write_file`).
 
-A file becomes an artifact only when the user explicitly activates document mode by clicking the "Document Mode" command badge displayed on the attachment.
+A file becomes an artifact only when the user explicitly activates document mode by clicking the "Document Mode" command badge displayed on the attachment or tool-call output.
 
 Only one artifact may be active per thread at a time.
 
@@ -264,6 +265,20 @@ Given a "Document Mode" badge is visible on an attachment
 When the user clicks the badge
 
 Then document mode is activated, the attachment is converted to canonical Markdown, and version 1 is created
+
+Document Mode Activation — Via Tool-Call File Creation
+
+Given the AI uses the `write_file` tool to create or overwrite a Markdown file
+
+When the tool-call output is displayed in the thread
+
+Then a "Document Mode" command badge is shown on the tool-call output
+
+Given a "Document Mode" badge is visible on a tool-call file output
+
+When the user clicks the badge
+
+Then document mode is activated, the file content is loaded as canonical Markdown, and version 1 is created
 
 Document Mode Activation — Without Attachment
 
