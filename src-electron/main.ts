@@ -15,6 +15,7 @@ import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
+import { registerArtifactHandlers } from './ipc-handlers/artifact-handler.js';
 import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
 import { registerBackgroundChatHandler } from './ipc-handlers/background-chat-handler.js';
 import {
@@ -305,6 +306,9 @@ function registerIpcHandlers(): void {
 
   // Register file upload/download IPC handlers
   registerFileHandlers();
+
+  // Register artifact / document editing IPC handlers
+  registerArtifactHandlers();
 
   // Register auto-updater IPC handlers
   registerAutoUpdaterHandlers();

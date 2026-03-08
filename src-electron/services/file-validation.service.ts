@@ -241,6 +241,7 @@ export class FileValidationService {
       'application/pdf',
       'text/plain',
       'text/markdown',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 
       // Data
       'application/json',
@@ -263,6 +264,7 @@ export class FileValidationService {
       'pdf',
       'txt',
       'md',
+      'docx',
 
       // Data
       'json',
@@ -284,6 +286,7 @@ export class FileValidationService {
       ['application/pdf', ['pdf']],
       ['text/plain', ['txt']],
       ['text/markdown', ['md']],
+      ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', ['docx']],
 
       // Data
       ['application/json', ['json']],

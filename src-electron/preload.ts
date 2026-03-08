@@ -5,6 +5,12 @@ import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type {
+  Artifact,
+  ArtifactVersion,
+  DiffResult,
+  DiffChange,
+} from '../src-shared/types/artifact.types.js';
 import type { BackgroundChatRequest } from '../src-shared/types/observer.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
 
@@ -291,6 +297,10 @@ export interface AppSettings {
   config_windowsCommands: string;
   config_unixCommands: string;
   static_toolList?: ToolDefinition[];
+  /** Artifact Editing: behavior for unresolved changes (default: 'ask') */
+  unresolvedChangesBehavior?: 'include' | 'remove' | 'ask';
+  /** Artifact Editing: maximum editable document size in bytes (default: 2MB) */
+  maxDocumentSizeBytes?: number;
 }
 
 /**
@@ -503,6 +513,87 @@ export interface FileAPI {
 }
 
 /**
+ * Artifact API
+ *
+ * Document editing / artifact versioning operations.
+ */
+export interface ArtifactAPI {
+  // Activate document mode on an attachment
+  activate: (payload: {
+    threadId: string;
+    fileId: string;
+    filename: string;
+    mimeType: string;
+    maxSizeBytes?: number;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
+  // Get the artifact for a thread
+  get: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact | null; error?: string }>;
+
+  // Add a user-attributed version
+  addUserVersion: (payload: {
+    threadId: string;
+    content: string;
+    sourceAction: string;
+  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+
+  // Add an AI-attributed version from structured diff output
+  addAiVersion: (payload: {
+    threadId: string;
+    diff: string;
+    summary: string;
+  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+
+  // Compute diff between two versions
+  computeDiff: (payload: {
+    threadId: string;
+    baseVersionId: number;
+    targetVersionId: number;
+  }) => Promise<{ success: boolean; diff?: DiffResult; error?: string }>;
+
+  // Discard the most recent version
+  discardVersion: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
+  // Apply accept/reject resolutions and create a new version
+  applyAcceptReject: (payload: {
+    threadId: string;
+    baseVersionId: number;
+    targetVersionId: number;
+    resolvedChanges: DiffChange[];
+    sourceAction: 'accept_change' | 'reject_change';
+  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+
+  // Get prompt augmentation text for document mode
+  getPromptAugmentation: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; augmentation?: string; error?: string }>;
+
+  // Parse an AI response for structured diff output
+  parseAiResponse: (payload: { responseContent: string }) => Promise<{
+    success: boolean;
+    parsed?: { diff: string; summary: string } | null;
+    error?: string;
+  }>;
+
+  // Export document content
+  export: (payload: {
+    threadId: string;
+    withMarkup: boolean;
+    baseVersionId?: number;
+    targetVersionId?: number;
+  }) => Promise<{ success: boolean; content?: string; error?: string }>;
+
+  // Export full change history
+  exportFullHistory: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; content?: string; error?: string }>;
+}
+
+/**
  * Reliability API
  *
  * Interface reliability and status monitoring.
@@ -528,6 +619,7 @@ export interface ElectronAPI {
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
+  artifact: ArtifactAPI;
   updater: UpdaterAPI;
   reliability: ReliabilityAPI;
   // Menu event listeners
@@ -887,6 +979,58 @@ contextBridge.exposeInMainWorld('electronAPI', {
     validate: (payload: { filename: string; mimeType: string; size: number }) =>
       ipcRenderer.invoke('file:validate', payload),
   } as FileAPI,
+
+  /**
+   * Artifact API Implementation
+   * Handles document editing, versioning, and diffing
+   */
+  artifact: {
+    activate: (payload: {
+      threadId: string;
+      fileId: string;
+      filename: string;
+      mimeType: string;
+      maxSizeBytes?: number;
+    }) => ipcRenderer.invoke('artifact:activate', payload),
+
+    get: (payload: { threadId: string }) => ipcRenderer.invoke('artifact:get', payload),
+
+    addUserVersion: (payload: { threadId: string; content: string; sourceAction: string }) =>
+      ipcRenderer.invoke('artifact:addUserVersion', payload),
+
+    addAiVersion: (payload: { threadId: string; diff: string; summary: string }) =>
+      ipcRenderer.invoke('artifact:addAiVersion', payload),
+
+    computeDiff: (payload: { threadId: string; baseVersionId: number; targetVersionId: number }) =>
+      ipcRenderer.invoke('artifact:computeDiff', payload),
+
+    discardVersion: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:discardVersion', payload),
+
+    applyAcceptReject: (payload: {
+      threadId: string;
+      baseVersionId: number;
+      targetVersionId: number;
+      resolvedChanges: DiffChange[];
+      sourceAction: 'accept_change' | 'reject_change';
+    }) => ipcRenderer.invoke('artifact:applyAcceptReject', payload),
+
+    getPromptAugmentation: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:getPromptAugmentation', payload),
+
+    parseAiResponse: (payload: { responseContent: string }) =>
+      ipcRenderer.invoke('artifact:parseAiResponse', payload),
+
+    export: (payload: {
+      threadId: string;
+      withMarkup: boolean;
+      baseVersionId?: number;
+      targetVersionId?: number;
+    }) => ipcRenderer.invoke('artifact:export', payload),
+
+    exportFullHistory: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:exportFullHistory', payload),
+  } as ArtifactAPI,
 
   /**
    * Project API Implementation
