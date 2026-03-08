@@ -17,6 +17,7 @@
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
   import { ThreadObserver } from '$lib/observer/thread-observer';
+  import { observerStore } from '$lib/observer/observer.store';
   import ContextStatus from './ContextStatus.svelte';
   import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
   import type { ToolCall } from '$lib/types/tool-call.type';
@@ -630,8 +631,13 @@
     // Store a combined unsubscribe function
     bgStream.unsubscribe = () => unsubscribers.forEach((unsub) => unsub());
 
-    // Build history for the models
-    const historyMessages = messages.map((m) => ({
+    if (thread) {
+      ThreadObserver.getInstance().updateCurrentContext(thread, messages);
+    }
+
+    // Build history from observer-owned context (fallback to raw messages during transition).
+    const currentContext = observerStore.getCurrentContext(capturedThreadId) ?? messages;
+    const historyMessages = currentContext.map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -779,6 +785,10 @@
     const capturedModelName = modelName;
 
     try {
+      if (thread) {
+        ThreadObserver.getInstance().updateCurrentContext(thread, messages);
+      }
+
       const chatResult = await threadService.submitPromptToChat(
         capturedThreadId,
         capturedBranchId,

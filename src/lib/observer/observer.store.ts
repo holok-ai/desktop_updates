@@ -5,9 +5,10 @@
  * running tasks, suggestions, context summaries, and context status.
  */
 
-import { writable, derived, type Readable } from 'svelte/store';
+import { writable, derived, get, type Readable } from 'svelte/store';
 import { ObserverTaskType } from '../../../src-shared/types/observer.types';
 import type { ContextStatus } from '$lib/types/context.type';
+import type { Message } from '$lib/types/thread.type';
 
 interface ObserverState {
   /** threadId → Set<ObserverTaskType> of currently running tasks */
@@ -16,6 +17,8 @@ interface ObserverState {
   suggestions: Map<string, string>;
   /** threadId → parsed context summary */
   contextSummaries: Map<string, unknown>;
+  /** threadId → observer-assembled current context used for chat submission */
+  currentContext: Map<string, Message[]>;
   /** threadId → computed context status (token usage, max, threshold) */
   contextStatus: Map<string, ContextStatus>;
 }
@@ -24,10 +27,12 @@ const initialState: ObserverState = {
   running: new Map(),
   suggestions: new Map(),
   contextSummaries: new Map(),
+  currentContext: new Map(),
   contextStatus: new Map(),
 };
 
-const { subscribe, update } = writable<ObserverState>(initialState);
+const store = writable<ObserverState>(initialState);
+const { subscribe, update } = store;
 
 function makeKey(threadId: string, taskType: ObserverTaskType): string {
   return `${threadId}:${taskType}`;
@@ -94,6 +99,20 @@ export const observerStore = {
     });
   },
 
+  /** Store the observer-assembled current context for a thread */
+  setCurrentContext(threadId: string, messages: Message[]): void {
+    update((state) => {
+      const newMap = new Map(state.currentContext);
+      newMap.set(threadId, [...messages]);
+      return { ...state, currentContext: newMap };
+    });
+  },
+
+  /** Read the observer-assembled current context for a thread */
+  getCurrentContext(threadId: string): Message[] | undefined {
+    return get(store).currentContext.get(threadId);
+  },
+
   /** Store the computed context status for a thread */
   setContextStatus(threadId: string, status: ContextStatus): void {
     update((state) => {
@@ -125,12 +144,22 @@ export const observerStore = {
     });
   },
 
+  /** Remove current context for a thread */
+  clearCurrentContext(threadId: string): void {
+    update((state) => {
+      const newMap = new Map(state.currentContext);
+      newMap.delete(threadId);
+      return { ...state, currentContext: newMap };
+    });
+  },
+
   /** Reset all state */
   reset(): void {
     update(() => ({
       running: new Map(),
       suggestions: new Map(),
       contextSummaries: new Map(),
+      currentContext: new Map(),
       contextStatus: new Map(),
     }));
   },
