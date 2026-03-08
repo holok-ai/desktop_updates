@@ -168,6 +168,7 @@
   {/if}
 
   <div class="projects-header">
+    <h2>Project List</h2>
     <button class="btn-holokai" onclick={handleCreateProject}>
       <i class="pi pi-plus"></i>
       New Project
@@ -269,9 +270,16 @@
 
   .projects-header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
+  }
+
+  .projects-header h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
   }
 
   .loading {

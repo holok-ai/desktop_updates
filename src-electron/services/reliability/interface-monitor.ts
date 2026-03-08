@@ -145,10 +145,10 @@ export class InterfaceMonitor {
     this.messagesSentCount++;
 
     if (this.status !== 'available') {
-      this.setStatus('available');
       if (this.timeFirstUp === null) {
         this.timeFirstUp = now;
       }
+      this.setStatus('available');
       this.stopHealthChecks();
     }
   }
@@ -176,6 +176,7 @@ export class InterfaceMonitor {
   public async healthcheck(): Promise<void> {
     log.info(`[InterfaceMonitor:${this.name}] manual healthcheck`);
     const up = await this.runHealthCheck();
+    log.info(`[InterfaceMonitor:${this.name}] healthcheck result: ${up ? 'UP' : 'DOWN'}`);
     if (up) {
       this.recordSuccess();
     }

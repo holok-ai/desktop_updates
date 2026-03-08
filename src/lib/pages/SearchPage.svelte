@@ -55,6 +55,10 @@
 </script>
 
 <div class="search-page">
+  <div class="page-header">
+    <h2>Search</h2>
+  </div>
+
   <div class="search-container">
     <div class="search-input-wrapper">
       <div class="search-bar">
@@ -105,12 +109,21 @@
     flex-direction: column;
     height: 100%;
     overflow: auto;
+    padding: 1rem 2rem 2rem 2rem;
+  }
+
+  .page-header {
+    margin-bottom: 2rem;
+  }
+
+  .page-header h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
   }
 
   .search-container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 1rem 2rem 2rem 2rem;
     width: 100%;
   }
 
@@ -157,7 +170,7 @@
   }
 
   .search-button {
-    align-self: flex-end;
+    align-self: flex-start;
   }
 
   .results-list {

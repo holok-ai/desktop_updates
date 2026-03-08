@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { ROUTE } from '../../constants/route.constant';
-  import { location, querystring } from 'svelte-spa-router';
+  import { location, querystring, push } from 'svelte-spa-router';
   import { getSelectedActivity } from '../../utils/sidebar-route.util';
   import { writable } from 'svelte/store';
   import type { SidebarActivity } from '$lib/types/sidebar.type';
@@ -16,6 +16,8 @@
   import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import type { Thread } from '../../../../src-electron/preload';
   import { threadFacade as threadService } from '$lib/services/thread-facade';
+  import { currentUser, isAuthenticated, authStore } from '$lib/stores/auth.store';
+  import { toastStore } from '$lib/services/toast.service';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -33,10 +35,12 @@
   let selected = $state('search');
   let currentMode: AppThemeMode = $state(APP_THEME_MODE.LIGHT);
   let showFavorites = $state(false);
-  let favoritesHovered = $state(false);
   let showRecentThreads = $state(false);
-  let recentHovered = $state(false);
   let isCollapsed = $state(false);
+  let isSettingsMenuOpen = $state(false);
+  let settingsWrapperEl = $state<HTMLDivElement | undefined>(undefined);
+  let settingsBtnEl = $state<HTMLButtonElement | undefined>(undefined);
+  let settingsMenuStyle = $state('');
 
   // Get last 10 threads sorted by most recent
   const recentThreads = $derived(
@@ -159,6 +163,52 @@
     }
   }
 
+  function toggleSettingsMenu() {
+    if (!isSettingsMenuOpen && settingsBtnEl) {
+      const rect = settingsBtnEl.getBoundingClientRect();
+      // Anchor menu above the button, left-aligned with it
+      settingsMenuStyle = `bottom: ${window.innerHeight - rect.top + 6}px; left: ${rect.left}px;`;
+    }
+    isSettingsMenuOpen = !isSettingsMenuOpen;
+  }
+
+  function handleNavigateSettings() {
+    isSettingsMenuOpen = false;
+    void push(ROUTE.SETTINGS);
+  }
+
+  async function handleCheckUpdate() {
+    isSettingsMenuOpen = false;
+    try {
+      const message = await window.electronAPI.updater.getUpdateAvailability();
+      toastStore.show(message, { variant: 'info' });
+    } catch (error) {
+      toastStore.show('Failed to check for updates.', { variant: 'error' });
+      console.error('[ActivitySidebar] Update check failed:', error);
+    }
+  }
+
+  async function handleLogoutFromMenu() {
+    const userName = $currentUser?.name;
+    isSettingsMenuOpen = false;
+    try {
+      await window.electronAPI.auth.logout();
+      authStore.logout();
+      if (userName) {
+        toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
+      }
+    } catch (error) {
+      console.error('[ActivitySidebar] Logout failed:', error);
+    } finally {
+      void push(ROUTE.LOGIN);
+    }
+  }
+
+  function handleLoginFromMenu() {
+    isSettingsMenuOpen = false;
+    void push(ROUTE.LOGIN);
+  }
+
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
     storageService.setSidebarCollapsed(isCollapsed);
@@ -219,6 +269,26 @@
     };
     window.addEventListener('storage', onStorage);
 
+    // Close settings menu on outside click or Escape
+    function handleSettingsOutsideClick(e: MouseEvent) {
+      if (
+        isSettingsMenuOpen &&
+        settingsWrapperEl !== undefined &&
+        !settingsWrapperEl.contains(e.target as Node)
+      ) {
+        isSettingsMenuOpen = false;
+      }
+    }
+
+    function handleSettingsKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        isSettingsMenuOpen = false;
+      }
+    }
+
+    document.addEventListener('click', handleSettingsOutsideClick, true);
+    document.addEventListener('keydown', handleSettingsKeyDown);
+
     // Keep selection in sync with route changes
     let currentPath = '';
     let currentQs = '';
@@ -238,6 +308,8 @@
       unsubQs();
       observer.disconnect();
       window.removeEventListener('storage', onStorage);
+      document.removeEventListener('click', handleSettingsOutsideClick, true);
+      document.removeEventListener('keydown', handleSettingsKeyDown);
     };
   });
 
@@ -302,7 +374,7 @@
 </script>
 
 <nav
-  class="activity-sidebar flex flex-col bg-[var(--surface-sidebar-primary)] h-screen px-3 py-4"
+  class="activity-sidebar flex flex-col bg-[var(--surface-sidebar-primary)] h-full px-3 py-4"
   class:collapsed={isCollapsed}
   bind:this={sidebarElement}
   aria-label="Main sidebar"
@@ -344,8 +416,6 @@
           class="recent-header"
           role="button"
           tabindex="0"
-          onmouseenter={() => (favoritesHovered = true)}
-          onmouseleave={() => (favoritesHovered = false)}
           onclick={toggleFavorites}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -357,7 +427,6 @@
           <span class="recent-label">Favorites</span>
           <button
             class="recent-toggle"
-            style="visibility: {favoritesHovered ? 'visible' : 'hidden'}"
             onclick={(e) => {
               e.stopPropagation();
               toggleFavorites();
@@ -395,8 +464,6 @@
           class="recent-header"
           role="button"
           tabindex="0"
-          onmouseenter={() => (recentHovered = true)}
-          onmouseleave={() => (recentHovered = false)}
           onclick={() => void toggleRecentThreads()}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -408,7 +475,6 @@
           <span class="recent-label">Recent</span>
           <button
             class="recent-toggle"
-            style="visibility: {recentHovered ? 'visible' : 'hidden'}"
             onclick={(e) => {
               e.stopPropagation();
               void toggleRecentThreads();
@@ -434,6 +500,51 @@
       </li>
     {/if}
   </ul>
+
+  <!-- Settings button at the bottom -->
+  <div class="settings-wrapper" bind:this={settingsWrapperEl}>
+    <button
+      class="settings-btn"
+      class:settings-btn-collapsed={isCollapsed}
+      bind:this={settingsBtnEl}
+      onclick={toggleSettingsMenu}
+      aria-label="Settings menu"
+      aria-expanded={isSettingsMenuOpen}
+      aria-haspopup="true"
+      style="color: rgba(255, 255, 255, 0.75);"
+    >
+      <i class="pi pi-cog settings-icon"></i>
+      {#if !isCollapsed}
+        <span class="settings-label">Settings</span>
+      {/if}
+    </button>
+
+    {#if isSettingsMenuOpen}
+      <div class="context-menu settings-menu" role="menu" style={settingsMenuStyle}>
+        <div class="menu-email">{$currentUser?.email ?? ''}</div>
+        <hr class="settings-menu-divider" />
+        <button class="menu-item" role="menuitem" onclick={handleNavigateSettings}>
+          <i class="pi pi-cog"></i>
+          <span>Settings</span>
+        </button>
+        <button class="menu-item" role="menuitem" onclick={() => void handleCheckUpdate()}>
+          <i class="pi pi-sync"></i>
+          <span>Check for Updates</span>
+        </button>
+        {#if $isAuthenticated}
+          <button class="menu-item" role="menuitem" onclick={() => void handleLogoutFromMenu()}>
+            <i class="pi pi-sign-out"></i>
+            <span>Logout</span>
+          </button>
+        {:else}
+          <button class="menu-item" role="menuitem" onclick={handleLoginFromMenu}>
+            <i class="pi pi-sign-in"></i>
+            <span>Login</span>
+          </button>
+        {/if}
+      </div>
+    {/if}
+  </div>
 
   <!-- Collapse/Expand Tab Button -->
   <button
@@ -462,7 +573,7 @@
 
   .collapse-tab {
     position: absolute;
-    top: 20px;
+    top: 54px; /* below the 42px header */
     right: -24px;
     width: 24px;
     height: 32px;
@@ -503,6 +614,8 @@
     flex-direction: column;
     gap: 0.1875rem; /* 75% smaller than 0.75rem */
     flex: 1;
+    min-height: 0; /* allow flex child to shrink so settings btn stays in view */
+    overflow-y: auto;
     list-style: none;
     padding: 0;
     margin: 0;
@@ -554,7 +667,7 @@
   .nav-button.new-thread {
     border-color: rgba(255, 255, 255, 0.2);
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-top: 0.375rem;
   }
 
   .nav-button.new-thread:hover {
@@ -670,5 +783,80 @@
 
   .recent-thread-item:hover .thread-model {
     color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* ── Settings button ── */
+  .settings-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .settings-btn {
+    width: 100%;
+    padding: 7.2px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    text-align: left;
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Use :global so color is not blocked by Svelte scoping or external !important rules */
+  :global(.activity-sidebar .settings-btn),
+  :global(.activity-sidebar .settings-btn .settings-icon),
+  :global(.activity-sidebar .settings-btn .settings-label) {
+    color: rgba(255, 255, 255, 0.75) !important;
+  }
+
+  .settings-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .settings-btn:focus {
+    outline: none;
+  }
+
+  .settings-btn-collapsed {
+    padding: 10px;
+    justify-content: center;
+  }
+
+  .settings-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .settings-label {
+    white-space: nowrap;
+  }
+
+  /* ── Settings popup menu — fixed so it escapes sidebar overflow ── */
+  .settings-menu {
+    position: fixed !important;
+    min-width: 220px;
+  }
+
+  .menu-email {
+    padding: 0.5rem 0.75rem 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+    min-height: 1.5rem;
+  }
+
+  .settings-menu-divider {
+    border: none;
+    border-top: 1px solid var(--surface-border, #e0e0e0);
+    margin: 0 0 0.25rem;
   }
 </style>

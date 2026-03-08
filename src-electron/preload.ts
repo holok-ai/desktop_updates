@@ -22,6 +22,7 @@ import type {
 } from './services/mokuapi/thread.types.js';
 import type { ApiResponse } from './types/api-response.js';
 import type {
+  InterfaceStatus,
   InterfaceName,
   InterfaceStatusSnapshot,
   InterfaceStatusChangeEvent,
@@ -33,6 +34,13 @@ export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, Jso
 export type { ApiResponse };
 export type { MessageDTO, RequestOptionsDTO };
 export type { ToolDefinition };
+export type {
+  InterfaceStatus,
+  InterfaceName,
+  InterfaceStatusSnapshot,
+  InterfaceStatusChangeEvent,
+  AllInterfaceStatuses,
+};
 
 /**
  * Preload Script with Context Bridge

@@ -45,8 +45,8 @@
 
 <div class="threads-page">
   <div class="page-header">
-    <h1>Threads</h1>
-    <button class="new-thread-button" onclick={handleNewThread}>
+    <h2>Thread List</h2>
+    <button class="btn-holokai" onclick={handleNewThread}>
       <i class="pi pi-plus"></i>
       New Thread
     </button>
@@ -87,7 +87,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 2rem;
+    padding: 1rem 2rem 2rem 2rem;
     overflow-y: auto;
   }
 
@@ -98,34 +98,11 @@
     margin-bottom: 2rem;
   }
 
-  .page-header h1 {
+  .page-header h2 {
     margin: 0;
     font-size: 1.75rem;
     font-weight: 600;
     color: var(--text-primary);
-  }
-
-  .new-thread-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .new-thread-button:hover {
-    background: var(--primary-color-hover);
-  }
-
-  .new-thread-button i {
-    font-size: 0.875rem;
   }
 
   .search-bar {

@@ -8,6 +8,7 @@
   import { toastStore } from './lib/services/toast.service';
   import { ROUTE } from '$lib/constants/route.constant';
   import { STARTING_PAGE } from '$lib/constants/app.constant';
+  import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
   import '$lib/services/menu-navigation.service';
 
   let isLoading = $state(true);
@@ -46,20 +47,29 @@
 
   function navigateToStartingPage(startingPage: string | undefined): void {
     let targetRoute: string | null = null;
+    let breadcrumbLabel = 'New Thread';
     switch (startingPage) {
       case STARTING_PAGE.CREATE_CHAT:
         targetRoute = ROUTE.NEW_THREAD;
+        breadcrumbLabel = 'New Thread';
         break;
       case STARTING_PAGE.THREADS:
         targetRoute = ROUTE.THREADS;
+        breadcrumbLabel = 'Threads';
         break;
       case STARTING_PAGE.LAST_PAGE:
         targetRoute = ROUTE.PROJECTS;
+        breadcrumbLabel = 'Projects';
         break;
       case STARTING_PAGE.DASHBOARD:
         targetRoute = ROUTE.HOME;
+        breadcrumbLabel = 'New Thread';
         break;
     }
+    // Seed the breadcrumb regardless of whether we navigate, so the header
+    // always shows a label on startup instead of leaving the status badge
+    // stranded on the left side.
+    breadcrumbStore.seed({ label: breadcrumbLabel, route: targetRoute ?? ROUTE.HOME });
     if (targetRoute) replace(targetRoute);
   }
 

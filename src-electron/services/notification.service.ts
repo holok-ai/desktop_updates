@@ -99,7 +99,7 @@ export class NotificationService {
   }
 
   private shouldListen(): boolean {
-    return Boolean(this.context.threadId);
+    return true; //|| Boolean(this.context.threadId);
   }
 
   private getHoloApiUrl(): string {
@@ -253,6 +253,13 @@ export class NotificationService {
   }
 
   private handleSseBlock(raw: string): void {
+    // Any non-empty SSE block (including ping/heartbeat comment lines) proves
+    // the channel is alive. Record BEFORE the shouldListen() gate so pings are
+    // counted even when the active thread has just been cleared.
+    if (raw.trim()) {
+      this.recordReliability(true);
+    }
+
     if (!this.shouldListen()) {
       return;
     }
@@ -348,9 +355,6 @@ export class NotificationService {
       });
       return;
     }
-
-    // Record each dispatched event as a successful notification message
-    this.recordReliability(true);
 
     log.info('[NotificationService] dispatch forwarding to', this.listeners.size, 'listeners');
 
