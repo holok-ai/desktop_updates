@@ -1144,11 +1144,11 @@ export async function navigateToSearch(page: Page): Promise<void> {
  * Select a settings category tab by label name
  *
  * @param page - Playwright page object
- * @param tabName - The tab label: 'General', 'Appearance', 'Updates', 'Tools', 'Connections', or 'Diagnostics'
+ * @param tabName - The tab label: 'General', 'Appearance', 'Tools', 'Connections', or 'Diagnostics'
  */
 export async function selectSettingsTab(
   page: Page,
-  tabName: 'General' | 'Appearance' | 'Updates' | 'Tools' | 'Connections' | 'Diagnostics',
+  tabName: 'General' | 'Appearance' | 'Tools' | 'Connections' | 'Diagnostics',
 ): Promise<void> {
   const tabButton = page.locator('button.sidebar-item', { hasText: tabName });
   await expect(tabButton).toBeVisible({ timeout: 5000 });
