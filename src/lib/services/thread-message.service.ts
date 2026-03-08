@@ -6,6 +6,7 @@ import type {
   ApiResponse,
 } from '../../../src-electron/preload.js';
 import type { Message } from '$lib/types/thread.type.js';
+import { observerStore } from '$lib/observer/observer.store';
 
 /**
  * Domain service for thread message operations.
@@ -186,8 +187,9 @@ export class ThreadMessageService {
         '',
       );
 
-      // Build history for the model (include the new prompt)
-      const historyMessages = messages.map((m) => ({
+      // Use observer-owned assembled context (fallback to raw messages during transition).
+      const currentContext = observerStore.getCurrentContext(threadId) ?? messages;
+      const historyMessages = currentContext.map((m) => ({
         role: m.role,
         content: m.content,
       }));
