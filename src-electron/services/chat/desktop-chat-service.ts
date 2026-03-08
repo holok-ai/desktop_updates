@@ -13,6 +13,7 @@ import type {
 } from '../tool-calling/orchestrator-types.js';
 import { ToolOrchestrator } from '../tool-calling/orchestrator.js';
 import { fileStorageService } from '../file-storage.service.js';
+import { interfaceStatusRegistry } from '../reliability/interface-status-registry.js';
 import log from 'electron-log';
 
 /**
@@ -182,6 +183,10 @@ export class DesktopChatService {
 
     try {
       await this.chatService.chat(request, onToken);
+      this.recordReliabilitySuccess();
+    } catch (error) {
+      this.recordReliabilityError(error);
+      throw error;
     } finally {
       this.threadContext.toolUseCallback = undefined;
     }
@@ -192,5 +197,46 @@ export class DesktopChatService {
    */
   getAuditLogs(): unknown[] {
     return this.chatService.getAuditLogs();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reliability recording
+  // ---------------------------------------------------------------------------
+
+  private recordReliabilitySuccess(): void {
+    try {
+      if (interfaceStatusRegistry.hasMonitor('holo-api')) {
+        interfaceStatusRegistry.getMonitor('holo-api').recordSuccess();
+      }
+    } catch {
+      // Registry not ready yet; ignore
+    }
+  }
+
+  private recordReliabilityError(error: unknown): void {
+    try {
+      if (!interfaceStatusRegistry.hasMonitor('holo-api')) {
+        return;
+      }
+      const monitor = interfaceStatusRegistry.getMonitor('holo-api');
+
+      // Extract status code from error if possible
+      let statusCode = -1;
+      let message = 'Unknown error';
+
+      if (error instanceof Error) {
+        message = error.message;
+        const asAny = error as unknown as Record<string, unknown>;
+        if (typeof asAny['statusCode'] === 'number') {
+          statusCode = asAny['statusCode'];
+        } else if (typeof asAny['status'] === 'number') {
+          statusCode = asAny['status'];
+        }
+      }
+
+      monitor.recordError(statusCode, message);
+    } catch {
+      // Registry not ready yet; ignore
+    }
   }
 }

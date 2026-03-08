@@ -17,8 +17,14 @@ import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
 import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
 import { registerBackgroundChatHandler } from './ipc-handlers/background-chat-handler.js';
+import {
+  registerReliabilityHandlers,
+  subscribeToStatusChanges,
+} from './ipc-handlers/reliability-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
+import { initializeReliabilityMonitors } from './services/reliability/interface-status-registry.js';
+import { getSettingsService } from './ipc-handlers/settings-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -299,6 +305,50 @@ function registerIpcHandlers(): void {
 
   // Register auto-updater IPC handlers
   registerAutoUpdaterHandlers();
+
+  // Register reliability monitoring IPC handlers and initialize monitors
+  registerReliabilityHandlers();
+  initializeReliabilityMonitors(
+    // Moku health check
+    async () => {
+      try {
+        const mokuApiUrl = getSettingsService().getMokuApiUrl();
+        const response = await fetch(`${mokuApiUrl}/api/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
+    // Holo health check
+    async () => {
+      try {
+        const holoApiUrl = getSettingsService().getHoloApiUrl();
+        const response = await fetch(`${holoApiUrl}/api/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
+    // Holo Notifications health check (reuses Holo health endpoint)
+    async () => {
+      try {
+        const holoApiUrl = getSettingsService().getHoloApiUrl();
+        const response = await fetch(`${holoApiUrl}/api/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
+  );
+
+  // Subscribe to monitor status changes and broadcast to renderer
+  subscribeToStatusChanges();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {

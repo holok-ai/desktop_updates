@@ -21,6 +21,12 @@ import type {
   RequestOptionsDTO,
 } from './services/mokuapi/thread.types.js';
 import type { ApiResponse } from './types/api-response.js';
+import type {
+  InterfaceName,
+  InterfaceStatusSnapshot,
+  InterfaceStatusChangeEvent,
+  AllInterfaceStatuses,
+} from './types/reliability.types.js';
 
 // Re-export types for use by other modules
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
@@ -489,6 +495,19 @@ export interface FileAPI {
 }
 
 /**
+ * Reliability API
+ *
+ * Interface reliability and status monitoring.
+ */
+export interface ReliabilityAPI {
+  getAllStatuses: () => Promise<AllInterfaceStatuses>;
+  getStatus: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  healthcheck: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  reset: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  onStatusChange: (callback: (event: InterfaceStatusChangeEvent) => void) => () => void;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
@@ -502,6 +521,7 @@ export interface ElectronAPI {
   log: LogAPI;
   file: FileAPI;
   updater: UpdaterAPI;
+  reliability: ReliabilityAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -962,6 +982,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     getLastCheckResult: () => ipcRenderer.invoke('updater:getLastCheckResult'),
   } as UpdaterAPI,
+
+  /**
+   * Reliability API Implementation
+   */
+  reliability: {
+    getAllStatuses: () => ipcRenderer.invoke('reliability:getAllStatuses'),
+    getStatus: (name: InterfaceName) => ipcRenderer.invoke('reliability:getStatus', name),
+    healthcheck: (name: InterfaceName) => ipcRenderer.invoke('reliability:healthcheck', name),
+    reset: (name: InterfaceName) => ipcRenderer.invoke('reliability:reset', name),
+    onStatusChange: (callback: (event: InterfaceStatusChangeEvent) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, event: InterfaceStatusChangeEvent): void =>
+        callback(event);
+      ipcRenderer.on('reliability:statusChanged', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('reliability:statusChanged', subscription);
+      };
+    },
+  } as ReliabilityAPI,
 
   /**
    * Menu Command Listener
