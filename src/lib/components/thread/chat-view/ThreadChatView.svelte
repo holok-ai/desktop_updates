@@ -70,6 +70,30 @@
   let activeToolCalls = $state<ToolCall[]>([]);
   let completedToolCalls = $state(new Map<string, ToolCall[]>());
 
+  function buildSubmissionContext(
+    currentContext: Message[] | undefined,
+    latestMessages: Message[],
+  ): Message[] {
+    if (currentContext === undefined) {
+      return latestMessages;
+    }
+
+    const anchor = currentContext.at(-1)?.id;
+    if (!anchor) {
+      return currentContext;
+    }
+
+    const anchorIndex = latestMessages.findIndex((message) => message.id === anchor);
+    if (anchorIndex === -1) {
+      return currentContext;
+    }
+
+    const tail = latestMessages
+      .slice(anchorIndex + 1)
+      .filter((message) => !(message.role === 'assistant' && message.content.trim() === ''));
+    return [...currentContext, ...tail];
+  }
+
   /** Convert simplified tool uses from API-loaded messages into ToolCall objects */
   function toolCallsFromResponses(
     responses: Array<{ id: string; tools?: Array<{ name: string; status: string }> }>,
@@ -631,13 +655,10 @@
     // Store a combined unsubscribe function
     bgStream.unsubscribe = () => unsubscribers.forEach((unsub) => unsub());
 
-    if (thread) {
-      ThreadObserver.getInstance().updateCurrentContext(thread, messages);
-    }
-
     // Build history from observer-owned context (fallback to raw messages during transition).
-    const currentContext = observerStore.getCurrentContext(capturedThreadId) ?? messages;
-    const historyMessages = currentContext.map((m) => ({
+    const currentContext = observerStore.getCurrentContext(capturedThreadId);
+    const submissionContext = buildSubmissionContext(currentContext, messages);
+    const historyMessages = submissionContext.map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -785,10 +806,6 @@
     const capturedModelName = modelName;
 
     try {
-      if (thread) {
-        ThreadObserver.getInstance().updateCurrentContext(thread, messages);
-      }
-
       const chatResult = await threadService.submitPromptToChat(
         capturedThreadId,
         capturedBranchId,

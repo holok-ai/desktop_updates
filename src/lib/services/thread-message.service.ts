@@ -187,9 +187,21 @@ export class ThreadMessageService {
         '',
       );
 
-      // Use observer-owned assembled context (fallback to raw messages during transition).
-      const currentContext = observerStore.getCurrentContext(threadId) ?? messages;
-      const historyMessages = currentContext.map((m) => ({
+      // Use observer-owned assembled context and append the latest pending prompt when needed.
+      const currentContext = observerStore.getCurrentContext(threadId);
+      const latestMessage = messages.at(-1);
+      const hasLatest =
+        latestMessage !== undefined &&
+        currentContext?.some((message) => message.id === latestMessage.id) === true;
+      let requestContext: Message[];
+      if (currentContext === undefined) {
+        requestContext = messages;
+      } else if (hasLatest || latestMessage === undefined) {
+        requestContext = currentContext;
+      } else {
+        requestContext = [...currentContext, latestMessage];
+      }
+      const historyMessages = requestContext.map((m) => ({
         role: m.role,
         content: m.content,
       }));
