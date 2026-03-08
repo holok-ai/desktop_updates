@@ -1,6 +1,7 @@
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import { getAuthService } from '../ipc-handlers/auth-handler.js';
+import { interfaceStatusRegistry } from './reliability/interface-status-registry.js';
 
 export type NotificationSeverity = 'info' | 'warn' | 'error';
 
@@ -187,11 +188,13 @@ export class NotificationService {
         status: response.status,
         contentType: response.headers.get('content-type'),
       });
+      this.recordReliability(true);
 
       await this.readEventStream(response.body);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error('[NotificationService] SSE stream error', { message });
+      this.recordReliability(false, message);
     } finally {
       this.connected = false;
       this.connecting = false;
@@ -346,6 +349,9 @@ export class NotificationService {
       return;
     }
 
+    // Record each dispatched event as a successful notification message
+    this.recordReliability(true);
+
     log.info('[NotificationService] dispatch forwarding to', this.listeners.size, 'listeners');
 
     for (const cb of this.listeners) {
@@ -356,6 +362,25 @@ export class NotificationService {
           error: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+  }
+  // ---------------------------------------------------------------------------
+  // Reliability recording
+  // ---------------------------------------------------------------------------
+
+  private recordReliability(success: boolean, errorMessage?: string): void {
+    try {
+      if (!interfaceStatusRegistry.hasMonitor('holo-notifications')) {
+        return;
+      }
+      const monitor = interfaceStatusRegistry.getMonitor('holo-notifications');
+      if (success) {
+        monitor.recordSuccess();
+      } else {
+        monitor.recordError(-1, errorMessage || 'SSE connection error');
+      }
+    } catch {
+      // Registry not ready yet; ignore
     }
   }
 }

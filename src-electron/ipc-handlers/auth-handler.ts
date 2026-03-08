@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { AuthService, AuthState } from '../services/auth.service.js';
 import { createScopedLogger } from '../utils/logger.js';
+import { interfaceStatusRegistry } from '../services/reliability/interface-status-registry.js';
 
 /**
  * Authentication IPC Handlers
@@ -216,6 +217,8 @@ export function registerAuthHandlers(): AuthService {
 
     try {
       authService.logout();
+      // Reset all interface reliability monitors on logout
+      interfaceStatusRegistry.resetAll();
       return Promise.resolve();
     } catch (error) {
       authLog.error('Error during logout', {
