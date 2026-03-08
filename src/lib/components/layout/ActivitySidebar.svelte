@@ -177,15 +177,9 @@
     void push(ROUTE.SETTINGS);
   }
 
-  async function handleCheckUpdate() {
+  function handleCheckUpdate() {
     isSettingsMenuOpen = false;
-    try {
-      const message = await window.electronAPI.updater.getUpdateAvailability();
-      toastStore.show(message, { variant: 'info' });
-    } catch (error) {
-      toastStore.show('Failed to check for updates.', { variant: 'error' });
-      console.error('[ActivitySidebar] Update check failed:', error);
-    }
+    void push(`${ROUTE.APP_UPDATES}?checkNow=1`);
   }
 
   async function handleLogoutFromMenu() {

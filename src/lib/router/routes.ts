@@ -7,6 +7,7 @@ import ThreadPage from '../../routes/threads/view/+page.svelte';
 import ProjectThread from '../../routes/project/thread/+page.svelte';
 import Login from '../../routes/login/+page.svelte';
 import Settings from '../../routes/settings/+page.svelte';
+import AppUpdates from '../../routes/app-updates/+page.svelte';
 import Projects from '../../routes/projects/+page.svelte';
 import ProjectView from '../../routes/projects/view/+page.svelte';
 import ProjectMembers from '../../routes/project/members/+page.svelte';
@@ -33,6 +34,7 @@ export const routes = {
   '/project/instructions': ProjectInstructions,
   '/login': Login,
   '/settings': Settings,
+  '/app-updates': AppUpdates,
   '*': NotFound,
 };
 /* eslint-enable @typescript-eslint/naming-convention */

@@ -8,7 +8,7 @@
  * calls with UI-driven navigation via the user avatar menu.
  *
  * Used by: settings-general, settings-appearance, settings-connections,
- *          settings-diagnostics, settings-tools, settings-updates spec files.
+ *          settings-diagnostics, settings-tools spec files.
  */
 
 import { expect } from '@playwright/test';
@@ -47,7 +47,7 @@ export async function navigateToSettings(page: Page): Promise<void> {
  * the corresponding panel title to appear.
  *
  * @param page - Playwright Page object
- * @param tabName - The tab label: 'General', 'Appearance', 'Updates', 'Tools', 'Connections', or 'Diagnostics'
+ * @param tabName - The tab label: 'General', 'Appearance', 'Tools', 'Connections', or 'Diagnostics'
  */
 export async function clickSettingsTab(page: Page, tabName: string): Promise<void> {
   const tabButton = page.locator('button.sidebar-item', { hasText: tabName });

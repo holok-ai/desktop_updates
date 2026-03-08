@@ -12,5 +12,6 @@ export const ROUTE = {
   PROJECT_INSTRUCTIONS: '/project/instructions',
   SEARCH: '/search',
   SETTINGS: '/settings',
+  APP_UPDATES: '/app-updates',
   LOGIN: '/login',
 } as const;
