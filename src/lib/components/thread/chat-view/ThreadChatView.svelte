@@ -27,6 +27,8 @@
   } from '$lib/stores/collaborator-activity.store';
   import { notificationEventStore } from '$lib/stores/notification-event.store';
   import CollaboratorActivityIndicator from './CollaboratorActivityIndicator.svelte';
+  import type { AttachmentDisplay } from '$lib/types/artifact-display.type';
+  import { isDocumentEligible } from '$lib/types/artifact-display.type';
 
   // Debug flag - set to true to show debug activity box
   const SHOW_DEBUG_ACTIVITY = false;
@@ -42,6 +44,7 @@
     chatLayout: ChatLayout;
     agentId?: string | null;
     onThreadCreated?: (thread: Thread) => void;
+    onSwitchToComposer?: () => void;
   }
 
   let {
@@ -51,6 +54,7 @@
     chatLayout,
     agentId = null,
     onThreadCreated: _onThreadCreated,
+    onSwitchToComposer,
   }: Props = $props();
 
   // ── State ──
@@ -108,6 +112,29 @@
   //  let hasModel = $derived(Boolean(modelName && modelProvider));
   let isNewThread = $derived(!thread);
   let threadId = $derived(thread?.id ?? null);
+
+  /** Build AttachmentDisplay[] from a Message's raw attachment data */
+  function buildAttachmentDisplayList(msg: Message): AttachmentDisplay[] {
+    // Prefer metadata.attachments (has full Attachment type with id)
+    if (msg.metadata?.attachments) {
+      return msg.metadata.attachments.map((a) => ({
+        id: a.id,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        isDocumentEligible: isDocumentEligible(a.mimeType),
+      }));
+    }
+    // Fall back to legacy attachments field (no id, use filename)
+    if (msg.attachments) {
+      return msg.attachments.map((a) => ({
+        id: a.filename,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        isDocumentEligible: isDocumentEligible(a.mimeType),
+      }));
+    }
+    return [];
+  }
 
   // Collaborator activity for the current thread (reactive via store subscription)
   let collaboratorActivities = $derived.by(() => {
@@ -186,6 +213,8 @@
         });
       }
     }
+
+    // Artifact loading is handled reactively via $effect above (handles both initial mount and thread switches)
   });
 
   onDestroy(() => {
@@ -456,7 +485,7 @@
     _appSlug: string,
     modelIds: string[],
     text: string,
-    _attachments?: Attachment[],
+    attachments?: Attachment[],
   ) {
     // Validation
     if (!text.trim() || isStreaming) return;
@@ -472,6 +501,26 @@
 
     error = '';
 
+    // Update thread metadata if the user switched models since creation
+    const primaryModelId = modelIds[0];
+    if (primaryModelId && thread) {
+      const selectedDetail = availableModels.find((m) => m.accessName === primaryModelId);
+      const storedModelTitle = thread.metadata?.modelTitle as string | undefined;
+      if (selectedDetail && selectedDetail.title !== storedModelTitle) {
+        modelName = selectedDetail.accessName;
+        modelAccessName = selectedDetail.accessName;
+        applicationSlug = selectedDetail.applicationSlug;
+        threadService.update(thread.id, {
+          metadata: {
+            ...thread.metadata,
+            modelTitle: selectedDetail.title,
+            modelId: selectedDetail.accessName,
+            modelProvider: selectedDetail.provider,
+          },
+        });
+      }
+    }
+
     // Calculate next branchId for user (prompt) and assistant (response) messages
     const branchId = threadService.calculateNextBranchId(messages, lastMessageBranchId || '0.0.0');
 
@@ -480,7 +529,7 @@
     if (multipleModels) {
       await sendMessageBranch(threadId, modelIds, branchId, text);
     } else {
-      await sendMessageSingle(threadId, branchId, modelIds[0], text);
+      await sendMessageSingle(threadId, branchId, modelIds[0], text, attachments);
     }
   }
 
@@ -733,6 +782,7 @@
     branchId: string,
     modelId: string,
     promptText: string,
+    attachments?: Attachment[],
   ) {
     // add new prompt as "local" message - let thread-repository replace it once it shows up in llm_requests
     const [success, newMessage]: [boolean, Message] = await threadService.appendPrompt(
@@ -741,9 +791,11 @@
       promptText,
       modelId,
       messages,
+      attachments,
     );
     if (!success || !newMessage) return;
 
+    const chatMessages = [...messages, newMessage];
     messages = [...messages, newMessage];
     await tick();
     scrollToBottom();
@@ -783,7 +835,7 @@
         capturedThreadId,
         capturedBranchId,
         modelId,
-        messages,
+        chatMessages,
       );
 
       // Check if the user is still viewing this thread
@@ -1070,175 +1122,181 @@
 </script>
 
 <div class="thread-chat-view">
-  {#if error}
-    <div class="error-banner" role="alert">
-      <i class="pi pi-exclamation-triangle"></i>
-      <span>{error}</span>
-      <button class="error-close" onclick={() => (error = '')} aria-label="Dismiss">
-        <i class="pi pi-times"></i>
-      </button>
-    </div>
-  {/if}
+  <div class="chat-column">
+    {#if error}
+      <div class="error-banner" role="alert">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span>{error}</span>
+        <button class="error-close" onclick={() => (error = '')} aria-label="Dismiss">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    {/if}
 
-  {#if agentUnavailableInfo}
-    <div class="info-banner" role="status">
-      <i class="pi pi-info-circle"></i>
-      <span>This assistant is no longer available or you do not have permission to use it.</span>
-      <button
-        class="info-close"
-        onclick={() => (agentUnavailableInfo = false)}
-        aria-label="Dismiss"
-      >
-        <i class="pi pi-times"></i>
-      </button>
-    </div>
-  {/if}
+    {#if agentUnavailableInfo}
+      <div class="info-banner" role="status">
+        <i class="pi pi-info-circle"></i>
+        <span>This assistant is no longer available or you do not have permission to use it.</span>
+        <button
+          class="info-close"
+          onclick={() => (agentUnavailableInfo = false)}
+          aria-label="Dismiss"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    {/if}
 
-  <!-- Message list -->
-  <div
-    class="messages-area"
-    class:layout-left-right={chatLayout === 'left-right'}
-    class:layout-right-left={chatLayout === 'right-left'}
-    bind:this={messagesEl}
-  >
-    {#if displayItems.length === 0 && !isStreaming}
-      <div class="empty-state">
-        <i class="pi pi-comments"></i>
-        <p>
-          {#if isNewThread}
-            Select a model and send your first prompt.
-          {:else}
-            No messages yet. Send a prompt to get started.
-          {/if}
-        </p>
-
-        <!-- Model selector for new threads -->
-        {#if isNewThread}
-          <div class="model-selector">
-            {#if availableModels.length === 0}
-              <span class="no-models">No models available. Check your connections in Settings.</span
-              >
+    <!-- Message list -->
+    <div
+      class="messages-area"
+      class:layout-left-right={chatLayout === 'left-right'}
+      class:layout-right-left={chatLayout === 'right-left'}
+      bind:this={messagesEl}
+    >
+      {#if displayItems.length === 0 && !isStreaming}
+        <div class="empty-state">
+          <i class="pi pi-comments"></i>
+          <p>
+            {#if isNewThread}
+              Select a model and send your first prompt.
             {:else}
-              <label class="model-label" for="model-select">
-                <i class="pi pi-microchip-ai"></i>
-                Model
-              </label>
-              <select id="model-select" class="model-dropdown" bind:value={selectedModelKey}>
-                {#each availableModels as m}
-                  <option value="{m.provider}::{m.id}">
-                    {m.title} ({m.provider})
-                  </option>
-                {/each}
-              </select>
+              No messages yet. Send a prompt to get started.
             {/if}
-          </div>
-        {/if}
-      </div>
-    {/if}
+          </p>
 
-    {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
-      {#if item.type === 'message'}
-        <ChatMessage
-          requestContent={item.pair.request.content}
-          requestCreatedAt={item.pair.request.createdAt}
-          modelId={item.pair.request.modelId}
-          branchId={item.pair.request.branchId}
-          userName={item.pair.request.userId || 'You'}
-          {chatLayout}
-          {fontSize}
-          responses={item.pair.responses}
-          isStreaming={item.pair.isStreamingResponse}
-          streamingContent={item.pair.streamingContent}
-          tools={item.pair.isStreamingResponse
-            ? activeToolCalls
-            : (completedToolCalls.get(item.pair.request.branchId) ??
-              toolCallsFromResponses(item.pair.responses))}
-          onCopyRequest={(content) => copyToInput(content)}
-          showBranchIcon={item.isFromBranch === true}
-          onBranchClick={item.isFromBranch
-            ? () => handleBranchIconClick(item.pair.request.branchId)
-            : undefined}
-          guardStatus={item.pair.request.guardExecution}
-          guardError={item.pair.request.guardError}
-        />
-      {:else if item.type === 'branch'}
-        <ChatBranch
-          branchId={item.id}
-          lanes={item.lanes}
-          {chatLayout}
-          {fontSize}
-          onCopyRequest={(content) => copyToInput(content)}
-          onSelectLane={(laneIndex) => handleSelectLane(item.id, laneIndex)}
-          isViewMode={item.isviewMode ?? false}
-          onDismiss={item.isviewMode ? () => handleDismissBranch(item.position) : undefined}
-        />
-      {/if}
-    {/each}
-
-    <!-- Collaborator activity indicators for shared project threads -->
-    {#if !isStreaming && collaboratorActivities.length > 0}
-      {#each collaboratorActivities as activity (activity.userId)}
-        <CollaboratorActivityIndicator userId={activity.userId} />
-      {/each}
-    {/if}
-
-    <!-- Guard / notification event indicators -->
-    {#if notificationEvents.length > 0}
-      {#each notificationEvents as event (event.id)}
-        <CollaboratorActivityIndicator variant={event.type} message={event.message} />
-      {/each}
-    {/if}
-
-    <!-- Loading indicator while waiting for first streaming token -->
-    {#if isStreaming && responseText === '' && activeToolCalls.length === 0}
-      <div class="waiting-indicator">
-        <div class="waiting-dots">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
+          <!-- Model selector for new threads -->
+          {#if isNewThread}
+            <div class="model-selector">
+              {#if availableModels.length === 0}
+                <span class="no-models"
+                  >No models available. Check your connections in Settings.</span
+                >
+              {:else}
+                <label class="model-label" for="model-select">
+                  <i class="pi pi-microchip-ai"></i>
+                  Model
+                </label>
+                <select id="model-select" class="model-dropdown" bind:value={selectedModelKey}>
+                  {#each availableModels as m}
+                    <option value="{m.provider}::{m.id}">
+                      {m.title} ({m.provider})
+                    </option>
+                  {/each}
+                </select>
+              {/if}
+            </div>
+          {/if}
         </div>
-      </div>
-    {/if}
-  </div>
+      {/if}
 
-  <!-- Composer at the bottom -->
-  <div class="composer-area">
-    <Composer
-      {sendMessage}
-      {isStreaming}
-      {threadId}
-      disabled={isNewThread}
-      initialText={composerText}
-      {applicationSlug}
-      {agentId}
-      modelId={modelAccessName}
-    />
-    <div class="context-status-row">
-      <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
+      {#each displayItems as item (item.type === 'message' ? item.pair.request.id : item.id)}
+        {#if item.type === 'message'}
+          <ChatMessage
+            requestContent={item.pair.request.content}
+            requestCreatedAt={item.pair.request.createdAt}
+            modelId={item.pair.request.modelId}
+            branchId={item.pair.request.branchId}
+            userName={item.pair.request.userId || 'You'}
+            {chatLayout}
+            {fontSize}
+            responses={item.pair.responses}
+            isStreaming={item.pair.isStreamingResponse}
+            streamingContent={item.pair.streamingContent}
+            tools={item.pair.isStreamingResponse
+              ? activeToolCalls
+              : (completedToolCalls.get(item.pair.request.branchId) ??
+                toolCallsFromResponses(item.pair.responses))}
+            onCopyRequest={(content) => copyToInput(content)}
+            showBranchIcon={item.isFromBranch === true}
+            onBranchClick={item.isFromBranch
+              ? () => handleBranchIconClick(item.pair.request.branchId)
+              : undefined}
+            attachments={buildAttachmentDisplayList(item.pair.request)}
+            guardStatus={item.pair.request.guardExecution}
+            guardError={item.pair.request.guardError}
+          />
+        {:else if item.type === 'branch'}
+          <ChatBranch
+            branchId={item.id}
+            lanes={item.lanes}
+            {chatLayout}
+            {fontSize}
+            onCopyRequest={(content) => copyToInput(content)}
+            onSelectLane={(laneIndex) => handleSelectLane(item.id, laneIndex)}
+            isViewMode={item.isviewMode ?? false}
+            onDismiss={item.isviewMode ? () => handleDismissBranch(item.position) : undefined}
+          />
+        {/if}
+      {/each}
+
+      <!-- Collaborator activity indicators for shared project threads -->
+      {#if !isStreaming && collaboratorActivities.length > 0}
+        {#each collaboratorActivities as activity (activity.userId)}
+          <CollaboratorActivityIndicator userId={activity.userId} />
+        {/each}
+      {/if}
+
+      <!-- Guard / notification event indicators -->
+      {#if notificationEvents.length > 0}
+        {#each notificationEvents as event (event.id)}
+          <CollaboratorActivityIndicator variant={event.type} message={event.message} />
+        {/each}
+      {/if}
+
+      <!-- Loading indicator while waiting for first streaming token -->
+      {#if isStreaming && responseText === '' && activeToolCalls.length === 0}
+        <div class="waiting-indicator">
+          <div class="waiting-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
+      {/if}
     </div>
 
-    <!-- Debug Activity Box -->
-    {#if SHOW_DEBUG_ACTIVITY}
-      <div class="debug-area">
-        <div class="debug-header">
-          <span class="debug-title">🔍 Debug Activity</span>
-          <button
-            class="debug-clear"
-            onclick={() => (debugActivity = '')}
-            aria-label="Clear debug log"
-          >
-            Clear
-          </button>
-        </div>
-        <textarea
-          class="debug-log"
-          readonly
-          value={debugActivity}
-          placeholder="Debug activity will appear here..."
-        ></textarea>
+    <!-- Composer at the bottom -->
+    <div class="composer-area">
+      <Composer
+        {sendMessage}
+        {isStreaming}
+        {threadId}
+        disabled={isNewThread}
+        initialText={composerText}
+        {applicationSlug}
+        {agentId}
+        modelId={modelAccessName}
+        onActivateComposerMode={onSwitchToComposer}
+      />
+      <div class="context-status-row">
+        <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />
       </div>
-    {/if}
+
+      <!-- Debug Activity Box -->
+      {#if SHOW_DEBUG_ACTIVITY}
+        <div class="debug-area">
+          <div class="debug-header">
+            <span class="debug-title">🔍 Debug Activity</span>
+            <button
+              class="debug-clear"
+              onclick={() => (debugActivity = '')}
+              aria-label="Clear debug log"
+            >
+              Clear
+            </button>
+          </div>
+          <textarea
+            class="debug-log"
+            readonly
+            value={debugActivity}
+            placeholder="Debug activity will appear here..."
+          ></textarea>
+        </div>
+      {/if}
+    </div>
   </div>
+  <!-- /chat-column -->
 </div>
 
 <style>
@@ -1246,6 +1304,15 @@
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .chat-column {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
   }

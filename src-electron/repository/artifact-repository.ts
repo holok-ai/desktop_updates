@@ -109,25 +109,43 @@ export class ArtifactRepository {
    */
   async addVersion(
     threadId: string,
-    content: string,
-    attribution: ArtifactVersion['attribution'],
-    sourceAction: ArtifactVersion['sourceAction'],
-    changeSummary: string,
-    diffFromPrevious?: string,
-  ): Promise<ArtifactVersion> {
+    params: {
+      content: string;
+      attribution: ArtifactVersion['attribution'];
+      sourceAction: ArtifactVersion['sourceAction'];
+      changeSummary: string;
+      title?: string;
+    },
+  ): Promise<ArtifactVersion | null> {
     const artifact = this.cache.get(threadId);
     if (!artifact) {
       throw new Error(`[ArtifactRepository] No artifact found for thread: ${threadId}`);
     }
 
+    const { content, attribution, sourceAction, changeSummary, title } = params;
     const latestVersion = artifact.versions[artifact.versions.length - 1];
+
+    // Skip if content is identical to the current version
+    if (latestVersion.content === content) {
+      log.info('[ArtifactRepository] Skipping duplicate version', {
+        threadId,
+        currentVersionId: latestVersion.id,
+        attribution,
+        sourceAction,
+      });
+      return null;
+    }
+
+    if (title) {
+      artifact.filename = title;
+    }
+
     const newVersion: ArtifactVersion = {
       id: latestVersion.id + 1,
       content,
       attribution,
       sourceAction,
       changeSummary,
-      diffFromPrevious,
       createdAt: Date.now(),
     };
 

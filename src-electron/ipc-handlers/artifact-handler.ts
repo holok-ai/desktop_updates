@@ -8,6 +8,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import log from '../utils/logger.js';
 import { artifactService } from '../services/artifact.service.js';
+import { artifactRepository } from '../repository/artifact-repository.js';
 import { fileStorageService } from '../services/file-storage.service.js';
 import type {
   Artifact,
@@ -21,6 +22,7 @@ import type {
  */
 export function registerArtifactHandlers(): void {
   ipcMain.handle('artifact:activate', handleActivate);
+  ipcMain.handle('artifact:initialize', handleInitialize);
   ipcMain.handle('artifact:get', handleGet);
   ipcMain.handle('artifact:addUserVersion', handleAddUserVersion);
   ipcMain.handle('artifact:addAiVersion', handleAddAiVersion);
@@ -82,6 +84,44 @@ async function handleActivate(
 }
 
 /**
+ * Initialize a blank artifact for Composer mode (no file buffer needed).
+ */
+async function handleInitialize(
+  _event: IpcMainInvokeEvent,
+  payload: {
+    threadId: string;
+    filename: string;
+    content: string;
+  },
+): Promise<{ success: boolean; artifact?: Artifact; error?: string }> {
+  try {
+    const { threadId, filename, content } = payload;
+
+    log.info('[ArtifactHandler] Initialize request', { threadId, filename });
+
+    if (!threadId || !filename) {
+      return { success: false, error: 'Missing required fields (threadId, filename)' };
+    }
+
+    const artifact = await artifactRepository.createArtifact(
+      threadId,
+      filename,
+      'text/markdown',
+      content || '',
+      'Initial document',
+    );
+
+    return { success: true, artifact };
+  } catch (error) {
+    log.error('[ArtifactHandler] Initialize error', { error });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during initialization',
+    };
+  }
+}
+
+/**
  * Get the artifact for a thread.
  */
 async function handleGet(
@@ -102,7 +142,7 @@ async function handleGet(
 }
 
 /**
- * Add a user-attributed version.
+ * Add a version (user or AI attributed).
  */
 async function handleAddUserVersion(
   _event: IpcMainInvokeEvent,
@@ -110,20 +150,25 @@ async function handleAddUserVersion(
     threadId: string;
     content: string;
     sourceAction: string;
+    attribution?: string;
+    changeSummary?: string;
+    title?: string;
   },
-): Promise<{ success: boolean; version?: ArtifactVersion; error?: string }> {
+): Promise<{ success: boolean; version?: ArtifactVersion | null; error?: string }> {
   try {
-    const { threadId, content, sourceAction } = payload;
+    const { threadId, content, sourceAction, attribution, changeSummary, title } = payload;
 
     if (!threadId || content === undefined || !sourceAction) {
       return { success: false, error: 'Missing required fields' };
     }
 
-    const version = await artifactService.addUserVersion(
-      threadId,
+    const version = await artifactService.addVersion(threadId, {
       content,
-      sourceAction as ArtifactVersion['sourceAction'],
-    );
+      sourceAction: sourceAction as ArtifactVersion['sourceAction'],
+      attribution: (attribution as ArtifactVersion['attribution']) ?? 'user',
+      changeSummary: changeSummary ?? 'User edit',
+      title,
+    });
 
     return { success: true, version };
   } catch (error) {
@@ -145,7 +190,7 @@ async function handleAddAiVersion(
     diff: string;
     summary: string;
   },
-): Promise<{ success: boolean; version?: ArtifactVersion; error?: string }> {
+): Promise<{ success: boolean; version?: ArtifactVersion | null; error?: string }> {
   try {
     const { threadId, diff, summary } = payload;
 
@@ -230,7 +275,7 @@ async function handleApplyAcceptReject(
     resolvedChanges: DiffChange[];
     sourceAction: 'accept_change' | 'reject_change';
   },
-): Promise<{ success: boolean; version?: ArtifactVersion; error?: string }> {
+): Promise<{ success: boolean; version?: ArtifactVersion | null; error?: string }> {
   try {
     const { threadId, baseVersionId, targetVersionId, resolvedChanges, sourceAction } = payload;
 
@@ -267,12 +312,21 @@ async function handleGetPromptAugmentation(
     const { threadId } = payload;
 
     const artifact = await artifactService.getArtifact(threadId);
-    if (!artifact || artifact.versions.length === 0) {
-      return { success: false, error: 'No artifact found' };
-    }
 
-    const currentContent = artifact.versions[artifact.versions.length - 1].content;
-    const augmentation = artifactService.getPromptAugmentation(currentContent);
+    let augmentation: string;
+    if (!artifact || artifact.versions.length === 0) {
+      // No artifact yet — use creation-mode augmentation
+      augmentation = artifactService.getCreationAugmentation();
+    } else {
+      // Existing artifact — use edit-mode augmentation
+      const currentContent = artifact.versions[artifact.versions.length - 1].content;
+      augmentation = artifactService.getPromptAugmentation(
+        artifact.id,
+        artifact.filename,
+        artifact.originalMimeType,
+        currentContent,
+      );
+    }
 
     return { success: true, augmentation };
   } catch (error) {

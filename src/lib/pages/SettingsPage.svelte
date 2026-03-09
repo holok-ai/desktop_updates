@@ -356,7 +356,7 @@
 
     <!-- Settings content panel -->
     <div class="settings-panel">
-      <div class="settings-scroll-area">
+      <div class="settings-scroll-area" class:no-scroll={activeCategory === 'diagnostics'}>
         <div class="settings-content">
           {#if isLoading}
             <div class="loading">Loading settings...</div>
@@ -900,6 +900,12 @@
     overflow-x: hidden;
   }
 
+  .settings-scroll-area.no-scroll {
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
   .settings-content {
     max-width: 760px;
     margin-left: 2rem;
@@ -1089,18 +1095,36 @@
   }
 
   /* ── Log viewer ── */
+  /* When diagnostics is active, the flex chain fills available height */
+  .no-scroll .settings-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .no-scroll .category-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .log-viewer-section {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     padding: 1rem 1.25rem;
+    flex: 1;
+    min-height: 0;
   }
 
   .log-viewer {
     font-family: monospace;
     font-size: 0.7rem;
     line-height: 1.4;
-    height: calc(40 * 0.7rem * 1.4);
+    flex: 1;
+    min-height: 100px;
     overflow-y: auto;
     border: 1px solid var(--input-border);
     border-radius: 0.375rem;

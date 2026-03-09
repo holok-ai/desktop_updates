@@ -527,17 +527,27 @@ export interface ArtifactAPI {
     maxSizeBytes?: number;
   }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
 
+  // Initialize a blank artifact for Composer mode (no file buffer needed)
+  initialize: (payload: {
+    threadId: string;
+    filename: string;
+    content: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
   // Get the artifact for a thread
   get: (payload: {
     threadId: string;
   }) => Promise<{ success: boolean; artifact?: Artifact | null; error?: string }>;
 
-  // Add a user-attributed version
+  // Add a version (user or AI attributed)
   addUserVersion: (payload: {
     threadId: string;
     content: string;
     sourceAction: string;
-  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+    attribution?: string;
+    changeSummary?: string;
+    title?: string;
+  }) => Promise<{ success: boolean; version?: ArtifactVersion | null; error?: string }>;
 
   // Add an AI-attributed version from structured diff output
   addAiVersion: (payload: {
@@ -993,10 +1003,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       maxSizeBytes?: number;
     }) => ipcRenderer.invoke('artifact:activate', payload),
 
+    initialize: (payload: { threadId: string; filename: string; content: string }) =>
+      ipcRenderer.invoke('artifact:initialize', payload),
+
     get: (payload: { threadId: string }) => ipcRenderer.invoke('artifact:get', payload),
 
-    addUserVersion: (payload: { threadId: string; content: string; sourceAction: string }) =>
-      ipcRenderer.invoke('artifact:addUserVersion', payload),
+    addUserVersion: (payload: {
+      threadId: string;
+      content: string;
+      sourceAction: string;
+      attribution?: string;
+      changeSummary?: string;
+      title?: string;
+    }) => ipcRenderer.invoke('artifact:addUserVersion', payload),
 
     addAiVersion: (payload: { threadId: string; diff: string; summary: string }) =>
       ipcRenderer.invoke('artifact:addAiVersion', payload),

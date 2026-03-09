@@ -1,4 +1,5 @@
 import type { MessageMetadata } from '$shared/types/attachment.types.js';
+import type { ComposerContent } from '$shared/types/composer.types.js';
 import type { MessageStatus } from './status.type.ts';
 import type { RequestOptionsDTO } from '../../../src-electron/preload.js';
 import type { MessageContext } from './context.type.js';
@@ -45,6 +46,8 @@ export interface Message {
   toolUses?: Array<{ id?: string; name: string; status: 'complete' | 'error' }>;
   /** Context metadata for turn tracking and future compression */
   context?: MessageContext;
+  /** Parsed <composer> content extracted from assistant responses in document mode */
+  composer?: ComposerContent;
 }
 
 export interface ModelDetails {

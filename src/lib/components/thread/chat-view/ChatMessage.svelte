@@ -11,6 +11,8 @@
   import ChatResponseCommands from './ChatResponseCommands.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
   import type { ToolCall } from '$lib/types/tool-call.type';
+  import type { AttachmentDisplay } from '$lib/types/artifact-display.type';
+  import type { ComposerContent } from '$shared/types/composer.types.js';
 
   interface Props {
     /** User prompt text */
@@ -21,14 +23,16 @@
     modelId?: string | null;
     /** User's display name */
     userName?: string;
-    /** Attachment filenames */
-    attachments?: string[];
+    /** Attachment data with Document Mode eligibility */
+    attachments?: AttachmentDisplay[];
 
     /** Assistant responses (array to support multiple consecutive responses) */
     responses?: Array<{
       id: string;
       content: string;
+      createdAt?: number;
       tools?: Array<{ name: string; status: string }>;
+      composer?: ComposerContent;
     }>;
     /** Streaming content for active streaming response */
     streamingContent?: string;
@@ -63,6 +67,10 @@
     showBranchIcon?: boolean;
     /** Callback when branch icon is clicked to re-expand branch view */
     onBranchClick?: () => void;
+    /** Callback when Document Mode badge is clicked on an attachment */
+    onActivateDocumentMode?: (attachment: AttachmentDisplay) => void;
+    /** Callback when a composer version card is clicked */
+    onComposerCardClick?: (composer: ComposerContent) => void;
   }
 
   let {
@@ -86,6 +94,8 @@
     onRetry,
     showBranchIcon = false,
     onBranchClick,
+    onActivateDocumentMode,
+    onComposerCardClick,
   }: Props = $props();
 
   const requestCommands = $derived([
@@ -141,6 +151,7 @@
     {branchId}
     {guardStatus}
     {guardError}
+    {onActivateDocumentMode}
   />
 
   <!-- Request commands (hover-reveal) -->
@@ -167,6 +178,11 @@
       {fontSize}
       {guardStatus}
       {guardError}
+      composer={response.composer}
+      createdAt={response.createdAt}
+      onComposerCardClick={response.composer
+        ? () => onComposerCardClick?.(response.composer!)
+        : undefined}
     />
   {/each}
 

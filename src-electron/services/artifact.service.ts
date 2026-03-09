@@ -20,6 +20,7 @@ import type {
   VersionSourceAction,
   ArtifactAttributionSource,
 } from '../../src-shared/types/artifact.types.js';
+import { AUGMENTATION_START, AUGMENTATION_END } from '../../src-shared/utils/composer-parser.js';
 
 export class ArtifactService {
   /**
@@ -75,7 +76,7 @@ export class ArtifactService {
     threadId: string,
     diffText: string,
     changeSummary: string,
-  ): Promise<ArtifactVersion> {
+  ): Promise<ArtifactVersion | null> {
     const artifact = await artifactRepository.getArtifact(threadId);
     if (!artifact) {
       throw new Error(`[ArtifactService] No artifact found for thread: ${threadId}`);
@@ -97,56 +98,58 @@ export class ArtifactService {
       );
     }
 
-    const version = await artifactRepository.addVersion(
-      threadId,
-      newContent,
-      'ai',
-      'attachment_edit',
-      changeSummary,
-      diffText,
-    );
-
-    log.info('[ArtifactService] AI version added', {
-      threadId,
-      versionId: version.id,
+    const version = await artifactRepository.addVersion(threadId, {
+      content: newContent,
+      attribution: 'ai',
+      sourceAction: 'attachment_edit',
       changeSummary,
     });
+
+    if (version) {
+      log.info('[ArtifactService] AI version added', {
+        threadId,
+        versionId: version.id,
+        changeSummary,
+      });
+    }
 
     return version;
   }
 
   /**
-   * Add a user-attributed version (from direct editing, auto-save, export, or prompt submit).
+   * Add a version (from direct editing, auto-save, export, prompt submit, or AI response).
    */
-  async addUserVersion(
+  async addVersion(
     threadId: string,
-    content: string,
-    sourceAction: VersionSourceAction,
-  ): Promise<ArtifactVersion> {
+    params: {
+      content: string;
+      sourceAction: VersionSourceAction;
+      attribution?: ArtifactAttributionSource;
+      changeSummary?: string;
+      title?: string;
+    },
+  ): Promise<ArtifactVersion | null> {
     const artifact = await artifactRepository.getArtifact(threadId);
     if (!artifact) {
       throw new Error(`[ArtifactService] No artifact found for thread: ${threadId}`);
     }
 
-    const currentVersion = artifact.versions[artifact.versions.length - 1];
-
-    // Compute diff from current to new content
-    const diff = diffService.computeUnifiedDiff(currentVersion.content, content);
-
-    const version = await artifactRepository.addVersion(
-      threadId,
-      content,
-      'user',
-      sourceAction,
-      'User edit',
-      diff,
-    );
-
-    log.info('[ArtifactService] User version added', {
-      threadId,
-      versionId: version.id,
-      sourceAction,
+    const version = await artifactRepository.addVersion(threadId, {
+      content: params.content,
+      attribution: params.attribution ?? 'user',
+      sourceAction: params.sourceAction,
+      changeSummary: params.changeSummary ?? 'User edit',
+      title: params.title,
     });
+
+    if (version) {
+      log.info('[ArtifactService] Version added', {
+        threadId,
+        versionId: version.id,
+        sourceAction: params.sourceAction,
+        attribution: params.attribution,
+      });
+    }
 
     return version;
   }
@@ -197,7 +200,7 @@ export class ArtifactService {
     targetVersionId: number,
     resolvedChanges: DiffChange[],
     sourceAction: 'accept_change' | 'reject_change',
-  ): Promise<ArtifactVersion> {
+  ): Promise<ArtifactVersion | null> {
     const baseVersion = artifactRepository.getVersion(threadId, baseVersionId);
     const targetVersion = artifactRepository.getVersion(threadId, targetVersionId);
 
@@ -215,12 +218,13 @@ export class ArtifactService {
     const rejected = resolvedChanges.filter((c) => c.resolved === 'rejected').length;
     const summary = `${accepted} change(s) accepted, ${rejected} change(s) rejected`;
 
-    const diff = diffService.computeUnifiedDiff(
-      artifactRepository.getVersion(threadId, targetVersionId)?.content ?? '',
-      newContent,
-    );
-
-    return artifactRepository.addVersion(threadId, newContent, 'user', sourceAction, summary, diff);
+    // TODO: rework accept/reject to not create a version per resolution
+    return artifactRepository.addVersion(threadId, {
+      content: newContent,
+      attribution: 'user',
+      sourceAction,
+      changeSummary: summary,
+    });
   }
 
   /**
@@ -240,23 +244,79 @@ export class ArtifactService {
   /**
    * Build prompt augmentation text for document mode.
    * This is appended to every user prompt when document mode is active.
+   *
+   * Expected AI response format:
+   *   Summary of changes
+   *   <composer id="{artifactId}" title="{filename}">
+   *   full updated document content
+   *   </composer>
+   *   Description of what changed
    */
-  getPromptAugmentation(currentContent: string): string {
+  /**
+   * Augmentation for an existing artifact (edit mode).
+   */
+  getPromptAugmentation(
+    artifactId: string,
+    filename: string,
+    mimeType: string,
+    currentContent: string,
+  ): string {
     return [
-      'You are editing a document. The current document content is provided below.',
-      'When making changes, respond with ONLY a JSON object inside a fenced code block containing:',
-      '1. "diff": A GitHub unified diff (with @@ hunks, + and - lines) of your changes against the current document.',
-      '2. "summary": A concise human-readable description of what you changed and why.',
+      AUGMENTATION_START,
+      'You are editing a document in Composer mode. The current document content is provided below.',
+      '',
+      `Document ID: ${artifactId}`,
+      `Document title: ${filename}`,
+      `Document type: ${mimeType}`,
       '',
       'Current document:',
-      '```markdown',
+      '```',
       currentContent,
       '```',
       '',
-      'Respond in this exact format:',
-      '```json',
-      '{"diff": "--- a/document\\n+++ b/document\\n@@ ... @@\\n ...","summary": "..."}',
-      '```',
+      'When responding, use this exact format:',
+      '',
+      'A brief summary of the changes you made.',
+      '',
+      `<composer id="${artifactId}" title="${filename}" version_description="{version_description}">`,
+      'The full updated document content goes here.',
+      '</composer>',
+      '',
+      'A description of what was changed and why.',
+      '',
+      'IMPORTANT: Always include the complete updated document inside the <composer> tags, not just the changed parts.',
+      'IMPORTANT: Always use <composer> tags when generating or updating content, even if the request is for entirely new content unrelated to the current document.',
+      'IMPORTANT: Generate a version_description that is 3 to 7 words concisely summarizing the changes or request (e.g. "update bullet formatting", "compress introduction text", "add executive summary section").',
+      'IMPORTANT: If the document title is a placeholder such as "Untitled", "Document", or "Untitled Document" (with or without a file extension), generate an applicable document title in the "title" attribute that can be used as a file name (e.g. "Financial Report.md", "Training Plan.md").',
+      'Only respond without <composer> tags if the user is asking a clarifying question that does not produce document content.',
+      AUGMENTATION_END,
+    ].join('\n');
+  }
+
+  /**
+   * Augmentation for a new document (creation mode) — no artifact exists yet.
+   */
+  getCreationAugmentation(): string {
+    return [
+      AUGMENTATION_START,
+      'You are creating a new document in Composer mode. There is no existing document yet.',
+      '',
+      'When responding, use this exact format:',
+      '',
+      'A brief summary of the document you created.',
+      '',
+      '<composer id="{document_id}" title="{document_title}" version_description="{version_description}">',
+      'The full document content goes here.',
+      '</composer>',
+      '',
+      'A description of what was created and why.',
+      '',
+      'IMPORTANT: Generate a document_id that is 6 to 15 lowercase alphanumeric characters based on the content (e.g. "finreport2024", "trainingplan").',
+      'IMPORTANT: Generate a document_title that is a short, descriptive filename ending in .md based on the content (e.g. "Financial Report.md", "Training Plan.md").',
+      'IMPORTANT: Generate a version_description that is 3 to 7 words concisely summarizing the content or request (e.g. "initial business plan", "draft training outline", "financial summary document").',
+      'IMPORTANT: Always wrap your document content inside the <composer> tags.',
+      'Only respond without <composer> tags if the user is asking a clarifying question that does not produce document content.',
+      AUGMENTATION_END,
     ].join('\n');
   }
 
@@ -355,12 +415,16 @@ export class ArtifactService {
       sections.push(`**Summary:** ${version.changeSummary}`);
       sections.push('');
 
-      if (version.diffFromPrevious && i > 0) {
-        sections.push('### Changes');
-        sections.push('```diff');
-        sections.push(version.diffFromPrevious);
-        sections.push('```');
-        sections.push('');
+      if (i > 0) {
+        const prevVersion = artifactData.versions[i - 1];
+        const diff = diffService.computeUnifiedDiff(prevVersion.content, version.content);
+        if (diff) {
+          sections.push('### Changes');
+          sections.push('```diff');
+          sections.push(diff);
+          sections.push('```');
+          sections.push('');
+        }
       }
 
       sections.push('### Content');

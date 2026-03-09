@@ -6,6 +6,7 @@ import type {
   ApiResponse,
 } from '../../../src-electron/preload.js';
 import type { Message } from '$lib/types/thread.type.js';
+import type { Attachment, MessageMetadata } from '$shared/types/attachment.types.js';
 
 /**
  * Domain service for thread message operations.
@@ -119,6 +120,7 @@ export class ThreadMessageService {
     prompt: string,
     modelId: string,
     _messages: Message[],
+    attachments?: Attachment[],
   ): Promise<[boolean, Message]> {
     // make sure we have a chat service
     const _result = await window.electronAPI.chat.createServiceForThread(
@@ -129,6 +131,13 @@ export class ThreadMessageService {
     );
 
     const clientMessageId = crypto.randomUUID();
+
+    // Build metadata including attachments if provided
+    const metadata: MessageMetadata = modelId ? { modelId } : {};
+    if (attachments && attachments.length > 0) {
+      metadata.attachments = attachments;
+    }
+
     const newPromptMessage: Message = {
       id: clientMessageId,
       threadId: threadId,
@@ -141,13 +150,14 @@ export class ThreadMessageService {
       guardExecution: 'none',
       guardMessageId: null,
       guardError: '',
+      metadata,
     };
 
     try {
       const res = await this.appendMessage(threadId, {
         role: newPromptMessage.role,
         content: newPromptMessage.content,
-        metadata: modelId ? { modelId } : {},
+        metadata,
         clientMessageId,
         branchId,
       });

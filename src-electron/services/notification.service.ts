@@ -219,7 +219,7 @@ export class NotificationService {
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      log.info('[NotificationService] raw chunk received', {
+      log.debug('[NotificationService] raw chunk received', {
         length: chunk.length,
         preview: chunk.slice(0, 200),
       });

@@ -19,8 +19,22 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
       },
       output: {
-        manualChunks: {
-          highlight: ['highlight.js'],
+        manualChunks(id) {
+          const normalizedId = id.split(path.sep).join('/');
+
+          // Keep syntax highlighting isolated from general page code.
+          if (normalizedId.includes('/highlight.js/')) return 'highlight';
+
+          // Group all route/page modules into one shared chunk.
+          if (
+            normalizedId.includes('/src/routes/') ||
+            normalizedId.includes('/src/lib/pages/') ||
+            normalizedId.includes('/src/lib/components/thread/')
+          ) {
+            return 'pages';
+          }
+
+          return undefined;
         },
       },
     },
