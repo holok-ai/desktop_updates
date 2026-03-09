@@ -17,6 +17,7 @@
   import { copyToInput } from '$lib/services/clipboard.service';
   import { toastStore } from '$lib/services/toast.service';
   import { ThreadObserver } from '$lib/observer/thread-observer';
+  import { observerStore } from '$lib/observer/observer.store';
   import ContextStatus from './ContextStatus.svelte';
   import { ObserverTaskType } from '../../../../../src-shared/types/observer.types';
   import type { ToolCall } from '$lib/types/tool-call.type';
@@ -72,6 +73,30 @@
   // Tool calls accumulating for the active stream; snapshotted by branchId after completion
   let activeToolCalls = $state<ToolCall[]>([]);
   let completedToolCalls = $state(new Map<string, ToolCall[]>());
+
+  function buildSubmissionContext(
+    currentContext: Message[] | undefined,
+    latestMessages: Message[],
+  ): Message[] {
+    if (currentContext === undefined) {
+      return latestMessages;
+    }
+
+    const anchor = currentContext.at(-1)?.id;
+    if (!anchor) {
+      return currentContext;
+    }
+
+    const anchorIndex = latestMessages.findIndex((message) => message.id === anchor);
+    if (anchorIndex === -1) {
+      return currentContext;
+    }
+
+    const tail = latestMessages
+      .slice(anchorIndex + 1)
+      .filter((message) => !(message.role === 'assistant' && message.content.trim() === ''));
+    return [...currentContext, ...tail];
+  }
 
   /** Convert simplified tool uses from API-loaded messages into ToolCall objects */
   function toolCallsFromResponses(
@@ -679,8 +704,10 @@
     // Store a combined unsubscribe function
     bgStream.unsubscribe = () => unsubscribers.forEach((unsub) => unsub());
 
-    // Build history for the models
-    const historyMessages = messages.map((m) => ({
+    // Build history from observer-owned context (fallback to raw messages during transition).
+    const currentContext = observerStore.getCurrentContext(capturedThreadId);
+    const submissionContext = buildSubmissionContext(currentContext, messages);
+    const historyMessages = submissionContext.map((m) => ({
       role: m.role,
       content: m.content,
     }));

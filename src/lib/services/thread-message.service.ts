@@ -7,6 +7,7 @@ import type {
 } from '../../../src-electron/preload.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, MessageMetadata } from '$shared/types/attachment.types.js';
+import { observerStore } from '$lib/observer/observer.store';
 
 /**
  * Domain service for thread message operations.
@@ -196,8 +197,21 @@ export class ThreadMessageService {
         '',
       );
 
-      // Build history for the model (include the new prompt)
-      const historyMessages = messages.map((m) => ({
+      // Use observer-owned assembled context and append the latest pending prompt when needed.
+      const currentContext = observerStore.getCurrentContext(threadId);
+      const latestMessage = messages.at(-1);
+      const hasLatest =
+        latestMessage !== undefined &&
+        currentContext?.some((message) => message.id === latestMessage.id) === true;
+      let requestContext: Message[];
+      if (currentContext === undefined) {
+        requestContext = messages;
+      } else if (hasLatest || latestMessage === undefined) {
+        requestContext = currentContext;
+      } else {
+        requestContext = [...currentContext, latestMessage];
+      }
+      const historyMessages = requestContext.map((m) => ({
         role: m.role,
         content: m.content,
       }));
