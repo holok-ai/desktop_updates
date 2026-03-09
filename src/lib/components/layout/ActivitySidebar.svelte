@@ -18,6 +18,7 @@
   import { threadFacade as threadService } from '$lib/services/thread-facade';
   import { currentUser, isAuthenticated, authStore } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
+  import { sidebarCollapsed } from '$lib/stores/sidebar.store';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -37,6 +38,14 @@
   let showFavorites = $state(false);
   let showRecentThreads = $state(false);
   let isCollapsed = $state(false);
+
+  // Sync local state with shared store (allows external components to collapse sidebar)
+  $effect(() => {
+    const unsub = sidebarCollapsed.subscribe((v) => {
+      isCollapsed = v;
+    });
+    return unsub;
+  });
   let isSettingsMenuOpen = $state(false);
   let settingsWrapperEl = $state<HTMLDivElement | undefined>(undefined);
   let settingsBtnEl = $state<HTMLButtonElement | undefined>(undefined);
@@ -205,6 +214,7 @@
 
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
+    sidebarCollapsed.set(isCollapsed);
     storageService.setSidebarCollapsed(isCollapsed);
     if (isCollapsed) {
       showFavorites = false;
@@ -239,6 +249,7 @@
 
     // Load collapsed state
     isCollapsed = storageService.getSidebarCollapsed();
+    sidebarCollapsed.set(isCollapsed);
 
     void (async () => {
       try {

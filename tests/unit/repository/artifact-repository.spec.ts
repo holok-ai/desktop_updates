@@ -117,29 +117,36 @@ describe('ArtifactRepository', () => {
   describe('addVersion', () => {
     it('adds version 2 with correct sequential ID', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'Version 1');
-      const v2 = await repo.addVersion(
-        'thread-1',
-        'Version 2 content',
-        'ai',
-        'attachment_edit',
-        'AI made changes',
-        '--- a/doc\n+++ b/doc\n@@ -1 +1 @@\n-Version 1\n+Version 2 content',
-      );
+      const v2 = await repo.addVersion('thread-1', {
+        content: 'Version 2 content',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'AI made changes',
+      });
 
-      expect(v2.id).toBe(2);
-      expect(v2.content).toBe('Version 2 content');
-      expect(v2.attribution).toBe('ai');
-      expect(v2.sourceAction).toBe('attachment_edit');
-      expect(v2.changeSummary).toBe('AI made changes');
-      expect(v2.diffFromPrevious).toBeDefined();
+      expect(v2!.id).toBe(2);
+      expect(v2!.content).toBe('Version 2 content');
+      expect(v2!.attribution).toBe('ai');
+      expect(v2!.sourceAction).toBe('attachment_edit');
+      expect(v2!.changeSummary).toBe('AI made changes');
     });
 
     it('adds multiple versions sequentially', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'V1');
-      await repo.addVersion('thread-1', 'V2', 'ai', 'attachment_edit', 'Change 1');
-      const v3 = await repo.addVersion('thread-1', 'V3', 'user', 'user_edit_autosave', 'Change 2');
+      await repo.addVersion('thread-1', {
+        content: 'V2',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'Change 1',
+      });
+      const v3 = await repo.addVersion('thread-1', {
+        content: 'V3',
+        attribution: 'user',
+        sourceAction: 'user_edit_autosave',
+        changeSummary: 'Change 2',
+      });
 
-      expect(v3.id).toBe(3);
+      expect(v3!.id).toBe(3);
 
       const artifact = await repo.getArtifact('thread-1');
       expect(artifact!.versions).toHaveLength(3);
@@ -147,7 +154,12 @@ describe('ArtifactRepository', () => {
 
     it('throws for non-existent thread', async () => {
       await expect(
-        repo.addVersion('bogus', 'content', 'user', 'user_edit_autosave', 'test'),
+        repo.addVersion('bogus', {
+          content: 'content',
+          attribution: 'user',
+          sourceAction: 'user_edit_autosave',
+          changeSummary: 'test',
+        }),
       ).rejects.toThrow('No artifact found');
     });
   });
@@ -157,8 +169,18 @@ describe('ArtifactRepository', () => {
   describe('discardLatestVersion', () => {
     it('removes the latest version and returns artifact at N-1', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'V1');
-      await repo.addVersion('thread-1', 'V2', 'ai', 'attachment_edit', 'AI change');
-      await repo.addVersion('thread-1', 'V3', 'ai', 'attachment_edit', 'More AI changes');
+      await repo.addVersion('thread-1', {
+        content: 'V2',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'AI change',
+      });
+      await repo.addVersion('thread-1', {
+        content: 'V3',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'More AI changes',
+      });
 
       const updated = await repo.discardLatestVersion('thread-1');
       expect(updated.versions).toHaveLength(2);
@@ -175,7 +197,12 @@ describe('ArtifactRepository', () => {
 
     it('logs a discard event for auditability', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'V1');
-      await repo.addVersion('thread-1', 'V2', 'ai', 'attachment_edit', 'AI change');
+      await repo.addVersion('thread-1', {
+        content: 'V2',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'AI change',
+      });
 
       await repo.discardLatestVersion('thread-1');
       const log = repo.getDiscardLog('thread-1');
@@ -187,16 +214,20 @@ describe('ArtifactRepository', () => {
 
     it('allows new version after discard with reused ID', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'V1');
-      await repo.addVersion('thread-1', 'V2', 'ai', 'attachment_edit', 'AI change');
+      await repo.addVersion('thread-1', {
+        content: 'V2',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'AI change',
+      });
 
       await repo.discardLatestVersion('thread-1');
-      const newV2 = await repo.addVersion(
-        'thread-1',
-        'New V2',
-        'user',
-        'user_edit_autosave',
-        'User edit after discard',
-      );
+      const newV2 = await repo.addVersion('thread-1', {
+        content: 'New V2',
+        attribution: 'user',
+        sourceAction: 'user_edit_autosave',
+        changeSummary: 'User edit after discard',
+      });
 
       expect(newV2.id).toBe(2);
       expect(newV2.content).toBe('New V2');
@@ -208,7 +239,12 @@ describe('ArtifactRepository', () => {
   describe('getVersion', () => {
     it('returns a specific version by ID', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', 'V1');
-      await repo.addVersion('thread-1', 'V2', 'ai', 'attachment_edit', 'Change');
+      await repo.addVersion('thread-1', {
+        content: 'V2',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'Change',
+      });
 
       const v1 = repo.getVersion('thread-1', 1);
       expect(v1).not.toBeNull();
@@ -264,13 +300,12 @@ describe('ArtifactRepository', () => {
   describe('persistence', () => {
     it('persists artifact to JSON and a new instance can load it', async () => {
       await repo.createArtifact('thread-1', 'test.md', 'text/markdown', '# Test\n');
-      await repo.addVersion(
-        'thread-1',
-        '# Test\n\nEdited content\n',
-        'ai',
-        'attachment_edit',
-        'AI edit',
-      );
+      await repo.addVersion('thread-1', {
+        content: '# Test\n\nEdited content\n',
+        attribution: 'ai',
+        sourceAction: 'attachment_edit',
+        changeSummary: 'AI edit',
+      });
 
       // Create a fresh repository instance (same testDir via mock)
       const repo2 = new ArtifactRepository();

@@ -35,8 +35,6 @@ export interface ArtifactVersion {
   sourceAction: VersionSourceAction;
   /** Human-readable summary of what changed (from AI or auto-generated) */
   changeSummary: string;
-  /** Unified diff against the immediately prior version (stored for last-step comparison) */
-  diffFromPrevious?: string;
   /** Epoch ms when this version was created */
   createdAt: number;
 }

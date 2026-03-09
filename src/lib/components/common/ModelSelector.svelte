@@ -200,7 +200,7 @@
     if (selectedModelIds.length === 1) {
       const model = availableModels.find((m) => m.accessName === selectedModelIds[0]);
       if (model) {
-        return `${model.title} (${model.applicationName.toLowerCase()})`;
+        return model.title;
       }
       return selectedModelIds[0];
     }
@@ -254,7 +254,7 @@
               aria-hidden="true"
               tabindex="-1"
             />
-            <span class="model-title">{model.title} ({model.applicationName.toLowerCase()})</span>
+            <span class="model-title">{model.title}</span>
           </button>
         {/each}
       {/if}

@@ -282,6 +282,15 @@ export function registerThreadHandlers(): void {
         const rt = toRendererThread(updated);
         if (!rt) return apiFail(-1, 'Failed to convert updated thread');
         broadcast('thread:updated', rt);
+
+        // Persist metadata update to Moku API
+        if (updates.metadata) {
+          threadApiService.updateThread(id, { metadata: newMetadata }).catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            threadLog.error('[thread:update] API metadata sync failed:', msg);
+          });
+        }
+
         return apiOk(rt);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

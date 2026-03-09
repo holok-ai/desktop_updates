@@ -29,11 +29,11 @@ Context management defines how Holokai prepares and delivers conversation histor
 |---|---|
 | Scope & Lifecycle | Thread-scoped; originals messages persisted in DB; compression output ephemeral (recomputed on thread load) |
 | Triggers | Triggered when compression task conditions are met: thread crosses token threshold OR individual response exceeds long-response threshold |
-| Task Queue | The observer supports a queue of N pending compression tasks; if the queue is full when a new compression is triggered, the new task is not queued — earlier queued compressions are favored over later ones |
+| Task Queue | The observer supports a queue of N pending compression tasks; if the queue is full when a new compression is triggered, the oldest compression task for the same thread is removed if any and the new one queued if the queue is not full  |
 | Token Budget | Compression target: app setting, default 85% of model max; recent turns N: app setting, default 8 (always verbatim, never compressed) |
 | Pipeline | Policy-based pipeline; policies run in priority order with early exit when under budget; cheap/free policies run before LLM-powered policies; messages always dropped/summarized in user+assistant pairs |
 | Message Handling | Tool/function call pairs treated as assistant turns; files stripped and replaced with descriptive tag before pipeline; compression output tracks source message IDs for precise ID-based substitution during assembly |
-| Failure Mode | A compression is considered in failure mode when, after the pipeline is run, the compressed tokens still exceed the context threshold. Failure compression mode: remove (1) tool turn data, (2) oldest unprotected middle turns, (3) oldest recent protected turns. Failure mode target = 4 × (100 − threshold)%. Hard constraint: always preserve headroom for user prompt entry |
+| Failure Mode | A compression is considered in failure mode when, after the pipeline is run, the compressed tokens still exceed the context threshold. Failure compression mode: remove (1) tool turn data, (2) oldest unprotected middle turns, (3) oldest recent protected turns. Failure mode target = 60% of model max. Hard constraint: always preserve headroom for user prompt entry |
 | Quality Measurement | Required: compression ratio, policy depth, LLM calls per pass, compression latency, role alternation violation errors. Candidate: offline faithfulness scoring via judge model on sampled threads; encrypt and save context for offline judge evaluation |
 | **Status** | **Designing** |
 

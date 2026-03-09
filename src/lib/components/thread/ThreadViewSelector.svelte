@@ -1,6 +1,6 @@
 <script lang="ts">
   /** Thread view types */
-  export type ThreadViewType = 'chat' | 'prompt' | 'graphic' | 'execution' | 'file';
+  export type ThreadViewType = 'chat' | 'composer' | 'prompt' | 'graphic' | 'execution';
 
   interface ViewOption {
     type: ThreadViewType;
@@ -10,10 +10,10 @@
 
   const VIEW_OPTIONS: ViewOption[] = [
     { type: 'chat', icon: 'pi-comments', label: 'Chat' },
+    { type: 'composer', icon: 'pi-file-edit', label: 'Composer' },
     { type: 'prompt', icon: 'pi-pencil', label: 'Prompt' },
     { type: 'graphic', icon: 'pi-image', label: 'Graphic' },
     { type: 'execution', icon: 'pi-play', label: 'Execution' },
-    { type: 'file', icon: 'pi-file', label: 'File' },
   ];
 
   interface Props {

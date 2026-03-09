@@ -20,6 +20,8 @@
     applicationSlug?: string;
     agentId?: string | null;
     modelId?: string;
+    onActivateComposerMode?: () => void;
+    documentModeActive?: boolean;
   }
 
   let {
@@ -31,6 +33,8 @@
     applicationSlug,
     agentId,
     modelId,
+    onActivateComposerMode,
+    documentModeActive = false,
   }: Props = $props();
 
   let text = $state('');
@@ -360,16 +364,31 @@
     </span>
 
     <div class="composer-actions">
-      <button
-        type="button"
-        class="attach-icon-button"
-        onclick={handleFileSelect}
-        disabled={isStreaming || disabled}
-        aria-label="Attach file (Ctrl+U or Cmd+U)"
-        title="Attach file"
-      >
-        <i class="pi pi-plus"></i>
-      </button>
+      <div class="actions-left">
+        <button
+          type="button"
+          class="attach-icon-button"
+          onclick={handleFileSelect}
+          disabled={isStreaming || disabled}
+          aria-label="Attach file (Ctrl+U or Cmd+U)"
+          title="Attach file"
+        >
+          <i class="pi pi-plus"></i>
+        </button>
+
+        <!-- Composer mode badge — inside the composer box -->
+        {#if onActivateComposerMode && !documentModeActive}
+          <button
+            class="composer-mode-badge"
+            onclick={onActivateComposerMode}
+            title="Open Composer document mode"
+            type="button"
+          >
+            <i class="pi pi-file-edit"></i>
+            <span>Composer</span>
+          </button>
+        {/if}
+      </div>
 
       <div class="model-and-send">
         <div class="model-selector-wrapper">
@@ -542,6 +561,12 @@
     align-items: center;
   }
 
+  .actions-left {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
   .model-and-send {
     display: flex;
     align-items: center;
@@ -666,5 +691,30 @@
 
   .badge-remove i {
     font-size: 10px;
+  }
+
+  /* Composer mode badge */
+  .composer-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: color-mix(in srgb, #4a9eff 10%, transparent);
+    color: #3b82f6;
+    border: 1px solid color-mix(in srgb, #4a9eff 20%, transparent);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .composer-mode-badge:hover {
+    background: color-mix(in srgb, #4a9eff 18%, transparent);
+    border-color: color-mix(in srgb, #4a9eff 35%, transparent);
+  }
+
+  .composer-mode-badge i {
+    font-size: 0.7rem;
   }
 </style>
