@@ -195,14 +195,14 @@ html.dark,
   padding: 0;
 }
 
-/* Remove default focus outline, keep focus-visible for keyboard navigation */
-*:focus {
-  outline: none;
+/* Keyboard focus outline — visible only for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, 0.6);
+  outline-offset: 2px;
 }
 
-*:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
+html.dark *:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
 }
 
 body {

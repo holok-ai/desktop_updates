@@ -269,7 +269,7 @@
     position: absolute;
     top: calc(100% + 2px);
     right: 0;
-    background: #ffffff;
+    background: var(--surface-card);
     border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -279,7 +279,7 @@
   }
 
   :global(html.dark) .context-menu {
-    background: #2a2a2a;
+    background: var(--surface-overlay);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   }
 

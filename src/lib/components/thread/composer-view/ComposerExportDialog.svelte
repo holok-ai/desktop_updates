@@ -4,6 +4,7 @@
    *
    * Supports Markdown export (active) and DOCX (coming soon).
    */
+  import { focusTrap } from '$lib/actions/focusTrap';
   import { artifactFrontendService } from '$lib/services/artifact-frontend.service';
 
   interface Props {
@@ -62,7 +63,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="export-overlay" role="presentation" onclick={handleBackdropClick}>
-  <div class="export-dialog" role="dialog" aria-label="Export Document">
+  <div class="export-dialog" use:focusTrap role="dialog" aria-label="Export Document">
     <div class="dialog-header">
       <h3>Export Document</h3>
       <button class="close-btn" onclick={onClose} aria-label="Close">

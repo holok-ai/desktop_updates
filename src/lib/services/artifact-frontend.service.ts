@@ -38,8 +38,9 @@ export class ArtifactFrontendService extends BaseElectronService {
     threadId: string,
     filename: string,
     content: string,
+    changeSummary?: string,
   ): Promise<{ success: boolean; artifact?: Artifact; error?: string }> {
-    return window.electronAPI.artifact.initialize({ threadId, filename, content });
+    return window.electronAPI.artifact.initialize({ threadId, filename, content, changeSummary });
   }
 
   async get(

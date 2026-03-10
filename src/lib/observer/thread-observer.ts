@@ -51,7 +51,20 @@ export class ThreadObserver {
    * Initial behavior is pass-through; compression pipeline will replace this payload over time.
    */
   updateCurrentContext(thread: ObserverThread, messages: Message[]): void {
-    if (observerStore.getCurrentContext(thread.id) === undefined) {
+    const existing = observerStore.getCurrentContext(thread.id);
+    if (existing === undefined) {
+      observerStore.setCurrentContext(thread.id, messages);
+      return;
+    }
+
+    const hasCompressionArtifacts = existing.some(
+      (message) =>
+        message.context?.compressedByPolicy !== undefined ||
+        (message.context?.sourceMessageIds?.length ?? 0) > 0,
+    );
+
+    // Keep observer context in lock-step with live messages until compression output exists.
+    if (!hasCompressionArtifacts) {
       observerStore.setCurrentContext(thread.id, messages);
     }
   }

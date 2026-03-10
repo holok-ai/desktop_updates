@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { focusTrap } from '$lib/actions/focusTrap';
+
   interface Props {
     version: string;
     isInstalling: boolean;
@@ -20,6 +22,7 @@
 >
   <div
     class="dialog"
+    use:focusTrap
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
     role="dialog"

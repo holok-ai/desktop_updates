@@ -532,6 +532,7 @@ export interface ArtifactAPI {
     threadId: string;
     filename: string;
     content: string;
+    changeSummary?: string;
   }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
 
   // Get the artifact for a thread
@@ -1003,8 +1004,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       maxSizeBytes?: number;
     }) => ipcRenderer.invoke('artifact:activate', payload),
 
-    initialize: (payload: { threadId: string; filename: string; content: string }) =>
-      ipcRenderer.invoke('artifact:initialize', payload),
+    initialize: (payload: {
+      threadId: string;
+      filename: string;
+      content: string;
+      changeSummary?: string;
+    }) => ipcRenderer.invoke('artifact:initialize', payload),
 
     get: (payload: { threadId: string }) => ipcRenderer.invoke('artifact:get', payload),
 

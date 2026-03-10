@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   import { projectService } from '$lib/services/project.service';
   import { projects } from '$lib/stores/project.store';
@@ -151,6 +152,7 @@
   >
     <div
       class="dialog"
+      use:focusTrap
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
       role="dialog"

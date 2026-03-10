@@ -73,15 +73,6 @@
     onCopyResponse,
     onRetry,
   }: Props = $props();
-
-  $effect(() => {
-    console.log('[ChatLane] Rendered with:', {
-      laneId,
-      laneIndex,
-      pairCount: messagePairs.length,
-      modelName,
-    });
-  });
 </script>
 
 <div class="chat-lane" class:lane-expanded={isExpanded} class:lane-collapsed={isCollapsed}>

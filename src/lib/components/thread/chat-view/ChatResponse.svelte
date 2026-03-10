@@ -99,7 +99,12 @@
     {/if}
 
     {#if isStreaming && !content}
-      <div class="streaming-indicator">
+      <div
+        class="streaming-indicator"
+        role="status"
+        aria-live="polite"
+        aria-label="Generating response"
+      >
         <span class="dot"></span>
         <span class="dot"></span>
         <span class="dot"></span>

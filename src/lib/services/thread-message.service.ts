@@ -32,6 +32,13 @@ export class ThreadMessageService {
     return ThreadMessageService.instance;
   }
 
+  private isBlockedGuardRequest(message: Message): boolean {
+    return (
+      message.role === 'user' &&
+      (message.guardExecution === 'fail' || message.guardExecution === 'fail-context')
+    );
+  }
+
   /**
    * Send chat message to specific thread + branch
    */
@@ -215,9 +222,13 @@ export class ThreadMessageService {
         role: m.role,
         content: m.content,
       }));
+      const safeHistoryMessages = historyMessages.filter((_msg, index) => {
+        const source = requestContext.at(index);
+        return source !== undefined && !this.isBlockedGuardRequest(source);
+      });
 
       const request = {
-        messages: historyMessages,
+        messages: safeHistoryMessages,
         streaming: true,
         model: modelId,
       };

@@ -107,7 +107,7 @@
 
   .breadcrumb-wrapper :global([data-slot='breadcrumb-link']:hover) {
     color: var(--sidebar-text-full);
-    font-weight: 700;
+    text-shadow: 0 0 0.01px currentColor;
   }
 
   .breadcrumb-wrapper :global([data-slot='breadcrumb-separator']) {
