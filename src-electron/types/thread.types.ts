@@ -1,4 +1,5 @@
 import type { Attachment } from '../../src-shared/types/attachment.types.js';
+import type { ComposerContent } from '../../src-shared/types/composer.types.js';
 import type { RequestOptionsDTO } from '../services/mokuapi/thread.types.js';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type UUID = string;
@@ -43,6 +44,8 @@ export interface Message {
   /** Token count for this message (input tokens for user, output tokens for assistant) */
   tokens?: number;
   toolUses?: Array<{ id?: string; name: string; status: 'complete' | 'error' }>;
+  /** Parsed <composer> content extracted from assistant responses in document mode */
+  composer?: ComposerContent;
 }
 
 export interface ThreadMetadata {

@@ -33,20 +33,12 @@
   import { toastStore } from '$lib/services/toast.service';
   import { settingsStore } from '$lib/stores/settings.store';
   import AllowedFoldersList from '$lib/components/settings/AllowedFolders.svelte';
-  import InstallUpdateModal from '$lib/modals/InstallUpdateModal.svelte';
 
-  type SettingsCategory =
-    | 'general'
-    | 'appearance'
-    | 'updates'
-    | 'tools'
-    | 'connections'
-    | 'diagnostics';
+  type SettingsCategory = 'general' | 'appearance' | 'tools' | 'connections' | 'diagnostics';
 
   const categories: { id: SettingsCategory; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: 'pi-cog' },
     { id: 'appearance', label: 'Appearance', icon: 'pi-palette' },
-    { id: 'updates', label: 'Updates', icon: 'pi-refresh' },
     { id: 'tools', label: 'Tools', icon: 'pi-wrench' },
     { id: 'connections', label: 'Connections', icon: 'pi-link' },
     { id: 'diagnostics', label: 'Diagnostics', icon: 'pi-chart-bar' },
@@ -56,11 +48,6 @@
 
   let isLoading = $state(true);
   let appVersion = $state('');
-  let isCheckingUpdates = $state(false);
-  let isDevelopmentBuild = $state(false);
-  let showInstallConfirm = $state(false);
-  let isInstalling = $state(false);
-  let downloadPercent = $state<number | null>(null);
 
   // Tools list from ToolOrchestrator
   let availableTools: { toolId: string; toolTitle: string }[] = $state([]);
@@ -98,8 +85,6 @@
     contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    updateAvailable: false,
-    latestVersion: '',
   });
 
   let savedSettings: AppSettings = $state({
@@ -125,8 +110,6 @@
     contextCompactThreshold: 0.75,
     autoCheckUpdates: true,
     autoInstallUpdates: false,
-    updateAvailable: false,
-    latestVersion: '',
   });
 
   function getAvatarBg(colorKey: string): string {
@@ -134,12 +117,10 @@
   }
 
   onMount(async () => {
-    const [all, version, devBuild] = await Promise.all([
+    const [all, version] = await Promise.all([
       window.electronAPI.settings.getAll(),
       window.electronAPI.system.version(),
-      window.electronAPI.updater.isDevelopmentBuild(),
     ]);
-    isDevelopmentBuild = devBuild;
 
     settings = {
       mokuWebUrl: all.mokuWebUrl,
@@ -164,8 +145,6 @@
       unixCommands: all.unixCommands ?? '',
       autoCheckUpdates: all.autoCheckUpdates ?? true,
       autoInstallUpdates: all.autoInstallUpdates ?? false,
-      updateAvailable: Boolean(all.updateAvailable ?? false),
-      latestVersion: String(all.latestVersion ?? ''),
       autoTitleEnabled: all.autoTitleEnabled ?? true,
       contextCompactThreshold: all.contextCompactThreshold ?? 0.75,
     };
@@ -257,10 +236,6 @@
         shellCommands: settings.shellCommands,
         windowsCommands: settings.windowsCommands,
         unixCommands: settings.unixCommands,
-        autoCheckUpdates: settings.autoCheckUpdates,
-        autoInstallUpdates: settings.autoInstallUpdates,
-        updateAvailable: settings.updateAvailable,
-        latestVersion: settings.latestVersion,
       });
 
       savedSettings = {
@@ -306,54 +281,6 @@
     }
   }
 
-  async function handleCheckForUpdates() {
-    isCheckingUpdates = true;
-    try {
-      // see if there is an update
-      const message = await window.electronAPI.updater.getUpdateAvailability();
-      toastStore.show(message, { variant: 'info' });
-
-      // now get the updated info from settings
-      const updated = await window.electronAPI.settings.getAll();
-      settings.latestVersion = updated.latestVersion ?? '';
-      settings.updateAvailable = Boolean(updated.updateAvailable ?? false);
-
-      if (settings.updateAvailable) {
-        showInstallConfirm = true;
-      }
-    } catch {
-      toastStore.show('Failed to check for updates', { variant: 'error' });
-    } finally {
-      isCheckingUpdates = false;
-    }
-  }
-
-  async function handleInstallNow() {
-    isInstalling = true;
-    downloadPercent = 0;
-
-    const unsubscribeProgress = window.electronAPI.updater.onDownloadProgress((percent) => {
-      downloadPercent = percent;
-    });
-
-    try {
-      const result = await window.electronAPI.updater.updateNow();
-      if (!result.success) {
-        toastStore.show(result.error ?? 'Failed to start update download.', { variant: 'error' });
-        showInstallConfirm = false;
-        downloadPercent = null;
-      }
-      // If successful, quitAndInstall is called automatically — app will restart
-    } catch {
-      toastStore.show('Failed to start update download.', { variant: 'error' });
-      showInstallConfirm = false;
-      downloadPercent = null;
-    } finally {
-      unsubscribeProgress();
-      isInstalling = false;
-    }
-  }
-
   $effect(() => {
     if (!isLoading) {
       holoApiUrlError = settings.holoApiUrl ? validateHoloApiUrl(settings.holoApiUrl) : '';
@@ -388,8 +315,6 @@
       shellCommands: settings.shellCommands,
       windowsCommands: settings.windowsCommands,
       unixCommands: settings.unixCommands,
-      autoCheckUpdates: settings.autoCheckUpdates,
-      autoInstallUpdates: settings.autoInstallUpdates,
     }) !==
       JSON.stringify({
         mokuWebUrl: savedSettings.mokuWebUrl,
@@ -409,8 +334,6 @@
         shellCommands: savedSettings.shellCommands,
         windowsCommands: savedSettings.windowsCommands,
         unixCommands: savedSettings.unixCommands,
-        autoCheckUpdates: savedSettings.autoCheckUpdates,
-        autoInstallUpdates: savedSettings.autoInstallUpdates,
       }),
   );
 </script>
@@ -433,7 +356,7 @@
 
     <!-- Settings content panel -->
     <div class="settings-panel">
-      <div class="settings-scroll-area">
+      <div class="settings-scroll-area" class:no-scroll={activeCategory === 'diagnostics'}>
         <div class="settings-content">
           {#if isLoading}
             <div class="loading">Loading settings...</div>
@@ -722,76 +645,6 @@
               </div>
             {/if}
 
-            <!-- ==================== Updates ==================== -->
-            {#if activeCategory === 'updates'}
-              <h2 class="panel-title">Updates</h2>
-              <div class="category-card">
-                <!-- Version Info -->
-                <div class="subgroup-row">
-                  <div class="subgroup-label">Version Info</div>
-                  <div class="subgroup-controls">
-                    <div class="info-row">
-                      <span class="info-key">Current Version</span>
-                      <span class="info-value">{appVersion}</span>
-                    </div>
-                    <div class="info-row">
-                      <span class="info-key">Available Version</span>
-                      <span class="info-value">
-                        {#if isDevelopmentBuild}
-                          Not Available In Development
-                        {:else if settings.latestVersion}
-                          {settings.latestVersion}{settings.latestVersion === appVersion
-                            ? " (You've got the latest.)"
-                            : ''}
-                        {:else}
-                          —
-                        {/if}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="subgroup-divider"></div>
-
-                <!-- Update Preferences -->
-                <div class="subgroup-row">
-                  <div class="subgroup-label">Preferences</div>
-                  <div class="subgroup-controls">
-                    <label class="inline-flex items-center gap-2">
-                      <input type="checkbox" bind:checked={settings.autoCheckUpdates} />
-                      <span class="text-sm">Check for updates on startup?</span>
-                    </label>
-                    <label class="inline-flex items-center gap-2">
-                      <input type="checkbox" bind:checked={settings.autoInstallUpdates} />
-                      <span class="text-sm">Install updates when available</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="subgroup-divider"></div>
-
-                <!-- Manual Check -->
-                <div class="subgroup-row">
-                  <div class="subgroup-label">Manual Check</div>
-                  <div class="subgroup-controls">
-                    <div>
-                      <button
-                        class="btn-primary"
-                        onclick={handleCheckForUpdates}
-                        disabled={isCheckingUpdates}
-                      >
-                        {#if isCheckingUpdates}
-                          Checking...
-                        {:else}
-                          Check Now
-                        {/if}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            {/if}
-
             <!-- ==================== Tools ==================== -->
             {#if activeCategory === 'tools'}
               <h2 class="panel-title">Tools</h2>
@@ -974,16 +827,6 @@
   </div>
 </div>
 
-{#if showInstallConfirm}
-  <InstallUpdateModal
-    version={settings.latestVersion ?? ''}
-    {isInstalling}
-    {downloadPercent}
-    onInstall={handleInstallNow}
-    onDismiss={() => (showInstallConfirm = false)}
-  />
-{/if}
-
 <style>
   .settings-page {
     display: flex;
@@ -1055,6 +898,12 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+  }
+
+  .settings-scroll-area.no-scroll {
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .settings-content {
@@ -1246,18 +1095,36 @@
   }
 
   /* ── Log viewer ── */
+  /* When diagnostics is active, the flex chain fills available height */
+  .no-scroll .settings-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .no-scroll .category-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .log-viewer-section {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     padding: 1rem 1.25rem;
+    flex: 1;
+    min-height: 0;
   }
 
   .log-viewer {
     font-family: monospace;
     font-size: 0.7rem;
     line-height: 1.4;
-    height: calc(40 * 0.7rem * 1.4);
+    flex: 1;
+    min-height: 100px;
     overflow-y: auto;
     border: 1px solid var(--input-border);
     border-radius: 0.375rem;

@@ -131,27 +131,31 @@ describe('Observer Tasks', () => {
     });
 
     describe('shouldRun', () => {
-      it('should return false when last assistant message has no modelId', () => {
+      it('should return true when observer context does not exist yet', () => {
         const thread = makeThread();
-        const messages = Array.from({ length: 15 }, (_, i) =>
-          makeMessage({ id: `msg-${i}`, role: i % 2 === 0 ? 'user' : 'assistant' }),
-        );
-        // No modelId on assistant messages — shouldRun cannot determine max tokens
-        expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
+        const messages = [makeMessage({ role: 'user' })];
+        expect(compressContextTask.shouldRun(thread, messages)).toBe(true);
       });
 
-      it('should return false when messages have no token counts', () => {
+      it('should return false when context exists but model cannot be determined', () => {
         const thread = makeThread();
+        observerStore.setCurrentContext(thread.id, [makeMessage()]);
         const messages = [
           makeMessage({ role: 'user' }),
-          makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' } as any),
+          makeMessage({ id: 'msg-2', role: 'assistant' } as any),
         ];
-        // All tokens are 0 (undefined ?? 0) — shouldRun returns false
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
       });
 
       it('should return true when total tokens exceed 75% threshold', () => {
         const thread = makeThread();
+        observerStore.setCurrentContext(thread.id, [
+          { ...makeMessage({ id: 'ctx-1', role: 'user' }), tokens: 10000 },
+          {
+            ...makeMessage({ id: 'ctx-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }),
+            tokens: 4000,
+          },
+        ] as any[]);
         const messages = [
           { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 10000 },
           {
@@ -165,57 +169,85 @@ describe('Observer Tasks', () => {
 
       it('should return false when total tokens below 75% threshold', () => {
         const thread = makeThread();
+        observerStore.setCurrentContext(thread.id, [
+          { ...makeMessage({ id: 'ctx-1', role: 'user' }), tokens: 500 },
+          {
+            ...makeMessage({ id: 'ctx-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }),
+            tokens: 500,
+          },
+        ] as any[]);
         const messages = [
-          { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 5000 },
+          { ...makeMessage({ id: 'msg-1', role: 'user' }), tokens: 500 },
           {
             ...makeMessage({ id: 'msg-2', role: 'assistant', modelId: 'gpt-3.5-turbo' }),
-            tokens: 5000,
+            tokens: 500,
           },
         ] as any[];
-        // Total: 10000, gpt-3.5 max: 16385, threshold: 12288 — 10000 < 12288
+        // Total: 1000, gpt-3.5 max: 16385, threshold: 12288 — 1000 < 12288
         expect(compressContextTask.shouldRun(thread, messages)).toBe(false);
       });
-    });
 
-    describe('buildRequest', () => {
-      it('should build a request with JSON response format', () => {
+      it('should return true when a large uncompressed assistant message exists', () => {
         const thread = makeThread();
-        const messages = [makeMessage()];
-
-        const request = compressContextTask.buildRequest(thread, messages);
-
-        expect(request.taskType).toBe(ObserverTaskType.CompressContext);
-        expect(request.maxTokens).toBe(500);
-        expect(request.temperature).toBe(0.3);
-        expect(request.responseFormat).toEqual({ type: 'json_object' });
+        observerStore.setCurrentContext(thread.id, [
+          { ...makeMessage({ id: 'ctx-1', role: 'user', tokens: 10 }) },
+          {
+            ...makeMessage({
+              id: 'ctx-2',
+              role: 'assistant',
+              modelId: 'gpt-3.5-turbo',
+              tokens: 10,
+            }),
+          },
+        ] as any[]);
+        const messages = [
+          { ...makeMessage({ id: 'msg-1', role: 'user', tokens: 50 }) },
+          {
+            ...makeMessage({
+              id: 'msg-2',
+              role: 'assistant',
+              modelId: 'gpt-3.5-turbo',
+              tokens: 2000,
+              context: { turnIndex: 1, isProtected: false, hasCodeBlock: false },
+            }),
+          },
+        ] as any[];
+        expect(compressContextTask.shouldRun(thread, messages)).toBe(true);
       });
     });
 
-    describe('onResult', () => {
-      it('should store parsed context summary', () => {
+    describe('execute', () => {
+      it('should write compressed context and context summary', async () => {
         const thread = makeThread();
-        const jsonResponse = JSON.stringify({
-          summary: 'A conversation about coding',
-          keyTopics: ['TypeScript', 'testing'],
-        });
+        const messages = [
+          {
+            ...makeMessage({
+              id: 'msg-1',
+              role: 'user',
+              content: 'Please explain this in detail.',
+            }),
+            tokens: 1000,
+          },
+          {
+            ...makeMessage({
+              id: 'msg-2',
+              role: 'assistant',
+              modelId: 'gpt-3.5-turbo',
+              content: 'x'.repeat(10000),
+            }),
+            tokens: 1000,
+          },
+        ] as any[];
 
-        compressContextTask.onResult(thread, jsonResponse);
+        await compressContextTask.execute?.(thread, messages);
 
         let state: any;
         const unsub = observerStore.subscribe((s) => {
           state = s;
         });
-        expect(state.contextSummaries.get('thread-1')).toEqual({
-          summary: 'A conversation about coding',
-          keyTopics: ['TypeScript', 'testing'],
-        });
+        expect(state.currentContext.get('thread-1')).toBeDefined();
+        expect(state.contextSummaries.get('thread-1')).toBeDefined();
         unsub();
-      });
-
-      it('should silently ignore invalid JSON', () => {
-        const thread = makeThread();
-        // Should not throw
-        compressContextTask.onResult(thread, 'not valid json');
       });
     });
   });

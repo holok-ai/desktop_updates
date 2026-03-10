@@ -7,6 +7,7 @@ import type {
   ApiResponse,
 } from '../../../src-electron/preload.js';
 import type { Message } from '$lib/types/thread.type.js';
+import type { Attachment } from '$shared/types/attachment.types.js';
 import { ThreadContext } from '$lib/utils/thread-context';
 import { ThreadDisplay } from '$lib/utils/thread-display';
 import { threadStreamService } from './thread-stream.service';
@@ -127,8 +128,16 @@ class ThreadFacade {
     prompt: string,
     modelId: string,
     messages: Message[],
+    attachments?: Attachment[],
   ): Promise<[boolean, Message]> {
-    return threadMessageService.appendPrompt(threadId, branchId, prompt, modelId, messages);
+    return threadMessageService.appendPrompt(
+      threadId,
+      branchId,
+      prompt,
+      modelId,
+      messages,
+      attachments,
+    );
   }
 
   submitPromptToChat(

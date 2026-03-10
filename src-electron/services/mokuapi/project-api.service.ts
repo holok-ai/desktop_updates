@@ -5,6 +5,7 @@
  */
 
 import log from 'electron-log';
+import { mokuFetch } from '../reliability/moku-fetch.js';
 import type {
   ProjectDTO,
   ProjectDetailDTO,
@@ -84,7 +85,7 @@ class ProjectApiService {
 
       const url = `${mokuApiUrl}/api/v1/projects${params.toString() ? '?' + params.toString() : ''}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -117,7 +118,7 @@ class ProjectApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -151,7 +152,7 @@ class ProjectApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/v1/projects`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -190,7 +191,7 @@ class ProjectApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -226,7 +227,7 @@ class ProjectApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/v1/projects/${projectId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -259,7 +260,7 @@ class ProjectApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/v1/projects/${projectId}/updates?since=${encodeURIComponent(since)}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',

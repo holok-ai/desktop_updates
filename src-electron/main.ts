@@ -15,10 +15,20 @@ import { registerSystemHandlers } from './ipc-handlers/system-handler.js';
 import { registerChatHandlers } from './ipc-handlers/chat-handler.js';
 import { registerModelsHandlers } from './ipc-handlers/models-handler.js';
 import { registerFileHandlers } from './ipc-handlers/file-handler.js';
+import { registerArtifactHandlers } from './ipc-handlers/artifact-handler.js';
 import { registerAutoUpdaterHandlers } from './ipc-handlers/auto-updater-handler.js';
 import { registerBackgroundChatHandler } from './ipc-handlers/background-chat-handler.js';
+import {
+  registerReliabilityHandlers,
+  subscribeToStatusChanges,
+} from './ipc-handlers/reliability-handler.js';
 import { modelRepository } from './repository/model-repository.js';
 import { autoUpdaterService } from './services/auto-updater.service.js';
+import {
+  initializeReliabilityMonitors,
+  interfaceStatusRegistry,
+} from './services/reliability/interface-status-registry.js';
+import { getSettingsService } from './ipc-handlers/settings-handler.js';
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -297,8 +307,76 @@ function registerIpcHandlers(): void {
   // Register file upload/download IPC handlers
   registerFileHandlers();
 
+  // Register artifact / document editing IPC handlers
+  registerArtifactHandlers();
+
   // Register auto-updater IPC handlers
   registerAutoUpdaterHandlers();
+
+  // Register reliability monitoring IPC handlers and initialize monitors
+  registerReliabilityHandlers();
+  initializeReliabilityMonitors(
+    // Moku health check
+    async () => {
+      try {
+        const mokuApiUrl = getSettingsService().getMokuApiUrl();
+        const response = await fetch(`${mokuApiUrl}/api/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
+    // Holo health check
+    async () => {
+      try {
+        const holoApiUrl = getSettingsService().getHoloApiUrl();
+        const url = `${holoApiUrl}/health`;
+        protocolLog.info(`[ReliabilityHealthCheck] holo-api: fetching ${url}`);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        protocolLog.info(
+          `[ReliabilityHealthCheck] holo-api: ${response.status} ${response.statusText}`,
+        );
+        return response.ok;
+      } catch (err) {
+        protocolLog.warn('[ReliabilityHealthCheck] holo-api: fetch failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    },
+    // Holo Notifications health check (reuses Holo health endpoint)
+    async () => {
+      try {
+        const holoApiUrl = getSettingsService().getHoloApiUrl();
+        const url = `${holoApiUrl}/health`;
+        protocolLog.info(`[ReliabilityHealthCheck] holo-notifications: fetching ${url}`);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        protocolLog.info(
+          `[ReliabilityHealthCheck] holo-notifications: ${response.status} ${response.statusText}`,
+        );
+        return response.ok;
+      } catch (err) {
+        protocolLog.warn('[ReliabilityHealthCheck] holo-notifications: fetch failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    },
+  );
+
+  // Subscribe to monitor status changes and broadcast to renderer
+  subscribeToStatusChanges();
+
+  // Fire non-blocking startup health checks for Holo interfaces so they
+  // move out of "unknown" without waiting for user interaction.
+  void interfaceStatusRegistry.getMonitor('holo-api').healthcheck();
+  void interfaceStatusRegistry.getMonitor('holo-notifications').healthcheck();
 
   // Register logging handlers (renderer -> main)
   ipcMain.on('log:info', (_event, message: string, ...params: unknown[]) => {

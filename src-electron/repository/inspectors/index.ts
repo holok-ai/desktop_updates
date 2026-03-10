@@ -6,6 +6,7 @@ export { ObserverPromptsInspector } from './observer-prompts-inspector.js';
 export { ToolUseInspector } from './tooluse-inspector.js';
 export { ResponseCompletedInspector } from './response-completed-inspector.js';
 export { ErrorResponseInspector } from './error-response-inspector.js';
+export { ComposerInspector } from './composer-inspector.js';
 export {
   isGuardErrorPayload,
   GUARD_ERROR_STATUS,

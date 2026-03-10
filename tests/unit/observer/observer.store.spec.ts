@@ -102,6 +102,25 @@ describe('observer.store', () => {
     });
   });
 
+  describe('current context', () => {
+    it('should store and retrieve observer-owned current context', () => {
+      const context = [
+        { id: '1', threadId: 'thread-1', role: 'user', content: 'Hello', createdAt: Date.now() },
+      ] as any;
+      observerStore.setCurrentContext('thread-1', context);
+      expect(observerStore.getCurrentContext('thread-1')).toEqual(context);
+    });
+
+    it('should clear current context', () => {
+      const context = [
+        { id: '1', threadId: 'thread-1', role: 'user', content: 'Hello', createdAt: Date.now() },
+      ] as any;
+      observerStore.setCurrentContext('thread-1', context);
+      observerStore.clearCurrentContext('thread-1');
+      expect(observerStore.getCurrentContext('thread-1')).toBeUndefined();
+    });
+  });
+
   describe('reset', () => {
     it('should clear all state', () => {
       observerStore.setRunning('thread-1', ObserverTaskType.RenameTitle, true);

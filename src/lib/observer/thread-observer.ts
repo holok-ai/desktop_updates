@@ -47,11 +47,36 @@ export class ThreadObserver {
   }
 
   /**
+   * Update the observer-owned current context for a thread.
+   * Initial behavior is pass-through; compression pipeline will replace this payload over time.
+   */
+  updateCurrentContext(thread: ObserverThread, messages: Message[]): void {
+    const existing = observerStore.getCurrentContext(thread.id);
+    if (existing === undefined) {
+      observerStore.setCurrentContext(thread.id, messages);
+      return;
+    }
+
+    const hasCompressionArtifacts = existing.some(
+      (message) =>
+        message.context?.compressedByPolicy !== undefined ||
+        (message.context?.sourceMessageIds?.length ?? 0) > 0,
+    );
+
+    // Keep observer context in lock-step with live messages until compression output exists.
+    if (!hasCompressionArtifacts) {
+      observerStore.setCurrentContext(thread.id, messages);
+    }
+  }
+
+  /**
    * Called by ThreadChatView when a thread is loaded and messages are available.
    * Runs initialize() on every task that defines it — no shouldRun check,
    * no queue slot consumed, no dedup. Tasks that don't need initialization omit the method.
    */
   initializeThread(thread: ObserverThread, messages: Message[]): void {
+    this.updateCurrentContext(thread, messages);
+
     for (const task of this.tasks) {
       if (task.initialize === undefined) {
         continue;
@@ -114,6 +139,8 @@ export class ThreadObserver {
   }
 
   observe(thread: ObserverThread, messages: Message[]): void {
+    this.updateCurrentContext(thread, messages);
+
     for (const task of this.tasks) {
       const key = `${thread.id}:${task.taskType}`;
 
@@ -142,6 +169,8 @@ export class ThreadObserver {
    * Used for user-initiated actions like "Compact Now".
    */
   forceTask(taskType: ObserverTaskType, thread: ObserverThread, messages: Message[]): void {
+    this.updateCurrentContext(thread, messages);
+
     const task = this.tasks.find((t) => t.taskType === taskType);
     if (task === undefined) {
       return;

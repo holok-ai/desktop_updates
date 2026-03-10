@@ -8,6 +8,7 @@
 
 import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
+import { mokuFetch } from '../reliability/moku-fetch.js';
 import type { AgentListItem } from './agent.types.js';
 import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
 
@@ -51,7 +52,7 @@ export class MokuService {
   public async exchangeCodeForApiKey(code: string): Promise<string> {
     const mokuApiUrl = this.getMokuApiUrl();
 
-    const response = await fetch(`${mokuApiUrl}/api/auth/exchange-code`, {
+    const response = await mokuFetch(`${mokuApiUrl}/api/auth/exchange-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
@@ -78,7 +79,7 @@ export class MokuService {
   ): Promise<{ accessToken: string; expires_in: number }> {
     const mokuApiUrl = this.getMokuApiUrl();
 
-    const response = await fetch(`${mokuApiUrl}/api/auth/token/refresh`, {
+    const response = await mokuFetch(`${mokuApiUrl}/api/auth/token/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -103,7 +104,7 @@ export class MokuService {
     }
 
     try {
-      const response = await fetch(`${mokuApiUrl}/api/v1/agents`, {
+      const response = await mokuFetch(`${mokuApiUrl}/api/v1/agents`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',

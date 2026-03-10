@@ -16,9 +16,15 @@ import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import { handleDeleteModal } from '../fixtures/delete-modal-helpers';
+import {
+  getAppStateCounts,
+  expectAppStateUnchanged,
+  type AppStateCounts,
+} from '../fixtures/state-helpers';
 
 let app: ElectronApplication;
 let page: Page;
+let initialCounts: AppStateCounts | null = null;
 
 const TEST_PROJECT_NAME = `E2E Test Project ${Date.now()}`;
 const RENAMED_PROJECT_NAME = `Renamed ${Date.now()}`;
@@ -32,9 +38,19 @@ test.describe.serial('Project List', () => {
     // Wait for the sidebar Projects button to be visible and ready
     const projectsBtn = page.locator('button[aria-label="Projects"]');
     await expect(projectsBtn).toBeVisible({ timeout: 30000 });
+
+    // Capture initial global state snapshot for sanity check
+    initialCounts = await getAppStateCounts(page);
   });
 
   test.afterAll(async () => {
+    // Sanity check: suite creates and then deletes a project, so
+    // global thread/project counts should end where they started.
+    if (page && !page.isClosed() && initialCounts) {
+      const finalCounts = await getAppStateCounts(page);
+      expectAppStateUnchanged(initialCounts, finalCounts, 'Project List suite');
+    }
+
     await app?.close();
   });
 

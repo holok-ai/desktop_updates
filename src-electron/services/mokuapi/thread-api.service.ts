@@ -5,6 +5,7 @@
 
 import log from 'electron-log';
 import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
+import { mokuFetch } from '../reliability/moku-fetch.js';
 import type {
   ThreadDTO,
   MessageDTO,
@@ -124,7 +125,7 @@ class ThreadApiService {
 
       const url = `${mokuApiUrl}/api/threads${params.toString() ? '?' + params.toString() : ''}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -162,7 +163,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -200,7 +201,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -244,7 +245,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -283,7 +284,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads/${threadId}`;
 
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -335,7 +336,7 @@ class ThreadApiService {
       if (filters?.sort) params.append('sort', filters.sort);
 
       const url = `${mokuApiUrl}/api/threads/${threadId}/messages${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -379,7 +380,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads/${threadId}/messages/${messageId}`;
       log.info('[ThreadApiService] updateRequestBranch PATCH', url, { branch_id: branchId });
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -431,7 +432,7 @@ class ThreadApiService {
       const mokuApiUrl = this.getMokuApiUrl();
       const url = `${mokuApiUrl}/api/threads/${threadId}/messages/${messageId}`;
       log.info('[ThreadApiService] updateRequestDesktopOptions PATCH', url, desktopOptions);
-      const response = await fetch(url, {
+      const response = await mokuFetch(url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${accessToken}`,

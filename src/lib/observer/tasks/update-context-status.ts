@@ -23,8 +23,13 @@ import { getModelMaxTokens } from '$lib/services/model-token-limits';
  * Returns without storing if there are no assistant messages to derive a model from.
  */
 function computeContextStatus(thread: ObserverThread, messages: Message[]): void {
+  const currentContext = observerStore.getCurrentContext(thread.id);
+  const hasAssistantInCurrentContext =
+    currentContext?.some((message) => message.role === 'assistant') === true;
+  const contextMessages = hasAssistantInCurrentContext ? currentContext : messages;
+
   // Find the most recent assistant message to determine the active model
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistant = [...contextMessages].reverse().find((m) => m.role === 'assistant');
   if (lastAssistant === undefined) {
     return; // No responses yet — nothing to calculate
   }
@@ -40,7 +45,7 @@ function computeContextStatus(thread: ObserverThread, messages: Message[]): void
   // Sum token counts across all messages.
   // Use m.tokens when available; fall back to content.length / 4 for messages
   // created in the renderer (streamed responses) that haven't been persisted yet.
-  const currentTokenCount = messages.reduce(
+  const currentTokenCount = contextMessages.reduce(
     (sum, m) => sum + (m.tokens ?? Math.ceil(m.content.length / 4)),
     0,
   );

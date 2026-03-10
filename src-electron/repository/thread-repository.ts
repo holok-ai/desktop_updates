@@ -23,6 +23,7 @@ import {
   ToolUseInspector,
   ResponseCompletedInspector,
   ErrorResponseInspector,
+  ComposerInspector,
 } from './inspectors/index.js';
 
 export class ThreadRepository {
@@ -43,6 +44,7 @@ export class ThreadRepository {
     new PlaceholderInspector(),
     new ErrorResponseInspector(),
     new GuardInspector(),
+    new ComposerInspector(),
   ];
 
   private parseApiTimeMs(value: unknown): number {

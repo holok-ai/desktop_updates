@@ -6,6 +6,7 @@
 
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
 import { getSettingsService } from '../../ipc-handlers/settings-handler.js';
+import { mokuFetch } from '../reliability/moku-fetch.js';
 import type { AuthService } from '../auth.service.js';
 import type { SettingsService } from '../settings.service.js';
 import { apiOk, apiFail, type ApiResponse } from '../../types/api-response.js';
@@ -78,7 +79,7 @@ class ProjectMemberApiService {
       const apiUrl = settingsService.getMokuApiUrl();
       const url = new URL(`/api/v1/projects/${projectId}/members`, apiUrl);
 
-      const response = await fetch(url.toString(), {
+      const response = await mokuFetch(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -132,7 +133,7 @@ class ProjectMemberApiService {
       const apiUrl = settingsService.getMokuApiUrl();
       const url = new URL(`/api/v1/projects/${projectId}/members`, apiUrl);
 
-      const response = await fetch(url.toString(), {
+      const response = await mokuFetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,7 +187,7 @@ class ProjectMemberApiService {
       const apiUrl = settingsService.getMokuApiUrl();
       const url = new URL(`/api/v1/projects/${projectId}/members/${memberId}`, apiUrl);
 
-      const response = await fetch(url.toString(), {
+      const response = await mokuFetch(url.toString(), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

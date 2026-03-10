@@ -168,6 +168,7 @@
   {/if}
 
   <div class="projects-header">
+    <h2>Project List</h2>
     <button class="btn-holokai" onclick={handleCreateProject}>
       <i class="pi pi-plus"></i>
       New Project
@@ -190,6 +191,7 @@
       {#each $projects as project (project.id)}
         <div
           class="project-card"
+          data-project-id={project.id}
           onclick={() => handleProjectClick(project)}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -268,9 +270,16 @@
 
   .projects-header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
+  }
+
+  .projects-header h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
   }
 
   .loading {
@@ -410,7 +419,7 @@
     position: absolute;
     top: calc(100% + 2px);
     right: 0;
-    background: #ffffff;
+    background: var(--surface-card);
     border: 1px solid var(--input-border);
     border-radius: 0.5rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -420,7 +429,7 @@
   }
 
   :global(html.dark) .project-menu-dropdown {
-    background: #2a2a2a;
+    background: var(--surface-overlay);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   }
 

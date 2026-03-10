@@ -16,10 +16,10 @@
 
   // Views
   import ThreadChatView from '$lib/components/thread/chat-view/ThreadChatView.svelte';
+  import ThreadComposerView from '$lib/components/thread/composer-view/ThreadComposerView.svelte';
   import ThreadPromptView from '$lib/components/thread/views/ThreadPromptView.svelte';
   import ThreadGraphicView from '$lib/components/thread/views/ThreadGraphicView.svelte';
   import ThreadExecutionView from '$lib/components/thread/views/ThreadExecutionView.svelte';
-  import ThreadFileView from '$lib/components/thread/views/ThreadFileView.svelte';
 
   import type { ChatLayout } from '$lib/types/app.type';
   import { CHAT_LAYOUT } from '$lib/constants/app.constant';
@@ -40,13 +40,23 @@
   let loading = $state(false);
   let error = $state('');
   let agentId = $state<string | null>(null);
+  /** Skip the next $effect → loadThread cycle (set by handleThreadCreated) */
+  let skipNextLoad = false;
 
   /** Called by ThreadChatView when a brand-new thread is created */
   function handleThreadCreated(newThread: Thread) {
     threadId = newThread.id;
     thread = newThread;
     threadTitle = newThread.title || 'New Thread';
-    // Messages will be added as they're sent
+    messages = [];
+    agentId = (newThread.metadata?.agentId as string) || null;
+    skipNextLoad = true;
+
+    // Update URL so the address bar reflects the new thread.
+    const qs = newThread.projectId
+      ? `threadId=${newThread.id}&projectId=${newThread.projectId}`
+      : `threadId=${newThread.id}`;
+    window.history.replaceState(null, '', `#/threads/view?${qs}`);
   }
 
   /** Called by ThreadChatView when messages are updated */
@@ -78,9 +88,7 @@
       // Load models for the specific agent (if available)
       if (agentId) {
         availableModels = await modelService.getModelsForApplication(agentId);
-        console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
       } else {
-        console.log('[ThreadPage] No agentId - loading all models');
         availableModels = await modelService.getAvailableModels();
       }
 
@@ -115,7 +123,14 @@
 
       if (id && id !== threadId) {
         threadId = id;
-        void loadThread(id, projectIdParam);
+        if (skipNextLoad) {
+          skipNextLoad = false;
+        } else {
+          void loadThread(id, projectIdParam);
+        }
+      } else if (id && id === threadId && skipNextLoad) {
+        // hashchange fired after handleThreadCreated already set threadId
+        skipNextLoad = false;
       } else if (!id) {
         // No threadId - reset to new thread state
         threadId = null;
@@ -141,7 +156,6 @@
     // For existing threads, models are loaded in loadThread() based on agentId
     if (!threadId) {
       try {
-        console.log('[ThreadPage] New thread - loading all models');
         availableModels = await modelService.getAvailableModels();
       } catch (e) {
         console.warn('[ThreadPage] Could not load models:', e);
@@ -168,6 +182,16 @@
         {chatLayout}
         {agentId}
         onThreadCreated={handleThreadCreated}
+        onSwitchToComposer={() => (activeView = 'composer')}
+      />
+    {:else if activeView === 'composer'}
+      <ThreadComposerView
+        {thread}
+        bind:messages
+        {availableModels}
+        {chatLayout}
+        {agentId}
+        onThreadCreated={handleThreadCreated}
       />
     {:else if activeView === 'prompt'}
       <ThreadPromptView {messages} {chatLayout} />
@@ -175,8 +199,6 @@
       <ThreadGraphicView {messages} />
     {:else if activeView === 'execution'}
       <ThreadExecutionView />
-    {:else if activeView === 'file'}
-      <ThreadFileView />
     {/if}
   </div>
 

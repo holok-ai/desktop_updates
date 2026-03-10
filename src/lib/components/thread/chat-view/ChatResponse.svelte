@@ -5,8 +5,12 @@
    */
   import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
   import ToolCallDetails from './ToolCallDetails.svelte';
+  import ComposerVersionCard from './ComposerVersionCard.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
   import type { ToolCall } from '$lib/types/tool-call.type';
+  import type { AttachmentDisplay } from '$lib/types/artifact-display.type';
+  import { isDocumentEligible } from '$lib/types/artifact-display.type';
+  import type { ComposerContent } from '$shared/types/composer.types.js';
 
   interface Props {
     content: string;
@@ -23,6 +27,14 @@
     guardStatus?: 'none' | 'pass' | 'fail' | 'fail-context';
     /** Guard error reason when guardStatus is 'fail' or 'fail-context' */
     guardError?: string;
+    /** Parsed <composer> content for version card display */
+    composer?: ComposerContent;
+    /** Creation timestamp for the response (used by version card) */
+    createdAt?: number;
+    /** Callback when the composer version card is clicked */
+    onComposerCardClick?: () => void;
+    /** Callback when Document Mode badge is clicked on a file output */
+    onActivateDocumentMode?: (attachment: AttachmentDisplay) => void;
   }
 
   let {
@@ -34,10 +46,27 @@
     fontSize = 14,
     guardStatus = 'none',
     guardError = '',
+    composer,
+    createdAt,
+    onComposerCardClick,
+    onActivateDocumentMode,
   }: Props = $props();
 
   let toolsExpanded = $state(false);
   let guardExpanded = $state(false);
+
+  /** Infer MIME type from filename extension for Document Mode eligibility */
+  function mimeFromFilename(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+    const mimeMap: Record<string, string> = {
+      md: 'text/markdown',
+      markdown: 'text/markdown',
+      txt: 'text/plain',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      pdf: 'application/pdf',
+    };
+    return mimeMap[ext] ?? 'application/octet-stream';
+  }
 
   let alignClass = $derived.by(() => {
     switch (chatLayout) {
@@ -60,8 +89,22 @@
       </div>
     {/if}
 
+    {#if composer && !isStreaming}
+      <ComposerVersionCard
+        versionDescription={composer.versionDescription ?? ''}
+        title={composer.title}
+        createdAt={createdAt ?? Date.now()}
+        onclick={onComposerCardClick}
+      />
+    {/if}
+
     {#if isStreaming && !content}
-      <div class="streaming-indicator">
+      <div
+        class="streaming-indicator"
+        role="status"
+        aria-live="polite"
+        aria-label="Generating response"
+      >
         <span class="dot"></span>
         <span class="dot"></span>
         <span class="dot"></span>
@@ -111,10 +154,28 @@
     {#if files.length > 0}
       <div class="file-outputs" role="list" aria-label="Output files">
         {#each files as fname}
+          {@const mime = mimeFromFilename(fname)}
+          {@const eligible = isDocumentEligible(mime)}
           <span class="file-chip" role="listitem">
             <i class="pi pi-file"></i>
             {fname}
           </span>
+          {#if eligible}
+            <button
+              class="doc-mode-badge"
+              title="Activate Document Mode"
+              onclick={() =>
+                onActivateDocumentMode?.({
+                  id: fname,
+                  filename: fname,
+                  mimeType: mime,
+                  isDocumentEligible: true,
+                })}
+            >
+              <i class="pi pi-pencil"></i>
+              <span>Document Mode</span>
+            </button>
+          {/if}
         {/each}
       </div>
     {/if}
@@ -297,5 +358,27 @@
 
   .file-chip i {
     font-size: 0.7rem;
+  }
+
+  .doc-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+    background: color-mix(in srgb, var(--primary-color, #646cff) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-color, #646cff) 25%, transparent);
+    border-radius: 6px;
+    color: var(--primary-color, #646cff);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .doc-mode-badge:hover {
+    background: color-mix(in srgb, var(--primary-color, #646cff) 20%, transparent);
+  }
+
+  .doc-mode-badge i {
+    font-size: 0.6rem;
   }
 </style>

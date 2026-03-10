@@ -16,9 +16,7 @@
             "name": "read_folder",
             "parameters": {
               "type": "object",
-              "required": [
-                "path"
-              ],
+              "required": ["path"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -54,16 +52,10 @@
             "name": "read_file",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "encoding": {
-                  "enum": [
-                    "utf-8",
-                    "ascii",
-                    "latin1"
-                  ],
+                  "enum": ["utf-8", "ascii", "latin1"],
                   "type": "string",
                   "description": "Text encoding. Default: utf-8"
                 },
@@ -90,10 +82,7 @@
             "name": "write_file",
             "parameters": {
               "type": "object",
-              "required": [
-                "path",
-                "content"
-              ],
+              "required": ["path", "content"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -104,11 +93,7 @@
                   "description": "The content to write to the file."
                 },
                 "encoding": {
-                  "enum": [
-                    "utf-8",
-                    "ascii",
-                    "latin1"
-                  ],
+                  "enum": ["utf-8", "ascii", "latin1"],
                   "type": "string",
                   "description": "Text encoding. Default: utf-8"
                 },
@@ -127,9 +112,7 @@
             "name": "windows_shell",
             "parameters": {
               "type": "object",
-              "required": [
-                "command"
-              ],
+              "required": ["command"],
               "properties": {
                 "command": {
                   "type": "string",
@@ -150,9 +133,7 @@
             "name": "unix_shell",
             "parameters": {
               "type": "object",
-              "required": [
-                "command"
-              ],
+              "required": ["command"],
               "properties": {
                 "command": {
                   "type": "string",
@@ -173,9 +154,7 @@
             "name": "read_word",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",
@@ -192,9 +171,7 @@
             "name": "read_excel",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",
@@ -215,9 +192,7 @@
             "name": "read_pdf",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",
@@ -245,9 +220,7 @@
             "name": "read_folder",
             "parameters": {
               "type": "object",
-              "required": [
-                "path"
-              ],
+              "required": ["path"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -283,16 +256,10 @@
             "name": "read_file",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "encoding": {
-                  "enum": [
-                    "utf-8",
-                    "ascii",
-                    "latin1"
-                  ],
+                  "enum": ["utf-8", "ascii", "latin1"],
                   "type": "string",
                   "description": "Text encoding. Default: utf-8"
                 },
@@ -319,10 +286,7 @@
             "name": "write_file",
             "parameters": {
               "type": "object",
-              "required": [
-                "path",
-                "content"
-              ],
+              "required": ["path", "content"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -333,11 +297,7 @@
                   "description": "The content to write to the file."
                 },
                 "encoding": {
-                  "enum": [
-                    "utf-8",
-                    "ascii",
-                    "latin1"
-                  ],
+                  "enum": ["utf-8", "ascii", "latin1"],
                   "type": "string",
                   "description": "Text encoding. Default: utf-8"
                 },
@@ -356,9 +316,7 @@
             "name": "windows_shell",
             "parameters": {
               "type": "object",
-              "required": [
-                "command"
-              ],
+              "required": ["command"],
               "properties": {
                 "command": {
                   "type": "string",
@@ -379,9 +337,7 @@
             "name": "unix_shell",
             "parameters": {
               "type": "object",
-              "required": [
-                "command"
-              ],
+              "required": ["command"],
               "properties": {
                 "command": {
                   "type": "string",
@@ -402,9 +358,7 @@
             "name": "read_word",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",
@@ -421,9 +375,7 @@
             "name": "read_excel",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",
@@ -444,9 +396,7 @@
             "name": "read_pdf",
             "parameters": {
               "type": "object",
-              "required": [
-                "file_path"
-              ],
+              "required": ["file_path"],
               "properties": {
                 "file_path": {
                   "type": "string",

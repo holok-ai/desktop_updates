@@ -5,6 +5,12 @@ import type { ToolDefinition } from './services/tool-calling/tool-types.js';
 import type { AppThemeMode, GUID } from '$lib/types/app.type.js';
 import type { Message } from '$lib/types/thread.type.js';
 import type { Attachment, FileValidationResult } from '../src-shared/types/attachment.types.js';
+import type {
+  Artifact,
+  ArtifactVersion,
+  DiffResult,
+  DiffChange,
+} from '../src-shared/types/artifact.types.js';
 import type { BackgroundChatRequest } from '../src-shared/types/observer.types.js';
 import type { Project, ProjectPrivacyMode, UserSummaryDTO } from '$lib/types/project.type.js';
 
@@ -21,12 +27,26 @@ import type {
   RequestOptionsDTO,
 } from './services/mokuapi/thread.types.js';
 import type { ApiResponse } from './types/api-response.js';
+import type {
+  InterfaceStatus,
+  InterfaceName,
+  InterfaceStatusSnapshot,
+  InterfaceStatusChangeEvent,
+  AllInterfaceStatuses,
+} from './types/reliability.types.js';
 
 // Re-export types for use by other modules
 export type { Thread, CreateThreadRequest, JsonValue, JsonObject, JsonArray, JsonPrimitive };
 export type { ApiResponse };
 export type { MessageDTO, RequestOptionsDTO };
 export type { ToolDefinition };
+export type {
+  InterfaceStatus,
+  InterfaceName,
+  InterfaceStatusSnapshot,
+  InterfaceStatusChangeEvent,
+  AllInterfaceStatuses,
+};
 
 /**
  * Preload Script with Context Bridge
@@ -277,6 +297,10 @@ export interface AppSettings {
   config_windowsCommands: string;
   config_unixCommands: string;
   static_toolList?: ToolDefinition[];
+  /** Artifact Editing: behavior for unresolved changes (default: 'ask') */
+  unresolvedChangesBehavior?: 'include' | 'remove' | 'ask';
+  /** Artifact Editing: maximum editable document size in bytes (default: 2MB) */
+  maxDocumentSizeBytes?: number;
 }
 
 /**
@@ -489,6 +513,111 @@ export interface FileAPI {
 }
 
 /**
+ * Artifact API
+ *
+ * Document editing / artifact versioning operations.
+ */
+export interface ArtifactAPI {
+  // Activate document mode on an attachment
+  activate: (payload: {
+    threadId: string;
+    fileId: string;
+    filename: string;
+    mimeType: string;
+    maxSizeBytes?: number;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
+  // Initialize a blank artifact for Composer mode (no file buffer needed)
+  initialize: (payload: {
+    threadId: string;
+    filename: string;
+    content: string;
+    changeSummary?: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
+  // Get the artifact for a thread
+  get: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact | null; error?: string }>;
+
+  // Add a version (user or AI attributed)
+  addUserVersion: (payload: {
+    threadId: string;
+    content: string;
+    sourceAction: string;
+    attribution?: string;
+    changeSummary?: string;
+    title?: string;
+  }) => Promise<{ success: boolean; version?: ArtifactVersion | null; error?: string }>;
+
+  // Add an AI-attributed version from structured diff output
+  addAiVersion: (payload: {
+    threadId: string;
+    diff: string;
+    summary: string;
+  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+
+  // Compute diff between two versions
+  computeDiff: (payload: {
+    threadId: string;
+    baseVersionId: number;
+    targetVersionId: number;
+  }) => Promise<{ success: boolean; diff?: DiffResult; error?: string }>;
+
+  // Discard the most recent version
+  discardVersion: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; artifact?: Artifact; error?: string }>;
+
+  // Apply accept/reject resolutions and create a new version
+  applyAcceptReject: (payload: {
+    threadId: string;
+    baseVersionId: number;
+    targetVersionId: number;
+    resolvedChanges: DiffChange[];
+    sourceAction: 'accept_change' | 'reject_change';
+  }) => Promise<{ success: boolean; version?: ArtifactVersion; error?: string }>;
+
+  // Get prompt augmentation text for document mode
+  getPromptAugmentation: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; augmentation?: string; error?: string }>;
+
+  // Parse an AI response for structured diff output
+  parseAiResponse: (payload: { responseContent: string }) => Promise<{
+    success: boolean;
+    parsed?: { diff: string; summary: string } | null;
+    error?: string;
+  }>;
+
+  // Export document content
+  export: (payload: {
+    threadId: string;
+    withMarkup: boolean;
+    baseVersionId?: number;
+    targetVersionId?: number;
+  }) => Promise<{ success: boolean; content?: string; error?: string }>;
+
+  // Export full change history
+  exportFullHistory: (payload: {
+    threadId: string;
+  }) => Promise<{ success: boolean; content?: string; error?: string }>;
+}
+
+/**
+ * Reliability API
+ *
+ * Interface reliability and status monitoring.
+ */
+export interface ReliabilityAPI {
+  getAllStatuses: () => Promise<AllInterfaceStatuses>;
+  getStatus: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  healthcheck: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  reset: (name: InterfaceName) => Promise<InterfaceStatusSnapshot>;
+  onStatusChange: (callback: (event: InterfaceStatusChangeEvent) => void) => () => void;
+}
+
+/**
  * Complete Electron API exposed to renderer
  */
 export interface ElectronAPI {
@@ -501,7 +630,9 @@ export interface ElectronAPI {
   system: SystemAPI;
   log: LogAPI;
   file: FileAPI;
+  artifact: ArtifactAPI;
   updater: UpdaterAPI;
+  reliability: ReliabilityAPI;
   // Menu event listeners
   onMenuCommand: (channel: string, callback: () => void) => () => void;
 }
@@ -861,6 +992,71 @@ contextBridge.exposeInMainWorld('electronAPI', {
   } as FileAPI,
 
   /**
+   * Artifact API Implementation
+   * Handles document editing, versioning, and diffing
+   */
+  artifact: {
+    activate: (payload: {
+      threadId: string;
+      fileId: string;
+      filename: string;
+      mimeType: string;
+      maxSizeBytes?: number;
+    }) => ipcRenderer.invoke('artifact:activate', payload),
+
+    initialize: (payload: {
+      threadId: string;
+      filename: string;
+      content: string;
+      changeSummary?: string;
+    }) => ipcRenderer.invoke('artifact:initialize', payload),
+
+    get: (payload: { threadId: string }) => ipcRenderer.invoke('artifact:get', payload),
+
+    addUserVersion: (payload: {
+      threadId: string;
+      content: string;
+      sourceAction: string;
+      attribution?: string;
+      changeSummary?: string;
+      title?: string;
+    }) => ipcRenderer.invoke('artifact:addUserVersion', payload),
+
+    addAiVersion: (payload: { threadId: string; diff: string; summary: string }) =>
+      ipcRenderer.invoke('artifact:addAiVersion', payload),
+
+    computeDiff: (payload: { threadId: string; baseVersionId: number; targetVersionId: number }) =>
+      ipcRenderer.invoke('artifact:computeDiff', payload),
+
+    discardVersion: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:discardVersion', payload),
+
+    applyAcceptReject: (payload: {
+      threadId: string;
+      baseVersionId: number;
+      targetVersionId: number;
+      resolvedChanges: DiffChange[];
+      sourceAction: 'accept_change' | 'reject_change';
+    }) => ipcRenderer.invoke('artifact:applyAcceptReject', payload),
+
+    getPromptAugmentation: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:getPromptAugmentation', payload),
+
+    parseAiResponse: (payload: { responseContent: string }) =>
+      ipcRenderer.invoke('artifact:parseAiResponse', payload),
+
+    export: (payload: {
+      threadId: string;
+      withMarkup: boolean;
+      baseVersionId?: number;
+      targetVersionId?: number;
+    }) => ipcRenderer.invoke('artifact:export', payload),
+
+    exportFullHistory: (payload: { threadId: string }) =>
+      ipcRenderer.invoke('artifact:exportFullHistory', payload),
+  } as ArtifactAPI,
+
+  /**
    * Project API Implementation
    */
   project: {
@@ -962,6 +1158,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     getLastCheckResult: () => ipcRenderer.invoke('updater:getLastCheckResult'),
   } as UpdaterAPI,
+
+  /**
+   * Reliability API Implementation
+   */
+  reliability: {
+    getAllStatuses: () => ipcRenderer.invoke('reliability:getAllStatuses'),
+    getStatus: (name: InterfaceName) => ipcRenderer.invoke('reliability:getStatus', name),
+    healthcheck: (name: InterfaceName) => ipcRenderer.invoke('reliability:healthcheck', name),
+    reset: (name: InterfaceName) => ipcRenderer.invoke('reliability:reset', name),
+    onStatusChange: (callback: (event: InterfaceStatusChangeEvent) => void): (() => void) => {
+      const subscription = (_event: IpcRendererEvent, event: InterfaceStatusChangeEvent): void =>
+        callback(event);
+      ipcRenderer.on('reliability:statusChanged', subscription);
+
+      return (): void => {
+        ipcRenderer.removeListener('reliability:statusChanged', subscription);
+      };
+    },
+  } as ReliabilityAPI,
 
   /**
    * Menu Command Listener

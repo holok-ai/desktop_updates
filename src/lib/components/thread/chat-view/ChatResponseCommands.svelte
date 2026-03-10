@@ -58,7 +58,8 @@
     justify-content: flex-end;
   }
 
-  .commands-row.visible {
+  .commands-row.visible,
+  .commands-row:focus-within {
     opacity: 1;
   }
 

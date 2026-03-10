@@ -6,6 +6,7 @@
   import ChatRequestInformation from './ChatRequestInformation.svelte';
   import RedactedText from './RedactedText.svelte';
   import type { ChatLayout } from '$lib/types/app.type';
+  import type { AttachmentDisplay } from '$lib/types/artifact-display.type';
 
   interface Props {
     content: string;
@@ -13,8 +14,8 @@
     modelId?: string | null;
     userName?: string;
     chatLayout: ChatLayout;
-    /** Attachment filenames (display only for now) */
-    attachments?: string[];
+    /** Attachment data with Document Mode eligibility */
+    attachments?: AttachmentDisplay[];
     /** Font size in pixels from settings */
     fontSize?: number;
     /** Current branch ID for this request */
@@ -23,6 +24,8 @@
     guardStatus?: 'none' | 'pass' | 'fail' | 'fail-context';
     /** Guard error reason when guardStatus is 'fail' or 'fail-context' */
     guardError?: string;
+    /** Callback when Document Mode badge is clicked */
+    onActivateDocumentMode?: (attachment: AttachmentDisplay) => void;
   }
 
   let {
@@ -36,6 +39,7 @@
     branchId: _branchId,
     guardStatus = 'none',
     guardError = '',
+    onActivateDocumentMode,
   }: Props = $props();
 
   let alignClass = $derived.by(() => {
@@ -60,11 +64,21 @@
 
     {#if attachments.length > 0}
       <div class="attachments" role="list" aria-label="Attachments">
-        {#each attachments as fname}
+        {#each attachments as att}
           <span class="attachment-chip" role="listitem">
             <i class="pi pi-paperclip"></i>
-            {fname}
+            {att.filename}
           </span>
+          {#if att.isDocumentEligible}
+            <button
+              class="doc-mode-badge"
+              title="Activate Document Mode"
+              onclick={() => onActivateDocumentMode?.(att)}
+            >
+              <i class="pi pi-pencil"></i>
+              <span>Document Mode</span>
+            </button>
+          {/if}
         {/each}
       </div>
     {/if}
@@ -133,6 +147,28 @@
 
   .attachment-chip i {
     font-size: 0.7rem;
+  }
+
+  .doc-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+    background: color-mix(in srgb, var(--primary-color, #646cff) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-color, #646cff) 25%, transparent);
+    border-radius: 6px;
+    color: var(--primary-color, #646cff);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .doc-mode-badge:hover {
+    background: color-mix(in srgb, var(--primary-color, #646cff) 20%, transparent);
+  }
+
+  .doc-mode-badge i {
+    font-size: 0.6rem;
   }
 
   .request-meta {

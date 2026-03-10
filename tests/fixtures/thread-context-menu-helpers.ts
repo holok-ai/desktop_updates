@@ -26,6 +26,26 @@ export async function openFirstThreadContextMenu(page: Page) {
 }
 
 /**
+ * Open the context menu on the thread with the given id.
+ * Use this to target a specific thread (e.g. one created during the test) so
+ * cleanup does not affect other threads.
+ */
+export async function openThreadContextMenuByThreadId(page: Page, threadId: string) {
+  const item = page.locator(`.thread-item-container[data-thread-id="${threadId}"]`);
+  await expect(item).toBeVisible({ timeout: 10000 });
+  await item.hover();
+
+  const menuTrigger = item.locator('.menu-trigger');
+  await expect(menuTrigger).toBeVisible({ timeout: 5000 });
+  await menuTrigger.click();
+
+  const contextMenu = page.locator('.context-menu[role="menu"]');
+  await expect(contextMenu).toBeVisible({ timeout: 5000 });
+
+  return item;
+}
+
+/**
  * Close any open context menu by clicking on the page body.
  */
 export async function closeContextMenu(page: Page) {
@@ -104,14 +124,22 @@ export async function navigateToThreads(page: Page) {
 
 /**
  * Create a thread via the UI by clicking an application card.
- * Clicks "+ New Thread", waits for application cards, and clicks the first one.
+ * Clicks "+ New Thread", waits for application cards and for the app to be ready
+ * (models loaded), then clicks the first card and waits for navigation to thread view.
  */
 export async function createThreadViaUI(page: Page) {
   await page.locator('button[aria-label="+ New Thread"]').click();
 
   const cards = page.locator('.application-card');
   await expect(cards.first()).toBeVisible({ timeout: 15000 });
-  await cards.first().click();
+  // Wait for loading to finish and allow models to be resolved (card click needs app.models?.[0])
+  await page
+    .locator('.loading-state')
+    .waitFor({ state: 'hidden', timeout: 20000 })
+    .catch(() => {});
+  await page.waitForLoadState('networkidle').catch(() => {});
 
+  const card = cards.first();
+  await card.click();
   await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
 }

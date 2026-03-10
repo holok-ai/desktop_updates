@@ -136,7 +136,7 @@
   {/if}
 
   <div class="page-header">
-    <h2>Let's chat</h2>
+    <h2>Create a Thread</h2>
   </div>
 
   <div class="applications-container">
@@ -224,8 +224,8 @@
   }
 
   .page-header {
-    padding: 2rem 2rem 1rem;
-    border-bottom: 1px solid var(--surface-border);
+    padding: 1rem 2rem 0;
+    margin-bottom: 2rem;
   }
 
   .page-header h2 {
@@ -238,7 +238,7 @@
   .applications-container {
     flex: 1;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 0 2rem 2rem;
   }
 
   .loading-state,

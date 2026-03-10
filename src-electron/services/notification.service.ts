@@ -1,6 +1,7 @@
 import log from 'electron-log';
 import { getSettingsService } from '../ipc-handlers/settings-handler.js';
 import { getAuthService } from '../ipc-handlers/auth-handler.js';
+import { interfaceStatusRegistry } from './reliability/interface-status-registry.js';
 
 export type NotificationSeverity = 'info' | 'warn' | 'error';
 
@@ -98,7 +99,7 @@ export class NotificationService {
   }
 
   private shouldListen(): boolean {
-    return Boolean(this.context.threadId);
+    return true; //|| Boolean(this.context.threadId);
   }
 
   private getHoloApiUrl(): string {
@@ -187,11 +188,13 @@ export class NotificationService {
         status: response.status,
         contentType: response.headers.get('content-type'),
       });
+      this.recordReliability(true);
 
       await this.readEventStream(response.body);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error('[NotificationService] SSE stream error', { message });
+      this.recordReliability(false, message);
     } finally {
       this.connected = false;
       this.connecting = false;
@@ -216,7 +219,7 @@ export class NotificationService {
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      log.info('[NotificationService] raw chunk received', {
+      log.debug('[NotificationService] raw chunk received', {
         length: chunk.length,
         preview: chunk.slice(0, 200),
       });
@@ -250,6 +253,13 @@ export class NotificationService {
   }
 
   private handleSseBlock(raw: string): void {
+    // Any non-empty SSE block (including ping/heartbeat comment lines) proves
+    // the channel is alive. Record BEFORE the shouldListen() gate so pings are
+    // counted even when the active thread has just been cleared.
+    if (raw.trim()) {
+      this.recordReliability(true);
+    }
+
     if (!this.shouldListen()) {
       return;
     }
@@ -356,6 +366,25 @@ export class NotificationService {
           error: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+  }
+  // ---------------------------------------------------------------------------
+  // Reliability recording
+  // ---------------------------------------------------------------------------
+
+  private recordReliability(success: boolean, errorMessage?: string): void {
+    try {
+      if (!interfaceStatusRegistry.hasMonitor('holo-notifications')) {
+        return;
+      }
+      const monitor = interfaceStatusRegistry.getMonitor('holo-notifications');
+      if (success) {
+        monitor.recordSuccess();
+      } else {
+        monitor.recordError(-1, errorMessage || 'SSE connection error');
+      }
+    } catch {
+      // Registry not ready yet; ignore
     }
   }
 }

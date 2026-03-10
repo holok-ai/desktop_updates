@@ -5,6 +5,7 @@
 
 import type { UserSummaryDTO, UserSearchParams as _UserSearchParams } from './user.types.js';
 import type { PagedResponse } from './paging.types.js';
+import { mokuFetch } from '../reliability/moku-fetch.js';
 
 // Import dependencies directly (singleton pattern ensures single instance)
 import { getAuthService } from '../../ipc-handlers/auth-handler.js';
@@ -86,7 +87,7 @@ class UserApiService {
 
     url.search = params.toString();
 
-    const response = await fetch(url.toString(), {
+    const response = await mokuFetch(url.toString(), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
