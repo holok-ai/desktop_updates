@@ -17,6 +17,7 @@ interface FavoriteStore {
   removeFavorite: (id: string) => void;
   toggleFavorite: (id: string, type: FavoriteType, title: string, route: string) => void;
   isFavorite: (id: string) => boolean;
+  clearFavorites: () => void;
 }
 
 function createFavoriteStore(): FavoriteStore {
@@ -60,6 +61,10 @@ function createFavoriteStore(): FavoriteStore {
     },
 
     isFavorite: (id: string): boolean => get({ subscribe }).some((e) => e.id === id),
+    clearFavorites: (): void => {
+      persist([]);
+      update(() => []);
+    },
   };
 }
 

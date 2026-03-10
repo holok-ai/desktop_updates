@@ -19,6 +19,7 @@
   import { currentUser, isAuthenticated, authStore } from '$lib/stores/auth.store';
   import { toastStore } from '$lib/services/toast.service';
   import { sidebarCollapsed } from '$lib/stores/sidebar.store';
+  import { resetRendererSessionState } from '$lib/services/session-reset.service';
 
   const modeStore = writable<AppThemeMode>(APP_THEME_MODE.LIGHT);
   const dispatch = createEventDispatcher();
@@ -196,13 +197,14 @@
     isSettingsMenuOpen = false;
     try {
       await window.electronAPI.auth.logout();
-      authStore.logout();
       if (userName) {
         toastStore.show(`${userName} has been logged out.`, { variant: 'success' });
       }
     } catch (error) {
       console.error('[ActivitySidebar] Logout failed:', error);
     } finally {
+      resetRendererSessionState();
+      authStore.logout();
       void push(ROUTE.LOGIN);
     }
   }

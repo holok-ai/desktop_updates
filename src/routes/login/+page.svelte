@@ -5,6 +5,7 @@
   import { toastStore } from '../../lib/services/toast.service';
   import { ROUTE } from '../../lib/constants/route.constant';
   import { STARTING_PAGE } from '../../lib/constants/app.constant';
+  import { resetRendererSessionState } from '../../lib/services/session-reset.service';
 
   type AuthErrorPayload = { error?: string; description?: string; message?: string };
 
@@ -24,6 +25,7 @@
 
     const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
       window.electronAPI.log.info('[Login] Auth callback success received', data);
+      resetRendererSessionState();
       authStore.setAuthState({
         isAuthenticated: data.isAuthenticated,
         user: data.user,

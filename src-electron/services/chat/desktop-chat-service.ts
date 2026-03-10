@@ -27,7 +27,12 @@ export class DesktopChatService {
   private model: string;
   private threadContext: ToolExecutionContext;
 
-  constructor(providerType: string, config: ProviderConfig, workingDirectory?: string) {
+  constructor(
+    providerType: string,
+    config: ProviderConfig,
+    workingDirectory?: string,
+    excludeTools?: boolean,
+  ) {
     this.providerType = providerType;
     this.model = config.model;
 
@@ -45,10 +50,12 @@ export class DesktopChatService {
       model: config.model,
       urL: config.url,
       workingDirectory: this.threadContext.workingDirectory,
+      excludeTools: !!excludeTools,
     });
 
     // Check if this provider/model combination supports tool calling
-    const canUseTools = this.toolOrchestra.supportsToolCalling(providerType, config.model);
+    const canUseTools =
+      !excludeTools && this.toolOrchestra.supportsToolCalling(providerType, config.model);
     log.info('[DesktopChatService] Tool calling support:', {
       provider: providerType,
       model: config.model,

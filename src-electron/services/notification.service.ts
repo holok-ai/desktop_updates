@@ -77,6 +77,7 @@ export class NotificationService {
    * Update thread/project context. When not shared or no thread, connection is stopped.
    */
   public setActiveThread(threadId: string | null, isSharedProject: boolean): void {
+    const prevThreadId = this.context.threadId;
     this.context = {
       threadId: threadId || undefined,
       isSharedProject,
@@ -85,6 +86,16 @@ export class NotificationService {
     if (!this.shouldListen()) {
       this.stop();
       return;
+    }
+
+    // When the threadId changes, tear down the existing connection so we
+    // reconnect with the correct ?threadId= query parameter.
+    if (
+      prevThreadId &&
+      prevThreadId !== this.context.threadId &&
+      (this.connected || this.connecting)
+    ) {
+      this.stop();
     }
 
     void this.ensureConnection();

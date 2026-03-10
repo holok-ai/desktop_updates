@@ -40,6 +40,15 @@ export class ProjectRepository {
   private readonly CACHE_TTL = 60000; // 1 minute cache TTL
 
   /**
+   * Clear in-memory project cache.
+   * Called on logout to prevent cross-user state leakage.
+   */
+  public clearCache(): void {
+    this.projectsById.clear();
+    this.lastLoadTime = 0;
+  }
+
+  /**
    * Load all projects from API
    * Returns cached results if they are fresh enough
    */

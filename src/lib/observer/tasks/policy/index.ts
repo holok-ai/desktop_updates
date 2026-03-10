@@ -6,3 +6,4 @@ export * from './DropRedundantMessages';
 export * from './CompressLongResponses';
 export * from './SummarizeOldTurns';
 export * from './AggressiveDropOldest';
+export * from './FailureModeSummarize';

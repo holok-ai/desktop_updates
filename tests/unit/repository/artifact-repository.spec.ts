@@ -23,6 +23,11 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => ctx.testDir),
   },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => false),
+    encryptString: vi.fn((data: string) => Buffer.from(data, 'utf-8')),
+    decryptString: vi.fn((buffer: Buffer) => buffer.toString('utf-8')),
+  },
 }));
 
 // ── Import after mocks ─────────────────────────────────────────────

@@ -38,6 +38,17 @@ export class ModelRepository {
   }
 
   /**
+   * Clear in-memory model/application cache.
+   * Called on logout to prevent cross-user state leakage.
+   */
+  public clearCache(): void {
+    this.agents.length = 0;
+    this.models.length = 0;
+    this.holoApiUrl = '';
+    this.isRefreshing = false;
+  }
+
+  /**
    * Refresh models from Moku API after authentication
    * Called automatically after successful login
    */

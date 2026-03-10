@@ -24,6 +24,8 @@ interface BreadcrumbStore {
   navigateBack: (index: number) => void;
   /** Get the current queue snapshot. */
   get: () => BreadcrumbEntry[];
+  /** Clear breadcrumb queue. */
+  clear: () => void;
 }
 
 function createBreadcrumbStore(): BreadcrumbStore {
@@ -62,6 +64,10 @@ function createBreadcrumbStore(): BreadcrumbStore {
 
     get(): BreadcrumbEntry[] {
       return get({ subscribe });
+    },
+
+    clear(): void {
+      set([]);
     },
   };
 }

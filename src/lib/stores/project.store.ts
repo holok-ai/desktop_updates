@@ -10,6 +10,7 @@ interface ProjectStore {
   updateProject: (updatedProject: Project) => void;
   deleteProject: (projectId: GUID) => void;
   loadProject: (projectId: GUID) => Promise<Project | null>;
+  clearProjects: () => void;
 }
 
 function createProjectStore(): ProjectStore {
@@ -61,6 +62,7 @@ function createProjectStore(): ProjectStore {
 
       return project;
     },
+    clearProjects: (): void => set([]),
   };
 }
 

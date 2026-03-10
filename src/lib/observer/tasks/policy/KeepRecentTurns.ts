@@ -5,15 +5,26 @@ export class KeepRecentTurns implements CompressionPolicy {
   readonly name = 'KeepRecentTurns';
   readonly priority = 0;
 
-  constructor(private recentTurnCount: number = 8) {}
+  constructor(
+    private recentTurnCount: number = 8,
+    private reducedTurnCount: number = 4,
+  ) {}
 
   shouldRun(_messages: Message[], _context: CompressionContext): boolean {
     return true;
   }
 
-  apply(messages: Message[], _context: CompressionContext): Promise<Message[]> {
+  apply(messages: Message[], context: CompressionContext): Promise<Message[]> {
     const totalTurns = Math.ceil(messages.filter((message) => message.role === 'user').length);
-    const protectFromTurn = totalTurns - this.recentTurnCount;
+
+    // If there aren't more turns than the default protected count and we're over the
+    // token limit, reduce the protected window so other policies have room to work.
+    const effectiveKeep =
+      totalTurns <= this.recentTurnCount && context.currentTokenCount > context.maxContextTokens
+        ? this.reducedTurnCount
+        : this.recentTurnCount;
+
+    const protectFromTurn = totalTurns - effectiveKeep;
 
     const updated = messages.map((message) => {
       const turnIndex = message.context?.turnIndex ?? 0;

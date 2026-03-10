@@ -24,6 +24,7 @@ const MODEL_ENTRIES: ModelEntry[] = [
   { match: 'o1-mini', maxTokens: 128_000 },
   { match: 'o1', maxTokens: 200_000 },
   { match: 'o3', maxTokens: 200_000 },
+  { match: 'gpt-5', maxTokens: 128_000 },
   { match: 'gpt-4o', maxTokens: 128_000 },
   { match: 'gpt-4-turbo', maxTokens: 128_000 },
   { match: 'gpt-4', maxTokens: 128_000 },

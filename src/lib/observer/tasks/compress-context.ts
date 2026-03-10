@@ -23,6 +23,7 @@ import {
   CompressLongResponses,
   CompressionPipeline,
   DropRedundantMessages,
+  FailureModeSummarize,
   KeepRecentTurns,
   ProtectReferencedCode,
   SummarizeOldTurns,
@@ -202,7 +203,8 @@ export const compressContextTask: ObserverTask = {
       .use(new DropRedundantMessages())
       .use(new CompressLongResponses())
       .use(new SummarizeOldTurns())
-      .use(new AggressiveDropOldest());
+      .use(new AggressiveDropOldest())
+      .use(new FailureModeSummarize());
 
     const result = await pipeline.compress(filteredMessages);
     const finalPercentOfStart =
