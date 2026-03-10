@@ -15,6 +15,8 @@ import {
   closeContextMenu,
   navigateToThreads,
 } from '../fixtures/thread-context-menu-helpers';
+import { deleteThreadsByPrefix } from '../helpers/cleanup-helpers';
+import { E2E_THREAD_PREFIX } from '../helpers/e2e-constants';
 
 let app: ElectronApplication;
 let page: Page;
@@ -61,6 +63,10 @@ test.describe.serial('Thread Favorite Toggle', () => {
   });
 
   test.afterAll(async () => {
+    if (page && !page.isClosed()) {
+      await deleteThreadsByPrefix(page, E2E_THREAD_PREFIX);
+    }
+
     await app?.close();
   });
 

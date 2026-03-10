@@ -15,18 +15,20 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
-import { createProject, deleteProject, openProject } from '../fixtures/project-helpers';
+import { createProject, openProject } from '../fixtures/project-helpers';
 import {
   getAppStateCounts,
   expectAppStateUnchanged,
   type AppStateCounts,
 } from '../fixtures/state-helpers';
+import { deleteProjectsByPrefix } from '../helpers/cleanup-helpers';
 
 let app: ElectronApplication;
 let page: Page;
 let initialCounts: AppStateCounts | null = null;
 
-const TEST_PROJECT_NAME = `E2E Instructions Project ${Date.now()}`;
+const TEST_PROJECT_NAME_PREFIX = 'E2E Instructions Project';
+const TEST_PROJECT_NAME = `${TEST_PROJECT_NAME_PREFIX} ${Date.now()}`;
 const TEST_INSTRUCTIONS = 'Always respond in a friendly tone. Use bullet points for lists.';
 
 test.describe.serial('Project Instructions', () => {
@@ -52,18 +54,15 @@ test.describe.serial('Project Instructions', () => {
   });
 
   test.afterAll(async () => {
-    // Clean up: delete the test project using shared helper (best-effort)
-    try {
-      await deleteProject(page, TEST_PROJECT_NAME);
-    } catch {
-      // Cleanup is best-effort
-    }
+    if (page && !page.isClosed()) {
+      await deleteProjectsByPrefix(page, TEST_PROJECT_NAME_PREFIX);
 
-    // Sanity check: suite creates and then deletes a project, so
-    // global counts should end where they started.
-    if (page && !page.isClosed() && initialCounts) {
-      const finalCounts = await getAppStateCounts(page);
-      expectAppStateUnchanged(initialCounts, finalCounts, 'Project Instructions suite');
+      // Sanity check: suite creates and then deletes a project, so
+      // global counts should end where they started.
+      if (initialCounts) {
+        const finalCounts = await getAppStateCounts(page);
+        expectAppStateUnchanged(initialCounts, finalCounts, 'Project Instructions suite');
+      }
     }
 
     await app?.close();

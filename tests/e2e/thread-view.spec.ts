@@ -18,6 +18,8 @@ import type { ElectronApplication, Page } from 'playwright';
 import { launchAuthenticatedApp, getFirstWindow } from '../fixtures/electron-auth';
 import { createThreadViaUI } from '../fixtures/thread-context-menu-helpers';
 import { SIMPLE_TEST_PROMPT } from '../helpers/ui-helpers';
+import { deleteThreadsByPrefix } from '../helpers/cleanup-helpers';
+import { E2E_THREAD_PREFIX, E2E_RENAMED_THREAD_TITLE_PREFIX } from '../helpers/e2e-constants';
 
 let app: ElectronApplication;
 let page: Page;
@@ -32,6 +34,11 @@ test.describe.serial('Thread View and Chat', () => {
   });
 
   test.afterAll(async () => {
+    if (page && !page.isClosed()) {
+      await deleteThreadsByPrefix(page, E2E_THREAD_PREFIX);
+      await deleteThreadsByPrefix(page, E2E_RENAMED_THREAD_TITLE_PREFIX);
+    }
+
     await app?.close();
   });
 

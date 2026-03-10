@@ -21,12 +21,14 @@ import {
   expectAppStateUnchanged,
   type AppStateCounts,
 } from '../fixtures/state-helpers';
+import { deleteProjectsByPrefix } from '../helpers/cleanup-helpers';
 
 let app: ElectronApplication;
 let page: Page;
 let initialCounts: AppStateCounts | null = null;
 
-const TEST_PROJECT_NAME = `E2E Test Project ${Date.now()}`;
+const TEST_PROJECT_NAME_PREFIX = 'E2E Test Project';
+const TEST_PROJECT_NAME = `${TEST_PROJECT_NAME_PREFIX} ${Date.now()}`;
 const RENAMED_PROJECT_NAME = `Renamed ${Date.now()}`;
 
 test.describe.serial('Project List', () => {
@@ -44,11 +46,15 @@ test.describe.serial('Project List', () => {
   });
 
   test.afterAll(async () => {
-    // Sanity check: suite creates and then deletes a project, so
-    // global thread/project counts should end where they started.
-    if (page && !page.isClosed() && initialCounts) {
-      const finalCounts = await getAppStateCounts(page);
-      expectAppStateUnchanged(initialCounts, finalCounts, 'Project List suite');
+    if (page && !page.isClosed()) {
+      await deleteProjectsByPrefix(page, TEST_PROJECT_NAME_PREFIX);
+
+      // Sanity check: suite creates and then deletes a project, so
+      // global thread/project counts should end where they started.
+      if (initialCounts) {
+        const finalCounts = await getAppStateCounts(page);
+        expectAppStateUnchanged(initialCounts, finalCounts, 'Project List suite');
+      }
     }
 
     await app?.close();

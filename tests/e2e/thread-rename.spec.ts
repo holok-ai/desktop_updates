@@ -15,7 +15,10 @@ import {
   openFirstThreadContextMenu,
   clickMenuItem,
   navigateToThreads,
+  createThreadViaUI,
 } from '../fixtures/thread-context-menu-helpers';
+import { deleteThreadsByPrefix } from '../helpers/cleanup-helpers';
+import { E2E_THREAD_PREFIX, E2E_RENAMED_THREAD_PREFIX } from '../helpers/e2e-constants';
 
 let app: ElectronApplication;
 let page: Page;
@@ -28,6 +31,10 @@ test.describe.serial('Thread Rename', () => {
     // Wait for the app shell to be fully rendered after launch
     await expect(page.locator('.app-layout')).toBeVisible({ timeout: 10000 });
 
+    await navigateToThreads(page);
+
+    // Create a dedicated test thread so we don't rename user data
+    await createThreadViaUI(page);
     await navigateToThreads(page);
 
     // Wait for thread items to appear after navigation (including workaround)
@@ -45,6 +52,11 @@ test.describe.serial('Thread Rename', () => {
   });
 
   test.afterAll(async () => {
+    if (page && !page.isClosed()) {
+      await deleteThreadsByPrefix(page, E2E_THREAD_PREFIX);
+      await deleteThreadsByPrefix(page, E2E_RENAMED_THREAD_PREFIX);
+    }
+
     await app?.close();
   });
 

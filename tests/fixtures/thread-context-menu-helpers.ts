@@ -7,6 +7,8 @@
 import { expect } from '@playwright/test';
 import type { Page } from 'playwright';
 
+import { E2E_THREAD_PREFIX } from '../helpers/e2e-constants';
+
 /**
  * Open the context menu on the first thread item in the list.
  * Returns the first `.thread-item-container` locator.
@@ -142,4 +144,40 @@ export async function createThreadViaUI(page: Page) {
   const card = cards.first();
   await card.click();
   await expect(page).toHaveURL(/threadId=/, { timeout: 30000 });
+
+  // Tag the newly created thread with a test-only prefix so it can be cleaned up via electronAPI
+  try {
+    const url = page.url();
+    const match = /threadId=([^&]+)/.exec(url);
+    const threadId = match?.[1];
+
+    if (!threadId) {
+      return;
+    }
+
+    await page.evaluate(
+      async ({ id, prefix }) => {
+        const api = (globalThis as any).electronAPI;
+        if (!api?.thread?.getById || !api?.thread?.renameThread) {
+          console.warn('[E2E][thread-tag] electronAPI.thread.{getById,renameThread} not available');
+          return;
+        }
+
+        try {
+          const result = await api.thread.getById(id);
+          const currentTitle = typeof result?.data?.title === 'string' ? result.data.title : '';
+
+          const alreadyTagged = currentTitle.startsWith(prefix);
+          const newTitle = alreadyTagged ? currentTitle : `${prefix} ${currentTitle || id}`;
+
+          await api.thread.renameThread(id, newTitle);
+        } catch (error) {
+          console.warn('[E2E][thread-tag] Failed to tag thread title with prefix', error);
+        }
+      },
+      { id: threadId, prefix: E2E_THREAD_PREFIX },
+    );
+  } catch (error) {
+    console.warn('[E2E][thread-tag] Unexpected error tagging created thread', error);
+  }
 }
