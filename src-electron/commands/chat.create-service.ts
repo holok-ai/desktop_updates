@@ -20,6 +20,7 @@ export class CreateChatServiceCommand {
     modelAccessName: string,
     accessToken: string,
     workingDirectory?: string,
+    excludeTools?: boolean,
   ): Promise<ApiResponse<DesktopChatService>> {
     // Load thread — must already exist since we're chatting on it
     const thisThread = await threadRepository.loadThread(threadId);
@@ -44,7 +45,7 @@ export class CreateChatServiceCommand {
       model: modelAccessName,
     };
 
-    const chatService = new DesktopChatService(provider, config, workingDirectory);
+    const chatService = new DesktopChatService(provider, config, workingDirectory, excludeTools);
     return apiOk(chatService);
   }
 }

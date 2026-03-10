@@ -41,6 +41,8 @@ export function registerBackgroundChatHandler(auth: AuthService): void {
           '0.0.0', // background tasks don't use real branches
           request.model ?? '',
           accessToken,
+          undefined, // workingDirectory
+          true, // excludeTools — observer tasks never use tools
         );
 
         if (!result.success) {
