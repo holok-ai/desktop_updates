@@ -95,13 +95,12 @@ export class CompressionPipeline {
   }
 
   private enrichMessages(messages: Message[]): Message[] {
-    let turnIndex = 0;
+    const ordered = this.orderMessages(messages);
+    const turnIndexById = this.buildTurnIndexMap(ordered);
 
-    return messages.map((message, index) => {
+    return ordered.map((message) => {
       const tokenCount = message.tokens ?? this.config.estimateTokens(message.content);
-      if (message.role === 'user') {
-        turnIndex = Math.floor(index / 2);
-      }
+      const turnIndex = turnIndexById.get(message.id) ?? 0;
 
       return {
         ...message,
@@ -118,6 +117,54 @@ export class CompressionPipeline {
         },
       };
     });
+  }
+
+  private orderMessages(messages: Message[]): Message[] {
+    return [...messages].sort((left, right) => {
+      const leftParts = this.parseBranchId(left.branchId);
+      const rightParts = this.parseBranchId(right.branchId);
+
+      if (leftParts.row !== rightParts.row) {
+        return leftParts.row - rightParts.row;
+      }
+      if (leftParts.lane !== rightParts.lane) {
+        return leftParts.lane - rightParts.lane;
+      }
+      if (leftParts.iteration !== rightParts.iteration) {
+        return leftParts.iteration - rightParts.iteration;
+      }
+      if (left.createdAt !== right.createdAt) {
+        return left.createdAt - right.createdAt;
+      }
+      return left.id.localeCompare(right.id);
+    });
+  }
+
+  private parseBranchId(branchId: string): { row: number; lane: number; iteration: number } {
+    const [rowRaw, laneRaw, iterationRaw] = branchId.split('.');
+    const row = Number.parseInt(rowRaw ?? '0', 10);
+    const lane = Number.parseInt(laneRaw ?? '0', 10);
+    const iteration = Number.parseInt(iterationRaw ?? '0', 10);
+
+    return {
+      row: Number.isNaN(row) ? 0 : row,
+      lane: Number.isNaN(lane) ? 0 : lane,
+      iteration: Number.isNaN(iteration) ? 0 : iteration,
+    };
+  }
+
+  private buildTurnIndexMap(messages: Message[]): Map<string, number> {
+    const turnIndexById = new Map<string, number>();
+    let currentTurn = -1;
+
+    for (const message of messages) {
+      if (message.role === 'user') {
+        currentTurn += 1;
+      }
+      turnIndexById.set(message.id, Math.max(currentTurn, 0));
+    }
+
+    return turnIndexById;
   }
 
   private buildContext(messages: Message[], traces: CompressionTrace[]): CompressionContext {

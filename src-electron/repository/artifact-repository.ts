@@ -7,7 +7,7 @@
  * In-memory cache keyed by threadId (one artifact per thread).
  */
 
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -17,6 +17,27 @@ import type {
   ArtifactVersion,
   DiscardEvent,
 } from '../../src-shared/types/artifact.types.js';
+
+// ── Encryption helpers (mirrors ProjectCacheEncryption pattern) ──
+function artifactEncryptionAvailable(): boolean {
+  return safeStorage.isEncryptionAvailable();
+}
+
+function artifactEncrypt(data: string): Buffer {
+  if (!artifactEncryptionAvailable()) {
+    log.warn('[ArtifactEncryption] Encryption not available, storing unencrypted');
+    return Buffer.from(data, 'utf-8');
+  }
+  return safeStorage.encryptString(data);
+}
+
+function artifactDecrypt(buffer: Buffer): string {
+  if (!artifactEncryptionAvailable()) {
+    log.warn('[ArtifactEncryption] Encryption not available, reading unencrypted');
+    return buffer.toString('utf-8');
+  }
+  return safeStorage.decryptString(buffer);
+}
 
 export class ArtifactRepository {
   private readonly baseStoragePath: string;
@@ -259,7 +280,9 @@ export class ArtifactRepository {
 
     const filePath = path.join(threadDir, `${artifact.id}.json`);
     try {
-      await fs.promises.writeFile(filePath, JSON.stringify(artifact, null, 2), 'utf-8');
+      const json = JSON.stringify(artifact, null, 2);
+      const data = artifactEncrypt(json);
+      await fs.promises.writeFile(filePath, data);
     } catch (error) {
       log.error('[ArtifactRepository] Failed to persist artifact', {
         artifactId: artifact.id,
@@ -280,8 +303,21 @@ export class ArtifactRepository {
 
       // One artifact per thread — take the first (and only) JSON file
       const filePath = path.join(threadDir, files[0]);
-      const data = await fs.promises.readFile(filePath, 'utf-8');
-      const artifact = JSON.parse(data) as Artifact;
+      const rawBuffer = await fs.promises.readFile(filePath);
+
+      // Try decrypting first; fall back to plain-text for pre-encryption files
+      let json: string;
+      try {
+        json = artifactDecrypt(rawBuffer);
+      } catch {
+        json = rawBuffer.toString('utf-8');
+        log.info(
+          '[ArtifactRepository] Loaded legacy unencrypted artifact, will re-encrypt on next save',
+          { threadId },
+        );
+      }
+
+      const artifact = JSON.parse(json) as Artifact;
 
       log.info('[ArtifactRepository] Loaded artifact from disk', {
         threadId,

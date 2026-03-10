@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import ElectronStore from 'electron-store';
 import log from 'electron-log';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js';
@@ -11,8 +11,29 @@ import { DEFAULT_HOLO_API_URL } from '../../src-shared/constants/api.constant.js
  * Application Settings Service
  *
  * Manages application configuration using electron-store for persistence.
- * Settings are stored in the user's app data folder and encrypted.
+ * Settings are stored in the user's app data folder and encrypted via safeStorage.
  */
+
+// ── Encryption helpers (mirrors ProjectCacheEncryption pattern) ──
+function settingsEncryptionAvailable(): boolean {
+  return safeStorage.isEncryptionAvailable();
+}
+
+function settingsEncrypt(data: string): Buffer {
+  if (!settingsEncryptionAvailable()) {
+    log.warn('[SettingsEncryption] Encryption not available, storing unencrypted');
+    return Buffer.from(data, 'utf-8');
+  }
+  return safeStorage.encryptString(data);
+}
+
+function settingsDecrypt(buffer: Buffer): string {
+  if (!settingsEncryptionAvailable()) {
+    log.warn('[SettingsEncryption] Encryption not available, reading unencrypted');
+    return buffer.toString('utf-8');
+  }
+  return safeStorage.decryptString(buffer);
+}
 
 export interface ToolDefinition {
   name: string;
@@ -136,10 +157,25 @@ export class SettingsService {
     const appDataPath = app.getPath('appData');
     const configPath = path.join(appDataPath, 'holokai', 'desktop');
 
-    // Initialize electron-store with schema and custom path
+    // Initialize electron-store with schema, custom path, and safeStorage encryption
     this.store = new ElectronStore<AppSettings>({
       cwd: configPath,
       defaults: DEFAULT_SETTINGS,
+      serialize: (value: AppSettings) =>
+        settingsEncrypt(JSON.stringify(value, null, 2)).toString('base64'),
+      deserialize: (text: string) => {
+        try {
+          const buffer = Buffer.from(text, 'base64');
+          const json = settingsDecrypt(buffer);
+          return JSON.parse(json) as AppSettings;
+        } catch {
+          // Fall back to plain JSON for pre-encryption settings files
+          log.info(
+            '[SettingsService] Loaded legacy unencrypted settings, will re-encrypt on next save',
+          );
+          return JSON.parse(text) as AppSettings;
+        }
+      },
       schema: {
         mokuWebUrl: {
           type: 'string',

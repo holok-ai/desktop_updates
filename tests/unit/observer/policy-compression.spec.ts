@@ -325,6 +325,79 @@ describe('Compression policies', () => {
     expect(traces[0]?.policy).toBe('SummarizeOldTurns');
   });
 
+  it('SummarizeOldTurns excludes trailing user-only turn from summary input', async () => {
+    const policy = new SummarizeOldTurns(4);
+    const summarizeMock = vi.fn(async (): Promise<string> => 'paired summary');
+    const { context } = makeContext({
+      currentTokenCount: 12000,
+      targetTokenCount: 6000,
+      summarize: summarizeMock,
+    });
+
+    const messages = [
+      makeMessage({
+        id: 'u1',
+        role: 'user',
+        content: 'first',
+        tokens: 120,
+        context: { turnIndex: 0, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'first response',
+        tokens: 140,
+        context: { turnIndex: 0, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'u2',
+        role: 'user',
+        content: 'second',
+        tokens: 130,
+        context: { turnIndex: 1, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'a2',
+        role: 'assistant',
+        content: 'second response',
+        tokens: 150,
+        context: { turnIndex: 1, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'u-open',
+        role: 'user',
+        content: 'open turn without response',
+        tokens: 100,
+        context: { turnIndex: 2, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'u3',
+        role: 'user',
+        content: 'protected user',
+        tokens: 110,
+        context: { turnIndex: 3, isProtected: true, hasCodeBlock: false },
+      }),
+      makeMessage({
+        id: 'a3',
+        role: 'assistant',
+        content: 'protected response',
+        tokens: 120,
+        context: { turnIndex: 3, isProtected: true, hasCodeBlock: false },
+      }),
+    ];
+
+    const updated = await policy.apply(messages, context);
+
+    expect(summarizeMock).toHaveBeenCalledTimes(1);
+    const summarizeOptions = summarizeMock.mock.calls[0]?.[1] as SummarizeOptions;
+    expect(summarizeOptions.sourceMessageIds).toEqual(['u1', 'a1', 'u2', 'a2']);
+    const summarizedIds = updated.find(
+      (message) => message.context?.compressedByPolicy === 'SummarizeOldTurns',
+    )?.context?.sourceMessageIds;
+    expect(summarizedIds).toEqual(['u1', 'a1', 'u2', 'a2']);
+    expect(updated.map((message) => message.id)).toContain('u-open');
+  });
+
   it('AggressiveDropOldest drops oldest unprotected pairs until under target', async () => {
     const policy = new AggressiveDropOldest();
     const { context } = makeContext({ currentTokenCount: 1000, targetTokenCount: 350 });
