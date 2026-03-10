@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   let { threadTitle }: { threadId: string; threadTitle: string } = $props();
 
@@ -40,6 +41,7 @@
 >
   <div
     class="dialog"
+    use:focusTrap
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
     role="dialog"

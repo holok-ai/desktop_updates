@@ -92,10 +92,11 @@ async function handleInitialize(
     threadId: string;
     filename: string;
     content: string;
+    changeSummary?: string;
   },
 ): Promise<{ success: boolean; artifact?: Artifact; error?: string }> {
   try {
-    const { threadId, filename, content } = payload;
+    const { threadId, filename, content, changeSummary } = payload;
 
     log.info('[ArtifactHandler] Initialize request', { threadId, filename });
 
@@ -108,7 +109,7 @@ async function handleInitialize(
       filename,
       'text/markdown',
       content || '',
-      'Initial document',
+      changeSummary || 'Initial document',
     );
 
     return { success: true, artifact };

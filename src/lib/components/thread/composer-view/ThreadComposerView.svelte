@@ -414,24 +414,13 @@
     promptText: string,
     attachments?: Attachment[],
   ): Promise<void> {
-    // Prompt augmentation for composer mode
+    // Prompt augmentation — always applied in composer view.
+    // The backend returns edit-mode augmentation if an artifact exists,
+    // or creation-mode augmentation if one doesn't exist yet.
     let finalPromptText = promptText;
-    const isActiveDirectCheck = artifactStore.isActive(threadId);
-    window.electronAPI.log.info('[ComposerView] Augmentation gate check', {
-      threadId,
-      artifactActive,
-      isActiveDirectCheck,
-    });
-    if (artifactActive || isActiveDirectCheck) {
-      const augResult = await artifactFrontendService.getPromptAugmentation(threadId);
-      window.electronAPI.log.info('[ComposerView] Augmentation result', {
-        success: augResult.success,
-        hasAugmentation: !!augResult.augmentation,
-        augmentationLength: augResult.augmentation?.length ?? 0,
-      });
-      if (augResult.success && augResult.augmentation) {
-        finalPromptText = `${augResult.augmentation}\n\n${promptText}`;
-      }
+    const augResult = await artifactFrontendService.getPromptAugmentation(threadId);
+    if (augResult.success && augResult.augmentation) {
+      finalPromptText = `${augResult.augmentation}\n\n${promptText}`;
     }
 
     const [success, newMessage]: [boolean, Message] = await threadService.appendPrompt(
@@ -530,19 +519,36 @@
         // Parse <composer> tags from the response
         const composerResult = parseComposerTag(finalText);
 
-        // If composer content was found, create an AI version in the artifact
+        // If composer content was found, save it as an artifact version
         let capturedVersionId: number | undefined;
-        if (artifactStore.isActive(capturedThreadId) && composerResult.composer) {
-          const versionResult = await artifactFrontendService.addUserVersion(
-            capturedThreadId,
-            composerResult.composer.content,
-            'attachment_edit',
-            'ai',
-            composerResult.composer.versionDescription,
-            composerResult.composer.title,
-          );
-          if (versionResult.success && versionResult.version) {
-            capturedVersionId = versionResult.version.id;
+        if (composerResult.composer) {
+          // Initialize artifact if one doesn't exist yet
+          if (!artifactStore.isActive(capturedThreadId)) {
+            const title = composerResult.composer.title || 'Document';
+            const initResult = await artifactFrontendService.initialize(
+              capturedThreadId,
+              title,
+              composerResult.composer.content,
+              composerResult.composer.versionDescription,
+            );
+            if (initResult.success && initResult.artifact) {
+              artifactStore.activateFromArtifact(capturedThreadId, initResult.artifact);
+              // The initial version is version 1
+              capturedVersionId = initResult.artifact.versions.length;
+            }
+          } else {
+            // Artifact exists — add a new version
+            const versionResult = await artifactFrontendService.addUserVersion(
+              capturedThreadId,
+              composerResult.composer.content,
+              'attachment_edit',
+              'ai',
+              composerResult.composer.versionDescription,
+              composerResult.composer.title,
+            );
+            if (versionResult.success && versionResult.version) {
+              capturedVersionId = versionResult.version.id;
+            }
           }
           await artifactStore.refreshArtifact(capturedThreadId);
         }
@@ -645,38 +651,6 @@
     ThreadObserver.getInstance().forceTask(ObserverTaskType.CompressContext, thread, messages);
   }
 
-  // ── Composer mode activation (create new thread + artifact) ──
-  async function handleComposerModeActivation(): Promise<void> {
-    try {
-      const currentAgentId = agentId ?? (thread?.metadata?.agentId as string | undefined) ?? '';
-      const currentProjectId = thread?.projectId ?? null;
-
-      const result = await threadService.create(
-        'New Composer Thread',
-        currentProjectId,
-        currentAgentId,
-        modelAccessName || undefined,
-      );
-      if (!result.success || !result.data) {
-        toastStore.error('Failed to create Composer thread');
-        return;
-      }
-      const newThread = result.data;
-
-      const initResult = await artifactFrontendService.initialize(newThread.id, 'Document', '');
-      if (!initResult.success || !initResult.artifact) {
-        toastStore.error('Failed to initialize Composer document');
-        return;
-      }
-
-      artifactStore.activateFromArtifact(newThread.id, initResult.artifact);
-      _onThreadCreated?.(newThread);
-    } catch (err) {
-      console.error('[ComposerView] Activation error:', err);
-      toastStore.error('Composer activation failed');
-    }
-  }
-
   // ── Version card click: navigate ComposerPane to that version ──
   function handleComposerCardClick(composer: ComposerContent): void {
     if (!threadId) return;
@@ -684,6 +658,7 @@
       threadId,
       composer.versionId,
       composer.versionDescription,
+      composer.content,
     );
     if (!version) return;
     artifactStore.showVersion(threadId, version.id);
@@ -855,8 +830,7 @@
         {applicationSlug}
         {agentId}
         modelId={modelAccessName}
-        onActivateComposerMode={handleComposerModeActivation}
-        documentModeActive={artifactActive}
+        documentModeActive={true}
       />
       <div class="context-status-row">
         <ContextStatus threadId={threadId ?? null} onCompactNow={handleCompactNow} />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { focusTrap } from '$lib/actions/focusTrap';
   import { projectService } from '$lib/services/project.service';
   import { MOKU_COLOR_PALETTE, VALID_PROJECT_ICONS } from '$lib/constants/project-validation';
   import MokuColorGrid from '$lib/components/common/MokuColorGrid.svelte';
@@ -87,6 +88,7 @@
   >
     <div
       class="dialog"
+      use:focusTrap
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
       role="dialog"

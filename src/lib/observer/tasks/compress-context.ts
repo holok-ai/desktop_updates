@@ -46,6 +46,17 @@ function totalTokens(messages: Message[]): number {
   return messages.reduce((sum, message) => sum + messageTokens(message), 0);
 }
 
+function isBlockedGuardRequest(message: Message): boolean {
+  return (
+    message.role === 'user' &&
+    (message.guardExecution === 'fail' || message.guardExecution === 'fail-context')
+  );
+}
+
+function stripBlockedGuardRequests(messages: Message[]): Message[] {
+  return messages.filter((message) => !isBlockedGuardRequest(message));
+}
+
 function logInfo(message: string, data?: unknown): void {
   window.electronAPI?.log?.info(message, data);
 }
@@ -119,6 +130,8 @@ export const compressContextTask: ObserverTask = {
   taskType: ObserverTaskType.CompressContext,
 
   shouldRun(thread: ObserverThread, messages: Message[]): boolean {
+    const filteredMessages = stripBlockedGuardRequests(messages);
+
     if (observerStore.getCurrentContext(thread.id) === undefined) {
       logInfo('[CompressContextTask] shouldRun passed', {
         threadId: thread.id,
@@ -127,7 +140,7 @@ export const compressContextTask: ObserverTask = {
       return true;
     }
 
-    const maxTokens = modelMaxForMessages(messages);
+    const maxTokens = modelMaxForMessages(filteredMessages);
     if (maxTokens === null) {
       return false;
     }
@@ -145,7 +158,7 @@ export const compressContextTask: ObserverTask = {
       return true;
     }
 
-    const hasLongMessage = isLargeUncompressedMessage(messages, maxTokens);
+    const hasLongMessage = isLargeUncompressedMessage(filteredMessages, maxTokens);
     if (hasLongMessage) {
       logInfo('[CompressContextTask] shouldRun passed', {
         threadId: thread.id,
@@ -157,15 +170,16 @@ export const compressContextTask: ObserverTask = {
   },
 
   async execute(thread: ObserverThread, messages: Message[]): Promise<void> {
-    const maxTokens = modelMaxForMessages(messages);
+    const filteredMessages = stripBlockedGuardRequests(messages);
+    const maxTokens = modelMaxForMessages(filteredMessages);
     if (maxTokens === null) {
-      observerStore.setCurrentContext(thread.id, messages);
+      observerStore.setCurrentContext(thread.id, filteredMessages);
       return;
     }
 
     const threshold = thresholdRatio();
     const target = targetTokenBudget(maxTokens, threshold);
-    const startingTokens = totalTokens(messages);
+    const startingTokens = totalTokens(filteredMessages);
 
     logInfo('[CompressContextTask] compression started', {
       threadId: thread.id,
@@ -190,7 +204,7 @@ export const compressContextTask: ObserverTask = {
       .use(new SummarizeOldTurns())
       .use(new AggressiveDropOldest());
 
-    const result = await pipeline.compress(messages);
+    const result = await pipeline.compress(filteredMessages);
     const finalPercentOfStart =
       startingTokens > 0 ? (result.afterTokens / startingTokens) * 100 : 0;
 
@@ -216,8 +230,26 @@ export const compressContextTask: ObserverTask = {
       ),
     });
 
+    const compressedModelAccessName = modelAccessName(result.messages);
+    const fallbackModelAccessName = modelAccessName(filteredMessages);
+    const effectiveModelAccessName =
+      compressedModelAccessName !== '' ? compressedModelAccessName : fallbackModelAccessName;
+    const now = Date.now();
+
     observerStore.setCurrentContext(thread.id, result.messages);
-    observerStore.setLastCompactTimestamp(thread.id, Date.now());
+    observerStore.setContextStatus(thread.id, {
+      threadId: thread.id,
+      modelAccessName: effectiveModelAccessName,
+      modelTitle: effectiveModelAccessName,
+      maximumTokenCount: maxTokens,
+      currentTokenCount: result.afterTokens,
+      compactThresholdRatio: threshold,
+      compactThresholdTokenCount: Math.floor(maxTokens * threshold),
+      percentUsed: result.afterTokens / maxTokens,
+      lastCompactTimestamp: now,
+      updatedAt: now,
+    });
+    observerStore.setLastCompactTimestamp(thread.id, now);
     observerStore.setContextSummary(thread.id, {
       compressedAt: Date.now(),
       originalTokenCount: result.beforeTokens,

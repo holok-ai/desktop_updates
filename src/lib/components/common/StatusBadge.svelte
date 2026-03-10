@@ -72,9 +72,9 @@
   });
 
   const interfaces = $derived([
-    { label: 'Moku API', snapshot: $reliabilityStore.mokuApi },
-    { label: 'Holo Chat', snapshot: $reliabilityStore.holoApi },
-    { label: 'Notifications', snapshot: $reliabilityStore.holoNotifications },
+    { label: 'Moku System API', snapshot: $reliabilityStore.mokuApi },
+    { label: 'Holo Chat API', snapshot: $reliabilityStore.holoApi },
+    { label: 'Holo Notifications', snapshot: $reliabilityStore.holoNotifications },
   ]);
 
   function statusLabel(status: InterfaceStatusSnapshot['status']): string {

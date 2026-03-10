@@ -162,11 +162,13 @@ describe('Compression policies', () => {
 
   it('CompressLongResponses compresses largest messages first', async () => {
     const summarizeOrder: string[] = [];
+    const summarizePrompts: string[] = [];
     const policy = new CompressLongResponses(100, 0.3);
     const { context, traces } = makeContext({
       currentTokenCount: 12000,
       targetTokenCount: 6000,
-      summarize: async (_prompt: string, options: SummarizeOptions): Promise<string> => {
+      summarize: async (prompt: string, options: SummarizeOptions): Promise<string> => {
+        summarizePrompts.push(prompt);
         summarizeOrder.push(options.sourceMessageIds[0] ?? '');
         return `condensed:${options.sourceMessageIds[0] ?? ''}`;
       },
@@ -189,6 +191,13 @@ describe('Compression policies', () => {
         context: { turnIndex: 1, isProtected: false, hasCodeBlock: false },
       }),
       makeMessage({
+        id: 'u-big',
+        role: 'user',
+        content: 'Please summarize this answer but keep key facts.',
+        tokens: 40,
+        context: { turnIndex: 2, isProtected: false, hasCodeBlock: false },
+      }),
+      makeMessage({
         id: 'big',
         role: 'assistant',
         content: 'b'.repeat(2000),
@@ -199,11 +208,12 @@ describe('Compression policies', () => {
 
     const updated = await policy.apply(messages, context);
 
-    expect(summarizeOrder[0]).toBe('big');
+    expect(summarizeOrder[0]).toBe('u-big');
     expect(updated.find((message) => message.id === 'big')?.context?.compressedByPolicy).toBe(
       'CompressLongResponses',
     );
     expect(traces.some((trace) => trace.sourceMessageIds.includes('big'))).toBe(true);
+    expect(summarizePrompts[0]).toContain('USER REQUEST');
   });
 
   it('CompressLongResponses still runs when under target if long message exists', async () => {

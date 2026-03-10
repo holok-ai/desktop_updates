@@ -13,6 +13,7 @@ export class CompressLongResponses implements CompressionPolicy {
   shouldRun(messages: Message[], _context: CompressionContext): boolean {
     return messages.some(
       (message) =>
+        message.role === 'assistant' &&
         message.context?.isProtected !== true &&
         message.context?.compressedByPolicy === undefined &&
         (message.tokens ?? 0) > this.maxMessageTokens,
@@ -24,6 +25,7 @@ export class CompressLongResponses implements CompressionPolicy {
       .map((message, index) => ({ message, index }))
       .filter(
         ({ message }) =>
+          message.role === 'assistant' &&
           message.context?.isProtected !== true &&
           message.context?.compressedByPolicy === undefined &&
           (message.tokens ?? 0) > this.maxMessageTokens,
@@ -39,9 +41,16 @@ export class CompressLongResponses implements CompressionPolicy {
       }
 
       const originalTokenCount = message.tokens ?? context.estimateTokens(message.content);
-      const summary = await context.summarize(this.buildPrompt(message), {
+      const pairedUser =
+        candidate.index > 0 && byIndex.get(candidate.index - 1)?.role === 'user'
+          ? byIndex.get(candidate.index - 1)
+          : undefined;
+      const sourceMessageIds =
+        pairedUser !== undefined ? [pairedUser.id, message.id] : [message.id];
+
+      const summary = await context.summarize(this.buildPrompt(message, pairedUser), {
         policy: this.name,
-        sourceMessageIds: [message.id],
+        sourceMessageIds,
         modelId: message.modelId ?? undefined,
       });
 
@@ -62,13 +71,13 @@ export class CompressLongResponses implements CompressionPolicy {
           originalTokenSize: message.context?.originalTokenSize ?? originalTokenCount,
           compressedTokenSize: newTokenCount,
           compressionTimestamp: Date.now(),
-          sourceMessageIds: [message.id],
+          sourceMessageIds,
         },
       };
       byIndex.set(candidate.index, updated);
 
       context.recordTrace({
-        sourceMessageIds: [message.id],
+        sourceMessageIds,
         content: summary,
         policy: this.name,
       });
@@ -87,14 +96,15 @@ export class CompressLongResponses implements CompressionPolicy {
       .map((entry) => entry[1]);
   }
 
-  private buildPrompt(message: Message): string {
-    const roleLabel = message.role === 'assistant' ? 'AI assistant response' : 'user message';
+  private buildPrompt(assistantMessage: Message, userMessage?: Message): string {
     const targetLength = Math.max(
       100,
-      Math.round((message.tokens ?? 500) * this.targetCompressionRatio),
+      Math.round((assistantMessage.tokens ?? 500) * this.targetCompressionRatio),
     );
+    const userSection =
+      userMessage !== undefined ? `USER REQUEST:\n${userMessage.content}\n\n` : '';
 
-    return `Summarize the following ${roleLabel} to approximately ${targetLength} tokens.
+    return `Summarize the following conversation turn to approximately ${targetLength} tokens.
 
 Preserve:
 - Decisions, conclusions, and final answers
@@ -108,7 +118,7 @@ Omit:
 - Repeated details
 - Boilerplate explanations
 
-${roleLabel.toUpperCase()} TO SUMMARIZE:
-${message.content}`;
+${userSection}ASSISTANT RESPONSE TO SUMMARIZE:
+${assistantMessage.content}`;
   }
 }

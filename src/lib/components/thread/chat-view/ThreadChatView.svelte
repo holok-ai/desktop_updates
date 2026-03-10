@@ -98,6 +98,13 @@
     return [...currentContext, ...tail];
   }
 
+  function isBlockedGuardRequest(message: Message): boolean {
+    return (
+      message.role === 'user' &&
+      (message.guardExecution === 'fail' || message.guardExecution === 'fail-context')
+    );
+  }
+
   /** Convert simplified tool uses from API-loaded messages into ToolCall objects */
   function toolCallsFromResponses(
     responses: Array<{ id: string; tools?: Array<{ name: string; status: string }> }>,
@@ -706,7 +713,9 @@
 
     // Build history from observer-owned context (fallback to raw messages during transition).
     const currentContext = observerStore.getCurrentContext(capturedThreadId);
-    const submissionContext = buildSubmissionContext(currentContext, messages);
+    const submissionContext = buildSubmissionContext(currentContext, messages).filter(
+      (message) => !isBlockedGuardRequest(message),
+    );
     const historyMessages = submissionContext.map((m) => ({
       role: m.role,
       content: m.content,

@@ -139,17 +139,19 @@ function createArtifactStore() {
       return getState().errors.get(threadId) ?? null;
     },
 
-    /** Find a version by ID, falling back to versionDescription match */
+    /** Find a version by ID, falling back to versionDescription or content match */
     getVersion(
       threadId: string,
       versionId?: number,
       versionDescription?: string,
+      content?: string,
     ): ArtifactVersion | null {
       const artifact = getState().artifacts.get(threadId);
       if (artifact === undefined) {
         return null;
       }
 
+      // 1. Exact match by version ID
       if (versionId !== undefined && versionId > 0) {
         const byId = artifact.versions.find((v) => v.id === versionId);
         if (byId !== undefined) {
@@ -157,10 +159,20 @@ function createArtifactStore() {
         }
       }
 
+      // 2. Match by versionDescription against changeSummary
       if (versionDescription !== undefined && versionDescription !== '') {
         const byDesc = artifact.versions.find((v) => v.changeSummary === versionDescription);
         if (byDesc !== undefined) {
           return byDesc;
+        }
+      }
+
+      // 3. Fallback: match by content (handles old artifacts where changeSummary
+      //    was hardcoded to 'Initial document' and versionId is unavailable)
+      if (content !== undefined && content !== '') {
+        const byContent = artifact.versions.find((v) => v.content === content);
+        if (byContent !== undefined) {
+          return byContent;
         }
       }
 
@@ -233,10 +245,10 @@ function createArtifactStore() {
             s.displayStyles.set(threadId, 'inline-markup');
           }
 
-          // Set comparison scope to last step (no diff — rendered markdown by default)
-          if (artifact.versions.length >= 2) {
+          // Set scope to latest version
+          if (artifact.versions.length >= 1) {
             const scope: ComparisonScope = {
-              baseVersionId: artifact.versions.length - 1,
+              baseVersionId: Math.max(1, artifact.versions.length - 1),
               targetVersionId: artifact.versions.length,
             };
             s.comparisonScope.set(threadId, scope);

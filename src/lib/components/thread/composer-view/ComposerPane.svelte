@@ -48,7 +48,7 @@
   });
 
   let totalVersions = $derived(artifact?.versions.length ?? 0);
-  let canGoPrev = $derived(scope != null && scope.baseVersionId > 1);
+  let canGoPrev = $derived(scope != null && scope.targetVersionId > 1);
   let canGoNext = $derived(scope != null && scope.targetVersionId < totalVersions);
 
   // Get target version content for display
@@ -105,11 +105,15 @@
   let showExportMenu = $state(false);
 
   function handlePrev(): void {
-    artifactStore.navigateVersion(threadId, 'prev');
+    if (scope && scope.targetVersionId > 1) {
+      artifactStore.showVersion(threadId, scope.targetVersionId - 1);
+    }
   }
 
   function handleNext(): void {
-    artifactStore.navigateVersion(threadId, 'next');
+    if (scope && scope.targetVersionId < totalVersions) {
+      artifactStore.showVersion(threadId, scope.targetVersionId + 1);
+    }
   }
 
   function handleAcceptAll(): void {

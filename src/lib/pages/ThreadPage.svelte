@@ -88,9 +88,7 @@
       // Load models for the specific agent (if available)
       if (agentId) {
         availableModels = await modelService.getModelsForApplication(agentId);
-        console.log('[ThreadPage] Loaded', availableModels.length, 'models for agent');
       } else {
-        console.log('[ThreadPage] No agentId - loading all models');
         availableModels = await modelService.getAvailableModels();
       }
 
@@ -158,7 +156,6 @@
     // For existing threads, models are loaded in loadThread() based on agentId
     if (!threadId) {
       try {
-        console.log('[ThreadPage] New thread - loading all models');
         availableModels = await modelService.getAvailableModels();
       } catch (e) {
         console.warn('[ThreadPage] Could not load models:', e);

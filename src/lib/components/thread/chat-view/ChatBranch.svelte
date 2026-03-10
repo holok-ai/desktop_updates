@@ -64,10 +64,6 @@
   // Track which lane is expanded (-1 means none)
   let expandedLaneIndex = $state<number>(-1);
 
-  $effect(() => {
-    console.log('[ChatBranch] Rendered with:', { branchId, laneCount: lanes.length, lanes });
-  });
-
   function handleSelectLane(laneIndex: number) {
     onSelectLane?.(laneIndex);
   }
