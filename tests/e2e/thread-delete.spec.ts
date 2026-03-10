@@ -23,6 +23,8 @@ import {
   expectAppStateUnchanged,
   type AppStateCounts,
 } from '../fixtures/state-helpers';
+import { deleteThreadsByPrefix } from '../helpers/cleanup-helpers';
+import { E2E_THREAD_PREFIX } from '../helpers/e2e-constants';
 
 let app: ElectronApplication;
 let page: Page;
@@ -97,11 +99,15 @@ test.describe.serial('Thread Delete', () => {
       // Best-effort restoration — don't fail teardown
     }
 
-    // Sanity check: suites that create + delete their own thread should
-    // leave global counts unchanged.
-    if (page && !page.isClosed() && initialCounts) {
-      const finalCounts = await getAppStateCounts(page);
-      expectAppStateUnchanged(initialCounts, finalCounts, 'Thread Delete suite');
+    if (page && !page.isClosed()) {
+      // Sanity check: suites that create + delete their own thread should
+      // leave global counts unchanged.
+      if (initialCounts) {
+        const finalCounts = await getAppStateCounts(page);
+        expectAppStateUnchanged(initialCounts, finalCounts, 'Thread Delete suite');
+      }
+
+      await deleteThreadsByPrefix(page, E2E_THREAD_PREFIX);
     }
 
     await app?.close();
