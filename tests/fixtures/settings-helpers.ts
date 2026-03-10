@@ -17,21 +17,21 @@ import type { Page } from 'playwright';
 /**
  * Navigate to the Settings page by clicking the settings UI element.
  *
- * Opens the user avatar hover menu and clicks the "Settings" menu item,
- * then waits for the settings page to be visible.
+ * Clicks the sidebar Settings button to open its context menu, then
+ * clicks the "Settings" menu item to navigate to the settings page.
  *
  * Replaces all `page.evaluate(() => { window.location.hash = '#/settings' })` calls.
  *
  * @param page - Playwright Page object
  */
 export async function navigateToSettings(page: Page): Promise<void> {
-  // Hover over the avatar to reveal the context menu
-  const avatarContainer = page.locator('.avatar-container');
-  await expect(avatarContainer).toBeVisible({ timeout: 10000 });
-  await avatarContainer.hover();
+  // Click the Settings button in the sidebar to open the context menu
+  const settingsBtn = page.locator('.settings-btn');
+  await expect(settingsBtn).toBeVisible({ timeout: 10000 });
+  await settingsBtn.click();
 
-  // Click the Settings menu item from the avatar dropdown
-  const settingsMenuItem = page.locator('.avatar-menu .menu-item', { hasText: 'Settings' });
+  // Click the Settings menu item from the context menu
+  const settingsMenuItem = page.locator('.settings-menu .menu-item', { hasText: 'Settings' });
   await expect(settingsMenuItem).toBeVisible({ timeout: 5000 });
   await settingsMenuItem.click();
 
