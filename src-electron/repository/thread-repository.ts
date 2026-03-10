@@ -65,6 +65,17 @@ export class ThreadRepository {
     return new Date(normalized).getTime();
   }
 
+  /**
+   * Clear all in-memory thread/session caches.
+   * Called on logout to prevent cross-user state leakage.
+   */
+  public clearCache(): void {
+    this.threadsById.clear();
+    this.idempotencyIndex.clear();
+    this.requestIdIndex.clear();
+    this.lastLoadedThreadId = null;
+  }
+
   public async createThread(newRequest: CreateThreadRequest): Promise<Thread> {
     log.info('[ThreadRepository] Creating thread via API:', newRequest.title);
     log.info('[ThreadRepository] Metadata being sent to API:', JSON.stringify(newRequest, null, 2));

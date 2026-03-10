@@ -2,6 +2,9 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { AuthService, AuthState } from '../services/auth.service.js';
 import { createScopedLogger } from '../utils/logger.js';
 import { interfaceStatusRegistry } from '../services/reliability/interface-status-registry.js';
+import { threadRepository } from '../repository/thread-repository.js';
+import { projectRepository } from '../repository/project-repository.js';
+import { modelRepository } from '../repository/model-repository.js';
 
 /**
  * Authentication IPC Handlers
@@ -217,6 +220,9 @@ export function registerAuthHandlers(): AuthService {
 
     try {
       authService.logout();
+      threadRepository.clearCache();
+      projectRepository.clearCache();
+      modelRepository.clearCache();
       // Reset all interface reliability monitors on logout
       interfaceStatusRegistry.resetAll();
       return Promise.resolve();

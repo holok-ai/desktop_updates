@@ -7,6 +7,7 @@ interface ThreadStore {
   addThread: (thread: Thread) => void;
   updateThread: (updatedThread: Thread) => void;
   deleteThread: (threadId: string) => void;
+  clearThreads: () => void;
 }
 
 function createThreadStore(): ThreadStore {
@@ -75,6 +76,9 @@ function createThreadStore(): ThreadStore {
     },
     deleteThread: (threadId: string): void => {
       update((threads) => threads.filter((t) => t.id !== threadId));
+    },
+    clearThreads: (): void => {
+      _set([]);
     },
   };
 }

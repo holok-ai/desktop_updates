@@ -9,6 +9,7 @@
   import { ROUTE } from '$lib/constants/route.constant';
   import { STARTING_PAGE } from '$lib/constants/app.constant';
   import { breadcrumbStore } from '$lib/stores/breadcrumb.store';
+  import { resetRendererSessionState } from '$lib/services/session-reset.service';
   import '$lib/services/menu-navigation.service';
 
   let isLoading = $state(true);
@@ -160,6 +161,7 @@
     // Listen for OAuth callback success
     const unsubscribeSuccess = window.electronAPI.auth.onAuthCallbackSuccess((data) => {
       window.electronAPI.log.info('[App] OAuth callback success received', data);
+      resetRendererSessionState();
       authStore.setAuthState({
         isAuthenticated: data.isAuthenticated,
         user: data.user,
